@@ -1,0 +1,35 @@
+package: nakama
+homepage: https://heroiclabs.com
+license: Apache2
+owners:
+- name: Chris Molozian
+  email: chris@herioclabs.com
+- name: Andrei Mihu
+  email: andrei@herioclabs.com
+- name: Mo Firouz
+  email: mo@herioclabs.com
+import:
+- package: golang.org/x/net/context
+- package: golang.org/x/crypto/bcrypt
+- package: github.com/golang/protobuf
+- package: github.com/gogo/protobuf
+  version: ~0.3.0
+- package: github.com/gorilla/websocket
+  version: ~1.0.0
+- package: github.com/gorilla/mux
+  version: ~1.1
+- package: github.com/gorilla/handlers
+  version: ~1.1
+- package: github.com/lib/pq
+- package: github.com/rubenv/sql-migrate
+- package: github.com/go-gorp/gorp/
+  version: ~2.0.0
+- package: github.com/go-yaml/yaml
+  version: v2
+- package: github.com/armon/go-metrics
+- package: github.com/uber-go/zap
+- package: github.com/uber-go/atomic
+- package: github.com/satori/go.uuid
+- package: github.com/dgrijalva/jwt-go
+  version: ~3.0.0
+- package: github.com/elazarl/go-bindata-assetfs/...

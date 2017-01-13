@@ -1,0 +1,501 @@
+// Copyright 2017 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+package server;
+
+option csharp_namespace = "Nakama";
+
+message Heartbeat {
+  int64 timestamp = 1;
+}
+
+message Error {
+  string reason = 1;
+}
+
+message AuthenticateRequest {
+  message Email {
+    string email = 1;
+    string password = 2;
+  }
+
+  message GameCenter {
+    string player_id = 1;
+    string bundle_id = 2;
+    int64 timestamp = 3;
+    string salt = 4;
+    string signature = 5;
+    string public_key_url = 6;
+  }
+
+  string collationId = 1;
+  oneof payload {
+    Email email = 2;
+    string facebook = 3;
+    string google = 4;
+    GameCenter game_center = 5;
+    string steam = 6;
+    string device = 7;
+    string custom = 8;
+  }
+}
+
+message AuthenticateResponse {
+  message Session {
+    string token = 1;
+  }
+
+  message Error {
+    string reason = 1;
+    AuthenticateRequest request = 2;
+  }
+
+  string collation_id = 1;
+  oneof payload {
+    Session session = 2;
+    Error error = 3;
+  }
+}
+
+message Envelope {
+  string collation_id = 1;
+  oneof payload {
+    Error error = 2;
+
+    Heartbeat heartbeat = 3;
+
+    TLogout logout = 4;
+    TLink link = 5;
+    TUnlink unlink = 6;
+
+    TSelfFetch self_fetch = 7;
+    TSelfUpdate self_update = 8;
+    TUsersFetch users_fetch = 9;
+    TSelf self = 10;
+    TUsers users = 11;
+
+    TFriendAdd friend_add = 12;
+    TFriendRemove friend_remove = 13;
+    TFriendBlock friend_block = 14;
+    TFriendsList friends_list = 15;
+    TFriends friends = 16;
+
+    TGroupCreate group_create = 17;
+    TGroupUpdate group_update = 18;
+    TGroupRemove group_remove = 19;
+    TGroupsFetch groups_fetch = 20;
+    TGroupsList groups_list = 21;
+    TGroupsSelfList groups_self_list = 22;
+    TGroupUsersList group_users_list = 23;
+    TGroupJoin group_join = 24;
+    TGroupLeave group_leave = 25;
+    TGroupUserAdd group_user_add = 26;
+    TGroupUserKick group_user_kick = 27;
+    TGroupUserPromote group_user_promote = 28;
+    TGroup group = 29;
+    TGroups groups = 30;
+    TGroupUsers group_users = 31;
+
+    TTopicJoin topic_join = 32;
+    TTopicLeave topic_leave = 33;
+    TTopicMessageSend topic_message_send = 34;
+    TTopicMessagesList topic_messages_list = 35;
+    TTopic topic = 36;
+    TTopicMessageAck topic_message_ack = 37;
+    TopicMessage topic_message = 38;
+    TTopicMessages topic_messages = 39;
+    TopicPresence topic_presence = 40;
+
+    TMatchCreate match_create = 41;
+    TMatchJoin match_join = 42;
+    TMatchLeave match_leave = 43;
+    TMatchDataSend match_data_send = 44;
+    TMatch match = 45;
+    TMatchUsers match_users = 46;
+    MatchData match_data = 47;
+    MatchPresence match_presence = 48;
+
+    TStorageFetch storage_fetch = 49;
+    TStorageWrite storage_write = 50;
+    TStorageRemove storage_remove = 51;
+    TStorageData storage_data = 52;
+    TStorageKey storage_key = 53;
+  }
+}
+
+message TLogout {}
+
+// Link expects same input as an authentication.
+message TLink {
+  oneof payload {
+    AuthenticateRequest.Email email = 1;
+    string facebook = 2;
+    string google = 3;
+    AuthenticateRequest.GameCenter game_center = 4;
+    string steam = 5;
+    string device = 6;
+    string custom = 7;
+  }
+}
+
+// Unlink allows direct IDs, no tokens needed.
+message TUnlink {
+  oneof payload {
+    string email = 1;
+    string facebook = 2;
+    string google = 3;
+    string game_center = 4;
+    string steam = 5;
+    string device = 6;
+    string custom = 7;
+  }
+}
+
+message User {
+  bytes id = 1;
+  string handle = 2;
+  string fullname = 3;
+  string avatar_url = 4;
+  string lang = 5;
+  string location = 6;
+  string timezone = 7;
+  bytes metadata = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  int64 last_online_at = 11;
+}
+
+message Self {
+  User user = 1;
+  bool verified = 2;
+  string email = 3;
+  repeated string device_id = 4;
+  string facebook_id = 5;
+  string google_id = 6;
+  string gamecenter_id = 7;
+  string steam_id = 8;
+  string custom_id = 9;
+}
+
+message TSelfFetch {}
+message TSelf {
+  Self self = 1;
+}
+
+message TSelfUpdate {
+  string handle = 1;
+  string fullname = 2;
+  string timezone = 3;
+  string location = 4;
+  string lang = 5;
+  bytes metadata = 6;
+  string avatar_url = 7;
+}
+
+message TUsersFetch {
+  repeated bytes user_ids = 1;
+}
+message TUsers {
+  repeated User users = 1;
+}
+
+message Friend {
+  User user = 1;
+  int64 type = 2;
+}
+
+message TFriendAdd {
+  string user_id = 1;
+}
+
+message TFriendRemove {
+  string user_id = 1;
+}
+
+message TFriendBlock {
+  string user_id = 1;
+}
+
+message TFriendsList {}
+message TFriends {
+  repeated Friend friends = 1;
+}
+
+message Group {
+  bytes id = 1;
+  bool private = 2;
+  bytes creator_id = 3;
+  string name = 4;
+  string description = 5;
+  string avatar_url = 6;
+  string lang = 7;
+  int64 utc_offset_ms = 8;
+  bytes metadata = 9;
+  int64 count = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message TGroupCreate {
+  string name = 1;
+  string description = 2;
+  string avatar_url = 3;
+  string lang = 4;
+  bytes metadata = 5;
+  bool private = 6;
+}
+message TGroup {
+  Group group = 1;
+}
+
+message TGroupUpdate {
+  bytes group_id = 1;
+  bool private = 2;
+  string name = 3;
+  string description = 4;
+  string avatar_url = 5;
+  string lang = 6;
+  bytes metadata = 7;
+}
+
+message TGroupRemove {
+  bytes group_id = 1;
+}
+
+message TGroupsSelfList {}
+message TGroupsFetch {
+  repeated bytes group_ids = 1;
+}
+message TGroupsList {
+  int64 page_limit = 1;
+  bool order_by_asc = 2;
+  oneof filter {
+    string lang = 3; // >= for lang variations
+    int64 created_at = 4; // >= after the given time
+    int64 count = 5; // up to max count, <= anything less than or equal to given count
+  }
+  bytes cursor = 7; // gob(%{struct(int64/string, int64, bytes)})
+}
+message TGroups {
+  repeated Group groups = 1;
+  bytes cursor = 2;
+}
+
+message GroupUser {
+  User user = 1;
+  int64 type = 2;
+}
+
+message TGroupUsersList {
+  bytes group_id = 1;
+}
+message TGroupUsers {
+  repeated GroupUser users = 1;
+}
+
+message TGroupJoin {
+  bytes group_id = 1;
+}
+
+message TGroupLeave {
+  bytes group_id = 1;
+}
+
+message TGroupUserAdd {
+  bytes group_id = 1;
+  bytes user_id = 2;
+}
+
+message TGroupUserKick {
+  bytes group_id = 1;
+  bytes user_id = 2;
+}
+
+message TGroupUserPromote {
+  bytes group_id = 1;
+  bytes user_id = 2;
+}
+
+message Topic {
+  oneof id {
+    bytes dm = 1;
+    bytes room = 2;
+    bytes group_id = 3;
+  }
+}
+
+message TopicUser {
+  bytes user_id = 1;
+  bytes session_id = 2;
+}
+
+message TTopicJoin {
+  oneof id {
+    bytes user_id = 1;
+    bytes room = 2;
+    bytes group_id = 3;
+  }
+}
+message TTopic {
+  Topic topic = 1;
+  repeated TopicUser users = 2;
+}
+
+message TTopicLeave {
+  Topic topic = 1;
+}
+
+message TTopicMessageSend {
+  Topic topic = 1;
+  bytes data = 2;
+}
+
+message TTopicMessageAck {
+  bytes message_id = 1;
+  int64 created_at = 2;
+  int64 expires_at = 3;
+  string handle = 4;
+}
+
+message TopicMessage {
+  Topic topic = 1;
+  bytes user_id = 2;
+  bytes message_id = 3;
+  int64 created_at = 4;
+  int64 expires_at = 5;
+  string handle = 6;
+  int64 type = 7;
+  bytes data = 8;
+}
+
+message TTopicMessagesList {
+  oneof id {
+    bytes user_id = 1;
+    bytes room = 2;
+    bytes group_id = 3;
+  }
+  bytes cursor = 4;
+  bool forward = 5;
+  int64 limit = 6;
+}
+message TTopicMessages {
+  repeated TopicMessage messages = 1;
+  bytes cursor = 2;
+}
+
+message TopicPresence {
+  Topic topic = 1;
+  repeated TopicUser joins = 2;
+  repeated TopicUser leaves = 3;
+}
+
+message TMatchCreate {}
+message TMatch {
+  bytes id = 1;
+}
+
+message MatchUser {
+  bytes user_id = 1;
+  bytes session_id = 2;
+}
+
+message TMatchJoin {
+  bytes match_id = 1;
+}
+message TMatchUsers {
+  repeated MatchUser users = 1;
+}
+
+message TMatchDataSend {
+  bytes match_id = 1;
+  int64 op_code = 2;
+  bytes data = 3;
+}
+
+message MatchData {
+  bytes match_id = 1;
+  MatchUser user = 2;
+  int64 op_code = 3;
+  bytes data = 4;
+}
+
+message TMatchLeave {
+  bytes match_id = 1;
+}
+
+message MatchPresence {
+  bytes match_id = 1;
+  repeated MatchUser joins = 2;
+  repeated MatchUser leaves = 3;
+}
+
+message TStorageFetch {
+  message StorageKey {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes user_id = 4;
+  }
+  repeated StorageKey keys = 1;
+}
+message TStorageData {
+  message StorageData {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes user_id = 4;
+    bytes value = 5;
+    bytes version = 6;
+    int64 permission_read = 7;
+    int64 permission_write = 8;
+    int64 created_at = 9;
+    int64 updated_at = 10;
+    int64 expires_at = 11;
+  }
+
+  repeated StorageData data = 1;
+}
+
+message TStorageWrite {
+  message StorageData {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes value = 4;
+    bytes version = 5; // if-match and if-none-match
+  }
+
+  repeated StorageData data = 3;
+}
+message TStorageKey {
+  message StorageKey {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes version = 4;
+  }
+
+  repeated StorageKey keys = 1;
+}
+
+message TStorageRemove {
+  message StorageKey {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes version = 4;
+  }
+  repeated StorageKey keys = 1;
+}
