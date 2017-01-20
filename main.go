@@ -49,10 +49,6 @@ var (
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 
-	memoryMetricSink := metrics.NewInmemSink(10*time.Second, time.Minute)
-	metric := &metrics.FanoutSink{memoryMetricSink}
-	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
-
 	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), zap.Output(os.Stdout))
 
 	if len(os.Args) > 1 {
@@ -69,6 +65,10 @@ func main() {
 	}
 
 	config := parseArgs(clogger)
+
+	memoryMetricSink := metrics.NewInmemSink(10*time.Second, time.Minute)
+	metric := &metrics.FanoutSink{memoryMetricSink}
+	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
 
 	logger, mlogger := configureLogger(clogger, config)
 
@@ -94,7 +94,7 @@ func main() {
 	// Always set default timeout on HTTP client
 	http.DefaultClient.Timeout = 1500 * time.Millisecond
 
-	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) > 0
+	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 
 	cookie := newOrLoadCookie(config.GetDataDir())
 	gacode := "UA-89792135-1"

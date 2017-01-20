@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users(id),
-    id VARCHAR(36) NOT NULL,
+    id VARCHAR(64) NOT NULL,
     user_id BYTES NOT NULL,
 
     INDEX user_id_idx (user_id)
