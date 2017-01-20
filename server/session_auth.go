@@ -226,8 +226,8 @@ func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) ([]byt
 		return nil, 0, "Device ID is required", 400
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		return nil, 0, "Invalid device ID, no spaces or control characters allowed", 400
-	} else if len(deviceID) < 10 || len(deviceID) > 36 {
-		return nil, 0, "Invalid device ID, must be 10-36 bytes", 400
+	} else if len(deviceID) < 10 || len(deviceID) > 64 {
+		return nil, 0, "Invalid device ID, must be 10-64 bytes", 400
 	}
 
 	var userID []byte
@@ -472,8 +472,8 @@ func (a *authenticationService) registerDevice(txn *sql.Tx, authReq *Authenticat
 		return nil, "Device ID is required", 400
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		return nil, "Invalid device ID, no spaces or control characters allowed", 400
-	} else if len(deviceID) < 10 || len(deviceID) > 36 {
-		return nil, "Invalid device ID, must be 10-36 bytes", 400
+	} else if len(deviceID) < 10 || len(deviceID) > 64 {
+		return nil, "Invalid device ID, must be 10-64 bytes", 400
 	}
 
 	updatedAt := nowMs()
