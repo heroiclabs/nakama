@@ -56,7 +56,7 @@ func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketCon
 }
 
 func (s *session) Consume(processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
-	defer s.Close()
+	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetTransport().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetTransport().PongWaitMs) * time.Millisecond))
 	s.conn.SetPongHandler(func(string) error {
@@ -135,6 +135,21 @@ func (s *session) SendBytes(payload []byte) error {
 	return s.conn.WriteMessage(websocket.BinaryMessage, payload)
 }
 
+func (s *session) cleanupClosedConnection() {
+	s.Lock()
+	if s.stopped {
+		return
+	}
+	s.stopped = true
+	s.Unlock()
+
+	s.logger.Info("Clean up closed client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+
+	s.unregister(s)
+	s.pingTicker.Stop()
+	s.conn.Close()
+}
+
 func (s *session) Close() {
 	s.Lock()
 	if s.stopped {
@@ -143,7 +158,7 @@ func (s *session) Close() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Warn("Closing client channel.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	s.logger.Info("Closing client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 
 	s.unregister(s)
 	s.pingTicker.Stop()

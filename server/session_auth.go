@@ -458,7 +458,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 		return nil, errorCouldNotRegister, 500
 	}
 
-	a.logger.Info("Registration complete", zap.String("userid", uuid.FromBytesOrNil(userID).String()))
+	a.logger.Info("Registration complete", zap.String("uid", uuid.FromBytesOrNil(userID).String()))
 	return userID, errorMessage, errorCode
 }
 

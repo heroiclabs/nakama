@@ -44,12 +44,13 @@ const (
 var (
 	version  string
 	commitID string
+	debugBuild bool = true
 )
 
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 
-	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), zap.Output(os.Stdout))
+	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler))
 
 	if len(os.Args) > 1 {
 		// TODO requires Zap to be set to Info level.
@@ -181,6 +182,14 @@ func parseArgs(clogger zap.Logger) server.Config {
 	return config
 }
 
+func zapLevelEnabler(level zap.Level) bool {
+	if !debugBuild && level == zap.DebugLevel {
+		return false
+	}
+
+	return true
+}
+
 func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.Logger) {
 	err := os.MkdirAll(filepath.FromSlash(config.GetDataDir()+"/log"), 0755)
 	if err != nil {
@@ -198,10 +207,15 @@ func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.
 		zap.NewJSONEncoder(zap.RFC3339Formatter("timestamp")),
 		zap.Output(zap.AddSync(file)),
 		zap.AddStacks(zap.ErrorLevel),
+		zap.LevelEnablerFunc(zapLevelEnabler),
 	)
 	logger = logger.With(zap.String("server", config.GetName()))
 
 	mlogger := zap.Tee(logger, clogger)
+
+	if debugBuild {
+		return mlogger, mlogger
+	}
 
 	return logger, mlogger
 }
