@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 )
@@ -341,7 +342,7 @@ func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelo
 
 	updatedAt := nowMs()
 
-	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.userID.Bytes(), friendIDBytes, updatedAt)
+	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.userID.Bytes(), friendIDBytes)
 	rowsAffected, _ := res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
 		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", session.userID.Bytes(), updatedAt)
@@ -351,7 +352,7 @@ func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelo
 		return
 	}
 
-	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendIDBytes, session.userID.Bytes(), updatedAt)
+	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendIDBytes, session.userID.Bytes())
 	rowsAffected, _ = res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
 		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", friendIDBytes, updatedAt)
@@ -389,7 +390,11 @@ func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelop
 	}
 	defer func() {
 		if err != nil {
-			logger.Error("Could not remove friend", zap.Error(err))
+			if _, ok := err.(*pq.Error); ok {
+				logger.Error("Could not block user", zap.Error(err))
+			} else {
+				logger.Warn("Could not block user", zap.Error(err))
+			}
 			err = tx.Rollback()
 			if err != nil {
 				logger.Error("Could not rollback transaction", zap.Error(err))

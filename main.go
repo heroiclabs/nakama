@@ -26,15 +26,14 @@ import (
 	"syscall"
 	"time"
 
-	"nakama/cmd"
-	"nakama/pkg/ga"
-	"nakama/server"
-
 	"github.com/armon/go-metrics"
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
+	"nakama/cmd"
+	"nakama/pkg/ga"
+	"nakama/server"
 )
 
 const (
@@ -50,7 +49,12 @@ var (
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 
-	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler))
+	options := []zap.Option{zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler)}
+	if debugBuild {
+		options = append(options, zap.AddStacks(zap.ErrorLevel))
+	}
+	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), options...)
+
 
 	if len(os.Args) > 1 {
 		// TODO requires Zap to be set to Info level.
@@ -72,6 +76,9 @@ func main() {
 	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
 
 	logger, mlogger := configureLogger(clogger, config)
+	if debugBuild {
+		logger = mlogger
+	}
 
 	// Print startup information
 	mlogger.Info("Nakama starting", zap.String("at", time.Now().UTC().Format("2006-01-02 15:04:05.000 -0700 MST")))
@@ -212,10 +219,6 @@ func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.
 	logger = logger.With(zap.String("server", config.GetName()))
 
 	mlogger := zap.Tee(logger, clogger)
-
-	if debugBuild {
-		return mlogger, mlogger
-	}
 
 	return logger, mlogger
 }
