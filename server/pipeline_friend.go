@@ -245,7 +245,7 @@ func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope)
 	}()
 
 	updatedAt := nowMs()
-	res, err := tx.Exec("UPDATE user_edge SET state = 0, updated_at = $3 WHERE source_id = $1 AND destination_id = $2 AND state = 2", addFriendRequest.UserId, session.userID.Bytes(), updatedAt)
+	res, err := tx.Exec("UPDATE user_edge SET state = 0, updated_at = $3 WHERE source_id = $1 AND destination_id = $2 AND state = 2", friendIDBytes, session.userID.Bytes(), updatedAt)
 	if err != nil {
 		return
 	}
