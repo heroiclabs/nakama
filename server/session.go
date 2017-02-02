@@ -15,13 +15,13 @@
 package server
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
-	"sync"
 )
 
 type session struct {
@@ -40,6 +40,8 @@ type session struct {
 func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("session", sessionID.String()))
+
+	sessionLogger.Info("New session connected")
 
 	return &session{
 		logger:     sessionLogger,
@@ -75,7 +77,6 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 			break
 		}
 
-		s.logger.Debug("Read message from socket", zap.Object("message", data))
 		request := &Envelope{}
 		err = proto.Unmarshal(data, request)
 		if err != nil {
@@ -146,5 +147,9 @@ func (s *session) Close() {
 
 	s.unregister(s)
 	s.pingTicker.Stop()
+	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
+	if err != nil {
+		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
+	}
 	s.conn.Close()
 }

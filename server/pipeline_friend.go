@@ -143,7 +143,7 @@ func (p *pipeline) getFriends(filterQuery string, userID []byte) ([]*Friend, err
 	query := `
 SELECT id, handle, fullname, avatar_url,
 	lang, location, timezone, metadata,
-	created_at, updated_at, last_online_at, state
+	created_at, users.updated_at, last_online_at, state
 FROM users, user_edge ` + filterQuery
 
 	rows, err := p.db.Query(query, userID)
