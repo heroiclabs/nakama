@@ -39,7 +39,7 @@ type session struct {
 // NewSession creates a new session which encapsulates a socket connection
 func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
-	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("session", sessionID.String()))
+	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New session connected")
 

@@ -15,11 +15,12 @@
 package server
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 
-	"bytes"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 )
@@ -173,15 +174,17 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 			return
 		}
 
-		version := sha256.Sum256(data.Value)
+		sha := fmt.Sprintf("%x", sha256.Sum256(data.Value))
+		version := []byte(sha)
 
 		query := ""
 		params := []interface{}{}
-		if data.Version == nil {
+
+		if len(data.Version) == 0 {
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
 SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
-WHERE NOT EXISTS (SELECT key FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and key = $4 AND deleted_at = 0 AND write = 0)
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND deleted_at = 0 AND write = 0)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $5, version = $6, updated_at = $7
 `
@@ -192,7 +195,7 @@ DO UPDATE SET value = $5, version = $6, updated_at = $7
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
 SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
-WHERE NOT EXISTS (SELECT key FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and key = $4 AND deleted_at = 0)
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND deleted_at = 0)
 `
 			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
 			errorMessage = "Could not store data. This could be caused by failure of if-none-match version check"
@@ -201,7 +204,7 @@ WHERE NOT EXISTS (SELECT key FROM storage WHERE user_id = $1 AND bucket = $2 AND
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
 SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
-WHERE EXISTS (SELECT key FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and key = $4 AND version = $8 AND deleted_at = 0 AND write = 1)
+WHERE EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND version = $8 AND deleted_at = 0 AND write = 1)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $5, version = $6, updated_at = $7
 `
