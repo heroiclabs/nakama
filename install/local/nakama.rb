@@ -16,36 +16,45 @@
 
 require "language/go"
 
-# TODO(novabyte) update this formula to support tarball builds as well
 class Nakama < Formula
   desc "Distributed server for social and realtime games and apps."
   homepage "https://heroiclabs.com"
-  url  "https://github.com/heroiclabs/nakama.git", :tag => "0.10.0"
+  url "https://github.com/heroiclabs/nakama/releases/download/v0.10.0/nakama-0.10.0-darwin-amd64.tar.gz"
+  sha256 "cd3a65eacedba9d1b14523ddf0cff44a19814fd35c8d82293ed79f9377e40240"
+  version "0.10.0"
+
   head "https://github.com/heroiclabs/nakama.git"
 
-  depends_on "glide" => :build
-  depends_on "go" => :build
-  depends_on "node" => :build
-  depends_on "protobuf" => :build
+  if build.head?
+    depends_on "glide" => :build
+    depends_on "go" => :build
+    depends_on "node" => :build
+    depends_on "protobuf" => :build
+  end
 
   def install
-    ENV["GOPATH"] = buildpath
-    ENV["GOBIN"]  = buildpath/"bin"
-    ENV["GLIDE_HOME"] = HOMEBREW_CACHE/"glide_home/#{name}"
+    if build.head?
+      ENV["GOPATH"] = buildpath
+      ENV["GOBIN"]  = buildpath/"bin"
+      ENV["GLIDE_HOME"] = HOMEBREW_CACHE/"glide_home/#{name}"
 
-    (buildpath/"src/github.com/heroiclabs/nakama").install buildpath.children
-    cd "src/github.com/heroiclabs/nakama" do
-      system "glide", "install"
-      system "make", "gettools", "nakama"
-      bin.install "build/dev/nakama" => "nakama"
+      (buildpath/"src/github.com/heroiclabs/nakama").install buildpath.children
+      cd "src/github.com/heroiclabs/nakama" do
+        system "glide", "install"
+        system "make", "gettools", "nakama"
+        bin.install "build/dev/nakama" => "nakama"
+      end
+    else
+      bin.install "nakama"
+      prefix.install "README.md", "CHANGELOG.md", "LICENSE"
     end
   end
 
   def caveats
     <<-EOS.undent
     You will need to install cockroachdb as the database.
-    Start the nakama server:
-        nakama --dsns "root@localhost:26257"
+    You can start a nakama server with:
+        nakama
     EOS
   end
 
