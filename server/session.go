@@ -15,13 +15,13 @@
 package server
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
-	"sync"
 )
 
 type session struct {
@@ -39,7 +39,9 @@ type session struct {
 // NewSession creates a new session which encapsulates a socket connection
 func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
-	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("session", sessionID.String()))
+	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
+
+	sessionLogger.Info("New session connected")
 
 	return &session{
 		logger:     sessionLogger,
@@ -54,7 +56,7 @@ func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketCon
 }
 
 func (s *session) Consume(processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
-	defer s.Close()
+	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetTransport().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetTransport().PongWaitMs) * time.Millisecond))
 	s.conn.SetPongHandler(func(string) error {
@@ -75,7 +77,6 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 			break
 		}
 
-		s.logger.Debug("Read message from socket", zap.Object("message", data))
 		request := &Envelope{}
 		err = proto.Unmarshal(data, request)
 		if err != nil {
@@ -134,6 +135,21 @@ func (s *session) SendBytes(payload []byte) error {
 	return s.conn.WriteMessage(websocket.BinaryMessage, payload)
 }
 
+func (s *session) cleanupClosedConnection() {
+	s.Lock()
+	if s.stopped {
+		return
+	}
+	s.stopped = true
+	s.Unlock()
+
+	s.logger.Info("Clean up closed client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+
+	s.unregister(s)
+	s.pingTicker.Stop()
+	s.conn.Close()
+}
+
 func (s *session) Close() {
 	s.Lock()
 	if s.stopped {
@@ -142,9 +158,13 @@ func (s *session) Close() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Warn("Closing client channel.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	s.logger.Info("Closing client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 
 	s.unregister(s)
 	s.pingTicker.Stop()
+	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
+	if err != nil {
+		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
+	}
 	s.conn.Close()
 }

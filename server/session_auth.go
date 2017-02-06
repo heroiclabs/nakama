@@ -21,10 +21,8 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
-	"time"
-
-	"nakama/pkg/social"
 	"strconv"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
@@ -33,6 +31,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
+	"nakama/pkg/social"
 )
 
 const (
@@ -60,6 +59,7 @@ type authenticationService struct {
 	hmacSecretByte []byte
 	upgrader       *websocket.Upgrader
 	socialClient   *social.Client
+	random         *rand.Rand
 }
 
 // NewAuthenticationService creates a new AuthenticationService
@@ -75,6 +75,7 @@ func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, regi
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
 		upgrader:       &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		socialClient:   s,
+		random: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	a.configure()
@@ -457,7 +458,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 		return nil, errorCouldNotRegister, 500
 	}
 
-	a.logger.Info("Registration complete")
+	a.logger.Info("Registration complete", zap.String("uid", uuid.FromBytesOrNil(userID).String()))
 	return userID, errorMessage, errorCode
 }
 
@@ -785,7 +786,7 @@ WHERE NOT EXISTS
 func (a *authenticationService) generateHandle() string {
 	b := make([]byte, 10)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[a.random.Intn(len(letters))]
 	}
 	return string(b)
 }

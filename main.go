@@ -26,15 +26,14 @@ import (
 	"syscall"
 	"time"
 
-	"nakama/cmd"
-	"nakama/pkg/ga"
-	"nakama/server"
-
 	"github.com/armon/go-metrics"
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
+	"nakama/cmd"
+	"nakama/pkg/ga"
+	"nakama/server"
 )
 
 const (
@@ -44,12 +43,18 @@ const (
 var (
 	version  string
 	commitID string
+	verboseLogging bool = true
 )
 
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 
-	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), zap.Output(os.Stdout))
+	options := []zap.Option{zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler)}
+	if verboseLogging {
+		options = append(options, zap.AddStacks(zap.ErrorLevel))
+	}
+	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), options...)
+
 
 	if len(os.Args) > 1 {
 		// TODO requires Zap to be set to Info level.
@@ -71,6 +76,9 @@ func main() {
 	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
 
 	logger, mlogger := configureLogger(clogger, config)
+	if verboseLogging {
+		logger = mlogger
+	}
 
 	// Print startup information
 	mlogger.Info("Nakama starting", zap.String("at", time.Now().UTC().Format("2006-01-02 15:04:05.000 -0700 MST")))
@@ -132,6 +140,7 @@ func parseArgs(clogger zap.Logger) server.Config {
 	config := server.NewConfig()
 
 	flags := flag.NewFlagSet("main", flag.ExitOnError)
+	flags.BoolVar(&verboseLogging, "verbose", false, "Turn verbose logging on.")
 	var filepath string
 	flags.StringVar(&filepath, "config", "", "The absolute file path to configuration YAML file.")
 	var name string
@@ -181,6 +190,10 @@ func parseArgs(clogger zap.Logger) server.Config {
 	return config
 }
 
+func zapLevelEnabler(level zap.Level) bool {
+	return !(level == zap.DebugLevel && !verboseLogging)
+}
+
 func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.Logger) {
 	err := os.MkdirAll(filepath.FromSlash(config.GetDataDir()+"/log"), 0755)
 	if err != nil {
@@ -198,12 +211,27 @@ func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.
 		zap.NewJSONEncoder(zap.RFC3339Formatter("timestamp")),
 		zap.Output(zap.AddSync(file)),
 		zap.AddStacks(zap.ErrorLevel),
+		zap.LevelEnablerFunc(zapLevelEnabler),
 	)
 	logger = logger.With(zap.String("server", config.GetName()))
 
 	mlogger := zap.Tee(logger, clogger)
 
 	return logger, mlogger
+}
+
+func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
+	// TODO config database pooling
+	db, err := sql.Open("postgres", "postgresql://"+dsns[0]+"/nakama?sslmode=disable")
+	if err != nil {
+		multiLogger.Fatal("Error connecting to database", zap.Error(err))
+	}
+	err = db.Ping()
+	if err != nil {
+		multiLogger.Fatal("Error pinging database", zap.Error(err))
+	}
+
+	return db
 }
 
 // Help improve Nakama by sending anonymous usage statistics.
@@ -237,20 +265,6 @@ func runTelemetry(logger zap.Logger, httpc *http.Client, gacode string, cookie s
 		logger.Debug("Send event failed.", zap.Error(err))
 		return
 	}
-}
-
-func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
-	// TODO config database pooling
-	db, err := sql.Open("postgres", "postgresql://"+dsns[0]+"/nakama?sslmode=disable")
-	if err != nil {
-		multiLogger.Fatal("Error connecting to database", zap.Error(err))
-	}
-	err = db.Ping()
-	if err != nil {
-		multiLogger.Fatal("Error pinging database", zap.Error(err))
-	}
-
-	return db
 }
 
 func newOrLoadCookie(datadir string) string {

@@ -16,10 +16,10 @@ package server
 
 import (
 	"database/sql"
-
-	"nakama/pkg/social"
+	"fmt"
 
 	"github.com/uber-go/zap"
+	"nakama/pkg/social"
 )
 
 type pipeline struct {
@@ -42,11 +42,11 @@ func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker
 }
 
 func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope *Envelope) {
+	logger.Debug(fmt.Sprintf("Received %T message", envelope.Payload))
+
 	switch envelope.Payload.(type) {
 	case *Envelope_Logout:
 		// TODO Store JWT into a blacklist until remaining JWT expiry.
-		logger.Info("Recieved logout message")
-		session.Send(&Envelope{CollationId: envelope.CollationId})
 		session.Close()
 
 	case *Envelope_Link:

@@ -76,7 +76,7 @@ message Envelope {
 
     Heartbeat heartbeat = 3;
 
-    TLogout logout = 4;
+    Logout logout = 4;
     TLink link = 5;
     TUnlink unlink = 6;
 
@@ -135,7 +135,7 @@ message Envelope {
   }
 }
 
-message TLogout {}
+message Logout {}
 
 // Link expects same input as an authentication.
 message TLink {
