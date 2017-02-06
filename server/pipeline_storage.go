@@ -184,7 +184,7 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
 SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
-WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND deleted_at = 0 AND write = 0)
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0 AND write = 0)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $5, version = $6, updated_at = $7
 `
@@ -195,7 +195,7 @@ DO UPDATE SET value = $5, version = $6, updated_at = $7
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
 SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
-WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND deleted_at = 0)
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0)
 `
 			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
 			errorMessage = "Could not store data. This could be caused by failure of if-none-match version check"
@@ -281,7 +281,7 @@ func (p *pipeline) storageRemove(logger zap.Logger, session *session, envelope *
 		if key.Version != nil {
 			query := `
 UPDATE storage SET deleted_at = $1, updated_at = $1
-WHERE bucket = $2 AND collection = $3 AND record = $4 AND user_id = $5 AND version = $6 deleted_at = 0 AND write = 1`
+WHERE bucket = $2 AND collection = $3 AND record = $4 AND user_id = $5 AND version = $6 AND deleted_at = 0 AND write = 1`
 			res, err = tx.Exec(query, updatedAt, key.Bucket, key.Collection, key.Record, session.userID.Bytes(), key.Version)
 		} else {
 			query := `

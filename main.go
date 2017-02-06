@@ -43,14 +43,14 @@ const (
 var (
 	version  string
 	commitID string
-	debugBuild bool = true
+	verboseLogging bool = true
 )
 
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 
 	options := []zap.Option{zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler)}
-	if debugBuild {
+	if verboseLogging {
 		options = append(options, zap.AddStacks(zap.ErrorLevel))
 	}
 	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), options...)
@@ -76,7 +76,7 @@ func main() {
 	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
 
 	logger, mlogger := configureLogger(clogger, config)
-	if debugBuild {
+	if verboseLogging {
 		logger = mlogger
 	}
 
@@ -140,6 +140,7 @@ func parseArgs(clogger zap.Logger) server.Config {
 	config := server.NewConfig()
 
 	flags := flag.NewFlagSet("main", flag.ExitOnError)
+	flags.BoolVar(&verboseLogging, "verbose", false, "Turn verbose logging on.")
 	var filepath string
 	flags.StringVar(&filepath, "config", "", "The absolute file path to configuration YAML file.")
 	var name string
@@ -190,11 +191,7 @@ func parseArgs(clogger zap.Logger) server.Config {
 }
 
 func zapLevelEnabler(level zap.Level) bool {
-	if !debugBuild && level == zap.DebugLevel {
-		return false
-	}
-
-	return true
+	return !(level == zap.DebugLevel && !verboseLogging)
 }
 
 func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.Logger) {
@@ -221,6 +218,20 @@ func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.
 	mlogger := zap.Tee(logger, clogger)
 
 	return logger, mlogger
+}
+
+func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
+	// TODO config database pooling
+	db, err := sql.Open("postgres", "postgresql://"+dsns[0]+"/nakama?sslmode=disable")
+	if err != nil {
+		multiLogger.Fatal("Error connecting to database", zap.Error(err))
+	}
+	err = db.Ping()
+	if err != nil {
+		multiLogger.Fatal("Error pinging database", zap.Error(err))
+	}
+
+	return db
 }
 
 // Help improve Nakama by sending anonymous usage statistics.
@@ -254,20 +265,6 @@ func runTelemetry(logger zap.Logger, httpc *http.Client, gacode string, cookie s
 		logger.Debug("Send event failed.", zap.Error(err))
 		return
 	}
-}
-
-func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
-	// TODO config database pooling
-	db, err := sql.Open("postgres", "postgresql://"+dsns[0]+"/nakama?sslmode=disable")
-	if err != nil {
-		multiLogger.Fatal("Error connecting to database", zap.Error(err))
-	}
-	err = db.Ping()
-	if err != nil {
-		multiLogger.Fatal("Error pinging database", zap.Error(err))
-	}
-
-	return db
 }
 
 func newOrLoadCookie(datadir string) string {
