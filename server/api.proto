@@ -217,15 +217,15 @@ message Friend {
 }
 
 message TFriendAdd {
-  string user_id = 1;
+  bytes user_id = 1;
 }
 
 message TFriendRemove {
-  string user_id = 1;
+  bytes user_id = 1;
 }
 
 message TFriendBlock {
-  string user_id = 1;
+  bytes user_id = 1;
 }
 
 message TFriendsList {}
