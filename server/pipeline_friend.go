@@ -259,7 +259,7 @@ func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope)
 
 	res, err = tx.Exec(`
 INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
-SELECT ($1, $2, $3, $4, $4)
+SELECT $1, $2, $3, $4, $4
 WHERE EXISTS (SELECT id FROM users WHERE id=$2)
 	`, session.userID.Bytes(), friendIDBytes, state, updatedAt)
 	if err != nil {
@@ -439,7 +439,7 @@ func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelop
 }
 
 func (p *pipeline) friendsList(logger zap.Logger, session *session, envelope *Envelope) {
-	friends, err := p.getFriends("WHERE id = source_id AND id = $1", session.userID.Bytes())
+	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.userID.Bytes())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not get friends"}}})

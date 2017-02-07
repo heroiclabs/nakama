@@ -191,7 +191,7 @@ func parseArgs(clogger zap.Logger) server.Config {
 }
 
 func zapLevelEnabler(level zap.Level) bool {
-	return !(level == zap.DebugLevel && !verboseLogging)
+	return verboseLogging || level > zap.DebugLevel
 }
 
 func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.Logger) {
