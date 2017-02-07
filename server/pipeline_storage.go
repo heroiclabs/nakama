@@ -26,12 +26,12 @@ import (
 )
 
 func (p *pipeline) fetchStorageData(r scanner) (*TStorageData_StorageData, error) {
-	var userID sql.RawBytes
+	var userID []byte
 	var bucket sql.NullString
 	var collection sql.NullString
 	var record sql.NullString
-	var value sql.RawBytes
-	var version sql.RawBytes
+	var value []byte
+	var version []byte
 	var read sql.NullInt64
 	var write sql.NullInt64
 	var createdAt sql.NullInt64
@@ -183,7 +183,7 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 		if len(data.Version) == 0 {
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
+SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
 WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0 AND write = 0)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $5, version = $6, updated_at = $7
@@ -194,7 +194,7 @@ DO UPDATE SET value = $5, version = $6, updated_at = $7
 			// if-none-match
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
+SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
 WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0)
 `
 			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
@@ -203,7 +203,7 @@ WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 
 			// if-match
 			query = `
 INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT ($1, $2, $3, $4, $5, $6, $7, $7, 0)
+SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
 WHERE EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND version = $8 AND deleted_at = 0 AND write = 1)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $5, version = $6, updated_at = $7
@@ -212,7 +212,7 @@ DO UPDATE SET value = $5, version = $6, updated_at = $7
 			errorMessage = "Could not store data. This could be caused by failure of if-match version check"
 		}
 
-		_, err := tx.Exec(query, params...)
+		_, err = tx.Exec(query, params...)
 		if err != nil {
 			return
 		}

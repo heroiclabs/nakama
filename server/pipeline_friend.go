@@ -197,19 +197,18 @@ FROM users, user_edge ` + filterQuery
 
 func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope) {
 	addFriendRequest := envelope.GetFriendAdd()
-	if addFriendRequest.UserId == "" {
+	if len(addFriendRequest.UserId) == 0 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "User ID must be present"}}})
 		return
 	}
 
-	logger := l.With(zap.String("friend_id", addFriendRequest.UserId))
-
-	friendID, err := uuid.FromString(addFriendRequest.UserId)
+	friendID, err := uuid.FromBytes(addFriendRequest.UserId)
 	if err != nil {
-		logger.Warn("Could not add friend", zap.Error(err))
+		l.Warn("Could not add friend", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid User ID"}}})
 		return
 	}
+	logger := l.With(zap.String("friend_id", friendID.String()))
 	friendIDBytes := friendID.Bytes()
 
 	if friendID.String() == session.userID.String() {
@@ -259,7 +258,7 @@ func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope)
 
 	res, err = tx.Exec(`
 INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
-SELECT ($1, $2, $3, $4, $4)
+SELECT $1, $2, $3, $4, $4
 WHERE EXISTS (SELECT id FROM users WHERE id=$2)
 	`, session.userID.Bytes(), friendIDBytes, state, updatedAt)
 	if err != nil {
@@ -292,19 +291,18 @@ WHERE EXISTS (SELECT id FROM users WHERE id=$2)
 
 func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelope) {
 	removeFriendRequest := envelope.GetFriendRemove()
-	if removeFriendRequest.UserId == "" {
+	if len(removeFriendRequest.UserId) == 0 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "User ID must be present"}}})
 		return
 	}
 
-	logger := l.With(zap.String("friend_id", removeFriendRequest.UserId))
-
-	friendID, err := uuid.FromString(removeFriendRequest.UserId)
+	friendID, err := uuid.FromBytes(removeFriendRequest.UserId)
 	if err != nil {
-		logger.Warn("Could not add friend", zap.Error(err))
+		l.Warn("Could not add friend", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid User ID"}}})
 		return
 	}
+	logger := l.With(zap.String("friend_id", friendID.String()))
 	friendIDBytes := friendID.Bytes()
 
 	if friendID.String() == session.userID.String() {
@@ -361,19 +359,18 @@ func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelo
 
 func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelope) {
 	blockUserRequest := envelope.GetFriendBlock()
-	if blockUserRequest.UserId == "" {
+	if len(blockUserRequest.UserId) == 0 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "User ID must be present"}}})
 		return
 	}
 
-	logger := l.With(zap.String("user_id", blockUserRequest.UserId))
-
-	userID, err := uuid.FromString(blockUserRequest.UserId)
+	userID, err := uuid.FromBytes(blockUserRequest.UserId)
 	if err != nil {
-		logger.Warn("Could not block user", zap.Error(err))
+		l.Warn("Could not block user", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid User ID"}}})
 		return
 	}
+	logger := l.With(zap.String("user_id", userID.String()))
 	userIDBytes := userID.Bytes()
 
 	if userID.String() == session.userID.String() {
@@ -439,7 +436,7 @@ func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelop
 }
 
 func (p *pipeline) friendsList(logger zap.Logger, session *session, envelope *Envelope) {
-	friends, err := p.getFriends("WHERE id = source_id AND id = $1", session.userID.Bytes())
+	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.userID.Bytes())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not get friends"}}})
