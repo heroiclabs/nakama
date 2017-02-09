@@ -18,7 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 
 - Fix issue where random handle generator wasn't seeded properly.
-- Fix issues in executing Friend and Storage queries.
+- Fix issues in executing Friend, Storage and Group queries.
 - Fix sending Close frame message in the Websocket to gracefully close connection.
 
 ## [0.10.0] - 2017-01-14

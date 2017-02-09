@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"fmt"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
@@ -119,8 +121,10 @@ func (s *session) pingNow() bool {
 	return true
 }
 
-func (s *session) Send(response proto.Message) error {
-	payload, err := proto.Marshal(response)
+func (s *session) Send(envelope *Envelope) error {
+	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("collation_id", envelope.CollationId))
+
+	payload, err := proto.Marshal(envelope)
 
 	if err != nil {
 		s.logger.Warn("Could not marshall Response to byte[]", zap.Error(err))
@@ -162,7 +166,7 @@ func (s *session) Close() {
 
 	s.unregister(s)
 	s.pingTicker.Stop()
-	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
+	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}

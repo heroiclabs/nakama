@@ -578,7 +578,7 @@ func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, t
 	var messageID []byte
 	var handle string
 	err := p.db.QueryRow(`INSERT INTO message (topic, topic_type, user_id, created_at, expires_at, handle, type, data)
-SELECT $1, $2, $3, $4, handle, $5, $6
+SELECT $1, $2, $3, $4, $5, handle, $6, $7
 FROM users
 WHERE id = $3
 RETURNING message_id, handle`, topicBytes, topicType, session.userID.Bytes(), createdAt, expiresAt, msgType, data).Scan(&messageID, &handle)
