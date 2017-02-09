@@ -151,8 +151,6 @@ CREATE INDEX IF NOT EXISTS user_id_bucket_deleted_at_idx ON storage (user_id, bu
 CREATE INDEX IF NOT EXISTS user_id_bucket_collection_deleted_at_idx ON storage (user_id, bucket, collection, deleted_at);
 
 -- +migrate Down
-SET DATABASE TO nakama;
-
 DROP TABLE IF EXISTS user_device;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_edge;

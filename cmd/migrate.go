@@ -17,6 +17,8 @@ package cmd
 import (
 	"database/sql"
 	"flag"
+	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -74,7 +76,7 @@ func MigrationStartupCheck(logger zap.Logger, db *sql.DB) {
 
 func MigrateParse(args []string, logger zap.Logger) {
 	if len(args) == 0 {
-		logger.Fatal("Migrate requires commands. Available commands: 'up', 'down', 'redo', 'status'")
+		logger.Fatal("Migrate requires a subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}
 
 	migrate.SetTable(migrationTable)
@@ -97,24 +99,47 @@ func MigrateParse(args []string, logger zap.Logger) {
 	case "status":
 		exec = ms.status
 	default:
-		logger.Fatal("Unrecognized migrate command. Available commands: 'up', 'down', 'redo', 'status'")
+		logger.Fatal("Unrecognized migrate subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}
 
 	ms.parseSubcommand(args[1:])
 
-	db, err := sql.Open(dialect, "postgresql://"+ms.DSNS+"/?sslmode=disable")
+	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", ms.DSNS)
+	url, err := url.Parse(rawurl)
 	if err != nil {
-		logger.Fatal("Error connecting to database", zap.Error(err))
+		logger.Fatal("Bad connection URL", zap.Error(err))
+	}
+
+	dbname := "nakama"
+	if len(url.Path) > 1 {
+		dbname = url.Path[1:]
+	}
+
+	url.Path = ""
+	db, err := sql.Open(dialect, url.String())
+	if err != nil {
+		logger.Fatal("Failed to open database", zap.Error(err))
+	}
+	if err = db.Ping(); err != nil {
+		logger.Fatal("Error pinging database", zap.Error(err))
+	}
+
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
+	if err != nil {
+		logger.Info("Database could not be created", zap.Error(err))
+	}
+	db.Close()
+
+	// Append dbname to data source name.
+	url.Path = fmt.Sprintf("/%s", dbname)
+	db, err = sql.Open(dialect, url.String())
+	if err != nil {
+		logger.Fatal("Failed to open database", zap.Error(err))
 	}
 	if err = db.Ping(); err != nil {
 		logger.Fatal("Error pinging database", zap.Error(err))
 	}
 	ms.db = db
-
-	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS nakama; SET DATABASE TO nakama")
-	if err != nil {
-		logger.Fatal("Error creating or selecting database", zap.Error(err))
-	}
 
 	exec()
 	os.Exit(0)
@@ -204,14 +229,14 @@ func (ms *migrationService) status() {
 
 func (ms *migrationService) parseSubcommand(args []string) {
 	flags := flag.NewFlagSet("migrate", flag.ExitOnError)
-	flags.StringVar(&ms.DSNS, "db", "root@localhost:26257", "CockroachDB JDBC connection details")
-	flags.IntVar(&ms.Limit, "limit", defaultLimit, "CockroachDB JDBC connection details")
+	flags.StringVar(&ms.DSNS, "db", "root@localhost:26257", "CockroachDB JDBC connection details.")
+	flags.IntVar(&ms.Limit, "limit", defaultLimit, "Number of migrations to apply forwards or backwards.")
 
 	if err := flags.Parse(args); err != nil {
-		ms.logger.Fatal("Could not parse migration flags")
+		ms.logger.Fatal("Could not parse migration flags.")
 	}
 
 	if ms.DSNS == "" {
-		ms.logger.Fatal("Database connection details are required")
+		ms.logger.Fatal("Database connection details are required.")
 	}
 }
