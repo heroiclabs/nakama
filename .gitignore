@@ -6,6 +6,7 @@ build/*
 data/*
 .GITHUB_TOKEN
 .idea
+install/cloud/**/*.json
 
 ### Go ###
 # Compiled Object files, Static and Dynamic libs (Shared Objects)

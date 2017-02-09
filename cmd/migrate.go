@@ -127,6 +127,8 @@ func MigrateParse(args []string, logger zap.Logger) {
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
 	if err != nil {
 		logger.Info("Database could not be created", zap.Error(err))
+	} else {
+		logger.Info("Database created", zap.String("name", dbname))
 	}
 	db.Close()
 

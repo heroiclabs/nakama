@@ -179,7 +179,7 @@ func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *En
 	r := tx.QueryRow(`
 INSERT INTO groups (id, creator_id, name, state, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
 VALUES ($1, $2, $3, $4, $5, $5, `+strings.Join(params, ",")+")"+`
-RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at, disabled_at
+RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
 `, values...)
 
 	group, err = p.extractGroup(r)
