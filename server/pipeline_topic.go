@@ -20,10 +20,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 
-	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
 	"regexp"
 	"unicode/utf8"
+
+	"github.com/satori/go.uuid"
+	"github.com/uber-go/zap"
 )
 
 type messageCursor struct {
@@ -574,14 +575,15 @@ func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, t
 		topicType = 2
 	}
 	createdAt := nowMs()
+	messageID := uuid.NewV4().Bytes()
 	var expiresAt int64
-	var messageID []byte
 	var handle string
-	err := p.db.QueryRow(`INSERT INTO message (topic, topic_type, user_id, created_at, expires_at, handle, type, data)
-SELECT $1, $2, $3, $4, $5, handle, $6, $7
+	err := p.db.QueryRow(`
+INSERT INTO message (topic, topic_type, message_id, user_id, created_at, expires_at, handle, type, data)
+SELECT $1, $2, $3, $4, $5, $6, handle, $7, $8
 FROM users
-WHERE id = $3
-RETURNING message_id, handle`, topicBytes, topicType, session.userID.Bytes(), createdAt, expiresAt, msgType, data).Scan(&messageID, &handle)
+WHERE id = $4
+RETURNING handle`, topicBytes, topicType, messageID, session.userID.Bytes(), createdAt, expiresAt, msgType, data).Scan(&handle)
 	if err != nil {
 		logger.Error("Failed to insert new message", zap.Error(err))
 		return nil, "", 0, 0, err

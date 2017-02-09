@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"time"
 
+	"nakama/pkg/social"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
@@ -31,7 +33,6 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
-	"nakama/pkg/social"
 )
 
 const (
@@ -75,7 +76,7 @@ func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, regi
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
 		upgrader:       &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		socialClient:   s,
-		random: rand.New(rand.NewSource(time.Now().UnixNano())),
+		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	a.configure()
@@ -479,17 +480,18 @@ func (a *authenticationService) registerDevice(txn *sql.Tx, authReq *Authenticat
 
 	updatedAt := nowMs()
 
-	var userID []byte
-	err := txn.QueryRow(`
-INSERT INTO users (handle, created_at, updated_at)
-SELECT $1 AS handle,
-       $3 AS created_at,
-       $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	_, err := txn.Exec(`
+INSERT INTO users (id, handle, created_at, updated_at)
+SELECT $1 AS id,
+			 $2 AS handle,
+       $4 AS created_at,
+       $4 AS updated_at
 WHERE NOT EXISTS
     (SELECT id
      FROM user_device
-     WHERE id = $2) RETURNING id`,
-		a.generateHandle(), deviceID, updatedAt).Scan(&userID)
+     WHERE id = $3)`,
+		userID, a.generateHandle(), deviceID, updatedAt)
 	if err != nil {
 		a.logger.Warn("Could not register, query error", zap.Error(err))
 		return nil, errorIDAlreadyInUse, 401

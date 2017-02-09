@@ -20,20 +20,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
+	"nakama/cmd"
+	"nakama/pkg/ga"
+	"nakama/server"
+
 	"github.com/armon/go-metrics"
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
-	"nakama/cmd"
-	"nakama/pkg/ga"
-	"nakama/server"
 )
 
 const (
@@ -41,8 +43,8 @@ const (
 )
 
 var (
-	version  string
-	commitID string
+	version        string
+	commitID       string
 	verboseLogging bool = true
 )
 
@@ -54,7 +56,6 @@ func main() {
 		options = append(options, zap.AddStacks(zap.ErrorLevel))
 	}
 	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), options...)
-
 
 	if len(os.Args) > 1 {
 		// TODO requires Zap to be set to Info level.
@@ -222,7 +223,17 @@ func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.
 
 func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
 	// TODO config database pooling
-	db, err := sql.Open("postgres", "postgresql://"+dsns[0]+"/nakama?sslmode=disable")
+	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", dsns[0])
+	url, err := url.Parse(rawurl)
+	if err != nil {
+		multiLogger.Fatal("Bad connection URL", zap.Error(err))
+	}
+
+	if len(url.Path) < 1 {
+		url.Path = "/nakama"
+	}
+
+	db, err := sql.Open("postgres", url.String())
 	if err != nil {
 		multiLogger.Fatal("Error connecting to database", zap.Error(err))
 	}

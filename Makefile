@@ -108,7 +108,7 @@ build/generated/dashboard/embedded.go: $(shell find dashboard/src dashboard/stat
 .PHONY: migration
 migration: build/generated/migration/embedded.go
 
-build/generated/migration/embedded.go:
+build/generated/migration/embedded.go: $(shell find migrations -type f)
 	${GOBINDATA} -pkg migration -prefix migrations -o ${BUILDDIR}/generated/migration/embedded.go migrations/...
 
 .PHONY: proto
