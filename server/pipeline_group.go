@@ -135,14 +135,15 @@ func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *En
 
 	columns := make([]string, 0)
 	params := make([]string, 0)
-	values := make([]interface{}, 4)
+	values := make([]interface{}, 5)
 
 	updatedAt := nowMs()
 
-	values[0] = session.userID.Bytes()
-	values[1] = g.Name
-	values[2] = state
-	values[3] = updatedAt
+	values[0] = uuid.NewV4().Bytes()
+	values[1] = session.userID.Bytes()
+	values[2] = g.Name
+	values[3] = state
+	values[4] = updatedAt
 
 	if g.Description != "" {
 		columns = append(columns, "description")
@@ -176,9 +177,9 @@ func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *En
 	}
 
 	r := tx.QueryRow(`
-INSERT INTO groups (creator_id, name, state, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
-VALUES ($1, $2, $3, $4, $4, `+strings.Join(params, ", ")+")"+`
-RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
+INSERT INTO groups (id, creator_id, name, state, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
+VALUES ($1, $2, $3, $4, $5, $5, `+strings.Join(params, ",")+")"+`
+RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at, disabled_at
 `, values...)
 
 	group, err = p.extractGroup(r)

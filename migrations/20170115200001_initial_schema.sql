@@ -49,7 +49,10 @@ CREATE TABLE IF NOT EXISTS user_device (
     id      VARCHAR(64) NOT NULL,
     user_id BYTEA       NOT NULL
 );
-CREATE INDEX IF NOT EXISTS user_id_idx ON user_device (user_id);
+-- In cockroachdb a FK relationship will implicitly create an index on the
+-- column. As a result we don't need the separate index creation which breaks
+-- when applied in a single transaction. See issue cockroachdb/cockroach#13505.
+--CREATE INDEX IF NOT EXISTS user_id_idx ON user_device (user_id);
 
 CREATE TABLE IF NOT EXISTS user_edge (
     PRIMARY KEY (source_id, state, position),

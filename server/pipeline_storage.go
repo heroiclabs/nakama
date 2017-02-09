@@ -174,6 +174,7 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 			return
 		}
 
+		recordID := uuid.NewV4().Bytes()
 		sha := fmt.Sprintf("%x", sha256.Sum256(data.Value))
 		version := []byte(sha)
 
@@ -182,33 +183,33 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 
 		if len(data.Version) == 0 {
 			query = `
-INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
-WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0 AND write = 0)
+INSERT INTO storage (id, user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $8, 0
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND write = 0)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
-DO UPDATE SET value = $5, version = $6, updated_at = $7
+DO UPDATE SET value = $6, version = $7, updated_at = $8
 `
-			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
+			params = []interface{}{recordID, session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
 			errorMessage = "Could not store data"
 		} else if bytes.Equal(data.Version, []byte("*")) {
 			// if-none-match
 			query = `
-INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
-WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0)
+INSERT INTO storage (id, user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $8, 0
+WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)
 `
-			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
+			params = []interface{}{recordID, session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt}
 			errorMessage = "Could not store data. This could be caused by failure of if-none-match version check"
 		} else {
 			// if-match
 			query = `
-INSERT INTO storage (user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
-SELECT $1, $2, $3, $4, $5, $6, $7, $7, 0
-WHERE EXISTS (SELECT record FROM storage WHERE user_id = $1 AND bucket = $2 AND collection = $3 and record = $4 AND version = $8 AND deleted_at = 0 AND write = 1)
+INSERT INTO storage (id, user_id, bucket, collection, record, value, version, created_at, updated_at, deleted_at)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $8, 0
+WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 and record = $5 AND version = $9 AND deleted_at = 0 AND write = 1)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
-DO UPDATE SET value = $5, version = $6, updated_at = $7
+DO UPDATE SET value = $6, version = $7, updated_at = $8
 `
-			params = []interface{}{session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt, data.Version}
+			params = []interface{}{recordID, session.userID.Bytes(), data.Bucket, data.Collection, data.Record, data.Value, version, updatedAt, data.Version}
 			errorMessage = "Could not store data. This could be caused by failure of if-match version check"
 		}
 
