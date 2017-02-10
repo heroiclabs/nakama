@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+### Fixed
+
+- Improve group SQL query with type information.
+
 ## [0.11.0] - 2017-02-09
 ### Added
 - Add `--verbose` flag to enable debug logs in server.
