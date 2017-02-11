@@ -13,7 +13,7 @@ Have a look at our [documentation](https://heroiclabs.com/docs/start-server/) fo
 To start a server locally and bind it to all network interfaces once it's installed and on your path - `nakama`. The server output will show how it's been configured by default.
 
 ```
-$ nakama
+$> nakama
 [I] Nakama starting at=$$now$$
 [I] Node name=nakama-97f4 version=$$version$$
 [I] Data directory path=$$datadir$$
