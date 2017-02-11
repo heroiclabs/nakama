@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+### Changed
+
+- Configuration in dashboard is now displayed as YAML.
+
 ### Fixed
 
 - Improve group SQL query with type information.
