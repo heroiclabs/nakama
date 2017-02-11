@@ -33,6 +33,37 @@
     d: '',
   };
 
+  function jsonToYaml(obj, depth, acc) {
+    const type = typeof obj;
+    if (obj instanceof Array) {
+      obj.forEach((ele) => {
+        const subAcc = [];
+        jsonToYaml(ele, depth + 1, subAcc);
+        const empty = subAcc.length === 0;
+        const prefix = `${'  '.repeat(depth)}- `;
+        acc.push((empty ? '' : '\n') + (empty ? '' : prefix) + subAcc.join(`\n${prefix}`).trim());
+      });
+    } else if (type === 'object') {
+      let first = true;
+      const prefix = '  '.repeat(depth);
+      Object.keys(obj).forEach((k) => {
+        if (Object.prototype.hasOwnProperty.call(obj, k)) {
+          acc.push(`${first ? `\n${prefix}` : prefix}${k}:${jsonToYaml(obj[k], depth + 1, [])}`);
+          first = false;
+        }
+      });
+    } else if (type === 'string') {
+      acc.push(` "${obj}"`);
+    } else if (type === 'boolean') {
+      acc.push(obj ? ' true' : ' false');
+    } else if (type === 'number') {
+      acc.push(` ${obj.toString()}`);
+    } else {
+      acc.push(' null');
+    }
+    return acc.join('\n');
+  }
+
   export default {
     name: 'config-viewer',
     created() {
@@ -50,7 +81,7 @@
             this.$notify.error({ title: 'Operation Failed', message: response.statusText });
           }
           response.json().then((json) => {
-            configData.d = JSON.stringify(json, null, 2);
+            configData.d = jsonToYaml(json, 0, []).trim();
           });
         }).catch(() => {
           loadingInstance.close();

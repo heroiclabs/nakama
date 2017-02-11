@@ -6,6 +6,7 @@ build/*
 data/*
 .GITHUB_TOKEN
 .idea
+*.iml
 install/cloud/**/*.json
 
 ### Go ###
