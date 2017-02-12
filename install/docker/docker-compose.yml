@@ -1,7 +1,6 @@
 version: '3'
 services:
   cockroachdb:
-    container_name: cockroachdb
     image: cockroachdb/cockroach:latest
     command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: always
@@ -14,8 +13,6 @@ services:
       - "26257:26257"
       - "8080:8080"
   nakama-migration:
-    container_name: nakama-migration
-    build: ./nakama
     image: heroiclabs/nakama:latest
     command: migrate up --db "root@cockroachdb:26257"
     links:
@@ -25,7 +22,6 @@ services:
     volumes:
       - data:/var/lib/nakama
   nakama:
-    container_name: nakama
     image: heroiclabs/nakama:latest
     command: --name nakama --db "root@cockroachdb:26257"
     restart: always
