@@ -328,7 +328,7 @@ message TGroupUserPromote {
   bytes user_id = 2;
 }
 
-message Topic {
+message TopicId {
   oneof id {
     bytes dm = 1;
     bytes room = 2;
@@ -336,7 +336,7 @@ message Topic {
   }
 }
 
-message TopicUser {
+message UserPresence {
   bytes user_id = 1;
   bytes session_id = 2;
 }
@@ -349,16 +349,17 @@ message TTopicJoin {
   }
 }
 message TTopic {
-  Topic topic = 1;
-  repeated TopicUser users = 2;
+  TopicId topic = 1;
+  repeated UserPresence presences = 2;
+  UserPresence self = 3;
 }
 
 message TTopicLeave {
-  Topic topic = 1;
+  TopicId topic = 1;
 }
 
 message TTopicMessageSend {
-  Topic topic = 1;
+  TopicId topic = 1;
   bytes data = 2;
 }
 
@@ -370,7 +371,7 @@ message TTopicMessageAck {
 }
 
 message TopicMessage {
-  Topic topic = 1;
+  TopicId topic = 1;
   bytes user_id = 2;
   bytes message_id = 3;
   int64 created_at = 4;
@@ -396,9 +397,9 @@ message TTopicMessages {
 }
 
 message TopicPresence {
-  Topic topic = 1;
-  repeated TopicUser joins = 2;
-  repeated TopicUser leaves = 3;
+  TopicId topic = 1;
+  repeated UserPresence joins = 2;
+  repeated UserPresence leaves = 3;
 }
 
 message TMatchCreate {}
@@ -406,16 +407,11 @@ message TMatch {
   bytes id = 1;
 }
 
-message MatchUser {
-  bytes user_id = 1;
-  bytes session_id = 2;
-}
-
 message TMatchJoin {
   bytes match_id = 1;
 }
 message TMatchUsers {
-  repeated MatchUser users = 1;
+  repeated UserPresence users = 1;
 }
 
 message TMatchDataSend {
@@ -426,7 +422,7 @@ message TMatchDataSend {
 
 message MatchData {
   bytes match_id = 1;
-  MatchUser user = 2;
+  UserPresence user = 2;
   int64 op_code = 3;
   bytes data = 4;
 }
@@ -437,8 +433,8 @@ message TMatchLeave {
 
 message MatchPresence {
   bytes match_id = 1;
-  repeated MatchUser joins = 2;
-  repeated MatchUser leaves = 3;
+  repeated UserPresence joins = 2;
+  repeated UserPresence leaves = 3;
 }
 
 message TStorageFetch {

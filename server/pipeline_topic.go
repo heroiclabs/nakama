@@ -37,7 +37,7 @@ var invalidRoomRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
 func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Envelope) {
 	id := envelope.GetTopicJoin()
-	var topic *Topic
+	var topic *TopicId
 	var trackerTopic string
 	switch id.Id.(type) {
 	case *TTopicJoin_UserId:
@@ -69,10 +69,10 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 		userIDString := session.userID.String()
 		otherUserIDString := otherUserID.String()
 		if userIDString < otherUserIDString {
-			topic = &Topic{Id: &Topic_Dm{Dm: append(session.userID.Bytes(), otherUserIDBytes...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(session.userID.Bytes(), otherUserIDBytes...)}}
 			trackerTopic = "dm:" + userIDString + ":" + otherUserIDString
 		} else {
-			topic = &Topic{Id: &Topic_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
 			trackerTopic = "dm:" + otherUserIDString + ":" + userIDString
 		}
 	case *TTopicJoin_Room:
@@ -91,7 +91,7 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 			return
 		}
 
-		topic = &Topic{Id: &Topic_Room{Room: room}}
+		topic = &TopicId{Id: &TopicId_Room{Room: room}}
 		trackerTopic = "room:" + string(room)
 	case *TTopicJoin_GroupId:
 		// Check input is valid ID.
@@ -114,7 +114,7 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 		}
 
 		trackerTopic = "group:" + groupID.String()
-		topic = &Topic{Id: &Topic_GroupId{GroupId: groupIDBytes}}
+		topic = &TopicId{Id: &TopicId_GroupId{GroupId: groupIDBytes}}
 	case nil:
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No topic ID found"}}})
 		return
@@ -126,25 +126,24 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 	// Track the presence, and gather current member list.
 	p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{})
 	presences := p.tracker.ListByTopic(trackerTopic)
-	users := make([]*TopicUser, len(presences)-1)
-	j := 0
+
+	userPresences := make([]*UserPresence, len(presences))
 	for i := 0; i < len(presences); i++ {
-		// Do not report this session to itself.
-		if presences[i].UserID == session.userID && presences[i].ID.SessionID == session.id {
-			j += -1
-		} else {
-			users[i+j] = &TopicUser{UserId: presences[i].UserID.Bytes(), SessionId: presences[i].ID.SessionID.Bytes()}
-		}
+		userPresences[i] = &UserPresence{UserId: presences[i].UserID.Bytes(), SessionId: presences[i].ID.SessionID.Bytes()}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Topic{Topic: &TTopic{Topic: topic, Users: users}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Topic{Topic: &TTopic{
+		Topic:     topic,
+		Presences: userPresences,
+		Self:      &UserPresence{UserId: session.userID.Bytes(), SessionId: session.id.Bytes()},
+	}}})
 }
 
 func (p *pipeline) topicLeave(logger zap.Logger, session *session, envelope *Envelope) {
 	topic := envelope.GetTopicLeave().Topic
 	var trackerTopic string
 	switch topic.Id.(type) {
-	case *Topic_Dm:
+	case *TopicId_Dm:
 		// Check input is valid DM topic.
 		bothUserIDBytes := topic.GetDm()
 		if bothUserIDBytes == nil || len(bothUserIDBytes) != 32 {
@@ -187,7 +186,7 @@ func (p *pipeline) topicLeave(logger zap.Logger, session *session, envelope *Env
 		}
 
 		trackerTopic = "dm:" + userID1String + ":" + userID2String
-	case *Topic_Room:
+	case *TopicId_Room:
 		// Check input is valid room name.
 		room := topic.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
@@ -204,7 +203,7 @@ func (p *pipeline) topicLeave(logger zap.Logger, session *session, envelope *Env
 		}
 
 		trackerTopic = "room:" + string(room)
-	case *Topic_GroupId:
+	case *TopicId_GroupId:
 		// Check input is valid ID.
 		groupIDBytes := topic.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
@@ -248,7 +247,7 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 
 	var trackerTopic string
 	switch topic.Id.(type) {
-	case *Topic_Dm:
+	case *TopicId_Dm:
 		// Check input is valid DM topic.
 		bothUserIDBytes := topic.GetDm()
 		if bothUserIDBytes == nil || len(bothUserIDBytes) != 32 {
@@ -291,7 +290,7 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 		}
 
 		trackerTopic = "dm:" + userID1String + ":" + userID2String
-	case *Topic_Room:
+	case *TopicId_Room:
 		// Check input is valid room name.
 		room := topic.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
@@ -308,7 +307,7 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 		}
 
 		trackerTopic = "room:" + string(room)
-	case *Topic_GroupId:
+	case *TopicId_GroupId:
 		// Check input is valid ID.
 		groupIDBytes := topic.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
@@ -357,7 +356,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 		return
 	}
 
-	var topic *Topic
+	var topic *TopicId
 	var topicBytes []byte
 	var topicType int64
 	switch input.Id.(type) {
@@ -383,7 +382,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 		} else {
 			topicBytes = append(otherUserIDBytes, session.userID.Bytes()...)
 		}
-		topic = &Topic{Id: &Topic_Dm{Dm: topicBytes}}
+		topic = &TopicId{Id: &TopicId_Dm{Dm: topicBytes}}
 		topicType = 0
 	case *TTopicMessagesList_Room:
 		// Check input is valid room name.
@@ -401,7 +400,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 			return
 		}
 
-		topic = &Topic{Id: &Topic_Room{Room: room}}
+		topic = &TopicId{Id: &TopicId_Room{Room: room}}
 		topicBytes = room
 		topicType = 1
 	case *TTopicMessagesList_GroupId:
@@ -424,7 +423,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 			return
 		}
 
-		topic = &Topic{Id: &Topic_GroupId{GroupId: groupIDBytes}}
+		topic = &TopicId{Id: &TopicId_GroupId{GroupId: groupIDBytes}}
 		topicBytes = groupIDBytes
 		topicType = 2
 	case nil:
@@ -552,12 +551,12 @@ AND ue.source_id = $2`, checkUserID, blocksUserID).Scan(&uid, &state)
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.
-func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, topic *Topic, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
+func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
 	var trackerTopic string
 	var topicBytes []byte
 	var topicType int64
 	switch topic.Id.(type) {
-	case *Topic_Dm:
+	case *TopicId_Dm:
 		bothUserIDBytes := topic.GetDm()
 		userID1 := uuid.FromBytesOrNil(bothUserIDBytes[:16])
 		userID2 := uuid.FromBytesOrNil(bothUserIDBytes[16:])
@@ -565,11 +564,11 @@ func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, t
 		trackerTopic = "dm:" + userID1.String() + ":" + userID2.String()
 		topicBytes = bothUserIDBytes
 		topicType = 0
-	case *Topic_Room:
+	case *TopicId_Room:
 		trackerTopic = "room:" + string(topic.GetRoom())
 		topicBytes = []byte(topic.GetRoom())
 		topicType = 1
-	case *Topic_GroupId:
+	case *TopicId_GroupId:
 		trackerTopic = "group:" + uuid.FromBytesOrNil(topic.GetGroupId()).String()
 		topicBytes = topic.GetGroupId()
 		topicType = 2

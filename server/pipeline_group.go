@@ -663,7 +663,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 		return
 	}
 
-	p.storeAndDeliverMessage(logger, session, &Topic{Id: &Topic_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
+	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
 }
 
 func (p *pipeline) groupLeave(l zap.Logger, session *session, envelope *Envelope) {
@@ -770,7 +770,7 @@ OR
 		return
 	}
 
-	p.storeAndDeliverMessage(logger, session, &Topic{Id: &Topic_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
+	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
 }
 
 func (p *pipeline) groupUserAdd(l zap.Logger, session *session, envelope *Envelope) {
@@ -859,7 +859,7 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 	}
 
 	data, err := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &Topic{Id: &Topic_GroupId{GroupId: groupID.Bytes()}}, 2, data)
+	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
 }
 
 func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envelope) {
@@ -953,7 +953,7 @@ AND
 	}
 
 	data, err := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &Topic{Id: &Topic_GroupId{GroupId: groupID.Bytes()}}, 4, data)
+	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 4, data)
 }
 
 func (p *pipeline) groupUserPromote(l zap.Logger, session *session, envelope *Envelope) {
@@ -1011,7 +1011,7 @@ AND
 	}
 
 	data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &Topic{Id: &Topic_GroupId{GroupId: groupID.Bytes()}}, 5, data)
+	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 5, data)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }

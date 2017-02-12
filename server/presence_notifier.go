@@ -84,21 +84,21 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 			users := strings.SplitN(splitTopic[1], ":", 2)
 			userID1 := uuid.FromStringOrNil(users[0]).Bytes()
 			userID2 := uuid.FromStringOrNil(users[1]).Bytes()
-			t := &Topic{Id: &Topic_Dm{Dm: append(userID1, userID2...)}}
+			t := &TopicId{Id: &TopicId_Dm{Dm: append(userID1, userID2...)}}
 			if tls, ok := topicLeaves[topic]; ok {
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
 				pn.handleDiffTopic(t, to, tjs, nil)
 			}
 		case "room":
-			t := &Topic{Id: &Topic_Room{Room: []byte(splitTopic[1])}}
+			t := &TopicId{Id: &TopicId_Room{Room: []byte(splitTopic[1])}}
 			if tls, ok := topicLeaves[topic]; ok {
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
 				pn.handleDiffTopic(t, to, tjs, nil)
 			}
 		case "group":
-			t := &Topic{Id: &Topic_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
+			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
 			if tls, ok := topicLeaves[topic]; ok {
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
@@ -129,13 +129,13 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 			users := strings.SplitN(splitTopic[1], ":", 2)
 			userID1 := uuid.FromStringOrNil(users[0]).Bytes()
 			userID2 := uuid.FromStringOrNil(users[1]).Bytes()
-			t := &Topic{Id: &Topic_Dm{Dm: append(userID1, userID2...)}}
+			t := &TopicId{Id: &TopicId_Dm{Dm: append(userID1, userID2...)}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		case "room":
-			t := &Topic{Id: &Topic_Room{Room: []byte(splitTopic[1])}}
+			t := &TopicId{Id: &TopicId_Room{Room: []byte(splitTopic[1])}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		case "group":
-			t := &Topic{Id: &Topic_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
+			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		default:
 			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Object("topic", topic))
@@ -149,9 +149,9 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		MatchId: matchID,
 	}
 	if joins != nil {
-		muJoins := make([]*MatchUser, len(joins))
+		muJoins := make([]*UserPresence, len(joins))
 		for i := 0; i < len(joins); i++ {
-			muJoins[i] = &MatchUser{
+			muJoins[i] = &UserPresence{
 				UserId:    joins[i].UserID.Bytes(),
 				SessionId: joins[i].ID.SessionID.Bytes(),
 			}
@@ -159,9 +159,9 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		msg.Joins = muJoins
 	}
 	if leaves != nil {
-		muLeaves := make([]*MatchUser, len(leaves))
+		muLeaves := make([]*UserPresence, len(leaves))
 		for i := 0; i < len(leaves); i++ {
-			muLeaves[i] = &MatchUser{
+			muLeaves[i] = &UserPresence{
 				UserId:    leaves[i].UserID.Bytes(),
 				SessionId: leaves[i].ID.SessionID.Bytes(),
 			}
@@ -173,14 +173,14 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_MatchPresence{MatchPresence: msg}})
 }
 
-func (pn *presenceNotifier) handleDiffTopic(topic *Topic, to, joins, leaves []Presence) {
+func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []Presence) {
 	msg := &TopicPresence{
 		Topic: topic,
 	}
 	if joins != nil {
-		tuJoins := make([]*TopicUser, len(joins))
+		tuJoins := make([]*UserPresence, len(joins))
 		for i := 0; i < len(joins); i++ {
-			tuJoins[i] = &TopicUser{
+			tuJoins[i] = &UserPresence{
 				UserId:    joins[i].UserID.Bytes(),
 				SessionId: joins[i].ID.SessionID.Bytes(),
 			}
@@ -188,9 +188,9 @@ func (pn *presenceNotifier) handleDiffTopic(topic *Topic, to, joins, leaves []Pr
 		msg.Joins = tuJoins
 	}
 	if leaves != nil {
-		tuLeaves := make([]*TopicUser, len(leaves))
+		tuLeaves := make([]*UserPresence, len(leaves))
 		for i := 0; i < len(leaves); i++ {
-			tuLeaves[i] = &TopicUser{
+			tuLeaves[i] = &UserPresence{
 				UserId:    leaves[i].UserID.Bytes(),
 				SessionId: leaves[i].ID.SessionID.Bytes(),
 			}

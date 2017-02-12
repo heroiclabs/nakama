@@ -4,14 +4,12 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
-
 ### Changed
-
-- Configuration in dashboard is now displayed as YAML.
+- Server configuration in dashboard is now displayed as YAML.
+- Update server protocol to simplify presence messages across chat and multiplayer.
 
 ### Fixed
-
-- Improve group SQL query with type information.
+- Work around a limitation in cockroachdb with type information in group sub-queries.
 
 ## [0.11.0] - 2017-02-09
 ### Added
