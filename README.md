@@ -24,7 +24,7 @@ $> nakama
 
 ### Run Nakama with Docker
 
-Follow the [extensive guide](https://heroiclabs.com/docs/setup/docker) to run Nakama (and CockroachDB) in Docker.
+Follow the [guide](https://heroiclabs.com/docs/setup/docker) to run Nakama (and CockroachDB) in Docker.
 
 <a href="https://heroiclabs.com/docs/setup/docker"><img src="https://upload.wikimedia.org/wikipedia/commons/7/79/Docker_%28container_engine%29_logo.png" width="170"></a>
 
