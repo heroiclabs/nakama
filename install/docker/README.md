@@ -1,54 +1,52 @@
-## Running Nakama with Docker
+## Run Nakama with Docker
 
-Prerequisite for following this instruction is Docker. [Install Docker with Docker-Compose](https://docs.docker.com/engine/installation/)
+You'll need to setup `docker-compose` as [described by Docker](https://docs.docker.com/engine/installation/) for this guide.
 
-Nakama and Cockroach can run as separate containers, connect to each other and be exposed to the host machine via Docker. This enables you to install, configure and run in one simple step.
+It's recommended to run Nakama and the database (cockroachdb) as separate containers and connect them together via Docker's virtual network on the host machine. This guide will show you how to install and configure all resources together so it can be run in a single step.
 
-1. Save the content of the file [`docker-compose.yml`](https://raw.githubusercontent.com/heroiclabs/nakama/master/install/docker/docker-compose.yml) onto your computer.
+1. Save the [`docker-compose.yml`](https://raw.githubusercontent.com/heroiclabs/nakama/master/install/docker/docker-compose.yml) file onto your computer.
 
    ```
    wget https://raw.githubusercontent.com/heroiclabs/nakama/master/install/docker/docker-compose.yml
    ```
 
-   This will download `docker-compose.yml` to the current working directory.
+   This will download `docker-compose.yml` to your current working directory.
 
-2. On the terminal, navigate to the folder where `docker-compose.yml` is located.
+2. Navigate to the folder where `docker-compose.yml` is located in a command line console.
 3. Run the following command:
 
     ```
     docker-compose up
     ```
 
-    This will download the latest CockroachDB and Nakama image published on Docker Hub.
+    This will download the latest cockroachdb and Nakama images published on Docker Hub.
 
 4. You have both CockroachDB and Nakama running on your machine.
-5. Navigate to [http://localhost:7351](http://localhost:7351) to check that you can access Nakama Dashboard.
+5. Navigate to [http://localhost:7351](http://localhost:7351) to check that you can view Nakama's embedded dashboard.
 
-Application logs are printed to the terminal as output of `docker-compose`.
+All server logs are printed to the console as part of the `docker-compose` output.
 
-## Configuring the client
+## Setup a client
 
-Nakama API is available on `127.0.0.1:7350` and Dashboard is viewable by navigating to [http://127.0.0.1:7351](http://127.0.0.1:7351).
+By default the server is started on `127.0.0.1:7350` and dashboard is reachable at [http://127.0.0.1:7351](http://127.0.0.1:7351).
 
-CockroachDB is accessible via `127.0.0.1:26257` and CockroachDB Dashboard is available on [http://127.0.0.1:8080](http://127.0.0.1:8080).
+CockroachDB is started on `127.0.0.1:26257` and it's dashboard is available at [http://127.0.0.1:8080](http://127.0.0.1:8080).
 
-Follow the Client guide to setup Nakama:
+Follow one of the client guides to connect to the server:
 
 - [Unity](https://heroiclabs.com/docs/clients/unity/)
 
-## Stopping containers
+## Stop the containers
 
-To stop `docker-compose` while it is running, simply press `ctrl-c`. You can alternatively run `docker-compose stop` in the same directory as `docker-compose.yml` and all containers will shutdown gracefully.
+You can stop `docker-compose` while it is running with `ctrl-c`. You can also run `docker-compose stop` in the same directory as `docker-compose.yml` and all containers will be shutdown gracefully. Your data within these containers is still safe. You can re-run the containers by running `docker-compose up`.
 
-Your data within those containers are still safe. You can rerun the containers by running `docker-compose up`.
+To stop and purge all stored data, containers, and images from your machine. Run `docker-compose down`.
 
-To stop and remove all data, containers and images from your machine, run `docker-compose down`.
+## Build and deploy the Docker image
 
-## Build Docker image and push to Docker Hub
+1. To build the image locally. Setup a local copy of the codebase. Run the following command (in the same directory as this README):
 
-1. To build the image locally, run the following command (in the current working directory - where this README is):
-
-   If you have updated the version number in the `Dockerfile`, make sure that the new version number is reflected in the command below:
+   If you have updated the version number in the `Dockerfile` also update it in the command below:
 
    ```
    docker build -t heroiclabs:nakama-<VERSION> nakama
@@ -56,7 +54,7 @@ To stop and remove all data, containers and images from your machine, run `docke
 
    This creates a new image for each version of Nakama.
 
-2. Follow [this instruction](https://docs.docker.com/engine/getstarted/step_six/) to push the image to Docker Hub.
+2. Follow [these instructions](https://docs.docker.com/engine/getstarted/step_six/) to push the image to Docker Hub.
 
    Ensure that you tag the relevant image ID twice so that the `latest` always refers to the most up to date version tag.
 
@@ -75,6 +73,6 @@ To stop and remove all data, containers and images from your machine, run `docke
    docker push heroiclabs/nakama:latest
    ```
 
-   **Note:** You can (optionally) skip Step 2 as the image you create has a different ID (because of the way we create the above).
+   **Note:** You can (optionally) skip step 2 as the image you create has a different ID (because of the way we create the above).
 
 3. Navigate to [Docker Hub](https://hub.docker.com/r/heroiclabs/nakama/tags/) and view the latest pushed image.

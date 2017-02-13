@@ -22,19 +22,17 @@ $> nakama
 [I] Startup done
 ```
 
-### Running Nakama with Docker
+### Run Nakama with Docker
 
 Follow the [extensive guide](https://heroiclabs.com/docs/setup/docker) to run Nakama (and CockroachDB) in Docker.
 
-<a href="https://heroiclabs.com/docs/setup/docker"><img src="docker.png" width="170"></a>
+<a href="https://heroiclabs.com/docs/setup/docker"><img src="https://upload.wikimedia.org/wikipedia/commons/7/79/Docker_%28container_engine%29_logo.png" width="170"></a>
 
-Nakama Docker images are available on [Docker Hub](http://hub.docker.com/r/heroiclabs/nakama/). If you'd like to publish your own Docker image, follow the [Docker README](https://github.com/heroiclabs/nakama/blob/mhf-docker/install/docker/README.md).
+Nakama Docker images are available on [Docker Hub](http://hub.docker.com/r/heroiclabs/nakama/). If you'd like to publish your own Docker image have a look at our [Docker README](https://github.com/heroiclabs/nakama/blob/mhf-docker/install/docker/README.md).
 
 #### Deploy Nakama with Docker Cloud
 
-Nakama can be deployed to any cloud with Docker Cloud such as AWS, Google Cloud, Azure, Digital Ocean or your own private cloud.
-
-You'll need to setup Docker Cloud and provision separate nodes for Nakama and CockroachDB.
+Nakama can be deployed to any cloud with Docker Cloud such as AWS, Google Cloud, Azure, Digital Ocean or your own private cloud. You'll need to setup Docker Cloud and provision separate nodes for Nakama and CockroachDB.
 
 ### Contribute
 
