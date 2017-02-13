@@ -1,10 +1,17 @@
-## Docker Instructions
+## Running Nakama with Docker
 
 Prerequisite for following this instruction is Docker. [Install Docker with Docker-Compose](https://docs.docker.com/engine/installation/)
 
 Nakama and Cockroach can run as separate containers, connect to each other and be exposed to the host machine via Docker. This enables you to install, configure and run in one simple step.
 
 1. Save the content of the file [`docker-compose.yml`](https://raw.githubusercontent.com/heroiclabs/nakama/master/install/docker/docker-compose.yml) onto your computer.
+
+   ```
+   wget https://raw.githubusercontent.com/heroiclabs/nakama/master/install/docker/docker-compose.yml
+   ```
+
+   This will download `docker-compose.yml` to the current working directory.
+
 2. On the terminal, navigate to the folder where `docker-compose.yml` is located.
 3. Run the following command:
 
@@ -19,7 +26,17 @@ Nakama and Cockroach can run as separate containers, connect to each other and b
 
 Application logs are printed to the terminal as output of `docker-compose`.
 
-### Stopping containers
+## Configuring the client
+
+Nakama API is available on `127.0.0.1:7350` and Dashboard is viewable by navigating to [http://127.0.0.1:7351](http://127.0.0.1:7351).
+
+CockroachDB is accessible via `127.0.0.1:26257` and CockroachDB Dashboard is available on [http://127.0.0.1:8080](http://127.0.0.1:8080).
+
+Follow the Client guide to setup Nakama:
+
+- [Unity](https://heroiclabs.com/docs/clients/unity/)
+
+## Stopping containers
 
 To stop `docker-compose` while it is running, simply press `ctrl-c`. You can alternatively run `docker-compose stop` in the same directory as `docker-compose.yml` and all containers will shutdown gracefully.
 

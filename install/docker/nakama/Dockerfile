@@ -13,7 +13,7 @@ RUN ln -sf /dev/stdout data/log/nakama.log
 
 RUN apt-get update; apt-get install -y curl
 
-RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v0.11.0/nakama-0.11.0-linux-amd64.tar.gz | tar xz
+RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v0.11.1/nakama-0.11.1-linux-amd64.tar.gz | tar xz
 
 EXPOSE 7350 7351
 
