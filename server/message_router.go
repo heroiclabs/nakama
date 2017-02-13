@@ -47,7 +47,7 @@ func (m *messageRouterService) Send(logger zap.Logger, ps []Presence, msg proto.
 
 	for _, p := range ps {
 		session := m.registry.Get(p.ID.SessionID)
-		if session == nil {
+		if session != nil {
 			err := session.SendBytes(payload)
 			if err != nil {
 				logger.Error("Failed to route to", zap.Object("p", p), zap.Error(err))

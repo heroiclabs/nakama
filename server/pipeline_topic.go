@@ -233,7 +233,7 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Topic ID is required"}}})
 		return
 	}
-	data := envelope.GetTopicMessage().Data
+	data := envelope.GetTopicMessageSend().Data
 	if data == nil || len(data) == 0 || len(data) > 1000 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Data is required and must be 1-1000 JSON bytes"}}})
 		return
@@ -351,7 +351,11 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Topic ID is required"}}})
 		return
 	}
-	if input.Limit < 10 || input.Limit > 100 {
+	limit := input.Limit
+	if limit == 0 {
+		limit = 10
+	}
+	if limit < 10 || limit > 100 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Limit must be 10-100"}}})
 		return
 	}
@@ -435,7 +439,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 	}
 
 	query := "SELECT message_id, user_id, created_at, expires_at, handle, type, data FROM message WHERE topic = $2 AND topic_type = $3"
-	params := []interface{}{input.Limit + 1, topicBytes, topicType}
+	params := []interface{}{limit + 1, topicBytes, topicType}
 
 	// Only paginate if all cursor components are available.
 	if input.Cursor != nil {
@@ -477,7 +481,7 @@ func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelo
 	var msgType int64
 	var data []byte
 	for rows.Next() {
-		if int64(len(messages)) >= input.Limit {
+		if int64(len(messages)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			if gob.NewEncoder(cursorBuf).Encode(&messageCursor{MessageID: messageID, UserID: userID, CreatedAt: createdAt}); err != nil {
 				logger.Error("Error creating topic messages list cursor", zap.Error(err))

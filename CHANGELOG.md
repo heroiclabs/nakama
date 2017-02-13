@@ -6,6 +6,12 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - Include Dockerfile and Docker instructions.
+- Use a default limit in topic message listings if one is not provided.
+
+### Fixed
+- Enforce concurrency control on outgoing socket messages.
+- Correct session lookup for realtime message routing.
+- Fix input validation when sending topic messages.
 
 ## [0.11.1] - 2017-02-12
 ### Changed

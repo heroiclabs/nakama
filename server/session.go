@@ -103,6 +103,9 @@ func (s *session) pingPeriodically() {
 }
 
 func (s *session) pingNow() bool {
+	s.Lock()
+	defer s.Unlock()
+
 	// Websocket ping.
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
@@ -135,6 +138,9 @@ func (s *session) Send(envelope *Envelope) error {
 }
 
 func (s *session) SendBytes(payload []byte) error {
+	s.Lock()
+	defer s.Unlock()
+
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
 	return s.conn.WriteMessage(websocket.BinaryMessage, payload)
 }
