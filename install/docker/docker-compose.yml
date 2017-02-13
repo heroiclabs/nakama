@@ -1,0 +1,43 @@
+version: '3'
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:latest
+    command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
+    restart: always
+    volumes:
+      - data:/var/lib/cockroach
+    expose:
+      - "8080"
+      - "26257"
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+  nakama-migration:
+    image: heroiclabs/nakama:latest
+    command: migrate up --db "root@cockroachdb:26257"
+    links:
+      - "cockroachdb:db"
+    depends_on:
+      - cockroachdb
+    volumes:
+      - data:/var/lib/nakama
+  nakama:
+    image: heroiclabs/nakama:latest
+    command: --name nakama --db "root@cockroachdb:26257"
+    restart: always
+    depends_on:
+      - nakama-migration
+    links:
+      - "cockroachdb:db"
+    volumes:
+      - data:/var/lib/nakama
+    ports:
+      - "7350:7350"
+      - "7351:7351"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7351/v0/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  data:
