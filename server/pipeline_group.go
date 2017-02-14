@@ -610,21 +610,26 @@ func (p *pipeline) groupJoin(l zap.Logger, session *session, envelope *Envelope)
 	}
 	defer func() {
 		if err != nil {
-			logger.Error("Could not add user to group", zap.Error(err))
+			logger.Error("Could not join group", zap.Error(err))
 			err = tx.Rollback()
 			if err != nil {
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not add user to group"}}})
+			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not join group"}}})
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not add user to group"}}})
+				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not join group"}}})
 			} else {
-				logger.Info("Added user to the group")
+				logger.Info("User joined group")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
+
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
+				if err != nil {
+					logger.Error("Error handling group user join notification topic message", zap.Error(err))
+				}
 			}
 		}
 	}()
@@ -662,8 +667,6 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 	if err != nil {
 		return
 	}
-
-	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
 }
 
 func (p *pipeline) groupLeave(l zap.Logger, session *session, envelope *Envelope) {
@@ -699,8 +702,13 @@ func (p *pipeline) groupLeave(l zap.Logger, session *session, envelope *Envelope
 				logger.Error("Could not commit transaction", zap.Error(err))
 				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: failureReason}}})
 			} else {
-				logger.Info("Left group")
+				logger.Info("User left group")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
+
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
+				if err != nil {
+					logger.Error("Error handling group user leave notification topic message", zap.Error(err))
+				}
 			}
 		}
 	}()
@@ -769,8 +777,6 @@ OR
 	if err != nil {
 		return
 	}
-
-	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
 }
 
 func (p *pipeline) groupUserAdd(l zap.Logger, session *session, envelope *Envelope) {
@@ -789,6 +795,7 @@ func (p *pipeline) groupUserAdd(l zap.Logger, session *session, envelope *Envelo
 	}
 
 	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	var handle string
 
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -817,12 +824,17 @@ func (p *pipeline) groupUserAdd(l zap.Logger, session *session, envelope *Envelo
 			} else {
 				logger.Info("Added user to the group")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
+
+				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
+				if err != nil {
+					logger.Error("Error handling group user added notification topic message", zap.Error(err))
+				}
 			}
 		}
 	}()
 
 	// Look up the user being added.
-	var handle string
 	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1 AND disabled_at = 0", userID.Bytes()).Scan(&handle)
 	if err != nil {
 		return
@@ -857,9 +869,6 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 	if err != nil {
 		return
 	}
-
-	data, err := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
 }
 
 func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envelope) {
@@ -884,6 +893,7 @@ func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envel
 	}
 
 	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	var handle string
 
 	failureReason := "Could not kick user from group"
 	tx, err := p.db.Begin()
@@ -913,6 +923,12 @@ func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envel
 			} else {
 				logger.Info("Kicked user from group")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
+
+				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 4, data)
+				if err != nil {
+					logger.Error("Error handling group user kicked notification topic message", zap.Error(err))
+				}
 			}
 		}
 	}()
@@ -946,14 +962,10 @@ AND
 	}
 
 	// Look up the user being kicked. Allow kicking disabled users.
-	var handle string
 	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1", userID.Bytes()).Scan(&handle)
 	if err != nil {
 		return
 	}
-
-	data, err := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 4, data)
 }
 
 func (p *pipeline) groupUserPromote(l zap.Logger, session *session, envelope *Envelope) {
@@ -1011,7 +1023,10 @@ AND
 	}
 
 	data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 5, data)
+	err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 5, data)
+	if err != nil {
+		logger.Error("Error handling group user promoted notification topic message", zap.Error(err))
+	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }

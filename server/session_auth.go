@@ -468,7 +468,7 @@ func (a *authenticationService) addUserEdgeMetadata(tx *sql.Tx, userID []byte, u
 	return err
 }
 
-func (a *authenticationService) registerDevice(txn *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, int) {
+func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, int) {
 	deviceID := authReq.GetDevice()
 	if deviceID == "" {
 		return nil, "Device ID is required", 400
@@ -479,9 +479,8 @@ func (a *authenticationService) registerDevice(txn *sql.Tx, authReq *Authenticat
 	}
 
 	updatedAt := nowMs()
-
 	userID := uuid.NewV4().Bytes()
-	_, err := txn.Exec(`
+	res, err := tx.Exec(`
 INSERT INTO users (id, handle, created_at, updated_at)
 SELECT $1 AS id,
 			 $2 AS handle,
@@ -493,21 +492,26 @@ WHERE NOT EXISTS
      WHERE id = $3)`,
 		userID, a.generateHandle(), deviceID, updatedAt)
 	if err != nil {
-		a.logger.Warn("Could not register, query error", zap.Error(err))
-		return nil, errorIDAlreadyInUse, 401
+		a.logger.Warn("Could not register new device profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
 	}
-	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
-	if err != nil {
-		a.logger.Warn("Could not register, query error", zap.Error(err))
-		return nil, errorIDAlreadyInUse, 401
-	}
-	if count, _ := res.RowsAffected(); count == 0 {
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new device profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
-	err = a.addUserEdgeMetadata(txn, userID, updatedAt)
+	res, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		a.logger.Warn("Could not register, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if count, _ := res.RowsAffected(); count == 0 {
+		return nil, errorCouldNotRegister, 401
+	}
+
+	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
+	if err != nil {
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200
@@ -528,22 +532,26 @@ func (a *authenticationService) registerFacebook(tx *sql.Tx, authReq *Authentica
 	}
 
 	updatedAt := nowMs()
-
-	var userID []byte
-	err = tx.QueryRow(`
-INSERT INTO users (handle, facebook_id, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS facebook_id,
-	 $3 AS created_at,
-	 $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, facebook_id, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS facebook_id,
+	 $4 AS created_at,
+	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE facebook_id = $2) RETURNING id`,
-		a.generateHandle(), fbProfile.ID, updatedAt).Scan(&userID)
+ WHERE facebook_id = $3)`,
+		userID, a.generateHandle(), fbProfile.ID, updatedAt)
 
 	if err != nil {
-		a.logger.Warn("Could not register new Facebook profile", zap.Error(err))
+		a.logger.Warn("Could not register new Facebook profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new Facebook profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
@@ -552,7 +560,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200
@@ -573,30 +581,35 @@ func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *Authenticate
 	}
 
 	updatedAt := nowMs()
-	var userID []byte
-	err = tx.QueryRow(`
-INSERT INTO users (handle, google_id, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS google_id,
-	 $3 AS created_at,
-	 $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, google_id, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS google_id,
+	 $4 AS created_at,
+	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE google_id = $2) RETURNING id`,
+ WHERE google_id = $3)`,
+		userID,
 		a.generateHandle(),
 		googleProfile.ID,
-		updatedAt).
-		Scan(&userID)
+		updatedAt)
 
 	if err != nil {
-		a.logger.Warn("Could not register new Google profile", zap.Error(err))
+		a.logger.Warn("Could not register new Google profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new Google profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200
@@ -615,30 +628,35 @@ func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *Authenti
 	}
 
 	updatedAt := nowMs()
-	var userID []byte
-	err = tx.QueryRow(`
-INSERT INTO users (handle, gamecenter_id, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS gamecenter_id,
-	 $3 AS created_at,
-	 $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, gamecenter_id, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS gamecenter_id,
+	 $4 AS created_at,
+	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE gamecenter_id = $2) RETURNING id`,
+ WHERE gamecenter_id = $3)`,
+		userID,
 		a.generateHandle(),
 		gc.PlayerId,
-		updatedAt).
-		Scan(&userID)
+		updatedAt)
 
 	if err != nil {
-		a.logger.Warn("Could not register new Game Center profile", zap.Error(err))
+		a.logger.Warn("Could not register new Game Center profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new Game Center profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200
@@ -663,31 +681,35 @@ func (a *authenticationService) registerSteam(tx *sql.Tx, authReq *AuthenticateR
 	}
 
 	updatedAt := nowMs()
-
-	var userID []byte
-	err = tx.QueryRow(`
-INSERT INTO users (handle, steam_id, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS steam_id,
-	 $3 AS created_at,
-	 $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, steam_id, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS steam_id,
+	 $4 AS created_at,
+	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE steam_id = $2) RETURNING id`,
+ WHERE steam_id = $3)`,
+		userID,
 		a.generateHandle(),
 		strconv.FormatUint(steamProfile.SteamID, 10),
-		updatedAt).
-		Scan(&userID)
+		updatedAt)
 
 	if err != nil {
-		a.logger.Warn("Could not register new Steam profile", zap.Error(err))
+		a.logger.Warn("Could not register new Steam profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new Steam profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200
@@ -712,28 +734,32 @@ func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateR
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(email.Password), bcrypt.DefaultCost)
 
 	updatedAt := nowMs()
-
-	var userID []byte
-	err := tx.QueryRow(`
-INSERT INTO users (handle, email, password, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS email,
-	 $3 AS password,
-	 $4 AS created_at,
-	 $4 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, email, password, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS email,
+	 $4 AS password,
+	 $5 AS created_at,
+	 $5 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE email = $2) RETURNING id`,
+ WHERE email = $3)`,
+		userID,
 		a.generateHandle(),
 		email.Email,
 		hashedPassword,
-		updatedAt).
-		Scan(&userID)
+		updatedAt)
 
 	if err != nil {
-		a.logger.Warn(errorCouldNotRegister, zap.Error(err))
+		a.logger.Warn("Could not register new email profile, query error", zap.Error(err))
 		return nil, "Email already in use", 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new email profile, rows affected error")
+		return nil, errorIDAlreadyInUse, 401
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
@@ -755,31 +781,35 @@ func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *Authenticate
 	}
 
 	updatedAt := nowMs()
-
-	var userID []byte
-	err := tx.QueryRow(`
-INSERT INTO users (handle, custom_id, created_at, updated_at)
-SELECT $1 AS handle,
-	 $2 AS custom_id,
-	 $3 AS created_at,
-	 $3 AS updated_at
+	userID := uuid.NewV4().Bytes()
+	res, err := tx.Exec(`
+INSERT INTO users (id, handle, custom_id, created_at, updated_at)
+SELECT $1 AS id,
+	 $2 AS handle,
+	 $3 AS custom_id,
+	 $4 AS created_at,
+	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE custom_id = $2) RETURNING id`,
+ WHERE custom_id = $3)`,
+		userID,
 		a.generateHandle(),
 		customID,
-		updatedAt).
-		Scan(&userID)
+		updatedAt)
 
 	if err != nil {
-		a.logger.Warn(errorCouldNotRegister, zap.Error(err))
+		a.logger.Warn("Could not register new custom profile, query error", zap.Error(err))
+		return nil, errorCouldNotRegister, 401
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		a.logger.Warn("Could not register new custom profile, rows affected error")
 		return nil, errorIDAlreadyInUse, 401
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, errorIDAlreadyInUse, 401
+		return nil, errorCouldNotRegister, 401
 	}
 
 	return userID, "", 200

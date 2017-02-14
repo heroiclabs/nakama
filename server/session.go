@@ -85,8 +85,7 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 			s.logger.Warn("Received malformed payload", zap.Object("data", data))
 			s.Send(&Envelope{CollationId: request.CollationId, Payload: &Envelope_Error{&Error{Reason: "Unrecognized message"}}})
 		} else {
-			//TODO(mofirouz, zyro) Add session-global context here
-			//to cancel in-progress operations when the session is closed
+			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.CollationId))
 			processRequest(requestLogger, s, request)
 		}
@@ -104,8 +103,14 @@ func (s *session) pingPeriodically() {
 
 func (s *session) pingNow() bool {
 	// Websocket ping.
+	s.Lock()
+	if s.stopped {
+		s.Unlock()
+		return false
+	}
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
+	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping. Closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 		s.Close()
@@ -135,6 +140,13 @@ func (s *session) Send(envelope *Envelope) error {
 }
 
 func (s *session) SendBytes(payload []byte) error {
+	// TODO Improve on mutex usage here.
+	s.Lock()
+	defer s.Unlock()
+	if s.stopped {
+		return nil
+	}
+
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
 	return s.conn.WriteMessage(websocket.BinaryMessage, payload)
 }
@@ -155,17 +167,16 @@ func (s *session) cleanupClosedConnection() {
 }
 
 func (s *session) Close() {
+	s.unregister(s)
+	s.pingTicker.Stop()
+
 	s.Lock()
+	defer s.Unlock()
 	if s.stopped {
 		return
 	}
 	s.stopped = true
-	s.Unlock()
 
-	s.logger.Info("Closing client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
-
-	s.unregister(s)
-	s.pingTicker.Stop()
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
