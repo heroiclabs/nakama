@@ -330,12 +330,14 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 		return
 	}
 
-	messageID, handle, createdAt, expiresAt, err := p.storeAndDeliverMessage(logger, session, topic, 0, data)
+	// Store message to history.
+	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, 0, data)
 	if err != nil {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error storing message"}}})
 		return
 	}
 
+	// Return receipt to sender.
 	ack := &TTopicMessageAck{
 		MessageId: messageID,
 		CreatedAt: createdAt,
@@ -343,6 +345,9 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 		Handle:    handle,
 	}
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_TopicMessageAck{TopicMessageAck: ack}})
+
+	// Deliver message to topic.
+	p.deliverMessage(logger, session, topic, 0, data, messageID, handle, createdAt, expiresAt)
 }
 
 func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelope *Envelope) {
@@ -555,25 +560,17 @@ AND ue.source_id = $2`, checkUserID, blocksUserID).Scan(&uid, &state)
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.
-func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
-	var trackerTopic string
+func (p *pipeline) storeMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
 	var topicBytes []byte
 	var topicType int64
 	switch topic.Id.(type) {
 	case *TopicId_Dm:
-		bothUserIDBytes := topic.GetDm()
-		userID1 := uuid.FromBytesOrNil(bothUserIDBytes[:16])
-		userID2 := uuid.FromBytesOrNil(bothUserIDBytes[16:])
-
-		trackerTopic = "dm:" + userID1.String() + ":" + userID2.String()
-		topicBytes = bothUserIDBytes
+		topicBytes = topic.GetDm()
 		topicType = 0
 	case *TopicId_Room:
-		trackerTopic = "room:" + string(topic.GetRoom())
-		topicBytes = []byte(topic.GetRoom())
+		topicBytes = topic.GetRoom()
 		topicType = 1
 	case *TopicId_GroupId:
-		trackerTopic = "group:" + uuid.FromBytesOrNil(topic.GetGroupId()).String()
 		topicBytes = topic.GetGroupId()
 		topicType = 2
 	}
@@ -590,6 +587,24 @@ RETURNING handle`, topicBytes, topicType, messageID, session.userID.Bytes(), cre
 	if err != nil {
 		logger.Error("Failed to insert new message", zap.Error(err))
 		return nil, "", 0, 0, err
+	}
+
+	return messageID, handle, createdAt, expiresAt, nil
+}
+
+func (p *pipeline) deliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
+	var trackerTopic string
+	switch topic.Id.(type) {
+	case *TopicId_Dm:
+		bothUserIDBytes := topic.GetDm()
+		userID1 := uuid.FromBytesOrNil(bothUserIDBytes[:16])
+		userID2 := uuid.FromBytesOrNil(bothUserIDBytes[16:])
+
+		trackerTopic = "dm:" + userID1.String() + ":" + userID2.String()
+	case *TopicId_Room:
+		trackerTopic = "room:" + string(topic.GetRoom())
+	case *TopicId_GroupId:
+		trackerTopic = "group:" + uuid.FromBytesOrNil(topic.GetGroupId()).String()
 	}
 
 	outgoing := &Envelope{
@@ -609,6 +624,13 @@ RETURNING handle`, topicBytes, topicType, messageID, session.userID.Bytes(), cre
 
 	presences := p.tracker.ListByTopic(trackerTopic)
 	p.messageRouter.Send(logger, presences, outgoing)
+}
 
-	return messageID, handle, createdAt, expiresAt, nil
+func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) error {
+	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, msgType, data)
+	if err != nil {
+		return err
+	}
+	p.deliverMessage(logger, session, topic, msgType, data, messageID, handle, createdAt, expiresAt)
+	return nil
 }
