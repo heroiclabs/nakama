@@ -12,6 +12,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Enforce concurrency control on outgoing socket messages.
 - Correct session lookup for realtime message routing.
 - Fix input validation when sending topic messages.
+- Correct handling of IDs in various login options.
+- Fix presence service shutdown sequence.
+- More graceful handling of session operations while connection is closing.
 
 ## [0.11.1] - 2017-02-12
 ### Changed

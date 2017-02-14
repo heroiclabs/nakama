@@ -82,8 +82,7 @@ func (t *TrackerService) AddDiffListener(f func([]Presence, []Presence)) {
 }
 
 func (t *TrackerService) Stop() {
-	t.Lock()
-	// Never release lock, so this tracker will never be usable again.
+	// TODO cleanup after service shutdown.
 }
 
 func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) {
