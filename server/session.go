@@ -103,12 +103,11 @@ func (s *session) pingPeriodically() {
 }
 
 func (s *session) pingNow() bool {
-	s.Lock()
-	defer s.Unlock()
-
 	// Websocket ping.
+	s.Lock()
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
+	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping. Closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 		s.Close()
