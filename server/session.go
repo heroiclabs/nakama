@@ -102,7 +102,6 @@ func (s *session) pingPeriodically() {
 }
 
 func (s *session) pingNow() bool {
-	// Websocket ping.
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -113,7 +112,7 @@ func (s *session) pingNow() bool {
 	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping. Closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
-		s.Close()
+		s.cleanupClosedConnection() // The connection has already failed
 		return false
 	}
 
@@ -148,7 +147,13 @@ func (s *session) SendBytes(payload []byte) error {
 	}
 
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
-	return s.conn.WriteMessage(websocket.BinaryMessage, payload)
+	err := s.conn.WriteMessage(websocket.BinaryMessage, payload)
+	if err != nil {
+		s.logger.Warn("Could not write message", zap.Error(err))
+		//TODO investigate whether we need to cleanupClosedConnection if write fails
+	}
+
+	return err
 }
 
 func (s *session) cleanupClosedConnection() {
@@ -159,27 +164,26 @@ func (s *session) cleanupClosedConnection() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Info("Clean up closed client connection.", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
-
+	s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
 	s.conn.Close()
+	s.logger.Info("Closed client connection")
 }
 
-func (s *session) Close() {
-	s.unregister(s)
-	s.pingTicker.Stop()
-
+func (s *session) close() {
 	s.Lock()
-	defer s.Unlock()
 	if s.stopped {
 		return
 	}
 	s.stopped = true
+	s.Unlock()
 
+	s.pingTicker.Stop()
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
 	s.conn.Close()
+	s.logger.Info("Closed client connection")
 }

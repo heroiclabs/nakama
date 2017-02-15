@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Fixed
 - Enforce concurrency control on outgoing socket messages.
+- Improve concurrency for closed sockets.
 - Correct session lookup for realtime message routing.
 - Fix input validation when sending topic messages.
 - Correct handling of IDs in various login options.
