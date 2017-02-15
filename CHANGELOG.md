@@ -8,6 +8,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Include Dockerfile and Docker instructions.
 - Use a default limit in topic message listings if one is not provided.
 
+### Changed
+- Improve warning message on migration database creation.
+- Print database connections to logs on server start.
+
 ### Fixed
 - Enforce concurrency control on outgoing socket messages.
 - Improve concurrency for closed sockets.

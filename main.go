@@ -85,6 +85,7 @@ func main() {
 	mlogger.Info("Nakama starting", zap.String("at", time.Now().UTC().Format("2006-01-02 15:04:05.000 -0700 MST")))
 	mlogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver))
 	mlogger.Info("Data directory", zap.String("path", config.GetDataDir()))
+	mlogger.Info("Database connections", zap.Object("dsns", config.GetDSNS()))
 
 	db := dbConnect(mlogger, config.GetDSNS())
 

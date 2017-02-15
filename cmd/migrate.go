@@ -126,7 +126,11 @@ func MigrateParse(args []string, logger zap.Logger) {
 
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
 	if err != nil {
-		logger.Info("Database could not be created", zap.Error(err))
+		if err.Error() == fmt.Sprintf("pq: database \"%s\" already exists", dbname) {
+			logger.Info("Using existing database", zap.String("name", dbname))
+		} else {
+			logger.Fatal("Database could not be created", zap.Error(err))
+		}
 	} else {
 		logger.Info("Database created", zap.String("name", dbname))
 	}
