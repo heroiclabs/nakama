@@ -537,26 +537,16 @@ func (p *pipeline) isGroupMember(userID uuid.UUID, groupID []byte) (bool, error)
 }
 
 func (p *pipeline) userExistsAndDoesNotBlock(checkUserID []byte, blocksUserID []byte) (bool, error) {
-	var uid []byte
-	var state sql.NullInt64
-	err := p.db.QueryRow(`SELECT u.id, ue.state
-FROM users u
-LEFT JOIN user_edge ue ON u.id = ue.destination_id
-WHERE u.id = $1
-AND ue.source_id = $2`, checkUserID, blocksUserID).Scan(&uid, &state)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No such user.
-			return false, nil
-		}
-		return false, err
-	}
-	if state.Valid {
-		// User exists and has some relationship to the requester, check if it's a block.
-		return state.Int64 != 3, nil
-	}
-	// User exists and has no relationship to the requester, so can't be a block.
-	return true, nil
+	var count int64
+	err := p.db.QueryRow(`
+SELECT COUNT(id) FROM users
+WHERE id = $1 AND NOT EXISTS (
+	SELECT state FROM user_edge
+	WHERE source_id = $1 AND destination_id = $2 AND state = 3
+)
+`, checkUserID, blocksUserID).Scan(&count)
+
+	return count != 0, err
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.

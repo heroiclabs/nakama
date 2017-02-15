@@ -45,7 +45,7 @@ func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker
 }
 
 func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope *Envelope) {
-	logger.Debug(fmt.Sprintf("Received %T message", envelope.Payload), zap.String("collation_id", envelope.CollationId))
+	logger.Debug(fmt.Sprintf("Received %T message", envelope.Payload))
 
 	switch envelope.Payload.(type) {
 	case *Envelope_Logout:
