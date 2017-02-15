@@ -24,21 +24,23 @@ import (
 )
 
 type pipeline struct {
-	config        Config
-	db            *sql.DB
-	socialClient  *social.Client
-	tracker       Tracker
-	messageRouter MessageRouter
+	config          Config
+	db              *sql.DB
+	socialClient    *social.Client
+	tracker         Tracker
+	messageRouter   MessageRouter
+	sessionRegistry *SessionRegistry
 }
 
 // NewPipeline creates a new Pipeline
-func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker Tracker, messageRouter MessageRouter) *pipeline {
+func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker Tracker, messageRouter MessageRouter, registry *SessionRegistry) *pipeline {
 	return &pipeline{
-		config:        config,
-		db:            db,
-		socialClient:  socialClient,
-		tracker:       tracker,
-		messageRouter: messageRouter,
+		config:          config,
+		db:              db,
+		socialClient:    socialClient,
+		tracker:         tracker,
+		messageRouter:   messageRouter,
+		sessionRegistry: registry,
 	}
 }
 
@@ -48,7 +50,8 @@ func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope 
 	switch envelope.Payload.(type) {
 	case *Envelope_Logout:
 		// TODO Store JWT into a blacklist until remaining JWT expiry.
-		session.Close()
+		p.sessionRegistry.remove(session)
+		session.close()
 
 	case *Envelope_Link:
 		p.linkID(logger, session, envelope)

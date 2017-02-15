@@ -66,7 +66,7 @@ type authenticationService struct {
 // NewAuthenticationService creates a new AuthenticationService
 func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
 	s := social.NewClient(5 * time.Second)
-	p := NewPipeline(config, db, s, tracker, messageRouter)
+	p := NewPipeline(config, db, s, tracker, messageRouter, registry)
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
@@ -852,6 +852,7 @@ func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID
 }
 
 func (a *authenticationService) Stop() {
+	// TODO stop incoming net connections
 	a.registry.stop()
 }
 
