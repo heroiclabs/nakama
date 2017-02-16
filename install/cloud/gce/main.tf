@@ -49,7 +49,7 @@ resource "google_compute_firewall" "api" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "8080"]
+    ports    = ["80"]
   }
 
   source_ranges = ["0.0.0.0/0"]
@@ -86,7 +86,17 @@ resource "google_compute_instance" "api" {
     scopes = ["userinfo-email", "compute-ro", "storage-ro"]
   }
 
-  metadata_startup_script = <<SCRIPT
+  provisioner "file" {
+    source      = "systemd/"
+    destination = "/etc/systemd/system"
+  }
 
-SCRIPT
+  provisioner "remote-exec" {
+    inline = [
+      "curl -s https://binaries.cockroachdb.com/cockroach-${var.app_cockroachdb_version}.linux-amd64.tgz"
+      ""
+      "" # run migration with nakama
+      "" # use upstart for nakama
+    ]
+  }
 }
