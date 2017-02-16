@@ -35,7 +35,7 @@ func (p *pipeline) selfFetch(logger zap.Logger, session *session, envelope *Enve
 	var timezone sql.NullString
 	var location sql.NullString
 	var lang sql.NullString
-	var metadata sql.RawBytes
+	var metadata []byte
 	var avatarURL sql.NullString
 	var verifiedAt sql.NullInt64
 	var createdAt sql.NullInt64

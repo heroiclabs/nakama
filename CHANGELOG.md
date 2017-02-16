@@ -7,10 +7,12 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Include Dockerfile and Docker instructions.
 - Use a default limit in topic message listings if one is not provided.
+- Improve logging around topic presence diff processing.
 
 ### Changed
 - Improve warning message on migration database creation.
 - Print database connections to logs on server start.
+- Use byte slices for most database operations.
 
 ### Fixed
 - Enforce concurrency control on outgoing socket messages.
@@ -20,6 +22,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Correct handling of IDs in various login options.
 - Fix presence service shutdown sequence.
 - More graceful handling of session operations while connection is closing.
+- Fix batch user fetch query construction.
+- Fix duplicate leaves reported in topic presence diff messages.
 
 ## [0.11.1] - 2017-02-12
 ### Changed
