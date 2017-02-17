@@ -58,11 +58,11 @@ func MigrationStartupCheck(logger zap.Logger, db *sql.DB) {
 
 	migrations, err := ms.FindMigrations()
 	if err != nil {
-		logger.Error("Could not find migrations", zap.Error(err))
+		logger.Fatal("Could not find migrations", zap.Error(err))
 	}
 	records, err := migrate.GetMigrationRecords(db, dialect)
 	if err != nil {
-		logger.Error("Could not get migration records", zap.Error(err))
+		logger.Fatal("Could not get migration records", zap.Error(err))
 	}
 
 	diff := len(migrations) - len(records)
@@ -115,6 +115,8 @@ func MigrateParse(args []string, logger zap.Logger) {
 		dbname = url.Path[1:]
 	}
 
+	logger.Info("Database connection", zap.String("dsns", ms.DSNS))
+
 	url.Path = ""
 	db, err := sql.Open(dialect, url.String())
 	if err != nil {
@@ -135,7 +137,7 @@ start:
 		exists = err == nil
 		goto start
 	case exists:
-		logger.Info("Using database", zap.String("name", dbname))
+		logger.Info("Using existing database", zap.String("name", dbname))
 	}
 	db.Close()
 
