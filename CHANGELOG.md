@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Update response types to realtime match create/join operations.
 
 ## [0.11.2] - 2017-02-17
 ### Added
