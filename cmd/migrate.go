@@ -58,11 +58,11 @@ func MigrationStartupCheck(logger zap.Logger, db *sql.DB) {
 
 	migrations, err := ms.FindMigrations()
 	if err != nil {
-		logger.Error("Could not find migrations", zap.Error(err))
+		logger.Fatal("Could not find migrations", zap.Error(err))
 	}
 	records, err := migrate.GetMigrationRecords(db, dialect)
 	if err != nil {
-		logger.Error("Could not get migration records", zap.Error(err))
+		logger.Fatal("Could not get migration records", zap.Error(err))
 	}
 
 	diff := len(migrations) - len(records)
@@ -115,6 +115,8 @@ func MigrateParse(args []string, logger zap.Logger) {
 		dbname = url.Path[1:]
 	}
 
+	logger.Info("Database connection", zap.String("dsns", ms.DSNS))
+
 	url.Path = ""
 	db, err := sql.Open(dialect, url.String())
 	if err != nil {
@@ -124,15 +126,18 @@ func MigrateParse(args []string, logger zap.Logger) {
 		logger.Fatal("Error pinging database", zap.Error(err))
 	}
 
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
-	if err != nil {
-		if err.Error() == fmt.Sprintf("pq: database \"%s\" already exists", dbname) {
-			logger.Info("Using existing database", zap.String("name", dbname))
-		} else {
-			logger.Fatal("Database could not be created", zap.Error(err))
-		}
-	} else {
-		logger.Info("Database created", zap.String("name", dbname))
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbname).Scan(&exists)
+start:
+	switch {
+	case err != nil:
+		logger.Fatal("Database query failed", zap.Error(err))
+	case !exists:
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
+		exists = err == nil
+		goto start
+	case exists:
+		logger.Info("Using existing database", zap.String("name", dbname))
 	}
 	db.Close()
 
