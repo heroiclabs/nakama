@@ -7,21 +7,23 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Include Dockerfile and Docker instructions.
 - Use a default limit in topic message listings if one is not provided.
-- Improve logging around topic presence diff processing.
+- Improve log messages in topic presence diff checks.
+- Report self presence in realtime match create and join.
 
 ### Changed
-- Improve warning message on migration database creation.
+- Improve warn message when database is created in migrate subcommand.
 - Print database connections to logs on server start.
-- Use byte slices for most database operations.
+- Use byte slices with most database operations.
+- Standardize match presence field names across chat and realtime protocol.
+- Improve concurrency for closed sockets.
 
 ### Fixed
 - Enforce concurrency control on outgoing socket messages.
-- Improve concurrency for closed sockets.
-- Correct session lookup for realtime message routing.
-- Fix input validation when sending topic messages.
-- Correct handling of IDs in various login options.
+- Fix session lookup in realtime message router.
+- Fix input validation when chat messages are sent.
+- Fix how IDs are handled in various login options.
 - Fix presence service shutdown sequence.
-- More graceful handling of session operations while connection is closing.
+- More graceful handling of session operations while connection is closed.
 - Fix batch user fetch query construction.
 - Fix duplicate leaves reported in topic presence diff messages.
 
