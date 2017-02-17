@@ -41,6 +41,7 @@ func NewPresenceNotifier(logger zap.Logger, name string, tracker Tracker, messag
 
 // HandleDiff notifies users in matches of changes in presences
 func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
+	pn.logger.Debug("Processing presence diff", zap.Int("joins", len(joins)), zap.Int("leaves", len(leaves)))
 	topicJoins := make(map[string][]Presence, 0)
 	topicLeaves := make(map[string][]Presence, 0)
 
@@ -59,6 +60,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 			topicLeaves[p.Topic] = []Presence{p}
 		}
 	}
+	pn.logger.Debug("Presence diff topic count", zap.Int("joins", len(topicJoins)), zap.Int("leaves", len(topicLeaves)))
 
 	// Handle joins and any associated leaves.
 	for topic, tjs := range topicJoins {
@@ -67,6 +69,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 
 		// Check if there are any local presences to notify.
 		if len(to) == 0 {
+			pn.logger.Debug("No local presences to report diff", zap.String("topic", topic))
 			continue
 		}
 
@@ -76,6 +79,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		case "match":
 			matchID := uuid.FromStringOrNil(splitTopic[1]).Bytes()
 			if tls, ok := topicLeaves[topic]; ok {
+				// Make sure leaves aren't also processed separately if we were able to pair them here.
+				delete(topicLeaves, topic)
 				pn.handleDiffMatch(matchID, to, tjs, tls)
 			} else {
 				pn.handleDiffMatch(matchID, to, tjs, nil)
@@ -86,6 +91,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 			userID2 := uuid.FromStringOrNil(users[1]).Bytes()
 			t := &TopicId{Id: &TopicId_Dm{Dm: append(userID1, userID2...)}}
 			if tls, ok := topicLeaves[topic]; ok {
+				// Make sure leaves aren't also processed separately if we were able to pair them here.
+				delete(topicLeaves, topic)
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
 				pn.handleDiffTopic(t, to, tjs, nil)
@@ -93,6 +100,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		case "room":
 			t := &TopicId{Id: &TopicId_Room{Room: []byte(splitTopic[1])}}
 			if tls, ok := topicLeaves[topic]; ok {
+				// Make sure leaves aren't also processed separately if we were able to pair them here.
+				delete(topicLeaves, topic)
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
 				pn.handleDiffTopic(t, to, tjs, nil)
@@ -100,6 +109,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		case "group":
 			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
 			if tls, ok := topicLeaves[topic]; ok {
+				// Make sure leaves aren't also processed separately if we were able to pair them here.
+				delete(topicLeaves, topic)
 				pn.handleDiffTopic(t, to, tjs, tls)
 			} else {
 				pn.handleDiffTopic(t, to, tjs, nil)
@@ -116,6 +127,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 
 		// Check if there are any local presences to notify.
 		if len(to) == 0 {
+			pn.logger.Debug("No local presences to report diff", zap.String("topic", topic))
 			continue
 		}
 
@@ -168,6 +180,7 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		}
 		msg.Leaves = muLeaves
 	}
+	pn.logger.Debug("Routing match diff", zap.Object("to", to), zap.Object("msg", msg))
 
 	// Send the presence notification.
 	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_MatchPresence{MatchPresence: msg}})
@@ -197,6 +210,7 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 		}
 		msg.Leaves = tuLeaves
 	}
+	pn.logger.Debug("Routing topic diff", zap.Object("to", to), zap.Object("msg", msg))
 
 	// Send the presence notification.
 	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_TopicPresence{TopicPresence: msg}})

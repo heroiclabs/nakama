@@ -34,9 +34,10 @@ func (p *pipeline) usersFetch(logger zap.Logger, session *session, envelope *Env
 
 	counter := 1
 	for _, uid := range userIds {
-		statement := "$" + strconv.Itoa(counter)
 		userID, err := uuid.FromBytes(uid)
 		if err == nil {
+			statement := "$" + strconv.Itoa(counter)
+			counter += 1
 			statements = append(statements, statement)
 			params = append(params, userID.Bytes())
 		}

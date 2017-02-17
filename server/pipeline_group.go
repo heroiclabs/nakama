@@ -550,14 +550,14 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 	users := make([]*GroupUser, 0)
 
 	for rows.Next() {
-		var id sql.RawBytes
+		var id []byte
 		var handle sql.NullString
 		var fullname sql.NullString
 		var avatarURL sql.NullString
 		var lang sql.NullString
 		var location sql.NullString
 		var timezone sql.NullString
-		var metadata sql.RawBytes
+		var metadata []byte
 		var createdAt sql.NullInt64
 		var updatedAt sql.NullInt64
 		var lastOnlineAt sql.NullInt64

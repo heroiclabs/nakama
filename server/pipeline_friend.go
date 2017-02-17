@@ -39,14 +39,14 @@ FROM users ` + filterQuery
 	}
 	defer rows.Close()
 
-	var id sql.RawBytes
+	var id []byte
 	var handle sql.NullString
 	var fullname sql.NullString
 	var avatarURL sql.NullString
 	var lang sql.NullString
 	var location sql.NullString
 	var timezone sql.NullString
-	var metadata sql.RawBytes
+	var metadata []byte
 	var createdAt sql.NullInt64
 	var updatedAt sql.NullInt64
 	var lastOnlineAt sql.NullInt64
@@ -117,7 +117,7 @@ func (p *pipeline) addFacebookFriends(logger zap.Logger, userID []byte, accessTo
 
 	friendAddedCounter := 0
 	for _, fbFriend := range fbFriends {
-		var friendID sql.RawBytes
+		var friendID []byte
 		err = tx.QueryRow("SELECT id FROM users WHERE facebook_id = $1", fbFriend.ID).Scan(&friendID)
 		if err != nil {
 			return
@@ -156,14 +156,14 @@ FROM users, user_edge ` + filterQuery
 	friends := make([]*Friend, 0)
 
 	for rows.Next() {
-		var id sql.RawBytes
+		var id []byte
 		var handle sql.NullString
 		var fullname sql.NullString
 		var avatarURL sql.NullString
 		var lang sql.NullString
 		var location sql.NullString
 		var timezone sql.NullString
-		var metadata sql.RawBytes
+		var metadata []byte
 		var createdAt sql.NullInt64
 		var updatedAt sql.NullInt64
 		var lastOnlineAt sql.NullInt64
