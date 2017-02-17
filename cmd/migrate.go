@@ -124,15 +124,18 @@ func MigrateParse(args []string, logger zap.Logger) {
 		logger.Fatal("Error pinging database", zap.Error(err))
 	}
 
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
-	if err != nil {
-		if err.Error() == fmt.Sprintf("pq: database \"%s\" already exists", dbname) {
-			logger.Info("Using existing database", zap.String("name", dbname))
-		} else {
-			logger.Fatal("Database could not be created", zap.Error(err))
-		}
-	} else {
-		logger.Info("Database created", zap.String("name", dbname))
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbname).Scan(&exists)
+start:
+	switch {
+	case err != nil:
+		logger.Fatal("Database query failed", zap.Error(err))
+	case !exists:
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
+		exists = err == nil
+		goto start
+	case exists:
+		logger.Info("Using database", zap.String("name", dbname))
 	}
 	db.Close()
 
