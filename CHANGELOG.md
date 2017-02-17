@@ -8,11 +8,13 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Include Dockerfile and Docker instructions.
 - Use a default limit in topic message listings if one is not provided.
 - Improve logging around topic presence diff processing.
+- Report self presence in realtime match creates and joins.
 
 ### Changed
 - Improve warning message on migration database creation.
 - Print database connections to logs on server start.
 - Use byte slices for most database operations.
+- Change match presence field names to correspond to topic presences.
 
 ### Fixed
 - Enforce concurrency control on outgoing socket messages.

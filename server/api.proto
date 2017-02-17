@@ -123,7 +123,7 @@ message Envelope {
     TMatchLeave match_leave = 43;
     TMatchDataSend match_data_send = 44;
     TMatch match = 45;
-    TMatchUsers match_users = 46;
+    TMatchPresences match_presences = 46;
     MatchData match_data = 47;
     MatchPresence match_presence = 48;
 
@@ -405,13 +405,15 @@ message TopicPresence {
 message TMatchCreate {}
 message TMatch {
   bytes id = 1;
+  UserPresence self = 2;
 }
 
 message TMatchJoin {
   bytes match_id = 1;
 }
-message TMatchUsers {
-  repeated UserPresence users = 1;
+message TMatchPresences {
+  repeated UserPresence presences = 1;
+  UserPresence self = 2;
 }
 
 message TMatchDataSend {
@@ -422,7 +424,7 @@ message TMatchDataSend {
 
 message MatchData {
   bytes match_id = 1;
-  UserPresence user = 2;
+  UserPresence presence = 2;
   int64 op_code = 3;
   bytes data = 4;
 }
