@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Changed
 - Update response types to realtime match create/join operations.
 
+### Fixed
+- Make sure dependent rules are run with `relupload` rule.
+
 ## [0.11.2] - 2017-02-17
 ### Added
 - Include Dockerfile and Docker instructions.

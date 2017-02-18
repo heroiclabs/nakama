@@ -67,7 +67,7 @@ $(PLATFORMS):
 relupload: JQ := $(shell jq --version)
 relupload: TOKEN :=
 relupload: TAG   :=
-relupload: $(PLATFORMS)
+relupload: proto dashboard migration $(PLATFORMS)
 	@test -n "${JQ}"    # must be set
 	@test -n "${TOKEN}"
 	@test -n "${TAG}"
