@@ -123,15 +123,14 @@ message Envelope {
     TMatchLeave match_leave = 43;
     TMatchDataSend match_data_send = 44;
     TMatch match = 45;
-    TMatchPresences match_presences = 46;
-    MatchData match_data = 47;
-    MatchPresence match_presence = 48;
+    MatchData match_data = 46;
+    MatchPresence match_presence = 47;
 
-    TStorageFetch storage_fetch = 49;
-    TStorageWrite storage_write = 50;
-    TStorageRemove storage_remove = 51;
-    TStorageData storage_data = 52;
-    TStorageKey storage_key = 53;
+    TStorageFetch storage_fetch = 48;
+    TStorageWrite storage_write = 49;
+    TStorageRemove storage_remove = 50;
+    TStorageData storage_data = 51;
+    TStorageKey storage_key = 52;
   }
 }
 
@@ -403,17 +402,13 @@ message TopicPresence {
 }
 
 message TMatchCreate {}
-message TMatch {
-  bytes id = 1;
-  UserPresence self = 2;
-}
-
 message TMatchJoin {
   bytes match_id = 1;
 }
-message TMatchPresences {
-  repeated UserPresence presences = 1;
-  UserPresence self = 2;
+message TMatch {
+  bytes match_id = 1;
+  repeated UserPresence presences = 2;
+  UserPresence self = 3;
 }
 
 message TMatchDataSend {

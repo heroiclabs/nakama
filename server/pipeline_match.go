@@ -24,12 +24,15 @@ func (p *pipeline) matchCreate(logger zap.Logger, session *session, envelope *En
 
 	p.tracker.Track(session.id, "match:"+matchID.String(), session.userID, PresenceMeta{})
 
+	self := &UserPresence{
+		UserId:    session.userID.Bytes(),
+		SessionId: session.id.Bytes(),
+	}
+
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
-		Id: matchID.Bytes(),
-		Self: &UserPresence{
-			UserId:    session.userID.Bytes(),
-			SessionId: session.id.Bytes(),
-		},
+		MatchId:   matchID.Bytes(),
+		Presences: []*UserPresence{self},
+		Self:      self,
 	}}})
 }
 
@@ -64,7 +67,8 @@ func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Enve
 	}
 	userPresences[len(ps)-1] = self
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchPresences{MatchPresences: &TMatchPresences{
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
+		MatchId:   matchIDBytes,
 		Presences: userPresences,
 		Self:      self,
 	}}})
