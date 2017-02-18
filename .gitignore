@@ -8,6 +8,7 @@ data/*
 .idea
 *.iml
 install/cloud/**/*.json
+install/cloud/**/*.tfvars.*
 
 ### Go ###
 # Compiled Object files, Static and Dynamic libs (Shared Objects)

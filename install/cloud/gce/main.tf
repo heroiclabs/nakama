@@ -48,8 +48,12 @@ resource "google_compute_firewall" "api" {
   network = "default"
 
   allow {
+    protocol = "icmp"
+  }
+
+  allow {
     protocol = "tcp"
-    ports    = ["80"]
+    ports    = ["22", "80", "443"]
   }
 
   source_ranges = ["0.0.0.0/0"]
@@ -64,7 +68,8 @@ resource "google_compute_disk" "default" {
 }
 
 resource "google_compute_instance" "api" {
-  name         = "api-node"
+  count        = 1
+  name         = "api-node-${count.index}"
   machine_type = "${var.app_machine_type}"
   zone         = "${var.gce_region_zone}"
   tags         = ["api-node"]
@@ -86,17 +91,46 @@ resource "google_compute_instance" "api" {
     scopes = ["userinfo-email", "compute-ro", "storage-ro"]
   }
 
+  metadata {
+    ssh-keys = "${var.gce_ssh_user}:${file(var.gce_ssh_public_key_file)}"
+  }
+
   provisioner "file" {
+    connection {
+      user        = "${var.gce_ssh_user}"
+      private_key = "${file(var.gce_ssh_private_key_file)}"
+      agent       = false
+      timeout     = "30s"
+    }
     source      = "systemd/"
     destination = "/etc/systemd/system"
   }
 
   provisioner "remote-exec" {
+    connection {
+      user        = "${var.gce_ssh_user}"
+      private_key = "${file(var.gce_ssh_private_key_file)}"
+      agent       = false
+      timeout     = "30s"
+    }
     inline = [
-      "curl -s https://binaries.cockroachdb.com/cockroach-${var.app_cockroachdb_version}.linux-amd64.tgz"
-      ""
-      "" # run migration with nakama
-      "" # use upstart for nakama
+      "cd /home/ubuntu",
+
+      # Setup cockroachdb
+      "wget --no-verbose https://binaries.cockroachdb.com/cockroach-${var.app_cockroachdb_version}.linux-amd64.tgz",
+      "tar zxvf cockroach-${var.app_cockroachdb_version}.linux-amd64.tgz",
+      "chmod +x ./cockroach-${var.app_cockroachdb_version}.linux-amd64/cockroach",
+      "ln -s ./cockroach-${var.app_cockroachdb_version}.linux-amd64/cockroach /home/ubuntu/cockroach",
+      "systemctl start cockroach",
+
+      # Setup nakama
+      "wget --no-verbose https://github.com/heroiclabs/nakama/releases/download/v${var.app_nakama_version}/nakama-${var.app_nakama_version}-linux-amd64.tar.gz",
+      "mkdir -p nakama-${var.app_nakama_version}-linux-amd64",
+      "tar zxvf nakama-${var.app_nakama_version}-linux-amd64.tar.gz -C nakama-${var.app_nakama_version}-linux-amd64",
+      "chmod +x ./nakama-${var.app_nakama_version}-linux-amd64/nakama",
+      "ln -s ./nakama-${var.app_nakama_version}-linux-amd64/nakama",
+      "./nakama migrate up --db root@127.0.0.1:26257",
+      "systemctl start nakama"
     ]
   }
 }

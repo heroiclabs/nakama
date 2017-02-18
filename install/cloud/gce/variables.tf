@@ -15,25 +15,28 @@
  */
 
 variable "gce_project_name" {
-  default = "myproject"
 }
 
 variable "gce_region" {
-  default = "us-east1"
 }
 
 variable "gce_region_zone" {
-  default = "us-east1-b"
+}
+
+variable "gce_ssh_user" {
+}
+
+variable "gce_ssh_public_key_file" {
+}
+
+variable "gce_ssh_private_key_file" {
 }
 
 variable "app_nakama_version" {
-  default = "0.11.1"
 }
 
 variable "app_cockroachdb_version" {
-  default = "beta-20170209"
 }
 
 variable "app_machine_type" {
-  default = "g1-small"
 }
