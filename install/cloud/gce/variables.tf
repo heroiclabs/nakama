@@ -14,29 +14,38 @@
  * limitations under the License.
  */
 
+# The name of the project in GCP.
 variable "gce_project_name" {
 }
 
+# The region in GCP to provision resources.
 variable "gce_region" {
 }
 
+# The region zone in GCP to provision resources in.
 variable "gce_region_zone" {
 }
 
+# The SSH user configuration to access compute instances.
 variable "gce_ssh_user" {
 }
 
+# The SSH public key file to access compute instances.
 variable "gce_ssh_public_key_file" {
 }
 
+# The SSH private key file to access the compute instances.
 variable "gce_ssh_private_key_file" {
 }
 
+# The version of Nakama which will be deployed.
 variable "app_nakama_version" {
 }
 
+# The version of CockroachDB which will be deployed.
 variable "app_cockroachdb_version" {
 }
 
+# The machine type to provision in GCP.
 variable "app_machine_type" {
 }

@@ -36,10 +36,11 @@ resource "google_compute_target_pool" "api" {
 
 resource "google_compute_http_health_check" "healthcheck" {
   name                = "api-healthcheck"
+  port                = 8081
   request_path        = "/v0/health"
   check_interval_sec  = 5
   healthy_threshold   = 1
-  unhealthy_threshold = 10
+  unhealthy_threshold = 3
   timeout_sec         = 2
 }
 
