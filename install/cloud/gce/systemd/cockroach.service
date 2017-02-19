@@ -1,0 +1,16 @@
+[Unit]
+Description=CockroachDB server
+ConditionPathExists=/home/ubuntu/cockroach
+Wants=network.target
+After=network.target
+
+[Service]
+ExecStart=/home/ubuntu/cockroach start --insecure --store=attrs=ssd,path=/home/ubuntu/cockroach-store
+Restart=always
+RestartSec=3
+TimeoutSec=6
+LimitNOFILE=1048576:1048576
+LimitNPROC=1048576:1048576
+
+[Install]
+WantedBy=multi-user.target
