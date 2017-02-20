@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Fixed
 - Make sure dependent rules are run with `relupload` rule.
+- Fix match presence list generated when joining matches.
 
 ## [0.11.2] - 2017-02-17
 ### Added
