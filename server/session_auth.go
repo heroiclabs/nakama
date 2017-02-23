@@ -28,6 +28,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
@@ -74,9 +75,13 @@ func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, regi
 		registry:       registry,
 		pipeline:       p,
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
-		upgrader:       &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		socialClient:   s,
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		upgrader: &websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin:     func(r *http.Request) bool { return true },
+		},
 	}
 
 	a.configure()
@@ -87,14 +92,24 @@ func (a *authenticationService) configure() {
 	a.mux = mux.NewRouter()
 
 	a.mux.HandleFunc("/user/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			return
+		}
 		a.handleAuth(w, r, a.login)
-	}).Methods("POST")
+	}).Methods("POST", "OPTIONS")
 
 	a.mux.HandleFunc("/user/register", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			return
+		}
 		a.handleAuth(w, r, a.register)
-	}).Methods("POST")
+	}).Methods("POST", "OPTIONS")
 
 	a.mux.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			return
+		}
+
 		token := r.URL.Query().Get("token")
 		uid, auth := a.authenticateToken(token)
 		if !auth {
@@ -110,12 +125,16 @@ func (a *authenticationService) configure() {
 		}
 
 		a.registry.add(uid, conn, a.pipeline.processRequest)
-	}).Methods("GET")
+	}).Methods("GET", "OPTIONS")
 }
 
 func (a *authenticationService) StartServer(mlogger zap.Logger) {
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetPort()), a.mux)
+		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
+		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
+
+		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
+		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetPort()), handlerWithCORS)
 		if err != nil {
 			mlogger.Fatal("Client listener failed", zap.Error(err))
 		}
@@ -154,6 +173,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 
 	userID, errString, errCode := retrieveUserID(authReq)
 	if errString != "" {
+		a.logger.Debug("Could not retrieve user ID", zap.String("error", errString), zap.Int("code", errCode))
 		a.sendAuthError(w, errString, errCode, authReq)
 		return
 	}
