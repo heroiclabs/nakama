@@ -13,7 +13,7 @@
 # limitations under the License.
 
 BINNAME := nakama
-VERSION := 0.11.3
+VERSION := 0.12.0-dev
 BUILDDIR := build
 COMMITID := $(shell git rev-parse --short HEAD 2>/dev/null || echo nosha)
 
