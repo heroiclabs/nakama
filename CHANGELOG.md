@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.11.3] - 2017-02-25
 ### Added
 - Add CORS headers for browser games.
 
@@ -11,7 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Update response types to realtime match create/join operations.
 
 ### Fixed
-- Make sure dependent rules are run with `relupload` rule.
+- Make sure dependent build rules are run with `relupload` rule.
 - Fix match presence list generated when joining matches.
 
 ## [0.11.2] - 2017-02-17
