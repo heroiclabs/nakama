@@ -19,12 +19,13 @@ CREATE TABLE IF NOT EXISTS leaderboard_metadata (
     PRIMARY KEY (id),
     FOREIGN KEY (next_id) REFERENCES leaderboard_metadata(id) ON DELETE SET DEFAULT,
     FOREIGN KEY (prev_id) REFERENCES leaderboard_metadata(id) ON DELETE SET DEFAULT,
-    id          BYTEA    NOT NULL,
-    sort_order  SMALLINT DEFAULT 1 NOT NULL, -- asc(0), desc(1)
-    count       BIGINT   DEFAULT 0 CHECK (count >= 0) NOT NULL,
-    score_delta INT      DEFAULT 0 CHECK (score_delta >= 0) NOT NULL,
-    next_id     BYTEA    DEFAULT NULL CHECK (next_id <> id),
-    prev_id     BYTEA    DEFAULT NULL CHECK (prev_id <> id)
+    id            BYTEA    NOT NULL,
+    authoritative BOOLEAN  DEFAULT FALSE,
+    sort_order    SMALLINT DEFAULT 1 NOT NULL, -- asc(0), desc(1)
+    count         BIGINT   DEFAULT 0 CHECK (count >= 0) NOT NULL,
+    score_delta   INT      DEFAULT 0 CHECK (score_delta >= 0) NOT NULL,
+    next_id       BYTEA    DEFAULT NULL CHECK (next_id <> id),
+    prev_id       BYTEA    DEFAULT NULL CHECK (prev_id <> id)
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard (
@@ -38,7 +39,6 @@ CREATE TABLE IF NOT EXISTS leaderboard (
     timezone   VARCHAR(64), -- e.g. "Pacific Time (US & Canada)"
     rank_value BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL, -- TODO maybe rename?
     score      REAL         DEFAULT 0 NOT NULL,
-    avg_score  REAL         DEFAULT 0 NOT NULL,
     num_score  INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
     -- FIXME replace with JSONB
     metadata   BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
