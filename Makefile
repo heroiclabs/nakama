@@ -23,7 +23,7 @@ GOBINDATA ?= go-bindata
 COCKROACH ?= cockroach
 
 PROTOS  := server/api.proto
-GOFLAGS :=
+GOFLAGS := -gcflags "-trimpath ${CURDIR}"
 LDFLAGS := -ldflags "-X main.version=${VERSION} -X main.commitID=${COMMITID}"
 PLATFORMS := darwin linux windows
 
