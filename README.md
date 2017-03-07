@@ -28,7 +28,7 @@ Follow the [guide](https://heroiclabs.com/docs/setup/docker) to run Nakama (and 
 
 <a href="https://heroiclabs.com/docs/setup/docker"><img src="https://upload.wikimedia.org/wikipedia/commons/7/79/Docker_%28container_engine%29_logo.png" width="170"></a>
 
-Nakama Docker images are available on [Docker Hub](http://hub.docker.com/r/heroiclabs/nakama/). If you'd like to publish your own Docker image have a look at our [Docker README](https://github.com/heroiclabs/nakama/blob/mhf-docker/install/docker/README.md).
+Nakama Docker images are available on [Docker Hub](http://hub.docker.com/r/heroiclabs/nakama/). If you'd like to publish your own Docker image have a look at our [Docker README](https://github.com/heroiclabs/nakama/blob/master/install/docker/README.md).
 
 #### Deploy Nakama with Docker Cloud
 
