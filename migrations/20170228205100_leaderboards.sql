@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS leaderboard (
     location   VARCHAR(64), -- e.g. "San Francisco, CA"
     timezone   VARCHAR(64), -- e.g. "Pacific Time (US & Canada)"
     rank_value BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL, -- TODO maybe rename?
-    score      REAL         DEFAULT 0 NOT NULL,
+    score      BIGINT       DEFAULT 0 NOT NULL,
     num_score  INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
     -- FIXME replace with JSONB
     metadata   BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,

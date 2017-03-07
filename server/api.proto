@@ -492,3 +492,71 @@ message TStorageRemove {
   }
   repeated StorageKey keys = 1;
 }
+
+message Leaderboard {
+  bytes id = 1;
+  bool authoritative = 2;
+  int64 sort = 3;
+  int64 count = 4;
+  int64 score_delta = 5;
+  bytes next_id = 6;
+  bytes prev_id = 7;
+}
+
+message LeaderboardEntry {
+  bytes leaderboard_id = 1;
+  bytes owner_id = 2;
+  string handle = 3;
+  string lang = 4;
+  string location = 5;
+  string timezone = 6;
+  int64 rank = 7;
+  int64 score = 8;
+  int64 num_score = 9;
+  bytes metadata = 10;
+  int64 ranked_at = 11;
+  int64 updated_at = 12;
+  int64 expires_at = 13;
+}
+
+message TLeaderboardsList {}
+message TLeaderboards {
+  repeated Leaderboard leaderboards = 1;
+}
+
+message TLeaderboardEntryWrite {
+  bytes leaderboard_id = 1;
+  oneof op {
+    int64 inc = 2;
+    int64 dec = 3;
+    int64 set = 4;
+    int64 best = 5;
+  }
+  bytes metadata = 6;
+}
+message TLeaderboardEntry {
+  LeaderboardEntry entry = 1;
+}
+
+message TLeaderboardEntriesFetch {
+  repeated bytes leaderboard_ids = 1;
+}
+message TLeaderboardEntriesList {
+  message owners {
+    repeated bytes owner_ids = 1;
+  }
+
+  bytes leaderboard_id = 1;
+  oneof filter {
+    bool haystack = 2;
+    owners owner_ids = 3;
+    string lang = 4;
+    string location = 5;
+    string timezone = 6;
+  }
+  bytes cursor = 7;
+}
+message TLeaderboardEntries {
+  repeated LeaderboardEntry entries = 1;
+  bytes cursor = 2;
+}
