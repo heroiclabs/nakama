@@ -62,8 +62,8 @@ func (a *SessionRegistry) Get(sessionID uuid.UUID) *session {
 	return s
 }
 
-func (a *SessionRegistry) add(userID uuid.UUID, conn *websocket.Conn, processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
-	s := NewSession(a.logger, a.config, userID, conn, a.remove)
+func (a *SessionRegistry) add(userID uuid.UUID, handle string, lang string, conn *websocket.Conn, processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
+	s := NewSession(a.logger, a.config, userID, handle, lang, conn, a.remove)
 	a.Lock()
 	a.sessions[s.id] = s
 	a.Unlock()

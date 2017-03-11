@@ -23,6 +23,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"github.com/uber-go/atomic"
 	"github.com/uber-go/zap"
 )
 
@@ -32,6 +33,8 @@ type session struct {
 	config     Config
 	id         uuid.UUID
 	userID     uuid.UUID
+	handle     *atomic.String
+	lang       string
 	stopped    bool
 	conn       *websocket.Conn
 	pingTicker *time.Ticker
@@ -39,7 +42,7 @@ type session struct {
 }
 
 // NewSession creates a new session which encapsulates a socket connection
-func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketConn *websocket.Conn, unregister func(s *session)) *session {
+func NewSession(logger zap.Logger, config Config, userID uuid.UUID, handle string, lang string, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -50,6 +53,8 @@ func NewSession(logger zap.Logger, config Config, userID uuid.UUID, websocketCon
 		config:     config,
 		id:         sessionID,
 		userID:     userID,
+		handle:     atomic.NewString(handle),
+		lang:       lang,
 		conn:       websocketConn,
 		stopped:    false,
 		pingTicker: time.NewTicker(time.Duration(config.GetTransport().PingPeriodMs) * time.Millisecond),

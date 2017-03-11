@@ -26,7 +26,9 @@ type PresenceID struct {
 	SessionID uuid.UUID
 }
 
-type PresenceMeta struct{}
+type PresenceMeta struct {
+	Handle string
+}
 
 type Presence struct {
 	ID     PresenceID
@@ -43,6 +45,7 @@ type Tracker interface {
 	Untrack(sessionID uuid.UUID, topic string, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID)
 	Update(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) error
+	UpdateAll(sessionID uuid.UUID, meta PresenceMeta)
 
 	// Get current total number of presences.
 	Count() int
@@ -157,6 +160,28 @@ func (t *TrackerService) Update(sessionID uuid.UUID, topic string, userID uuid.U
 	}
 	t.Unlock()
 	return e
+}
+
+func (t *TrackerService) UpdateAll(sessionID uuid.UUID, meta PresenceMeta) {
+	joins := make([]Presence, 0)
+	leaves := make([]Presence, 0)
+	t.Lock()
+	for pc, m := range t.values {
+		if pc.ID.SessionID == sessionID {
+			joins = append(joins, Presence{ID: pc.ID, Topic: pc.Topic, UserID: pc.UserID, Meta: meta})
+			leaves = append(leaves, Presence{ID: pc.ID, Topic: pc.Topic, UserID: pc.UserID, Meta: m})
+		}
+	}
+	if len(joins) != 0 {
+		for _, p := range joins {
+			t.values[presenceCompact{ID: p.ID, Topic: p.Topic, UserID: p.UserID}] = p.Meta
+		}
+		t.notifyDiffListeners(
+			joins,
+			leaves,
+		)
+	}
+	t.Unlock()
 }
 
 func (t *TrackerService) Count() int {

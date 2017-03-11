@@ -1,5 +1,5 @@
-hash: 8320f72a78e69c58350e25d60a59f6b36fc5cf4da055ce9c9a0c6a63083912d1
-updated: 2017-01-13T19:42:47.231844584Z
+hash: d332790eaf0dd90a5d91b4fddfd82897055e261ff360d616cf363c0e689ab4f6
+updated: 2017-03-10T18:12:22.221261057Z
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -16,11 +16,11 @@ imports:
 - name: github.com/gogo/protobuf
   version: 909568be09de550ed094403c2bf8a261b5bb730a
   subpackages:
-  - gogoproto
   - proto
-  - protoc-gen-gogo/descriptor
 - name: github.com/golang/protobuf
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
+- name: github.com/gorhill/cronexpr
+  version: a557574d6c024ed6e36acc8b610f5f211c91568a
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/handlers
@@ -31,8 +31,12 @@ imports:
   version: 1f512fc3f05332ba7117626cdfb4e07474e58e60
 - name: github.com/lib/pq
   version: 22cb3e4c487ce6242e2b03369219e5631eed1221
+  subpackages:
+  - oid
 - name: github.com/rubenv/sql-migrate
   version: a3ed23a40ebd39f82bf2a36768ed7d595f2bdc1e
+  subpackages:
+  - sqlparse
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/uber-go/atomic
@@ -43,6 +47,7 @@ imports:
   version: f6b343c37ca80bfa8ea539da67a0b621f84fab1d
   subpackages:
   - bcrypt
+  - blowfish
 - name: golang.org/x/net
   version: 69d4b8aa71caaaa75c3dfc11211d1be495abec7c
   subpackages:

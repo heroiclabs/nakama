@@ -22,11 +22,16 @@ import (
 func (p *pipeline) matchCreate(logger zap.Logger, session *session, envelope *Envelope) {
 	matchID := uuid.NewV4()
 
-	p.tracker.Track(session.id, "match:"+matchID.String(), session.userID, PresenceMeta{})
+	handle := session.handle.Load()
+
+	p.tracker.Track(session.id, "match:"+matchID.String(), session.userID, PresenceMeta{
+		Handle: handle,
+	})
 
 	self := &UserPresence{
 		UserId:    session.userID.Bytes(),
 		SessionId: session.id.Bytes(),
+		Handle:    handle,
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
@@ -51,7 +56,11 @@ func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Enve
 		return
 	}
 
-	p.tracker.Track(session.id, topic, session.userID, PresenceMeta{})
+	handle := session.handle.Load()
+
+	p.tracker.Track(session.id, topic, session.userID, PresenceMeta{
+		Handle: handle,
+	})
 
 	userPresences := make([]*UserPresence, len(ps)+1)
 	for i := 0; i < len(ps); i++ {
@@ -59,11 +68,13 @@ func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Enve
 		userPresences[i] = &UserPresence{
 			UserId:    p.UserID.Bytes(),
 			SessionId: p.ID.SessionID.Bytes(),
+			Handle:    p.Meta.Handle,
 		}
 	}
 	self := &UserPresence{
 		UserId:    session.userID.Bytes(),
 		SessionId: session.id.Bytes(),
+		Handle:    handle,
 	}
 	userPresences[len(ps)] = self
 
@@ -155,6 +166,7 @@ func (p *pipeline) matchDataSend(logger zap.Logger, session *session, envelope *
 				Presence: &UserPresence{
 					UserId:    session.userID.Bytes(),
 					SessionId: session.id.Bytes(),
+					Handle:    session.handle.Load(),
 				},
 				OpCode: incoming.OpCode,
 				Data:   incoming.Data,
