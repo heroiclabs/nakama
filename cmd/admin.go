@@ -61,9 +61,8 @@ func createLeaderboard(args []string, logger zap.Logger) {
 	flags.StringVar(&dsns, "db", "root@localhost:26257", "CockroachDB JDBC connection details.")
 	flags.StringVar(&id, "id", "", "ID to assign to the leaderboard.")
 	flags.BoolVar(&authoritative, "authoritative", false, "True if clients may not submit scores directly, false otherwise.")
-	flags.StringVar(&sortOrder, "sort", "descending", "Leaderboard sort order, 'ascending' or 'descending'.")
+	flags.StringVar(&sortOrder, "sort", "descending", "Leaderboard sort order, 'asc' or 'desc'.")
 	flags.StringVar(&resetSchedule, "reset", "", "Optional reset schedule in CRON format.")
-	flags.StringVar(&metadata, "metadata", "{}", "Optional additional metadata as a JSON string.")
 	flags.StringVar(&metadata, "metadata", "{}", "Optional additional metadata as a JSON string.")
 
 	if err := flags.Parse(args); err != nil {
@@ -89,12 +88,12 @@ func createLeaderboard(args []string, logger zap.Logger) {
 	params = append(params, authoritative)
 
 	// Sort order.
-	if sortOrder == "ascending" {
+	if sortOrder == "asc" {
 		params = append(params, 0)
-	} else if sortOrder == "descending" {
+	} else if sortOrder == "desc" {
 		params = append(params, 1)
 	} else {
-		logger.Fatal("Invalid sort value, must be 'ascending' or 'descending'.")
+		logger.Fatal("Invalid sort value, must be 'asc' or 'desc'.")
 	}
 
 	// Count is hardcoded in the INSERT above.
@@ -148,5 +147,5 @@ func createLeaderboard(args []string, logger zap.Logger) {
 		logger.Fatal("Error creating leaderboard, unexpected insert result")
 	}
 
-	logger.Info("Leaderboard created, base64 encoded ID: ", zap.String("id", base64.StdEncoding.EncodeToString(params[0].([]byte))))
+	logger.Info("Leaderboard created", zap.String("base64(id)", base64.StdEncoding.EncodeToString(params[0].([]byte))))
 }

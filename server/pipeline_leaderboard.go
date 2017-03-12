@@ -60,6 +60,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	params = append(params, limit+1)
 	query += " LIMIT $" + strconv.Itoa(len(params))
 
+	logger.Debug("DB request", zap.String("query", query))
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboards list query", zap.Error(err))
@@ -145,7 +146,9 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var authoritative bool
 	var sortOrder int64
 	var resetSchedule string
-	err := p.db.QueryRow("SELECT authoritative, sort_order, reset_schedule FROM leaderboard WHERE id = $1", incoming.LeaderboardId).
+	query := "SELECT authoritative, sort_order, reset_schedule FROM leaderboard WHERE id = $1"
+	logger.Debug("DB request", zap.String("query", query))
+	err := p.db.QueryRow(query, incoming.LeaderboardId).
 		Scan(&authoritative, &sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
@@ -214,13 +217,15 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var metadata []byte
 	var rankedAt int64
 	var bannedAt int64
-	err = p.db.QueryRow(`INSERT INTO leaderboard_record (leaderboard_id, owner_id, handle, lang, location, timezone,
+	query = `INSERT INTO leaderboard_record (leaderboard_id, owner_id, handle, lang, location, timezone,
 				rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, '{}'), $11, $12, $13, $14)
 			ON CONFLICT (leaderboard_id, owner_id, expires_at)
 			DO UPDATE SET handle = $3, lang = $4, location = COALESCE($5, location), timezone = COALESCE($6, timezone),
-			  `+scoreOpSql+`, num_score = num_score + 1, metadata = COALESCE($10, metadata), updated_at = $12
-			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at`,
+			  ` + scoreOpSql + `, num_score = num_score + 1, metadata = COALESCE($10, metadata), updated_at = $12
+			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at`
+	logger.Debug("DB request", zap.String("query", query))
+	err = p.db.QueryRow(query,
 		incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
 		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, expiresAt, 0, scoreDelta).
 		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
@@ -290,6 +295,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	params = append(params, limit+1)
 	query += " LIMIT $" + strconv.Itoa(len(params))
 
+	logger.Debug("DB request", zap.String("query", query))
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records fetch query", zap.Error(err))
@@ -401,7 +407,9 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 
 	var sortOrder int64
 	var resetSchedule string
-	err := p.db.QueryRow("SELECT sort_order, reset_schedule FROM leaderboard WHERE id = $1", incoming.LeaderboardId).
+	query := "SELECT sort_order, reset_schedule FROM leaderboard WHERE id = $1"
+	logger.Debug("DB request", zap.String("query", query))
+	err := p.db.QueryRow(query, incoming.LeaderboardId).
 		Scan(&sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list metadata query", zap.Error(err))
@@ -420,7 +428,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		currentExpiresAt = timeToMs(expr.Next(now()))
 	}
 
-	query := `SELECT owner_id, handle, lang, location, timezone,
+	query = `SELECT owner_id, handle, lang, location, timezone,
 	  rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at
 	FROM leaderboard_record
 	WHERE leaderboard_id = $1
@@ -479,6 +487,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	params = append(params, limit+1)
 	query += " LIMIT $" + strconv.Itoa(len(params))
 
+	logger.Debug("DB request", zap.String("query", query))
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
@@ -572,6 +581,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	firstParams = append(firstParams, int64(limit/2))
 	firstQuery += " LIMIT $" + strconv.Itoa(len(firstParams))
 
+	logger.Debug("DB request", zap.String("query", firstQuery))
 	firstRows, err := p.db.Query(firstQuery, firstParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
@@ -641,6 +651,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)
 	secondQuery += " LIMIT $" + strconv.Itoa(len(secondParams))
 
+	logger.Debug("DB request", zap.String("query", secondQuery))
 	secondRows, err := p.db.Query(secondQuery, secondParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
