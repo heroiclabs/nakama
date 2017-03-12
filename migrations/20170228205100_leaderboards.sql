@@ -23,7 +23,6 @@ CREATE TABLE IF NOT EXISTS leaderboard (
     authoritative  BOOLEAN      DEFAULT FALSE,
     sort_order     SMALLINT     DEFAULT 1 NOT NULL, -- asc(0), desc(1)
     count          BIGINT       DEFAULT 0 CHECK (count >= 0) NOT NULL,
-    score_delta    INT          DEFAULT 0 CHECK (score_delta >= 0) NOT NULL,
     reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
     metadata       BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
     next_id        BYTEA        DEFAULT NULL CHECK (next_id <> id),

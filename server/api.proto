@@ -507,11 +507,10 @@ message Leaderboard {
   bool authoritative = 2;
   int64 sort = 3;
   int64 count = 4;
-  int64 score_delta = 5;
-  string reset_schedule = 6;
-  bytes metadata = 7;
-  bytes next_id = 8;
-  bytes prev_id = 9;
+  string reset_schedule = 5;
+  bytes metadata = 6;
+  bytes next_id = 7;
+  bytes prev_id = 8;
 }
 
 message LeaderboardRecord {

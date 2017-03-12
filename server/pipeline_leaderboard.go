@@ -44,7 +44,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 		return
 	}
 
-	query := "SELECT id, authoritative, sort_order, count, score_delta, reset_schedule, metadata, next_id, prev_id FROM leaderboard"
+	query := "SELECT id, authoritative, sort_order, count, reset_schedule, metadata, next_id, prev_id FROM leaderboard"
 	params := []interface{}{}
 
 	if len(incoming.Cursor) != 0 {
@@ -76,7 +76,6 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	var authoritative bool
 	var sortOrder int64
 	var count int64
-	var scoreDelta int64
 	var resetSchedule string
 	var metadata []byte
 	var nextId []byte
@@ -96,7 +95,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 			break
 		}
 
-		err = rows.Scan(&id, &authoritative, &sortOrder, &count, &scoreDelta, &resetSchedule, &metadata, &nextId, &prevId)
+		err = rows.Scan(&id, &authoritative, &sortOrder, &count, &resetSchedule, &metadata, &nextId, &prevId)
 		if err != nil {
 			logger.Error("Could not scan leaderboards list query results", zap.Error(err))
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboards"}}})
@@ -108,7 +107,6 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 			Authoritative: authoritative,
 			Sort:          sortOrder,
 			Count:         count,
-			ScoreDelta:    scoreDelta,
 			ResetSchedule: resetSchedule,
 			Metadata:      metadata,
 			NextId:        nextId,

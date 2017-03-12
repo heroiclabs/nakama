@@ -54,7 +54,6 @@ func createLeaderboard(args []string, logger zap.Logger) {
 	var id string
 	var authoritative bool
 	var sortOrder string
-	var scoreDelta int64
 	var resetSchedule string
 	var metadata string
 
@@ -63,7 +62,6 @@ func createLeaderboard(args []string, logger zap.Logger) {
 	flags.StringVar(&id, "id", "", "ID to assign to the leaderboard.")
 	flags.BoolVar(&authoritative, "authoritative", false, "True if clients may not submit scores directly, false otherwise.")
 	flags.StringVar(&sortOrder, "sort", "descending", "Leaderboard sort order, 'ascending' or 'descending'.")
-	flags.Int64Var(&scoreDelta, "delta", 0, "Optional maximum allowed difference between consecutive submitted scores.")
 	flags.StringVar(&resetSchedule, "reset", "", "Optional reset schedule in CRON format.")
 	flags.StringVar(&metadata, "metadata", "{}", "Optional additional metadata as a JSON string.")
 	flags.StringVar(&metadata, "metadata", "{}", "Optional additional metadata as a JSON string.")
@@ -76,8 +74,8 @@ func createLeaderboard(args []string, logger zap.Logger) {
 		logger.Fatal("Database connection details are required.")
 	}
 
-	query := `INSERT INTO leaderboard (id, authoritative, sort_order, count, score_delta, reset_schedule, metadata)
-	VALUES ($1, $2, $3, 0, $4, $5, $6)`
+	query := `INSERT INTO leaderboard (id, authoritative, sort_order, count, reset_schedule, metadata)
+	VALUES ($1, $2, $3, 0, $4, $5)`
 	params := []interface{}{}
 
 	// ID.
@@ -100,12 +98,6 @@ func createLeaderboard(args []string, logger zap.Logger) {
 	}
 
 	// Count is hardcoded in the INSERT above.
-
-	// Score delta.
-	if scoreDelta < 0 {
-		logger.Fatal("Score delta must be >= 0.")
-	}
-	params = append(params, scoreDelta)
 
 	// Reset schedule.
 	if resetSchedule != "" {
