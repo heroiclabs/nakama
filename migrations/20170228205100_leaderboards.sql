@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS leaderboard (
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_record (
-    PRIMARY KEY (leaderboard_id, owner_id, expires_at),
-    FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
+    PRIMARY KEY (leaderboard_id, expires_at, owner_id),
+--    FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
     leaderboard_id BYTEA        NOT NULL,
     owner_id       BYTEA        NOT NULL,
     handle         VARCHAR(20)  NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     expires_at     INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
     banned_at      INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
 );
---CREATE INDEX IF NOT EXISTS leaderboard_id_idx ON leaderboard_record (leaderboard_id); -- TODO make multi-column
+CREATE INDEX IF NOT EXISTS leaderboard_id_owner_id_idx ON leaderboard_record (leaderboard_id, owner_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS leaderboard_record;
