@@ -225,7 +225,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 			DO UPDATE SET handle = $3, lang = $4, location = COALESCE($5, leaderboard_record.location),
 			  timezone = COALESCE($6, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
 			  metadata = COALESCE($10, leaderboard_record.metadata), updated_at = $12
-			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at`
+			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at` // FIXME read after write
 	logger.Debug("Leaderboard record write", zap.String("query", query))
 	err = p.db.QueryRow(query,
 		incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
@@ -285,9 +285,9 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	query := `SELECT leaderboard_id, owner_id, handle, lang, location, timezone,
 	  rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at
 	FROM leaderboard_record
-	WHERE leaderboard_id IN ($1)
-	AND owner_id = $2`
-	params := []interface{}{leaderboardIds, session.userID.Bytes()}
+	WHERE owner_id = $1
+	AND leaderboard_id IN ($2)`
+	params := []interface{}{session.userID.Bytes(), leaderboardIds}
 
 	if incomingCursor != nil {
 		query += " AND (leaderboard_id, expires_at, owner_id) > ($3, $4, $5)"
@@ -447,8 +447,8 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		p.loadLeaderboardRecordsHaystack(logger, session, envelope, incoming.LeaderboardId, currentExpiresAt, limit, sortOrder, query, params)
 		return
 	case *TLeaderboardRecordsList_OwnerIds:
-		if len(incoming.GetOwnerIds().OwnerIds) == 0 {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "One or more owner IDs required"}}})
+		if len(incoming.GetOwnerIds().OwnerIds) < 1 || len(incoming.GetOwnerIds().OwnerIds) > 100 {
+			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Must be 1-100 owner IDs"}}})
 			return
 		}
 		query += " AND owner_id IN ($3)"
@@ -483,7 +483,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		query += " ORDER BY score ASC, updated_at DESC"
 	} else {
 		// Higher score is better.
-		query += " ORDER BY score ASC, updated_at DESC"
+		query += " ORDER BY score DESC, updated_at DESC"
 	}
 
 	params = append(params, limit+1)
@@ -578,7 +578,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 		firstQuery += " ORDER BY score ASC, updated_at DESC"
 	} else {
 		// Higher score is better.
-		firstQuery += " ORDER BY score ASC, updated_at DESC"
+		firstQuery += " ORDER BY score DESC, updated_at DESC"
 	}
 	firstParams = append(firstParams, int64(limit/2))
 	firstQuery += " LIMIT $" + strconv.Itoa(len(firstParams))
@@ -648,7 +648,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 		secondQuery += " ORDER BY score ASC, updated_at DESC"
 	} else {
 		// Higher score is better.
-		secondQuery += " ORDER BY score ASC, updated_at DESC"
+		secondQuery += " ORDER BY score DESC, updated_at DESC"
 	}
 	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)
 	secondQuery += " LIMIT $" + strconv.Itoa(len(secondParams))
