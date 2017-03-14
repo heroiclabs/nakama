@@ -32,31 +32,33 @@ CREATE TABLE IF NOT EXISTS leaderboard (
 CREATE TABLE IF NOT EXISTS leaderboard_record (
     PRIMARY KEY (leaderboard_id, expires_at, owner_id),
 --    FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
-    leaderboard_id BYTEA        NOT NULL,
-    owner_id       BYTEA        NOT NULL,
-    handle         VARCHAR(20)  NOT NULL,
-    lang           VARCHAR(18)  DEFAULT 'en' NOT NULL,
-    location       VARCHAR(64), -- e.g. "San Francisco, CA"
-    timezone       VARCHAR(64), -- e.g. "Pacific Time (US & Canada)"
-    rank_value     BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
-    score          BIGINT       DEFAULT 0 NOT NULL,
-    num_score      INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
+    id                 BYTEA        UNIQUE NOT NULL,
+    leaderboard_id     BYTEA        NOT NULL,
+    owner_id           BYTEA        NOT NULL,
+    handle             VARCHAR(20)  NOT NULL,
+    lang               VARCHAR(18)  DEFAULT 'en' NOT NULL,
+    location           VARCHAR(64), -- e.g. "San Francisco, CA"
+    timezone           VARCHAR(64), -- e.g. "Pacific Time (US & Canada)"
+    rank_value         BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
+    score              BIGINT       DEFAULT 0 NOT NULL,
+    num_score          INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
     -- FIXME replace with JSONB
-    metadata       BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
-    ranked_at      INT          CHECK (ranked_at >= 0) DEFAULT 0 NOT NULL,
-    updated_at     INT          CHECK (updated_at > 0) NOT NULL,
-    expires_at     INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
-    banned_at      INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
+    metadata           BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
+    ranked_at          INT          CHECK (ranked_at >= 0) DEFAULT 0 NOT NULL,
+    updated_at         INT          CHECK (updated_at > 0) NOT NULL,
+    updated_at_inverse INT          CHECK (updated_at > 0) NOT NULL,
+    expires_at         INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
+    banned_at          INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
 );
 CREATE INDEX IF NOT EXISTS owner_id_leaderboard_id_idx ON leaderboard_record (owner_id, leaderboard_id);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_lang_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_lang_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_location_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_location_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_timezone_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_timezone_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score ASC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_score_updated_at_inverse_id_idx ON leaderboard_record (leaderboard_id, expires_at, score, updated_at_inverse, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_score_updated_at_id_idx ON leaderboard_record (leaderboard_id, expires_at, score, updated_at, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_lang_score_updated_at_inverse_id_idx ON leaderboard_record (leaderboard_id, expires_at, lang, score, updated_at_inverse, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_lang_score_updated_at_id_idx ON leaderboard_record (leaderboard_id, expires_at, lang, score, updated_at, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_location_score_updated_at_inverse_id_idx ON leaderboard_record (leaderboard_id, expires_at, location, score, updated_at_inverse, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_location_score_updated_at_id_idx ON leaderboard_record (leaderboard_id, expires_at, location, score, updated_at, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_timezone_score_updated_at_inverse_id_idx ON leaderboard_record (leaderboard_id, expires_at, timezone, score, updated_at_inverse, id);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_timezone_score_updated_at_id_idx ON leaderboard_record (leaderboard_id, expires_at, timezone, score, updated_at, id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS leaderboard_record;

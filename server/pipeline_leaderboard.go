@@ -20,6 +20,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"github.com/gorhill/cronexpr"
+	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"strconv"
 )
@@ -28,10 +29,15 @@ type leaderboardCursor struct {
 	Id []byte
 }
 
-type leaderboardRecordCursor struct {
-	LeaderboardId []byte
-	ExpiresAt     int64
+type leaderboardRecordFetchCursor struct {
 	OwnerId       []byte
+	LeaderboardId []byte
+}
+
+type leaderboardRecordListCursor struct {
+	Score     int64
+	UpdatedAt int64
+	Id        []byte
 }
 
 func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelope *Envelope) {
@@ -180,24 +186,24 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var scoreAbs int64
 	switch incoming.Op.(type) {
 	case *TLeaderboardRecordWrite_Incr:
-		scoreOpSql = "score = leaderboard_record.score + $15"
+		scoreOpSql = "score = leaderboard_record.score + $16"
 		scoreDelta = incoming.GetIncr()
 		scoreAbs = incoming.GetIncr()
 	case *TLeaderboardRecordWrite_Decr:
-		scoreOpSql = "score = leaderboard_record.score - $15"
+		scoreOpSql = "score = leaderboard_record.score - $16"
 		scoreDelta = incoming.GetDecr()
 		scoreAbs = 0 - incoming.GetDecr()
 	case *TLeaderboardRecordWrite_Set:
-		scoreOpSql = "score = $15"
+		scoreOpSql = "score = $16"
 		scoreDelta = incoming.GetSet()
 		scoreAbs = incoming.GetSet()
 	case *TLeaderboardRecordWrite_Best:
 		if sortOrder == 0 {
 			// Lower score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $15 - abs(leaderboard_record.score - $15)) / 2"
+			scoreOpSql = "score = (leaderboard_record.score + $16 - abs(leaderboard_record.score - $16)) / 2"
 		} else {
 			// Higher score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $15 + abs(leaderboard_record.score - $15)) / 2"
+			scoreOpSql = "score = (leaderboard_record.score + $16 + abs(leaderboard_record.score - $16)) / 2"
 		}
 		scoreDelta = incoming.GetBest()
 		scoreAbs = incoming.GetBest()
@@ -218,17 +224,17 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var metadata []byte
 	var rankedAt int64
 	var bannedAt int64
-	query = `INSERT INTO leaderboard_record (leaderboard_id, owner_id, handle, lang, location, timezone,
+	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
 				rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, '{}'), $11, $12, $13, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15)
 			ON CONFLICT (leaderboard_id, expires_at, owner_id)
-			DO UPDATE SET handle = $3, lang = $4, location = COALESCE($5, leaderboard_record.location),
-			  timezone = COALESCE($6, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
-			  metadata = COALESCE($10, leaderboard_record.metadata), updated_at = $12
+			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
+			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
+			  metadata = COALESCE($11, leaderboard_record.metadata), updated_at = $13
 			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at` // FIXME read after write
 	logger.Debug("Leaderboard record write", zap.String("query", query))
 	err = p.db.QueryRow(query,
-		incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
+		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
 		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, expiresAt, 0, scoreDelta).
 		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
 	if err != nil {
@@ -270,9 +276,9 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 		return
 	}
 
-	var incomingCursor *leaderboardRecordCursor
+	var incomingCursor *leaderboardRecordFetchCursor
 	if len(incoming.Cursor) != 0 {
-		incomingCursor = &leaderboardRecordCursor{}
+		incomingCursor = &leaderboardRecordFetchCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(incomingCursor); err != nil {
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid cursor data"}}})
 			return
@@ -290,8 +296,8 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	params := []interface{}{session.userID.Bytes(), leaderboardIds}
 
 	if incomingCursor != nil {
-		query += " AND (leaderboard_id, expires_at, owner_id) > ($3, $4, $5)"
-		params = append(params, incomingCursor.LeaderboardId, incomingCursor.ExpiresAt, incomingCursor.OwnerId)
+		query += " AND (owner_id, leaderboard_id) > ($3, $4)"
+		params = append(params, incomingCursor.OwnerId, incomingCursor.LeaderboardId)
 	}
 
 	params = append(params, limit+1)
@@ -327,10 +333,9 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	for rows.Next() {
 		if int64(len(leaderboardRecords)) >= limit {
 			cursorBuf := new(bytes.Buffer)
-			newCursor := &leaderboardRecordCursor{
-				LeaderboardId: lastRecord.LeaderboardId,
-				ExpiresAt:     lastRecord.ExpiresAt,
+			newCursor := &leaderboardRecordFetchCursor{
 				OwnerId:       lastRecord.OwnerId,
+				LeaderboardId: lastRecord.LeaderboardId,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records fetch cursor", zap.Error(err))
@@ -394,15 +399,11 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		return
 	}
 
-	var incomingCursor *leaderboardRecordCursor
+	var incomingCursor *leaderboardRecordListCursor
 	if len(incoming.Cursor) != 0 {
-		incomingCursor = &leaderboardRecordCursor{}
+		incomingCursor = &leaderboardRecordListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(incomingCursor); err != nil {
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid cursor data"}}})
-			return
-		}
-		if !bytes.Equal(incoming.LeaderboardId, incomingCursor.LeaderboardId) {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Cursor data does not match leaderboard ID"}}})
 			return
 		}
 	}
@@ -430,7 +431,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		currentExpiresAt = timeToMs(expr.Next(now()))
 	}
 
-	query = `SELECT owner_id, handle, lang, location, timezone,
+	query = `SELECT id, owner_id, handle, lang, location, timezone,
 	  rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at
 	FROM leaderboard_record
 	WHERE leaderboard_id = $1
@@ -444,9 +445,13 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			return
 		}
 		// Haystack queries are executed in a separate flow.
-		p.loadLeaderboardRecordsHaystack(logger, session, envelope, incoming.LeaderboardId, currentExpiresAt, limit, sortOrder, query, params)
+		p.loadLeaderboardRecordsHaystack(logger, session, envelope, incoming.LeaderboardId, incoming.GetOwnerId(), currentExpiresAt, limit, sortOrder, query, params)
 		return
 	case *TLeaderboardRecordsList_OwnerIds:
+		if incomingCursor != nil {
+			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Cursor not allowed with batch filter query"}}})
+			return
+		}
 		if len(incoming.GetOwnerIds().OwnerIds) < 1 || len(incoming.GetOwnerIds().OwnerIds) > 100 {
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Must be 1-100 owner IDs"}}})
 			return
@@ -472,18 +477,27 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 
 	if incomingCursor != nil {
 		count := len(params)
-		query += " AND (leaderboard_id, expires_at, owner_id) > ($" + strconv.Itoa(count) +
-			", $" + strconv.Itoa(count+1) +
-			", $" + strconv.Itoa(count+2) + ")"
-		params = append(params, incomingCursor.LeaderboardId, incomingCursor.ExpiresAt, incomingCursor.OwnerId)
+		if sortOrder == 0 {
+			// Ascending leaderboard.
+			query += " AND (score, updated_at, id) > ($" + strconv.Itoa(count) +
+				", $" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) + ")"
+			params = append(params, incomingCursor.Score, incomingCursor.UpdatedAt, incomingCursor.Id)
+		} else {
+			// Descending leaderboard.
+			query += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count) +
+				", $" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) + ")"
+			params = append(params, incomingCursor.Score, invertMs(incomingCursor.UpdatedAt), incomingCursor.Id)
+		}
 	}
 
 	if sortOrder == 0 {
-		// Lower score is better.
-		query += " ORDER BY score ASC, updated_at DESC"
+		// Ascending leaderboard, lower score is better.
+		query += " ORDER BY score ASC, updated_at ASC"
 	} else {
-		// Higher score is better.
-		query += " ORDER BY score DESC, updated_at DESC"
+		// Descending leaderboard, higher score is better.
+		query += " ORDER BY score DESC, updated_at_inverse DESC"
 	}
 
 	params = append(params, limit+1)
@@ -500,8 +514,8 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 
 	leaderboardRecords := []*LeaderboardRecord{}
 	var outgoingCursor []byte
-	var lastRecord *LeaderboardRecord
 
+	var id []byte
 	var ownerId []byte
 	var handle string
 	var lang string
@@ -518,10 +532,10 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	for rows.Next() {
 		if int64(len(leaderboardRecords)) >= limit {
 			cursorBuf := new(bytes.Buffer)
-			newCursor := &leaderboardRecordCursor{
-				LeaderboardId: lastRecord.LeaderboardId,
-				ExpiresAt:     lastRecord.ExpiresAt,
-				OwnerId:       lastRecord.OwnerId,
+			newCursor := &leaderboardRecordListCursor{
+				Score:     score,
+				UpdatedAt: updatedAt,
+				Id:        id,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
@@ -532,7 +546,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			break
 		}
 
-		err = rows.Scan(&ownerId, &handle, &lang, &location, &timezone,
+		err = rows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
@@ -540,7 +554,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			return
 		}
 
-		lastRecord = &LeaderboardRecord{
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
 			LeaderboardId: incoming.LeaderboardId,
 			OwnerId:       ownerId,
 			Handle:        handle,
@@ -554,8 +568,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			RankedAt:      rankedAt,
 			UpdatedAt:     updatedAt,
 			ExpiresAt:     expiresAt,
-		}
-		leaderboardRecords = append(leaderboardRecords, lastRecord)
+		})
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
@@ -566,19 +579,43 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	p.normalizeAndSendLeaderboardRecords(logger, session, envelope, leaderboardRecords, outgoingCursor)
 }
 
-func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *session, envelope *Envelope, leaderboardId []byte, currentExpiresAt, limit, sortOrder int64, query string, params []interface{}) {
+func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *session, envelope *Envelope, leaderboardId, findOwnerId []byte, currentExpiresAt, limit, sortOrder int64, query string, params []interface{}) {
+	// Find the owner's record.
+	var id []byte
+	var score int64
+	var updatedAt int64
+	findQuery := `SELECT id, score, updated_at
+		FROM leaderboard_record
+		WHERE leaderboard_id = $1
+		AND expires_at = $2
+		AND owner_id = $3`
+	logger.Debug("Leaderboard record find", zap.String("query", findQuery))
+	err := p.db.QueryRow(findQuery, leaderboardId, currentExpiresAt, findOwnerId).Scan(&id, &score, &updatedAt)
+	if err != nil {
+		// TODO handle errors other than record not found?
+		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_LeaderboardRecords{LeaderboardRecords: &TLeaderboardRecords{
+			Records: []*LeaderboardRecord{},
+			// No cursor.
+		}}})
+		return
+	}
+
 	// First half.
 	count := len(params)
-	firstQuery := query + " AND (leaderboard_id, expires_at, owner_id) <= ($" + strconv.Itoa(count) +
-		", $" + strconv.Itoa(count+1) +
-		", $" + strconv.Itoa(count+2) + ")"
-	firstParams := append(params, leaderboardId, currentExpiresAt, session.userID.Bytes())
+	firstQuery := query
+	firstParams := params
 	if sortOrder == 0 {
-		// Lower score is better.
-		firstQuery += " ORDER BY score ASC, updated_at DESC"
+		// Lower score is better, but get in reverse order from current user to get those immediately above.
+		firstQuery += " AND (score, updated_at_inverse, id) <= ($" + strconv.Itoa(count) +
+			", $" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) + ") ORDER BY score DESC, updated_at_inverse DESC"
+		firstParams = append(firstParams, score, invertMs(updatedAt), id)
 	} else {
 		// Higher score is better.
-		firstQuery += " ORDER BY score DESC, updated_at DESC"
+		firstQuery += " AND (score, updated_at, id) >= ($" + strconv.Itoa(count) +
+			", $" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) + ") ORDER BY score ASC, updated_at ASC"
+		firstParams = append(firstParams, score, updatedAt, id)
 	}
 	firstParams = append(firstParams, int64(limit/2))
 	firstQuery += " LIMIT $" + strconv.Itoa(len(firstParams))
@@ -600,15 +637,13 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	var location sql.NullString
 	var timezone sql.NullString
 	var rankValue int64
-	var score int64
 	var numScore int64
 	var metadata []byte
 	var rankedAt int64
-	var updatedAt int64
 	var expiresAt int64
 	var bannedAt int64
 	for firstRows.Next() {
-		err = firstRows.Scan(&ownerId, &handle, &lang, &location, &timezone,
+		err = firstRows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
@@ -638,17 +673,26 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 		return
 	}
 
+	// We went 'up' on the leaderboard, so reverse the first half of records.
+	for left, right := 0, len(leaderboardRecords)-1; left < right; left, right = left+1, right-1 {
+		leaderboardRecords[left], leaderboardRecords[right] = leaderboardRecords[right], leaderboardRecords[left]
+	}
+
 	// Second half.
-	secondQuery := query + " AND (leaderboard_id, expires_at, owner_id) > ($" + strconv.Itoa(count) +
-		", $" + strconv.Itoa(count+1) +
-		", $" + strconv.Itoa(count+2) + ")"
-	secondParams := append(params, leaderboardId, currentExpiresAt, session.userID.Bytes())
+	secondQuery := query
+	secondParams := params
 	if sortOrder == 0 {
 		// Lower score is better.
-		secondQuery += " ORDER BY score ASC, updated_at DESC"
+		secondQuery += " AND (score, updated_at, id) > ($" + strconv.Itoa(count) +
+			", $" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) + ") ORDER BY score ASC, updated_at ASC"
+		secondParams = append(secondParams, score, updatedAt, id)
 	} else {
 		// Higher score is better.
-		secondQuery += " ORDER BY score DESC, updated_at DESC"
+		secondQuery += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count) +
+			", $" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) + ") ORDER BY score DESC, updated_at DESC"
+		secondParams = append(secondParams, score, invertMs(updatedAt), id)
 	}
 	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)
 	secondQuery += " LIMIT $" + strconv.Itoa(len(secondParams))
@@ -663,15 +707,15 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	defer secondRows.Close()
 
 	var outgoingCursor []byte
-	var lastRecord *LeaderboardRecord
+	//var lastRecord *LeaderboardRecord
 
 	for secondRows.Next() {
 		if int64(len(leaderboardRecords)) >= limit {
 			cursorBuf := new(bytes.Buffer)
-			newCursor := &leaderboardRecordCursor{
-				LeaderboardId: lastRecord.LeaderboardId,
-				ExpiresAt:     lastRecord.ExpiresAt,
-				OwnerId:       lastRecord.OwnerId,
+			newCursor := &leaderboardRecordListCursor{
+				Score:     score,
+				UpdatedAt: updatedAt,
+				Id:        id,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
@@ -682,7 +726,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			break
 		}
 
-		err = secondRows.Scan(&ownerId, &handle, &lang, &location, &timezone,
+		err = secondRows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
@@ -690,7 +734,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			return
 		}
 
-		lastRecord = &LeaderboardRecord{
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
 			LeaderboardId: leaderboardId,
 			OwnerId:       ownerId,
 			Handle:        handle,
@@ -704,8 +748,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			RankedAt:      rankedAt,
 			UpdatedAt:     updatedAt,
 			ExpiresAt:     expiresAt,
-		}
-		leaderboardRecords = append(leaderboardRecords, lastRecord)
+		})
 	}
 	if err = secondRows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
@@ -733,4 +776,10 @@ func (p *pipeline) normalizeAndSendLeaderboardRecords(logger zap.Logger, session
 		Records: records,
 		Cursor:  cursor,
 	}}})
+}
+
+func invertMs(ms int64) int64 {
+	// Subtract a millisecond timestamp from a fixed value.
+	// This value represents Wed, 16 Nov 5138 at about 09:46:39 UTC.
+	return 99999999999999 - ms
 }
