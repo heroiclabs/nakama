@@ -156,21 +156,22 @@ func parseArgs(clogger zap.Logger) server.Config {
 	var opsPort int
 	flags.IntVar(&opsPort, "ops-port", -1, "Set port for ops dashboard.")
 
-	if len(filepath) > 0 {
-		data, err := ioutil.ReadFile(filepath)
-		if err != nil {
-			clogger.Error("Could not read config file, using defaults", zap.Error(err))
-		} else {
-			err = yaml.Unmarshal([]byte(data), config)
-			if err != nil {
-				clogger.Error("Could not parse config file, using defaults", zap.Error(err))
-			}
-		}
-	}
-
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		clogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
 	} else {
+
+		if len(filepath) > 0 {
+			data, err := ioutil.ReadFile(filepath)
+			if err != nil {
+				clogger.Error("Could not read config file, using defaults", zap.Error(err))
+			} else {
+				err = yaml.Unmarshal(data, config)
+				if err != nil {
+					clogger.Error("Could not parse config file, using defaults", zap.Error(err))
+				}
+			}
+		}
+
 		if len(name) > 0 {
 			config.Name = name
 		}
