@@ -159,7 +159,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		Scan(&authoritative, &sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
 		return
 	}
 
@@ -170,7 +170,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
 			return
 		}
 		expiresAt = timeToMs(expr.Next(now))
@@ -216,6 +216,28 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	}
 
 	handle := session.handle.Load()
+	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
+				rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15)
+			ON CONFLICT (leaderboard_id, expires_at, owner_id)
+			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
+			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
+			  metadata = COALESCE($11, leaderboard_record.metadata), updated_at = $13`
+	logger.Debug("Leaderboard record write", zap.String("query", query))
+	res, err := p.db.Exec(query,
+		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
+		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, expiresAt, 0, scoreDelta)
+	if err != nil {
+		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
+		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		return
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		logger.Error("Unexpected row count from leaderboard record write query")
+		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		return
+	}
+
 	var location string
 	var timezone string
 	var rankValue int64
@@ -224,22 +246,17 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var metadata []byte
 	var rankedAt int64
 	var bannedAt int64
-	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
-				rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15)
-			ON CONFLICT (leaderboard_id, expires_at, owner_id)
-			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
-			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
-			  metadata = COALESCE($11, leaderboard_record.metadata), updated_at = $13
-			RETURNING location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at` // FIXME read after write
-	logger.Debug("Leaderboard record write", zap.String("query", query))
-	err = p.db.QueryRow(query,
-		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
-		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, expiresAt, 0, scoreDelta).
+	query = `SELECT location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at
+		FROM leaderboard_record
+		WHERE leaderboard_id = $1
+		AND expires_at = $2
+		AND owner_id = $3`
+	logger.Debug("Leaderboard record read", zap.String("query", query))
+	err = p.db.QueryRow(query, incoming.LeaderboardId, expiresAt, session.userID.Bytes()).
 		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
 	if err != nil {
-		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		logger.Error("Could not execute leaderboard record read query", zap.Error(err))
+		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
 		return
 	}
 
