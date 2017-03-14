@@ -49,14 +49,14 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     banned_at      INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
 );
 CREATE INDEX IF NOT EXISTS owner_id_leaderboard_id_idx ON leaderboard_record (owner_id, leaderboard_id);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_lang_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_lang_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_location_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_location_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score ASC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_timezone_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_timezone_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score ASC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, score ASC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_lang_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_lang_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, lang, score ASC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_location_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_location_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, location, score ASC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_timezone_score_DESC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_DESC_timezone_score_ASC_updated_at_DESC_idx ON leaderboard_record (leaderboard_id, expires_at DESC, timezone, score ASC, updated_at DESC);
 
 -- +migrate Down
 DROP TABLE IF EXISTS leaderboard_record;
