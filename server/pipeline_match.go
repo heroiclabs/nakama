@@ -45,14 +45,14 @@ func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Enve
 	matchIDBytes := envelope.GetMatchJoin().MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
 	if err != nil {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid match ID"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
 		return
 	}
 	topic := "match:" + matchID.String()
 
 	ps := p.tracker.ListByTopic(topic)
 	if len(ps) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Match not found"}}})
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
 		return
 	}
 
@@ -89,14 +89,14 @@ func (p *pipeline) matchLeave(logger zap.Logger, session *session, envelope *Env
 	matchIDBytes := envelope.GetMatchLeave().MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
 	if err != nil {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid match ID"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
 		return
 	}
 	topic := "match:" + matchID.String()
 
 	ps := p.tracker.ListByTopic(topic)
 	if len(ps) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Match not found"}}})
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
 		return
 	}
 
@@ -110,7 +110,7 @@ func (p *pipeline) matchLeave(logger zap.Logger, session *session, envelope *Env
 
 	// If sender wasn't part of the match.
 	if !found {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Match not found"}}})
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
 		return
 	}
 

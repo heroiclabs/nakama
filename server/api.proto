@@ -27,18 +27,11 @@ message Error {
     UNRECOGNIZED_PAYLOAD = 1;
     MISSING_PAYLOAD = 2;
     BAD_INPUT = 3;
-
     USER_LINK_INUSE = 4;
     USER_LINK_PROVIDER_UNAVAILABLE = 5;
     USER_UNLINK_DISALLOWED = 6;
-
     STORAGE_FETCH_DISALLOWED = 7;
-
-//    FRIEND_ADD_MISSING_ID = 27;
-//    GROUP_
-//    TOPIC_
-//    MATCH_
-
+    MATCH_NOT_FOUND = 8;
   }
 
   string reason = 1;
