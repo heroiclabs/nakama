@@ -88,7 +88,7 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 		err = proto.Unmarshal(data, request)
 		if err != nil {
 			s.logger.Warn("Received malformed payload", zap.Object("data", data))
-			s.Send(&Envelope{CollationId: request.CollationId, Payload: &Envelope_Error{&Error{Reason: "Unrecognized message"}}})
+			s.Send(ErrorMessage(request.CollationId, SYSTEM_BAD_PAYLOAD, "Unrecognized payload"))
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.CollationId))

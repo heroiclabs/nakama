@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - The build system now strips up to current dir in recorded source file paths at compile.
+- Addition of specific error messages to the Error payload.
 
 ### Fixed
 - Fix regression loading config file.

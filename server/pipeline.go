@@ -134,8 +134,17 @@ func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope 
 		p.leaderboardRecordsList(logger, session, envelope)
 
 	case nil:
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No payload found"}}})
+		session.Send(ErrorMessage(envelope.CollationId, SYSTEM_MISSING_PAYLOAD, "No payload found"))
 	default:
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Unrecognized payload"}}})
+		session.Send(ErrorMessage(envelope.CollationId, SYSTEM_BAD_PAYLOAD, "Unrecognized payload"))
 	}
+}
+
+func ErrorMessage(collationId string, code Error_ErrorCode, message string) *Envelope {
+	return &Envelope{
+		CollationId: collationId,
+		Payload: &Envelope_Error{&Error{
+				Reason: message,
+				Code: code,
+		}}}
 }
