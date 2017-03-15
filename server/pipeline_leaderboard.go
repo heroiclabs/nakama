@@ -426,7 +426,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	}
 
 	var sortOrder int64
-	var resetSchedule string
+	var resetSchedule sql.NullString
 	query := "SELECT sort_order, reset_schedule FROM leaderboard WHERE id = $1"
 	logger.Debug("Leaderboard lookup", zap.String("query", query))
 	err := p.db.QueryRow(query, incoming.LeaderboardId).
@@ -438,8 +438,8 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	}
 
 	currentExpiresAt := int64(0)
-	if resetSchedule != "" {
-		expr, err := cronexpr.Parse(resetSchedule)
+	if resetSchedule.Valid {
+		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
