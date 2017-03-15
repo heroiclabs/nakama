@@ -20,6 +20,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"github.com/gorhill/cronexpr"
+	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"strconv"
@@ -141,7 +142,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		return
 	}
 
-	if len(incoming.Metadata) != 0 {
+	if incoming.Metadata != nil {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(incoming.Metadata, &maybeJSON) != nil {
@@ -310,7 +311,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	FROM leaderboard_record
 	WHERE owner_id = $1
 	AND leaderboard_id IN ($2)`
-	params := []interface{}{session.userID.Bytes(), leaderboardIds}
+	params := []interface{}{session.userID.Bytes(), pq.Array(leaderboardIds)}
 
 	if incomingCursor != nil {
 		query += " AND (owner_id, leaderboard_id) > ($3, $4)"
@@ -474,7 +475,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			return
 		}
 		query += " AND owner_id IN ($3)"
-		params = append(params, incoming.GetOwnerIds().OwnerIds)
+		params = append(params, pq.Array(incoming.GetOwnerIds().OwnerIds))
 	case *TLeaderboardRecordsList_Lang:
 		query += " AND lang = $3"
 		params = append(params, incoming.GetLang())
