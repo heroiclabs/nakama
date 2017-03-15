@@ -142,13 +142,15 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		return
 	}
 
-	if incoming.Metadata != nil {
+	var incomingMetadata []byte
+	if len(incoming.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(incoming.Metadata, &maybeJSON) != nil {
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Metadata must be a valid JSON object"}}})
 			return
 		}
+		incomingMetadata = incoming.Metadata
 	}
 
 	var authoritative bool
@@ -227,7 +229,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	logger.Debug("Leaderboard record write", zap.String("query", query))
 	res, err := p.db.Exec(query,
 		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
-		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
+		incoming.Timezone, 0, scoreAbs, 1, incomingMetadata, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
