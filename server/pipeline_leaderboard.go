@@ -186,24 +186,24 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	var scoreAbs int64
 	switch incoming.Op.(type) {
 	case *TLeaderboardRecordWrite_Incr:
-		scoreOpSql = "score = leaderboard_record.score + $16"
+		scoreOpSql = "score = leaderboard_record.score + $17::BIGINT"
 		scoreDelta = incoming.GetIncr()
 		scoreAbs = incoming.GetIncr()
 	case *TLeaderboardRecordWrite_Decr:
-		scoreOpSql = "score = leaderboard_record.score - $16"
+		scoreOpSql = "score = leaderboard_record.score - $17::BIGINT"
 		scoreDelta = incoming.GetDecr()
 		scoreAbs = 0 - incoming.GetDecr()
 	case *TLeaderboardRecordWrite_Set:
-		scoreOpSql = "score = $16"
+		scoreOpSql = "score = $17::BIGINT"
 		scoreDelta = incoming.GetSet()
 		scoreAbs = incoming.GetSet()
 	case *TLeaderboardRecordWrite_Best:
 		if sortOrder == 0 {
 			// Lower score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $16 - abs(leaderboard_record.score - $16)) / 2"
+			scoreOpSql = "score = (leaderboard_record.score + $17::BIGINT - abs(leaderboard_record.score - $17::BIGINT)) / 2"
 		} else {
 			// Higher score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $16 + abs(leaderboard_record.score - $16)) / 2"
+			scoreOpSql = "score = (leaderboard_record.score + $17::BIGINT + abs(leaderboard_record.score - $17::BIGINT)) / 2"
 		}
 		scoreDelta = incoming.GetBest()
 		scoreAbs = incoming.GetBest()
@@ -217,8 +217,8 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 
 	handle := session.handle.Load()
 	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
-				rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15)
+				rank_value, score, num_score, metadata, ranked_at, updated_at, updated_at_inverse, expires_at, banned_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15, $16)
 			ON CONFLICT (leaderboard_id, expires_at, owner_id)
 			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
 			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
@@ -226,7 +226,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	logger.Debug("Leaderboard record write", zap.String("query", query))
 	res, err := p.db.Exec(query,
 		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
-		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, expiresAt, 0, scoreDelta)
+		incoming.Timezone, 0, scoreAbs, 1, incoming.Metadata, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
