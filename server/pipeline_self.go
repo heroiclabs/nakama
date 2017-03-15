@@ -55,7 +55,7 @@ WHERE u.id = $1`,
 		session.userID.Bytes())
 	if err != nil {
 		logger.Error("Could not lookup user profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LOOKUP_FAILED, "Could not lookup user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"))
 		return
 	}
 
@@ -67,7 +67,7 @@ WHERE u.id = $1`,
 			&createdAt, &updatedAt, &verifiedAt, &lastOnlineAt, &deviceID)
 		if err != nil {
 			logger.Error("Error reading user profile", zap.Error(err))
-			session.Send(ErrorMessage(envelope.CollationId, USER_LOOKUP_FAILED, "Error reading user profile"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
 			return
 		}
 		if deviceID.Valid {
@@ -76,7 +76,7 @@ WHERE u.id = $1`,
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Error reading user profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LOOKUP_FAILED, "Error reading user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(update.Metadata, &maybeJSON) != nil {
-			session.Send(ErrorMessage(envelope.CollationId, USER_UPDATE_FAILED_BAD_METADATA, "Metadata must be a valid JSON object"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
 			return
 		}
 
@@ -156,7 +156,7 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 	}
 
 	if len(statements) == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_UPDATE_FAILED_NO_FIELDS, "No fields to update"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"))
 		return
 	}
 
@@ -168,10 +168,10 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 
 	if err != nil {
 		logger.Warn("Could not update user profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_UPDATE_FAILED, "Could not update user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update user profile"))
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_UPDATE_FAILED, "Failed to update user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to update user profile"))
 		return
 	}
 

@@ -25,7 +25,7 @@ import (
 func (p *pipeline) usersFetch(logger zap.Logger, session *session, envelope *Envelope) {
 	userIds := envelope.GetUsersFetch().UserIds
 	if len(userIds) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "List must contain at least one user ID"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))
 		return
 	}
 
@@ -41,18 +41,17 @@ func (p *pipeline) usersFetch(logger zap.Logger, session *session, envelope *Env
 			statements = append(statements, statement)
 			params = append(params, userID.Bytes())
 		}
-		// TODO log invalid IDs? If so, how do we represent them in the log message?
 	}
 
 	if len(statements) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No valid user IDs received"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No valid user IDs received"))
 		return
 	}
 
 	query := "WHERE users.id IN (" + strings.Join(statements, ", ") + ")"
 	users, err := p.querySocialGraph(logger, query, params)
 	if err != nil {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not retrieve users"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
 		return
 	}
 
