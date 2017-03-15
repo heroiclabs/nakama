@@ -20,10 +20,10 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"github.com/gorhill/cronexpr"
-	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"strconv"
+	"strings"
 )
 
 type leaderboardCursor struct {
@@ -142,7 +142,6 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		return
 	}
 
-	var incomingMetadata []byte
 	if len(incoming.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
@@ -150,7 +149,6 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Metadata must be a valid JSON object"}}})
 			return
 		}
-		incomingMetadata = incoming.Metadata
 	}
 
 	var authoritative bool
@@ -219,6 +217,25 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	}
 
 	handle := session.handle.Load()
+	params := []interface{}{uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang}
+	if incoming.Location != "" {
+		params = append(params, incoming.Location)
+	} else {
+		params = append(params, nil)
+	}
+	if incoming.Timezone != "" {
+		params = append(params, incoming.Timezone)
+	} else {
+		params = append(params, nil)
+	}
+	params = append(params, 0, scoreAbs, 1)
+	if len(incoming.Metadata) != 0 {
+		params = append(params, incoming.Metadata)
+	} else {
+		params = append(params, nil)
+	}
+	params = append(params, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
+
 	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
 				rank_value, score, num_score, metadata, ranked_at, updated_at, updated_at_inverse, expires_at, banned_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15, $16)
@@ -227,9 +244,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
 			  metadata = COALESCE($11, leaderboard_record.metadata), updated_at = $13`
 	logger.Debug("Leaderboard record write", zap.String("query", query))
-	res, err := p.db.Exec(query,
-		uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang, incoming.Location,
-		incoming.Timezone, 0, scoreAbs, 1, incomingMetadata, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
+	res, err := p.db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
@@ -241,8 +256,8 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		return
 	}
 
-	var location string
-	var timezone string
+	var location sql.NullString
+	var timezone sql.NullString
 	var rankValue int64
 	var score int64
 	var numScore int64
@@ -268,8 +283,8 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		OwnerId:       session.userID.Bytes(),
 		Handle:        handle,
 		Lang:          session.lang,
-		Location:      location,
-		Timezone:      timezone,
+		Location:      location.String,
+		Timezone:      timezone.String,
 		Rank:          rankValue,
 		Score:         score,
 		NumScore:      numScore,
@@ -308,15 +323,21 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	// TODO for now we return all records including expired ones, change this later?
 	// TODO special handling of banned records?
 
+	statements := []string{}
+	params := []interface{}{session.userID.Bytes()}
+	for _, leaderboardId := range leaderboardIds {
+		params = append(params, leaderboardId)
+		statements = append(statements, "$"+strconv.Itoa(len(params)))
+	}
+
 	query := `SELECT leaderboard_id, owner_id, handle, lang, location, timezone,
 	  rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at
 	FROM leaderboard_record
 	WHERE owner_id = $1
-	AND leaderboard_id IN ($2)`
-	params := []interface{}{session.userID.Bytes(), pq.Array(leaderboardIds)}
+	AND leaderboard_id IN (` + strings.Join(statements, ", ") + `)`
 
 	if incomingCursor != nil {
-		query += " AND (owner_id, leaderboard_id) > ($3, $4)"
+		query += " AND (owner_id, leaderboard_id) > ($" + strconv.Itoa(len(params)+1) + ", $" + strconv.Itoa(len(params)+2) + ")"
 		params = append(params, incomingCursor.OwnerId, incomingCursor.LeaderboardId)
 	}
 
@@ -458,6 +479,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	AND expires_at = $2`
 	params := []interface{}{incoming.LeaderboardId, currentExpiresAt}
 
+	returnCursor := true
 	switch incoming.Filter.(type) {
 	case *TLeaderboardRecordsList_OwnerId:
 		if incomingCursor != nil {
@@ -476,8 +498,14 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Must be 1-100 owner IDs"}}})
 			return
 		}
-		query += " AND owner_id IN ($3)"
-		params = append(params, pq.Array(incoming.GetOwnerIds().OwnerIds))
+		statements := []string{}
+		for _, ownerId := range incoming.GetOwnerIds().OwnerIds {
+			params = append(params, ownerId)
+			statements = append(statements, "$"+strconv.Itoa(len(params)))
+		}
+		query += " AND owner_id IN (" + strings.Join(statements, ", ") + ")"
+		// Never return a cursor with this filter type.
+		returnCursor = false
 	case *TLeaderboardRecordsList_Lang:
 		query += " AND lang = $3"
 		params = append(params, incoming.GetLang())
@@ -550,7 +578,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	var expiresAt int64
 	var bannedAt int64
 	for rows.Next() {
-		if int64(len(leaderboardRecords)) >= limit {
+		if returnCursor && int64(len(leaderboardRecords)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &leaderboardRecordListCursor{
 				Score:     score,
