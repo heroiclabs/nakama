@@ -10,6 +10,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Fix regression loading config file.
 
+### Added
+- Dynamic leaderboards feature.
+- Presence updates now report the user's handle.
+
 ## [0.11.3] - 2017-02-25
 ### Added
 - Add CORS headers for browser games.
