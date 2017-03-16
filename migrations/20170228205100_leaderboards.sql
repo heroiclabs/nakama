@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     metadata           BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
     ranked_at          INT          CHECK (ranked_at >= 0) DEFAULT 0 NOT NULL,
     updated_at         INT          CHECK (updated_at > 0) NOT NULL,
+    -- Used to enable proper order in revscan when sorting by score descending.
     updated_at_inverse INT          CHECK (updated_at > 0) NOT NULL,
     expires_at         INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
     banned_at          INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
