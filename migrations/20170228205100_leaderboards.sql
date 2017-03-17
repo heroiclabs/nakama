@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS leaderboard (
 
 CREATE TABLE IF NOT EXISTS leaderboard_record (
     PRIMARY KEY (leaderboard_id, expires_at, owner_id),
---    FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
+    -- Creating a foreign key constraint and defining indexes that include it
+    -- in the same transaction breaks. See issue cockroachdb/cockroach#13505.
+    -- In this case we prefer the indexes over the constraint.
+    -- FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
     id                 BYTEA        UNIQUE NOT NULL,
     leaderboard_id     BYTEA        NOT NULL,
     owner_id           BYTEA        NOT NULL,
