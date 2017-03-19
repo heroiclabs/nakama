@@ -3,15 +3,15 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.12.0] - 2017-03-19
 ### Added
 - Dynamic leaderboards feature.
 - Presence updates now report the user's handle.
+- Add error codes to the server protocol.
 
 ### Changed
 - The build system now strips up to current dir in recorded source file paths at compile.
-- Addition of specific error messages to the Error payload.
-- Group names must be unique.
+- Group names must now be unique.
 
 ### Fixed
 - Fix regression loading config file.
