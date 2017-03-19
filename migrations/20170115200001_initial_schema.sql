@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS groups (
     PRIMARY KEY (id),
     id            BYTEA         NOT NULL,
     creator_id    BYTEA         NOT NULL,
-    name          VARCHAR(70)   NOT NULL,
+    name          VARCHAR(70)   CONSTRAINT groups_name_key UNIQUE NOT NULL,
     description   VARCHAR(255),
     avatar_url    VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
