@@ -140,17 +140,17 @@ func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope 
 	}
 }
 
-func ErrorMessageRuntimeException(collationId string, message string) *Envelope {
-	return ErrorMessage(collationId, RUNTIME_EXCEPTION, message)
+func ErrorMessageRuntimeException(collationID string, message string) *Envelope {
+	return ErrorMessage(collationID, RUNTIME_EXCEPTION, message)
 }
 
-func ErrorMessageBadInput(collationId string, message string) *Envelope {
-	return ErrorMessage(collationId, BAD_INPUT, message)
+func ErrorMessageBadInput(collationID string, message string) *Envelope {
+	return ErrorMessage(collationID, BAD_INPUT, message)
 }
 
-func ErrorMessage(collationId string, code Error_Code, message string) *Envelope {
+func ErrorMessage(collationID string, code Error_Code, message string) *Envelope {
 	return &Envelope{
-		CollationId: collationId,
+		CollationId: collationID,
 		Payload: &Envelope_Error{&Error{
 			Message: message,
 			Code:    int32(code),

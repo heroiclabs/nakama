@@ -267,7 +267,7 @@ WHERE EXISTS (SELECT id FROM users WHERE id=$2)
 
 	rowsAffected, _ = res.RowsAffected()
 	if rowsAffected == 0 {
-		err = errors.New("Did not find friend ID in users table.")
+		err = errors.New("did not find friend ID in users table")
 		return
 	}
 

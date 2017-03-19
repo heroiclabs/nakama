@@ -475,8 +475,8 @@ LIMIT $` + strconv.Itoa(len(params))
 				newCursor.Secondary = lastGroup.UpdatedAt
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			  logger.Error("Could not create group list cursor", zap.Error(err))
-			  session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
+				logger.Error("Could not create group list cursor", zap.Error(err))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
 				return
 			}
 			cursor = cursorBuf.Bytes()
