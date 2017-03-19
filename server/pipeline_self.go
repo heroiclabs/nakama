@@ -55,7 +55,7 @@ WHERE u.id = $1`,
 		session.userID.Bytes())
 	if err != nil {
 		logger.Error("Could not lookup user profile", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Database request failed"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"))
 		return
 	}
 
@@ -67,7 +67,7 @@ WHERE u.id = $1`,
 			&createdAt, &updatedAt, &verifiedAt, &lastOnlineAt, &deviceID)
 		if err != nil {
 			logger.Error("Error reading user profile", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Database request failed"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
 			return
 		}
 		if deviceID.Valid {
@@ -76,7 +76,7 @@ WHERE u.id = $1`,
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Error reading user profile", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Database request failed"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(update.Metadata, &maybeJSON) != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Metadata must be a valid JSON object"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
 			return
 		}
 
@@ -156,7 +156,7 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 	}
 
 	if len(statements) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No fields to update"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"))
 		return
 	}
 
@@ -167,11 +167,15 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 		params...)
 
 	if err != nil {
-		logger.Warn("Could not update user profile", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not update user profile"}}})
+		if strings.HasSuffix(err.Error(), "violates unique constraint \"users_handle_key\"") {
+			session.Send(ErrorMessage(envelope.CollationId, USER_HANDLE_INUSE, "Handle is in use"))
+		} else {
+			logger.Warn("Could not update user profile", zap.Error(err))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update user profile"))
+		}
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Failed to update user profile"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to update user profile"))
 		return
 	}
 

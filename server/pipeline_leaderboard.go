@@ -48,7 +48,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Limit must be between 10 and 100"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be between 10 and 100"))
 		return
 	}
 
@@ -58,7 +58,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	if len(incoming.Cursor) != 0 {
 		var incomingCursor leaderboardCursor
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(&incomingCursor); err != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid cursor data"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"))
 			return
 		}
 		query += " WHERE id > $1"
@@ -72,7 +72,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboards list query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboards"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"))
 		return
 	}
 	defer rows.Close()
@@ -96,7 +96,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboards list cursor", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error encoding cursor"}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"))
 				return
 			}
 			outgoingCursor = cursorBuf.Bytes()
@@ -106,7 +106,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 		err = rows.Scan(&id, &authoritative, &sortOrder, &count, &resetSchedule, &metadata, &nextId, &prevId)
 		if err != nil {
 			logger.Error("Could not scan leaderboards list query results", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboards"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"))
 			return
 		}
 
@@ -123,7 +123,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboards list query results", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboards"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"))
 		return
 	}
 
@@ -136,7 +136,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetLeaderboardRecordWrite()
 	if len(incoming.LeaderboardId) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Leaderboard ID must be present"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Leaderboard ID must be present"))
 		return
 	}
 
@@ -144,7 +144,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(incoming.Metadata, &maybeJSON) != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Metadata must be a valid JSON object"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
 			return
 		}
 	}
@@ -158,7 +158,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		Scan(&authoritative, &sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
 		return
 	}
 
@@ -169,14 +169,14 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
 			return
 		}
 		expiresAt = timeToMs(expr.Next(now))
 	}
 
 	if authoritative == true {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Cannot submit to authoritative leaderboard"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot submit to authoritative leaderboard"))
 		return
 	}
 
@@ -207,10 +207,10 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		scoreDelta = incoming.GetBest()
 		scoreAbs = incoming.GetBest()
 	case nil:
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No leaderboard record write operator found"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No leaderboard record write operator found"))
 		return
 	default:
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Unknown leaderboard record write operator"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown leaderboard record write operator"))
 		return
 	}
 
@@ -245,12 +245,12 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 	res, err := p.db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
 		return
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		logger.Error("Unexpected row count from leaderboard record write query")
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
 		return
 	}
 
@@ -272,7 +272,7 @@ func (p *pipeline) leaderboardRecordWrite(logger zap.Logger, session *session, e
 		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record read query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error writing leaderboard record"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
 		return
 	}
 
@@ -297,7 +297,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	incoming := envelope.GetLeaderboardRecordsFetch()
 	leaderboardIds := incoming.LeaderboardIds
 	if len(leaderboardIds) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Leaderboard IDs must be present"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Leaderboard IDs must be present"))
 		return
 	}
 
@@ -305,7 +305,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Limit must be between 10 and 100"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be between 10 and 100"))
 		return
 	}
 
@@ -313,7 +313,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	if len(incoming.Cursor) != 0 {
 		incomingCursor = &leaderboardRecordFetchCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(incomingCursor); err != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid cursor data"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"))
 			return
 		}
 	}
@@ -346,7 +346,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records fetch query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 	defer rows.Close()
@@ -377,7 +377,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records fetch cursor", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error encoding cursor"}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 				return
 			}
 			outgoingCursor = cursorBuf.Bytes()
@@ -388,7 +388,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records fetch query results", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 			return
 		}
 
@@ -410,7 +410,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records fetch query results", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 
@@ -424,7 +424,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	incoming := envelope.GetLeaderboardRecordsList()
 
 	if len(incoming.LeaderboardId) == 0 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Leaderboard ID must be present"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Leaderboard ID must be present"))
 		return
 	}
 
@@ -432,7 +432,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Limit must be between 10 and 100"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be between 10 and 100"))
 		return
 	}
 
@@ -440,7 +440,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	if len(incoming.Cursor) != 0 {
 		incomingCursor = &leaderboardRecordListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(incomingCursor); err != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid cursor data"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"))
 			return
 		}
 	}
@@ -453,7 +453,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		Scan(&sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list metadata query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 
@@ -462,7 +462,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 			return
 		}
 		currentExpiresAt = timeToMs(expr.Next(now()))
@@ -479,7 +479,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	switch incoming.Filter.(type) {
 	case *TLeaderboardRecordsList_OwnerId:
 		if incomingCursor != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Cursor not allowed with haystack query"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cursor not allowed with haystack query"))
 			return
 		}
 		// Haystack queries are executed in a separate flow.
@@ -487,11 +487,11 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		return
 	case *TLeaderboardRecordsList_OwnerIds:
 		if incomingCursor != nil {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Cursor not allowed with batch filter query"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cursor not allowed with batch filter query"))
 			return
 		}
 		if len(incoming.GetOwnerIds().OwnerIds) < 1 || len(incoming.GetOwnerIds().OwnerIds) > 100 {
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Must be 1-100 owner IDs"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Must be 1-100 owner IDs"))
 			return
 		}
 		statements := []string{}
@@ -515,7 +515,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 		// No filter.
 		break
 	default:
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Unknown leaderboard record list filter"}}})
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown leaderboard record list filter"))
 		return
 	}
 
@@ -551,7 +551,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 	defer rows.Close()
@@ -583,7 +583,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error encoding cursor"}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 				return
 			}
 			outgoingCursor = cursorBuf.Bytes()
@@ -594,7 +594,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 			return
 		}
 
@@ -616,7 +616,7 @@ func (p *pipeline) leaderboardRecordsList(logger zap.Logger, session *session, e
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 
@@ -668,7 +668,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	firstRows, err := p.db.Query(firstQuery, firstParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 	defer firstRows.Close()
@@ -691,7 +691,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 			return
 		}
 
@@ -713,7 +713,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	}
 	if err = firstRows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 
@@ -745,7 +745,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	secondRows, err := p.db.Query(secondQuery, secondParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 	defer secondRows.Close()
@@ -762,7 +762,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error encoding cursor"}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 				return
 			}
 			outgoingCursor = cursorBuf.Bytes()
@@ -773,7 +773,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
 		if err != nil {
 			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 			return
 		}
 
@@ -795,7 +795,7 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	}
 	if err = secondRows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Error loading leaderboard records"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"))
 		return
 	}
 

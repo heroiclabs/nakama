@@ -68,21 +68,20 @@ func (p *pipeline) storageFetch(logger zap.Logger, session *session, envelope *E
 	for _, key := range incoming.Keys {
 		if key.Bucket == "" || key.Collection == "" || key.Record == "" {
 			logger.Error("Invalid values for Bucket or Collection or Record")
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid values for Bucket or Collection or Record"}}})
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid values for Bucket or Collection or Record"))
 			return
 		}
 
 		if len(key.UserId) != 0 {
 			userID, err := uuid.FromBytes(key.UserId)
 			if err != nil {
-				logger.Error("Invalid User ID")
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Invalid User ID"}}})
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
 				return
 			}
 
 			if userID.String() != session.userID.String() {
 				logger.Error("Not allowed to fetch from storage of a different user")
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Not allowed to fetch from storage of a different user"}}})
+				session.Send(ErrorMessage(envelope.CollationId, STORAGE_FETCH_DISALLOWED, "Not allowed to fetch from storage of a different user"))
 				return
 			}
 		}
@@ -127,7 +126,7 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not store data", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not store data"}}})
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not store data"))
 		return
 	}
 
@@ -143,12 +142,12 @@ func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *E
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: errorMessage}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, errorMessage))
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: errorMessage}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, errorMessage))
 			} else {
 				logger.Info("Stored data successfully")
 				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKey{StorageKey: &TStorageKey{Keys: response}}})
@@ -232,8 +231,8 @@ func (p *pipeline) storageRemove(logger zap.Logger, session *session, envelope *
 
 	tx, err := p.db.Begin()
 	if err != nil {
-		logger.Error("Could not store data", zap.Error(err))
-		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Could not store data"}}})
+		logger.Error("Could not remove data", zap.Error(err))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not remove data"))
 		return
 	}
 
@@ -247,12 +246,12 @@ func (p *pipeline) storageRemove(logger zap.Logger, session *session, envelope *
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: errorMessage}}})
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, errorMessage))
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: errorMessage}}})
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, errorMessage))
 			} else {
 				logger.Info("Removed data successfully")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
