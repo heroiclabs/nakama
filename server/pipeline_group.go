@@ -110,9 +110,9 @@ func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *En
 		if err != nil {
 			logger.Error("Could not create group", zap.Error(err))
 			if tx != nil {
-				err = tx.Rollback()
-				if err != nil {
-					logger.Error("Could not rollback transaction", zap.Error(err))
+				txErr := tx.Rollback()
+				if txErr != nil {
+					logger.Error("Could not rollback transaction", zap.Error(txErr))
 				}
 			}
 			if strings.HasSuffix(err.Error(), "violates unique constraint \"groups_name_key\"") {
