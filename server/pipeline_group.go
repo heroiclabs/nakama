@@ -385,9 +385,7 @@ func (p *pipeline) groupsList(logger zap.Logger, session *session, envelope *Env
 	limit := incoming.PageLimit
 	if limit == 0 {
 		limit = 10
-	}
-
-	if limit < 10 || limit > 100 {
+	} else if limit < 10 || limit > 100 {
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Page limit must be between 10 and 100"}}})
 		return
 	}
@@ -472,6 +470,7 @@ LIMIT $` + strconv.Itoa(len(params))
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating group list cursor", zap.Error(err))
 				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "Database request failed"}}})
+				return
 			}
 			cursor = cursorBuf.Bytes()
 			break

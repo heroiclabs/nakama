@@ -124,6 +124,15 @@ func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope 
 	case *Envelope_StorageRemove:
 		p.storageRemove(logger, session, envelope)
 
+	case *Envelope_LeaderboardsList:
+		p.leaderboardsList(logger, session, envelope)
+	case *Envelope_LeaderboardRecordWrite:
+		p.leaderboardRecordWrite(logger, session, envelope)
+	case *Envelope_LeaderboardRecordsFetch:
+		p.leaderboardRecordsFetch(logger, session, envelope)
+	case *Envelope_LeaderboardRecordsList:
+		p.leaderboardRecordsList(logger, session, envelope)
+
 	case nil:
 		session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Error{&Error{Reason: "No payload found"}}})
 	default:

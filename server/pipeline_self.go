@@ -175,5 +175,10 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 		return
 	}
 
+	// Update handle in session and any presences.
+	if update.Handle != "" {
+		session.handle.Store(update.Handle)
+	}
+
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }

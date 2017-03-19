@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- Dynamic leaderboards feature.
+- Presence updates now report the user's handle.
+
 ### Changed
 - The build system now strips up to current dir in recorded source file paths at compile.
 

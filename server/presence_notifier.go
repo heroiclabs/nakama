@@ -166,6 +166,7 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 			muJoins[i] = &UserPresence{
 				UserId:    joins[i].UserID.Bytes(),
 				SessionId: joins[i].ID.SessionID.Bytes(),
+				Handle:    joins[i].Meta.Handle,
 			}
 		}
 		msg.Joins = muJoins
@@ -176,6 +177,7 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 			muLeaves[i] = &UserPresence{
 				UserId:    leaves[i].UserID.Bytes(),
 				SessionId: leaves[i].ID.SessionID.Bytes(),
+				Handle:    leaves[i].Meta.Handle,
 			}
 		}
 		msg.Leaves = muLeaves
@@ -196,6 +198,7 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 			tuJoins[i] = &UserPresence{
 				UserId:    joins[i].UserID.Bytes(),
 				SessionId: joins[i].ID.SessionID.Bytes(),
+				Handle:    joins[i].Meta.Handle,
 			}
 		}
 		msg.Joins = tuJoins
@@ -206,6 +209,7 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 			tuLeaves[i] = &UserPresence{
 				UserId:    leaves[i].UserID.Bytes(),
 				SessionId: leaves[i].ID.SessionID.Bytes(),
+				Handle:    leaves[i].Meta.Handle,
 			}
 		}
 		msg.Leaves = tuLeaves

@@ -123,19 +123,31 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 		return
 	}
 
+	handle := session.handle.Load()
+
 	// Track the presence, and gather current member list.
-	p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{})
+	p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{
+		Handle: handle,
+	})
 	presences := p.tracker.ListByTopic(trackerTopic)
 
 	userPresences := make([]*UserPresence, len(presences))
 	for i := 0; i < len(presences); i++ {
-		userPresences[i] = &UserPresence{UserId: presences[i].UserID.Bytes(), SessionId: presences[i].ID.SessionID.Bytes()}
+		userPresences[i] = &UserPresence{
+			UserId:    presences[i].UserID.Bytes(),
+			SessionId: presences[i].ID.SessionID.Bytes(),
+			Handle:    presences[i].Meta.Handle,
+		}
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Topic{Topic: &TTopic{
 		Topic:     topic,
 		Presences: userPresences,
-		Self:      &UserPresence{UserId: session.userID.Bytes(), SessionId: session.id.Bytes()},
+		Self: &UserPresence{
+			UserId:    session.userID.Bytes(),
+			SessionId: session.id.Bytes(),
+			Handle:    handle,
+		},
 	}}})
 }
 
@@ -566,14 +578,12 @@ func (p *pipeline) storeMessage(logger zap.Logger, session *session, topic *Topi
 	}
 	createdAt := nowMs()
 	messageID := uuid.NewV4().Bytes()
-	var expiresAt int64
-	var handle string
-	err := p.db.QueryRow(`
+	expiresAt := int64(0)
+	handle := session.handle.Load()
+	_, err := p.db.Exec(`
 INSERT INTO message (topic, topic_type, message_id, user_id, created_at, expires_at, handle, type, data)
-SELECT $1, $2, $3, $4, $5, $6, handle, $7, $8
-FROM users
-WHERE id = $4
-RETURNING handle`, topicBytes, topicType, messageID, session.userID.Bytes(), createdAt, expiresAt, msgType, data).Scan(&handle)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		topicBytes, topicType, messageID, session.userID.Bytes(), createdAt, expiresAt, handle, msgType, data)
 	if err != nil {
 		logger.Error("Failed to insert new message", zap.Error(err))
 		return nil, "", 0, 0, err

@@ -131,6 +131,14 @@ message Envelope {
     TStorageRemove storage_remove = 50;
     TStorageData storage_data = 51;
     TStorageKey storage_key = 52;
+
+    TLeaderboardsList leaderboards_list = 53;
+    TLeaderboardRecordWrite leaderboard_record_write = 54;
+    TLeaderboardRecordsFetch leaderboard_records_fetch = 55;
+    TLeaderboardRecordsList leaderboard_records_list = 56;
+    TLeaderboards leaderboards = 57;
+    TLeaderboardRecord leaderboard_record = 58;
+    TLeaderboardRecords leaderboard_records = 59;
   }
 }
 
@@ -338,6 +346,7 @@ message TopicId {
 message UserPresence {
   bytes user_id = 1;
   bytes session_id = 2;
+  string handle = 3;
 }
 
 message TTopicJoin {
@@ -491,4 +500,82 @@ message TStorageRemove {
     bytes version = 4;
   }
   repeated StorageKey keys = 1;
+}
+
+message Leaderboard {
+  bytes id = 1;
+  bool authoritative = 2;
+  int64 sort = 3;
+  int64 count = 4;
+  string reset_schedule = 5;
+  bytes metadata = 6;
+  bytes next_id = 7;
+  bytes prev_id = 8;
+}
+
+message LeaderboardRecord {
+  bytes leaderboard_id = 1;
+  bytes owner_id = 2;
+  string handle = 3;
+  string lang = 4;
+  string location = 5;
+  string timezone = 6;
+  int64 rank = 7;
+  int64 score = 8;
+  int64 num_score = 9;
+  bytes metadata = 10;
+  int64 ranked_at = 11;
+  int64 updated_at = 12;
+  int64 expires_at = 13;
+}
+
+message TLeaderboardsList {
+  int64 limit = 1;
+  bytes cursor = 2;
+}
+message TLeaderboards {
+  repeated Leaderboard leaderboards = 1;
+  bytes cursor = 2;
+}
+
+message TLeaderboardRecordWrite {
+  bytes leaderboard_id = 1;
+  oneof op {
+    int64 incr = 2;
+    int64 decr = 3;
+    int64 set = 4;
+    int64 best = 5;
+  }
+  string location = 6;
+  string timezone = 7;
+  bytes metadata = 8;
+}
+message TLeaderboardRecord {
+  LeaderboardRecord record = 1;
+}
+
+message TLeaderboardRecordsFetch {
+  repeated bytes leaderboard_ids = 1;
+  int64 limit = 2;
+  bytes cursor = 3;
+}
+message TLeaderboardRecordsList {
+  message Owners {
+    repeated bytes owner_ids = 1;
+  }
+
+  bytes leaderboard_id = 1;
+  oneof filter {
+    bytes owner_id = 2; // "haystack" lookup
+    Owners owner_ids = 3;
+    string lang = 4;
+    string location = 5;
+    string timezone = 6;
+  }
+  int64 limit = 7;
+  bytes cursor = 8;
+}
+message TLeaderboardRecords {
+  repeated LeaderboardRecord records = 1;
+  bytes cursor = 2;
 }
