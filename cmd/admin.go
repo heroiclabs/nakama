@@ -73,8 +73,8 @@ func createLeaderboard(args []string, logger zap.Logger) {
 		logger.Fatal("Database connection details are required.")
 	}
 
-	query := `INSERT INTO leaderboard (id, authoritative, sort_order, count, reset_schedule, metadata)
-	VALUES ($1, $2, $3, 0, $4, $5)`
+	query := `INSERT INTO leaderboard (id, authoritative, sort_order, reset_schedule, metadata)
+	VALUES ($1, $2, $3, $4, $5)`
 	params := []interface{}{}
 
 	// ID.

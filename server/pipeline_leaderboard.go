@@ -79,7 +79,6 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 
 	leaderboards := []*Leaderboard{}
 	var outgoingCursor []byte
-	var lastLeaderboard *Leaderboard
 
 	var id []byte
 	var authoritative bool
@@ -93,7 +92,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 		if int64(len(leaderboards)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &leaderboardCursor{
-				Id: lastLeaderboard.Id,
+				Id: id,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboards list cursor", zap.Error(err))
@@ -111,7 +110,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 			return
 		}
 
-		lastLeaderboard = &Leaderboard{
+		leaderboards = append(leaderboards, &Leaderboard{
 			Id:            id,
 			Authoritative: authoritative,
 			Sort:          sortOrder,
@@ -120,8 +119,7 @@ func (p *pipeline) leaderboardsList(logger zap.Logger, session *session, envelop
 			Metadata:      metadata,
 			NextId:        nextId,
 			PrevId:        prevId,
-		}
-		leaderboards = append(leaderboards, lastLeaderboard)
+		})
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboards list query results", zap.Error(err))
@@ -355,7 +353,6 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 
 	leaderboardRecords := []*LeaderboardRecord{}
 	var outgoingCursor []byte
-	var lastRecord *LeaderboardRecord
 
 	var leaderboardId []byte
 	var ownerId []byte
@@ -375,8 +372,8 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 		if int64(len(leaderboardRecords)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &leaderboardRecordFetchCursor{
-				OwnerId:       lastRecord.OwnerId,
-				LeaderboardId: lastRecord.LeaderboardId,
+				OwnerId:       ownerId,
+				LeaderboardId: leaderboardId,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboard records fetch cursor", zap.Error(err))
@@ -395,7 +392,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 			return
 		}
 
-		lastRecord = &LeaderboardRecord{
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
 			LeaderboardId: leaderboardId,
 			OwnerId:       ownerId,
 			Handle:        handle,
@@ -409,8 +406,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger zap.Logger, session *session, 
 			RankedAt:      rankedAt,
 			UpdatedAt:     updatedAt,
 			ExpiresAt:     expiresAt,
-		}
-		leaderboardRecords = append(leaderboardRecords, lastRecord)
+		})
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records fetch query results", zap.Error(err))
@@ -755,7 +751,6 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger zap.Logger, session *se
 	defer secondRows.Close()
 
 	var outgoingCursor []byte
-	//var lastRecord *LeaderboardRecord
 
 	for secondRows.Next() {
 		if int64(len(leaderboardRecords)) >= limit {
