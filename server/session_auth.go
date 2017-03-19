@@ -204,7 +204,11 @@ func (a *authenticationService) sendAuthError(w http.ResponseWriter, error strin
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(errorCode)
-	authResponse := &AuthenticateResponse{CollationId: collationID, Payload: &AuthenticateResponse_Error_{&AuthenticateResponse_Error{error, authRequest}}}
+	authResponse := &AuthenticateResponse{CollationId: collationID, Payload: &AuthenticateResponse_Error_{&AuthenticateResponse_Error{
+		Code:    int32(AUTH_ERROR),
+		Message: error,
+		Request: authRequest,
+	}}}
 	a.sendAuthResponse(w, authResponse)
 }
 

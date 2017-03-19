@@ -27,13 +27,14 @@ message Error {
     UNRECOGNIZED_PAYLOAD = 1;
     MISSING_PAYLOAD = 2;
     BAD_INPUT = 3;
-    USER_LINK_INUSE = 4;
-    USER_LINK_PROVIDER_UNAVAILABLE = 5;
-    USER_UNLINK_DISALLOWED = 6;
-    USER_HANDLE_INUSE = 7;
-    GROUP_NAME_INUSE = 8;
-    STORAGE_FETCH_DISALLOWED = 9;
-    MATCH_NOT_FOUND = 10;
+    AUTH_ERROR = 4;
+    USER_LINK_INUSE = 5;
+    USER_LINK_PROVIDER_UNAVAILABLE = 6;
+    USER_UNLINK_DISALLOWED = 7;
+    USER_HANDLE_INUSE = 8;
+    GROUP_NAME_INUSE = 9;
+    STORAGE_FETCH_DISALLOWED = 10;
+    MATCH_NOT_FOUND = 11;
   }
 
   int32 code = 1;
@@ -73,8 +74,9 @@ message AuthenticateResponse {
   }
 
   message Error {
-    string reason = 1;
-    AuthenticateRequest request = 2;
+    int32 code = 1;
+    string message = 2;
+    AuthenticateRequest request = 3;
   }
 
   string collation_id = 1;
