@@ -22,7 +22,7 @@ message Heartbeat {
 }
 
 message Error {
-  enum ErrorCode {
+  enum Code {
     RUNTIME_EXCEPTION = 0;
     UNRECOGNIZED_PAYLOAD = 1;
     MISSING_PAYLOAD = 2;
@@ -30,12 +30,14 @@ message Error {
     USER_LINK_INUSE = 4;
     USER_LINK_PROVIDER_UNAVAILABLE = 5;
     USER_UNLINK_DISALLOWED = 6;
-    STORAGE_FETCH_DISALLOWED = 7;
-    MATCH_NOT_FOUND = 8;
+    USER_HANDLE_INUSE = 7;
+    GROUP_NAME_INUSE = 8;
+    STORAGE_FETCH_DISALLOWED = 9;
+    MATCH_NOT_FOUND = 10;
   }
 
-  string reason = 1;
-  ErrorCode code = 2;
+  int32 code = 1;
+  string message = 2;
 }
 
 message AuthenticateRequest {

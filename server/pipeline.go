@@ -148,11 +148,11 @@ func ErrorMessageBadInput(collationId string, message string) *Envelope {
 	return ErrorMessage(collationId, BAD_INPUT, message)
 }
 
-func ErrorMessage(collationId string, code Error_ErrorCode, message string) *Envelope {
+func ErrorMessage(collationId string, code Error_Code, message string) *Envelope {
 	return &Envelope{
 		CollationId: collationId,
 		Payload: &Envelope_Error{&Error{
-			Reason: message,
-			Code:   code,
+			Message: message,
+			Code:    int32(code),
 		}}}
 }

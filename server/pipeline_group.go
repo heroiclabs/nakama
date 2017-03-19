@@ -115,7 +115,11 @@ func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *En
 					logger.Error("Could not rollback transaction", zap.Error(err))
 				}
 			}
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
+			if strings.HasSuffix(err.Error(), "violates unique constraint \"group_name_key\"") {
+				session.Send(ErrorMessage(envelope.CollationId, GROUP_NAME_INUSE, "Name is in use"))
+			} else {
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
+			}
 		} else {
 			err = tx.Commit()
 			if err != nil {
@@ -263,8 +267,12 @@ EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id
 		params...)
 
 	if err != nil {
-		logger.Error("Could not update group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update group"))
+		if strings.HasSuffix(err.Error(), "violates unique constraint \"group_name_key\"") {
+			session.Send(ErrorMessage(envelope.CollationId, GROUP_NAME_INUSE, "Name is in use"))
+		} else {
+			logger.Error("Could not update group", zap.Error(err))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update group"))
+		}
 		return
 	}
 

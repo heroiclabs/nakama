@@ -167,8 +167,12 @@ func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Env
 		params...)
 
 	if err != nil {
-		logger.Warn("Could not update user profile", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update user profile"))
+		if strings.HasSuffix(err.Error(), "violates unique constraint \"users_handle_key\"") {
+			session.Send(ErrorMessage(envelope.CollationId, USER_HANDLE_INUSE, "Handle is in use"))
+		} else {
+			logger.Warn("Could not update user profile", zap.Error(err))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update user profile"))
+		}
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to update user profile"))

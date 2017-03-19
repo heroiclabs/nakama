@@ -18,7 +18,7 @@
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
     id             BYTEA         NOT NULL,
-    handle         VARCHAR(20)   UNIQUE NOT NULL,
+    handle         VARCHAR(20)   CONSTRAINT users_handle_key UNIQUE NOT NULL,
     fullname       VARCHAR(70),
     avatar_url     VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
