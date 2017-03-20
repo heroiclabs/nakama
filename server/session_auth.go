@@ -55,18 +55,18 @@ var (
 )
 
 type authenticationService struct {
-	logger          zap.Logger
-	config          Config
-	db              *sql.DB
-	registry        *SessionRegistry
-	pipeline        *pipeline
-	mux             *mux.Router
-	hmacSecretByte  []byte
-	upgrader        *websocket.Upgrader
-	socialClient    *social.Client
-	random          *rand.Rand
-	jsonMarshaler   *jsonpb.Marshaler
-	jsonUnmarshaler *jsonpb.Unmarshaler
+	logger            zap.Logger
+	config            Config
+	db                *sql.DB
+	registry          *SessionRegistry
+	pipeline          *pipeline
+	mux               *mux.Router
+	hmacSecretByte    []byte
+	upgrader          *websocket.Upgrader
+	socialClient      *social.Client
+	random            *rand.Rand
+	jsonpbMarshaler   *jsonpb.Marshaler
+	jsonpbUnmarshaler *jsonpb.Unmarshaler
 }
 
 // NewAuthenticationService creates a new AuthenticationService
@@ -87,13 +87,13 @@ func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, regi
 		},
 		socialClient: s,
 		random:       rand.New(rand.NewSource(time.Now().UnixNano())),
-		jsonMarshaler: &jsonpb.Marshaler{
+		jsonpbMarshaler: &jsonpb.Marshaler{
 			EnumsAsInts:  true,
 			EmitDefaults: false,
 			Indent:       "",
 			OrigName:     false,
 		},
-		jsonUnmarshaler: &jsonpb.Unmarshaler{
+		jsonpbUnmarshaler: &jsonpb.Unmarshaler{
 			AllowUnknownFields: false,
 		},
 	}
@@ -197,7 +197,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	authReq := &AuthenticateRequest{}
 	switch mediaType {
 	case "application/json":
-		err = a.jsonUnmarshaler.Unmarshal(bytes.NewReader(data), authReq)
+		err = a.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), authReq)
 	default:
 		err = proto.Unmarshal(data, authReq)
 	}
@@ -254,7 +254,7 @@ func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, r *http.
 	var payload []byte
 	switch mediaType {
 	case "application/json":
-		payloadString, err := a.jsonMarshaler.MarshalToString(response)
+		payloadString, err := a.jsonpbMarshaler.MarshalToString(response)
 		if err == nil {
 			payload = []byte(payloadString)
 			w.Header().Set("Content-Type", "application/json")
