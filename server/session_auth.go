@@ -36,7 +36,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
-	"strings"
+	"mime"
 )
 
 const (
@@ -183,10 +183,22 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	contentType := r.Header.Get("content-type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		a.logger.Warn("Could not decode content type header", zap.Error(err))
+		a.sendAuthError(w, r, "Could not decode content type header", 400, nil)
+		return
+	}
+
 	authReq := &AuthenticateRequest{}
-	if strings.HasPrefix(r.Header.Get("content-type"), "application/json") {
+	switch mediaType {
+	case "application/json":
 		err = a.jsonUnmarshaler.Unmarshal(bytes.NewReader(data), authReq)
-	} else {
+	default:
 		err = proto.Unmarshal(data, authReq)
 	}
 	if err != nil {
@@ -229,15 +241,25 @@ func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Req
 }
 
 func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, r *http.Request, code int, response *AuthenticateResponse) {
+	accept := r.Header.Get("accept")
+	if accept == "" {
+		accept = "application/octet-stream"
+	}
+	mediaType, _, err := mime.ParseMediaType(accept)
+	if err != nil {
+		a.logger.Warn("Could not decode accept header, defaulting to Protobuf output", zap.Error(err))
+		err = nil
+	}
+
 	var payload []byte
-	var err error
-	if strings.HasPrefix(r.Header.Get("accept"), "application/json") {
+	switch mediaType {
+	case "application/json":
 		payloadString, err := a.jsonMarshaler.MarshalToString(response)
 		if err == nil {
 			payload = []byte(payloadString)
 			w.Header().Set("Content-Type", "application/json")
 		}
-	} else {
+	default:
 		payload, err = proto.Marshal(response)
 	}
 	if err != nil {
