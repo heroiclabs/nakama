@@ -26,7 +26,9 @@ import (
 
 	"nakama/pkg/social"
 
+	"bytes"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -34,6 +36,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
 )
 
 const (
@@ -52,16 +55,18 @@ var (
 )
 
 type authenticationService struct {
-	logger         zap.Logger
-	config         Config
-	db             *sql.DB
-	registry       *SessionRegistry
-	pipeline       *pipeline
-	mux            *mux.Router
-	hmacSecretByte []byte
-	upgrader       *websocket.Upgrader
-	socialClient   *social.Client
-	random         *rand.Rand
+	logger          zap.Logger
+	config          Config
+	db              *sql.DB
+	registry        *SessionRegistry
+	pipeline        *pipeline
+	mux             *mux.Router
+	hmacSecretByte  []byte
+	upgrader        *websocket.Upgrader
+	socialClient    *social.Client
+	random          *rand.Rand
+	jsonMarshaler   *jsonpb.Marshaler
+	jsonUnmarshaler *jsonpb.Unmarshaler
 }
 
 // NewAuthenticationService creates a new AuthenticationService
@@ -75,12 +80,21 @@ func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, regi
 		registry:       registry,
 		pipeline:       p,
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
-		socialClient:   s,
-		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin:     func(r *http.Request) bool { return true },
+		},
+		socialClient: s,
+		random:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		jsonMarshaler: &jsonpb.Marshaler{
+			EnumsAsInts:  true,
+			EmitDefaults: false,
+			Indent:       "",
+			OrigName:     false,
+		},
+		jsonUnmarshaler: &jsonpb.Unmarshaler{
+			AllowUnknownFields: false,
 		},
 	}
 
@@ -155,32 +169,36 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 
 	username, _, ok := r.BasicAuth()
 	if !ok {
-		a.sendAuthError(w, "Missing or invalid authentication header", 400, nil)
+		a.sendAuthError(w, r, "Missing or invalid authentication header", 400, nil)
 		return
 	} else if username != a.config.GetTransport().ServerKey {
-		a.sendAuthError(w, "Invalid server key", 401, nil)
+		a.sendAuthError(w, r, "Invalid server key", 401, nil)
 		return
 	}
 
 	data, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, a.config.GetTransport().MaxMessageSizeBytes))
 	if err != nil {
 		a.logger.Warn("Could not read body", zap.Error(err))
-		a.sendAuthError(w, "Could not read request body", 400, nil)
+		a.sendAuthError(w, r, "Could not read request body", 400, nil)
 		return
 	}
 
 	authReq := &AuthenticateRequest{}
-	err = proto.Unmarshal(data, authReq)
+	if strings.HasPrefix(r.Header.Get("content-type"), "application/json") {
+		err = a.jsonUnmarshaler.Unmarshal(bytes.NewReader(data), authReq)
+	} else {
+		err = proto.Unmarshal(data, authReq)
+	}
 	if err != nil {
 		a.logger.Warn("Could not decode body", zap.Error(err))
-		a.sendAuthError(w, "Could not decode body", 400, nil)
+		a.sendAuthError(w, r, "Could not decode body", 400, nil)
 		return
 	}
 
 	userID, handle, errString, errCode := retrieveUserID(authReq)
 	if errString != "" {
 		a.logger.Debug("Could not retrieve user ID", zap.String("error", errString), zap.Int("code", errCode))
-		a.sendAuthError(w, errString, errCode, authReq)
+		a.sendAuthError(w, r, errString, errCode, authReq)
 		return
 	}
 
@@ -194,31 +212,41 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
 
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Payload: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
-	a.sendAuthResponse(w, authResponse)
+	a.sendAuthResponse(w, r, 200, authResponse)
 }
 
-func (a *authenticationService) sendAuthError(w http.ResponseWriter, error string, errorCode int, authRequest *AuthenticateRequest) {
+func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode int, authRequest *AuthenticateRequest) {
 	var collationID string
 	if authRequest != nil {
 		collationID = authRequest.CollationId
 	}
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(errorCode)
 	authResponse := &AuthenticateResponse{CollationId: collationID, Payload: &AuthenticateResponse_Error_{&AuthenticateResponse_Error{
 		Code:    int32(AUTH_ERROR),
 		Message: error,
 		Request: authRequest,
 	}}}
-	a.sendAuthResponse(w, authResponse)
+	a.sendAuthResponse(w, r, errorCode, authResponse)
 }
 
-func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, response *AuthenticateResponse) {
-	payload, err := proto.Marshal(response)
+func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, r *http.Request, code int, response *AuthenticateResponse) {
+	var payload []byte
+	var err error
+	if strings.HasPrefix(r.Header.Get("accept"), "application/json") {
+		payloadString, err := a.jsonMarshaler.MarshalToString(response)
+		if err == nil {
+			payload = []byte(payloadString)
+			w.Header().Set("Content-Type", "application/json")
+		}
+	} else {
+		payload, err = proto.Marshal(response)
+	}
 	if err != nil {
-		a.logger.Error("Could not marshall Response to byte[]", zap.Error(err))
+		a.logger.Error("Could not marshal AuthenticateResponse", zap.Error(err))
 		return
 	}
 
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(code)
 	w.Write(payload)
 }
 
