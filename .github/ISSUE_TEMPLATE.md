@@ -23,12 +23,13 @@ Example:
 ## Context
 <!-- Which client did you use? -->
 - [ ] Unity
+- [ ] Unreal
 - [ ] Other
 
 ## Your Environment
 <!---
 `nakama --version` will show the version of the server.
-`cockroach --version` will show the version of the Cockroach database server.
+`cockroach version` will show the version of the Cockroach database server.
 Use `nakama doctor` to collect diagnostics on the server and environment and submit it with your report if possible.
 -->
 - Nakama: X.X.X
