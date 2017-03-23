@@ -893,7 +893,7 @@ func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envel
 		return
 	}
 
-	if userID.String() == session.userID.String() {
+	if userID == session.userID {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't kick yourself from the group"))
 		return
 	}
@@ -989,7 +989,7 @@ func (p *pipeline) groupUserPromote(l zap.Logger, session *session, envelope *En
 		return
 	}
 
-	if userID.String() == session.userID.String() {
+	if userID == session.userID {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't promote yourself"))
 		return
 	}

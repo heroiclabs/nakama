@@ -211,7 +211,7 @@ func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope)
 	logger := l.With(zap.String("friend_id", friendID.String()))
 	friendIDBytes := friendID.Bytes()
 
-	if friendID.String() == session.userID.String() {
+	if friendID == session.userID {
 		logger.Warn("Cannot add self", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot add self"))
 		return
@@ -245,48 +245,55 @@ func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope)
 	}()
 
 	updatedAt := nowMs()
-	res, err := tx.Exec("UPDATE user_edge SET state = 0, updated_at = $3 WHERE source_id = $1 AND destination_id = $2 AND state = 2", friendIDBytes, session.userID.Bytes(), updatedAt)
+	// Mark an invite as accepted, if one was in place.
+	res, err := tx.Exec(`
+UPDATE user_edge SET state = 0, updated_at = $3
+WHERE (source_id = $1 AND destination_id = $2 AND state = 2)
+OR (source_id = $2 AND destination_id = $1 AND state = 1)
+  `, friendIDBytes, session.userID.Bytes(), updatedAt)
 	if err != nil {
 		return
 	}
-
-	state := 2
-	rowsAffected, _ := res.RowsAffected()
-	if rowsAffected == 1 {
-		state = 0
+	// If both edges were updated, it was accepting an invite was successful.
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
+		return
 	}
 
+	// If no edge updates took place, it's a new invite being set up.
 	res, err = tx.Exec(`
 INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
-SELECT $1, $2, $3, $4, $4
-WHERE EXISTS (SELECT id FROM users WHERE id=$2)
-	`, session.userID.Bytes(), friendIDBytes, state, updatedAt)
+SELECT source_id, destination_id, state, position, updated_at
+FROM (VALUES
+  ($1::BYTEA, $2::BYTEA, 2, $3::BIGINT, $3::BIGINT),
+  ($2::BYTEA, $1::BYTEA, 1, $3::BIGINT, $3::BIGINT)
+) AS ue(source_id, destination_id, state, position, updated_at)
+WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
+	`, session.userID.Bytes(), friendIDBytes, updatedAt)
 	if err != nil {
 		return
 	}
 
-	rowsAffected, _ = res.RowsAffected()
-	if rowsAffected == 0 {
-		err = errors.New("did not find friend ID in users table")
+	// An invite was successfully added if both components were inserted.
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
+		err = errors.New("user ID not found or unavailable")
 		return
 	}
 
-	if state == 2 {
-		_, err = tx.Exec("INSERT INTO user_edge (source_id, destination_id, state, position, updated_at) VALUES ($1, $2, $3, $4, $4)",
-			friendIDBytes, session.userID.Bytes(), 1, updatedAt)
-
-		if err != nil {
-			return
-		}
-
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id = $2", updatedAt, friendIDBytes)
-
-		if err != nil {
-			return
-		}
+	// Update the user edge metadata counts.
+	res, err = tx.Exec(`
+UPDATE user_edge_metadata
+SET count = count + 1, updated_at = $1
+WHERE source_id = $2
+OR source_id = $3`,
+		updatedAt, session.userID.Bytes(), friendIDBytes)
+	if err != nil {
+		return
 	}
 
-	_, err = tx.Exec("UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id = $2", updatedAt, session.userID.Bytes())
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
+		err = errors.New("could not update user friend counts")
+		return
+	}
 }
 
 func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelope) {
@@ -305,7 +312,7 @@ func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelo
 	logger := l.With(zap.String("friend_id", friendID.String()))
 	friendIDBytes := friendID.Bytes()
 
-	if friendID.String() == session.userID.String() {
+	if friendID == session.userID {
 		logger.Warn("Cannot remove self", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot remove self"))
 		return
@@ -373,7 +380,7 @@ func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelop
 	logger := l.With(zap.String("user_id", userID.String()))
 	userIDBytes := userID.Bytes()
 
-	if userID.String() == session.userID.String() {
+	if userID == session.userID {
 		logger.Warn("Cannot block self", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot block self"))
 		return
