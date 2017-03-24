@@ -7,6 +7,13 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Optionally allow JSON encoding in user login/register operations and responses.
 
+### Changed
+- Improve user email storage and comparison.
+- Allow group batch fetch by both ID and name.
+
+### Fixed
+- Fix Facebook unlink operation.
+
 ## [0.12.0] - 2017-03-19
 ### Added
 - Dynamic leaderboards feature.

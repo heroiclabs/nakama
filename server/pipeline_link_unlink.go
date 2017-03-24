@@ -19,6 +19,7 @@ import (
 
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
 )
 
 func (p *pipeline) linkID(logger zap.Logger, session *session, envelope *Envelope) {
@@ -311,7 +312,7 @@ AND NOT EXISTS
      FROM users
      WHERE email = $2)`,
 		session.userID.Bytes(),
-		email.Email,
+		strings.ToLower(email.Email),
 		hashedPassword,
 		nowMs())
 
@@ -435,7 +436,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 	case *TUnlink_Facebook:
 		query = `UPDATE users SET facebook_id = NULL, updated_at = $3
 WHERE id = $1
-AND custom_id = $2
+AND facebook_id = $2
 AND ((google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -447,7 +448,7 @@ AND ((google_id IS NOT NULL
 	case *TUnlink_Google:
 		query = `UPDATE users SET google_id = NULL, updated_at = $3
 WHERE id = $1
-AND custom_id = $2
+AND google_id = $2
 AND ((facebook_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -459,7 +460,7 @@ AND ((facebook_id IS NOT NULL
 	case *TUnlink_GameCenter:
 		query = `UPDATE users SET gamecenter_id = NULL, updated_at = $3
 WHERE id = $1
-AND custom_id = $2
+AND gamecenter_id = $2
 AND ((facebook_id IS NOT NULL
       OR google_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -471,7 +472,7 @@ AND ((facebook_id IS NOT NULL
 	case *TUnlink_Steam:
 		query = `UPDATE users SET steam_id = NULL, updated_at = $3
 WHERE id = $1
-AND custom_id = $2
+AND steam_id = $2
 AND ((facebook_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -483,7 +484,7 @@ AND ((facebook_id IS NOT NULL
 	case *TUnlink_Email:
 		query = `UPDATE users SET email = NULL, password = NULL, updated_at = $3
 WHERE id = $1
-AND custom_id = $2
+AND email = $2
 AND ((facebook_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -491,7 +492,7 @@ AND ((facebook_id IS NOT NULL
       OR custom_id IS NOT NULL)
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
-		param = envelope.GetUnlink().GetEmail()
+		param = strings.ToLower(envelope.GetUnlink().GetEmail())
 	case *TUnlink_Custom:
 		query = `UPDATE users SET custom_id = NULL, updated_at = $3
 WHERE id = $1

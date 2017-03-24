@@ -37,6 +37,7 @@ import (
 	"github.com/uber-go/zap"
 	"golang.org/x/crypto/bcrypt"
 	"mime"
+	"strings"
 )
 
 const (
@@ -460,7 +461,7 @@ func (a *authenticationService) loginEmail(authReq *AuthenticateRequest) ([]byte
 	var hashedPassword []byte
 	var disabledAt int64
 	err := a.db.QueryRow("SELECT id, handle, password, disabled_at FROM users WHERE email = $1",
-		email.Email).
+		strings.ToLower(email.Email)).
 		Scan(&userID, &handle, &hashedPassword, &disabledAt)
 	if err != nil {
 		a.logger.Warn(errorCouldNotLogin, zap.Error(err))
@@ -843,7 +844,7 @@ WHERE NOT EXISTS
  WHERE email = $3)`,
 		userID,
 		handle,
-		email.Email,
+		strings.ToLower(email.Email),
 		hashedPassword,
 		updatedAt)
 
