@@ -308,7 +308,7 @@ message TGroupsFetch {
     repeated string names = 1;
   }
 
-  oneof criteria {
+  oneof set {
     GroupIds group_ids = 1;
     Names names = 2;
   }

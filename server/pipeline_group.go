@@ -350,7 +350,7 @@ func (p *pipeline) groupsFetch(logger zap.Logger, session *session, envelope *En
 	statements := []string{}
 	params := []interface{}{}
 
-	switch g.Criteria.(type) {
+	switch g.Set.(type) {
 	case *TGroupsFetch_GroupIds_:
 		for _, gid := range g.GetGroupIds().GroupIds {
 			groupID, err := uuid.FromBytes(gid)
@@ -365,15 +365,15 @@ func (p *pipeline) groupsFetch(logger zap.Logger, session *session, envelope *En
 			statements = append(statements, "name = $"+strconv.Itoa(len(params)))
 		}
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch criteria is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch set is required"))
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch criteria"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch set"))
 		return
 	}
 
 	if len(statements) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "One or more fetch criteria are required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "One or more fetch set values are required"))
 		return
 	}
 
