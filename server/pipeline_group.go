@@ -354,7 +354,7 @@ func (p *pipeline) groupsFetch(logger zap.Logger, session *session, envelope *En
 	case *TGroupsFetch_GroupIds_:
 		for _, gid := range g.GetGroupIds().GroupIds {
 			groupID, err := uuid.FromBytes(gid)
-			if err != nil {
+			if err == nil {
 				params = append(params, groupID.Bytes())
 				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
 			}
