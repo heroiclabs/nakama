@@ -300,7 +300,18 @@ message TGroupRemove {
 
 message TGroupsSelfList {}
 message TGroupsFetch {
-  repeated bytes group_ids = 1;
+  message GroupIds {
+    repeated bytes group_ids = 1;
+  }
+
+  message Names {
+    repeated string names = 1;
+  }
+
+  oneof set {
+    GroupIds group_ids = 1;
+    Names names = 2;
+  }
 }
 message TGroupsList {
   int64 page_limit = 1;

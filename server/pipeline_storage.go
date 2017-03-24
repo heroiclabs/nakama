@@ -79,7 +79,7 @@ func (p *pipeline) storageFetch(logger zap.Logger, session *session, envelope *E
 				return
 			}
 
-			if userID.String() != session.userID.String() {
+			if userID != session.userID {
 				logger.Error("Not allowed to fetch from storage of a different user")
 				session.Send(ErrorMessage(envelope.CollationId, STORAGE_FETCH_DISALLOWED, "Not allowed to fetch from storage of a different user"))
 				return

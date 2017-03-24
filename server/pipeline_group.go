@@ -347,23 +347,40 @@ AND
 func (p *pipeline) groupsFetch(logger zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupsFetch()
 
-	validGroupIds := make([]interface{}, 0)
-	statements := make([]string, 0)
+	statements := []string{}
+	params := []interface{}{}
 
-	for _, gid := range g.GroupIds {
-		groupID, err := uuid.FromBytes(gid)
-		if err != nil {
-			logger.Warn("Could not get group")
-		} else {
-			validGroupIds = append(validGroupIds, groupID.Bytes())
-			statements = append(statements, "id = $"+strconv.Itoa(len(validGroupIds)))
+	switch g.Set.(type) {
+	case *TGroupsFetch_GroupIds_:
+		for _, gid := range g.GetGroupIds().GroupIds {
+			groupID, err := uuid.FromBytes(gid)
+			if err != nil {
+				params = append(params, groupID.Bytes())
+				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
+			}
 		}
+	case *TGroupsFetch_Names_:
+		for _, name := range g.GetNames().Names {
+			params = append(params, name)
+			statements = append(statements, "name = $"+strconv.Itoa(len(params)))
+		}
+	case nil:
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch set is required"))
+		return
+	default:
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch set"))
+		return
+	}
+
+	if len(statements) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "One or more fetch set values are required"))
+		return
 	}
 
 	rows, err := p.db.Query(
 		`SELECT id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
 FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
-		validGroupIds...)
+		params...)
 	if err != nil {
 		logger.Error("Could not get groups", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"))
@@ -893,7 +910,7 @@ func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envel
 		return
 	}
 
-	if userID.String() == session.userID.String() {
+	if userID == session.userID {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't kick yourself from the group"))
 		return
 	}
@@ -989,7 +1006,7 @@ func (p *pipeline) groupUserPromote(l zap.Logger, session *session, envelope *En
 		return
 	}
 
-	if userID.String() == session.userID.String() {
+	if userID == session.userID {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't promote yourself"))
 		return
 	}
