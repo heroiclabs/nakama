@@ -122,7 +122,7 @@ func (s *session) pingNow() bool {
 	}
 
 	// Server heartbeat.
-	err = s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: time.Now().UTC().Unix()}}})
+	err = s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}})
 	if err != nil {
 		s.logger.Warn("Could not send heartbeat", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
