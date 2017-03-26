@@ -9,6 +9,10 @@ module.exports = {
         m("a.c-nav__item[href='/configuration']", {oncreate: m.route.link}, "Configuration"),
 
         // Added in reverse order for CSS styles
+        m("a.c-nav__item.c-nav__item--right[href='https://twitter.com/heroicdev'][target=_blank]", [
+          m("i.fa.fa-twitter", {"aria-hidden": "true"}),
+          " Twitter"
+        ]),
         m("a.c-nav__item.c-nav__item--right[href='https://github.com/heroiclabs/nakama'][target=_blank]", [
           m("i.fa.fa-github", {"aria-hidden": "true"}),
           " GitHub"
@@ -22,7 +26,9 @@ module.exports = {
           " Docs"
         ])
       ]),
-      m("section", vnode.children)
+      m("div.o-grid.o-panel.o-panel--nav-top", [
+        m("main.o-grid__cell", vnode.children)
+      ])
     ]);
   }
 };
