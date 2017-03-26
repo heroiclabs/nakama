@@ -1,7 +1,6 @@
 'use strict';
 
 var m = require("mithril");
-
 var NodelistComponent = require("./nodelist");
 
 module.exports = {
