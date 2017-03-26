@@ -1,6 +1,10 @@
+'use strict';
+
 var m = require("mithril");
+var Node = require("../models/node");
 
 module.exports = {
+  oninit: Node.fetch,
   view: function() {
     return m("div.c-table.c-table--striped", [
       m("div.c-table__caption", "Healthy nodes are marked in green."),
@@ -12,16 +16,16 @@ module.exports = {
         m("span.c-table__cell", "Presence count"),
         m("span.c-table__cell", "Process count")
       ]),
-      m("tbody.c-table__body", [
-        m("div.c-table__row", [
-          m("span.c-table__cell", "nakama-96b0"),
-          m("span.c-table__cell", "192.168.0.26"),
-          m("span.c-table__cell", "0.13.0-dev+c2d92e4"),
-          m("span.c-table__cell", "0"),
-          m("span.c-table__cell", "0"),
-          m("span.c-table__cell", "14")
+      m("tbody.c-table__body", Node.list.map(function(node) {
+        return m("div.c-table__row", [
+          m("span.c-table__cell", node.name),
+          m("span.c-table__cell", node.address),
+          m("span.c-table__cell", node.version),
+          m("span.c-table__cell", node.health_status),
+          m("span.c-table__cell", node.presence_count),
+          m("span.c-table__cell", node.process_count)
         ])
-      ])
+      }))
     ]);
   }
 }
