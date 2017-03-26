@@ -16,16 +16,22 @@ module.exports = {
         m("span.c-table__cell", "Presence count"),
         m("span.c-table__cell", "Process count")
       ]),
-      m("tbody.c-table__body", Node.list.map(function(node) {
+      m("tbody.c-table__body", Node.error ? [
+          m("div.c-table__row", [
+            m("span.c-table__cell.u-bg-white.u-color-red-dark", Node.error)
+          ])
+        ]
+        : Node.list.map(function(node) {
+        var healthCls = (node.health_status == 0) ? "u-bg-green-lighter" : "u-bg-yellow-lighter";
         return m("div.c-table__row", [
-          m("span.c-table__cell", node.name),
-          m("span.c-table__cell", node.address),
-          m("span.c-table__cell", node.version),
-          m("span.c-table__cell", node.health_status),
-          m("span.c-table__cell", node.presence_count),
-          m("span.c-table__cell", node.process_count)
+          m("span.c-table__cell", {"class": healthCls}, node.name),
+          m("span.c-table__cell", {"class": healthCls}, node.address),
+          m("span.c-table__cell", {"class": healthCls}, node.version),
+          m("span.c-table__cell", {"class": healthCls}, node.health_status),
+          m("span.c-table__cell", {"class": healthCls}, node.presence_count),
+          m("span.c-table__cell", {"class": healthCls}, node.process_count)
         ])
       }))
     ]);
   }
-}
+};
