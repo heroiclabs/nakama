@@ -3,9 +3,12 @@
   "version": "0.2.0",
   "description": "The embedded dashboard for Nakama server.",
   "main": "src/index.js",
+  "bin": {
+    "buildjs": "build.js"
+  },
   "scripts": {
-    "start": "mkdir -p dist; cp ./node_modules/blaze/dist/blaze.min.css dist/; bundle src/index.js --output dist/app.js --watch",
-    "build": "mkdir -p dist; cp ./node_modules/blaze/dist/blaze.min.css dist/; bundle src/index.js --output dist/app.js",
+    "start": "mkdir -p dist/{css,fonts}; cp ./node_modules/blaze/dist/blaze.min.css dist/css; cp ./node_modules/font-awesome/css/font-awesome.min.css dist/css; cp ./node_modules/font-awesome/fonts/* dist/fonts; bundle src/index.js --output dist/app.js --watch",
+    "build": "mkdir -p dist/{css,fonts}; cp ./node_modules/blaze/dist/blaze.min.css dist/css; cp ./node_modules/font-awesome/css/font-awesome.min.css dist/css; cp ./node_modules/font-awesome/fonts/* dist/fonts; bundle src/index.js --output dist/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Heroic Labs <team@heroiclabs.com>",
@@ -26,6 +29,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "blaze": "^3.2.0",
+    "font-awesome": "^4.7.0",
     "mithril": "^1.0.1"
   }
 }
