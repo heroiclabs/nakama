@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Improve user email storage and comparison.
 - Allow group batch fetch by both ID and name.
 - Increase heartbeat server time precision.
+- Rework the embedded dashboard.
 
 ### Fixed
 - Fix Facebook unlink operation.

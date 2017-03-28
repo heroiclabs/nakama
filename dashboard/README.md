@@ -9,7 +9,7 @@ For development:
 
 ```shell
 $> npm run start
-$> python -m SimpleHTTPServer
+$> cd dist; python -m SimpleHTTPServer
 ```
 
 Navigate to the live dashboard on http://0.0.0.0:8000.
