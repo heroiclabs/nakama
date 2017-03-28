@@ -54,8 +54,8 @@ func (p *pipeline) linkDevice(logger zap.Logger, session *session, envelope *Env
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, no spaces or control characters allowed"))
 		return
-	} else if len(deviceID) < 10 || len(deviceID) > 36 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-36 bytes"))
+	} else if len(deviceID) < 10 || len(deviceID) > 64 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-64 bytes"))
 		return
 	}
 

@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Allow group batch fetch by both ID and name.
 - Increase heartbeat server time precision.
 - Rework the embedded dashboard.
+- Allow up to 64 characters for device ID linking.
 
 ### Fixed
 - Fix Facebook unlink operation.
