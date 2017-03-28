@@ -101,7 +101,7 @@ run: $(BINNAME)
 .PHONY: dashboard
 dashboard: build/generated/dashboard/embedded.go
 
-build/generated/dashboard/embedded.go: $(shell find dashboard/src dashboard/static -type f) dashboard/index.html
+build/generated/dashboard/embedded.go: $(shell find dashboard/src -type f) dashboard/index.html
 	cd dashboard; npm run build
 	${GOBINDATA} -pkg dashboard -prefix dashboard/dist -o ${BUILDDIR}/generated/dashboard/embedded.go dashboard/dist/...
 
