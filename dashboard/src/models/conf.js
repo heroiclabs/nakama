@@ -10,7 +10,7 @@ var Conf = {
   "fetch": function() {
     return m.request({
       "method": "GET",
-      "url": "http://127.0.0.1:7351/v0/config"
+      "url": "/v0/config"
     }).then(function(result) {
       Conf.value = result;
     }).catch(function(e) {

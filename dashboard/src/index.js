@@ -1,5 +1,10 @@
 'use strict';
 
+require([
+  "font-awesome/css/font-awesome.css",
+  "blaze/dist/blaze.min.css",
+  "blaze/dist/blaze.colors.min.css"
+]);
 var m = require("mithril");
 
 var Layout = require("./components/layout");

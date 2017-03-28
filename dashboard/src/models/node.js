@@ -10,7 +10,7 @@ var Node = {
   "fetch": function() {
     return m.request({
       "method": "GET",
-      "url": "http://127.0.0.1:7351/v0/cluster/stats"
+      "url": "/v0/cluster/stats"
     }).then(function(result) {
       Node.list = result;
     }).catch(function(e) {
