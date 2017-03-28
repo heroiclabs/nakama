@@ -22,15 +22,15 @@ module.exports = {
           ])
         ]
         : Node.list.map(function(node) {
-        var healthCls = (node.health_status == 0) ? "u-bg-green-lighter" : "u-bg-yellow-lighter";
-        return m("div.c-table__row", [
-          m("span.c-table__cell", {"class": healthCls}, node.name),
-          m("span.c-table__cell", {"class": healthCls}, node.address),
-          m("span.c-table__cell", {"class": healthCls}, node.version),
-          m("span.c-table__cell", {"class": healthCls}, node.health_status),
-          m("span.c-table__cell", {"class": healthCls}, node.presence_count),
-          m("span.c-table__cell", {"class": healthCls}, node.process_count)
-        ])
+          var healthCls = (node.health_status == 0) ? "u-bg-green-lighter" : "u-bg-yellow-lighter";
+          return m("div.c-table__row", [
+            m("span.c-table__cell", {"class": healthCls}, node.name),
+            m("span.c-table__cell", {"class": healthCls}, node.address),
+            m("span.c-table__cell", {"class": healthCls}, node.version),
+            m("span.c-table__cell", {"class": healthCls}, node.health_status),
+            m("span.c-table__cell", {"class": healthCls}, node.presence_count),
+            m("span.c-table__cell", {"class": healthCls}, node.process_count)
+          ])
       }))
     ]);
   }

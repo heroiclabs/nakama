@@ -1,7 +1,7 @@
 'use strict';
 
 var m = require("mithril");
-var NodelistComponent = require("./nodelist");
+var NodetableComponent = require("./nodetable");
 
 module.exports = {
   view: function() {
@@ -10,7 +10,7 @@ module.exports = {
         m("h2.c-heading", "Server cluster")
       ]),
       m("div.c-card__body", [
-        m(NodelistComponent)
+        m(NodetableComponent)
       ])
     ]);
   }

@@ -3,9 +3,6 @@
   "version": "0.2.0",
   "description": "The embedded dashboard for Nakama server.",
   "main": "src/index.js",
-  "bin": {
-    "buildjs": "build.js"
-  },
   "scripts": {
     "start": "mkdir -p dist/{css,fonts}; cp ./node_modules/blaze/dist/{blaze.min.css,blaze.colors.min.css} dist/css; cp ./node_modules/font-awesome/css/font-awesome.min.css dist/css; cp ./node_modules/font-awesome/fonts/* dist/fonts; bundle src/index.js --output dist/app.js --watch",
     "build": "mkdir -p dist/{css,fonts}; cp ./node_modules/blaze/dist/{blaze.min.css,blaze.colors.min.css} dist/css; cp ./node_modules/font-awesome/css/font-awesome.min.css dist/css; cp ./node_modules/font-awesome/fonts/* dist/fonts; bundle src/index.js --output dist/app.js",
