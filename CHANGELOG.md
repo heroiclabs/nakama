@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [0.12.1] - 2017-03-28
 ### Added
 - Optionally allow JSON encoding in user login/register operations and responses.
