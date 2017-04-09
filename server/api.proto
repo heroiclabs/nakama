@@ -35,6 +35,8 @@ message Error {
     GROUP_NAME_INUSE = 9;
     STORAGE_FETCH_DISALLOWED = 10;
     MATCH_NOT_FOUND = 11;
+    RUNTIME_FUNCTION_NOT_FOUND = 12;
+    RUNTIME_FUNCTION_EXCEPTION = 13;
   }
 
   int32 code = 1;
@@ -161,6 +163,8 @@ message Envelope {
     TMatchmakeRemove matchmake_remove = 61;
     TMatchmakeTicket matchmake_ticket = 62;
     MatchmakeMatched matchmake_matched = 63;
+
+    TRpc rpc = 64;
   }
 }
 
@@ -632,4 +636,9 @@ message TLeaderboardRecordsList {
 message TLeaderboardRecords {
   repeated LeaderboardRecord records = 1;
   bytes cursor = 2;
+}
+
+message TRpc {
+  string id = 1;
+  bytes payload = 2;
 }

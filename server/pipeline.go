@@ -18,38 +18,65 @@ import (
 	"database/sql"
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"nakama/pkg/social"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
 )
 
 type pipeline struct {
-	config          Config
-	db              *sql.DB
-	socialClient    *social.Client
-	tracker         Tracker
-	matchmaker      Matchmaker
-	hmacSecretByte  []byte
-	messageRouter   MessageRouter
-	sessionRegistry *SessionRegistry
+	config            Config
+	db                *sql.DB
+	tracker           Tracker
+  matchmaker        Matchmaker
+	hmacSecretByte    []byte
+	messageRouter     MessageRouter
+	sessionRegistry   *SessionRegistry
+	socialClient      *social.Client
+	runtime           *Runtime
+	jsonpbMarshaler   *jsonpb.Marshaler
+	jsonpbUnmarshaler *jsonpb.Unmarshaler
 }
 
 // NewPipeline creates a new Pipeline
-func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter, registry *SessionRegistry) *pipeline {
+func NewPipeline(config Config, db *sql.DB, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter, registry *SessionRegistry, socialClient *social.Client, runtime *Runtime) *pipeline {
 	return &pipeline{
 		config:          config,
 		db:              db,
-		socialClient:    socialClient,
 		tracker:         tracker,
 		matchmaker:      matchmaker,
 		hmacSecretByte:  []byte(config.GetSession().EncryptionKey),
 		messageRouter:   messageRouter,
 		sessionRegistry: registry,
+		socialClient:    socialClient,
+		runtime:         runtime,
+		jsonpbMarshaler: &jsonpb.Marshaler{
+			EnumsAsInts:  true,
+			EmitDefaults: false,
+			Indent:       "",
+			OrigName:     false,
+		},
+		jsonpbUnmarshaler: &jsonpb.Unmarshaler{
+			AllowUnknownFields: false,
+		},
 	}
 }
 
-func (p *pipeline) processRequest(logger *zap.Logger, session *session, envelope *Envelope) {
-	logger.Debug(fmt.Sprintf("Received %T message", envelope.Payload))
+func (p *pipeline) processRequest(logger *zap.Logger, session *session, originalEnvelope *Envelope) {
+	if originalEnvelope.Payload == nil {
+		session.Send(ErrorMessage(originalEnvelope.CollationId, MISSING_PAYLOAD, "No payload found"))
+		return
+	}
+
+	messageType := fmt.Sprintf("%T", originalEnvelope.Payload)
+	logger.Debug("Received message", zap.String("type", messageType))
+
+	envelope, fnErr := p.before(logger, session, messageType, originalEnvelope)
+	if fnErr != nil {
+		logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
+		session.Send(ErrorMessage(originalEnvelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime before function caused an error: %s", fnErr.Error())))
+		return
+	}
 
 	switch envelope.Payload.(type) {
 	case *Envelope_Logout:
@@ -142,11 +169,15 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, envelope
 	case *Envelope_LeaderboardRecordsList:
 		p.leaderboardRecordsList(logger, session, envelope)
 
-	case nil:
-		session.Send(ErrorMessage(envelope.CollationId, MISSING_PAYLOAD, "No payload found"))
+	case *Envelope_Rpc:
+		p.rpc(logger, session, envelope)
+
 	default:
 		session.Send(ErrorMessage(envelope.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
+		return
 	}
+
+	p.after(logger, session, messageType, envelope)
 }
 
 func ErrorMessageRuntimeException(collationID string, message string) *Envelope {

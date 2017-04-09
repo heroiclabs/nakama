@@ -1,5 +1,5 @@
-hash: 150ab75d51b17b2fb2b097193ea43bac8e07dfcb8ce0905c115be7e71639f506
-updated: 2017-04-13T23:43:22.128299698+01:00
+hash: eaca7acd10cdfdd13ddd0fcf302c626a8b7a450c13970abbbd1fac319f02c2ad
+updated: 2017-05-24T13:55:34.751285113+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -9,6 +9,8 @@ imports:
   version: 9a6736ed45b44bf3835afeebb3034b57ed329f3e
   subpackages:
   - '...'
+- name: github.com/fatih/structs
+  version: a720dfa8df582c51dee1b36feabb906bde1588bd
 - name: github.com/go-gorp/gorp
   version: 4deece61034873cb5b5416e81abe4cea7bd0da72
 - name: github.com/go-yaml/yaml
@@ -40,16 +42,16 @@ imports:
   - sqlparse
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
-- name: github.com/uber-go/atomic
-  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
-- name: github.com/uber-go/zap
-  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+- name: github.com/yuin/gopher-lua
+  version: b402f3114ec730d8bddb074a6c137309f561aa78
   subpackages:
-  - zapcore
+  - ast
+  - parse
+  - pm
 - name: go.uber.org/atomic
   version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: go.uber.org/zap
-  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  version: fab453050a7a08c35f31fc5fff6f2dbd962285ab
   subpackages:
   - buffer
   - internal/bufferpool

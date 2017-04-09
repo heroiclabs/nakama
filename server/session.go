@@ -36,6 +36,7 @@ type session struct {
 	userID           uuid.UUID
 	handle           *atomic.String
 	lang             string
+	expiry           int64
 	stopped          bool
 	conn             *websocket.Conn
 	pingTicker       *time.Ticker
@@ -44,7 +45,7 @@ type session struct {
 }
 
 // NewSession creates a new session which encapsulates a socket connection
-func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, websocketConn *websocket.Conn, unregister func(s *session)) *session {
+func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, expiry int64, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -57,6 +58,7 @@ func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle stri
 		userID:           userID,
 		handle:           atomic.NewString(handle),
 		lang:             lang,
+		expiry:           expiry,
 		conn:             websocketConn,
 		stopped:          false,
 		pingTicker:       time.NewTicker(time.Duration(config.GetTransport().PingPeriodMs) * time.Millisecond),
