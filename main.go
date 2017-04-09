@@ -31,11 +31,12 @@ import (
 	"nakama/pkg/ga"
 	"nakama/server"
 
+	"nakama/pkg/social"
+
 	"github.com/armon/go-metrics"
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
-
 	"go.uber.org/zap"
 )
 
@@ -100,7 +101,15 @@ func main() {
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
-	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, trackerService, matchmakerService, messageRouter)
+
+	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config.GetRuntime())
+	if err != nil {
+		multiLogger.Fatal("Failed initializing runtime modules.", zap.Error(err))
+	}
+
+	socialClient := social.NewClient(5 * time.Second)
+	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime)
+	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtime)
 	opsService := server.NewOpsService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
@@ -118,9 +127,10 @@ func main() {
 		<-c
 		multiLogger.Info("Shutting down")
 
-		trackerService.Stop()
 		authService.Stop()
 		opsService.Stop()
+		trackerService.Stop()
+		runtime.Stop()
 
 		if gaenabled {
 			ga.SendSessionStop(http.DefaultClient, gacode, cookie)

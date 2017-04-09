@@ -33,6 +33,7 @@ type Config interface {
 	GetTransport() *TransportConfig
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
+	GetRuntime() *RuntimeConfig
 }
 
 type config struct {
@@ -45,12 +46,13 @@ type config struct {
 	Transport *TransportConfig `yaml:"transport" json:"transport"`
 	Database  *DatabaseConfig  `yaml:"database" json:"database"`
 	Social    *SocialConfig    `yaml:"social" json:"social"`
+	Runtime   *RuntimeConfig   `yaml:"runtime" json"runtime"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
 func NewConfig() *config {
 	cwd, _ := os.Getwd()
-	dataDirectory := filepath.FromSlash(cwd + "/data")
+	dataDirectory := filepath.Join(cwd, "data")
 	nodeName := "nakama-" + strings.Split(uuid.NewV4().String(), "-")[3]
 	return &config{
 		Name:      nodeName,
@@ -62,6 +64,7 @@ func NewConfig() *config {
 		Transport: NewTransportConfig(),
 		Database:  NewDatabaseConfig(),
 		Social:    NewSocialConfig(),
+		Runtime:   NewRuntimeConfig(dataDirectory),
 	}
 }
 
@@ -99,6 +102,10 @@ func (c *config) GetDatabase() *DatabaseConfig {
 
 func (c *config) GetSocial() *SocialConfig {
 	return c.Social
+}
+
+func (c *config) GetRuntime() *RuntimeConfig {
+	return c.Runtime
 }
 
 // SessionConfig is configuration relevant to the session
@@ -169,5 +176,21 @@ func NewSocialConfig() *SocialConfig {
 			PublisherKey: "",
 			AppID:        0,
 		},
+	}
+}
+
+// RuntimeConfig is configuration relevant to the Runtime Lua VM
+type RuntimeConfig struct {
+	Environment map[string]interface{} `yaml:"env" json:"env"`
+	Path        string                 `yaml:"path" json:"path"`
+	HTTPKey     string                 `yaml:"http_key" json:"http_key"`
+}
+
+// NewRuntimeConfig creates a new RuntimeConfig struct
+func NewRuntimeConfig(dataDirectory string) *RuntimeConfig {
+	return &RuntimeConfig{
+		Environment: make(map[string]interface{}),
+		Path:        filepath.Join(dataDirectory, "modules"),
+		HTTPKey:     "defaultkey",
 	}
 }

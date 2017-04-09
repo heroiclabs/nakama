@@ -15,20 +15,21 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
+	"mime"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"nakama/pkg/social"
-
-	"bytes"
-	"mime"
-	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/jsonpb"
@@ -63,6 +64,7 @@ type authenticationService struct {
 	statsService      StatsService
 	registry          *SessionRegistry
 	pipeline          *pipeline
+	runtime           *Runtime
 	mux               *mux.Router
 	hmacSecretByte    []byte
 	upgrader          *websocket.Upgrader
@@ -73,24 +75,23 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter) *authenticationService {
-	s := social.NewClient(5 * time.Second)
-	p := NewPipeline(config, db, s, tracker, matchmaker, messageRouter, registry)
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtime *Runtime) *authenticationService {
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
 		db:             db,
 		statsService:   statService,
 		registry:       registry,
-		pipeline:       p,
+		pipeline:       pipeline,
+		runtime:        runtime,
+		socialClient:   socialClient,
+		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin:     func(r *http.Request) bool { return true },
 		},
-		socialClient: s,
-		random:       rand.New(rand.NewSource(time.Now().UnixNano())),
 		jsonpbMarshaler: &jsonpb.Marshaler{
 			EnumsAsInts:  true,
 			EmitDefaults: false,
@@ -139,7 +140,7 @@ func (a *authenticationService) configure() {
 		}
 
 		token := r.URL.Query().Get("token")
-		uid, handle, auth := a.authenticateToken(token)
+		uid, handle, exp, auth := a.authenticateToken(token)
 		if !auth {
 			http.Error(w, "Missing or invalid token", 401)
 			return
@@ -158,8 +159,72 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		a.registry.add(uid, handle, lang, conn, a.pipeline.processRequest)
+		a.registry.add(uid, handle, lang, exp, conn, a.pipeline.processRequest)
 	}).Methods("GET", "OPTIONS")
+
+	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("accept")
+		if accept != "" && accept != "application/json" {
+			http.Error(w, "Runtime function only accept JSON data", 400)
+			return
+		}
+
+		contentType := r.Header.Get("content-type")
+		if contentType != "" && contentType != "application/json" {
+			http.Error(w, "Runtime function expects JSON data", 400)
+			return
+		}
+
+		key := r.URL.Query().Get("key")
+		if key != a.config.GetRuntime().HTTPKey {
+			http.Error(w, "Invalid runtime key", 401)
+			return
+		}
+
+		if r.Method == "OPTIONS" {
+			//TODO(mo): Do we need to return non-200 for path that don't exist?
+			return
+		}
+
+		path := mux.Vars(r)["path"]
+		fn := a.runtime.GetRuntimeCallback(HTTP, path)
+		if fn == nil {
+			a.logger.Warn("HTTP invocation failed as path was not found", zap.String("path", path))
+			http.Error(w, "Runtime function could not be invoked. Path not found.", 404)
+			return
+		}
+
+		payload := make(map[string]interface{})
+		defer r.Body.Close()
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		switch {
+		case err == io.EOF:
+			payload = nil
+		case err != nil:
+			a.logger.Error("Could not decode request data", zap.Error(err))
+			http.Error(w, "Bad request data", 400)
+			return
+		}
+
+		responseData, funError := a.runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
+		if funError != nil {
+			a.logger.Error("Runtime function caused an error", zap.String("path", path), zap.Error(funError))
+			http.Error(w, fmt.Sprintf("Runtime function caused an error: %s", funError.Error()), 500)
+			return
+		}
+
+		responseBytes, err := json.Marshal(responseData)
+		if err != nil {
+			a.logger.Error("Could not marshal function response data", zap.Error(err))
+			http.Error(w, "Runtime function caused an error", 500)
+			return
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(responseBytes)
+
+	}).Methods("POST", "OPTIONS")
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
@@ -221,6 +286,15 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	messageType := fmt.Sprintf("%T", authReq.Payload)
+	a.logger.Debug("Received message", zap.String("type", messageType))
+	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtime, a.jsonpbMarshaler, a.jsonpbUnmarshaler, authReq)
+	if fnErr != nil {
+		a.logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
+		a.sendAuthError(w, r, "Runtime before function caused an error", 500, authReq)
+		return
+	}
+
 	userID, handle, errString, errCode := retrieveUserID(authReq)
 	if errString != "" {
 		a.logger.Debug("Could not retrieve user ID", zap.String("error", errString), zap.Int("code", errCode))
@@ -239,6 +313,8 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Payload: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
+
+	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode int, authRequest *AuthenticateRequest) {
@@ -932,10 +1008,10 @@ func (a *authenticationService) generateHandle() string {
 	return string(b)
 }
 
-func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID, string, bool) {
+func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID, string, int64, bool) {
 	if tokenString == "" {
 		a.logger.Warn("Token missing")
-		return uuid.Nil, "", false
+		return uuid.Nil, "", 0, false
 	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -950,14 +1026,14 @@ func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID
 			uid, uerr := uuid.FromString(claims["uid"].(string))
 			if uerr != nil {
 				a.logger.Warn("Invalid user ID in token", zap.String("token", tokenString), zap.Error(uerr))
-				return uuid.Nil, "", false
+				return uuid.Nil, "", 0, false
 			}
-			return uid, claims["han"].(string), true
+			return uid, claims["han"].(string), int64(claims["exp"].(float64)), true
 		}
 	}
 
 	a.logger.Warn("Token invalid", zap.String("token", tokenString), zap.Error(err))
-	return uuid.Nil, "", false
+	return uuid.Nil, "", 0, false
 }
 
 func (a *authenticationService) Stop() {

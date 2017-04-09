@@ -5,13 +5,23 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 ### Added
+- Lua script runtime for custom code.
 - Node status now also reports a startup timestamp.
 - New matchmaking feature.
-- Optionally send match data to only a subset of match participants.
+- Optionally send match data to a subset of match participants.
+- Fetch users by handle.
+- Add friend by handle.
+- When listing leaderboards, optionally filter by ID.
+- Allow users to store publicly readable data.
+
+### Changed
+- The build system now suffixes Windows binaries with `exe` extension.
 
 ### Fixed
 - Set correct initial group member count when group is created.
 - Do not update group count when join requests are rejected.
+- Use correct type in leaderboard record write best operation.
+- Correctly store global storage data.
 
 ## [0.12.2] - 2017-04-22
 ### Added

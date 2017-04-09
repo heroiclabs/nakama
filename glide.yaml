@@ -32,7 +32,7 @@ import:
   version: v2
 - package: github.com/armon/go-metrics
 - package: go.uber.org/zap
-  version: ~1.1.0
+  version: ~1.4.0
 - package: go.uber.org/atomic
   version: ~1.2.0
 - package: github.com/satori/go.uuid
@@ -42,4 +42,7 @@ import:
   subpackages:
   - '...'
 - package: github.com/gorhill/cronexpr
+  version: ~1.0.0
+- package: github.com/yuin/gopher-lua
+- package: github.com/fatih/structs
   version: ~1.0.0

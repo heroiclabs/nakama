@@ -33,8 +33,10 @@ message Error {
     USER_UNLINK_DISALLOWED = 7;
     USER_HANDLE_INUSE = 8;
     GROUP_NAME_INUSE = 9;
-    STORAGE_FETCH_DISALLOWED = 10;
+    STORAGE_REJECTED = 10;
     MATCH_NOT_FOUND = 11;
+    RUNTIME_FUNCTION_NOT_FOUND = 12;
+    RUNTIME_FUNCTION_EXCEPTION = 13;
   }
 
   int32 code = 1;
@@ -161,6 +163,8 @@ message Envelope {
     TMatchmakeRemove matchmake_remove = 61;
     TMatchmakeTicket matchmake_ticket = 62;
     MatchmakeMatched matchmake_matched = 63;
+
+    TRpc rpc = 64;
   }
 }
 
@@ -234,7 +238,18 @@ message TSelfUpdate {
 }
 
 message TUsersFetch {
-  repeated bytes user_ids = 1;
+  message UserIds {
+    repeated bytes user_ids = 1;
+  }
+
+  message Handles {
+    repeated string handles = 1;
+  }
+
+  oneof set {
+    UserIds user_ids = 1;
+    Handles handles = 2;
+  }
 }
 message TUsers {
   repeated User users = 1;
@@ -246,7 +261,10 @@ message Friend {
 }
 
 message TFriendAdd {
-  bytes user_id = 1;
+  oneof set {
+    bytes user_id = 1;
+    string handle = 2;
+  }
 }
 
 message TFriendRemove {
@@ -497,6 +515,15 @@ message MatchPresence {
   repeated UserPresence leaves = 3;
 }
 
+enum StoragePermissionRead {
+  NO_READ = 0;
+  OWNER_READ = 1;
+  PUBLIC_READ = 2;
+}
+enum StoragePermissionWrite {
+  NO_WRITE = 0;
+  OWNER_WRITE = 1;
+}
 message TStorageFetch {
   message StorageKey {
     string bucket = 1;
@@ -514,8 +541,8 @@ message TStorageData {
     bytes user_id = 4;
     bytes value = 5;
     bytes version = 6;
-    int64 permission_read = 7;
-    int64 permission_write = 8;
+    int32 permission_read = 7;
+    int32 permission_write = 8;
     int64 created_at = 9;
     int64 updated_at = 10;
     int64 expires_at = 11;
@@ -531,6 +558,8 @@ message TStorageWrite {
     string record = 3;
     bytes value = 4;
     bytes version = 5; // if-match and if-none-match
+    int32 permission_read = 6;
+    int32 permission_write = 7;
   }
 
   repeated StorageData data = 3;
@@ -586,6 +615,7 @@ message LeaderboardRecord {
 message TLeaderboardsList {
   int64 limit = 1;
   bytes cursor = 2;
+  repeated bytes filter_leaderboard_id = 3;
 }
 message TLeaderboards {
   repeated Leaderboard leaderboards = 1;
@@ -632,4 +662,9 @@ message TLeaderboardRecordsList {
 message TLeaderboardRecords {
   repeated LeaderboardRecord records = 1;
   bytes cursor = 2;
+}
+
+message TRpc {
+  string id = 1;
+  bytes payload = 2;
 }
