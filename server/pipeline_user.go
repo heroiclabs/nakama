@@ -19,10 +19,10 @@ import (
 	"strings"
 
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
-func (p *pipeline) usersFetch(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *Envelope) {
 	userIds := envelope.GetUsersFetch().UserIds
 	if len(userIds) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))

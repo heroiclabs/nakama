@@ -17,12 +17,13 @@ package server
 import (
 	"strconv"
 
-	"github.com/uber-go/zap"
-	"golang.org/x/crypto/bcrypt"
 	"strings"
+
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func (p *pipeline) linkID(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkID(logger *zap.Logger, session *session, envelope *Envelope) {
 	// Route to correct link handler
 	switch envelope.GetLink().Payload.(type) {
 	case *TLink_Device:
@@ -46,7 +47,7 @@ func (p *pipeline) linkID(logger zap.Logger, session *session, envelope *Envelop
 	}
 }
 
-func (p *pipeline) linkDevice(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *Envelope) {
 	deviceID := envelope.GetLink().GetDevice()
 	if deviceID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Device ID is required"))
@@ -111,7 +112,7 @@ func (p *pipeline) linkDevice(logger zap.Logger, session *session, envelope *Env
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkFacebook(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkFacebook(logger *zap.Logger, session *session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetFacebook()
 	if accessToken == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
@@ -154,7 +155,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkGoogle(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkGoogle(logger *zap.Logger, session *session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetGoogle()
 	if accessToken == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
@@ -195,7 +196,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkGameCenter(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkGameCenter(logger *zap.Logger, session *session, envelope *Envelope) {
 	gc := envelope.GetLink().GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Game Center credentials required"))
@@ -233,7 +234,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkSteam(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkSteam(logger *zap.Logger, session *session, envelope *Envelope) {
 	if p.config.GetSocial().Steam.PublisherKey == "" || p.config.GetSocial().Steam.AppID == 0 {
 		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Steam link not available"))
 		return
@@ -279,7 +280,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkEmail(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkEmail(logger *zap.Logger, session *session, envelope *Envelope) {
 	email := envelope.GetLink().GetEmail()
 	if email == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"))
@@ -328,7 +329,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkCustom(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkCustom(logger *zap.Logger, session *session, envelope *Envelope) {
 	customID := envelope.GetLink().GetCustom()
 	if customID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Custom ID is required"))
@@ -365,7 +366,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) unlinkID(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) unlinkID(logger *zap.Logger, session *session, envelope *Envelope) {
 	// Select correct unlink query
 	var query string
 	var param interface{}

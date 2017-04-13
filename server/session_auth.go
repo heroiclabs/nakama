@@ -27,6 +27,9 @@ import (
 	"nakama/pkg/social"
 
 	"bytes"
+	"mime"
+	"strings"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -34,10 +37,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"mime"
-	"strings"
 )
 
 const (
@@ -56,7 +57,7 @@ var (
 )
 
 type authenticationService struct {
-	logger            zap.Logger
+	logger            *zap.Logger
 	config            Config
 	db                *sql.DB
 	registry          *SessionRegistry
@@ -71,7 +72,7 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger zap.Logger, config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
 	s := social.NewClient(5 * time.Second)
 	p := NewPipeline(config, db, s, tracker, messageRouter, registry)
 	a := &authenticationService{
@@ -149,7 +150,7 @@ func (a *authenticationService) configure() {
 	}).Methods("GET", "OPTIONS")
 }
 
-func (a *authenticationService) StartServer(mlogger zap.Logger) {
+func (a *authenticationService) StartServer(logger *zap.Logger) {
 	go func() {
 		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
@@ -157,10 +158,10 @@ func (a *authenticationService) StartServer(mlogger zap.Logger) {
 		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
 		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetPort()), handlerWithCORS)
 		if err != nil {
-			mlogger.Fatal("Client listener failed", zap.Error(err))
+			logger.Fatal("Client listener failed", zap.Error(err))
 		}
 	}()
-	mlogger.Info("Client", zap.Int("port", a.config.GetPort()))
+	logger.Info("Client", zap.Int("port", a.config.GetPort()))
 }
 
 func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Request,

@@ -23,13 +23,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/atomic"
-	"github.com/uber-go/zap"
+
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type session struct {
 	sync.Mutex
-	logger     zap.Logger
+	logger     *zap.Logger
 	config     Config
 	id         uuid.UUID
 	userID     uuid.UUID
@@ -42,7 +43,7 @@ type session struct {
 }
 
 // NewSession creates a new session which encapsulates a socket connection
-func NewSession(logger zap.Logger, config Config, userID uuid.UUID, handle string, lang string, websocketConn *websocket.Conn, unregister func(s *session)) *session {
+func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, websocketConn *websocket.Conn, unregister func(s *session)) *session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -62,7 +63,7 @@ func NewSession(logger zap.Logger, config Config, userID uuid.UUID, handle strin
 	}
 }
 
-func (s *session) Consume(processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
+func (s *session) Consume(processRequest func(logger *zap.Logger, session *session, envelope *Envelope)) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetTransport().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetTransport().PongWaitMs) * time.Millisecond))
@@ -79,7 +80,7 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 		_, data, err := s.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
-				s.logger.Warn("Error reading message from client", zap.Object("error", err.Error()))
+				s.logger.Warn("Error reading message from client", zap.Error(err))
 			}
 			break
 		}
@@ -87,7 +88,7 @@ func (s *session) Consume(processRequest func(logger zap.Logger, session *sessio
 		request := &Envelope{}
 		err = proto.Unmarshal(data, request)
 		if err != nil {
-			s.logger.Warn("Received malformed payload", zap.Object("data", data))
+			s.logger.Warn("Received malformed payload", zap.Any("data", data))
 			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.

@@ -18,7 +18,7 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // StatsService is responsible for gathering and reading stats information from metrics
@@ -28,14 +28,14 @@ type StatsService interface {
 }
 
 type statsService struct {
-	logger  zap.Logger
+	logger  *zap.Logger
 	version string
 	config  Config
 	tracker Tracker
 }
 
 // NewStatsService creates a new StatsService
-func NewStatsService(logger zap.Logger, config Config, version string, tracker Tracker) StatsService {
+func NewStatsService(logger *zap.Logger, config Config, version string, tracker Tracker) StatsService {
 	return &statsService{
 		logger:  logger,
 		version: version,

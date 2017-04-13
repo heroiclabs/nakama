@@ -19,12 +19,11 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"encoding/json"
-
 	"regexp"
 	"unicode/utf8"
 
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type messageCursor struct {
@@ -35,7 +34,7 @@ type messageCursor struct {
 
 var invalidRoomRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
-func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Envelope) {
 	id := envelope.GetTopicJoin()
 	var topic *TopicId
 	var trackerTopic string
@@ -151,7 +150,7 @@ func (p *pipeline) topicJoin(logger zap.Logger, session *session, envelope *Enve
 	}}})
 }
 
-func (p *pipeline) topicLeave(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *Envelope) {
 	topic := envelope.GetTopicLeave().Topic
 	var trackerTopic string
 	switch topic.Id.(type) {
@@ -239,7 +238,7 @@ func (p *pipeline) topicLeave(logger zap.Logger, session *session, envelope *Env
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelope *Envelope) {
 	topic := envelope.GetTopicMessageSend().Topic
 	if topic == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
@@ -362,7 +361,7 @@ func (p *pipeline) topicMessageSend(logger zap.Logger, session *session, envelop
 	p.deliverMessage(logger, session, topic, 0, data, messageID, handle, createdAt, expiresAt)
 }
 
-func (p *pipeline) topicMessagesList(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envelope *Envelope) {
 	input := envelope.GetTopicMessagesList()
 	if input.Id == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
@@ -545,7 +544,7 @@ func (p *pipeline) isGroupMember(userID uuid.UUID, groupID []byte) (bool, error)
 
 		return false, err
 	}
-	return (state == 0 || state == 1), nil
+	return state == 0 || state == 1, nil
 }
 
 func (p *pipeline) userExistsAndDoesNotBlock(checkUserID []byte, blocksUserID []byte) (bool, error) {
@@ -562,7 +561,7 @@ WHERE id = $1 AND NOT EXISTS (
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.
-func (p *pipeline) storeMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
+func (p *pipeline) storeMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
 	var topicBytes []byte
 	var topicType int64
 	switch topic.Id.(type) {
@@ -592,7 +591,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 	return messageID, handle, createdAt, expiresAt, nil
 }
 
-func (p *pipeline) deliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
+func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
 	var trackerTopic string
 	switch topic.Id.(type) {
 	case *TopicId_Dm:
@@ -626,7 +625,7 @@ func (p *pipeline) deliverMessage(logger zap.Logger, session *session, topic *To
 	p.messageRouter.Send(logger, presences, outgoing)
 }
 
-func (p *pipeline) storeAndDeliverMessage(logger zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) error {
+func (p *pipeline) storeAndDeliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) error {
 	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, msgType, data)
 	if err != nil {
 		return err

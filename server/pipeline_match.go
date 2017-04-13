@@ -16,10 +16,10 @@ package server
 
 import (
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
-func (p *pipeline) matchCreate(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *Envelope) {
 	matchID := uuid.NewV4()
 
 	handle := session.handle.Load()
@@ -41,7 +41,7 @@ func (p *pipeline) matchCreate(logger zap.Logger, session *session, envelope *En
 	}}})
 }
 
-func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Envelope) {
 	matchIDBytes := envelope.GetMatchJoin().MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
 	if err != nil {
@@ -85,7 +85,7 @@ func (p *pipeline) matchJoin(logger zap.Logger, session *session, envelope *Enve
 	}}})
 }
 
-func (p *pipeline) matchLeave(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *Envelope) {
 	matchIDBytes := envelope.GetMatchLeave().MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
 	if err != nil {
@@ -119,7 +119,7 @@ func (p *pipeline) matchLeave(logger zap.Logger, session *session, envelope *Env
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) matchDataSend(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetMatchDataSend()
 	matchIDBytes := incoming.MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)

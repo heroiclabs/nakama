@@ -31,8 +31,10 @@ import:
 - package: github.com/go-yaml/yaml
   version: v2
 - package: github.com/armon/go-metrics
-- package: github.com/uber-go/zap
-- package: github.com/uber-go/atomic
+- package: go.uber.org/zap
+  version: ~1.1.0
+- package: go.uber.org/atomic
+  version: ~1.2.0
 - package: github.com/satori/go.uuid
 - package: github.com/dgrijalva/jwt-go
   version: ~3.0.0

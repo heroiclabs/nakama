@@ -20,10 +20,10 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
-func (p *pipeline) querySocialGraph(logger zap.Logger, filterQuery string, params []interface{}) ([]*User, error) {
+func (p *pipeline) querySocialGraph(logger *zap.Logger, filterQuery string, params []interface{}) ([]*User, error) {
 	users := []*User{}
 
 	query := `
@@ -80,7 +80,7 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func (p *pipeline) addFacebookFriends(logger zap.Logger, userID []byte, accessToken string) {
+func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessToken string) {
 	var tx *sql.Tx
 	var err error
 
@@ -195,7 +195,7 @@ FROM users, user_edge ` + filterQuery
 	return friends, nil
 }
 
-func (p *pipeline) friendAdd(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendAdd(l *zap.Logger, session *session, envelope *Envelope) {
 	addFriendRequest := envelope.GetFriendAdd()
 	if len(addFriendRequest.UserId) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
@@ -296,7 +296,7 @@ OR source_id = $3`,
 	}
 }
 
-func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envelope) {
 	removeFriendRequest := envelope.GetFriendRemove()
 	if len(removeFriendRequest.UserId) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
@@ -364,7 +364,7 @@ func (p *pipeline) friendRemove(l zap.Logger, session *session, envelope *Envelo
 	}
 }
 
-func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelope) {
 	blockUserRequest := envelope.GetFriendBlock()
 	if len(blockUserRequest.UserId) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
@@ -442,7 +442,7 @@ func (p *pipeline) friendBlock(l zap.Logger, session *session, envelope *Envelop
 	}
 }
 
-func (p *pipeline) friendsList(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendsList(logger *zap.Logger, session *session, envelope *Envelope) {
 	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.userID.Bytes())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))

@@ -19,20 +19,20 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // SessionRegistry maintains a list of sessions to their IDs. This is thread-safe.
 type SessionRegistry struct {
 	sync.RWMutex
-	logger   zap.Logger
+	logger   *zap.Logger
 	config   Config
 	tracker  Tracker
 	sessions map[uuid.UUID]*session
 }
 
 // NewSessionRegistry creates a new SessionRegistry
-func NewSessionRegistry(logger zap.Logger, config Config, tracker Tracker) *SessionRegistry {
+func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker) *SessionRegistry {
 	return &SessionRegistry{
 		logger:   logger,
 		config:   config,
@@ -62,7 +62,7 @@ func (a *SessionRegistry) Get(sessionID uuid.UUID) *session {
 	return s
 }
 
-func (a *SessionRegistry) add(userID uuid.UUID, handle string, lang string, conn *websocket.Conn, processRequest func(logger zap.Logger, session *session, envelope *Envelope)) {
+func (a *SessionRegistry) add(userID uuid.UUID, handle string, lang string, conn *websocket.Conn, processRequest func(logger *zap.Logger, session *session, envelope *Envelope)) {
 	s := NewSession(a.logger, a.config, userID, handle, lang, conn, a.remove)
 	a.Lock()
 	a.sessions[s.id] = s

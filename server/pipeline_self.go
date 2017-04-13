@@ -20,10 +20,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
-func (p *pipeline) selfFetch(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) selfFetch(logger *zap.Logger, session *session, envelope *Envelope) {
 	var fullname sql.NullString
 	var handle sql.NullString
 	var email sql.NullString
@@ -107,7 +107,7 @@ WHERE u.id = $1`,
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Self{Self: &TSelf{Self: s}}})
 }
 
-func (p *pipeline) selfUpdate(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *Envelope) {
 	update := envelope.GetSelfUpdate()
 	index := 1
 	statements := make([]string, 0)

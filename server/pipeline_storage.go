@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 func (p *pipeline) fetchStorageData(r scanner) (*TStorageData_StorageData, error) {
@@ -61,7 +61,7 @@ func (p *pipeline) fetchStorageData(r scanner) (*TStorageData_StorageData, error
 	}, nil
 }
 
-func (p *pipeline) storageFetch(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) storageFetch(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageFetch()
 	storageData := make([]*TStorageData_StorageData, 0)
 
@@ -120,7 +120,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageData{StorageData: &TStorageData{Data: storageData}}})
 }
 
-func (p *pipeline) storageWrite(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageWrite()
 
 	tx, err := p.db.Begin()
@@ -226,7 +226,7 @@ DO UPDATE SET value = $6, version = $7, updated_at = $8
 	}
 }
 
-func (p *pipeline) storageRemove(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) storageRemove(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageRemove()
 
 	tx, err := p.db.Begin()

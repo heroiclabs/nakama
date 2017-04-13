@@ -35,7 +35,8 @@ import (
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -43,22 +44,17 @@ const (
 )
 
 var (
-	version        string
-	commitID       string
-	verboseLogging bool = true
+	version  string
+	commitID string
 )
 
 func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
+	http.DefaultClient.Timeout = 1500 * time.Millisecond // Always set default timeout on HTTP client
 
-	options := []zap.Option{zap.Output(os.Stdout), zap.LevelEnablerFunc(zapLevelEnabler)}
-	if verboseLogging {
-		options = append(options, zap.AddStacks(zap.ErrorLevel))
-	}
-	clogger := zap.New(zap.NewTextEncoder(zap.TextNoTime()), options...)
+	consoleLogger := server.NewJSONLogger(os.Stdout) // or NewConsoleLogger
 
 	if len(os.Args) > 1 {
-		// TODO requires Zap to be set to Info level.
 		switch os.Args[1] {
 		case "--version":
 			fmt.Println(semver)
@@ -66,53 +62,50 @@ func main() {
 		case "doctor":
 			cmd.DoctorParse(os.Args[2:])
 		case "migrate":
-			cmd.MigrateParse(os.Args[2:], clogger)
+			cmd.MigrateParse(os.Args[2:], consoleLogger)
 		case "admin":
-			cmd.AdminParse(os.Args[2:], clogger)
+			cmd.AdminParse(os.Args[2:], consoleLogger)
 		}
 	}
 
-	config := parseArgs(clogger)
+	config := parseArgs(consoleLogger)
 
 	memoryMetricSink := metrics.NewInmemSink(10*time.Second, time.Minute)
 	metric := &metrics.FanoutSink{memoryMetricSink}
 	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
 
-	logger, mlogger := configureLogger(clogger, config)
-	if verboseLogging {
-		logger = mlogger
+	jsonLogger := server.NewLogger(consoleLogger, config)
+	multiLogger := consoleLogger
+	if !server.StdoutLogging {
+		// if we aren't printing only to stdout, then we want to multiplex entries
+		multiLogger = server.NewMultiLogger(consoleLogger, jsonLogger)
 	}
 
 	// Print startup information
-	mlogger.Info("Nakama starting", zap.String("at", time.Now().UTC().Format("2006-01-02 15:04:05.000 -0700 MST")))
-	mlogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver))
-	mlogger.Info("Data directory", zap.String("path", config.GetDataDir()))
-	mlogger.Info("Database connections", zap.Object("dsns", config.GetDSNS()))
+	multiLogger.Info("Nakama starting")
+	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver))
+	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
+	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDSNS()))
 
-	db := dbConnect(mlogger, config.GetDSNS())
+	db := dbConnect(multiLogger, config.GetDSNS())
 
 	// Check migration status and log if the schema has diverged.
-	cmd.MigrationStartupCheck(mlogger, db)
+	cmd.MigrationStartupCheck(multiLogger, db)
 
 	trackerService := server.NewTrackerService(config.GetName())
-	statsService := server.NewStatsService(logger, config, semver, trackerService)
-	sessionRegistry := server.NewSessionRegistry(logger, config, trackerService)
+	statsService := server.NewStatsService(jsonLogger, config, semver, trackerService)
+	sessionRegistry := server.NewSessionRegistry(jsonLogger, config, trackerService)
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
-	presenceNotifier := server.NewPresenceNotifier(logger, config.GetName(), trackerService, messageRouter)
+	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
-	authService := server.NewAuthenticationService(logger, config, db, sessionRegistry, trackerService, messageRouter)
-	opsService := server.NewOpsService(logger, mlogger, semver, config, statsService)
-
-	// Always set default timeout on HTTP client
-	http.DefaultClient.Timeout = 1500 * time.Millisecond
+	authService := server.NewAuthenticationService(jsonLogger, config, db, sessionRegistry, trackerService, messageRouter)
+	opsService := server.NewOpsService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
-
 	cookie := newOrLoadCookie(config.GetDataDir())
 	gacode := "UA-89792135-1"
-
 	if gaenabled {
-		runTelemetry(logger, http.DefaultClient, gacode, cookie)
+		runTelemetry(jsonLogger, http.DefaultClient, gacode, cookie)
 	}
 
 	// Respect OS stop signals
@@ -121,7 +114,7 @@ func main() {
 
 	go func() {
 		<-c
-		mlogger.Info("Shutting down")
+		multiLogger.Info("Shutting down")
 
 		trackerService.Stop()
 		authService.Stop()
@@ -134,17 +127,18 @@ func main() {
 		os.Exit(0)
 	}()
 
-	authService.StartServer(mlogger)
+	authService.StartServer(multiLogger)
 
-	mlogger.Info("Startup done")
+	multiLogger.Info("Startup done")
 	select {}
 }
 
-func parseArgs(clogger zap.Logger) server.Config {
+func parseArgs(consoleLogger *zap.Logger) server.Config {
 	config := server.NewConfig()
 
 	flags := flag.NewFlagSet("main", flag.ExitOnError)
-	flags.BoolVar(&verboseLogging, "verbose", false, "Turn verbose logging on.")
+	flags.BoolVar(&server.VerboseLogging, "verbose", false, "Turn verbose logging on.")
+	flags.BoolVar(&server.StdoutLogging, "logtostdout", false, "Log to stdout instead of file.")
 	var filepath string
 	flags.StringVar(&filepath, "config", "", "The absolute file path to configuration YAML file.")
 	var name string
@@ -159,17 +153,17 @@ func parseArgs(clogger zap.Logger) server.Config {
 	flags.IntVar(&opsPort, "ops-port", -1, "Set port for ops dashboard.")
 
 	if err := flags.Parse(os.Args[1:]); err != nil {
-		clogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
+		consoleLogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
 	} else {
 
 		if len(filepath) > 0 {
 			data, err := ioutil.ReadFile(filepath)
 			if err != nil {
-				clogger.Error("Could not read config file, using defaults", zap.Error(err))
+				consoleLogger.Error("Could not read config file, using defaults", zap.Error(err))
 			} else {
 				err = yaml.Unmarshal(data, config)
 				if err != nil {
-					clogger.Error("Could not parse config file, using defaults", zap.Error(err))
+					consoleLogger.Error("Could not parse config file, using defaults", zap.Error(err))
 				}
 			}
 		}
@@ -195,37 +189,7 @@ func parseArgs(clogger zap.Logger) server.Config {
 	return config
 }
 
-func zapLevelEnabler(level zap.Level) bool {
-	return verboseLogging || level > zap.DebugLevel
-}
-
-func configureLogger(clogger zap.Logger, config server.Config) (zap.Logger, zap.Logger) {
-	err := os.MkdirAll(filepath.FromSlash(config.GetDataDir()+"/log"), 0755)
-	if err != nil {
-		clogger.Fatal("Could not create log directory", zap.Error(err))
-		return nil, nil
-	}
-
-	file, err := os.Create(filepath.FromSlash(fmt.Sprintf("%v/log/%v.log", config.GetDataDir(), config.GetName())))
-	if err != nil {
-		clogger.Fatal("Could not create log file", zap.Error(err))
-		return nil, nil
-	}
-
-	logger := zap.New(
-		zap.NewJSONEncoder(zap.RFC3339Formatter("timestamp")),
-		zap.Output(zap.AddSync(file)),
-		zap.AddStacks(zap.ErrorLevel),
-		zap.LevelEnablerFunc(zapLevelEnabler),
-	)
-	logger = logger.With(zap.String("server", config.GetName()))
-
-	mlogger := zap.Tee(logger, clogger)
-
-	return logger, mlogger
-}
-
-func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
+func dbConnect(multiLogger *zap.Logger, dsns []string) *sql.DB {
 	// TODO config database pooling
 	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", dsns[0])
 	url, err := url.Parse(rawurl)
@@ -261,7 +225,7 @@ func dbConnect(multiLogger zap.Logger, dsns []string) *sql.DB {
 //
 // This information is sent via Google Analytics which allows the Nakama team to
 // analyze usage patterns and errors in order to help improve the server.
-func runTelemetry(logger zap.Logger, httpc *http.Client, gacode string, cookie string) {
+func runTelemetry(logger *zap.Logger, httpc *http.Client, gacode string, cookie string) {
 	err := ga.SendSessionStart(httpc, gacode, cookie)
 	if err != nil {
 		logger.Debug("Send start session event failed.", zap.Error(err))
