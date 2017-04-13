@@ -16,12 +16,12 @@ package server
 
 import (
 	"github.com/gogo/protobuf/proto"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // MessageRouter is responsible for sending a message to a list of presences
 type MessageRouter interface {
-	Send(zap.Logger, []Presence, proto.Message)
+	Send(*zap.Logger, []Presence, proto.Message)
 }
 
 type messageRouterService struct {
@@ -34,7 +34,7 @@ func NewMessageRouterService(registry *SessionRegistry) *messageRouterService {
 	}
 }
 
-func (m *messageRouterService) Send(logger zap.Logger, ps []Presence, msg proto.Message) {
+func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto.Message) {
 	if len(ps) == 0 {
 		return
 	}
@@ -50,10 +50,10 @@ func (m *messageRouterService) Send(logger zap.Logger, ps []Presence, msg proto.
 		if session != nil {
 			err := session.SendBytes(payload)
 			if err != nil {
-				logger.Error("Failed to route to", zap.Object("p", p), zap.Error(err))
+				logger.Error("Failed to route to", zap.Any("p", p), zap.Error(err))
 			}
 		} else {
-			logger.Warn("No session to route to", zap.Object("p", p))
+			logger.Warn("No session to route to", zap.Any("p", p))
 		}
 	}
 }

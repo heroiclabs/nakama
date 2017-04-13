@@ -18,15 +18,15 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"time"
 
-	"math"
 	"nakama/build/generated/migration"
 
 	"github.com/rubenv/sql-migrate"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -44,12 +44,12 @@ type statusRow struct {
 type migrationService struct {
 	DSNS       string
 	Limit      int
-	logger     zap.Logger
+	logger     *zap.Logger
 	migrations *migrate.AssetMigrationSource
 	db         *sql.DB
 }
 
-func MigrationStartupCheck(logger zap.Logger, db *sql.DB) {
+func MigrationStartupCheck(logger *zap.Logger, db *sql.DB) {
 	migrate.SetTable(migrationTable)
 	ms := &migrate.AssetMigrationSource{
 		Asset:    migration.Asset,
@@ -67,14 +67,14 @@ func MigrationStartupCheck(logger zap.Logger, db *sql.DB) {
 
 	diff := len(migrations) - len(records)
 	if diff > 0 {
-		logger.Warn("DB schema outdated, run `nakama migrate up`", zap.Object("migrations", diff))
+		logger.Warn("DB schema outdated, run `nakama migrate up`", zap.Int("migrations", diff))
 	}
 	if diff < 0 {
-		logger.Warn("DB schema newer, update Nakama", zap.Object("migrations", int64(math.Abs(float64(diff)))))
+		logger.Warn("DB schema newer, update Nakama", zap.Int64("migrations", int64(math.Abs(float64(diff)))))
 	}
 }
 
-func MigrateParse(args []string, logger zap.Logger) {
+func MigrateParse(args []string, logger *zap.Logger) {
 	if len(args) == 0 {
 		logger.Fatal("Migrate requires a subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}

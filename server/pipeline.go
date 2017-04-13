@@ -18,9 +18,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"nakama/pkg/social"
+	"go.uber.org/zap"
 
-	"github.com/uber-go/zap"
+	"nakama/pkg/social"
 )
 
 type pipeline struct {
@@ -44,7 +44,7 @@ func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker
 	}
 }
 
-func (p *pipeline) processRequest(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) processRequest(logger *zap.Logger, session *session, envelope *Envelope) {
 	logger.Debug(fmt.Sprintf("Received %T message", envelope.Payload))
 
 	switch envelope.Payload.(type) {

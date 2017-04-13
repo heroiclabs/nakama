@@ -26,12 +26,12 @@ import (
 	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // opsService is responsible for serving the dashboard and all of its required resources
 type opsService struct {
-	logger              zap.Logger
+	logger              *zap.Logger
 	version             string
 	config              Config
 	statsService        StatsService
@@ -40,7 +40,7 @@ type opsService struct {
 }
 
 // NewOpsService creates a new opsService
-func NewOpsService(logger zap.Logger, multiLogger zap.Logger, version string, config Config, statsService StatsService) *opsService {
+func NewOpsService(logger *zap.Logger, multiLogger *zap.Logger, version string, config Config, statsService StatsService) *opsService {
 	service := &opsService{
 		logger:       logger,
 		version:      version,

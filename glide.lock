@@ -1,5 +1,5 @@
-hash: d332790eaf0dd90a5d91b4fddfd82897055e261ff360d616cf363c0e689ab4f6
-updated: 2017-03-10T18:12:22.221261057Z
+hash: 150ab75d51b17b2fb2b097193ea43bac8e07dfcb8ce0905c115be7e71639f506
+updated: 2017-04-13T23:43:22.128299698+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -12,10 +12,11 @@ imports:
 - name: github.com/go-gorp/gorp
   version: 4deece61034873cb5b5416e81abe4cea7bd0da72
 - name: github.com/go-yaml/yaml
-  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 - name: github.com/gogo/protobuf
   version: 909568be09de550ed094403c2bf8a261b5bb730a
   subpackages:
+  - jsonpb
   - proto
 - name: github.com/golang/protobuf
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
@@ -42,7 +43,20 @@ imports:
 - name: github.com/uber-go/atomic
   version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
 - name: github.com/uber-go/zap
-  version: a5783ee4b216a927da8f839c45cfbf9d694e1467
+  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  subpackages:
+  - zapcore
+- name: go.uber.org/atomic
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+- name: go.uber.org/zap
+  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - internal/multierror
+  - zapcore
 - name: golang.org/x/crypto
   version: f6b343c37ca80bfa8ea539da67a0b621f84fab1d
   subpackages:

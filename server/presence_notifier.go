@@ -18,19 +18,19 @@ import (
 	"strings"
 
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // PresenceNotifier is responsible for updating clients when a presence change occurs
 type presenceNotifier struct {
-	logger        zap.Logger
+	logger        *zap.Logger
 	name          string
 	tracker       Tracker
 	messageRouter MessageRouter
 }
 
 // NewPresenceNotifier creates a new PresenceNotifier
-func NewPresenceNotifier(logger zap.Logger, name string, tracker Tracker, messageRouter MessageRouter) *presenceNotifier {
+func NewPresenceNotifier(logger *zap.Logger, name string, tracker Tracker, messageRouter MessageRouter) *presenceNotifier {
 	return &presenceNotifier{
 		logger:        logger,
 		name:          name,
@@ -116,7 +116,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 				pn.handleDiffTopic(t, to, tjs, nil)
 			}
 		default:
-			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Object("topic", topic))
+			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Any("topic", topic))
 		}
 	}
 
@@ -150,7 +150,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		default:
-			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Object("topic", topic))
+			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Any("topic", topic))
 		}
 	}
 }
@@ -182,7 +182,7 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		}
 		msg.Leaves = muLeaves
 	}
-	pn.logger.Debug("Routing match diff", zap.Object("to", to), zap.Object("msg", msg))
+	pn.logger.Debug("Routing match diff", zap.Any("to", to), zap.Any("msg", msg))
 
 	// Send the presence notification.
 	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_MatchPresence{MatchPresence: msg}})
@@ -214,7 +214,7 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 		}
 		msg.Leaves = tuLeaves
 	}
-	pn.logger.Debug("Routing topic diff", zap.Object("to", to), zap.Object("msg", msg))
+	pn.logger.Debug("Routing topic diff", zap.Any("to", to), zap.Any("msg", msg))
 
 	// Send the presence notification.
 	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_TopicPresence{TopicPresence: msg}})

@@ -25,7 +25,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type scanner interface {
@@ -89,7 +89,7 @@ func (p *pipeline) extractGroup(r scanner) (*Group, error) {
 	}, nil
 }
 
-func (p *pipeline) groupCreate(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupCreate()
 
 	if g.Name == "" {
@@ -210,7 +210,7 @@ VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 	}
 }
 
-func (p *pipeline) groupUpdate(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUpdate(l *zap.Logger, session *session, envelope *Envelope) {
 	//TODO notify members that group has been updated.
 	g := envelope.GetGroupUpdate()
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -280,7 +280,7 @@ EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) groupRemove(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupRemove(l *zap.Logger, session *session, envelope *Envelope) {
 	//TODO kick all users out
 	g := envelope.GetGroupRemove()
 
@@ -344,7 +344,7 @@ AND
 	_, err = tx.Exec("DELETE FROM group_edge WHERE source_id = $1 OR destination_id = $1", groupID.Bytes())
 }
 
-func (p *pipeline) groupsFetch(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupsFetch(logger *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupsFetch()
 
 	statements := []string{}
@@ -402,7 +402,7 @@ FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{Groups: groups}}})
 }
 
-func (p *pipeline) groupsList(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupsList(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetGroupsList()
 	params := make([]interface{}, 0)
 
@@ -514,7 +514,7 @@ LIMIT $` + strconv.Itoa(len(params))
 	}}})
 }
 
-func (p *pipeline) groupsSelfList(logger zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupsSelfList(logger *zap.Logger, session *session, envelope *Envelope) {
 	envelope.GetGroupsSelfList()
 	rows, err := p.db.Query(`
 SELECT id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, groups.state, count, created_at, groups.updated_at
@@ -545,7 +545,7 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{Groups: groups}}})
 }
 
-func (p *pipeline) groupUsersList(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUsersList(l *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupUsersList()
 
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -614,7 +614,7 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupUsers{GroupUsers: &TGroupUsers{Users: users}}})
 }
 
-func (p *pipeline) groupJoin(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupJoin()
 
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -692,7 +692,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 	}
 }
 
-func (p *pipeline) groupLeave(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupLeave(l *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupLeave()
 
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -802,7 +802,7 @@ OR
 	}
 }
 
-func (p *pipeline) groupUserAdd(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupUserAdd()
 
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -894,7 +894,7 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 	}
 }
 
-func (p *pipeline) groupUserKick(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserKick(l *zap.Logger, session *session, envelope *Envelope) {
 	// TODO Force kick the user out.
 	g := envelope.GetGroupUserKick()
 
@@ -991,7 +991,7 @@ AND
 	}
 }
 
-func (p *pipeline) groupUserPromote(l zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserPromote(l *zap.Logger, session *session, envelope *Envelope) {
 	g := envelope.GetGroupUserPromote()
 
 	groupID, err := uuid.FromBytes(g.GroupId)

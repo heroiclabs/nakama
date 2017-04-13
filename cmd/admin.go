@@ -20,24 +20,25 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/gorhill/cronexpr"
-	"github.com/satori/go.uuid"
-	"github.com/uber-go/zap"
 	"net/url"
 	"os"
+
+	"github.com/gorhill/cronexpr"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 type adminService struct {
 	DSNS   string
-	logger zap.Logger
+	logger *zap.Logger
 }
 
-func AdminParse(args []string, logger zap.Logger) {
+func AdminParse(args []string, logger *zap.Logger) {
 	if len(args) == 0 {
 		logger.Fatal("Admin requires a subcommand. Available commands are: 'create-leaderboard'.")
 	}
 
-	var exec func([]string, zap.Logger)
+	var exec func([]string, *zap.Logger)
 	switch args[0] {
 	case "create-leaderboard":
 		exec = createLeaderboard
@@ -49,7 +50,7 @@ func AdminParse(args []string, logger zap.Logger) {
 	os.Exit(0)
 }
 
-func createLeaderboard(args []string, logger zap.Logger) {
+func createLeaderboard(args []string, logger *zap.Logger) {
 	var dsns string
 	var id string
 	var authoritative bool
