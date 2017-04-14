@@ -4,6 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- Added `--logtostdout` command line flag to redirect log output to terminal.
+
+### Changed
+- Updated Zap logging library to latest stable version.
+- Command line `--verbose` flag no longer alters the logging output to print to both terminal and file.
+- Log output format is set to JSON.
 
 ## [0.12.1] - 2017-03-28
 ### Added
