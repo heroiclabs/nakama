@@ -12,6 +12,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Command line `--verbose` flag no longer alters the logging output to print to both terminal and file.
 - Log output format is set to JSON.
 
+### Fixed
+- Fix issue where ping tickers could not have stopped correctly under some circumstances.
+
 ## [0.12.1] - 2017-03-28
 ### Added
 - Optionally allow JSON encoding in user login/register operations and responses.
