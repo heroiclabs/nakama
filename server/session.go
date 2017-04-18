@@ -30,16 +30,17 @@ import (
 
 type session struct {
 	sync.Mutex
-	logger     *zap.Logger
-	config     Config
-	id         uuid.UUID
-	userID     uuid.UUID
-	handle     *atomic.String
-	lang       string
-	stopped    bool
-	conn       *websocket.Conn
-	pingTicker *time.Ticker
-	unregister func(s *session)
+	logger           *zap.Logger
+	config           Config
+	id               uuid.UUID
+	userID           uuid.UUID
+	handle           *atomic.String
+	lang             string
+	stopped          bool
+	conn             *websocket.Conn
+	pingTicker       *time.Ticker
+	pingTickerStopCh chan (bool)
+	unregister       func(s *session)
 }
 
 // NewSession creates a new session which encapsulates a socket connection
@@ -50,16 +51,17 @@ func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle stri
 	sessionLogger.Info("New session connected")
 
 	return &session{
-		logger:     sessionLogger,
-		config:     config,
-		id:         sessionID,
-		userID:     userID,
-		handle:     atomic.NewString(handle),
-		lang:       lang,
-		conn:       websocketConn,
-		stopped:    false,
-		pingTicker: time.NewTicker(time.Duration(config.GetTransport().PingPeriodMs) * time.Millisecond),
-		unregister: unregister,
+		logger:           sessionLogger,
+		config:           config,
+		id:               sessionID,
+		userID:           userID,
+		handle:           atomic.NewString(handle),
+		lang:             lang,
+		conn:             websocketConn,
+		stopped:          false,
+		pingTicker:       time.NewTicker(time.Duration(config.GetTransport().PingPeriodMs) * time.Millisecond),
+		pingTickerStopCh: make(chan bool),
+		unregister:       unregister,
 	}
 }
 
@@ -99,9 +101,14 @@ func (s *session) Consume(processRequest func(logger *zap.Logger, session *sessi
 }
 
 func (s *session) pingPeriodically() {
-	for range s.pingTicker.C {
-		if !s.pingNow() {
-			// If ping fails the session will be stopped, clean up the loop.
+	for {
+		select {
+		case <-s.pingTicker.C:
+			if !s.pingNow() {
+				// If ping fails the session will be stopped, clean up the loop.
+				return
+			}
+		case <-s.pingTickerStopCh:
 			return
 		}
 	}
@@ -165,6 +172,7 @@ func (s *session) SendBytes(payload []byte) error {
 func (s *session) cleanupClosedConnection() {
 	s.Lock()
 	if s.stopped {
+		s.Unlock()
 		return
 	}
 	s.stopped = true
@@ -173,6 +181,7 @@ func (s *session) cleanupClosedConnection() {
 	s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
+	s.pingTickerStopCh <- true
 	s.conn.Close()
 	s.logger.Info("Closed client connection")
 }
@@ -180,12 +189,14 @@ func (s *session) cleanupClosedConnection() {
 func (s *session) close() {
 	s.Lock()
 	if s.stopped {
+		s.Unlock()
 		return
 	}
 	s.stopped = true
 	s.Unlock()
 
 	s.pingTicker.Stop()
+	s.pingTickerStopCh <- true
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
