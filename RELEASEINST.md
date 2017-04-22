@@ -76,7 +76,7 @@ The development team use these steps to build and upload a release.
    git add Makefile CHANGELOG.md
    git commit -m "Set new development version."
    git push origin master
-   ```  
+   ```
 
 ### Package Managers
 

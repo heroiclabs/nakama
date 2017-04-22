@@ -44,7 +44,7 @@ To stop and purge all stored data, containers, and images from your machine. Run
 
 ## Build and deploy the Docker image
 
-#### You can use the makefile to build, tag and release Docker images. The following is the manual way of doing achieving the same result.
+You can use the Makefile to build Docker images. These steps show a manual way to create your own Docker images of Nakama server.
 
 1. To build the image locally. Setup a local copy of the codebase. Run the following command (in the same directory as this README):
 

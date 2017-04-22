@@ -3,19 +3,19 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.12.2] - 2017-04-22
 ### Added
-- Added `--logtostdout` command line flag to redirect log output to terminal.
+- Add `--logtostdout` flag to redirect log output to console.
+- Add build rule to create Docker release images.
 
 ### Changed
-- Updated Zap logging library to latest stable version.
-- Command line `--verbose` flag no longer alters the logging output to print to both terminal and file.
-- Log output format is set to JSON.
-- Updated health endpoint to be on the '/' of the main server port.
-- Streamline Docker image releases.
+- Update Zap logging library to latest stable version.
+- The `--verbose` flag no longer alters the logging output to print to both terminal and file.
+- The log output is now in JSON format.
+- Update the healthcheck endpoint to be "/" (root path) of the main server port.
 
 ### Fixed
-- Fix issue where ping tickers could not have stopped correctly under some circumstances.
+- Fix a race when the heartbeat ticker might not be stopped after a connection is closed.
 
 ## [0.12.1] - 2017-03-28
 ### Added
