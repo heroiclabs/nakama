@@ -13,7 +13,7 @@
 # limitations under the License.
 
 BINNAME := nakama
-VERSION := 0.13.0-dev
+VERSION := 0.12.1
 BUILDDIR := build
 COMMITID := $(shell git rev-parse --short HEAD 2>/dev/null || echo nosha)
 DOCKERDIR := install/docker/nakama
@@ -142,7 +142,7 @@ dbsetup:
 dbreset:
 	./${BUILDDIR}/dev/${BINNAME} migrate down --limit 0
 
-.PHONE: dockerbuild
+.PHONY: dockerbuild
 dockerbuild:
 	docker build --build-arg version=${VERSION} ${DOCKERDIR}
 
@@ -151,5 +151,8 @@ docker: dockerbuild
 	$(eval IMAGEID := $(shell docker images --filter "label=version=${VERSION}" --format "{{.ID}}"))
 	docker tag ${IMAGEID} heroiclabs/nakama:${VERSION}
 	docker tag ${IMAGEID} heroiclabs/nakama:latest
+
+.PHONY: dockerpush
+dockerpush:
 	docker push heroiclabs/nakama:${VERSION}
 	docker push heroiclabs/nakama:latest

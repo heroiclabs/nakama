@@ -67,7 +67,7 @@ The development team use these steps to build and upload a release.
 
   ```
   docker login
-  make docker
+  make docker dockerpush
   ```
 
 7. Add new `## [Unreleased]` section to start of `CHANGELOG.md`. Increment and add suffix `"-dev"` to version in `Makefile` and commit. i.e. `VERSION := 0.10.0` should now become `VERSION := 0.11.0-dev`.
