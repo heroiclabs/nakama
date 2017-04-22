@@ -63,13 +63,20 @@ The development team use these steps to build and upload a release.
 
 5. Login and access the [new draft release](https://github.com/heroiclabs/nakama/releases) on GitHub. Repeat the changelog in the release description. Then publish the release.
 
-6. Add new `## [Unreleased]` section to start of `CHANGELOG.md`. Increment and add suffix `"-dev"` to version in `Makefile` and commit. i.e. `VERSION := 0.10.0` should now become `VERSION := 0.11.0-dev`.
+6. Create Docker image and push to Docker Hub. 
+
+  ```
+  docker login
+  make docker
+  ```
+
+7. Add new `## [Unreleased]` section to start of `CHANGELOG.md`. Increment and add suffix `"-dev"` to version in `Makefile` and commit. i.e. `VERSION := 0.10.0` should now become `VERSION := 0.11.0-dev`.
 
    ```
    git add Makefile CHANGELOG.md
    git commit -m "Set new development version."
    git push origin master
-   ```
+   ```  
 
 ### Package Managers
 

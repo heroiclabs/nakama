@@ -152,4 +152,4 @@ docker: dockerbuild
 	docker tag ${IMAGEID} heroiclabs/nakama:${VERSION}
 	docker tag ${IMAGEID} heroiclabs/nakama:latest
 	docker push heroiclabs/nakama:${VERSION}
- 	docker push heroiclabs/nakama:latest
+	docker push heroiclabs/nakama:latest
