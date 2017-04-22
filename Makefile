@@ -140,3 +140,13 @@ dbsetup:
 .PHONY: dbreset
 dbreset:
 	./${BUILDDIR}/dev/${BINNAME} migrate down --limit 0
+
+.PHONY: docker
+docker:
+	docker build --file install/docker/nakama/Dockerfile --build-arg version=${VERSION} --tag heroiclabs:nakama-${VERSION} install/docker/nakama
+	$(eval IMAGEID := $(shell docker images --filter "label=version=${VERSION}" --format "{{.ID}}"))
+	echo ${IMAGEID}
+	docker tag ${IMAGE_ID} heroiclabs/nakama:${VERSION}
+	docker tag ${IMAGE_ID} heroiclabs/nakama:latest
+	docker push heroiclabs/nakama:${VERSION}
+ 	docker push heroiclabs/nakama:latest

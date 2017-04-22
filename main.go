@@ -98,7 +98,7 @@ func main() {
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
-	authService := server.NewAuthenticationService(jsonLogger, config, db, sessionRegistry, trackerService, messageRouter)
+	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, trackerService, messageRouter)
 	opsService := server.NewOpsService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
