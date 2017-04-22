@@ -54,7 +54,6 @@ func NewOpsService(logger *zap.Logger, multiLogger *zap.Logger, version string, 
 		},
 	}
 
-	service.mux.HandleFunc("/v0/health", service.healthHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/cluster/stats", service.statusHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/config", service.configHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/info", service.infoHandler).Methods("GET")
@@ -79,21 +78,6 @@ func NewOpsService(logger *zap.Logger, multiLogger *zap.Logger, version string, 
 }
 
 func (s *opsService) Stop() {}
-
-func (s *opsService) healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	healthScore := s.statsService.GetHealthStatus()
-	health := make(map[string]int)
-	health["status"] = healthScore
-	healthJSON, _ := json.Marshal(health)
-
-	if healthScore > 0 {
-		w.WriteHeader(500)
-	}
-
-	w.Write(healthJSON)
-}
 
 func (s *opsService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

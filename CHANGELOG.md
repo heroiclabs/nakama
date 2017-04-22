@@ -11,6 +11,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Updated Zap logging library to latest stable version.
 - Command line `--verbose` flag no longer alters the logging output to print to both terminal and file.
 - Log output format is set to JSON.
+- Updated health endpoint to be on the '/' of the main server port.
+- Streamline Docker image releases.
 
 ### Fixed
 - Fix issue where ping tickers could not have stopped correctly under some circumstances.

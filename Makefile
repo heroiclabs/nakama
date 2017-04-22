@@ -16,6 +16,7 @@ BINNAME := nakama
 VERSION := 0.13.0-dev
 BUILDDIR := build
 COMMITID := $(shell git rev-parse --short HEAD 2>/dev/null || echo nosha)
+DOCKERDIR := install/docker/nakama
 
 PROTOC ?= protoc
 PROTOCFLAGS := -I . -I vendor --gogoslick_out=plugins=grpc:.
@@ -140,3 +141,18 @@ dbsetup:
 .PHONY: dbreset
 dbreset:
 	./${BUILDDIR}/dev/${BINNAME} migrate down --limit 0
+
+.PHONY: dockerbuild
+dockerbuild:
+	docker build --build-arg version=${VERSION} ${DOCKERDIR}
+
+.PHONY: docker
+docker: dockerbuild
+	$(eval IMAGEID := $(shell docker images --filter "label=version=${VERSION}" --format "{{.ID}}"))
+	docker tag ${IMAGEID} heroiclabs/nakama:${VERSION}
+	docker tag ${IMAGEID} heroiclabs/nakama:latest
+
+.PHONY: dockerpush
+dockerpush:
+	docker push heroiclabs/nakama:${VERSION}
+	docker push heroiclabs/nakama:latest

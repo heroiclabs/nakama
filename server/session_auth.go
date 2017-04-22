@@ -60,6 +60,7 @@ type authenticationService struct {
 	logger            *zap.Logger
 	config            Config
 	db                *sql.DB
+	statsService      StatsService
 	registry          *SessionRegistry
 	pipeline          *pipeline
 	mux               *mux.Router
@@ -72,13 +73,14 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
 	s := social.NewClient(5 * time.Second)
 	p := NewPipeline(config, db, s, tracker, messageRouter, registry)
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
 		db:             db,
+		statsService:   statService,
 		registry:       registry,
 		pipeline:       p,
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
@@ -106,6 +108,16 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, reg
 
 func (a *authenticationService) configure() {
 	a.mux = mux.NewRouter()
+
+	a.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		healthScore := a.statsService.GetHealthStatus()
+		status := 200
+		if healthScore > 0 {
+			status = 500
+		}
+		w.WriteHeader(status)
+
+	}).Methods("GET")
 
 	a.mux.HandleFunc("/user/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "OPTIONS" {

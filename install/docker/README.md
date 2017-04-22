@@ -44,6 +44,8 @@ To stop and purge all stored data, containers, and images from your machine. Run
 
 ## Build and deploy the Docker image
 
+#### You can use the makefile to build, tag and release Docker images. The following is the manual way of doing achieving the same result.
+
 1. To build the image locally. Setup a local copy of the codebase. Run the following command (in the same directory as this README):
 
    If you have updated the version number in the `Dockerfile` also update it in the command below:

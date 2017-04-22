@@ -2,6 +2,11 @@ FROM ubuntu:xenial
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
+ARG version
+
+LABEL version=$version
+LABEL description="Distributed server for social and realtime games and apps."
+
 RUN mkdir -p /nakama
 RUN mkdir -p /nakama/data/log/
 RUN touch /nakama/data/log/nakama.log
@@ -13,7 +18,8 @@ RUN ln -sf /dev/stdout data/log/nakama.log
 
 RUN apt-get update; apt-get install -y curl
 
-RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v0.12.1/nakama-0.12.1-linux-amd64.tar.gz | tar xz
+RUN echo "Fetching https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz ..."
+RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz | tar xz
 
 EXPOSE 7350 7351
 
