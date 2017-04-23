@@ -19,9 +19,9 @@ require "language/go"
 class Nakama < Formula
   desc "Distributed server for social and realtime games and apps."
   homepage "https://heroiclabs.com"
-  url "https://github.com/heroiclabs/nakama/releases/download/v0.11.0/nakama-0.11.0-darwin-amd64.tar.gz"
-  sha256 "c9b83743ef42f095d7483b4a32e0b19c68f457a6aec417218efb125bf1152886"
-  version "0.11.0"
+  url "https://github.com/heroiclabs/nakama/releases/download/v0.12.2/nakama-0.12.2-darwin-amd64.tar.gz"
+  sha256 "61206ac1c5365f478a28d22a1f18771d4251418eef386d1316719d4a4de43605"
+  version "0.12.2"
 
   head "https://github.com/heroiclabs/nakama.git"
 
