@@ -148,7 +148,7 @@ dockerbuild:
 
 .PHONY: docker
 docker: dockerbuild
-	$(eval IMAGEID := $(shell docker images --filter "label=version=${VERSION}" --format "{{.ID}}"))
+	$(eval IMAGEID := $(shell docker images --filter "label=variant=nakama,label=version=${VERSION}" --format "{{.ID}}"))
 	docker tag ${IMAGEID} heroiclabs/nakama:${VERSION}
 	docker tag ${IMAGEID} heroiclabs/nakama:latest
 

@@ -5,6 +5,7 @@ MAINTAINER Heroic Labs <support@heroiclabs.com>
 ARG version
 
 LABEL version=$version
+LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 
 RUN mkdir -p /nakama
@@ -16,7 +17,7 @@ WORKDIR /nakama/
 # docker logs are JSON by default
 RUN ln -sf /dev/stdout data/log/nakama.log
 
-RUN apt-get update; apt-get install -y curl
+RUN apt-get update; apt-get install -y ca-certificates curl
 
 RUN echo "Fetching https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz ..."
 RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz | tar xz
