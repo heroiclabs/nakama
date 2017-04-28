@@ -29,4 +29,4 @@ ENTRYPOINT ["/nakama/nakama"]
 
 # curl fails on non-200 HTTP status code
 HEALTHCHECK --interval=5m --timeout=3s \
-  CMD curl -f http://localhost:7351/v0/health/ || exit 1
+  CMD curl -f http://localhost:7350/ || exit 1
