@@ -39,10 +39,12 @@ default help:
 	@echo "   dbstart     Start a cockroachdb server. See also 'dbstop'."
 	@echo "   dbstop      Stop the running cockroachdb server."
 	@echo "   gettools    Download and install Go-based build toolchain (uses go-get)."
-	@echo "   $(BINNAME)      Build a development version of the server. Runs dependent rules."
+	@echo "   $(BINNAME)  Build a development version of the server. Runs dependent rules."
 	@echo "   proto       Generate the protocol buffer implementation files."
 	@echo "   release     Build production release(s). Runs dependent rules."
 	@echo "   run         Run development version of the server with the race detector."
+	@echo "   docker      Build local docker image and tag it with the version."
+	@echo "   dockerpush  Push the local docker image to Docker Hub."
 	@echo "   test        Execute all development tests."
 	@echo "   vet         Perform static error checks against the source.\n"
 
@@ -132,7 +134,7 @@ dbstart:
 
 .PHONY: dbstop
 dbstop:
-	${COCKROACH} quit
+	${COCKROACH} quit --insecure
 
 .PHONY: dbsetup
 dbsetup:
