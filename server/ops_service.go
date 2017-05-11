@@ -28,19 +28,21 @@ type StatsService interface {
 }
 
 type statsService struct {
-	logger  *zap.Logger
-	version string
-	config  Config
-	tracker Tracker
+	logger    *zap.Logger
+	version   string
+	config    Config
+	tracker   Tracker
+	startedAt int64
 }
 
 // NewStatsService creates a new StatsService
-func NewStatsService(logger *zap.Logger, config Config, version string, tracker Tracker) StatsService {
+func NewStatsService(logger *zap.Logger, config Config, version string, tracker Tracker, startedAt int64) StatsService {
 	return &statsService{
-		logger:  logger,
-		version: version,
-		config:  config,
-		tracker: tracker,
+		logger:    logger,
+		version:   version,
+		config:    config,
+		tracker:   tracker,
+		startedAt: startedAt,
 	}
 }
 
@@ -54,6 +56,7 @@ func (s *statsService) GetStats() []map[string]interface{} {
 
 	data := make(map[string]interface{})
 	data["name"] = s.config.GetName()
+	data["started_at"] = s.startedAt
 	data["health_status"] = s.GetHealthStatus()
 	data["version"] = s.version
 	data["address"] = s.getLocalIP()

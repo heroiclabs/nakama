@@ -49,6 +49,7 @@ var (
 )
 
 func main() {
+	startedAt := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	http.DefaultClient.Timeout = 1500 * time.Millisecond // Always set default timeout on HTTP client
 
@@ -93,7 +94,7 @@ func main() {
 	cmd.MigrationStartupCheck(multiLogger, db)
 
 	trackerService := server.NewTrackerService(config.GetName())
-	statsService := server.NewStatsService(jsonLogger, config, semver, trackerService)
+	statsService := server.NewStatsService(jsonLogger, config, semver, trackerService, startedAt)
 	sessionRegistry := server.NewSessionRegistry(jsonLogger, config, trackerService)
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
