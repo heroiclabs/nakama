@@ -7,6 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Node status now also reports a startup timestamp.
 
+### Fixed
+- Set correct initial group member count when group is created.
+- Do not update group count when join requests are rejected.
+
 ## [0.12.2] - 2017-04-22
 ### Added
 - Add `--logtostdout` flag to redirect log output to console.
