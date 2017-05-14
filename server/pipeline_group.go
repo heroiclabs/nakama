@@ -181,8 +181,8 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *E
 	}
 
 	r := tx.QueryRow(`
-INSERT INTO groups (id, creator_id, name, state, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
-VALUES ($1, $2, $3, $4, $5, $5, `+strings.Join(params, ",")+")"+`
+INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
+VALUES ($1, $2, $3, $4, 1, $5, $5, `+strings.Join(params, ",")+")"+`
 RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
 `, values...)
 
@@ -956,6 +956,10 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session *session, envelope *Enve
 		}
 	}()
 
+	// Check the user's group_edge state. If it's a pending join request being rejected then no need to decrement the group count.
+	var userState int64
+	err = tx.QueryRow("SELECT state FROM group_edge WHERE source_id = $1 AND destination_id = $2", groupID.Bytes(), userID.Bytes()).Scan(&userState)
+
 	res, err := tx.Exec(`
 DELETE FROM group_edge
 WHERE
@@ -979,9 +983,12 @@ AND
 		return
 	}
 
-	_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID.Bytes())
-	if err != nil {
-		return
+	// Join requests aren't reflected in group count.
+	if userState != 2 {
+		_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID.Bytes())
+		if err != nil {
+			return
+		}
 	}
 
 	// Look up the user being kicked. Allow kicking disabled users.
