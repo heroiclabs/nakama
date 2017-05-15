@@ -19,7 +19,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"flag"
+	"io/ioutil"
+	"nakama/pkg/flags"
+
+	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 // Config interface is the Nakama Core configuration
@@ -27,8 +33,9 @@ type Config interface {
 	GetName() string
 	GetDataDir() string
 	GetPort() int
-	GetOpsPort() int
+	GetDashboardPort() int
 	GetDSNS() []string
+	GetLog() *LogConfig
 	GetSession() *SessionConfig
 	GetTransport() *TransportConfig
 	GetDatabase() *DatabaseConfig
@@ -36,17 +43,60 @@ type Config interface {
 	GetRuntime() *RuntimeConfig
 }
 
+func ParseArgs(logger *zap.Logger, args []string) Config {
+	config := NewConfig()
+
+	if len(args) > 1 {
+		switch args[1] {
+		case "--config":
+			configPath := args[2]
+			data, err := ioutil.ReadFile(configPath)
+			if err != nil {
+				logger.Error("Could not read config file, using defaults", zap.Error(err))
+			} else {
+				err = yaml.Unmarshal(data, config)
+				if err != nil {
+					logger.Error("Could not parse config file, using defaults", zap.Error(err))
+				} else {
+					config.Config = configPath
+				}
+			}
+		}
+	}
+
+	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+		UseLowerCase: true,
+		Flatten:      false,
+		TagName:      "yaml",
+		TagUsage:     "usage",
+	}, flagSet)
+
+	if _, err := fm.ParseArgs(config, args[1:]); err != nil {
+		logger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
+	}
+
+	// if the runtime path is not overridden, set it to `datadir/modules`
+	if config.GetRuntime().Path == "" {
+		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
+	}
+
+	return config
+}
+
 type config struct {
-	Name      string           `yaml:"name" json:"name"`
-	Datadir   string           `yaml:"data_dir" json:"data_dir"`
-	Port      int              `yaml:"port" json:"port"`
-	OpsPort   int              `yaml:"ops_port" json:"ops_port"`
-	Dsns      []string         `yaml:"dsns" json:"dsns"`
-	Session   *SessionConfig   `yaml:"session" json:"session"`
-	Transport *TransportConfig `yaml:"transport" json:"transport"`
-	Database  *DatabaseConfig  `yaml:"database" json:"database"`
-	Social    *SocialConfig    `yaml:"social" json:"social"`
-	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime"`
+	Name          string           `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique"`
+	Config        string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	Datadir       string           `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Port          int              `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
+	DashboardPort int              `yaml:"dashboard_port" json:"dashboard_port" usage:"The port for accepting connections to the dashboard, listening on all interfaces."`
+	Dsns          []string         `yaml:"dsns" json:"dsns" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
+	Log           *LogConfig       `yaml:"log" json:"log" usage:"Log levels and output"`
+	Session       *SessionConfig   `yaml:"session" json:"session" usage:"Session authentication settings"`
+	Transport     *TransportConfig `yaml:"transport" json:"transport" usage:"Data transport configurations"`
+	Database      *DatabaseConfig  `yaml:"database" json:"database" usage:"Database connection settings"`
+	Social        *SocialConfig    `yaml:"social" json:"social" usage:"Properties for social providers"`
+	Runtime       *RuntimeConfig   `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
@@ -55,16 +105,16 @@ func NewConfig() *config {
 	dataDirectory := filepath.Join(cwd, "data")
 	nodeName := "nakama-" + strings.Split(uuid.NewV4().String(), "-")[3]
 	return &config{
-		Name:      nodeName,
-		Datadir:   dataDirectory,
-		Port:      7350,
-		OpsPort:   7351,
-		Dsns:      []string{"root@localhost:26257"},
-		Session:   NewSessionConfig(),
-		Transport: NewTransportConfig(),
-		Database:  NewDatabaseConfig(),
-		Social:    NewSocialConfig(),
-		Runtime:   NewRuntimeConfig(),
+		Name:          nodeName,
+		Datadir:       dataDirectory,
+		Port:          7350,
+		DashboardPort: 7351,
+		Dsns:          []string{"root@localhost:26257"},
+		Session:       NewSessionConfig(),
+		Transport:     NewTransportConfig(),
+		Database:      NewDatabaseConfig(),
+		Social:        NewSocialConfig(),
+		Runtime:       NewRuntimeConfig(),
 	}
 }
 
@@ -80,12 +130,16 @@ func (c *config) GetPort() int {
 	return c.Port
 }
 
-func (c *config) GetOpsPort() int {
-	return c.OpsPort
+func (c *config) GetDashboardPort() int {
+	return c.DashboardPort
 }
 
 func (c *config) GetDSNS() []string {
 	return c.Dsns
+}
+
+func (c *config) GetLog() *LogConfig {
+	return c.Log
 }
 
 func (c *config) GetSession() *SessionConfig {
@@ -108,10 +162,29 @@ func (c *config) GetRuntime() *RuntimeConfig {
 	return c.Runtime
 }
 
+// LogConfig is configuration relevant to logging levels and output
+type LogConfig struct {
+	// By default, log all messages with Warn and Error messages to a log file inside Data/Log/<name>.log file. The content will be in JSON.
+	// if --log.verbose is passed, log messages with Debug and higher levels.
+	// if --log.stdout is passed, logs are only printed to stdout.
+	// In all cases, Error messages trigger the stacktrace to be dumped as well.
+
+	Verbose bool `yaml:"verbose" json:"verbose" usage:"Turn verbose logging on"`
+	Stdout  bool `yaml:"stdout" json:"stdout" usage:"Log to stdout instead of file"`
+}
+
+// NewLogConfig creates a new LogConfig struct
+func NewLogConfig() *LogConfig {
+	return &LogConfig{
+		Verbose: false,
+		Stdout:  false,
+	}
+}
+
 // SessionConfig is configuration relevant to the session
 type SessionConfig struct {
-	EncryptionKey string `yaml:"encryption_key" json:"encryption_key"`
-	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms"`
+	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
+	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" usage:"Token expiry in milliseconds."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct
@@ -124,11 +197,11 @@ func NewSessionConfig() *SessionConfig {
 
 // TransportConfig is configuration relevant to the transport socket and protocol
 type TransportConfig struct {
-	ServerKey           string `yaml:"server_key" json:"server_key"`
-	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes"`
-	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms"`
-	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms"`
-	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms"`
+	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
+	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
+	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
+	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`
+	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between client ping messages. This value must be less than the pong_wait_ms."`
 }
 
 // NewTransportConfig creates a new TransportConfig struct
@@ -144,9 +217,9 @@ func NewTransportConfig() *TransportConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage
 type DatabaseConfig struct {
-	ConnMaxLifetimeMs int `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms"`
-	MaxOpenConns      int `yaml:"max_open_conns" json:"max_open_conns"`
-	MaxIdleConns      int `yaml:"max_idle_conns" json:"max_idle_conns"`
+	ConnMaxLifetimeMs int `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
+	MaxOpenConns      int `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database."`
+	MaxIdleConns      int `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database."`
 }
 
 // NewDatabaseConfig creates a new DatabaseConfig struct
@@ -160,13 +233,13 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the Social providers
 type SocialConfig struct {
-	Steam *SocialConfigSteam `yaml:"steam" json:"steam"`
+	Steam *SocialConfigSteam `yaml:"steam" json:"steam" usage:"Steam configuration"`
 }
 
 // SocialConfigSteam is configuration relevant to Steam
 type SocialConfigSteam struct {
-	PublisherKey string `yaml:"publisher_key" json:"publisher_key"`
-	AppID        int    `yaml:"app_id" json:"app_id"`
+	PublisherKey string `yaml:"publisher_key" json:"publisher_key" usage:"Steam Publisher Key value."`
+	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
 }
 
 // NewSocialConfig creates a new SocialConfig struct
@@ -181,9 +254,9 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM
 type RuntimeConfig struct {
-	Environment map[string]interface{} `yaml:"env" json:"env"`
-	Path        string                 `yaml:"path" json:"path"`
-	HTTPKey     string                 `yaml:"http_key" json:"http_key"`
+	Environment map[string]interface{} `yaml:"env" json:"env"` // not supported in FlagOverrides
+	Path        string                 `yaml:"path" json:"path" usage:"Path of modules for the server to scan."`
+	HTTPKey     string                 `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key"`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct

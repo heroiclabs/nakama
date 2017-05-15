@@ -29,7 +29,7 @@ $> nakama
 {"level":"info","ts":"$$timestamp$$","msg":"Data directory","path":"$$datadir$$"}
 {"level":"info","ts":"$$timestamp$$","msg":"Database connections","dsns":["root@localhost:26257"]}
 {"level":"info","ts":"$$timestamp$$","msg":"Evaluating modules","count":0,"modules":[]}
-{"level":"info","ts":"$$timestamp$$","msg":"Ops","port":7351}
+{"level":"info","ts":"$$timestamp$$","msg":"Dashboard","port":7351}
 {"level":"info","ts":"$$timestamp$$","msg":"Dashboard","url":"http://127.0.0.1:7351"}
 {"level":"info","ts":"$$timestamp$$","msg":"Client","port":7350}
 ```

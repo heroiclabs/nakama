@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - Run Facebook friends import after registration completes.
+- Streamline command line flags to be inline with the config file. 
 
 ### Changed
 - Restructure and stabilize API messages.

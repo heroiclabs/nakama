@@ -29,8 +29,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// opsService is responsible for serving the dashboard and all of its required resources
-type opsService struct {
+// DashboardService is responsible for serving the dashboard and all of its required resources
+type dashboardService struct {
 	logger              *zap.Logger
 	version             string
 	config              Config
@@ -39,9 +39,9 @@ type opsService struct {
 	dashboardFilesystem http.FileSystem
 }
 
-// NewOpsService creates a new opsService
-func NewOpsService(logger *zap.Logger, multiLogger *zap.Logger, version string, config Config, statsService StatsService) *opsService {
-	service := &opsService{
+// NewDashboardService creates a new dashboardService
+func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version string, config Config, statsService StatsService) *dashboardService {
+	service := &dashboardService{
 		logger:       logger,
 		version:      version,
 		config:       config,
@@ -60,26 +60,25 @@ func NewOpsService(logger *zap.Logger, multiLogger *zap.Logger, version string, 
 	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") //needs to be last
 
 	go func() {
-		bindAddr := fmt.Sprintf(":%d", config.GetOpsPort())
+		bindAddr := fmt.Sprintf(":%d", config.GetDashboardPort())
 		handlerWithCORS := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(service.mux)
 		err := http.ListenAndServe(bindAddr, handlerWithCORS)
 		if err != nil {
-			multiLogger.Fatal("Ops listener failed", zap.Error(err))
+			multiLogger.Fatal("Dashboard listener failed", zap.Error(err))
 		}
 	}()
-	multiLogger.Info("Ops", zap.Int("port", config.GetOpsPort()))
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "127.0.0.1"
 	}
-	multiLogger.Info("Dashboard", zap.String("url", fmt.Sprintf("http://%s:%d", hostname, config.GetOpsPort())))
+	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboardPort())))
 
 	return service
 }
 
-func (s *opsService) Stop() {}
+func (s *dashboardService) Stop() {}
 
-func (s *opsService) statusHandler(w http.ResponseWriter, r *http.Request) {
+func (s *dashboardService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	stats := s.statsService.GetStats()
@@ -87,14 +86,14 @@ func (s *opsService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(statsJSON)
 }
 
-func (s *opsService) configHandler(w http.ResponseWriter, r *http.Request) {
+func (s *dashboardService) configHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	config, _ := json.Marshal(s.config)
 	w.Write(config)
 }
 
-func (s *opsService) infoHandler(w http.ResponseWriter, r *http.Request) {
+func (s *dashboardService) infoHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	info := map[string]interface{}{

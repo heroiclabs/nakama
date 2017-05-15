@@ -1,0 +1,8 @@
+name: nakama-test
+dsns:
+  - test@localhost:26257
+log:
+  verbose: true
+  stdout: false
+runtime:
+  http_key: testkey
