@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"nakama/cmd"
+	"nakama/pkg/flags"
 	"nakama/pkg/ga"
 	"nakama/server"
 
@@ -36,7 +37,7 @@ import (
 	"github.com/armon/go-metrics"
 	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
-	uuid "github.com/satori/go.uuid"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -148,28 +149,10 @@ func main() {
 func parseArgs(consoleLogger *zap.Logger) server.Config {
 	config := server.NewConfig()
 
-	flags := flag.NewFlagSet("main", flag.ExitOnError)
-	flags.BoolVar(&server.VerboseLogging, "verbose", false, "Turn verbose logging on.")
-	flags.BoolVar(&server.StdoutLogging, "logtostdout", false, "Log to stdout instead of file.")
-	var configPath string
-	flags.StringVar(&configPath, "config", "", "The absolute file path to configuration YAML file.")
-	var name string
-	flags.StringVar(&name, "name", "", "The virtual name of this server.")
-	var datadir string
-	flags.StringVar(&datadir, "data-dir", "", "The data directory to store server logs.")
-	var dsn string
-	flags.StringVar(&dsn, "db", "", "The database connection DSN. (default root@127.0.0.1:26257)")
-	var port int
-	flags.IntVar(&port, "port", -1, "Set port for client connections; all other ports will also be set sequentially.")
-	var opsPort int
-	flags.IntVar(&opsPort, "ops-port", -1, "Set port for ops dashboard.")
-
-	if err := flags.Parse(os.Args[1:]); err != nil {
-		consoleLogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
-	} else {
-
-		if len(configPath) > 0 {
-			data, err := ioutil.ReadFile(configPath)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--config":
+			data, err := ioutil.ReadFile(os.Args[2])
 			if err != nil {
 				consoleLogger.Error("Could not read config file, using defaults", zap.Error(err))
 			} else {
@@ -179,23 +162,21 @@ func parseArgs(consoleLogger *zap.Logger) server.Config {
 				}
 			}
 		}
+	}
 
-		if len(name) > 0 {
-			config.Name = name
-		}
-		if len(datadir) > 0 {
-			config.Datadir = datadir
-		}
-		if len(dsn) > 0 {
-			config.Dsns = []string{dsn}
-		}
-		if port != -1 {
-			config.Port = port
-			config.OpsPort = port + 1
-		}
-		if opsPort != -1 {
-			config.OpsPort = opsPort
-		}
+	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	var configPath string
+	flagSet.StringVar(&configPath, "config", "", "The absolute file path to configuration YAML file.")
+
+	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+		UseLowerCase: true,
+		Flatten:      false,
+		TagName:      "flag",
+		TagUsage:     "usage",
+	}, flagSet)
+
+	if _, err := fm.ParseArgs(config, os.Args[1:]); err != nil {
+		consoleLogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
 	}
 
 	// if the runtime path is not overridden, set it to `datadir/modules`
