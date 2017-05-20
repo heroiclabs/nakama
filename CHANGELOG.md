@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - Node status now also reports a startup timestamp.
+- New matchmaking feature.
+- Optionally send match data to only a subset of match participants.
 
 ### Fixed
 - Set correct initial group member count when group is created.

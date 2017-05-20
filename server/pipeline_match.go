@@ -15,9 +15,20 @@
 package server
 
 import (
+	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"unicode/utf8"
 )
+
+type matchToken struct {
+}
+
+type matchDataFilter struct {
+	userID    uuid.UUID
+	sessionID uuid.UUID
+}
 
 func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *Envelope) {
 	matchID := uuid.NewV4()
@@ -42,16 +53,59 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *E
 }
 
 func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Envelope) {
-	matchIDBytes := envelope.GetMatchJoin().MatchId
-	matchID, err := uuid.FromBytes(matchIDBytes)
-	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
+	var matchID uuid.UUID
+	var err error
+	allowEmpty := false
+
+	switch envelope.GetMatchJoin().Id.(type) {
+	case *TMatchJoin_MatchId:
+		matchID, err = uuid.FromBytes(envelope.GetMatchJoin().GetMatchId())
+		if err != nil {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
+			return
+		}
+	case *TMatchJoin_Token:
+		tokenBytes := envelope.GetMatchJoin().GetToken()
+		if controlCharsRegex.Match(tokenBytes) {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token cannot contain control chars"))
+			return
+		}
+		if !utf8.Valid(tokenBytes) {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token must only contain valid UTF-8 bytes"))
+			return
+		}
+		token, err := jwt.Parse(string(tokenBytes), func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			}
+			return p.hmacSecretByte, nil
+		})
+		if err != nil {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+			return
+		}
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			matchID, err = uuid.FromString(claims["mid"].(string))
+			if err != nil {
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+				return
+			}
+		} else {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+			return
+		}
+	case nil:
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No match ID or token found"))
+		return
+	default:
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized match ID or token"))
 		return
 	}
+
 	topic := "match:" + matchID.String()
 
 	ps := p.tracker.ListByTopic(topic)
-	if len(ps) == 0 {
+	if !allowEmpty && len(ps) == 0 {
 		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
 		return
 	}
@@ -79,7 +133,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 	userPresences[len(ps)] = self
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
-		MatchId:   matchIDBytes,
+		MatchId:   matchID.Bytes(),
 		Presences: userPresences,
 		Self:      self,
 	}}})
@@ -124,37 +178,74 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 	matchIDBytes := incoming.MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
 	if err != nil {
-		// TODO send an error to the client?
 		return
 	}
 	topic := "match:" + matchID.String()
+	filterPresences := false
+	var filters []*matchDataFilter
+	if len(incoming.Presences) != 0 {
+		filterPresences = true
+		filters = make([]*matchDataFilter, len(incoming.Presences))
+		for _, filter := range incoming.Presences {
+			userID, err := uuid.FromBytes(filter.UserId)
+			if err != nil {
+				return
+			}
+			sessionID, err := uuid.FromBytes(filter.SessionId)
+			if err != nil {
+				return
+			}
+			filters = append(filters, &matchDataFilter{userID: userID, sessionID: sessionID})
+		}
+	}
 
 	// TODO check membership before looking up all members.
 
 	ps := p.tracker.ListByTopic(topic)
 	if len(ps) == 0 {
-		// TODO send an error to the client?
 		return
 	}
 
-	// Don't echo back to sender.
-	found := false
+	senderFound := false
 	for i := 0; i < len(ps); i++ {
-		if p := ps[i]; p.ID.SessionID == session.id && p.UserID == session.userID {
+		p := ps[i]
+		if p.ID.SessionID == session.id && p.UserID == session.userID {
+			// Don't echo back to sender.
 			ps[i] = ps[len(ps)-1]
 			ps = ps[:len(ps)-1]
-			found = true
-			break
+			senderFound = true
+			if !filterPresences {
+				break
+			} else {
+				i--
+			}
+		} else if filterPresences {
+			// Check if this presence is specified in the filters.
+			filterFound := false
+			for j := 0; j < len(filters); j++ {
+				if filter := filters[j]; p.ID.SessionID == filter.sessionID && p.UserID == filter.userID {
+					// If a filter matches, drop it.
+					filters[j] = filters[len(filters)-1]
+					filters = filters[:len(filters)-1]
+					filterFound = true
+					break
+				}
+			}
+			if !filterFound {
+				// If this presence wasn't in the filters, it's not needed.
+				ps[i] = ps[len(ps)-1]
+				ps = ps[:len(ps)-1]
+				i--
+			}
 		}
 	}
 
 	// If sender wasn't in the presences for this match, they're not a member.
-	if !found {
-		// TODO send an error to the client?
+	if !senderFound {
 		return
 	}
 
-	// Check if sender was the only one in the match.
+	// Check if there are any recipients left.
 	if len(ps) == 0 {
 		return
 	}

@@ -139,7 +139,7 @@ func (s *session) pingNow() bool {
 }
 
 func (s *session) Send(envelope *Envelope) error {
-	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("collation_id", envelope.CollationId))
+	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
 
 	payload, err := proto.Marshal(envelope)
 

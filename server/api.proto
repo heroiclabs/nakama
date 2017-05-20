@@ -156,6 +156,11 @@ message Envelope {
     TLeaderboards leaderboards = 57;
     TLeaderboardRecord leaderboard_record = 58;
     TLeaderboardRecords leaderboard_records = 59;
+
+    TMatchmakingStart matchmaking_start = 60;
+    TMatchmakingCancel matchmaking_cancel = 61;
+    TMatchmakingTicket matchmaking_ticket = 62;
+    MatchmakingResult matchmaking_result = 63;
   }
 }
 
@@ -438,9 +443,29 @@ message TopicPresence {
   repeated UserPresence leaves = 3;
 }
 
+message TMatchmakingStart {
+  int64 requiredCount = 1;
+}
+message TMatchmakingTicket {
+  bytes ticket = 1;
+}
+message TMatchmakingCancel {
+  bytes ticket = 1;
+}
+
+message MatchmakingResult {
+  bytes ticket = 1;
+  bytes token = 2;
+  repeated UserPresence presences = 3;
+  UserPresence self = 4;
+}
+
 message TMatchCreate {}
 message TMatchJoin {
-  bytes match_id = 1;
+  oneof id {
+    bytes match_id = 1;
+    bytes token = 2;
+  }
 }
 message TMatch {
   bytes match_id = 1;
@@ -452,6 +477,7 @@ message TMatchDataSend {
   bytes match_id = 1;
   int64 op_code = 2;
   bytes data = 3;
+  repeated UserPresence presences = 4;
 }
 
 message MatchData {

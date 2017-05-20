@@ -25,19 +25,21 @@ import (
 // SessionRegistry maintains a list of sessions to their IDs. This is thread-safe.
 type SessionRegistry struct {
 	sync.RWMutex
-	logger   *zap.Logger
-	config   Config
-	tracker  Tracker
-	sessions map[uuid.UUID]*session
+	logger     *zap.Logger
+	config     Config
+	tracker    Tracker
+	matchmaker Matchmaker
+	sessions   map[uuid.UUID]*session
 }
 
 // NewSessionRegistry creates a new SessionRegistry
-func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker) *SessionRegistry {
+func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker, matchmaker Matchmaker) *SessionRegistry {
 	return &SessionRegistry{
-		logger:   logger,
-		config:   config,
-		tracker:  tracker,
-		sessions: make(map[uuid.UUID]*session),
+		logger:     logger,
+		config:     config,
+		tracker:    tracker,
+		matchmaker: matchmaker,
+		sessions:   make(map[uuid.UUID]*session),
 	}
 }
 
@@ -46,7 +48,10 @@ func (a *SessionRegistry) stop() {
 	for _, session := range a.sessions {
 		if a.sessions[session.id] != nil {
 			delete(a.sessions, session.id)
-			go a.tracker.UntrackAll(session.id) // Drop all tracked presences for this session.
+			go func() {
+				a.matchmaker.UnqueueAll(session.id) // Drop all active matchmaking requests for this session.
+				a.tracker.UntrackAll(session.id)    // Drop all tracked presences for this session.
+			}()
 		}
 		session.close()
 	}
@@ -74,7 +79,10 @@ func (a *SessionRegistry) remove(c *session) {
 	a.Lock()
 	if a.sessions[c.id] != nil {
 		delete(a.sessions, c.id)
-		go a.tracker.UntrackAll(c.id) // Drop all tracked presences for this session.
+		go func() {
+			a.matchmaker.UnqueueAll(c.id) // Drop all active matchmaking requests for this session.
+			a.tracker.UntrackAll(c.id)    // Drop all tracked presences for this session.
+		}()
 	}
 	a.Unlock()
 }

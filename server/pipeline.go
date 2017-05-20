@@ -28,17 +28,21 @@ type pipeline struct {
 	db              *sql.DB
 	socialClient    *social.Client
 	tracker         Tracker
+	matchmaker      Matchmaker
+	hmacSecretByte  []byte
 	messageRouter   MessageRouter
 	sessionRegistry *SessionRegistry
 }
 
 // NewPipeline creates a new Pipeline
-func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker Tracker, messageRouter MessageRouter, registry *SessionRegistry) *pipeline {
+func NewPipeline(config Config, db *sql.DB, socialClient *social.Client, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter, registry *SessionRegistry) *pipeline {
 	return &pipeline{
 		config:          config,
 		db:              db,
 		socialClient:    socialClient,
 		tracker:         tracker,
+		matchmaker:      matchmaker,
+		hmacSecretByte:  []byte(config.GetSession().EncryptionKey),
 		messageRouter:   messageRouter,
 		sessionRegistry: registry,
 	}
@@ -116,6 +120,11 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, envelope
 		p.matchLeave(logger, session, envelope)
 	case *Envelope_MatchDataSend:
 		p.matchDataSend(logger, session, envelope)
+
+	case *Envelope_MatchmakingStart:
+		p.matchmakingStart(logger, session, envelope)
+	case *Envelope_MatchmakingCancel:
+		p.matchmakingCancel(logger, session, envelope)
 
 	case *Envelope_StorageFetch:
 		p.storageFetch(logger, session, envelope)
