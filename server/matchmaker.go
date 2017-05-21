@@ -21,9 +21,9 @@ import (
 )
 
 type Matchmaker interface {
-	Queue(sessionID uuid.UUID, userID uuid.UUID, meta PresenceMeta, requiredCount int64) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile)
-	Unqueue(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error
-	UnqueueAll(sessionID uuid.UUID)
+	Start(sessionID uuid.UUID, userID uuid.UUID, meta PresenceMeta, requiredCount int64) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile)
+	Cancel(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error
+	CancelAll(sessionID uuid.UUID)
 	UpdateAll(sessionID uuid.UUID, meta PresenceMeta)
 }
 
@@ -51,7 +51,7 @@ func NewMatchmakerService(name string) *MatchmakerService {
 	}
 }
 
-func (m *MatchmakerService) Queue(sessionID uuid.UUID, userID uuid.UUID, meta PresenceMeta, requiredCount int64) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile) {
+func (m *MatchmakerService) Start(sessionID uuid.UUID, userID uuid.UUID, meta PresenceMeta, requiredCount int64) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile) {
 	ticket := uuid.NewV4()
 	selected := make(map[MatchmakerKey]*MatchmakerProfile, requiredCount-1)
 	qmk := MatchmakerKey{ID: PresenceID{SessionID: sessionID, Node: m.name}, UserID: userID, Ticket: ticket}
@@ -83,7 +83,7 @@ func (m *MatchmakerService) Queue(sessionID uuid.UUID, userID uuid.UUID, meta Pr
 	}
 }
 
-func (m *MatchmakerService) Unqueue(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error {
+func (m *MatchmakerService) Cancel(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error {
 	mk := MatchmakerKey{ID: PresenceID{SessionID: sessionID, Node: m.name}, UserID: userID, Ticket: ticket}
 	var e error
 
@@ -99,7 +99,7 @@ func (m *MatchmakerService) Unqueue(sessionID uuid.UUID, userID uuid.UUID, ticke
 	return e
 }
 
-func (m *MatchmakerService) UnqueueAll(sessionID uuid.UUID) {
+func (m *MatchmakerService) CancelAll(sessionID uuid.UUID) {
 	m.Lock()
 	for mk, _ := range m.values {
 		if mk.ID.SessionID == sessionID {

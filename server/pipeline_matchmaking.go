@@ -14,7 +14,7 @@ func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelo
 		return
 	}
 
-	ticket, selected := p.matchmaker.Queue(session.id, session.userID, PresenceMeta{Handle: session.handle.Load()}, requiredCount)
+	ticket, selected := p.matchmaker.Start(session.id, session.userID, PresenceMeta{Handle: session.handle.Load()}, requiredCount)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchmakingTicket{MatchmakingTicket: &TMatchmakingTicket{
 		Ticket: ticket.Bytes(),
@@ -72,7 +72,7 @@ func (p *pipeline) matchmakingCancel(logger *zap.Logger, session *session, envel
 		return
 	}
 
-	err = p.matchmaker.Unqueue(session.id, session.userID, ticket)
+	err = p.matchmaker.Cancel(session.id, session.userID, ticket)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Ticket not found, matchmaking may already be done"))
 		return

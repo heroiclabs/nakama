@@ -138,7 +138,7 @@ message Envelope {
     TMatchCreate match_create = 41;
     TMatchJoin match_join = 42;
     TMatchLeave match_leave = 43;
-    TMatchDataSend match_data_send = 44;
+    MatchDataSend match_data_send = 44;
     TMatch match = 45;
     MatchData match_data = 46;
     MatchPresence match_presence = 47;
@@ -473,7 +473,7 @@ message TMatch {
   UserPresence self = 3;
 }
 
-message TMatchDataSend {
+message MatchDataSend {
   bytes match_id = 1;
   int64 op_code = 2;
   bytes data = 3;
