@@ -187,16 +187,16 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 	if len(incoming.Presences) != 0 {
 		filterPresences = true
 		filters = make([]*matchDataFilter, len(incoming.Presences))
-		for _, filter := range incoming.Presences {
-			userID, err := uuid.FromBytes(filter.UserId)
+		for i := 0; i < len(incoming.Presences); i++ {
+			userID, err := uuid.FromBytes(incoming.Presences[i].UserId)
 			if err != nil {
 				return
 			}
-			sessionID, err := uuid.FromBytes(filter.SessionId)
+			sessionID, err := uuid.FromBytes(incoming.Presences[i].SessionId)
 			if err != nil {
 				return
 			}
-			filters = append(filters, &matchDataFilter{userID: userID, sessionID: sessionID})
+			filters[i] = &matchDataFilter{userID: userID, sessionID: sessionID}
 		}
 	}
 
