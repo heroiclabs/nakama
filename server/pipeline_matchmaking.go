@@ -31,13 +31,15 @@ func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelo
 	})
 	signedToken, _ := token.SignedString(p.hmacSecretByte)
 
+	idx := 0
 	ps := make([]*UserPresence, len(selected))
 	for mk, mp := range selected {
-		ps = append(ps, &UserPresence{
+		ps[idx] = &UserPresence{
 			UserId:    mk.UserID.Bytes(),
 			SessionId: mk.ID.SessionID.Bytes(),
 			Handle:    mp.Meta.Handle,
-		})
+		}
+		idx++
 	}
 	outgoing := &Envelope{Payload: &Envelope_MatchmakingResult{MatchmakingResult: &MatchmakingResult{
 		// Ticket: ..., // Set individually below for each recipient.

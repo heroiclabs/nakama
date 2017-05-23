@@ -94,6 +94,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
 			return
 		}
+		allowEmpty = true
 	case nil:
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "No match ID or token found"))
 		return
