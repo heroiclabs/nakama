@@ -62,22 +62,6 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, datadir
 		IncludeGoStackTrace: true,
 	})
 
-	logger.Info("Initialising modules", zap.String("path", luaPath))
-	modules := make([]string, 0)
-	err := filepath.Walk(luaPath, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			logger.Error("Could not read module", zap.Error(err))
-			return err
-		} else if !f.IsDir() {
-			modules = append(modules, path)
-		}
-		return nil
-	})
-	if err != nil {
-		logger.Error("Failed to list modules", zap.Error(err))
-		return nil, err
-	}
-
 	stdLibs := map[string]lua.LGFunction{
 		lua.LoadLibName:      lua.OpenPackage,
 		lua.BaseLibName:      lua.OpenBase,
@@ -93,16 +77,34 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, datadir
 		vm.Call(1, 0)
 	}
 
+	nakamaModule := NewNakamaModule(logger, db, vm)
+	vm.PreloadModule("nakama", nakamaModule.Loader)
+	nakamaxModule := NewNakamaxModule(logger)
+	vm.PreloadModule("nakamax", nakamaxModule.Loader)
+
 	r := &Runtime{
 		logger: logger,
 		vm:     vm,
 		luaEnv: ConvertMap(vm, config.Environment),
 	}
 
-	nakamaModule := NewNakamaModule(logger, db, vm)
-	vm.PreloadModule("nakama", nakamaModule.Loader)
-	nakamaxModule := NewNakamaxModule(logger)
-	vm.PreloadModule("nakamax", nakamaxModule.Loader)
+	logger.Info("Initialising modules", zap.String("path", luaPath))
+	modules := make([]string, 0)
+	err := filepath.Walk(luaPath, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			logger.Error("Could not read module", zap.Error(err))
+			return err
+		} else if !f.IsDir() {
+			if strings.ToLower(filepath.Ext(path)) == ".lua" {
+				modules = append(modules, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("Failed to list modules", zap.Error(err))
+		return nil, err
+	}
 
 	multiLogger.Info("Evaluating modules", zap.Int("count", len(modules)), zap.Strings("modules", modules))
 	if err = r.loadModules(luaPath, modules); err != nil {
