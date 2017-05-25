@@ -22,9 +22,6 @@ import (
 	"unicode/utf8"
 )
 
-type matchToken struct {
-}
-
 type matchDataFilter struct {
 	userID    uuid.UUID
 	sessionID uuid.UUID
