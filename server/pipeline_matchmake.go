@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelope *Envelope) {
-	requiredCount := envelope.GetMatchmakingStart().RequiredCount
+func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *Envelope) {
+	requiredCount := envelope.GetMatchmakeAdd().RequiredCount
 	if requiredCount < 2 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Required count must be >= 2"))
 		return
 	}
 
-	ticket, selected := p.matchmaker.Start(session.id, session.userID, PresenceMeta{Handle: session.handle.Load()}, requiredCount)
+	ticket, selected := p.matchmaker.Add(session.id, session.userID, PresenceMeta{Handle: session.handle.Load()}, requiredCount)
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchmakingTicket{MatchmakingTicket: &TMatchmakingTicket{
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchmakeTicket{MatchmakeTicket: &TMatchmakeTicket{
 		Ticket: ticket.Bytes(),
 	}}})
 
@@ -41,7 +41,7 @@ func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelo
 		}
 		idx++
 	}
-	outgoing := &Envelope{Payload: &Envelope_MatchmakingResult{MatchmakingResult: &MatchmakingResult{
+	outgoing := &Envelope{Payload: &Envelope_MatchmakeMatched{MatchmakeMatched: &MatchmakeMatched{
 		// Ticket: ..., // Set individually below for each recipient.
 		Token:     []byte(signedToken),
 		Presences: ps,
@@ -56,8 +56,8 @@ func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelo
 				Meta:   mp.Meta,   // Not strictly needed here.
 			},
 		}
-		outgoing.GetMatchmakingResult().Ticket = mk.Ticket.Bytes()
-		outgoing.GetMatchmakingResult().Self = &UserPresence{
+		outgoing.GetMatchmakeMatched().Ticket = mk.Ticket.Bytes()
+		outgoing.GetMatchmakeMatched().Self = &UserPresence{
 			UserId:    mk.UserID.Bytes(),
 			SessionId: mk.ID.SessionID.Bytes(),
 			Handle:    mp.Meta.Handle,
@@ -66,15 +66,15 @@ func (p *pipeline) matchmakingStart(logger *zap.Logger, session *session, envelo
 	}
 }
 
-func (p *pipeline) matchmakingCancel(logger *zap.Logger, session *session, envelope *Envelope) {
-	ticketBytes := envelope.GetMatchmakingCancel().Ticket
+func (p *pipeline) matchmakeRemove(logger *zap.Logger, session *session, envelope *Envelope) {
+	ticketBytes := envelope.GetMatchmakeRemove().Ticket
 	ticket, err := uuid.FromBytes(ticketBytes)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid ticket"))
 		return
 	}
 
-	err = p.matchmaker.Cancel(session.id, session.userID, ticket)
+	err = p.matchmaker.Remove(session.id, session.userID, ticket)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Ticket not found, matchmaking may already be done"))
 		return

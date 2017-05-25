@@ -49,7 +49,7 @@ func (a *SessionRegistry) stop() {
 		if a.sessions[session.id] != nil {
 			delete(a.sessions, session.id)
 			go func() {
-				a.matchmaker.CancelAll(session.id) // Drop all active matchmaking requests for this session.
+				a.matchmaker.RemoveAll(session.id) // Drop all active matchmaking requests for this session.
 				a.tracker.UntrackAll(session.id)   // Drop all tracked presences for this session.
 			}()
 		}
@@ -80,7 +80,7 @@ func (a *SessionRegistry) remove(c *session) {
 	if a.sessions[c.id] != nil {
 		delete(a.sessions, c.id)
 		go func() {
-			a.matchmaker.CancelAll(c.id) // Drop all active matchmaking requests for this session.
+			a.matchmaker.RemoveAll(c.id) // Drop all active matchmaking requests for this session.
 			a.tracker.UntrackAll(c.id)   // Drop all tracked presences for this session.
 		}()
 	}

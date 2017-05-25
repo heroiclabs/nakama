@@ -121,10 +121,10 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, envelope
 	case *Envelope_MatchDataSend:
 		p.matchDataSend(logger, session, envelope)
 
-	case *Envelope_MatchmakingStart:
-		p.matchmakingStart(logger, session, envelope)
-	case *Envelope_MatchmakingCancel:
-		p.matchmakingCancel(logger, session, envelope)
+	case *Envelope_MatchmakeAdd:
+		p.matchmakeAdd(logger, session, envelope)
+	case *Envelope_MatchmakeRemove:
+		p.matchmakeRemove(logger, session, envelope)
 
 	case *Envelope_StorageFetch:
 		p.storageFetch(logger, session, envelope)
