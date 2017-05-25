@@ -109,3 +109,24 @@ func UsersFetch(logger *zap.Logger, db *sql.DB, userIds [][]byte) ([]*User, erro
 
 	return users, nil
 }
+
+func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User, error) {
+	statements := make([]string, 0)
+	params := make([]interface{}, 0)
+
+	counter := 1
+	for _, handle := range handles {
+		statement := "$" + strconv.Itoa(counter)
+		counter += 1
+		statements = append(statements, statement)
+		params = append(params, handle)
+	}
+
+	query := "WHERE users.handle IN (" + strings.Join(statements, ", ") + ")"
+	users, err := querySocialGraph(logger, db, query, params)
+	if err != nil {
+		return nil, errors.New("Could not retrieve users")
+	}
+
+	return users, nil
+}

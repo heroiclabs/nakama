@@ -68,6 +68,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_after":     n.registerAfter,
 		"register_http":      n.registerHTTP,
 		"user_fetch_id":      n.userFetchId,
+		"user_fetch_handle":  n.userFetchHandle,
 		"leaderboard_create": n.leaderboardCreate,
 	})
 
@@ -197,6 +198,41 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 	}
 
 	users, err := UsersFetch(n.logger, n.db, userIdBytes)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
+		return 0
+	}
+
+	//translate uuid to string bytes
+	for _, u := range users {
+		uid, _ := uuid.FromBytes(u.Id)
+		u.Id = []byte(uid.String())
+	}
+
+	lv := l.NewTable()
+	for i, u := range users {
+		um := structs.Map(u)
+		lv.RawSetInt(i, convertValue(l, um))
+	}
+
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
+	lt := l.CheckTable(1)
+	handles, ok := convertLuaValue(lt).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user handle data")
+		return 0
+	}
+
+	userHandles := make([]string, 0)
+	for _, h := range handles {
+		userHandles = append(userHandles, string(h))
+	}
+
+	users, err := UsersFetchHandle(n.logger, n.db, userHandles)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
 		return 0

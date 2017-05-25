@@ -102,6 +102,7 @@ message Envelope {
     TSelfFetch self_fetch = 7;
     TSelfUpdate self_update = 8;
     TUsersFetch users_fetch = 9;
+    TUsersFetchHandle users_fetch_handle = 65;
     TSelf self = 10;
     TUsers users = 11;
 
@@ -239,6 +240,9 @@ message TSelfUpdate {
 
 message TUsersFetch {
   repeated bytes user_ids = 1;
+}
+message TUsersFetchHandle {
+  repeated string handles = 1;
 }
 message TUsers {
   repeated User users = 1;

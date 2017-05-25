@@ -57,3 +57,19 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *En
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Users{Users: &TUsers{Users: users}}})
 }
+
+func (p *pipeline) usersFetchHandle(logger *zap.Logger, session *session, envelope *Envelope) {
+	handles := envelope.GetUsersFetchHandle().Handles
+	if len(handles) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))
+		return
+	}
+
+	users, err := UsersFetchHandle(logger, p.db, handles)
+	if err != nil {
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
+		return
+	}
+
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Users{Users: &TUsers{Users: users}}})
+}
