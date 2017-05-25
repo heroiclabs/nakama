@@ -229,7 +229,12 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 
 	userHandles := make([]string, 0)
 	for _, h := range handles {
-		userHandles = append(userHandles, string(h))
+		if hs, ok := h.(string); !ok {
+			l.ArgError(1, "invalid user handle data, each handle must be a string")
+			return 0
+		} else {
+			userHandles = append(userHandles, hs)
+		}
 	}
 
 	users, err := UsersFetchHandle(n.logger, n.db, userHandles)
