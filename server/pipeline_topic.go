@@ -32,7 +32,7 @@ type messageCursor struct {
 	CreatedAt int64
 }
 
-var invalidRoomRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
+var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
 func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Envelope) {
 	id := envelope.GetTopicJoin()
@@ -81,12 +81,12 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
 		}
-		if invalidRoomRegex.Match(room) {
+		if controlCharsRegex.Match(room) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
 			return
 		}
 
@@ -204,12 +204,12 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
 		}
-		if invalidRoomRegex.Match(room) {
+		if controlCharsRegex.Match(room) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
 			return
 		}
 
@@ -308,12 +308,12 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
 		}
-		if invalidRoomRegex.Match(room) {
+		if controlCharsRegex.Match(room) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
 			return
 		}
 
@@ -411,12 +411,12 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
 		}
-		if invalidRoomRegex.Match(room) {
+		if controlCharsRegex.Match(room) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
 			return
 		}
 

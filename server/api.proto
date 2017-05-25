@@ -138,7 +138,7 @@ message Envelope {
     TMatchCreate match_create = 41;
     TMatchJoin match_join = 42;
     TMatchLeave match_leave = 43;
-    TMatchDataSend match_data_send = 44;
+    MatchDataSend match_data_send = 44;
     TMatch match = 45;
     MatchData match_data = 46;
     MatchPresence match_presence = 47;
@@ -156,6 +156,11 @@ message Envelope {
     TLeaderboards leaderboards = 57;
     TLeaderboardRecord leaderboard_record = 58;
     TLeaderboardRecords leaderboard_records = 59;
+
+    TMatchmakeAdd matchmake_add = 60;
+    TMatchmakeRemove matchmake_remove = 61;
+    TMatchmakeTicket matchmake_ticket = 62;
+    MatchmakeMatched matchmake_matched = 63;
   }
 }
 
@@ -438,9 +443,29 @@ message TopicPresence {
   repeated UserPresence leaves = 3;
 }
 
+message TMatchmakeAdd {
+  int64 requiredCount = 1;
+}
+message TMatchmakeTicket {
+  bytes ticket = 1;
+}
+message TMatchmakeRemove {
+  bytes ticket = 1;
+}
+
+message MatchmakeMatched {
+  bytes ticket = 1;
+  bytes token = 2;
+  repeated UserPresence presences = 3;
+  UserPresence self = 4;
+}
+
 message TMatchCreate {}
 message TMatchJoin {
-  bytes match_id = 1;
+  oneof id {
+    bytes match_id = 1;
+    bytes token = 2;
+  }
 }
 message TMatch {
   bytes match_id = 1;
@@ -448,10 +473,11 @@ message TMatch {
   UserPresence self = 3;
 }
 
-message TMatchDataSend {
+message MatchDataSend {
   bytes match_id = 1;
   int64 op_code = 2;
   bytes data = 3;
+  repeated UserPresence presences = 4;
 }
 
 message MatchData {

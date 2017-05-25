@@ -73,9 +73,9 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, tracker Tracker, messageRouter MessageRouter) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter) *authenticationService {
 	s := social.NewClient(5 * time.Second)
-	p := NewPipeline(config, db, s, tracker, messageRouter, registry)
+	p := NewPipeline(config, db, s, tracker, matchmaker, messageRouter, registry)
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
