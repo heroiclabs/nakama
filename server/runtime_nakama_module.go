@@ -69,6 +69,9 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_http":      n.registerHTTP,
 		"user_fetch_id":      n.userFetchId,
 		"user_fetch_handle":  n.userFetchHandle,
+		"storage_fetch":      n.storageFetch,
+		"storage_write":      n.storageWrite,
+		"storage_remove":     n.storageRemove,
 		"leaderboard_create": n.leaderboardCreate,
 	})
 
@@ -204,13 +207,10 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 	}
 
 	//translate uuid to string bytes
-	for _, u := range users {
-		uid, _ := uuid.FromBytes(u.Id)
-		u.Id = []byte(uid.String())
-	}
-
 	lv := l.NewTable()
 	for i, u := range users {
+		uid, _ := uuid.FromBytes(u.Id)
+		u.Id = []byte(uid.String())
 		um := structs.Map(u)
 		lv.RawSetInt(i, convertValue(l, um))
 	}
@@ -244,19 +244,171 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 	}
 
 	//translate uuid to string bytes
-	for _, u := range users {
-		uid, _ := uuid.FromBytes(u.Id)
-		u.Id = []byte(uid.String())
-	}
-
 	lv := l.NewTable()
 	for i, u := range users {
+		uid, _ := uuid.FromBytes(u.Id)
+		u.Id = []byte(uid.String())
 		um := structs.Map(u)
 		lv.RawSetInt(i, convertValue(l, um))
 	}
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) storageFetch(l *lua.LState) int {
+	userIdString := l.CheckString(1)
+	userID, err := uuid.FromString(userIdString)
+	if err != nil {
+		l.ArgError(1, "Expects a valid user ID")
+		return 0
+	}
+	keysTable := l.CheckTable(2)
+	if keysTable == nil || keysTable.Len() == 0 {
+		l.ArgError(2, "Expects a valid set of keys")
+		return 0
+	}
+	keysRaw, ok := convertLuaValue(keysTable).([]map[string]interface{})
+	if !ok {
+		l.ArgError(2, "Expects a valid set of keys")
+		return 0
+	}
+
+	keys := make([]*TStorageFetch_StorageKey, len(keysRaw))
+	idx := 0
+	for _, k := range keysRaw {
+		var forUserID []byte
+		if v, ok := k["user_id"]; ok {
+			vs, ok := v.(string)
+			if !ok {
+				l.ArgError(2, "Expects valid user IDs in each key, when provided")
+				return 0
+			}
+			uid, err := uuid.FromString(vs)
+			if err != nil {
+				l.ArgError(2, "Expects valid user IDs in each key, when provided")
+				return 0
+			}
+			forUserID = uid.Bytes()
+		}
+
+		keys[idx] = &TStorageFetch_StorageKey{
+			Bucket:     k["bucket"].(string),
+			Collection: k["collection"].(string),
+			Record:     k["record"].(string),
+			UserId:     forUserID,
+		}
+		idx++
+	}
+
+	values, err := StorageFetch(n.logger, n.db, userID, keys)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to fetch storage: %s", err.Error()))
+		return 0
+	}
+
+	//translate uuid to string bytes
+	lv := l.NewTable()
+	for i, v := range values {
+		uid, _ := uuid.FromBytes(v.UserId)
+		v.UserId = []byte(uid.String())
+		vm := structs.Map(v)
+		lv.RawSetInt(i, convertValue(l, vm))
+	}
+
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageWrite(l *lua.LState) int {
+	userIdString := l.CheckString(1)
+	userID, err := uuid.FromString(userIdString)
+	if err != nil {
+		l.ArgError(1, "Expects a valid user ID")
+		return 0
+	}
+	dataTable := l.CheckTable(2)
+	if dataTable == nil || dataTable.Len() == 0 {
+		l.ArgError(2, "Expects a valid set of data")
+		return 0
+	}
+	dataRaw, ok := convertLuaValue(dataTable).([]map[string]interface{})
+	if !ok {
+		l.ArgError(2, "Expects a valid set of data")
+		return 0
+	}
+
+	data := make([]*TStorageWrite_StorageData, len(dataRaw))
+	idx := 0
+	for _, k := range dataRaw {
+		var version []byte
+		if v, ok := k["version"]; ok {
+			version = []byte(v.(string))
+		}
+		data[idx] = &TStorageWrite_StorageData{
+			Bucket:     k["bucket"].(string),
+			Collection: k["collection"].(string),
+			Record:     k["record"].(string),
+			Value:      []byte(k["value"].(string)),
+			Version:    version,
+		}
+		idx++
+	}
+
+	keys, err := StorageWrite(n.logger, n.db, userID, data)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to write storage: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, k := range keys {
+		km := structs.Map(k)
+		lv.RawSetInt(i, convertValue(l, km))
+	}
+
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageRemove(l *lua.LState) int {
+	userIdString := l.CheckString(1)
+	userID, err := uuid.FromString(userIdString)
+	if err != nil {
+		l.ArgError(1, "Expects a valid user ID")
+		return 0
+	}
+	keysTable := l.CheckTable(2)
+	if keysTable == nil || keysTable.Len() == 0 {
+		l.ArgError(2, "Expects a valid set of keys")
+		return 0
+	}
+	keysRaw, ok := convertLuaValue(keysTable).([]map[string]interface{})
+	if !ok {
+		l.ArgError(2, "Expects a valid set of keys")
+		return 0
+	}
+
+	keys := make([]*TStorageRemove_StorageKey, len(keysRaw))
+	idx := 0
+	for _, k := range keysRaw {
+		var version []byte
+		if v, ok := k["version"]; ok {
+			version = []byte(v.(string))
+		}
+		keys[idx] = &TStorageRemove_StorageKey{
+			Bucket:     k["bucket"].(string),
+			Collection: k["collection"].(string),
+			Record:     k["record"].(string),
+			Version:    version,
+		}
+		idx++
+	}
+
+	if err = StorageRemove(n.logger, n.db, userID, keys); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
+	}
+	return 0
 }
 
 func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
