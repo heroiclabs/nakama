@@ -286,10 +286,9 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	messageType := fmt.Sprintf("%T", authReq)
+	messageType := fmt.Sprintf("%T", authReq.Payload)
 	a.logger.Debug("Received message", zap.String("type", messageType))
-	messageType = strings.TrimPrefix(messageType, "*server.")
-	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtime, a.jsonpbMarshaler, a.jsonpbUnmarshaler, messageType, authReq)
+	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtime, a.jsonpbMarshaler, a.jsonpbUnmarshaler, authReq)
 	if fnErr != nil {
 		a.logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 		a.sendAuthError(w, r, "Runtime before function caused an error", 500, authReq)
@@ -315,7 +314,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Payload: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
-	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, messageType, authReq)
+	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode int, authRequest *AuthenticateRequest) {

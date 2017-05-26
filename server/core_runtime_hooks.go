@@ -18,6 +18,9 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"fmt"
+	"strings"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -98,7 +101,8 @@ func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jso
 	}
 }
 
-func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
+func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
+	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Payload), "*server.AuthenticateRequest_")
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
 		return envelope, nil
@@ -136,7 +140,8 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 	return authenticationResult, nil
 }
 
-func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *AuthenticateRequest) {
+func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest) {
+	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Payload), "*server.AuthenticateRequest_")
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
 		return
