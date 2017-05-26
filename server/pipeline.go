@@ -20,6 +20,8 @@ import (
 
 	"nakama/pkg/social"
 
+	"strings"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
@@ -28,7 +30,7 @@ type pipeline struct {
 	config            Config
 	db                *sql.DB
 	tracker           Tracker
-  matchmaker        Matchmaker
+	matchmaker        Matchmaker
 	hmacSecretByte    []byte
 	messageRouter     MessageRouter
 	sessionRegistry   *SessionRegistry
@@ -71,7 +73,8 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	messageType := fmt.Sprintf("%T", originalEnvelope.Payload)
 	logger.Debug("Received message", zap.String("type", messageType))
 
-	envelope, fnErr := p.before(logger, session, messageType, originalEnvelope)
+	messageType = strings.TrimPrefix(messageType, "*server.Envelope_")
+	envelope, fnErr := RuntimeBeforeHook(p.runtime, p.jsonpbMarshaler, p.jsonpbUnmarshaler, messageType, originalEnvelope, session)
 	if fnErr != nil {
 		logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 		session.Send(ErrorMessage(originalEnvelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime before function caused an error: %s", fnErr.Error())))
@@ -179,7 +182,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		return
 	}
 
-	p.after(logger, session, messageType, envelope)
+	RuntimeAfterHook(logger, p.runtime, p.jsonpbMarshaler, messageType, envelope, session)
 }
 
 func ErrorMessageRuntimeException(collationID string, message string) *Envelope {
