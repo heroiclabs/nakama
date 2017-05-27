@@ -66,19 +66,19 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session *session, envelo
 		params = append(params, incomingCursor.Id)
 	}
 
-	statements := make([]string, 0)
 	if len(incoming.GetFilterLeaderboardId()) != 0 {
+		statements := make([]string, 0)
 		for _, filterId := range incoming.GetFilterLeaderboardId() {
+			params = append(params, filterId)
 			statement := "$" + strconv.Itoa(len(params))
 			statements = append(statements, statement)
-			params = append(params, filterId)
 		}
 
 		if len(incoming.Cursor) != 0 {
 			query += " AND "
 		}
 
-		query += "WHERE leaderboard.id IN (" + strings.Join(statements, ", ") + ")"
+		query += " WHERE id IN (" + strings.Join(statements, ", ") + ")"
 	}
 
 	params = append(params, limit+1)
