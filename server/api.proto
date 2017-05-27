@@ -604,6 +604,7 @@ message LeaderboardRecord {
 message TLeaderboardsList {
   int64 limit = 1;
   bytes cursor = 2;
+  repeated bytes filter_leaderboard_id = 3;
 }
 message TLeaderboards {
   repeated Leaderboard leaderboards = 1;
