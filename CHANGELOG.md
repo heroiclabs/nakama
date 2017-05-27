@@ -8,6 +8,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Node status now also reports a startup timestamp.
 - New matchmaking feature.
 - Optionally send match data to a subset of match participants.
+- Fetch users by handle.
+- Add friend by handle. 
 
 ### Changed
 - The build system now suffixes Windows binaries with `exe` extension.

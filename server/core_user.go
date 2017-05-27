@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -87,14 +86,11 @@ func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds [][]byte) ([]*User, e
 	params := make([]interface{}, 0)
 
 	counter := 1
-	for _, uid := range userIds {
-		userID, err := uuid.FromBytes(uid)
-		if err == nil {
-			statement := "$" + strconv.Itoa(counter)
-			counter += 1
-			statements = append(statements, statement)
-			params = append(params, userID.Bytes())
-		}
+	for _, userID := range userIds {
+		statement := "$" + strconv.Itoa(counter)
+		counter += 1
+		statements = append(statements, statement)
+		params = append(params, userID)
 	}
 
 	if len(statements) == 0 {

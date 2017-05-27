@@ -261,7 +261,10 @@ message Friend {
 }
 
 message TFriendAdd {
-  bytes user_id = 1;
+  oneof set {
+    bytes user_id = 1;
+    string handle = 2;
+  }
 }
 
 message TFriendRemove {

@@ -196,104 +196,60 @@ FROM users, user_edge ` + filterQuery
 }
 
 func (p *pipeline) friendAdd(l *zap.Logger, session *session, envelope *Envelope) {
-	addFriendRequest := envelope.GetFriendAdd()
-	if len(addFriendRequest.UserId) == 0 {
+	f := envelope.GetFriendAdd()
+
+	switch f.Set.(type) {
+	case *TFriendAdd_UserId:
+		p.friendAddById(l, session, envelope, f.GetUserId())
+	case *TFriendAdd_Handle:
+		p.friendAddByHandle(l, session, envelope, f.GetHandle())
+	}
+}
+
+func (p *pipeline) friendAddById(l *zap.Logger, session *session, envelope *Envelope, friendIdBytes []byte) {
+	if len(friendIdBytes) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
 		return
 	}
-
-	friendID, err := uuid.FromBytes(addFriendRequest.UserId)
+	friendID, err := uuid.FromBytes(friendIdBytes)
 	if err != nil {
 		l.Warn("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
 		return
 	}
-	logger := l.With(zap.String("friend_id", friendID.String()))
-	friendIDBytes := friendID.Bytes()
 
+	logger := l.With(zap.String("friend_id", friendID.String()))
 	if friendID == session.userID {
 		logger.Warn("Cannot add self", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot add self"))
 		return
 	}
 
-	tx, err := p.db.Begin()
-	if err != nil {
+	if err := friendAdd(logger, p.db, session.userID.Bytes(), friendID.Bytes()); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
 		return
 	}
-	defer func() {
-		if err != nil {
-			logger.Error("Could not add friend", zap.Error(err))
-			err = tx.Rollback()
-			if err != nil {
-				logger.Error("Could not rollback transaction", zap.Error(err))
-			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
-		} else {
-			err = tx.Commit()
-			if err != nil {
-				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
-			} else {
-				logger.Info("Added friend")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
-			}
-		}
-	}()
+	logger.Info("Added friend")
+	session.Send(&Envelope{CollationId: envelope.CollationId})
+}
 
-	updatedAt := nowMs()
-	// Mark an invite as accepted, if one was in place.
-	res, err := tx.Exec(`
-UPDATE user_edge SET state = 0, updated_at = $3
-WHERE (source_id = $1 AND destination_id = $2 AND state = 2)
-OR (source_id = $2 AND destination_id = $1 AND state = 1)
-  `, friendIDBytes, session.userID.Bytes(), updatedAt)
-	if err != nil {
-		return
-	}
-	// If both edges were updated, it was accepting an invite was successful.
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
+func (p *pipeline) friendAddByHandle(l *zap.Logger, session *session, envelope *Envelope, friendHandle string) {
+	if friendHandle == "" || friendHandle == session.handle.Load() {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User handle must be present and not equal to user's handle"))
 		return
 	}
 
-	// If no edge updates took place, it's a new invite being set up.
-	res, err = tx.Exec(`
-INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
-SELECT source_id, destination_id, state, position, updated_at
-FROM (VALUES
-  ($1::BYTEA, $2::BYTEA, 2, $3::BIGINT, $3::BIGINT),
-  ($2::BYTEA, $1::BYTEA, 1, $3::BIGINT, $3::BIGINT)
-) AS ue(source_id, destination_id, state, position, updated_at)
-WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
-	`, session.userID.Bytes(), friendIDBytes, updatedAt)
-	if err != nil {
+	logger := l.With(zap.String("friend_handle", friendHandle))
+	if err := friendAddHandle(logger, p.db, session.userID.Bytes(), friendHandle); err != nil {
+		logger.Error("Could not add friend", zap.Error(err))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
 		return
 	}
 
-	// An invite was successfully added if both components were inserted.
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
-		err = errors.New("user ID not found or unavailable")
-		return
-	}
-
-	// Update the user edge metadata counts.
-	res, err = tx.Exec(`
-UPDATE user_edge_metadata
-SET count = count + 1, updated_at = $1
-WHERE source_id = $2
-OR source_id = $3`,
-		updatedAt, session.userID.Bytes(), friendIDBytes)
-	if err != nil {
-		return
-	}
-
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
-		err = errors.New("could not update user friend counts")
-		return
-	}
+	logger.Info("Added friend")
+	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
 func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envelope) {

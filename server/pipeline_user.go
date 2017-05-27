@@ -24,14 +24,14 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *En
 
 	switch f.Set.(type) {
 	case *TUsersFetch_UserIds_:
-		userIds := envelope.GetUsersFetch().GetUserIds().UserIds
+		userIds := f.GetUserIds().UserIds
 		if len(userIds) == 0 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))
 			return
 		}
 		users, err = UsersFetchIds(logger, p.db, userIds)
 	case *TUsersFetch_Handles_:
-		handles := envelope.GetUsersFetch().GetHandles().Handles
+		handles := f.GetHandles().Handles
 		if len(handles) == 0 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))
 			return
