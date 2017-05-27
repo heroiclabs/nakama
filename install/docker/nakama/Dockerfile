@@ -8,19 +8,19 @@ LABEL version=$version
 LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 
-RUN mkdir -p /nakama
-RUN mkdir -p /nakama/data/log/
-RUN touch /nakama/data/log/nakama.log
+RUN mkdir -p /nakama/data/log/ \
+  && touch /nakama/data/log/nakama.log
 WORKDIR /nakama/
 
 # forward logs to docker log collector
 # docker logs are JSON by default
-RUN ln -sf /dev/stdout data/log/nakama.log
-
-RUN apt-get update; apt-get install -y ca-certificates curl
-
-RUN echo "Fetching https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz ..."
-RUN curl -sL https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz | tar xz
+RUN ln -sf /dev/stdout data/log/nakama.log \
+  && apt-get update \
+  && apt-get install -y curl ca-certificates \
+  && apt-get autoclean \
+  && rm -rf /var/lib/apt/lists/* \
+  && echo "Fetching https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz ..." \
+  && curl -sL https://github.com/heroiclabs/nakama/releases/download/v$version/nakama-$version-linux-amd64.tar.gz | tar xz
 
 EXPOSE 7350 7351
 
