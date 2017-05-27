@@ -30,7 +30,7 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *En
 			return
 		}
 		users, err = UsersFetchIds(logger, p.db, userIds)
-	case TUsersFetch_Handles_:
+	case *TUsersFetch_Handles_:
 		handles := envelope.GetUsersFetch().GetHandles().Handles
 		if len(handles) == 0 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))

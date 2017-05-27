@@ -98,8 +98,6 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		p.selfUpdate(logger, session, envelope)
 	case *Envelope_UsersFetch:
 		p.usersFetch(logger, session, envelope)
-	case *Envelope_UsersFetchHandle:
-		p.usersFetchHandle(logger, session, envelope)
 
 	case *Envelope_FriendAdd:
 		p.friendAdd(logger, session, envelope)

@@ -430,7 +430,7 @@ nakama.register_before(test.printWorld, "SelfFetch")
 
 }
 
-func ignoreTestRuntimeUserId(t *testing.T) {
+func TestRuntimeUserId(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeFile("userid.lua", `
 local nk = require("nakama")
@@ -451,7 +451,7 @@ local users = nk.user_fetch_id(user_ids)
 	}
 }
 
-func TestRuntimeUserId(t *testing.T) {
+func TestRuntimeLeaderboardCreate(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeFile("userid.lua", `
 local nk = require("nakama")
