@@ -36,7 +36,7 @@ func setupDB() {
 
 func newRuntime() (*server.Runtime, error) {
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
-	return server.NewRuntime(logger, logger, db, DATA_PATH, server.NewRuntimeConfig())
+	return server.NewRuntime(logger, logger, db, server.NewRuntimeConfig(DATA_PATH))
 }
 
 func writeStatsModule() {

@@ -44,14 +44,13 @@ type Runtime struct {
 	luaEnv *lua.LTable
 }
 
-func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, datadir string, config *RuntimeConfig) (*Runtime, error) {
-	luaPath := filepath.Join(datadir, "modules")
-	if err := os.MkdirAll(luaPath, os.ModePerm); err != nil {
+func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig) (*Runtime, error) {
+	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	// override before Package library is invoked.
-	lua.LuaLDir = luaPath
+	lua.LuaLDir = config.Path
 	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
@@ -88,9 +87,9 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, datadir
 		luaEnv: ConvertMap(vm, config.Environment),
 	}
 
-	logger.Info("Initialising modules", zap.String("path", luaPath))
+	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
 	modules := make([]string, 0)
-	err := filepath.Walk(luaPath, func(path string, f os.FileInfo, err error) error {
+	err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			logger.Error("Could not read module", zap.Error(err))
 			return err
@@ -107,7 +106,7 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, datadir
 	}
 
 	multiLogger.Info("Evaluating modules", zap.Int("count", len(modules)), zap.Strings("modules", modules))
-	if err = r.loadModules(luaPath, modules); err != nil {
+	if err = r.loadModules(lua.LuaLDir, modules); err != nil {
 		return nil, err
 	}
 	multiLogger.Info("Modules loaded")
