@@ -82,7 +82,7 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func UsersFetch(logger *zap.Logger, db *sql.DB, userIds [][]byte) ([]*User, error) {
+func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds [][]byte) ([]*User, error) {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 

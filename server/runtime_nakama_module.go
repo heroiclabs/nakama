@@ -200,7 +200,7 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 		userIdBytes = append(userIdBytes, uid.Bytes())
 	}
 
-	users, err := UsersFetch(n.logger, n.db, userIdBytes)
+	users, err := UsersFetchIds(n.logger, n.db, userIdBytes)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
 		return 0

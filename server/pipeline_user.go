@@ -14,58 +14,31 @@
 
 package server
 
-import (
-	"strconv"
-	"strings"
-
-	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
-)
+import "go.uber.org/zap"
 
 func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *Envelope) {
-	userIds := envelope.GetUsersFetch().UserIds
-	if len(userIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))
-		return
-	}
+	f := envelope.GetUsersFetch()
 
-	statements := make([]string, 0)
-	params := make([]interface{}, 0)
+	var users []*User
+	var err error
 
-	counter := 1
-	for _, uid := range userIds {
-		userID, err := uuid.FromBytes(uid)
-		if err == nil {
-			statement := "$" + strconv.Itoa(counter)
-			counter += 1
-			statements = append(statements, statement)
-			params = append(params, userID.Bytes())
+	switch f.Set.(type) {
+	case *TUsersFetch_UserIds_:
+		userIds := envelope.GetUsersFetch().GetUserIds().UserIds
+		if len(userIds) == 0 {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))
+			return
 		}
+		users, err = UsersFetchIds(logger, p.db, userIds)
+	case TUsersFetch_Handles_:
+		handles := envelope.GetUsersFetch().GetHandles().Handles
+		if len(handles) == 0 {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))
+			return
+		}
+		users, err = UsersFetchHandle(logger, p.db, handles)
 	}
 
-	if len(statements) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No valid user IDs received"))
-		return
-	}
-
-	query := "WHERE users.id IN (" + strings.Join(statements, ", ") + ")"
-	users, err := p.querySocialGraph(logger, query, params)
-	if err != nil {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
-		return
-	}
-
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Users{Users: &TUsers{Users: users}}})
-}
-
-func (p *pipeline) usersFetchHandle(logger *zap.Logger, session *session, envelope *Envelope) {
-	handles := envelope.GetUsersFetchHandle().Handles
-	if len(handles) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))
-		return
-	}
-
-	users, err := UsersFetchHandle(logger, p.db, handles)
 	if err != nil {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
 		return
