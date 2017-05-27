@@ -24,93 +24,131 @@ import (
 	"go.uber.org/zap"
 )
 
-func fetchStorageData(r scanner) (*TStorageData_StorageData, error) {
-	var userID []byte
-	var bucket sql.NullString
-	var collection sql.NullString
-	var record sql.NullString
-	var value []byte
-	var version []byte
-	var read sql.NullInt64
-	var write sql.NullInt64
-	var createdAt sql.NullInt64
-	var updatedAt sql.NullInt64
-	var expiresAt sql.NullInt64
-
-	err := r.Scan(&userID, &bucket, &collection, &record,
-		&value, &version, &read, &write,
-		&createdAt, &updatedAt, &expiresAt)
-
-	if err != nil {
-		return &TStorageData_StorageData{}, err
-	}
-
-	return &TStorageData_StorageData{
-		Bucket:          bucket.String,
-		Collection:      collection.String,
-		Record:          record.String,
-		UserId:          userID,
-		Value:           value,
-		Version:         version,
-		PermissionRead:  read.Int64,
-		PermissionWrite: write.Int64,
-		CreatedAt:       createdAt.Int64,
-		UpdatedAt:       updatedAt.Int64,
-		ExpiresAt:       expiresAt.Int64,
-	}, nil
+type StorageKey struct {
+	Bucket     string `structs:"bucket,omitempty"`
+	Collection string `structs:"collection,omitempty"`
+	Record     string `structs:"record,omitempty"`
+	UserId     []byte `structs:"user_id,omitempty"`
+	// Version is used when returning results from write ops, does not apply to fetch ops.
+	Version []byte `structs:"version,omitempty"`
 }
 
-func StorageFetch(logger *zap.Logger, db *sql.DB, userID uuid.UUID, keys []*TStorageFetch_StorageKey) ([]*TStorageData_StorageData, error) {
-	//incoming := envelope.GetStorageFetch()
-	storageData := make([]*TStorageData_StorageData, 0)
+type StorageData struct {
+	Bucket          string
+	Collection      string
+	Record          string
+	UserId          []byte
+	Value           []byte
+	Version         []byte
+	PermissionRead  int64
+	PermissionWrite int64
+	CreatedAt       int64
+	UpdatedAt       int64
+	ExpiresAt       int64
+}
 
-	for _, key := range keys {
+func StorageFetch(logger *zap.Logger, db *sql.DB, caller uuid.UUID, keys []*StorageKey) ([]*StorageData, error) {
+	// Ensure there is at least one key requested.
+	if len(keys) == 0 {
+		return nil, errors.New("At least one fetch key is required")
+	}
+
+	query := `
+SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at
+FROM storage
+WHERE `
+	params := make([]interface{}, 0)
+
+	// Accumulate the query clauses and corresponding parameters.
+	for i, key := range keys {
 		if key.Bucket == "" || key.Collection == "" || key.Record == "" {
-			logger.Error("Invalid values for Bucket or Collection or Record")
-			return nil, errors.New("Invalid values for Bucket or Collection or Record")
+			return nil, errors.New("Invalid values for Bucket, Collection, or Record")
 		}
 
+		// If a user ID is provided, validate the format.
 		if len(key.UserId) != 0 {
-			forUserID, err := uuid.FromBytes(key.UserId)
-			if err != nil {
+			if _, err := uuid.FromBytes(key.UserId); err != nil {
 				return nil, errors.New("Invalid User ID")
 			}
+		}
 
-			if forUserID != userID {
-				logger.Error("Not allowed to fetch from storage of a different user")
-				return nil, errors.New("Not allowed to fetch from storage of a different user")
+		if i != 0 {
+			query += " OR "
+		}
+		l := len(params)
+		if len(key.UserId) == 0 {
+			// Global data.
+			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id IS NULL AND record = $%v AND deleted_at = 0)", l+1, l+2, l+3)
+			params = append(params, key.Bucket, key.Collection, key.Record)
+		} else {
+			// User-owned data.
+			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0)", l+1, l+2, l+3, l+4)
+			params = append(params, key.Bucket, key.Collection, key.UserId, key.Record)
+		}
+	}
+
+	// Execute the query.
+	rows, err := db.Query(query, params...)
+	if err != nil {
+		logger.Error("Error in storage fetch", zap.Error(err))
+		return nil, err
+	}
+
+	storageData := make([]*StorageData, 0)
+
+	// Parse the results.
+	for rows.Next() {
+		var userID []byte
+		var bucket sql.NullString
+		var collection sql.NullString
+		var record sql.NullString
+		var value []byte
+		var version []byte
+		var read sql.NullInt64
+		var write sql.NullInt64
+		var createdAt sql.NullInt64
+		var updatedAt sql.NullInt64
+		var expiresAt sql.NullInt64
+
+		err := rows.Scan(&userID, &bucket, &collection, &record, &value, &version,
+			&read, &write, &createdAt, &updatedAt, &expiresAt)
+		if err != nil {
+			logger.Error("Could not execute storage fetch query", zap.Error(err))
+			return nil, err
+		}
+
+		// Check permissions. Allowed if at least one of the following is true:
+		// 1. The caller is the script runtime.
+		// 2. The read permission is 1 (owner read) and the caller is the owner of the data.
+		// 3. The read permission is 2 (public read).
+		owner := uuid.FromBytesOrNil(userID)
+		if caller != uuid.Nil && (read.Int64 == 0 || (read.Int64 == 1 && caller != owner)) {
+			// Return a nicely formatted error.
+			if owner == uuid.Nil {
+				return nil, errors.New(fmt.Sprintf("Fetch permission denied for %v %v %v", bucket, collection, record))
+			} else {
+				return nil, errors.New(fmt.Sprintf("Fetch permission denied for %v %v %v %v", bucket, collection, record, owner.String()))
 			}
 		}
 
-		var row *sql.Row
-		if len(key.UserId) == 0 {
-			query := `
-SELECT user_id, bucket, collection, record,
-	value, version, read, write,
-	created_at, updated_at, expires_at
-FROM storage
-WHERE bucket = $1 AND collection = $2 AND record = $4 AND user_id IS NULL AND deleted_at = 0 AND read = 1`
-			row = db.QueryRow(query, key.Bucket, key.Collection, key.Record)
-		} else {
-			query := `
-SELECT user_id, bucket, collection, record,
-	value, version, read, write,
-	created_at, updated_at, expires_at
-FROM storage
-WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND deleted_at = 0 AND read = 1`
-			row = db.QueryRow(query, key.Bucket, key.Collection, userID.Bytes(), key.Record)
-		}
-
-		data, err := fetchStorageData(row)
-		if err != nil {
-			logger.Error("Could not fetch from storage",
-				zap.Error(err),
-				zap.String("bucket", key.Bucket),
-				zap.String("collection", key.Collection),
-				zap.String("record", key.Record))
-		} else {
-			storageData = append(storageData, data)
-		}
+		// Accumulate the response.
+		storageData = append(storageData, &StorageData{
+			Bucket:          bucket.String,
+			Collection:      collection.String,
+			Record:          record.String,
+			UserId:          userID,
+			Value:           value,
+			Version:         version,
+			PermissionRead:  read.Int64,
+			PermissionWrite: write.Int64,
+			CreatedAt:       createdAt.Int64,
+			UpdatedAt:       updatedAt.Int64,
+			ExpiresAt:       expiresAt.Int64,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Could not execute storage fetch query", zap.Error(err))
+		return nil, err
 	}
 
 	return storageData, nil

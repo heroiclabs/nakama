@@ -257,61 +257,57 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 }
 
 func (n *NakamaModule) storageFetch(l *lua.LState) int {
-	userIdString := l.CheckString(1)
-	userID, err := uuid.FromString(userIdString)
-	if err != nil {
-		l.ArgError(1, "Expects a valid user ID")
-		return 0
-	}
-	keysTable := l.CheckTable(2)
+	keysTable := l.CheckTable(1)
 	if keysTable == nil || keysTable.Len() == 0 {
-		l.ArgError(2, "Expects a valid set of keys")
+		l.ArgError(1, "Expects a valid set of keys")
 		return 0
 	}
 	keysRaw, ok := convertLuaValue(keysTable).([]map[string]interface{})
 	if !ok {
-		l.ArgError(2, "Expects a valid set of keys")
+		l.ArgError(1, "Expects a valid set of keys")
 		return 0
 	}
 
-	keys := make([]*TStorageFetch_StorageKey, len(keysRaw))
+	keys := make([]*StorageKey, len(keysRaw))
 	idx := 0
 	for _, k := range keysRaw {
-		var forUserID []byte
+		var userID []byte
 		if v, ok := k["user_id"]; ok {
 			vs, ok := v.(string)
 			if !ok {
-				l.ArgError(2, "Expects valid user IDs in each key, when provided")
+				l.ArgError(1, "Expects valid user IDs in each key, when provided")
 				return 0
 			}
 			uid, err := uuid.FromString(vs)
 			if err != nil {
-				l.ArgError(2, "Expects valid user IDs in each key, when provided")
+				l.ArgError(1, "Expects valid user IDs in each key, when provided")
 				return 0
 			}
-			forUserID = uid.Bytes()
+			userID = uid.Bytes()
 		}
 
-		keys[idx] = &TStorageFetch_StorageKey{
+		keys[idx] = &StorageKey{
 			Bucket:     k["bucket"].(string),
 			Collection: k["collection"].(string),
 			Record:     k["record"].(string),
-			UserId:     forUserID,
+			UserId:     userID,
 		}
 		idx++
 	}
 
-	values, err := StorageFetch(n.logger, n.db, userID, keys)
+	values, err := StorageFetch(n.logger, n.db, uuid.Nil, keys)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to fetch storage: %s", err.Error()))
 		return 0
 	}
 
-	//translate uuid to string bytes
 	lv := l.NewTable()
 	for i, v := range values {
-		uid, _ := uuid.FromBytes(v.UserId)
-		v.UserId = []byte(uid.String())
+		// Convert UUIDs to string representation if needed.
+		if len(v.UserId) != 0 {
+			uid, _ := uuid.FromBytes(v.UserId)
+			v.UserId = []byte(uid.String())
+		}
 		vm := structs.Map(v)
 		lv.RawSetInt(i, convertValue(l, vm))
 	}
