@@ -40,6 +40,7 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *En
 	}
 
 	if err != nil {
+		logger.Warn("Could not retrieve users", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
 		return
 	}
