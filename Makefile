@@ -66,6 +66,8 @@ $(PLATFORMS):
 		echo "  Packaged '${OUTDIR}-$@-${arch}'";\
 	)
 
+windows: BINNAME := $(BINNAME).exe
+
 .PHONY: relupload
 relupload: JQ := $(shell jq --version)
 relupload: TOKEN :=

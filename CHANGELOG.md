@@ -7,7 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Node status now also reports a startup timestamp.
 - New matchmaking feature.
-- Optionally send match data to only a subset of match participants.
+- Optionally send match data to a subset of match participants.
+
+### Changed
+- The build system now suffixes Windows binaries with `exe` extension.
 
 ### Fixed
 - Set correct initial group member count when group is created.
