@@ -200,10 +200,10 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 	case *TLeaderboardRecordWrite_Best:
 		if sortOrder == 0 {
 			// Lower score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $17::BIGINT - abs(leaderboard_record.score - $17::BIGINT)) / 2"
+			scoreOpSql = "score = ((leaderboard_record.score + $17::BIGINT - abs(leaderboard_record.score - $17::BIGINT)) / 2)::BIGINT"
 		} else {
 			// Higher score is better.
-			scoreOpSql = "score = (leaderboard_record.score + $17::BIGINT + abs(leaderboard_record.score - $17::BIGINT)) / 2"
+			scoreOpSql = "score = ((leaderboard_record.score + $17::BIGINT + abs(leaderboard_record.score - $17::BIGINT)) / 2)::BIGINT"
 		}
 		scoreDelta = incoming.GetBest()
 		scoreAbs = incoming.GetBest()

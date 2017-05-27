@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Set correct initial group member count when group is created.
 - Do not update group count when join requests are rejected.
+- Use correct type in leaderboard record write best operation.
 
 ## [0.12.2] - 2017-04-22
 ### Added
