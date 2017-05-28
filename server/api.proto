@@ -515,6 +515,15 @@ message MatchPresence {
   repeated UserPresence leaves = 3;
 }
 
+enum StoragePermissionRead {
+  NO_READ = 0;
+  OWNER_READ = 1;
+  PUBLIC_READ = 2;
+}
+enum StoragePermissionWrite {
+  NO_WRITE = 0;
+  OWNER_WRITE = 1;
+}
 message TStorageFetch {
   message StorageKey {
     string bucket = 1;
@@ -532,8 +541,8 @@ message TStorageData {
     bytes user_id = 4;
     bytes value = 5;
     bytes version = 6;
-    int64 permission_read = 7;
-    int64 permission_write = 8;
+    int32 permission_read = 7;
+    int32 permission_write = 8;
     int64 created_at = 9;
     int64 updated_at = 10;
     int64 expires_at = 11;
@@ -549,6 +558,8 @@ message TStorageWrite {
     string record = 3;
     bytes value = 4;
     bytes version = 5; // if-match and if-none-match
+    int32 permission_read = 6;
+    int32 permission_write = 7;
   }
 
   repeated StorageData data = 3;
