@@ -62,13 +62,12 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config 
 	})
 
 	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:      lua.OpenPackage,
-		lua.BaseLibName:      lua.OpenBase,
-		lua.TabLibName:       lua.OpenTable,
-		lua.StringLibName:    lua.OpenString,
-		lua.MathLibName:      lua.OpenMath,
-		lua.ChannelLibName:   lua.OpenChannel,
-		lua.CoroutineLibName: lua.OpenCoroutine,
+		lua.LoadLibName:   lua.OpenPackage,
+		lua.BaseLibName:   lua.OpenBase,
+		lua.TabLibName:    lua.OpenTable,
+		lua.OsLibName:     OpenOs,
+		lua.StringLibName: lua.OpenString,
+		lua.MathLibName:   lua.OpenMath,
 	}
 	for name, lib := range stdLibs {
 		vm.Push(vm.NewFunction(lib))
