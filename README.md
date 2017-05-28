@@ -2,7 +2,7 @@
 
 > Distributed server for social and realtime games and apps.
 
-### Features
+### Features
 
 * **Users** - Register/login new users via social networks, email, or device ID.
 * **Storage** - Store user records, settings, and other objects in collections.
