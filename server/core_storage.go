@@ -96,6 +96,7 @@ WHERE `
 		logger.Error("Error in storage fetch", zap.Error(err))
 		return nil, RUNTIME_EXCEPTION, err
 	}
+	defer rows.Close()
 
 	storageData := make([]*StorageData, 0)
 
