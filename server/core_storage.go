@@ -68,9 +68,12 @@ WHERE `
 		}
 
 		// If a user ID is provided, validate the format.
+		owner := []byte{}
 		if len(key.UserID) != 0 {
-			if _, err := uuid.FromBytes(key.UserID); err != nil {
+			if uid, err := uuid.FromBytes(key.UserID); err != nil {
 				return nil, BAD_INPUT, errors.New("Invalid user ID")
+			} else {
+				owner = uid.Bytes()
 			}
 		}
 
@@ -78,15 +81,8 @@ WHERE `
 			query += " OR "
 		}
 		l := len(params)
-		if len(key.UserID) == 0 {
-			// Global data.
-			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id IS NULL AND record = $%v AND deleted_at = 0", l+1, l+2, l+3)
-			params = append(params, key.Bucket, key.Collection, key.Record)
-		} else {
-			// User-owned data.
-			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
-			params = append(params, key.Bucket, key.Collection, key.UserID, key.Record)
-		}
+		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
+		params = append(params, key.Bucket, key.Collection, owner, key.Record)
 		if caller != uuid.Nil {
 			query += fmt.Sprintf(" AND (read = 2 OR (read = 1 AND user_id = $%v))", len(params)+1)
 			params = append(params, caller.Bytes())
@@ -122,6 +118,11 @@ WHERE `
 		if err != nil {
 			logger.Error("Could not execute storage fetch query", zap.Error(err))
 			return nil, RUNTIME_EXCEPTION, err
+		}
+
+		// Potentially coerce zero-length global owner field.
+		if len(userID) == 0 {
+			userID = nil
 		}
 
 		// Accumulate the response.
@@ -209,67 +210,42 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 		//sha := fmt.Sprintf("%x", sha256.Sum256(d.Value))
 		version := []byte(fmt.Sprintf("%x", sha256.Sum256(d.Value)))
 
-		var query string
-		var params []interface{}
-
-		// Determine if it's global or user-owned data.
-		if len(d.UserID) == 0 {
-			// Global data.
-			query = `
-INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
-SELECT $1, NULL, $2, $3, $4, $5::BYTEA, $6, $7, $8, $9, $9, 0`
-			params = []interface{}{id, d.Bucket, d.Collection, d.Record, d.Value, version, d.PermissionRead, d.PermissionWrite, ts}
-		} else {
-			// User-owned data.
-			query = `
-INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
-SELECT $1, $10, $2, $3, $4, $5::BYTEA, $6, $7, $8, $9, $9, 0`
-			params = []interface{}{id, d.Bucket, d.Collection, d.Record, d.Value, version, d.PermissionRead, d.PermissionWrite, ts, d.UserID}
+		// Check if it's global or user-owned data.
+		owner := []byte{}
+		if len(d.UserID) != 0 {
+			owner = d.UserID
 		}
+
+		query := `
+INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
+SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
+		params := []interface{}{id, owner, d.Bucket, d.Collection, d.Record, d.Value, version, d.PermissionRead, d.PermissionWrite, ts}
 
 		if len(d.Version) == 0 {
 			// Simple write.
-			if len(d.UserID) == 0 {
-				// Global data.
-				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id IS NULL AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0"
-			} else {
-				// User-owned data.
-				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $10 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0"
-			}
+			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0"
 			// If needed use an additional clause to enforce permissions.
 			if caller != uuid.Nil {
 				query += " AND write = 0"
 			}
 			query += `)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
-DO UPDATE SET value = $5::BYTEA, version = $6, read = $7, write = $8, updated_at = $9`
+DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at = $10`
 		} else if bytes.Equal(d.Version, []byte("*")) {
 			// if-none-match
-			if len(d.UserID) == 0 {
-				// Global data.
-				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id IS NULL AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0)"
-			} else {
-				// User-owned data.
-				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $10 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0)"
-			}
+			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
 			// No additional clause needed to enforce permissions.
 			// Any existing record, no matter its write permission, will cause this operation to be rejected.
 		} else {
 			// if-match
-			if len(d.UserID) == 0 {
-				// Global data.
-				query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id IS NULL AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0 AND version = $10"
-			} else {
-				// User-owned data.
-				query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $10 AND bucket = $2 AND collection = $3 AND record = $4 AND deleted_at = 0 AND version = $11"
-			}
+			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND version = $11"
 			// If needed use an additional clause to enforce permissions.
 			if caller != uuid.Nil {
 				query += " AND write = 1"
 			}
 			query += `)
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
-DO UPDATE SET value = $5::BYTEA, version = $6, read = $7, write = $8, updated_at = $9`
+DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at = $10`
 			params = append(params, d.Version)
 		}
 
@@ -329,9 +305,12 @@ WHERE `
 		}
 
 		// If a user ID is provided, validate the format.
+		owner := []byte{}
 		if len(key.UserID) != 0 {
-			if _, err := uuid.FromBytes(key.UserID); err != nil {
+			if uid, err := uuid.FromBytes(key.UserID); err != nil {
 				return BAD_INPUT, errors.New("Invalid user ID")
+			} else {
+				owner = uid.Bytes()
 			}
 		}
 
@@ -339,15 +318,8 @@ WHERE `
 			query += " OR "
 		}
 		l := len(params)
-		if len(key.UserID) == 0 {
-			// Global data.
-			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id IS NULL AND record = $%v AND deleted_at = 0", l+1, l+2, l+3)
-			params = append(params, key.Bucket, key.Collection, key.Record)
-		} else {
-			// User-owned data.
-			query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
-			params = append(params, key.Bucket, key.Collection, key.UserID, key.Record)
-		}
+		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
+		params = append(params, key.Bucket, key.Collection, owner, key.Record)
 		// Permission.
 		if caller != uuid.Nil {
 			query += fmt.Sprintf(" AND write = 1 AND user_id = $%v", len(params)+1)
