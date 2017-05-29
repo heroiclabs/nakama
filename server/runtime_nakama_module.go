@@ -265,15 +265,24 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 		l.ArgError(1, "Expects a valid set of keys")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]map[string]interface{})
+	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
 	if !ok {
-		l.ArgError(1, "Expects a valid set of keys")
+		l.ArgError(1, "Expects a valid set of data")
 		return 0
 	}
+	keyMap := make([]map[string]interface{}, 0)
+	for _, d := range keysRaw {
+		if m, ok := d.(map[string]interface{}); ok {
+			keyMap = append(keyMap, m)
+		} else {
+			l.ArgError(1, "Expects a valid set of data")
+			return 0
+		}
+	}
 
-	keys := make([]*StorageKey, len(keysRaw))
+	keys := make([]*StorageKey, len(keyMap))
 	idx := 0
-	for _, k := range keysRaw {
+	for _, k := range keyMap {
 		var userID []byte
 		if u, ok := k["user_id"]; ok {
 			if us, ok := u.(string); !ok {
@@ -325,15 +334,24 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		l.ArgError(1, "Expects a valid set of data")
 		return 0
 	}
-	dataRaw, ok := convertLuaValue(dataTable).([]map[string]interface{})
+	dataRaw, ok := convertLuaValue(dataTable).([]interface{})
 	if !ok {
 		l.ArgError(1, "Expects a valid set of data")
 		return 0
 	}
+	dataMap := make([]map[string]interface{}, 0)
+	for _, d := range dataRaw {
+		if m, ok := d.(map[string]interface{}); ok {
+			dataMap = append(dataMap, m)
+		} else {
+			l.ArgError(1, "Expects a valid set of data")
+			return 0
+		}
+	}
 
-	data := make([]*StorageData, len(dataRaw))
+	data := make([]*StorageData, len(dataMap))
 	idx := 0
-	for _, k := range dataRaw {
+	for _, k := range dataMap {
 		var userID []byte
 		if u, ok := k["user_id"]; ok {
 			if us, ok := u.(string); !ok {
@@ -352,6 +370,15 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		if v, ok := k["version"]; ok {
 			version = []byte(v.(string))
 		}
+
+		readPermission := int64(1)
+		writePermission := int64(1)
+		if r, ok := k["read"]; ok {
+			readPermission = r.(int64)
+		}
+		if w, ok := k["write"]; ok {
+			writePermission = w.(int64)
+		}
 		data[idx] = &StorageData{
 			Bucket:          k["bucket"].(string),
 			Collection:      k["collection"].(string),
@@ -359,8 +386,8 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 			UserID:          userID,
 			Value:           []byte(k["value"].(string)),
 			Version:         version,
-			PermissionRead:  k["read"].(int64),
-			PermissionWrite: k["write"].(int64),
+			PermissionRead:  readPermission,
+			PermissionWrite: writePermission,
 		}
 		idx++
 	}
@@ -387,15 +414,24 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 		l.ArgError(1, "Expects a valid set of keys")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]map[string]interface{})
+	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
 	if !ok {
-		l.ArgError(1, "Expects a valid set of keys")
+		l.ArgError(1, "Expects a valid set of data")
 		return 0
 	}
+	keyMap := make([]map[string]interface{}, 0)
+	for _, d := range keysRaw {
+		if m, ok := d.(map[string]interface{}); ok {
+			keyMap = append(keyMap, m)
+		} else {
+			l.ArgError(1, "Expects a valid set of data")
+			return 0
+		}
+	}
 
-	keys := make([]*StorageKey, len(keysRaw))
+	keys := make([]*StorageKey, len(keyMap))
 	idx := 0
-	for _, k := range keysRaw {
+	for _, k := range keyMap {
 		var userID []byte
 		if u, ok := k["user_id"]; ok {
 			if us, ok := u.(string); !ok {

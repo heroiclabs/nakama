@@ -472,3 +472,48 @@ nk.leaderboard_create(leaderboard_id, "desc", "0 0 * * 1", metadata, false)
 		t.Error(err)
 	}
 }
+
+func TestStorageWrite(t *testing.T) {
+	defer os.RemoveAll(DATA_PATH)
+	writeFile("storage_write.lua", `
+local nk = require("nakama")
+
+local new_records = {
+	{bucket = "mygame", collection = "settings", record = "a", user_id = nil, value = "{}"},
+	{bucket = "mygame", collection = "settings", record = "b", user_id = nil, value = "{}"},
+	{bucket = "mygame", collection = "settings", record = "c", user_id = nil, value = "{}"}
+}
+
+nk.storage_write(new_records)
+`)
+
+	setupDB()
+	r, err := newRuntime()
+	defer r.Stop()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestStorageFetch(t *testing.T) {
+	defer os.RemoveAll(DATA_PATH)
+	writeFile("storage_read.lua", `
+local record_keys = {
+  {bucket = "mygame", collection = "settings", record = "a", user_id = nil},
+  {bucket = "mygame", collection = "settings", record = "b", user_id = nil},
+  {bucket = "mygame", collection = "settings", record = "c", user_id = nil}
+}
+local records = nk.storage_fetch(record_keys)
+for i, r in ipairs(records)
+do
+  assert(r.value == "{}", "'r.value' must be '{}'")
+end
+`)
+
+	setupDB()
+	r, err := newRuntime()
+	defer r.Stop()
+	if err != nil {
+		t.Error(err)
+	}
+}

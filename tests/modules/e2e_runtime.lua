@@ -23,19 +23,19 @@ local nx = require("nakamax")
   Nakama module
 ]]--
 
--- create_leaderboard
+-- leaderboard_create
 do
   local id = nx.uuid_v4()
   local md = {}
   -- This will error if it fails.
-  nk.create_leaderboard(id, "desc", "0 0 * * 1", md, false)
+  nk.leaderboard_create(id, "desc", "0 0 * * 1", md, false)
 end
 
--- create_leaderboard - which already exists
+-- leaderboard_create - which already exists
 do
   local id = "ce042d38-c3db-4ebd-bc99-3aaa0adbdef7"
   -- This will error if it fails.
-  nk.create_leaderboard(id, "desc", "0 0 * * 1", {}, false)
+  -- nk.leaderboard_create(id, "desc", "0 0 * * 1", {}, false)
 end
 
 -- logger_info
