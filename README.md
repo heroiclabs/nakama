@@ -11,6 +11,7 @@
 * **Multiplayer** - Realtime, or turn-based active and passive multiplayer.
 * **Leaderboards** - Dynamic, seasonal, get top members, or members around a user. Have as many as you need.
 * **Runtime code** - Extend the server with custom logic written in Lua.
+* **Matchmaker**, **dashboard**, **metrics**, etc, etc.
 
 For more information have a look at the [documentation](https://heroiclabs.com/docs/) and for a quick list of build targets run `make help`.
 

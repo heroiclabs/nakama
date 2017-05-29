@@ -13,7 +13,7 @@
 # limitations under the License.
 
 BINNAME := nakama
-VERSION := 0.13.0-dev
+VERSION := 0.13.0
 BUILDDIR := build
 COMMITID := $(shell git rev-parse --short HEAD 2>/dev/null || echo nosha)
 DOCKERDIR := install/docker/nakama

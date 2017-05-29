@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.13.0] - 2017-05-29
 ### Added
 - Lua script runtime for custom code.
 - Node status now also reports a startup timestamp.
@@ -11,8 +11,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Optionally send match data to a subset of match participants.
 - Fetch users by handle.
 - Add friend by handle.
-- When listing leaderboards, optionally filter by ID.
-- Allow users to store publicly readable data.
+- Filter by IDs in leaderboard list message.
+- User storage messages can now set records with public read permission.
 
 ### Changed
 - The build system now suffixes Windows binaries with `exe` extension.
@@ -20,8 +20,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Set correct initial group member count when group is created.
 - Do not update group count when join requests are rejected.
-- Use correct type in leaderboard record write best operation.
-- Correctly store global storage data.
+- Use cast with leaderboard BEST score submissions due to new strictness in database type conversion.
+- Storage records can now correctly be marked with no owner (global).
 
 ## [0.12.2] - 2017-04-22
 ### Added
