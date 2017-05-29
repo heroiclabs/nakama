@@ -20,7 +20,7 @@ If you encounter any issues with the server you can generate diagnostics for us 
 
 Have a look at our [documentation](https://heroiclabs.com/docs/running-nakama/) for a full introduction on how to run Nakama in development and/or production.
 
-To start a server locally and bind it to all network interfaces once it's installed and on your path - `nakama`. The server output will show how it's been configured by default.
+To start a server locally and bind it to all network interfaces once it's installed and on your path - run `nakama`. The server output will show how it's been configured by default.
 
 ```
 $> nakama
