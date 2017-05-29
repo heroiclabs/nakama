@@ -497,7 +497,8 @@ nk.storage_write(new_records)
 
 func TestStorageFetch(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("storage_read.lua", `
+	writeFile("storage_fetch.lua", `
+local nk = require("nakama")
 local record_keys = {
   {bucket = "mygame", collection = "settings", record = "a", user_id = nil},
   {bucket = "mygame", collection = "settings", record = "b", user_id = nil},

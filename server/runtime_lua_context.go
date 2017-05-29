@@ -121,7 +121,7 @@ func convertValue(l *lua.LState, val interface{}) lua.LValue {
 	case []interface{}:
 		lt := l.NewTable()
 		for k, v := range v {
-			lt.RawSetInt(k, convertValue(l, v))
+			lt.RawSetInt(k+1, convertValue(l, v))
 		}
 		return lt
 	default:

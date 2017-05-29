@@ -21,31 +21,32 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 type StorageKey struct {
-	Bucket     string `structs:"bucket,omitempty"`
-	Collection string `structs:"collection,omitempty"`
-	Record     string `structs:"record,omitempty"`
-	UserID     []byte `structs:"user_id,omitempty"`
+	Bucket     string
+	Collection string
+	Record     string
+	UserId     []byte // this must be UserId not UserID
 	// Version is used when returning results from write ops, does not apply to fetch ops.
-	Version []byte `structs:"version,omitempty"`
+	Version []byte
 }
 
 type StorageData struct {
-	Bucket          string `structs:"bucket,omitempty"`
-	Collection      string `structs:"collection,omitempty"`
-	Record          string `structs:"record,omitempty"`
-	UserID          []byte `structs:"user_id,omitempty"`
-	Value           []byte `structs:"value,omitempty"`
-	Version         []byte `structs:"version,omitempty"`
-	PermissionRead  int64  `structs:"permission_read,omitempty"`
-	PermissionWrite int64  `structs:"permission_write,omitempty"`
-	CreatedAt       int64  `structs:"created_at,omitempty"`
-	UpdatedAt       int64  `structs:"updated_at,omitempty"`
-	ExpiresAt       int64  `structs:"expires_at,omitempty"`
+	Bucket          string
+	Collection      string
+	Record          string
+	UserId          []byte // this must be UserId not UserID
+	Value           []byte
+	Version         []byte
+	PermissionRead  int64
+	PermissionWrite int64
+	CreatedAt       int64
+	UpdatedAt       int64
+	ExpiresAt       int64
 }
 
 func StorageFetch(logger *zap.Logger, db *sql.DB, caller uuid.UUID, keys []*StorageKey) ([]*StorageData, Error_Code, error) {
@@ -69,8 +70,8 @@ WHERE `
 
 		// If a user ID is provided, validate the format.
 		owner := []byte{}
-		if len(key.UserID) != 0 {
-			if uid, err := uuid.FromBytes(key.UserID); err != nil {
+		if len(key.UserId) != 0 {
+			if uid, err := uuid.FromBytes(key.UserId); err != nil {
 				return nil, BAD_INPUT, errors.New("Invalid user ID")
 			} else {
 				owner = uid.Bytes()
@@ -131,7 +132,7 @@ WHERE `
 			Bucket:          bucket.String,
 			Collection:      collection.String,
 			Record:          record.String,
-			UserID:          userID,
+			UserId:          userID,
 			Value:           value,
 			Version:         version,
 			PermissionRead:  read.Int64,
@@ -173,8 +174,8 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 		}
 
 		// If a user ID is provided, validate the format.
-		if len(d.UserID) != 0 {
-			if uid, err := uuid.FromBytes(d.UserID); err != nil {
+		if len(d.UserId) != 0 {
+			if uid, err := uuid.FromBytes(d.UserId); err != nil {
 				return nil, BAD_INPUT, errors.New("Invalid user ID")
 			} else if caller != uid {
 				// If the caller is a client, only allow them to write their own data.
@@ -213,8 +214,8 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 
 		// Check if it's global or user-owned data.
 		owner := []byte{}
-		if len(d.UserID) != 0 {
-			owner = d.UserID
+		if len(d.UserId) != 0 {
+			owner = d.UserId
 		}
 
 		query := `
@@ -273,7 +274,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 			Bucket:     d.Bucket,
 			Collection: d.Collection,
 			Record:     d.Record,
-			UserID:     d.UserID,
+			UserId:     d.UserId,
 			Version:    version[:],
 		}
 	}
@@ -307,8 +308,8 @@ WHERE `
 
 		// If a user ID is provided, validate the format.
 		owner := []byte{}
-		if len(key.UserID) != 0 {
-			if uid, err := uuid.FromBytes(key.UserID); err != nil {
+		if len(key.UserId) != 0 {
+			if uid, err := uuid.FromBytes(key.UserId); err != nil {
 				return BAD_INPUT, errors.New("Invalid user ID")
 			} else {
 				owner = uid.Bytes()

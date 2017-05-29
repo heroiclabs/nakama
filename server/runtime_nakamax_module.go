@@ -16,14 +16,15 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/satori/go.uuid"
-	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/satori/go.uuid"
+	"github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
 )
 
 type NakamaxModule struct {
@@ -99,7 +100,7 @@ func (nx *NakamaxModule) httpRequest(l *lua.LState) int {
 	url := l.CheckString(1)
 	method := l.CheckString(2)
 	headers := l.CheckTable(3)
-	body := l.CheckString(4)
+	body := l.OptString(4, "")
 	if url == "" {
 		l.ArgError(1, "Expects URL string")
 		return 0

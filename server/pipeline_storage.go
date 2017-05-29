@@ -29,7 +29,7 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session *session, envelope *
 			Bucket:     key.Bucket,
 			Collection: key.Collection,
 			Record:     key.Record,
-			UserID:     key.UserId,
+			UserId:     key.UserId,
 		}
 	}
 
@@ -45,7 +45,7 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session *session, envelope *
 			Bucket:          d.Bucket,
 			Collection:      d.Collection,
 			Record:          d.Record,
-			UserId:          d.UserID,
+			UserId:          d.UserId,
 			Value:           d.Value,
 			Version:         d.Version,
 			PermissionRead:  int32(d.PermissionRead),
@@ -72,7 +72,7 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *
 			Bucket:          d.Bucket,
 			Collection:      d.Collection,
 			Record:          d.Record,
-			UserID:          session.userID.Bytes(),
+			UserId:          session.userID.Bytes(),
 			Value:           d.Value,
 			Version:         d.Version,
 			PermissionRead:  int64(d.PermissionRead),
@@ -112,7 +112,7 @@ func (p *pipeline) storageRemove(logger *zap.Logger, session *session, envelope 
 			Bucket:     key.Bucket,
 			Collection: key.Collection,
 			Record:     key.Record,
-			UserID:     session.userID.Bytes(),
+			UserId:     session.userID.Bytes(),
 			Version:    key.Version,
 		}
 	}

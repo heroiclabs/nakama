@@ -19,6 +19,29 @@ local nx = require("nakamax")
 
 -- NOTE You must preload datasets with "e2e_runtime.sql" before each run.
 
+function print_r(arr, indentLevel)
+  local str = ""
+  local indentStr = "#"
+
+  if(indentLevel == nil) then
+      print(print_r(arr, 0))
+      return
+  end
+
+  for i = 0, indentLevel do
+      indentStr = indentStr.."\t"
+  end
+
+  for index,value in pairs(arr) do
+      if type(value) == "table" then
+          str = str..indentStr..index..": \n"..print_r(value, (indentLevel + 1))
+      else 
+          str = str..indentStr..index..": "..value.."\n"
+      end
+  end
+  return str
+end
+
 --[[
   Nakama module
 ]]--
@@ -104,6 +127,7 @@ end
 do
   local user_handles = {"02ebb2c8"}
   local users = nk.user_fetch_handle(user_handles)
+  print_r(users)
   assert(#users == 1)
   assert(user_handles[1] == users[1].handle)
 end

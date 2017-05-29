@@ -215,7 +215,7 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i, convertValue(l, um))
+		lv.RawSetInt(i+1, convertValue(l, um))
 	}
 
 	l.Push(lv)
@@ -252,7 +252,7 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i, convertValue(l, um))
+		lv.RawSetInt(i+1, convertValue(l, um))
 	}
 
 	l.Push(lv)
@@ -284,7 +284,7 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 	idx := 0
 	for _, k := range keyMap {
 		var userID []byte
-		if u, ok := k["user_id"]; ok {
+		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "Expects valid user IDs in each key, when provided")
 				return 0
@@ -299,10 +299,10 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 		}
 
 		keys[idx] = &StorageKey{
-			Bucket:     k["bucket"].(string),
-			Collection: k["collection"].(string),
-			Record:     k["record"].(string),
-			UserID:     userID,
+			Bucket:     k["Bucket"].(string),
+			Collection: k["Collection"].(string),
+			Record:     k["Record"].(string),
+			UserId:     userID,
 		}
 		idx++
 	}
@@ -316,12 +316,12 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 	lv := l.NewTable()
 	for i, v := range values {
 		// Convert UUIDs to string representation if needed.
-		if len(v.UserID) != 0 {
-			uid, _ := uuid.FromBytes(v.UserID)
-			v.UserID = []byte(uid.String())
+		if len(v.UserId) != 0 {
+			uid, _ := uuid.FromBytes(v.UserId)
+			v.UserId = []byte(uid.String())
 		}
 		vm := structs.Map(v)
-		lv.RawSetInt(i, convertValue(l, vm))
+		lv.RawSetInt(i+1, convertValue(l, vm))
 	}
 
 	l.Push(lv)
@@ -353,7 +353,7 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	idx := 0
 	for _, k := range dataMap {
 		var userID []byte
-		if u, ok := k["user_id"]; ok {
+		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "Expects valid user IDs in each value, when provided")
 				return 0
@@ -367,24 +367,24 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 			}
 		}
 		var version []byte
-		if v, ok := k["version"]; ok {
+		if v, ok := k["Version"]; ok {
 			version = []byte(v.(string))
 		}
 
 		readPermission := int64(1)
 		writePermission := int64(1)
-		if r, ok := k["read"]; ok {
+		if r, ok := k["PermissionRead"]; ok {
 			readPermission = r.(int64)
 		}
-		if w, ok := k["write"]; ok {
+		if w, ok := k["PermissionWrite"]; ok {
 			writePermission = w.(int64)
 		}
 		data[idx] = &StorageData{
-			Bucket:          k["bucket"].(string),
-			Collection:      k["collection"].(string),
-			Record:          k["record"].(string),
-			UserID:          userID,
-			Value:           []byte(k["value"].(string)),
+			Bucket:          k["Bucket"].(string),
+			Collection:      k["Collection"].(string),
+			Record:          k["Record"].(string),
+			UserId:          userID,
+			Value:           []byte(k["Value"].(string)),
 			Version:         version,
 			PermissionRead:  readPermission,
 			PermissionWrite: writePermission,
@@ -401,7 +401,7 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	lv := l.NewTable()
 	for i, k := range keys {
 		km := structs.Map(k)
-		lv.RawSetInt(i, convertValue(l, km))
+		lv.RawSetInt(i+1, convertValue(l, km))
 	}
 
 	l.Push(lv)
@@ -433,7 +433,7 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 	idx := 0
 	for _, k := range keyMap {
 		var userID []byte
-		if u, ok := k["user_id"]; ok {
+		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "Expects valid user IDs in each key, when provided")
 				return 0
@@ -447,14 +447,14 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 			}
 		}
 		var version []byte
-		if v, ok := k["version"]; ok {
+		if v, ok := k["Version"]; ok {
 			version = []byte(v.(string))
 		}
 		keys[idx] = &StorageKey{
-			Bucket:     k["bucket"].(string),
-			Collection: k["collection"].(string),
-			Record:     k["record"].(string),
-			UserID:     userID,
+			Bucket:     k["Bucket"].(string),
+			Collection: k["Collection"].(string),
+			Record:     k["Record"].(string),
+			UserId:     userID,
 			Version:    version,
 		}
 		idx++
