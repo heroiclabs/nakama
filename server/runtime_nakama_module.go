@@ -320,12 +320,6 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 }
 
 func (n *NakamaModule) storageWrite(l *lua.LState) int {
-	//userIdString := l.CheckString(1)
-	//userID, err := uuid.FromString(userIdString)
-	//if err != nil {
-	//	l.ArgError(1, "Expects a valid user ID")
-	//	return 0
-	//}
 	dataTable := l.CheckTable(1)
 	if dataTable == nil || dataTable.Len() == 0 {
 		l.ArgError(1, "Expects a valid set of data")
