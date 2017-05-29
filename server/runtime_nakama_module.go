@@ -86,7 +86,8 @@ func (n *NakamaModule) loggerInfo(l *lua.LState) int {
 		return 0
 	}
 	n.logger.Info(message)
-	return 0
+	l.Push(lua.LString(message))
+	return 1
 }
 
 func (n *NakamaModule) loggerWarn(l *lua.LState) int {
@@ -96,7 +97,8 @@ func (n *NakamaModule) loggerWarn(l *lua.LState) int {
 		return 0
 	}
 	n.logger.Warn(message)
-	return 0
+	l.Push(lua.LString(message))
+	return 1
 }
 
 func (n *NakamaModule) loggerError(l *lua.LState) int {
@@ -106,7 +108,8 @@ func (n *NakamaModule) loggerError(l *lua.LState) int {
 		return 0
 	}
 	n.logger.Error(message)
-	return 0
+	l.Push(lua.LString(message))
+	return 1
 }
 
 func (n *NakamaModule) registerRPC(l *lua.LState) int {
@@ -295,7 +298,7 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 		idx++
 	}
 
-	values, err := StorageFetch(n.logger, n.db, uuid.Nil, keys)
+	values, _, err := StorageFetch(n.logger, n.db, uuid.Nil, keys)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to fetch storage: %s", err.Error()))
 		return 0
@@ -368,7 +371,7 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		idx++
 	}
 
-	keys, err := StorageWrite(n.logger, n.db, uuid.Nil, data)
+	keys, _, err := StorageWrite(n.logger, n.db, uuid.Nil, data)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage: %s", err.Error()))
 		return 0
@@ -427,7 +430,7 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 		idx++
 	}
 
-	if err := StorageRemove(n.logger, n.db, uuid.Nil, keys); err != nil {
+	if _, err := StorageRemove(n.logger, n.db, uuid.Nil, keys); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 	return 0
