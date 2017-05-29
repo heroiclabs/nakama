@@ -56,6 +56,17 @@ do
   assert(message == "\"ERROR logger.\"")
 end
 
+-- storage_write
+do
+  local new_records = {
+    {bucket = "mygame", collection = "settings", record = "a", user_id = nil, value = "{}"},
+    {bucket = "mygame", collection = "settings", record = "b", user_id = nil, value = "{}"},
+    {bucket = "mygame", collection = "settings", record = "c", user_id = nil, value = "{}"}
+  }
+  -- This will error if it fails.
+  nk.storage_write(new_records)
+end
+
 -- storage_fetch
 do
   local record_keys = {
@@ -64,17 +75,21 @@ do
     {bucket = "mygame", collection = "settings", record = "c", user_id = nil}
   }
   local records = nk.storage_fetch(record_keys)
-  -- FIXME
+  for i, r in ipairs(records)
+  do
+    assert(r.value == "{}", "'r.value' must be '{}'")
+  end
 end
 
 -- storage_remove
 do
-  -- TODO
-end
-
--- storage_write
-do
-  -- TODO
+  local record_keys = {
+    {bucket = "mygame", collection = "settings", record = "a", user_id = nil},
+    {bucket = "mygame", collection = "settings", record = "b", user_id = nil},
+    {bucket = "mygame", collection = "settings", record = "c", user_id = nil}
+  }
+  -- This will error if it fails.
+  nk.storage_remove(record_keys)
 end
 
 -- user_fetch_id
