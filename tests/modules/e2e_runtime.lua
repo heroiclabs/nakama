@@ -117,10 +117,10 @@ end
 
 -- user_fetch_id
 do
-  local UserIds = {"4c2ae592-b2a7-445e-98ec-697694478b1c"}
-  local users = nk.user_fetch_id(UserIds)
+  local user_ids = {"4c2ae592-b2a7-445e-98ec-697694478b1c"}
+  local users = nk.user_fetch_id(user_ids)
   assert(#users == 1)
-  assert(UserIds[1] == users[1].Id)
+  assert(user_ids[1] == users[1].Id)
 end
 
 -- user_fetch_handle
