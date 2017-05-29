@@ -1,7 +1,7 @@
 version: '3'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v1.0-rc.2
+    image: cockroachdb/cockroach:v1.0.1
     command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: always
     volumes:
@@ -35,7 +35,7 @@ services:
       - "7350:7350"
       - "7351:7351"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7351/v0/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7350/"]
       interval: 10s
       timeout: 5s
       retries: 5

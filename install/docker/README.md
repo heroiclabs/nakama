@@ -51,7 +51,7 @@ You can use the Makefile to build Docker images. These steps show a manual way t
    If you have updated the version number in the `Dockerfile` also update it in the command below:
 
    ```
-   docker build -t heroiclabs:nakama-<VERSION> nakama
+   docker build --build-arg version=<VERSION> -t heroiclabs:nakama-<VERSION> nakama
    ```
 
    This creates a new image for each version of Nakama.
