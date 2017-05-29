@@ -47,7 +47,7 @@ Nakama can be deployed to any cloud with Docker Cloud such as AWS, Google Cloud,
 
 ### Production deployments
 
-Nakama server uses cockroachdb as it's database server. You're responsible for the [uptime](https://en.wikipedia.org/wiki/Uptime), [replication](https://en.wikipedia.org/wiki/Replication_(computing)), [backups](https://en.wikipedia.org/wiki/Backup), logs, and upgrades of your data.
+Nakama server uses cockroachdb as its database server. You're responsible for the [uptime](https://en.wikipedia.org/wiki/Uptime), [replication](https://en.wikipedia.org/wiki/Replication_(computing)), [backups](https://en.wikipedia.org/wiki/Backup), logs, and upgrades of your data.
 
 You also need to update the Nakama server with every new release and configure the server to auto-scale. If you use our Docker releases follow along with the "latest" image tag and check for new releases once a month.
 
