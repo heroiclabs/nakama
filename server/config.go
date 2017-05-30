@@ -46,7 +46,7 @@ type config struct {
 	Transport *TransportConfig `yaml:"transport" json:"transport"`
 	Database  *DatabaseConfig  `yaml:"database" json:"database"`
 	Social    *SocialConfig    `yaml:"social" json:"social"`
-	Runtime   *RuntimeConfig   `yaml:"runtime" json"runtime"`
+	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
