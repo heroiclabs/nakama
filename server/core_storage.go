@@ -310,9 +310,15 @@ WHERE `
 		if len(key.UserId) != 0 {
 			if uid, err := uuid.FromBytes(key.UserId); err != nil {
 				return BAD_INPUT, errors.New("Invalid user ID")
+			} else if caller != uuid.Nil && caller != uid {
+				// If the caller is a client, only allow them to write their own data.
+				return BAD_INPUT, errors.New("Clients can only remove their own data")
 			} else {
 				owner = uid.Bytes()
 			}
+		} else if caller != uuid.Nil {
+			// If the caller is a client, do not allow them to write global data.
+			return BAD_INPUT, errors.New("Clients cannot remove global data")
 		}
 
 		if i != 0 {
