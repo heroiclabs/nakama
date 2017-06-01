@@ -1,5 +1,5 @@
-hash: eaca7acd10cdfdd13ddd0fcf302c626a8b7a450c13970abbbd1fac319f02c2ad
-updated: 2017-05-24T13:55:34.751285113+01:00
+hash: 26c638eb537a5d88ad12fffd9cb17d69b70548e20db7938623830c129947b1e6
+updated: 2017-05-31T23:22:05.612667488+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -70,4 +70,6 @@ imports:
   - context
 - name: gopkg.in/gorp.v1
   version: c87af80f3cc5036b55b83d77171e156791085e2e
-testImports: []
+testImports:
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0

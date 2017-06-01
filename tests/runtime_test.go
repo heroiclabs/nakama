@@ -1,3 +1,17 @@
+// Copyright 2017 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tests
 
 import (
@@ -15,10 +29,6 @@ import (
 
 	"reflect"
 
-	"database/sql"
-	"fmt"
-	"net/url"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -26,15 +36,11 @@ import (
 
 const DATA_PATH = "/tmp/nakama/data/"
 
-var db *sql.DB
-
-func setupDB() {
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", "root@localhost:26257/nakama")
-	url, _ := url.Parse(rawurl)
-	db, _ = sql.Open("postgres", url.String())
-}
-
 func newRuntime() (*server.Runtime, error) {
+	db, err := setupDB()
+	if err != nil {
+		return nil, err
+	}
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 	return server.NewRuntime(logger, logger, db, server.NewRuntimeConfig(DATA_PATH))
 }
@@ -224,7 +230,7 @@ func TestRuntimeRegisterHTTP(t *testing.T) {
 	writeFile("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_http(test.printWorld, "/test/helloworld")
+nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
 	r, err := newRuntime()
@@ -233,7 +239,7 @@ nakama.register_http(test.printWorld, "/test/helloworld")
 		t.Error(err)
 	}
 
-	fn := r.GetRuntimeCallback(server.HTTP, "/test/helloworld")
+	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	m, err := r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
 	if err != nil {
 		t.Error(err)
@@ -260,7 +266,7 @@ return test
 	writeFile("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_http(test.printWorld, "/test/helloworld")
+nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
 	r, err := newRuntime()
@@ -269,7 +275,7 @@ nakama.register_http(test.printWorld, "/test/helloworld")
 		t.Error(err)
 	}
 
-	fn := r.GetRuntimeCallback(server.HTTP, "/test/helloworld")
+	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	_, err = r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
 	if err != nil {
 		t.Error(err)
@@ -293,7 +299,7 @@ return test
 	writeFile("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_http(test.printWorld, "/test/helloworld")
+nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
 	r, err := newRuntime()
@@ -302,7 +308,7 @@ nakama.register_http(test.printWorld, "/test/helloworld")
 		t.Error(err)
 	}
 
-	fn := r.GetRuntimeCallback(server.HTTP, "/test/helloworld")
+	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	payload := make(map[string]interface{})
 	payload["message"] = "Hello World"
 
@@ -479,9 +485,9 @@ func TestStorageWrite(t *testing.T) {
 local nk = require("nakama")
 
 local new_records = {
-	{bucket = "mygame", collection = "settings", record = "a", user_id = nil, value = "{}"},
-	{bucket = "mygame", collection = "settings", record = "b", user_id = nil, value = "{}"},
-	{bucket = "mygame", collection = "settings", record = "c", user_id = nil, value = "{}"}
+	{Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil, Value = "{}"},
+	{Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil, Value = "{}"},
+	{Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil, Value = "{}"}
 }
 
 nk.storage_write(new_records)
@@ -500,14 +506,14 @@ func TestStorageFetch(t *testing.T) {
 	writeFile("storage_fetch.lua", `
 local nk = require("nakama")
 local record_keys = {
-  {bucket = "mygame", collection = "settings", record = "a", user_id = nil},
-  {bucket = "mygame", collection = "settings", record = "b", user_id = nil},
-  {bucket = "mygame", collection = "settings", record = "c", user_id = nil}
+  {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil},
+  {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil},
+  {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil}
 }
 local records = nk.storage_fetch(record_keys)
 for i, r in ipairs(records)
 do
-  assert(r.value == "{}", "'r.value' must be '{}'")
+  assert(r.Value == "{}", "'r.Value' must be '{}'")
 end
 `)
 
