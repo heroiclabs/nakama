@@ -374,10 +374,10 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		readPermission := int64(1)
 		writePermission := int64(1)
 		if r, ok := k["PermissionRead"]; ok {
-			readPermission = r.(int64)
+			readPermission = int64(r.(float64))
 		}
 		if w, ok := k["PermissionWrite"]; ok {
-			writePermission = w.(int64)
+			writePermission = int64(w.(float64))
 		}
 		data[idx] = &StorageData{
 			Bucket:          k["Bucket"].(string),

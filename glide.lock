@@ -1,5 +1,5 @@
 hash: 26c638eb537a5d88ad12fffd9cb17d69b70548e20db7938623830c129947b1e6
-updated: 2017-05-31T23:22:05.612667488+01:00
+updated: 2017-06-01T13:50:10.856331595+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -73,3 +73,5 @@ imports:
 testImports:
 - name: github.com/stretchr/testify
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
