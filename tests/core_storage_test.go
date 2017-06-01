@@ -53,11 +53,13 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
+	record := generateRecord()
+
 	data := []*server.StorageData{
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          record,
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -74,6 +76,27 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 	assert.Equal(t, data[0].Record, keys[0].Record, "record did not match")
 	assert.Nil(t, keys[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[0].Value))), keys[0].Version, "version did not match")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record,
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uuid.Nil, keys)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 1")
+	assert.Equal(t, keys[0].Bucket, data[0].Bucket, "bucket did not match")
+	assert.Equal(t, keys[0].Collection, data[0].Collection, "collection did not match")
+	assert.Equal(t, keys[0].Record, data[0].Record, "record did not match")
+	assert.Nil(t, data[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[0].Value))), data[0].Version, "version did not match")
+	assert.Equal(t, int64(2), data[0].PermissionRead, "permission read did not match")
+	assert.Equal(t, int64(1), data[0].PermissionWrite, "permission write did not match")
 }
 
 func TestStorageWriteRuntimeGlobalMultiple(t *testing.T) {
@@ -2424,4 +2447,197 @@ func TestStorageRemoveRuntimeUserMultipleMixed(t *testing.T) {
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, 0, int(code), "code did not match")
+}
+
+func TestStorageRemoveRuntimeUserMultipleIfMatchFail(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
+
+	record1 := generateRecord()
+	record2 := generateRecord()
+	uid := uuid.NewV4()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          record1,
+			UserId:          uid.Bytes(),
+			Value:           []byte("{\"foo\":\"bar\"}"),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          record2,
+			UserId:          uid.Bytes(),
+			Value:           []byte("{\"foo\":\"baz\"}"),
+			PermissionRead:  1,
+			PermissionWrite: 0,
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "keys was nil")
+	assert.Len(t, keys, 2, "keys length was not 2")
+	assert.Equal(t, data[0].Bucket, keys[0].Bucket, "bucket 0 did not match")
+	assert.Equal(t, data[0].Collection, keys[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[0].Record, keys[0].Record, "record 0 did not match")
+	assert.EqualValues(t, data[0].UserId, keys[0].UserId, "user id 0 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[0].Value))), keys[0].Version, "version 0 did not match")
+	assert.Equal(t, data[1].Bucket, keys[1].Bucket, "bucket 1 did not match")
+	assert.Equal(t, data[1].Collection, keys[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[1].Record, keys[1].Record, "record 1 did not match")
+	assert.EqualValues(t, data[1].UserId, keys[1].UserId, "user id 1 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), keys[1].Version, "version 1 did not match")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record1,
+			UserId:     uid.Bytes(),
+		},
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record2,
+			UserId:     uid.Bytes(),
+			Version:    []byte("fail"),
+		},
+	}
+	code, err = server.StorageRemove(logger, db, uuid.Nil, keys)
+
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
+	assert.Equal(t, "Storage remove rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record1,
+			UserId:     uid.Bytes(),
+		},
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record2,
+			UserId:     uid.Bytes(),
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uuid.Nil, keys)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 2, "data length was not 2")
+	assert.Equal(t, data[0].Bucket, keys[0].Bucket, "bucket 0 did not match")
+	assert.Equal(t, data[0].Collection, keys[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[0].Record, keys[0].Record, "record 0 did not match")
+	assert.EqualValues(t, data[0].UserId, keys[0].UserId, "user id 0 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[0].Value))), data[0].Version, "version 0 did not match")
+	assert.Equal(t, data[1].Bucket, keys[1].Bucket, "bucket 1 did not match")
+	assert.Equal(t, data[1].Collection, keys[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[1].Record, keys[1].Record, "record 1 did not match")
+	assert.EqualValues(t, data[1].UserId, keys[1].UserId, "user id 1 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), data[1].Version, "version 1 did not match")
+}
+
+func TestStorageRemoveRuntimeUserMultipleIfMatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
+
+	record1 := generateRecord()
+	record2 := generateRecord()
+	uid := uuid.NewV4()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          record1,
+			UserId:          uid.Bytes(),
+			Value:           []byte("{\"foo\":\"bar\"}"),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          record2,
+			UserId:          uid.Bytes(),
+			Value:           []byte("{\"foo\":\"baz\"}"),
+			PermissionRead:  1,
+			PermissionWrite: 0,
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "keys was nil")
+	assert.Len(t, keys, 2, "keys length was not 2")
+	assert.Equal(t, data[0].Bucket, keys[0].Bucket, "bucket 0 did not match")
+	assert.Equal(t, data[0].Collection, keys[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[0].Record, keys[0].Record, "record 0 did not match")
+	assert.EqualValues(t, data[0].UserId, keys[0].UserId, "user id 0 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[0].Value))), keys[0].Version, "version 0 did not match")
+	assert.Equal(t, data[1].Bucket, keys[1].Bucket, "bucket 1 did not match")
+	assert.Equal(t, data[1].Collection, keys[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[1].Record, keys[1].Record, "record 1 did not match")
+	assert.EqualValues(t, data[1].UserId, keys[1].UserId, "user id 1 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), keys[1].Version, "version 1 did not match")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record1,
+			UserId:     uid.Bytes(),
+		},
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record2,
+			UserId:     uid.Bytes(),
+			Version:    keys[1].Version,
+		},
+	}
+	code, err = server.StorageRemove(logger, db, uuid.Nil, keys)
+
+	assert.Nil(t, err, "err was nil")
+	assert.Equal(t, 0, int(code), "code did not match")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record1,
+			UserId:     uid.Bytes(),
+		},
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: "testcollection",
+			Record:     record2,
+			UserId:     uid.Bytes(),
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uuid.Nil, keys)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 0, "data length was not 0")
 }
