@@ -21,6 +21,18 @@ local nx = require("nakamax")
 local user = "4c2ae592-b2a7-445e-98ec-697694478b1c"
 
 function test_storage(user_id)
+  -- bad storage_write
+  do
+    local new_Records = {
+      {Bucket = 1, Collection = "settings", Record = "a", UserId = user_id, Value = "{}", PermissionRead = 0, PermissionWrite = 0}
+    }
+    local status, res = pcall(nk.storage_write, new_Records)
+    assert(status == false)
+    -- before this in the error message is the file path, name, and line number.
+    local expected_message = ": bad argument #1 to (anonymous) (bucket must be a string)"
+    assert(string.sub(res,-string.len(expected_message)) == expected_message)
+  end
+
   -- storage_write
   do
     local new_Records = {
