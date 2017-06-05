@@ -79,42 +79,6 @@ do
   assert(message == "\"ERROR logger.\"")
 end
 
--- storage_write
-do
-  local new_Records = {
-    {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil, Value = "{}"},
-    {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil, Value = "{}"},
-    {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil, Value = "{}"}
-  }
-  -- This will error if it fails.
-  nk.storage_write(new_Records)
-end
-
--- storage_fetch
-do
-  local Record_keys = {
-    {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil},
-    {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil},
-    {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil}
-  }
-  local Records = nk.storage_fetch(Record_keys)
-  for i, r in ipairs(Records)
-  do
-    assert(r.Value == "{}", "'r.Value' must be '{}'")
-  end
-end
-
--- storage_remove
-do
-  local Record_keys = {
-    {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil},
-    {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil},
-    {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil}
-  }
-  -- This will error if it fails.
-  nk.storage_remove(Record_keys)
-end
-
 -- user_fetch_id
 do
   local user_ids = {"4c2ae592-b2a7-445e-98ec-697694478b1c"}

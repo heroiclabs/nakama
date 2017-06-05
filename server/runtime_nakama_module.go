@@ -195,12 +195,17 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 
 	userIdBytes := make([][]byte, 0)
 	for _, id := range userIds {
-		uid, err := uuid.FromString(id.(string))
-		if err != nil {
-			l.ArgError(1, "invalid user id")
+		if ids, ok := id.(string); !ok {
+			l.ArgError(1, "each user id must be a string")
 			return 0
+		} else {
+			if uid, err := uuid.FromString(ids); err != nil {
+				l.ArgError(1, "invalid user id")
+				return 0
+			} else {
+				userIdBytes = append(userIdBytes, uid.Bytes())
+			}
 		}
-		userIdBytes = append(userIdBytes, uid.Bytes())
 	}
 
 	users, err := UsersFetchIds(n.logger, n.db, userIdBytes)
@@ -262,46 +267,82 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 func (n *NakamaModule) storageFetch(l *lua.LState) int {
 	keysTable := l.CheckTable(1)
 	if keysTable == nil || keysTable.Len() == 0 {
-		l.ArgError(1, "Expects a valid set of keys")
+		l.ArgError(1, "expects a valid set of keys")
 		return 0
 	}
 	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
 	if !ok {
-		l.ArgError(1, "Expects a valid set of data")
+		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
 	keyMap := make([]map[string]interface{}, 0)
 	for _, d := range keysRaw {
-		if m, ok := d.(map[string]interface{}); ok {
-			keyMap = append(keyMap, m)
-		} else {
-			l.ArgError(1, "Expects a valid set of data")
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of data")
 			return 0
+		} else {
+			keyMap = append(keyMap, m)
 		}
 	}
 
 	keys := make([]*StorageKey, len(keyMap))
 	idx := 0
 	for _, k := range keyMap {
+		var bucket string
+		if b, ok := k["Bucket"]; !ok {
+			l.ArgError(1, "expects a bucket in each key")
+			return 0
+		} else {
+			if bs, ok := b.(string); !ok {
+				l.ArgError(1, "bucket must be a string")
+				return 0
+			} else {
+				bucket = bs
+			}
+		}
+		var collection string
+		if c, ok := k["Collection"]; !ok {
+			l.ArgError(1, "expects a collection in each key")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(1, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
+			}
+		}
+		var record string
+		if r, ok := k["Record"]; !ok {
+			l.ArgError(1, "expects a record in each key")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(1, "record must be a string")
+				return 0
+			} else {
+				record = rs
+			}
+		}
 		var userID []byte
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
-				l.ArgError(1, "Expects valid user IDs in each key, when provided")
+				l.ArgError(1, "expects valid user IDs in each key, when provided")
 				return 0
 			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(1, "Expects valid user IDs in each key, when provided")
+				if uid, err := uuid.FromString(us); err != nil {
+					l.ArgError(1, "expects valid user IDs in each key, when provided")
 					return 0
+				} else {
+					userID = uid.Bytes()
 				}
-				userID = uid.Bytes()
 			}
 		}
 
 		keys[idx] = &StorageKey{
-			Bucket:     k["Bucket"].(string),
-			Collection: k["Collection"].(string),
-			Record:     k["Record"].(string),
+			Bucket:     bucket,
+			Collection: collection,
+			Record:     record,
 			UserId:     userID,
 		}
 		idx++
@@ -331,36 +372,84 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	dataTable := l.CheckTable(1)
 	if dataTable == nil || dataTable.Len() == 0 {
-		l.ArgError(1, "Expects a valid set of data")
+		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
 	dataRaw, ok := convertLuaValue(dataTable).([]interface{})
 	if !ok {
-		l.ArgError(1, "Expects a valid set of data")
+		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
 	dataMap := make([]map[string]interface{}, 0)
 	for _, d := range dataRaw {
-		if m, ok := d.(map[string]interface{}); ok {
-			dataMap = append(dataMap, m)
-		} else {
-			l.ArgError(1, "Expects a valid set of data")
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of data")
 			return 0
+		} else {
+			dataMap = append(dataMap, m)
 		}
 	}
 
 	data := make([]*StorageData, len(dataMap))
 	idx := 0
 	for _, k := range dataMap {
+		var bucket string
+		if b, ok := k["Bucket"]; !ok {
+			l.ArgError(1, "expects a bucket in each key")
+			return 0
+		} else {
+			if bs, ok := b.(string); !ok {
+				l.ArgError(1, "bucket must be a string")
+				return 0
+			} else {
+				bucket = bs
+			}
+		}
+		var collection string
+		if c, ok := k["Collection"]; !ok {
+			l.ArgError(1, "expects a collection in each key")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(1, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
+			}
+		}
+		var record string
+		if r, ok := k["Record"]; !ok {
+			l.ArgError(1, "expects a record in each key")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(1, "record must be a string")
+				return 0
+			} else {
+				record = rs
+			}
+		}
+		var value []byte
+		if v, ok := k["Value"]; !ok {
+			l.ArgError(1, "expects a value in each key")
+			return 0
+		} else {
+			if vs, ok := v.(string); !ok {
+				l.ArgError(1, "value must be a string")
+				return 0
+			} else {
+				value = []byte(vs)
+			}
+		}
 		var userID []byte
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
-				l.ArgError(1, "Expects valid user IDs in each value, when provided")
+				l.ArgError(1, "expects valid user IDs in each value, when provided")
 				return 0
 			} else {
 				uid, err := uuid.FromString(us)
 				if err != nil {
-					l.ArgError(1, "Expects valid user IDs in each value, when provided")
+					l.ArgError(1, "expects valid user IDs in each value, when provided")
 					return 0
 				}
 				userID = uid.Bytes()
@@ -368,23 +457,38 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		}
 		var version []byte
 		if v, ok := k["Version"]; ok {
-			version = []byte(v.(string))
+			if vs, ok := v.(string); !ok {
+				l.ArgError(1, "version must be a string")
+				return 0
+			} else {
+				version = []byte(vs)
+			}
+		}
+		readPermission := int64(1)
+		if r, ok := k["PermissionRead"]; ok {
+			if rf, ok := r.(float64); !ok {
+				l.ArgError(1, "permission read must be a number")
+				return 0
+			} else {
+				readPermission = int64(rf)
+			}
+		}
+		writePermission := int64(1)
+		if w, ok := k["PermissionWrite"]; ok {
+			if wf, ok := w.(float64); !ok {
+				l.ArgError(1, "permission read must be a number")
+				return 0
+			} else {
+				writePermission = int64(wf)
+			}
 		}
 
-		readPermission := int64(1)
-		writePermission := int64(1)
-		if r, ok := k["PermissionRead"]; ok {
-			readPermission = r.(int64)
-		}
-		if w, ok := k["PermissionWrite"]; ok {
-			writePermission = w.(int64)
-		}
 		data[idx] = &StorageData{
-			Bucket:          k["Bucket"].(string),
-			Collection:      k["Collection"].(string),
-			Record:          k["Record"].(string),
+			Bucket:          bucket,
+			Collection:      collection,
+			Record:          record,
 			UserId:          userID,
-			Value:           []byte(k["Value"].(string)),
+			Value:           value,
 			Version:         version,
 			PermissionRead:  readPermission,
 			PermissionWrite: writePermission,
@@ -411,36 +515,72 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 func (n *NakamaModule) storageRemove(l *lua.LState) int {
 	keysTable := l.CheckTable(1)
 	if keysTable == nil || keysTable.Len() == 0 {
-		l.ArgError(1, "Expects a valid set of keys")
+		l.ArgError(1, "expects a valid set of keys")
 		return 0
 	}
 	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
 	if !ok {
-		l.ArgError(1, "Expects a valid set of data")
+		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
 	keyMap := make([]map[string]interface{}, 0)
 	for _, d := range keysRaw {
-		if m, ok := d.(map[string]interface{}); ok {
-			keyMap = append(keyMap, m)
-		} else {
-			l.ArgError(1, "Expects a valid set of data")
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of data")
 			return 0
+		} else {
+			keyMap = append(keyMap, m)
 		}
 	}
 
 	keys := make([]*StorageKey, len(keyMap))
 	idx := 0
 	for _, k := range keyMap {
+		var bucket string
+		if b, ok := k["Bucket"]; !ok {
+			l.ArgError(1, "expects a bucket in each key")
+			return 0
+		} else {
+			if bs, ok := b.(string); !ok {
+				l.ArgError(1, "bucket must be a string")
+				return 0
+			} else {
+				bucket = bs
+			}
+		}
+		var collection string
+		if c, ok := k["Collection"]; !ok {
+			l.ArgError(1, "expects a collection in each key")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(1, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
+			}
+		}
+		var record string
+		if r, ok := k["Record"]; !ok {
+			l.ArgError(1, "expects a record in each key")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(1, "record must be a string")
+				return 0
+			} else {
+				record = rs
+			}
+		}
 		var userID []byte
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
-				l.ArgError(1, "Expects valid user IDs in each key, when provided")
+				l.ArgError(1, "expects valid user IDs in each key, when provided")
 				return 0
 			} else {
 				uid, err := uuid.FromString(us)
 				if err != nil {
-					l.ArgError(1, "Expects valid user IDs in each key, when provided")
+					l.ArgError(1, "expects valid user IDs in each key, when provided")
 					return 0
 				}
 				userID = uid.Bytes()
@@ -448,12 +588,17 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 		}
 		var version []byte
 		if v, ok := k["Version"]; ok {
-			version = []byte(v.(string))
+			if vs, ok := v.(string); !ok {
+				l.ArgError(1, "version must be a string")
+				return 0
+			} else {
+				version = []byte(vs)
+			}
 		}
 		keys[idx] = &StorageKey{
-			Bucket:     k["Bucket"].(string),
-			Collection: k["Collection"].(string),
-			Record:     k["Record"].(string),
+			Bucket:     bucket,
+			Collection: collection,
+			Record:     record,
 			UserId:     userID,
 			Version:    version,
 		}

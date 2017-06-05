@@ -94,9 +94,12 @@ relupload: proto dashboard migration $(PLATFORMS)
 vet:
 	go vet ${GOFLAGS} ${LDFLAGS}
 
+.PHONY: suite
+suite: dbstart dbreset dbsetup test dbstop
+
 .PHONY: test
 test:
-	@echo "Not yet implemented"
+	go test ./tests
 
 .PHONY: run
 run: GOFLAGS := -race

@@ -177,13 +177,13 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 		if len(d.UserId) != 0 {
 			if uid, err := uuid.FromBytes(d.UserId); err != nil {
 				return nil, BAD_INPUT, errors.New("Invalid user ID")
-			} else if caller != uid {
+			} else if caller != uuid.Nil && caller != uid {
 				// If the caller is a client, only allow them to write their own data.
-				return nil, BAD_INPUT, errors.New("Clients can only write their own data")
+				return nil, BAD_INPUT, errors.New("A client can only write their own records")
 			}
 		} else if caller != uuid.Nil {
 			// If the caller is a client, do not allow them to write global data.
-			return nil, BAD_INPUT, errors.New("Clients cannot write global data")
+			return nil, BAD_INPUT, errors.New("A client cannot write global records")
 		}
 
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
@@ -225,12 +225,11 @@ SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
 
 		if len(d.Version) == 0 {
 			// Simple write.
-			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0"
 			// If needed use an additional clause to enforce permissions.
 			if caller != uuid.Nil {
-				query += " AND write = 0"
+				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND write = 0)"
 			}
-			query += `)
+			query += `
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at = $10`
 		} else if bytes.Equal(d.Version, []byte("*")) {
@@ -311,9 +310,15 @@ WHERE `
 		if len(key.UserId) != 0 {
 			if uid, err := uuid.FromBytes(key.UserId); err != nil {
 				return BAD_INPUT, errors.New("Invalid user ID")
+			} else if caller != uuid.Nil && caller != uid {
+				// If the caller is a client, only allow them to write their own data.
+				return BAD_INPUT, errors.New("A client can only remove their own records")
 			} else {
 				owner = uid.Bytes()
 			}
+		} else if caller != uuid.Nil {
+			// If the caller is a client, do not allow them to write global data.
+			return BAD_INPUT, errors.New("A client cannot remove global records")
 		}
 
 		if i != 0 {
