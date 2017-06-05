@@ -179,11 +179,11 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 				return nil, BAD_INPUT, errors.New("Invalid user ID")
 			} else if caller != uuid.Nil && caller != uid {
 				// If the caller is a client, only allow them to write their own data.
-				return nil, BAD_INPUT, errors.New("Clients can only write their own data")
+				return nil, BAD_INPUT, errors.New("A client can only write their own records")
 			}
 		} else if caller != uuid.Nil {
 			// If the caller is a client, do not allow them to write global data.
-			return nil, BAD_INPUT, errors.New("Clients cannot write global data")
+			return nil, BAD_INPUT, errors.New("A client cannot write global records")
 		}
 
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
@@ -312,13 +312,13 @@ WHERE `
 				return BAD_INPUT, errors.New("Invalid user ID")
 			} else if caller != uuid.Nil && caller != uid {
 				// If the caller is a client, only allow them to write their own data.
-				return BAD_INPUT, errors.New("Clients can only remove their own data")
+				return BAD_INPUT, errors.New("A client can only remove their own records")
 			} else {
 				owner = uid.Bytes()
 			}
 		} else if caller != uuid.Nil {
 			// If the caller is a client, do not allow them to write global data.
-			return BAD_INPUT, errors.New("Clients cannot remove global data")
+			return BAD_INPUT, errors.New("A client cannot remove global records")
 		}
 
 		if i != 0 {
