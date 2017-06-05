@@ -488,7 +488,7 @@ func TestStorageWritePipelineSingleGlobalNotAllowed(t *testing.T) {
 	assert.Nil(t, keys, "keys was not nil")
 	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Clients cannot write global data", err.Error(), "error message did not match")
+	assert.Equal(t, "A client cannot write global records", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelineSingleOtherClientNotAllowed(t *testing.T) {
@@ -515,7 +515,7 @@ func TestStorageWritePipelineSingleOtherClientNotAllowed(t *testing.T) {
 	assert.Nil(t, keys, "keys was not nil")
 	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Clients can only write their own data", err.Error(), "error message did not match")
+	assert.Equal(t, "A client can only write their own records", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelineUserSingle(t *testing.T) {
@@ -1864,7 +1864,7 @@ func TestStorageRemovePipelineGlobalRejected(t *testing.T) {
 
 	assert.NotNil(t, err, "err was not nil")
 	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
-	assert.Equal(t, "Clients cannot remove global data", err.Error(), "error message did not match")
+	assert.Equal(t, "A client cannot remove global records", err.Error(), "error message did not match")
 }
 
 func TestStorageRemovePipelineUserOtherRejected(t *testing.T) {
@@ -1912,7 +1912,7 @@ func TestStorageRemovePipelineUserOtherRejected(t *testing.T) {
 
 	assert.NotNil(t, err, "err was not nil")
 	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
-	assert.Equal(t, "Clients can only remove their own data", err.Error(), "error message did not match")
+	assert.Equal(t, "A client can only remove their own records", err.Error(), "error message did not match")
 }
 
 func TestStorageRemovePipelineUserWrite(t *testing.T) {
