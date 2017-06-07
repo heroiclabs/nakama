@@ -42,7 +42,9 @@ func newRuntime() (*server.Runtime, error) {
 		return nil, err
 	}
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
-	return server.NewRuntime(logger, logger, db, server.NewRuntimeConfig(DATA_PATH))
+	c := server.NewRuntimeConfig()
+	c.Path = DATA_PATH
+	return server.NewRuntime(logger, logger, db, c)
 }
 
 func writeStatsModule() {
