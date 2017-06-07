@@ -151,8 +151,8 @@ func parseArgs(consoleLogger *zap.Logger) server.Config {
 	flags := flag.NewFlagSet("main", flag.ExitOnError)
 	flags.BoolVar(&server.VerboseLogging, "verbose", false, "Turn verbose logging on.")
 	flags.BoolVar(&server.StdoutLogging, "logtostdout", false, "Log to stdout instead of file.")
-	var filepath string
-	flags.StringVar(&filepath, "config", "", "The absolute file path to configuration YAML file.")
+	var configPath string
+	flags.StringVar(&configPath, "config", "", "The absolute file path to configuration YAML file.")
 	var name string
 	flags.StringVar(&name, "name", "", "The virtual name of this server.")
 	var datadir string
@@ -168,8 +168,8 @@ func parseArgs(consoleLogger *zap.Logger) server.Config {
 		consoleLogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
 	} else {
 
-		if len(filepath) > 0 {
-			data, err := ioutil.ReadFile(filepath)
+		if len(configPath) > 0 {
+			data, err := ioutil.ReadFile(configPath)
 			if err != nil {
 				consoleLogger.Error("Could not read config file, using defaults", zap.Error(err))
 			} else {
@@ -196,6 +196,11 @@ func parseArgs(consoleLogger *zap.Logger) server.Config {
 		if opsPort != -1 {
 			config.OpsPort = opsPort
 		}
+	}
+
+	// if the runtime path is not overridden, set it to `datadir/modules`
+	if config.GetRuntime().Path == "" {
+		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
 
 	return config

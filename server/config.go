@@ -64,7 +64,7 @@ func NewConfig() *config {
 		Transport: NewTransportConfig(),
 		Database:  NewDatabaseConfig(),
 		Social:    NewSocialConfig(),
-		Runtime:   NewRuntimeConfig(dataDirectory),
+		Runtime:   NewRuntimeConfig(),
 	}
 }
 
@@ -187,10 +187,10 @@ type RuntimeConfig struct {
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct
-func NewRuntimeConfig(dataDirectory string) *RuntimeConfig {
+func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
 		Environment: make(map[string]interface{}),
-		Path:        filepath.Join(dataDirectory, "modules"),
+		Path:        "",
 		HTTPKey:     "defaultkey",
 	}
 }
