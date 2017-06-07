@@ -98,6 +98,13 @@ end
   Nakamax module
 ]]--
 
+-- uuid_v4
+do
+  local uuid = nx.uuid_v4()
+  assert(uuid, "'uuid' must not be nil")
+  assert(type(uuid) == "string", "'uuid' type must be string")
+end
+
 -- http_request
 do
   local url = "https://google.com/"
@@ -119,9 +126,20 @@ do
   assert(json == '{"id":"blah"}', '"json" must equal "{"id":"blah"}"')
 end
 
--- uuid_v4
+-- base64_encode_decode
 do
-  local uuid = nx.uuid_v4()
-  assert(uuid, "'uuid' must not be nil")
-  assert(type(uuid) == "string", "'uuid' type must be string")
+  local objectEncode = nx.base64_encode('{"hello": "world"}')
+  assert(objectEncode, "'objectEncode' must not be nil")
+  local objectDecode = nx.base64_decode(objectEncode)
+  assert(objectDecode, "'objectDecode' must not be nil")
+  assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
+end
+
+-- base16_encode_decode
+do
+  local objectEncode = nx.base16_encode('{"hello": "world"}')
+  assert(objectEncode, "'objectEncode' must not be nil")
+  local objectDecode = nx.base16_decode(objectEncode)
+  assert(objectDecode, "'objectDecode' must not be nil")
+  assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
 end

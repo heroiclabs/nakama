@@ -22,9 +22,12 @@ import (
 	"strings"
 	"time"
 
+	"encoding/base64"
+
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"encoding/hex"
 )
 
 type NakamaxModule struct {
@@ -43,10 +46,14 @@ func NewNakamaxModule(logger *zap.Logger) *NakamaxModule {
 
 func (nx *NakamaxModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"uuid_v4":      nx.uuidV4,
-		"json_encode":  nx.jsonEncode,
-		"json_decode":  nx.jsonDecode,
-		"http_request": nx.httpRequest,
+		"uuid_v4":       nx.uuidV4,
+		"http_request":  nx.httpRequest,
+		"json_encode":   nx.jsonEncode,
+		"json_decode":   nx.jsonDecode,
+		"base64_encode": nx.base64Encode,
+		"base64_decode": nx.base64Decode,
+		"base16_encode": nx.base16Encode,
+		"base16_decode": nx.base16decode,
 	})
 
 	l.Push(mod)
@@ -56,43 +63,6 @@ func (nx *NakamaxModule) Loader(l *lua.LState) int {
 func (nx *NakamaxModule) uuidV4(l *lua.LState) int {
 	// TODO ensure there were no arguments to the function
 	l.Push(lua.LString(uuid.NewV4().String()))
-	return 1
-}
-
-func (nx *NakamaxModule) jsonEncode(l *lua.LState) int {
-	// TODO allow top-level arrays or primitives?
-	jsonTable := l.CheckTable(1)
-	if jsonTable == nil {
-		l.ArgError(1, "Expects a table to encode")
-		return 0
-	}
-
-	jsonData := ConvertLuaTable(jsonTable)
-	jsonBytes, err := json.Marshal(jsonData)
-	if err != nil {
-		l.ArgError(1, "Error encoding to JSON")
-		return 0
-	}
-
-	l.Push(lua.LString(string(jsonBytes)))
-	return 1
-}
-
-func (nx *NakamaxModule) jsonDecode(l *lua.LState) int {
-	jsonString := l.CheckString(1)
-	if jsonString == "" {
-		l.ArgError(1, "Expects JSON string")
-		return 0
-	}
-
-	// TODO allow top-level arrays or primitives?
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
-		l.RaiseError("Not a valid JSON string: %v", err.Error())
-		return 0
-	}
-
-	l.Push(ConvertMap(l, jsonData))
 	return 1
 }
 
@@ -158,4 +128,96 @@ func (nx *NakamaxModule) httpRequest(l *lua.LState) int {
 	l.Push(ConvertMap(l, responseHeaders))
 	l.Push(lua.LString(string(responseBody)))
 	return 3
+}
+
+func (nx *NakamaxModule) jsonEncode(l *lua.LState) int {
+	// TODO allow top-level arrays or primitives?
+	jsonTable := l.CheckTable(1)
+	if jsonTable == nil {
+		l.ArgError(1, "Expects a table to encode")
+		return 0
+	}
+
+	jsonData := ConvertLuaTable(jsonTable)
+	jsonBytes, err := json.Marshal(jsonData)
+	if err != nil {
+		l.ArgError(1, "Error encoding to JSON")
+		return 0
+	}
+
+	l.Push(lua.LString(string(jsonBytes)))
+	return 1
+}
+
+func (nx *NakamaxModule) jsonDecode(l *lua.LState) int {
+	jsonString := l.CheckString(1)
+	if jsonString == "" {
+		l.ArgError(1, "Expects JSON string")
+		return 0
+	}
+
+	// TODO allow top-level arrays or primitives?
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
+		l.RaiseError("Not a valid JSON string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(ConvertMap(l, jsonData))
+	return 1
+}
+
+func (nx *NakamaxModule) base64Encode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output := base64.StdEncoding.EncodeToString([]byte(input))
+	l.Push(lua.LString(output))
+	return 1
+}
+func (nx *NakamaxModule) base64Decode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output, err := base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		l.RaiseError("Not a valid base64 string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(output))
+	return 1
+}
+func (nx *NakamaxModule) base16Encode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output := hex.EncodeToString([]byte(input))
+	l.Push(lua.LString(output))
+	return 1
+}
+func (nx *NakamaxModule) base16decode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output, err := hex.DecodeString(input)
+	if err != nil {
+		l.RaiseError("Not a valid base16 string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(output))
+	return 1
 }
