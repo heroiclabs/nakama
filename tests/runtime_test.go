@@ -43,7 +43,7 @@ func newRuntime() (*server.Runtime, error) {
 	}
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 	c := server.NewRuntimeConfig()
-	c.Path = DATA_PATH
+	c.Path = filepath.Join(DATA_PATH, "modules")
 	return server.NewRuntime(logger, logger, db, c)
 }
 
