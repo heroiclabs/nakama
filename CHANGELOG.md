@@ -32,6 +32,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Use cast with leaderboard BEST score submissions due to new strictness in database type conversion.
 - Storage records can now correctly be marked with no owner (global).
 
+### Fixed
+- Set correct initial group member count when group is created.
+- Do not update group count when join requests are rejected.
+
 ## [0.12.2] - 2017-04-22
 ### Added
 - Add `--logtostdout` flag to redirect log output to console.
