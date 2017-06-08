@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [0.13.1] - 2017-06-08
 ### Added
 - Runtime Base64 and Base16 conversion util functions.
