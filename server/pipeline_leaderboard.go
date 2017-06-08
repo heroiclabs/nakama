@@ -663,18 +663,19 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger *zap.Logger, session *s
 	// First half.
 	count := len(params)
 	firstQuery := query
-	firstParams := params
+	firstParams := make([]interface{}, len(params))
+	copy(firstParams, params)
 	if sortOrder == 0 {
 		// Lower score is better, but get in reverse order from current user to get those immediately above.
-		firstQuery += " AND (score, updated_at_inverse, id) <= ($" + strconv.Itoa(count) +
-			", $" + strconv.Itoa(count+1) +
-			", $" + strconv.Itoa(count+2) + ") ORDER BY score DESC, updated_at_inverse DESC"
+		firstQuery += " AND (score, updated_at_inverse, id) <= ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at_inverse DESC"
 		firstParams = append(firstParams, score, invertMs(updatedAt), id)
 	} else {
 		// Higher score is better.
-		firstQuery += " AND (score, updated_at, id) >= ($" + strconv.Itoa(count) +
-			", $" + strconv.Itoa(count+1) +
-			", $" + strconv.Itoa(count+2) + ") ORDER BY score ASC, updated_at ASC"
+		firstQuery += " AND (score, updated_at, id) >= ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
 		firstParams = append(firstParams, score, updatedAt, id)
 	}
 	firstParams = append(firstParams, int64(limit/2))
@@ -740,18 +741,19 @@ func (p *pipeline) loadLeaderboardRecordsHaystack(logger *zap.Logger, session *s
 
 	// Second half.
 	secondQuery := query
-	secondParams := params
+	secondParams := make([]interface{}, len(params))
+	copy(secondParams, params)
 	if sortOrder == 0 {
 		// Lower score is better.
-		secondQuery += " AND (score, updated_at, id) > ($" + strconv.Itoa(count) +
-			", $" + strconv.Itoa(count+1) +
-			", $" + strconv.Itoa(count+2) + ") ORDER BY score ASC, updated_at ASC"
+		secondQuery += " AND (score, updated_at, id) > ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
 		secondParams = append(secondParams, score, updatedAt, id)
 	} else {
 		// Higher score is better.
-		secondQuery += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count) +
-			", $" + strconv.Itoa(count+1) +
-			", $" + strconv.Itoa(count+2) + ") ORDER BY score DESC, updated_at DESC"
+		secondQuery += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at DESC"
 		secondParams = append(secondParams, score, invertMs(updatedAt), id)
 	}
 	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)

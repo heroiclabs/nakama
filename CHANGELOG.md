@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Update storage write permissions validation.
 - Runtime module path must derive from `--data-dir` flag value.
+- Fix parameter mapping in leaderboard haystack query.
 
 ## [0.13.0] - 2017-05-29
 ### Added
