@@ -286,7 +286,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	messageType := fmt.Sprintf("%T", authReq.Payload)
+	messageType := fmt.Sprintf("%T", authReq.Id)
 	a.logger.Debug("Received message", zap.String("type", messageType))
 	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtime, a.jsonpbMarshaler, a.jsonpbUnmarshaler, authReq)
 	if fnErr != nil {
@@ -303,18 +303,19 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	}
 
 	uid, _ := uuid.FromBytes(userID)
+	exp := time.Now().UTC().Add(time.Duration(a.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid": uid.String(),
-		"exp": time.Now().UTC().Add(time.Duration(a.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix(),
+		"exp": exp,
 		"han": handle,
 	})
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
 
-	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Payload: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
+	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
-	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq)
+	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq, uid, handle, exp)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode int, authRequest *AuthenticateRequest) {
@@ -322,7 +323,7 @@ func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Req
 	if authRequest != nil {
 		collationID = authRequest.CollationId
 	}
-	authResponse := &AuthenticateResponse{CollationId: collationID, Payload: &AuthenticateResponse_Error_{&AuthenticateResponse_Error{
+	authResponse := &AuthenticateResponse{CollationId: collationID, Id: &AuthenticateResponse_Error_{&AuthenticateResponse_Error{
 		Code:    int32(AUTH_ERROR),
 		Message: error,
 		Request: authRequest,
@@ -365,7 +366,7 @@ func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, r *http.
 func (a *authenticationService) login(authReq *AuthenticateRequest) ([]byte, string, string, int) {
 	// Route to correct login handler
 	var loginFunc func(authReq *AuthenticateRequest) ([]byte, string, int64, string, int)
-	switch authReq.Payload.(type) {
+	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		loginFunc = a.loginDevice
 	case *AuthenticateRequest_Facebook:
@@ -594,7 +595,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	// Route to correct register handler
 	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, int)
 
-	switch authReq.Payload.(type) {
+	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		registerFunc = a.registerDevice
 	case *AuthenticateRequest_Facebook:

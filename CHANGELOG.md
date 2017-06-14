@@ -5,6 +5,15 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+### Changed
+- Restructure and stabilize API messages.
+- Add batch operations Friends social graph.
+
+### Fixed
+- Invocation type was always set to "Before" in After Runtime scripts.
+- User ID was not passed to context in After Authentication invocations.
+- Authentication runtime invocation messages were named with leading "." and trailing "_".
+
 ## [0.13.1] - 2017-06-08
 ### Added
 - Runtime Base64 and Base16 conversion util functions.

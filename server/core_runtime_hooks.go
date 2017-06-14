@@ -102,7 +102,8 @@ func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jso
 }
 
 func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
-	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Payload), "*server")
+	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Id), "*server.")
+	messageType = strings.TrimSuffix(messageType, "_")
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
 		return envelope, nil
@@ -140,8 +141,8 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 	return authenticationResult, nil
 }
 
-func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest) {
-	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Payload), "*server")
+func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId uuid.UUID, handle string, expiry int64) {
+	messageType := strings.TrimPrefix(fmt.Sprintf("%T", envelope.Id), "*server")
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
 		return
@@ -158,10 +159,6 @@ func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpb
 		logger.Error("Failed to convert protoJSON message to Map in After invocation", zap.String("message", messageType), zap.Error(err))
 		return
 	}
-
-	userId := uuid.Nil
-	handle := ""
-	expiry := int64(0)
 
 	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {
 		logger.Error("Runtime after function caused an error", zap.String("message", messageType), zap.Error(fnErr))

@@ -17,28 +17,32 @@ package server
 import "go.uber.org/zap"
 
 func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *Envelope) {
-	f := envelope.GetUsersFetch()
+	e := envelope.GetUsersFetch()
 
-	var users []*User
-	var err error
-
-	switch f.Set.(type) {
-	case *TUsersFetch_UserIds_:
-		userIds := f.GetUserIds().UserIds
-		if len(userIds) == 0 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one user ID"))
-			return
-		}
-		users, err = UsersFetchIds(logger, p.db, userIds)
-	case *TUsersFetch_Handles_:
-		handles := f.GetHandles().Handles
-		if len(handles) == 0 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "List must contain at least one handle"))
-			return
-		}
-		users, err = UsersFetchHandle(logger, p.db, handles)
+	if len(e.Users) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
 	}
 
+	userIds := make([][]byte, 0)
+	handles := make([]string, 0)
+
+	for _, u := range e.Users {
+		switch u.Id.(type) {
+		case *TUsersFetch_UsersFetch_UserId:
+			userIds = append(userIds, u.GetUserId())
+		case *TUsersFetch_UsersFetch_Handle:
+			handles = append(handles, u.GetHandle())
+		case nil:
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"))
+			return
+		default:
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"))
+			return
+		}
+	}
+
+	users, err := UsersFetchIdsHandles(logger, p.db, userIds, handles)
 	if err != nil {
 		logger.Warn("Could not retrieve users", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))

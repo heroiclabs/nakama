@@ -35,13 +35,23 @@ type messageCursor struct {
 var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
 func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Envelope) {
-	id := envelope.GetTopicJoin()
+	e := envelope.GetTopicsJoin()
+
+	if len(e.Joins) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Joins) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	t := e.Joins[0]
+
 	var topic *TopicId
 	var trackerTopic string
-	switch id.Id.(type) {
-	case *TTopicJoin_UserId:
+	switch t.Id.(type) {
+	case *TTopicsJoin_TopicJoin_UserId:
 		// Check input is valid ID.
-		otherUserIDBytes := id.GetUserId()
+		otherUserIDBytes := t.GetUserId()
 		otherUserID, err := uuid.FromBytes(otherUserIDBytes)
 		if err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
@@ -74,9 +84,9 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
 			trackerTopic = "dm:" + otherUserIDString + ":" + userIDString
 		}
-	case *TTopicJoin_Room:
+	case *TTopicsJoin_TopicJoin_Room:
 		// Check input is valid room name.
-		room := id.GetRoom()
+		room := t.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
@@ -92,9 +102,9 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 
 		topic = &TopicId{Id: &TopicId_Room{Room: room}}
 		trackerTopic = "room:" + string(room)
-	case *TTopicJoin_GroupId:
+	case *TTopicsJoin_TopicJoin_GroupId:
 		// Check input is valid ID.
-		groupIDBytes := id.GetGroupId()
+		groupIDBytes := t.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))
@@ -139,24 +149,37 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Topic{Topic: &TTopic{
-		Topic:     topic,
-		Presences: userPresences,
-		Self: &UserPresence{
-			UserId:    session.userID.Bytes(),
-			SessionId: session.id.Bytes(),
-			Handle:    handle,
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Topics{Topics: &TTopics{
+		Topics: []*TTopics_Topic{
+			&TTopics_Topic{
+				Topic:     topic,
+				Presences: userPresences,
+				Self: &UserPresence{
+					UserId:    session.userID.Bytes(),
+					SessionId: session.id.Bytes(),
+					Handle:    handle,
+				},
+			},
 		},
 	}}})
 }
 
 func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *Envelope) {
-	topic := envelope.GetTopicLeave().Topic
+	e := envelope.GetTopicsLeave()
+
+	if len(e.Topics) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Topics) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	t := e.Topics[0]
 	var trackerTopic string
-	switch topic.Id.(type) {
+	switch t.Id.(type) {
 	case *TopicId_Dm:
 		// Check input is valid DM topic.
-		bothUserIDBytes := topic.GetDm()
+		bothUserIDBytes := t.GetDm()
 		if bothUserIDBytes == nil || len(bothUserIDBytes) != 32 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
 			return
@@ -199,7 +222,7 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		trackerTopic = "dm:" + userID1String + ":" + userID2String
 	case *TopicId_Room:
 		// Check input is valid room name.
-		room := topic.GetRoom()
+		room := t.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
 			return
@@ -216,7 +239,7 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		trackerTopic = "room:" + string(room)
 	case *TopicId_GroupId:
 		// Check input is valid ID.
-		groupIDBytes := topic.GetGroupId()
+		groupIDBytes := t.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))

@@ -150,7 +150,17 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session *session, envelo
 }
 
 func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, envelope *Envelope) {
-	incoming := envelope.GetLeaderboardRecordWrite()
+	e := envelope.GetLeaderboardRecordsWrite()
+
+	if len(e.Records) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Records) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	incoming := e.Records[0]
+
 	if len(incoming.LeaderboardId) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Leaderboard ID must be present"))
 		return
@@ -200,19 +210,19 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 	var scoreDelta int64
 	var scoreAbs int64
 	switch incoming.Op.(type) {
-	case *TLeaderboardRecordWrite_Incr:
+	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Incr:
 		scoreOpSql = "score = leaderboard_record.score + $17::BIGINT"
 		scoreDelta = incoming.GetIncr()
 		scoreAbs = incoming.GetIncr()
-	case *TLeaderboardRecordWrite_Decr:
+	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Decr:
 		scoreOpSql = "score = leaderboard_record.score - $17::BIGINT"
 		scoreDelta = incoming.GetDecr()
 		scoreAbs = 0 - incoming.GetDecr()
-	case *TLeaderboardRecordWrite_Set:
+	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Set:
 		scoreOpSql = "score = $17::BIGINT"
 		scoreDelta = incoming.GetSet()
 		scoreAbs = incoming.GetSet()
-	case *TLeaderboardRecordWrite_Best:
+	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Best:
 		if sortOrder == 0 {
 			// Lower score is better.
 			scoreOpSql = "score = ((leaderboard_record.score + $17::BIGINT - abs(leaderboard_record.score - $17::BIGINT)) / 2)::BIGINT"
@@ -292,21 +302,28 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_LeaderboardRecord{LeaderboardRecord: &TLeaderboardRecord{Record: &LeaderboardRecord{
-		LeaderboardId: incoming.LeaderboardId,
-		OwnerId:       session.userID.Bytes(),
-		Handle:        handle,
-		Lang:          session.lang,
-		Location:      location.String,
-		Timezone:      timezone.String,
-		Rank:          rankValue,
-		Score:         score,
-		NumScore:      numScore,
-		Metadata:      metadata,
-		RankedAt:      rankedAt,
-		UpdatedAt:     updatedAt,
-		ExpiresAt:     expiresAt,
-	}}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_LeaderboardRecords{
+		LeaderboardRecords: &TLeaderboardRecords{
+			Records: []*LeaderboardRecord{
+				&LeaderboardRecord{
+					LeaderboardId: incoming.LeaderboardId,
+					OwnerId:       session.userID.Bytes(),
+					Handle:        handle,
+					Lang:          session.lang,
+					Location:      location.String,
+					Timezone:      timezone.String,
+					Rank:          rankValue,
+					Score:         score,
+					NumScore:      numScore,
+					Metadata:      metadata,
+					RankedAt:      rankedAt,
+					UpdatedAt:     updatedAt,
+					ExpiresAt:     expiresAt,
+				},
+			},
+			// No cursor.
+		},
+	}})
 }
 
 func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session *session, envelope *Envelope) {
