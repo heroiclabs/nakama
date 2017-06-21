@@ -16,10 +16,11 @@ package server
 
 import (
 	"fmt"
+	"unicode/utf8"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"unicode/utf8"
 )
 
 type matchDataFilter struct {
@@ -42,27 +43,38 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *E
 		Handle:    handle,
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{Match: &Match{
 		MatchId:   matchID.Bytes(),
 		Presences: []*UserPresence{self},
 		Self:      self,
-	}}})
+	}}}})
 }
 
 func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Envelope) {
+	e := envelope.GetMatchesJoin()
+
+	if len(e.Matches) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Matches) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	m := e.Matches[0]
+
 	var matchID uuid.UUID
 	var err error
 	allowEmpty := false
 
-	switch envelope.GetMatchJoin().Id.(type) {
-	case *TMatchJoin_MatchId:
-		matchID, err = uuid.FromBytes(envelope.GetMatchJoin().GetMatchId())
+	switch m.Id.(type) {
+	case *TMatchesJoin_MatchJoin_MatchId:
+		matchID, err = uuid.FromBytes(m.GetMatchId())
 		if err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
 			return
 		}
-	case *TMatchJoin_Token:
-		tokenBytes := envelope.GetMatchJoin().GetToken()
+	case *TMatchesJoin_MatchJoin_Token:
+		tokenBytes := m.GetToken()
 		if controlCharsRegex.Match(tokenBytes) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token cannot contain control chars"))
 			return
@@ -130,16 +142,29 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 	}
 	userPresences[len(ps)] = self
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{
-		MatchId:   matchID.Bytes(),
-		Presences: userPresences,
-		Self:      self,
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Matches{Matches: &TMatches{
+		Matches: []*Match{
+			&Match{
+				MatchId:   matchID.Bytes(),
+				Presences: userPresences,
+				Self:      self,
+			},
+		},
 	}}})
 }
 
 func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *Envelope) {
-	matchIDBytes := envelope.GetMatchLeave().MatchId
-	matchID, err := uuid.FromBytes(matchIDBytes)
+	e := envelope.GetMatchesLeave()
+
+	if len(e.MatchIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.MatchIds) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	m := e.MatchIds[0]
+	matchID, err := uuid.FromBytes(m)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
 		return

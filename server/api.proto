@@ -240,7 +240,7 @@ message Envelope {
     TStorageWrite storage_write = 50;
     TStorageRemove storage_remove = 51;
     TStorageData storage_data = 52;
-    TStorageKey storage_key = 53;
+    TStorageKeys storage_keys = 53;
 
     TLeaderboardsList leaderboards_list = 54;
     TLeaderboardRecordsWrite leaderboard_records_write = 55;
@@ -250,7 +250,7 @@ message Envelope {
     TLeaderboardRecords leaderboard_records = 59;
 
     TMatchmakeAdd matchmake_add = 60;
-    TMatchmakeRemov matchmake_remov = 61;
+    TMatchmakeRemove matchmake_remove = 61;
     TMatchmakeTicket matchmake_ticket = 62;
     MatchmakeMatched matchmake_matched = 63;
 
@@ -783,7 +783,7 @@ message TTopics {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TTopicsLeave {
-  repeated TopicId topic = 1;
+  repeated TopicId topics = 1;
 }
 
 /**
@@ -980,7 +980,7 @@ message MatchData {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TMatchesLeave {
-  repeated bytes match_id = 1;
+  repeated bytes match_ids = 1;
 }
 
 /**
@@ -1066,7 +1066,7 @@ message TStorageWrite {
 /**
  * TStorageKey contains a list of Storage keys for the newly stored data.
  */
-message TStorageKey {
+message TStorageKeys {
   message StorageKey {
     string bucket = 1;
     string collection = 2;

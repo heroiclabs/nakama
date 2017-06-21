@@ -90,8 +90,16 @@ func (p *pipeline) extractGroup(r scanner) (*Group, error) {
 }
 
 func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupCreate()
+	e := envelope.GetGroupsCreate()
 
+	if len(e.Groups) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Groups) > 1 {
+		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.Groups[0]
 	if g.Name == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group name is mandatory."))
 		return
@@ -211,8 +219,17 @@ VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 }
 
 func (p *pipeline) groupUpdate(l *zap.Logger, session *session, envelope *Envelope) {
+	e := envelope.GetGroupsUpdate()
+
+	if len(e.Groups) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.Groups) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
 	//TODO notify members that group has been updated.
-	g := envelope.GetGroupUpdate()
+	g := e.Groups[0]
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
@@ -281,10 +298,18 @@ EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id
 }
 
 func (p *pipeline) groupRemove(l *zap.Logger, session *session, envelope *Envelope) {
-	//TODO kick all users out
-	g := envelope.GetGroupRemove()
+	e := envelope.GetGroupsRemove()
 
-	groupID, err := uuid.FromBytes(g.GroupId)
+	if len(e.GroupIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupIds) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupIds[0]
+	//TODO kick all users out
+	groupID, err := uuid.FromBytes(g)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
 		return
@@ -345,31 +370,37 @@ AND
 }
 
 func (p *pipeline) groupsFetch(logger *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupsFetch()
+	e := envelope.GetGroupsFetch()
+
+	if len(e.Groups) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	}
 
 	statements := []string{}
 	params := []interface{}{}
 
-	switch g.Set.(type) {
-	case *TGroupsFetch_GroupIds_:
-		for _, gid := range g.GetGroupIds().GroupIds {
-			groupID, err := uuid.FromBytes(gid)
+	for _, g := range e.Groups {
+		switch g.Id.(type) {
+		case *TGroupsFetch_GroupFetch_GroupId:
+			groupID, err := uuid.FromBytes(g.GetGroupId())
 			if err == nil {
 				params = append(params, groupID.Bytes())
 				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
+			} else {
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is invalid"))
+				return
 			}
-		}
-	case *TGroupsFetch_Names_:
-		for _, name := range g.GetNames().Names {
-			params = append(params, name)
+		case *TGroupsFetch_GroupFetch_Name:
+			params = append(params, g.GetName())
 			statements = append(statements, "name = $"+strconv.Itoa(len(params)))
+		case nil:
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch identifier is required"))
+			return
+		default:
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch identifier"))
+			return
 		}
-	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch set is required"))
-		return
-	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch set"))
-		return
 	}
 
 	if len(statements) == 0 {
@@ -615,9 +646,17 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 }
 
 func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupJoin()
+	e := envelope.GetGroupsJoin()
 
-	groupID, err := uuid.FromBytes(g.GroupId)
+	if len(e.GroupIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupIds) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupIds[0]
+	groupID, err := uuid.FromBytes(g)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
 		return
@@ -693,9 +732,17 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 }
 
 func (p *pipeline) groupLeave(l *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupLeave()
+	e := envelope.GetGroupsLeave()
 
-	groupID, err := uuid.FromBytes(g.GroupId)
+	if len(e.GroupIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupIds) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupIds[0]
+	groupID, err := uuid.FromBytes(g)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
 		return
@@ -803,8 +850,16 @@ OR
 }
 
 func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupUserAdd()
+	e := envelope.GetGroupUsersAdd()
 
+	if len(e.GroupUsers) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupUsers) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupUsers[0]
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
@@ -896,7 +951,16 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 
 func (p *pipeline) groupUserKick(l *zap.Logger, session *session, envelope *Envelope) {
 	// TODO Force kick the user out.
-	g := envelope.GetGroupUserKick()
+	e := envelope.GetGroupUsersKick()
+
+	if len(e.GroupUsers) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupUsers) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupUsers[0]
 
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
@@ -999,8 +1063,16 @@ AND
 }
 
 func (p *pipeline) groupUserPromote(l *zap.Logger, session *session, envelope *Envelope) {
-	g := envelope.GetGroupUserPromote()
+	e := envelope.GetGroupUsersPromote()
 
+	if len(e.GroupUsers) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		return
+	} else if len(e.GroupUsers) > 1 {
+		l.Warn("There are more than one item passed to the request - only processing the first item.")
+	}
+
+	g := e.GroupUsers[0]
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))

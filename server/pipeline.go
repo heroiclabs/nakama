@@ -99,20 +99,20 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_UsersFetch:
 		p.usersFetch(logger, session, envelope)
 
-	case *Envelope_FriendAdd:
+	case *Envelope_FriendsAdd:
 		p.friendAdd(logger, session, envelope)
-	case *Envelope_FriendRemove:
+	case *Envelope_FriendsRemove:
 		p.friendRemove(logger, session, envelope)
-	case *Envelope_FriendBlock:
+	case *Envelope_FriendsBlock:
 		p.friendBlock(logger, session, envelope)
 	case *Envelope_FriendsList:
 		p.friendsList(logger, session, envelope)
 
-	case *Envelope_GroupCreate:
+	case *Envelope_GroupsCreate:
 		p.groupCreate(logger, session, envelope)
-	case *Envelope_GroupUpdate:
+	case *Envelope_GroupsUpdate:
 		p.groupUpdate(logger, session, envelope)
-	case *Envelope_GroupRemove:
+	case *Envelope_GroupsRemove:
 		p.groupRemove(logger, session, envelope)
 	case *Envelope_GroupsFetch:
 		p.groupsFetch(logger, session, envelope)
@@ -122,20 +122,20 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		p.groupsSelfList(logger, session, envelope)
 	case *Envelope_GroupUsersList:
 		p.groupUsersList(logger, session, envelope)
-	case *Envelope_GroupJoin:
+	case *Envelope_GroupsJoin:
 		p.groupJoin(logger, session, envelope)
-	case *Envelope_GroupLeave:
+	case *Envelope_GroupsLeave:
 		p.groupLeave(logger, session, envelope)
-	case *Envelope_GroupUserAdd:
+	case *Envelope_GroupUsersAdd:
 		p.groupUserAdd(logger, session, envelope)
-	case *Envelope_GroupUserKick:
+	case *Envelope_GroupUsersKick:
 		p.groupUserKick(logger, session, envelope)
-	case *Envelope_GroupUserPromote:
+	case *Envelope_GroupUsersPromote:
 		p.groupUserPromote(logger, session, envelope)
 
-	case *Envelope_TopicJoin:
+	case *Envelope_TopicsJoin:
 		p.topicJoin(logger, session, envelope)
-	case *Envelope_TopicLeave:
+	case *Envelope_TopicsLeave:
 		p.topicLeave(logger, session, envelope)
 	case *Envelope_TopicMessageSend:
 		p.topicMessageSend(logger, session, envelope)
@@ -144,9 +144,9 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 
 	case *Envelope_MatchCreate:
 		p.matchCreate(logger, session, envelope)
-	case *Envelope_MatchJoin:
+	case *Envelope_MatchesJoin:
 		p.matchJoin(logger, session, envelope)
-	case *Envelope_MatchLeave:
+	case *Envelope_MatchesLeave:
 		p.matchLeave(logger, session, envelope)
 	case *Envelope_MatchDataSend:
 		p.matchDataSend(logger, session, envelope)
@@ -165,7 +165,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 
 	case *Envelope_LeaderboardsList:
 		p.leaderboardsList(logger, session, envelope)
-	case *Envelope_LeaderboardRecordWrite:
+	case *Envelope_LeaderboardRecordsWrite:
 		p.leaderboardRecordWrite(logger, session, envelope)
 	case *Envelope_LeaderboardRecordsFetch:
 		p.leaderboardRecordsFetch(logger, session, envelope)

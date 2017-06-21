@@ -196,12 +196,20 @@ FROM users, user_edge ` + filterQuery
 }
 
 func (p *pipeline) friendAdd(l *zap.Logger, session *session, envelope *Envelope) {
-	f := envelope.GetFriendAdd()
+	e := envelope.GetFriendsAdd()
 
-	switch f.Set.(type) {
-	case *TFriendAdd_UserId:
+	if len(e.Friends) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one friend must be present"))
+		return
+	} else if len(e.Friends) > 1 {
+		l.Warn("There are more than one friend passed to the request - only processing the first item of the list.")
+	}
+
+	f := e.Friends[0]
+	switch f.Id.(type) {
+	case *TFriendsAdd_FriendsAdd_UserId:
 		p.friendAddById(l, session, envelope, f.GetUserId())
-	case *TFriendAdd_Handle:
+	case *TFriendsAdd_FriendsAdd_Handle:
 		p.friendAddByHandle(l, session, envelope, f.GetHandle())
 	}
 }
@@ -253,13 +261,22 @@ func (p *pipeline) friendAddByHandle(l *zap.Logger, session *session, envelope *
 }
 
 func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envelope) {
-	removeFriendRequest := envelope.GetFriendRemove()
-	if len(removeFriendRequest.UserId) == 0 {
+	e := envelope.GetFriendsRemove()
+
+	if len(e.UserIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"))
+		return
+	} else if len(e.UserIds) > 1 {
+		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
+	}
+
+	removeFriendRequest := e.UserIds[0]
+	if len(removeFriendRequest) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
 		return
 	}
 
-	friendID, err := uuid.FromBytes(removeFriendRequest.UserId)
+	friendID, err := uuid.FromBytes(removeFriendRequest)
 	if err != nil {
 		l.Warn("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
@@ -321,13 +338,22 @@ func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envel
 }
 
 func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelope) {
-	blockUserRequest := envelope.GetFriendBlock()
-	if len(blockUserRequest.UserId) == 0 {
+	e := envelope.GetFriendsBlock()
+
+	if len(e.UserIds) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"))
+		return
+	} else if len(e.UserIds) > 1 {
+		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
+	}
+
+	blockUserRequest := e.UserIds[0]
+	if len(blockUserRequest) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
 		return
 	}
 
-	userID, err := uuid.FromBytes(blockUserRequest.UserId)
+	userID, err := uuid.FromBytes(blockUserRequest)
 	if err != nil {
 		l.Warn("Could not block user", zap.Error(err))
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))

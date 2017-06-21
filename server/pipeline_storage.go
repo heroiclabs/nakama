@@ -86,9 +86,9 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *
 		return
 	}
 
-	storageKeys := make([]*TStorageKey_StorageKey, len(keys))
+	storageKeys := make([]*TStorageKeys_StorageKey, len(keys))
 	for i, key := range keys {
-		storageKeys[i] = &TStorageKey_StorageKey{
+		storageKeys[i] = &TStorageKeys_StorageKey{
 			Bucket:     key.Bucket,
 			Collection: key.Collection,
 			Record:     key.Record,
@@ -96,7 +96,7 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *
 		}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKey{StorageKey: &TStorageKey{Keys: storageKeys}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}})
 }
 
 func (p *pipeline) storageRemove(logger *zap.Logger, session *session, envelope *Envelope) {

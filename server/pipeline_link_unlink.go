@@ -25,7 +25,7 @@ import (
 
 func (p *pipeline) linkID(logger *zap.Logger, session *session, envelope *Envelope) {
 	// Route to correct link handler
-	switch envelope.GetLink().Payload.(type) {
+	switch envelope.GetLink().Id.(type) {
 	case *TLink_Device:
 		p.linkDevice(logger, session, envelope)
 	case *TLink_Facebook:
@@ -370,7 +370,7 @@ func (p *pipeline) unlinkID(logger *zap.Logger, session *session, envelope *Enve
 	// Select correct unlink query
 	var query string
 	var param interface{}
-	switch envelope.GetUnlink().Payload.(type) {
+	switch envelope.GetUnlink().Id.(type) {
 	case *TUnlink_Device:
 		txn, err := p.db.Begin()
 		if err != nil {

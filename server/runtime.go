@@ -253,7 +253,7 @@ func (r *Runtime) InvokeFunctionAfter(fn *lua.LFunction, uid uuid.UUID, handle s
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
-	ctx := NewLuaContext(l, r.luaEnv, BEFORE, uid, handle, sessionExpiry)
+	ctx := NewLuaContext(l, r.luaEnv, AFTER, uid, handle, sessionExpiry)
 	var lv lua.LValue
 	if payload != nil {
 		lv = ConvertMap(l, payload)
