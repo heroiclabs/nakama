@@ -9,6 +9,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Runtime Base64 and Base16 conversion util functions.
 
+### Changed
+- Run Facebook friends import after registration completes.
+
 ### Fixed
 - Update storage write permissions validation.
 - Runtime module path must derive from `--data-dir` flag value.
