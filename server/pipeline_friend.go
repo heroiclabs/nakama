@@ -165,6 +165,11 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 	}
 	queryEdgeMetadata += ")"
 
+	// Check if any Facebook friends are already users, if not there are no new edges to handle.
+	if len(paramsEdge) <= 2 {
+		return
+	}
+
 	// Insert new friend relationship edges.
 	_, err = tx.Exec(queryEdge, paramsEdge...)
 	if err != nil {
