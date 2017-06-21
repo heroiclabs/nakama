@@ -145,6 +145,7 @@ message Envelope {
     MatchData match_data = 46;
     MatchPresence match_presence = 47;
 
+    TStorageList storage_list = 65;
     TStorageFetch storage_fetch = 48;
     TStorageWrite storage_write = 49;
     TStorageRemove storage_remove = 50;
@@ -524,6 +525,26 @@ enum StoragePermissionWrite {
   NO_WRITE = 0;
   OWNER_WRITE = 1;
 }
+message TStorageList {
+  message ByKey {
+    string bucket = 1;
+    string collection = 2;
+    string record = 3;
+    bytes user_id = 4;
+  }
+  message ByUser {
+    bytes user_id = 1;
+    string bucket = 2;
+    string collection = 3;
+    string record = 4;
+  }
+
+  oneof by {
+    ByKey key = 1;
+    ByUser user = 2;
+  }
+  bytes cursor = 3;
+}
 message TStorageFetch {
   message StorageKey {
     string bucket = 1;
@@ -549,6 +570,7 @@ message TStorageData {
   }
 
   repeated StorageData data = 1;
+  bytes cursor = 2;
 }
 
 message TStorageWrite {

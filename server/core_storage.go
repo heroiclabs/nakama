@@ -22,9 +22,26 @@ import (
 	"errors"
 	"fmt"
 
+	"encoding/gob"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
+
+type storageListCursor struct {
+	Bucket     string
+	Collection string
+	Record     string
+	UserID     []byte
+	Read       int64
+}
+
+type StorageListOp struct {
+	UserId     []byte // this must be UserId not UserID
+	Bucket     string
+	Collection string
+	Limit      int64
+	Cursor     []byte
+}
 
 type StorageKey struct {
 	Bucket     string
@@ -47,6 +64,182 @@ type StorageData struct {
 	CreatedAt       int64
 	UpdatedAt       int64
 	ExpiresAt       int64
+}
+
+func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *StorageListOp) ([]*StorageData, []byte, Error_Code, error) {
+	// We list by at least User ID, or bucket as a list criteria.
+	if len(list.UserId) == 0 && list.Bucket == "" {
+		return nil, nil, BAD_INPUT, errors.New("Either a User ID or a bucket is required as an initial list criteria")
+	}
+	if list.Bucket == "" && list.Collection != "" {
+		return nil, nil, BAD_INPUT, errors.New("Cannot list by collection without listing by bucket first")
+	}
+
+	// If a user ID is provided, validate the format.
+	owner := uuid.Nil
+	if len(list.UserId) != 0 {
+		if uid, err := uuid.FromBytes(list.UserId); err != nil {
+			return nil, nil, BAD_INPUT, errors.New("Invalid user ID")
+		} else {
+			owner = uid
+		}
+	}
+
+	// Validate the limit.
+	limit := list.Limit
+	if limit == 0 {
+		limit = 10
+	} else if limit < 10 || limit > 100 {
+		return nil, nil, BAD_INPUT, errors.New("Limit must be between 10 and 100")
+	}
+
+	// Process the incoming cursor if one is provided.
+	var incomingCursor *storageListCursor
+	if len(list.Cursor) != 0 {
+		incomingCursor = &storageListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(list.Cursor)).Decode(incomingCursor); err != nil {
+			return nil, nil, BAD_INPUT, errors.New("Invalid cursor data")
+		}
+	}
+
+	// Set up the query.
+	query := `
+SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at
+FROM storage
+WHERE deleted_at = 0`
+	params := make([]interface{}, 0)
+
+	// Apply filtering parameters as needed.
+	if len(list.UserId) != 0 {
+		params = append(params, owner.Bytes())
+		query += fmt.Sprintf(" AND user_id = $%v", len(params))
+	}
+	if list.Bucket != "" {
+		params = append(params, list.Bucket)
+		query += fmt.Sprintf(" AND bucket = $%v", len(params))
+	}
+	if list.Collection != "" {
+		params = append(params, list.Bucket)
+		query += fmt.Sprintf(" AND bucket = $%v", len(params))
+	}
+
+	// Apply permissions as needed.
+	if caller == uuid.Nil {
+		// Script runtime can list all data regardless of read permission.
+		query += " AND read >= 0"
+	} else if len(list.UserId) != 0 && caller == owner {
+		// If listing by user first, and the caller is the user listing their own data.
+		query += " AND read >= 1"
+	} else {
+		query += " AND read >= 2"
+	}
+
+	// Apply cursor keyset.
+	if incomingCursor != nil {
+		if len(list.UserId) == 0 {
+			if list.Collection == "" {
+				i := len(params)
+				query += fmt.Sprintf(" AND (deleted_at, bucket, read, collection, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
+				params = append(params, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record, incomingCursor.UserID)
+			} else {
+				i := len(params)
+				query += fmt.Sprintf(" AND (deleted_at, bucket, collection, read, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
+				params = append(params, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record, incomingCursor.UserID)
+			}
+		} else {
+			if list.Bucket == "" {
+				i := len(params)
+				query += fmt.Sprintf(" AND (deleted_at, user_id, read, bucket, collection, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
+				params = append(params, incomingCursor.UserID, incomingCursor.Read, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Record)
+			} else if list.Collection == "" {
+				i := len(params)
+				query += fmt.Sprintf(" AND (deleted_at, user_id, bucket, read, collection, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
+				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record)
+			} else {
+				i := len(params)
+				query += fmt.Sprintf(" AND (deleted_at, user_id, bucket, collection, read, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
+				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record)
+			}
+		}
+	}
+
+	params = append(params, limit+1)
+	query += fmt.Sprintf(" LIMIT $%v", len(params))
+
+	// Execute the query.
+	rows, err := db.Query(query, params...)
+	if err != nil {
+		logger.Error("Error in storage list", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, err
+	}
+	defer rows.Close()
+
+	storageData := make([]*StorageData, 0)
+	var outgoingCursor []byte
+
+	// Parse the results.
+	var userID []byte
+	var bucket sql.NullString
+	var collection sql.NullString
+	var record sql.NullString
+	var value []byte
+	var version []byte
+	var read sql.NullInt64
+	var write sql.NullInt64
+	var createdAt sql.NullInt64
+	var updatedAt sql.NullInt64
+	var expiresAt sql.NullInt64
+	for rows.Next() {
+		if int64(len(storageData)) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			newCursor := &storageListCursor{
+				Bucket:     bucket.String,
+				Collection: collection.String,
+				Record:     record.String,
+				UserID:     userID,
+				Read:       read.Int64,
+			}
+			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+				logger.Error("Error creating storage list cursor", zap.Error(err))
+				return nil, nil, RUNTIME_EXCEPTION, errors.New("Error listing storage data")
+			}
+			outgoingCursor = cursorBuf.Bytes()
+			break
+		}
+
+		err := rows.Scan(&userID, &bucket, &collection, &record, &value, &version,
+			&read, &write, &createdAt, &updatedAt, &expiresAt)
+		if err != nil {
+			logger.Error("Could not execute storage list query", zap.Error(err))
+			return nil, nil, RUNTIME_EXCEPTION, err
+		}
+
+		// Potentially coerce zero-length global owner field.
+		if len(userID) == 0 {
+			userID = nil
+		}
+
+		// Accumulate the response.
+		storageData = append(storageData, &StorageData{
+			Bucket:          bucket.String,
+			Collection:      collection.String,
+			Record:          record.String,
+			UserId:          userID,
+			Value:           value,
+			Version:         version,
+			PermissionRead:  read.Int64,
+			PermissionWrite: write.Int64,
+			CreatedAt:       createdAt.Int64,
+			UpdatedAt:       updatedAt.Int64,
+			ExpiresAt:       expiresAt.Int64,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Could not execute storage list query", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, err
+	}
+
+	return storageData, outgoingCursor, 0, nil
 }
 
 func StorageFetch(logger *zap.Logger, db *sql.DB, caller uuid.UUID, keys []*StorageKey) ([]*StorageData, Error_Code, error) {
