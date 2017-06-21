@@ -735,13 +735,13 @@ WHERE NOT EXISTS
 		return nil, "", errorIDAlreadyInUse, 401
 	}
 
+	//err = a.addUserEdgeMetadata(tx, userID, updatedAt)
+	//if err != nil {
+	//	return nil, "", errorCouldNotRegister, 401
+	//}
+
 	l := a.logger.With(zap.String("user_id", uuid.FromBytesOrNil(userID).String()))
 	a.pipeline.addFacebookFriends(l, userID, accessToken)
-
-	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
-	if err != nil {
-		return nil, "", errorCouldNotRegister, 401
-	}
 
 	return userID, handle, "", 200
 }

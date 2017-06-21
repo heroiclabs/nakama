@@ -80,47 +80,20 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessToken string) {
-	var tx *sql.Tx
-	var err error
-
-	defer func() {
-		if err != nil {
-			logger.Error("Could not import friends from Facebook", zap.Error(err))
-			if tx != nil {
-				err = tx.Rollback()
-				if err != nil {
-					logger.Error("Could not rollback transaction", zap.Error(err))
-				}
-			}
-		} else {
-			if tx != nil {
-				err = tx.Commit()
-				if err != nil {
-					logger.Error("Could not commit transaction", zap.Error(err))
-				} else {
-					logger.Info("Imported friends")
-				}
-			}
-		}
-	}()
-
+func (p *pipeline) addFacebookFriends(logger *zap.Logger, tx *sql.Tx, userID []byte, accessToken string) error {
 	fbFriends, err := p.socialClient.GetFacebookFriends(accessToken)
 	if err != nil {
-		return
-	}
-
-	tx, err = p.db.Begin()
-	if err != nil {
-		return
+		return err
 	}
 
 	friendAddedCounter := 0
 	for _, fbFriend := range fbFriends {
 		var friendID []byte
+		logger.Debug("Adding friend", zap.String("id", fbFriend.ID), zap.String("name", fbFriend.Name))
 		err = tx.QueryRow("SELECT id FROM users WHERE facebook_id = $1", fbFriend.ID).Scan(&friendID)
 		if err != nil {
-			return
+			logger.Warn("Could not look up users with facebook ID", zap.Error(err))
+			return err
 		}
 
 		updatedAt := nowMs()
@@ -129,15 +102,25 @@ INSERT INTO user_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 			userID, updatedAt, friendID)
 		if err != nil {
-			return
+			return err
 		}
 
 		friendAddedCounter++
 
 		_, err = tx.Exec(`UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id = $2`, updatedAt, friendID)
+		if err != nil {
+			logger.Warn("Could not update user edge", zap.Error(err))
+			return err
+		}
 	}
 
 	_, err = tx.Exec(`UPDATE user_edge_metadata SET count = $1, updated_at = $2 WHERE source_id = $3`, friendAddedCounter, nowMs(), userID)
+	if err != nil {
+		logger.Warn("Could not update user edge ", zap.Error(err))
+		return err
+	}
+
+	return nil
 }
 
 func (p *pipeline) getFriends(filterQuery string, userID []byte) ([]*Friend, error) {

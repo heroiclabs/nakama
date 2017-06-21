@@ -21,6 +21,7 @@ import (
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"database/sql"
 )
 
 func (p *pipeline) linkID(logger *zap.Logger, session *session, envelope *Envelope) {
@@ -150,7 +151,30 @@ AND NOT EXISTS
 		return
 	}
 
-	p.addFacebookFriends(logger, userID, accessToken)
+	var tx *sql.Tx
+
+	defer func() {
+		if err != nil {
+			logger.Error("Could not import friends from Facebook", zap.Error(err))
+			if tx != nil {
+				err = tx.Rollback()
+				if err != nil {
+					logger.Error("Could not rollback transaction", zap.Error(err))
+				}
+			}
+		} else {
+			if tx != nil {
+				err = tx.Commit()
+				if err != nil {
+					logger.Error("Could not commit transaction", zap.Error(err))
+				} else {
+					logger.Info("Imported friends")
+				}
+			}
+		}
+	}()
+
+	p.addFacebookFriends(logger, tx, userID, accessToken)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
