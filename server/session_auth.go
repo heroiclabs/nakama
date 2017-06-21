@@ -303,10 +303,11 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	}
 
 	uid, _ := uuid.FromBytes(userID)
+	exp := time.Now().UTC().Add(time.Duration(a.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid": uid.String(),
-		"exp": time.Now().UTC().Add(time.Duration(a.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix(),
+		"exp": exp,
 		"han": handle,
 	})
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
@@ -314,7 +315,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
-	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq)
+	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq, uid, handle, exp)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode int, authRequest *AuthenticateRequest) {
