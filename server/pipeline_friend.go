@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"fmt"
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -99,7 +100,7 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 				if err != nil {
 					logger.Error("Could not commit transaction", zap.Error(err))
 				} else {
-					logger.Info("Imported friends")
+					logger.Info("Imported friends from Facebook")
 				}
 			}
 		}
@@ -109,35 +110,78 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 	if err != nil {
 		return
 	}
+	if len(fbFriends) == 0 {
+		return
+	}
 
 	tx, err = p.db.Begin()
 	if err != nil {
 		return
 	}
 
-	friendAddedCounter := 0
-	for _, fbFriend := range fbFriends {
-		var friendID []byte
-		err = tx.QueryRow("SELECT id FROM users WHERE facebook_id = $1", fbFriend.ID).Scan(&friendID)
+	query := "SELECT id FROM users WHERE facebook_id IN ("
+	friends := make([]interface{}, len(fbFriends))
+	for i, fbFriend := range fbFriends {
+		if i != 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("$%v", i+1)
+		friends[i] = fbFriend.ID
+	}
+	query += ")"
+	rows, err := tx.Query(query, friends...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	updatedAt := nowMs()
+	queryEdge := "INSERT INTO user_edge (source_id, position, updated_at, destination_id, state) VALUES "
+	paramsEdge := []interface{}{userID, updatedAt}
+	queryEdgeMetadata := "UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id IN ("
+	paramsEdgeMetadata := []interface{}{updatedAt}
+	for rows.Next() {
+		var currentUser []byte
+		err = rows.Scan(&currentUser)
 		if err != nil {
 			return
 		}
 
-		updatedAt := nowMs()
-		_, err = tx.Exec(`
-INSERT INTO user_edge (source_id, position, updated_at, destination_id, state)
-VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
-			userID, updatedAt, friendID)
-		if err != nil {
-			return
+		if len(paramsEdge) != 2 {
+			queryEdge += ", "
 		}
+		paramsEdge = append(paramsEdge, currentUser)
+		queryEdge += fmt.Sprintf("($1, $2, $2, $%v, 0), ($%v, $2, $2, $1, 0)", len(paramsEdge), len(paramsEdge))
 
-		friendAddedCounter++
+		if len(paramsEdgeMetadata) != 1 {
+			queryEdgeMetadata += ", "
+		}
+		paramsEdgeMetadata = append(paramsEdgeMetadata, currentUser)
+		queryEdgeMetadata += fmt.Sprintf("$%v", len(paramsEdgeMetadata))
+	}
+	err = rows.Err()
+	if err != nil {
+		return
+	}
+	queryEdgeMetadata += ")"
 
-		_, err = tx.Exec(`UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id = $2`, updatedAt, friendID)
+	// Check if any Facebook friends are already users, if not there are no new edges to handle.
+	if len(paramsEdge) <= 2 {
+		return
 	}
 
-	_, err = tx.Exec(`UPDATE user_edge_metadata SET count = $1, updated_at = $2 WHERE source_id = $3`, friendAddedCounter, nowMs(), userID)
+	// Insert new friend relationship edges.
+	_, err = tx.Exec(queryEdge, paramsEdge...)
+	if err != nil {
+		return
+	}
+	// Update edge metadata for each user to increment count.
+	_, err = tx.Exec(queryEdgeMetadata, paramsEdgeMetadata...)
+	if err != nil {
+		return
+	}
+	// Update edge metadata for current user to bump count by number of new friends.
+	_, err = tx.Exec(`UPDATE user_edge_metadata SET count = $1, updated_at = $2 WHERE source_id = $3`, len(paramsEdge)-2, updatedAt, userID)
 }
 
 func (p *pipeline) getFriends(filterQuery string, userID []byte) ([]*Friend, error) {

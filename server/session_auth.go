@@ -594,12 +594,17 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, string, string, int) {
 	// Route to correct register handler
 	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, int)
+	var registerHook func(authReq *AuthenticateRequest, userID []byte, handle string)
 
 	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		registerFunc = a.registerDevice
 	case *AuthenticateRequest_Facebook:
 		registerFunc = a.registerFacebook
+		registerHook = func(authReq *AuthenticateRequest, userID []byte, handle string) {
+			l := a.logger.With(zap.String("user_id", uuid.FromBytesOrNil(userID).String()))
+			a.pipeline.addFacebookFriends(l, userID, authReq.GetFacebook())
+		}
 	case *AuthenticateRequest_Google:
 		registerFunc = a.registerGoogle
 	case *AuthenticateRequest_GameCenter_:
@@ -636,6 +641,12 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	if err != nil {
 		a.logger.Error("Could not commit transaction", zap.Error(err))
 		return nil, "", errorCouldNotRegister, 500
+	}
+
+	// Run any post-registration steps outside the main registration transaction.
+	// Errors here should not cause registration to fail.
+	if registerHook != nil {
+		registerHook(authReq, userID, handle)
 	}
 
 	a.logger.Info("Registration complete", zap.String("uid", uuid.FromBytesOrNil(userID).String()))
@@ -735,9 +746,6 @@ WHERE NOT EXISTS
 		a.logger.Warn("Could not register new Facebook profile, rows affected error")
 		return nil, "", errorIDAlreadyInUse, 401
 	}
-
-	l := a.logger.With(zap.String("user_id", uuid.FromBytesOrNil(userID).String()))
-	a.pipeline.addFacebookFriends(l, userID, accessToken)
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
