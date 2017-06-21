@@ -236,25 +236,27 @@ message Envelope {
     MatchData match_data = 47;
     MatchPresence match_presence = 48;
 
-    TStorageFetch storage_fetch = 49;
-    TStorageWrite storage_write = 50;
-    TStorageRemove storage_remove = 51;
-    TStorageData storage_data = 52;
-    TStorageKeys storage_keys = 53;
+    TStorageList storage_list = 49;
+    TStorageFetch storage_fetch = 50;
+    TStorageWrite storage_write = 51;
+    TStorageRemove storage_remove = 52;
+    TStorageData storage_data = 53;
+    TStorageKeys storage_keys = 54;
 
-    TLeaderboardsList leaderboards_list = 54;
-    TLeaderboardRecordsWrite leaderboard_records_write = 55;
-    TLeaderboardRecordsFetch leaderboard_records_fetch = 56;
-    TLeaderboardRecordsList leaderboard_records_list = 57;
-    TLeaderboards leaderboards = 58;
-    TLeaderboardRecords leaderboard_records = 59;
+    TLeaderboardsList leaderboards_list = 55;
+    TLeaderboardRecordsWrite leaderboard_records_write = 56;
+    TLeaderboardRecordsFetch leaderboard_records_fetch = 57;
+    TLeaderboardRecordsList leaderboard_records_list = 58;
+    TLeaderboards leaderboards = 59;
 
-    TMatchmakeAdd matchmake_add = 60;
-    TMatchmakeRemove matchmake_remove = 61;
-    TMatchmakeTicket matchmake_ticket = 62;
-    MatchmakeMatched matchmake_matched = 63;
+    TLeaderboardRecords leaderboard_records = 60;
 
-    TRpc rpc = 64;
+    TMatchmakeAdd matchmake_add = 61;
+    TMatchmakeRemove matchmake_remove = 62;
+    TMatchmakeTicket matchmake_ticket = 63;
+    MatchmakeMatched matchmake_matched = 64;
+
+    TRpc rpc = 65;
   }
 }
 
@@ -1006,6 +1008,19 @@ enum StoragePermissionWrite {
 }
 
 /**
+ * TStorageList is used to list records from Storage
+ *
+ * @returns TStorageData
+ */
+message TStorageList {
+  bytes user_id = 1;
+  string bucket = 2;
+  string collection = 3;
+  int64 limit = 4;
+  bytes cursor = 5;
+}
+
+/**
  * TStorageFetch is used to retrieve a list of records from Storage
  *
  * @returns TStorageData
@@ -1039,6 +1054,7 @@ message TStorageData {
   }
 
   repeated StorageData data = 1;
+  bytes cursor = 2;
 }
 
 /**

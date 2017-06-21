@@ -654,7 +654,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 }
 
 func (a *authenticationService) addUserEdgeMetadata(tx *sql.Tx, userID []byte, updatedAt int64) error {
-	_, err := tx.Exec("INSERT INTO user_edge_metadata VALUES ($1, 0, 0, $2)", userID, updatedAt)
+	_, err := tx.Exec("INSERT INTO user_edge_metadata (source_id, count, state, updated_at) VALUES ($1, 0, 0, $2)", userID, updatedAt)
 	return err
 }
 
@@ -1003,6 +1003,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
+		a.logger.Error("Could not register new custom profile, user edge metadata error", zap.Error(err))
 		return nil, "", errorCouldNotRegister, 401
 	}
 

@@ -25,6 +25,7 @@ import (
 
 	"encoding/json"
 
+	"encoding/base64"
 	"github.com/fatih/structs"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
@@ -69,6 +70,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_http":      n.registerHTTP,
 		"user_fetch_id":      n.userFetchId,
 		"user_fetch_handle":  n.userFetchHandle,
+		"storage_list":       n.storageList,
 		"storage_fetch":      n.storageFetch,
 		"storage_write":      n.storageWrite,
 		"storage_remove":     n.storageRemove,
@@ -262,6 +264,59 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) storageList(l *lua.LState) int {
+	var userID []byte
+	if us := l.OptString(1, ""); us != "" {
+		if uid, err := uuid.FromString(us); err != nil {
+			l.ArgError(1, "expects a valid user ID or nil")
+			return 0
+		} else {
+			userID = uid.Bytes()
+		}
+	}
+	bucket := l.OptString(2, "")
+	collection := l.OptString(3, "")
+	limit := l.CheckInt64(4)
+	var cursor []byte
+	if cs := l.OptString(5, ""); cs != "" {
+		cb, err := base64.StdEncoding.DecodeString(cs)
+		if err != nil {
+			l.ArgError(5, "cursor is invalid")
+			return 0
+		}
+		cursor = cb
+	}
+
+	values, newCursor, _, err := StorageList(n.logger, n.db, uuid.Nil, userID, bucket, collection, limit, cursor)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list storage: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	lv := l.NewTable()
+	for i, v := range values {
+		// Convert UUIDs to string representation if needed.
+		if len(v.UserId) != 0 {
+			uid, _ := uuid.FromBytes(v.UserId)
+			v.UserId = []byte(uid.String())
+		}
+		vm := structs.Map(v)
+		lv.RawSetInt(i+1, convertValue(l, vm))
+	}
+	l.Push(lv)
+
+	// Convert and push the new cursor, if any.
+	if len(newCursor) != 0 {
+		newCursorString := base64.StdEncoding.EncodeToString(newCursor)
+		l.Push(lua.LString(newCursorString))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 func (n *NakamaModule) storageFetch(l *lua.LState) int {

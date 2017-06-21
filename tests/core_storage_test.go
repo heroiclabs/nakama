@@ -41,7 +41,7 @@ func setupDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func generateRecord() string {
+func generateString() string {
 	return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 }
 
@@ -53,7 +53,7 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -111,7 +111,7 @@ func TestStorageWriteRuntimeGlobalMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -119,7 +119,7 @@ func TestStorageWriteRuntimeGlobalMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"baz\"}"),
 			PermissionRead:  0,
 			PermissionWrite: 0,
@@ -127,7 +127,7 @@ func TestStorageWriteRuntimeGlobalMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"qux\"}"),
 			PermissionRead:  1,
 			PermissionWrite: 1,
@@ -168,7 +168,7 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uuid.NewV4().Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
@@ -177,7 +177,7 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uuid.NewV4().Bytes(),
 			Value:           []byte("{\"foo\":\"baz\"}"),
 			PermissionRead:  0,
@@ -186,7 +186,7 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uuid.NewV4().Bytes(),
 			Value:           []byte("{\"foo\":\"qux\"}"),
 			PermissionRead:  1,
@@ -228,7 +228,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			Version:         []byte("fail"),
 			PermissionRead:  2,
@@ -255,7 +255,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -310,7 +310,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -360,7 +360,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			Version:         []byte("*"),
 			PermissionRead:  2,
@@ -392,7 +392,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -442,7 +442,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -450,7 +450,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"baz\"}"),
 			Version:         []byte("fail"),
 			PermissionRead:  0,
@@ -477,7 +477,7 @@ func TestStorageWritePipelineSingleGlobalNotAllowed(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
 			PermissionWrite: 1,
@@ -503,7 +503,7 @@ func TestStorageWritePipelineSingleOtherClientNotAllowed(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uuid.NewV4().Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
@@ -532,7 +532,7 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
@@ -566,7 +566,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
@@ -575,7 +575,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"baz\"}"),
 			PermissionRead:  0,
@@ -584,7 +584,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"qux\"}"),
 			PermissionRead:  1,
@@ -622,7 +622,7 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -702,7 +702,7 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -779,7 +779,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			Version:         []byte("fail"),
@@ -809,7 +809,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			PermissionRead:  2,
@@ -832,7 +832,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"baz\"}"),
 			Version:         []byte("fail"),
@@ -856,7 +856,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -921,7 +921,7 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 		&server.StorageData{
 			Bucket:          "testbucket",
 			Collection:      "testcollection",
-			Record:          generateRecord(),
+			Record:          generateString(),
 			UserId:          uid.Bytes(),
 			Value:           []byte("{\"foo\":\"bar\"}"),
 			Version:         []byte("*"),
@@ -950,7 +950,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1004,7 +1004,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1057,7 +1057,7 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1111,7 +1111,7 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1170,7 +1170,7 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1227,7 +1227,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1274,7 +1274,7 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1324,7 +1324,7 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1381,7 +1381,7 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1438,7 +1438,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1488,7 +1488,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1545,8 +1545,8 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1623,7 +1623,7 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1673,7 +1673,7 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1723,7 +1723,7 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1776,7 +1776,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1829,7 +1829,7 @@ func TestStorageRemovePipelineGlobalRejected(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1875,7 +1875,7 @@ func TestStorageRemovePipelineUserOtherRejected(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -1923,7 +1923,7 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -1971,7 +1971,7 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -2024,7 +2024,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
 		&server.StorageKey{
 			Bucket:     "testbucket",
 			Collection: "testcollection",
-			Record:     generateRecord(),
+			Record:     generateString(),
 			Version:    []byte("fail"),
 		},
 	}
@@ -2043,7 +2043,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -2090,7 +2090,7 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record := generateRecord()
+	record := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -2136,8 +2136,8 @@ func TestStorageRemoveRuntimeGlobalMultiple(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -2200,8 +2200,8 @@ func TestStorageRemoveRuntimeGlobalMultipleMixed(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -2252,8 +2252,8 @@ func TestStorageRemoveRuntimeGlobalMultipleMixedIfMatch(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -2318,8 +2318,8 @@ func TestStorageRemovePipelineUserMultipleMixedDenied(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -2388,8 +2388,8 @@ func TestStorageRemoveRuntimeUserMultipleMixed(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -2457,8 +2457,8 @@ func TestStorageRemoveRuntimeUserMultipleIfMatchFail(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -2559,8 +2559,8 @@ func TestStorageRemoveRuntimeUserMultipleIfMatch(t *testing.T) {
 	defer db.Close()
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
-	record1 := generateRecord()
-	record2 := generateRecord()
+	record1 := generateString()
+	record2 := generateString()
 	uid := uuid.NewV4()
 
 	data := []*server.StorageData{
@@ -2640,4 +2640,176 @@ func TestStorageRemoveRuntimeUserMultipleIfMatch(t *testing.T) {
 	assert.Equal(t, 0, int(code), "code was not 0")
 	assert.NotNil(t, data, "data was nil")
 	assert.Len(t, data, 0, "data length was not 0")
+}
+
+func TestStorageListRuntimeUser(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
+
+	uid := uuid.NewV4()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          "b",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          "a",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 0,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      "testcollection",
+			Record:          "c",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  0,
+			PermissionWrite: 0,
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "keys was nil")
+	assert.Len(t, keys, 3, "keys length was not 3")
+
+	values, cursor, code, err := server.StorageList(logger, db, uuid.Nil, uid.Bytes(), "testbucket", "testcollection", 10, nil)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, values, "values was nil")
+	assert.Len(t, values, 3, "values length was not 3")
+	assert.Equal(t, "c", values[0].Record, "values[0].Record was not c")
+	assert.Equal(t, "a", values[1].Record, "values[1].Record was not a")
+	assert.Equal(t, "b", values[2].Record, "values[2].Record was not b")
+	assert.Nil(t, cursor, "cursor was not nil")
+}
+
+func TestStorageListPipelineUserSelf(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
+
+	uid := uuid.NewV4()
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "b",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "a",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 0,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "c",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  0,
+			PermissionWrite: 0,
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "keys was nil")
+	assert.Len(t, keys, 3, "keys length was not 3")
+
+	values, cursor, code, err := server.StorageList(logger, db, uid, uid.Bytes(), "testbucket", collection, 10, nil)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, values, "values was nil")
+	assert.Len(t, values, 2, "values length was not 2")
+	assert.Equal(t, "a", values[0].Record, "values[0].Record was not a")
+	assert.Equal(t, "b", values[1].Record, "values[1].Record was not b")
+	assert.Nil(t, cursor, "cursor was not nil")
+}
+
+func TestStorageListPipelineUserOther(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
+
+	uid := uuid.NewV4()
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "b",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "a",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  1,
+			PermissionWrite: 0,
+		},
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "c",
+			UserId:          uid.Bytes(),
+			Value:           []byte("{}"),
+			PermissionRead:  0,
+			PermissionWrite: 0,
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "keys was nil")
+	assert.Len(t, keys, 3, "keys length was not 3")
+
+	values, cursor, code, err := server.StorageList(logger, db, uuid.NewV4(), uid.Bytes(), "testbucket", collection, 10, nil)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, values, "values was nil")
+	assert.Len(t, values, 0, "values length was not 0")
+	assert.Nil(t, cursor, "cursor was not nil")
 }

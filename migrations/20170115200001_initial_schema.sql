@@ -34,11 +34,11 @@ CREATE TABLE IF NOT EXISTS users (
     gamecenter_id  VARCHAR(64)   UNIQUE,
     steam_id       VARCHAR(64)   UNIQUE,
     custom_id      VARCHAR(64)   UNIQUE,
-    created_at     INT           CHECK (created_at > 0) NOT NULL,
-    updated_at     INT           CHECK (updated_at > 0) NOT NULL,
-    verified_at    INT           CHECK (verified_at >= 0) DEFAULT 0 NOT NULL,
-    disabled_at    INT           CHECK (disabled_at >= 0) DEFAULT 0 NOT NULL,
-    last_online_at INT           CHECK (last_online_at >= 0) DEFAULT 0 NOT NULL
+    created_at     BIGINT        CHECK (created_at > 0) NOT NULL,
+    updated_at     BIGINT        CHECK (updated_at > 0) NOT NULL,
+    verified_at    BIGINT        CHECK (verified_at >= 0) DEFAULT 0 NOT NULL,
+    disabled_at    BIGINT        CHECK (disabled_at >= 0) DEFAULT 0 NOT NULL,
+    last_online_at BIGINT        CHECK (last_online_at >= 0) DEFAULT 0 NOT NULL
 );
 
 -- This table should be replaced with an array column in the users table
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
     PRIMARY KEY (source_id, state, position),
     source_id      BYTEA    NOT NULL,
     position       BIGINT   NOT NULL, -- Used for sort order on rows
-    updated_at     INT      CHECK (updated_at > 0) NOT NULL,
+    updated_at     BIGINT   CHECK (updated_at > 0) NOT NULL,
     destination_id BYTEA    NOT NULL,
     state          SMALLINT DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
 
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS user_edge_metadata (
     source_id  BYTEA    NOT NULL,
     count      INT      DEFAULT 0 CHECK (count >= 0) NOT NULL,
     state      SMALLINT DEFAULT 0 CHECK (state >= 0) NOT NULL, -- Unused, currently only set to 0.
-    updated_at INT      CHECK (updated_at > 0) NOT NULL
+    updated_at BIGINT   CHECK (updated_at > 0) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS groups (
@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS groups (
     metadata      BYTEA         DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
     state         SMALLINT      DEFAULT 0 CHECK (state >= 0) NOT NULL, -- public(0), private(1)
     count         INT           DEFAULT 0 CHECK (count >= 0) NOT NULL,
-    created_at    INT           CHECK (created_at > 0) NOT NULL,
-    updated_at    INT           CHECK (updated_at > 0) NOT NULL,
-    disabled_at   INT           CHECK (disabled_at >= 0) DEFAULT 0 NOT NULL
+    created_at    BIGINT        CHECK (created_at > 0) NOT NULL,
+    updated_at    BIGINT        CHECK (updated_at > 0) NOT NULL,
+    disabled_at   BIGINT        CHECK (disabled_at >= 0) DEFAULT 0 NOT NULL
 );
 CREATE INDEX IF NOT EXISTS count_updated_at_id_idx ON groups (count, updated_at, id, disabled_at);
 CREATE INDEX IF NOT EXISTS created_at_count_id_idx ON groups (created_at, count, id, disabled_at);
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS group_edge (
     PRIMARY KEY (source_id, state, position),
     source_id      BYTEA    NOT NULL,
     position       BIGINT   NOT NULL, -- Used for sort order on rows
-    updated_at     INT      CHECK (updated_at > 0) NOT NULL,
+    updated_at     BIGINT   CHECK (updated_at > 0) NOT NULL,
     destination_id BYTEA    NOT NULL,
     state          SMALLINT CHECK (state >= 0) NOT NULL, -- admin(0), member(1), join(2), archived(3)
 
@@ -115,8 +115,8 @@ CREATE TABLE IF NOT EXISTS message (
     topic_type SMALLINT    NOT NULL, -- dm(0), room(1), group(2)
     message_id BYTEA       NOT NULL,
     user_id    BYTEA       NOT NULL,
-    created_at INT         CHECK (created_at > 0) NOT NULL,
-    expires_at INT         DEFAULT 0 CHECK (created_at >= 0) NOT NULL,
+    created_at BIGINT      CHECK (created_at > 0) NOT NULL,
+    expires_at BIGINT      DEFAULT 0 CHECK (created_at >= 0) NOT NULL,
     handle     VARCHAR(20) NOT NULL,
     type       SMALLINT    NOT NULL, -- chat(0), group_join(1), group_add(2), group_leave(3), group_kick(4), group_promoted(5)
     -- FIXME replace with JSONB
@@ -137,21 +137,12 @@ CREATE TABLE IF NOT EXISTS storage (
     version    BYTEA       NOT NULL,
     read       SMALLINT    DEFAULT 1 CHECK (read >= 0) NOT NULL,
     write      SMALLINT    DEFAULT 1 CHECK (write >= 0) NOT NULL,
-    created_at INT         CHECK (created_at > 0) NOT NULL,
-    updated_at INT         CHECK (updated_at > 0) NOT NULL,
+    created_at BIGINT      CHECK (created_at > 0) NOT NULL,
+    updated_at BIGINT      CHECK (updated_at > 0) NOT NULL,
     -- FIXME replace with TTL support
-    expires_at INT         CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
-    deleted_at INT         CHECK (deleted_at >= 0) DEFAULT 0 NOT NULL
+    expires_at BIGINT      CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
+    deleted_at BIGINT      CHECK (deleted_at >= 0) DEFAULT 0 NOT NULL
 );
-CREATE INDEX IF NOT EXISTS read_idx ON storage (read);
-CREATE INDEX IF NOT EXISTS write_idx ON storage (write);
-CREATE INDEX IF NOT EXISTS version_idx ON storage (version);
--- For sync fetch
-CREATE INDEX IF NOT EXISTS user_id_bucket_updated_at_idx ON storage (user_id, bucket, updated_at);
--- For bulk deletes
-CREATE INDEX IF NOT EXISTS user_id_deleted_at_idx ON storage (user_id, deleted_at);
-CREATE INDEX IF NOT EXISTS user_id_bucket_deleted_at_idx ON storage (user_id, bucket, deleted_at);
-CREATE INDEX IF NOT EXISTS user_id_bucket_collection_deleted_at_idx ON storage (user_id, bucket, collection, deleted_at);
 
 -- +migrate Down
 DROP TABLE IF EXISTS user_device;
