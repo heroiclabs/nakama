@@ -594,7 +594,7 @@ message TGroupsFetch {
 /**
  * TGroupsList searches all groups for matching criteria.
  *
- * @returns TGroup
+ * @returns TGroups
  */
 message TGroupsList {
   /// Upper limit on the maximum number of groups to return per request. Max value is 100.
