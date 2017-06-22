@@ -579,7 +579,7 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 	var userID []byte
 	var handle string
 	var disabledAt int64
-	err := a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE custom_id = $1::VARCHAR",
+	err := a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE custom_id = $1",
 		customID).
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
@@ -971,13 +971,13 @@ func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *Authenticate
 INSERT INTO users (id, handle, custom_id, created_at, updated_at)
 SELECT $1 AS id,
 	 $2 AS handle,
-	 $3::VARCHAR AS custom_id,
+	 $3 AS custom_id,
 	 $4 AS created_at,
 	 $4 AS updated_at
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE custom_id = $3::VARCHAR)`,
+ WHERE custom_id = $3)`,
 		userID,
 		handle,
 		customID,
