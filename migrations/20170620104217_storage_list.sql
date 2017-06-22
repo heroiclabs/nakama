@@ -15,13 +15,14 @@
  */
 
 -- +migrate Up
-DROP INDEX IF EXISTS read_idx ON storage;
-DROP INDEX IF EXISTS write_idx ON storage;
-DROP INDEX IF EXISTS version_idx ON storage;
-DROP INDEX IF EXISTS user_id_bucket_updated_at_idx ON storage;
-DROP INDEX IF EXISTS user_id_deleted_at_idx ON storage;
-DROP INDEX IF EXISTS user_id_bucket_deleted_at_idx ON storage;
-DROP INDEX IF EXISTS user_id_bucket_collection_deleted_at_idx ON storage;
+-- NOTE: not postgres compatible, it expects table.index rather than table@index.
+DROP INDEX IF EXISTS storage@read_idx;
+DROP INDEX IF EXISTS storage@write_idx;
+DROP INDEX IF EXISTS storage@version_idx;
+DROP INDEX IF EXISTS storage@user_id_bucket_updated_at_idx;
+DROP INDEX IF EXISTS storage@user_id_deleted_at_idx;
+DROP INDEX IF EXISTS storage@user_id_bucket_deleted_at_idx;
+DROP INDEX IF EXISTS storage@user_id_bucket_collection_deleted_at_idx;
 
 -- List by user first, then keep narrowing down.
 CREATE INDEX IF NOT EXISTS deleted_at_user_id_read_bucket_collection_record_idx ON storage (deleted_at, user_id, read, bucket, collection, record);

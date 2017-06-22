@@ -35,13 +35,13 @@ type storageListCursor struct {
 	Read       int64
 }
 
-type StorageListOp struct {
-	UserId     []byte // this must be UserId not UserID
-	Bucket     string
-	Collection string
-	Limit      int64
-	Cursor     []byte
-}
+//type StorageListOp struct {
+//	UserId     []byte // this must be UserId not UserID
+//	Bucket     string
+//	Collection string
+//	Limit      int64
+//	Cursor     []byte
+//}
 
 type StorageKey struct {
 	Bucket     string
@@ -66,19 +66,19 @@ type StorageData struct {
 	ExpiresAt       int64
 }
 
-func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *StorageListOp) ([]*StorageData, []byte, Error_Code, error) {
+func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte, bucket string, collection string, limit int64, cursor []byte) ([]*StorageData, []byte, Error_Code, error) {
 	// We list by at least User ID, or bucket as a list criteria.
-	if len(list.UserId) == 0 && list.Bucket == "" {
+	if len(userID) == 0 && bucket == "" {
 		return nil, nil, BAD_INPUT, errors.New("Either a User ID or a bucket is required as an initial list criteria")
 	}
-	if list.Bucket == "" && list.Collection != "" {
+	if bucket == "" && collection != "" {
 		return nil, nil, BAD_INPUT, errors.New("Cannot list by collection without listing by bucket first")
 	}
 
 	// If a user ID is provided, validate the format.
 	owner := uuid.Nil
-	if len(list.UserId) != 0 {
-		if uid, err := uuid.FromBytes(list.UserId); err != nil {
+	if len(userID) != 0 {
+		if uid, err := uuid.FromBytes(userID); err != nil {
 			return nil, nil, BAD_INPUT, errors.New("Invalid user ID")
 		} else {
 			owner = uid
@@ -86,7 +86,6 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *Storage
 	}
 
 	// Validate the limit.
-	limit := list.Limit
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
@@ -95,72 +94,89 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *Storage
 
 	// Process the incoming cursor if one is provided.
 	var incomingCursor *storageListCursor
-	if len(list.Cursor) != 0 {
+	if len(cursor) != 0 {
 		incomingCursor = &storageListCursor{}
-		if err := gob.NewDecoder(bytes.NewReader(list.Cursor)).Decode(incomingCursor); err != nil {
+		if err := gob.NewDecoder(bytes.NewReader(cursor)).Decode(incomingCursor); err != nil {
 			return nil, nil, BAD_INPUT, errors.New("Invalid cursor data")
 		}
 	}
 
+	// Select the correct index. NOTE: should be removed when DB index selection is smarter.
+	index := ""
+	if len(userID) == 0 {
+		if bucket == "" {
+			index = "deleted_at_user_id_read_bucket_collection_record_idx"
+		} else if collection == "" {
+			index = "deleted_at_user_id_bucket_read_collection_record_idx"
+		} else {
+			index = "deleted_at_user_id_bucket_collection_read_record_idx"
+		}
+	} else {
+		if collection == "" {
+			index = "deleted_at_bucket_read_collection_record_user_id_idx"
+		} else {
+			index = "deleted_at_bucket_collection_read_record_user_id_idx"
+		}
+	}
+
 	// Set up the query.
-	query := `
-SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at
-FROM storage
-WHERE deleted_at = 0`
+	query := "SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at FROM storage@" + index
 	params := make([]interface{}, 0)
 
-	// Apply filtering parameters as needed.
-	if len(list.UserId) != 0 {
-		params = append(params, owner.Bytes())
-		query += fmt.Sprintf(" AND user_id = $%v", len(params))
-	}
-	if list.Bucket != "" {
-		params = append(params, list.Bucket)
-		query += fmt.Sprintf(" AND bucket = $%v", len(params))
-	}
-	if list.Collection != "" {
-		params = append(params, list.Bucket)
-		query += fmt.Sprintf(" AND bucket = $%v", len(params))
+	// If cursor is present, give keyset clause priority over other parameters.
+	if incomingCursor != nil {
+		if len(userID) == 0 {
+			if collection == "" {
+				i := len(params)
+				query += fmt.Sprintf(" WHERE (deleted_at, bucket, read, collection, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND bucket = $%v", i+1, i+2, i+3, i+4, i+5, i+6)
+				params = append(params, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record, incomingCursor.UserID, bucket)
+			} else {
+				i := len(params)
+				query += fmt.Sprintf(" WHERE (deleted_at, bucket, collection, read, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND bucket = $%v AND collection = $%v", i+1, i+2, i+3, i+4, i+5, i+6, i+7)
+				params = append(params, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record, incomingCursor.UserID, bucket, collection)
+			}
+		} else {
+			if bucket == "" {
+				i := len(params)
+				query += fmt.Sprintf(" WHERE (deleted_at, user_id, read, bucket, collection, record) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND user_id = $%v", i+1, i+2, i+3, i+4, i+5, i+6)
+				params = append(params, incomingCursor.UserID, incomingCursor.Read, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Record, userID)
+			} else if collection == "" {
+				i := len(params)
+				query += fmt.Sprintf(" WHERE (deleted_at, user_id, bucket, read, collection, record) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND user_id = $%v AND bucket = $%v", i+1, i+2, i+3, i+4, i+5, i+6, i+7)
+				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record, userID, bucket)
+			} else {
+				i := len(params)
+				query += fmt.Sprintf(" WHERE (deleted_at, user_id, bucket, collection, read, record) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND user_id = $%v AND bucket = $%v AND collection = $%v", i+1, i+2, i+3, i+4, i+5, i+6, i+7, i+8)
+				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record, userID, bucket, collection)
+			}
+		}
+	} else {
+		// If no keyset, start all ranges with live records.
+		query += " WHERE deleted_at = 0"
+		// Apply filtering parameters as needed.
+		if len(userID) != 0 {
+			params = append(params, owner.Bytes())
+			query += fmt.Sprintf(" AND user_id = $%v", len(params))
+		}
+		if bucket != "" {
+			params = append(params, bucket)
+			query += fmt.Sprintf(" AND bucket = $%v", len(params))
+		}
+		if collection != "" {
+			params = append(params, bucket)
+			query += fmt.Sprintf(" AND bucket = $%v", len(params))
+		}
 	}
 
 	// Apply permissions as needed.
 	if caller == uuid.Nil {
 		// Script runtime can list all data regardless of read permission.
 		query += " AND read >= 0"
-	} else if len(list.UserId) != 0 && caller == owner {
+	} else if len(userID) != 0 && caller == owner {
 		// If listing by user first, and the caller is the user listing their own data.
 		query += " AND read >= 1"
 	} else {
 		query += " AND read >= 2"
-	}
-
-	// Apply cursor keyset.
-	if incomingCursor != nil {
-		if len(list.UserId) == 0 {
-			if list.Collection == "" {
-				i := len(params)
-				query += fmt.Sprintf(" AND (deleted_at, bucket, read, collection, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
-				params = append(params, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record, incomingCursor.UserID)
-			} else {
-				i := len(params)
-				query += fmt.Sprintf(" AND (deleted_at, bucket, collection, read, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
-				params = append(params, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record, incomingCursor.UserID)
-			}
-		} else {
-			if list.Bucket == "" {
-				i := len(params)
-				query += fmt.Sprintf(" AND (deleted_at, user_id, read, bucket, collection, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
-				params = append(params, incomingCursor.UserID, incomingCursor.Read, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Record)
-			} else if list.Collection == "" {
-				i := len(params)
-				query += fmt.Sprintf(" AND (deleted_at, user_id, bucket, read, collection, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
-				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Read, incomingCursor.Collection, incomingCursor.Record)
-			} else {
-				i := len(params)
-				query += fmt.Sprintf(" AND (deleted_at, user_id, bucket, collection, read, record) > (0, $%v, $%v, $%v, $%v, $%v)", i+1, i+2, i+3, i+4, i+5)
-				params = append(params, incomingCursor.UserID, incomingCursor.Bucket, incomingCursor.Collection, incomingCursor.Read, incomingCursor.Record)
-			}
-		}
 	}
 
 	params = append(params, limit+1)
@@ -178,26 +194,26 @@ WHERE deleted_at = 0`
 	var outgoingCursor []byte
 
 	// Parse the results.
-	var userID []byte
-	var bucket sql.NullString
-	var collection sql.NullString
-	var record sql.NullString
-	var value []byte
-	var version []byte
-	var read sql.NullInt64
-	var write sql.NullInt64
-	var createdAt sql.NullInt64
-	var updatedAt sql.NullInt64
-	var expiresAt sql.NullInt64
+	var dataUserID []byte
+	var dataBucket sql.NullString
+	var dataCollection sql.NullString
+	var dataRecord sql.NullString
+	var dataValue []byte
+	var dataVersion []byte
+	var dataRead sql.NullInt64
+	var dataWrite sql.NullInt64
+	var dataCreatedAt sql.NullInt64
+	var dataUpdatedAt sql.NullInt64
+	var dataExpiresAt sql.NullInt64
 	for rows.Next() {
 		if int64(len(storageData)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &storageListCursor{
-				Bucket:     bucket.String,
-				Collection: collection.String,
-				Record:     record.String,
-				UserID:     userID,
-				Read:       read.Int64,
+				Bucket:     dataBucket.String,
+				Collection: dataCollection.String,
+				Record:     dataRecord.String,
+				UserID:     dataUserID,
+				Read:       dataRead.Int64,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating storage list cursor", zap.Error(err))
@@ -207,31 +223,31 @@ WHERE deleted_at = 0`
 			break
 		}
 
-		err := rows.Scan(&userID, &bucket, &collection, &record, &value, &version,
-			&read, &write, &createdAt, &updatedAt, &expiresAt)
+		err := rows.Scan(&dataUserID, &dataBucket, &dataCollection, &dataRecord, &dataValue, &dataVersion,
+			&dataRead, &dataWrite, &dataCreatedAt, &dataUpdatedAt, &dataExpiresAt)
 		if err != nil {
 			logger.Error("Could not execute storage list query", zap.Error(err))
 			return nil, nil, RUNTIME_EXCEPTION, err
 		}
 
 		// Potentially coerce zero-length global owner field.
-		if len(userID) == 0 {
-			userID = nil
+		if len(dataUserID) == 0 {
+			dataUserID = nil
 		}
 
 		// Accumulate the response.
 		storageData = append(storageData, &StorageData{
-			Bucket:          bucket.String,
-			Collection:      collection.String,
-			Record:          record.String,
-			UserId:          userID,
-			Value:           value,
-			Version:         version,
-			PermissionRead:  read.Int64,
-			PermissionWrite: write.Int64,
-			CreatedAt:       createdAt.Int64,
-			UpdatedAt:       updatedAt.Int64,
-			ExpiresAt:       expiresAt.Int64,
+			Bucket:          dataBucket.String,
+			Collection:      dataCollection.String,
+			Record:          dataRecord.String,
+			UserId:          dataUserID,
+			Value:           dataValue,
+			Version:         dataVersion,
+			PermissionRead:  dataRead.Int64,
+			PermissionWrite: dataWrite.Int64,
+			CreatedAt:       dataCreatedAt.Int64,
+			UpdatedAt:       dataUpdatedAt.Int64,
+			ExpiresAt:       dataExpiresAt.Int64,
 		})
 	}
 	if err = rows.Err(); err != nil {
