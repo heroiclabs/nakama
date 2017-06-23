@@ -35,14 +35,6 @@ type storageListCursor struct {
 	Read       int64
 }
 
-//type StorageListOp struct {
-//	UserId     []byte // this must be UserId not UserID
-//	Bucket     string
-//	Collection string
-//	Limit      int64
-//	Cursor     []byte
-//}
-
 type StorageKey struct {
 	Bucket     string
 	Collection string
