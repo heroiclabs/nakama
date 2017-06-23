@@ -163,8 +163,8 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 			query += fmt.Sprintf(" AND bucket = $%v", len(params))
 		}
 		if collection != "" {
-			params = append(params, bucket)
-			query += fmt.Sprintf(" AND bucket = $%v", len(params))
+			params = append(params, collection)
+			query += fmt.Sprintf(" AND collection = $%v", len(params))
 		}
 	}
 
