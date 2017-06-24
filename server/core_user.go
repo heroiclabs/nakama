@@ -146,9 +146,14 @@ func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, hand
 	}
 
 	query := ""
+
 	if len(userIds) > 0 {
 		query += " WHERE users.id IN (" + strings.Join(statements, ", ") + ") "
+		if len(handles) > 0 {
+			query += " OR "
+		}
 	}
+	
 	if len(handles) > 0 {
 		query += " WHERE users.handle IN (" + strings.Join(statements, ", ") + ") "
 	}
