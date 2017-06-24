@@ -145,17 +145,16 @@ func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, hand
 		params = append(params, handle)
 	}
 
-	query := ""
-
+	query := "WHERE "
 	if len(userIds) > 0 {
-		query += " WHERE users.id IN (" + strings.Join(statements, ", ") + ") "
-		if len(handles) > 0 {
+		query += "users.id IN (" + strings.Join(statements, ", ") + ")"
+	}
+
+	if len(handles) > 0 {
+		if len(userIds) > 0 {
 			query += " OR "
 		}
-	}
-	
-	if len(handles) > 0 {
-		query += " WHERE users.handle IN (" + strings.Join(statements, ", ") + ") "
+		query += "users.handle IN (" + strings.Join(statements, ", ") + ")"
 	}
 
 	users, err := querySocialGraph(logger, db, query, params)
