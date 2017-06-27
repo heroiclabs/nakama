@@ -16,7 +16,6 @@ package main
 
 import (
 	"database/sql"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,14 +27,12 @@ import (
 	"time"
 
 	"nakama/cmd"
-	"nakama/pkg/flags"
 	"nakama/pkg/ga"
 	"nakama/server"
 
 	"nakama/pkg/social"
 
 	"github.com/armon/go-metrics"
-	"github.com/go-yaml/yaml"
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -55,8 +52,7 @@ func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	http.DefaultClient.Timeout = 1500 * time.Millisecond // Always set default timeout on HTTP client
 
-	consoleLogger := server.NewJSONLogger(os.Stdout) // or NewConsoleLogger
-
+	cmdLogger := server.NewJSONLogger(os.Stdout, true) // or NewConsoleLogger
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--version":
@@ -65,24 +61,18 @@ func main() {
 		case "doctor":
 			cmd.DoctorParse(os.Args[2:])
 		case "migrate":
-			cmd.MigrateParse(os.Args[2:], consoleLogger)
+			cmd.MigrateParse(os.Args[2:], cmdLogger)
 		case "admin":
-			cmd.AdminParse(os.Args[2:], consoleLogger)
+			cmd.AdminParse(os.Args[2:], cmdLogger)
 		}
 	}
 
-	config := parseArgs(consoleLogger)
+	config := server.ParseArgs(cmdLogger, os.Args)
+	jsonLogger, multiLogger := server.SetupLogging(config)
 
 	memoryMetricSink := metrics.NewInmemSink(10*time.Second, time.Minute)
 	metric := &metrics.FanoutSink{memoryMetricSink}
 	metrics.NewGlobal(&metrics.Config{EnableRuntimeMetrics: true, ProfileInterval: 5 * time.Second}, metric)
-
-	jsonLogger := server.NewLogger(consoleLogger, config)
-	multiLogger := consoleLogger
-	if !server.StdoutLogging {
-		// if we aren't printing only to stdout, then we want to multiplex entries
-		multiLogger = server.NewMultiLogger(consoleLogger, jsonLogger)
-	}
 
 	// Print startup information
 	multiLogger.Info("Nakama starting")
@@ -144,47 +134,6 @@ func main() {
 
 	multiLogger.Info("Startup done")
 	select {}
-}
-
-func parseArgs(consoleLogger *zap.Logger) server.Config {
-	config := server.NewConfig()
-
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "--config":
-			configPath := os.Args[2]
-			data, err := ioutil.ReadFile(configPath)
-			if err != nil {
-				consoleLogger.Error("Could not read config file, using defaults", zap.Error(err))
-			} else {
-				err = yaml.Unmarshal(data, config)
-				if err != nil {
-					consoleLogger.Error("Could not parse config file, using defaults", zap.Error(err))
-				} else {
-					config.Config = configPath
-				}
-			}
-		}
-	}
-
-	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
-	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
-		UseLowerCase: true,
-		Flatten:      false,
-		TagName:      "flag",
-		TagUsage:     "usage",
-	}, flagSet)
-
-	if _, err := fm.ParseArgs(config, os.Args[1:]); err != nil {
-		consoleLogger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
-	}
-
-	// if the runtime path is not overridden, set it to `datadir/modules`
-	if config.GetRuntime().Path == "" {
-		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
-	}
-
-	return config
 }
 
 func dbConnect(multiLogger *zap.Logger, dsns []string) *sql.DB {

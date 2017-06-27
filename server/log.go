@@ -24,24 +24,19 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// By default, log all messages with Warn and Error messages to a log file inside Data/Log/<name>.log file. The content will be in JSON.
-// if --verbose is passed, log messages with Debug and higher levels.
-// if --logtostdout is passed, logs are only printed to stdout.
-// In all cases, Error messages trigger the stacktrace to be dumped as well.
-var (
-	VerboseLogging = true
-	StdoutLogging  = false
-)
-
-type loggerEnabler struct{}
-
-func (l *loggerEnabler) Enabled(level zapcore.Level) bool {
-	return VerboseLogging || level > zapcore.DebugLevel
+type loggerEnabler struct {
+	verbose bool
 }
 
-func NewLogger(consoleLogger *zap.Logger, config Config) *zap.Logger {
+func (l *loggerEnabler) Enabled(level zapcore.Level) bool {
+	return l.verbose || level > zapcore.DebugLevel
+}
+
+func NewLogger(config Config) *zap.Logger {
+	consoleLogger := NewJSONLogger(os.Stdout, true)
+
 	output := os.Stdout
-	if !StdoutLogging {
+	if !config.GetLog().Stdout {
 		err := os.MkdirAll(filepath.FromSlash(config.GetDataDir()+"/log"), 0755)
 		if err != nil {
 			consoleLogger.Fatal("Could not create log directory", zap.Error(err))
@@ -55,13 +50,13 @@ func NewLogger(consoleLogger *zap.Logger, config Config) *zap.Logger {
 		}
 	}
 
-	logger := NewJSONLogger(output)
+	logger := NewJSONLogger(output, config.GetLog().Verbose)
 	logger = logger.With(zap.String("server", config.GetName()))
 
 	return logger
 }
 
-func NewConsoleLogger(output *os.File) *zap.Logger {
+func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
 	consoleEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -75,13 +70,13 @@ func NewConsoleLogger(output *os.File) *zap.Logger {
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
 
-	core := zapcore.NewCore(consoleEncoder, output, &loggerEnabler{})
+	core := zapcore.NewCore(consoleEncoder, output, &loggerEnabler{verbose})
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
 
 	return zap.New(core, options...)
 }
 
-func NewJSONLogger(output *os.File) *zap.Logger {
+func NewJSONLogger(output *os.File, verbose bool) *zap.Logger {
 	jsonEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -95,7 +90,7 @@ func NewJSONLogger(output *os.File) *zap.Logger {
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
 
-	core := zapcore.NewCore(jsonEncoder, output, &loggerEnabler{})
+	core := zapcore.NewCore(jsonEncoder, output, &loggerEnabler{verbose})
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
 
 	return zap.New(core, options...)
@@ -110,4 +105,16 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 	teeCore := zapcore.NewTee(cores...)
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
 	return zap.New(teeCore, options...)
+}
+
+func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
+	consoleLogger := NewJSONLogger(os.Stdout, config.GetLog().Verbose)
+	jsonLogger := NewLogger(config)
+	multiLogger := consoleLogger
+	if !config.GetLog().Stdout {
+		// if we aren't printing only to stdout, then we want to multiplex entries
+		multiLogger = NewMultiLogger(consoleLogger, jsonLogger)
+	}
+
+	return jsonLogger, multiLogger
 }

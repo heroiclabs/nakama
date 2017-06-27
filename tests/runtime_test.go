@@ -48,7 +48,7 @@ func newRuntime() (*server.Runtime, error) {
 }
 
 func writeStatsModule() {
-	writeFile("stats.lua", `
+	writeLuaModule("stats.lua", `
 stats={}
 
 -- Get the mean value of a table
@@ -70,7 +70,7 @@ return stats`)
 }
 
 func writeTestModule() {
-	writeFile("test.lua", `
+	writeLuaModule("test.lua", `
 test={}
 -- Get the mean value of a table
 function test.printWorld()
@@ -83,7 +83,7 @@ return test
 `)
 }
 
-func writeFile(name, content string) {
+func writeLuaModule(name, content string) {
 	os.MkdirAll(filepath.Join(DATA_PATH, "modules"), os.ModePerm)
 	ioutil.WriteFile(filepath.Join(DATA_PATH, "/modules/"+name), []byte(content), 0644)
 }
@@ -137,7 +137,7 @@ file_exists "./"`)
 func TestRuntimeRequireEval(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeTestModule()
-	writeFile("test-invoke.lua", `
+	writeLuaModule("test-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 test.printWorld()
@@ -153,7 +153,7 @@ test.printWorld()
 func TestRuntimeRequireFile(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeStatsModule()
-	writeFile("local_test.lua", `
+	writeLuaModule("local_test.lua", `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
@@ -169,7 +169,7 @@ assert(stats.mean(t) > 0)
 func TestRuntimeRequirePreload(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeStatsModule()
-	writeFile("states-invoke.lua", `
+	writeLuaModule("states-invoke.lua", `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
@@ -184,7 +184,7 @@ print(stats.mean(t))
 
 func TestRuntimeKeepChangesBetweenStates(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("var.lua", `
+	writeLuaModule("var.lua", `
 var={}
 var.count = 1
 return var
@@ -229,7 +229,7 @@ assert(var.count == 2)`)
 func TestRuntimeRegisterHTTP(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeTestModule()
-	writeFile("http-invoke.lua", `
+	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
@@ -255,7 +255,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 
 func TestRuntimeRegisterHTTPNoResponse(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("test.lua", `
+	writeLuaModule("test.lua", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx)
@@ -265,7 +265,7 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeFile("http-invoke.lua", `
+	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
@@ -286,7 +286,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 
 func TestRuntimeRegisterHTTPWithPayload(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("test.lua", `
+	writeLuaModule("test.lua", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -298,7 +298,7 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeFile("http-invoke.lua", `
+	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
@@ -327,7 +327,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("test.lua", `
+	writeLuaModule("test.lua", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -339,7 +339,7 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeFile("http-invoke.lua", `
+	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
@@ -366,7 +366,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 
 func TestRuntimeRegisterBeforeWithPayload(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("test.lua", `
+	writeLuaModule("test.lua", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -378,7 +378,7 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeFile("http-invoke.lua", `
+	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_before(test.printWorld, "SelfFetch")
@@ -440,7 +440,7 @@ nakama.register_before(test.printWorld, "SelfFetch")
 
 func TestRuntimeUserId(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("userid.lua", `
+	writeLuaModule("userid.lua", `
 local nk = require("nakama")
 
 local user_ids = {
@@ -461,7 +461,7 @@ local users = nk.user_fetch_id(user_ids)
 
 func TestRuntimeLeaderboardCreate(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("userid.lua", `
+	writeLuaModule("userid.lua", `
 local nk = require("nakama")
 local nkx = require("nakamax")
 
@@ -483,7 +483,7 @@ nk.leaderboard_create(leaderboard_id, "desc", "0 0 * * 1", metadata, false)
 
 func TestStorageWrite(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("storage_write.lua", `
+	writeLuaModule("storage_write.lua", `
 local nk = require("nakama")
 
 local new_records = {
@@ -505,7 +505,7 @@ nk.storage_write(new_records)
 
 func TestStorageFetch(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
-	writeFile("storage_fetch.lua", `
+	writeLuaModule("storage_fetch.lua", `
 local nk = require("nakama")
 local record_keys = {
   {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil},

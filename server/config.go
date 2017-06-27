@@ -19,7 +19,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"flag"
+	"io/ioutil"
+	"nakama/pkg/flags"
+
+	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 // Config interface is the Nakama Core configuration
@@ -35,6 +41,47 @@ type Config interface {
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
+}
+
+func ParseArgs(logger *zap.Logger, args []string) Config {
+	config := NewConfig()
+
+	if len(args) > 1 {
+		switch args[1] {
+		case "--config":
+			configPath := args[2]
+			data, err := ioutil.ReadFile(configPath)
+			if err != nil {
+				logger.Error("Could not read config file, using defaults", zap.Error(err))
+			} else {
+				err = yaml.Unmarshal(data, config)
+				if err != nil {
+					logger.Error("Could not parse config file, using defaults", zap.Error(err))
+				} else {
+					config.Config = configPath
+				}
+			}
+		}
+	}
+
+	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+		UseLowerCase: true,
+		Flatten:      false,
+		TagName:      "flag",
+		TagUsage:     "usage",
+	}, flagSet)
+
+	if _, err := fm.ParseArgs(config, args[1:]); err != nil {
+		logger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
+	}
+
+	// if the runtime path is not overridden, set it to `datadir/modules`
+	if config.GetRuntime().Path == "" {
+		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
+	}
+
+	return config
 }
 
 type config struct {
@@ -117,6 +164,11 @@ func (c *config) GetRuntime() *RuntimeConfig {
 
 // LogConfig is configuration relevant to logging levels and output
 type LogConfig struct {
+	// By default, log all messages with Warn and Error messages to a log file inside Data/Log/<name>.log file. The content will be in JSON.
+	// if --log.verbose is passed, log messages with Debug and higher levels.
+	// if --log.stdout is passed, logs are only printed to stdout.
+	// In all cases, Error messages trigger the stacktrace to be dumped as well.
+
 	Verbose bool `yaml:"verbose" json:"verbose" flag:"verbose" usage:"Turn verbose logging on"`
 	Stdout  bool `yaml:"stdout" json:"stdout" flag:"stdout" usage:"Log to stdout instead of file"`
 }
