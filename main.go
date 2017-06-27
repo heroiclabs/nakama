@@ -111,7 +111,7 @@ func main() {
 	socialClient := social.NewClient(5 * time.Second)
 	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime)
 	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtime)
-	opsService := server.NewOpsService(jsonLogger, multiLogger, semver, config, statsService)
+	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config.GetDataDir())
@@ -129,7 +129,7 @@ func main() {
 		multiLogger.Info("Shutting down")
 
 		authService.Stop()
-		opsService.Stop()
+		dashboardService.Stop()
 		trackerService.Stop()
 		runtime.Stop()
 

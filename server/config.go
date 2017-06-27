@@ -27,7 +27,7 @@ type Config interface {
 	GetName() string
 	GetDataDir() string
 	GetPort() int
-	GetOpsPort() int
+	GetDashboardPort() int
 	GetDSNS() []string
 	GetLog() *LogConfig
 	GetSession() *SessionConfig
@@ -38,18 +38,18 @@ type Config interface {
 }
 
 type config struct {
-	Name      string           `yaml:"name" json:"name" flag:"name" usage:"Nakama server’s node name - must be unique"`
-	Config    string           `yaml:"config" json:"config" flag:"config" usage:"The absolute file path to configuration YAML file."`
-	Datadir   string           `yaml:"data_dir" json:"data_dir" flag:"data-dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Port      int              `yaml:"port" json:"port" flag:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
-	OpsPort   int              `yaml:"ops_port" json:"ops_port" flag:"ops-port" usage:"The port for accepting connections to the ops dashboard, listening on all interfaces."`
-	Dsns      []string         `yaml:"dsns" json:"dsns" flag:"dsns" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
-	Log       *LogConfig       `yaml:"log" json:"log" flag:"log" usage:"Log levels and output"`
-	Session   *SessionConfig   `yaml:"session" json:"session" flag:"session" usage:"Session authentication settings"`
-	Transport *TransportConfig `yaml:"transport" json:"transport" flag:"transport" usage:"Data transport configurations"`
-	Database  *DatabaseConfig  `yaml:"database" json:"database" flag:"database" usage:"Database connection settings"`
-	Social    *SocialConfig    `yaml:"social" json:"social" flag:"social" usage:"Properties for social providers"`
-	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime" flag:"runtime" usage:"Script Runtime properties"`
+	Name          string           `yaml:"name" json:"name" flag:"name" usage:"Nakama server’s node name - must be unique"`
+	Config        string           `yaml:"config" json:"config" flag:"config" usage:"The absolute file path to configuration YAML file."`
+	Datadir       string           `yaml:"data_dir" json:"data_dir" flag:"data-dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Port          int              `yaml:"port" json:"port" flag:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
+	DashboardPort int              `yaml:"dashboard_port" json:"dashboard_port" flag:"dashboard-port" usage:"The port for accepting connections to the dashboard, listening on all interfaces."`
+	Dsns          []string         `yaml:"dsns" json:"dsns" flag:"dsns" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
+	Log           *LogConfig       `yaml:"log" json:"log" flag:"log" usage:"Log levels and output"`
+	Session       *SessionConfig   `yaml:"session" json:"session" flag:"session" usage:"Session authentication settings"`
+	Transport     *TransportConfig `yaml:"transport" json:"transport" flag:"transport" usage:"Data transport configurations"`
+	Database      *DatabaseConfig  `yaml:"database" json:"database" flag:"database" usage:"Database connection settings"`
+	Social        *SocialConfig    `yaml:"social" json:"social" flag:"social" usage:"Properties for social providers"`
+	Runtime       *RuntimeConfig   `yaml:"runtime" json:"runtime" flag:"runtime" usage:"Script Runtime properties"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
@@ -58,16 +58,16 @@ func NewConfig() *config {
 	dataDirectory := filepath.Join(cwd, "data")
 	nodeName := "nakama-" + strings.Split(uuid.NewV4().String(), "-")[3]
 	return &config{
-		Name:      nodeName,
-		Datadir:   dataDirectory,
-		Port:      7350,
-		OpsPort:   7351,
-		Dsns:      []string{"root@localhost:26257"},
-		Session:   NewSessionConfig(),
-		Transport: NewTransportConfig(),
-		Database:  NewDatabaseConfig(),
-		Social:    NewSocialConfig(),
-		Runtime:   NewRuntimeConfig(),
+		Name:          nodeName,
+		Datadir:       dataDirectory,
+		Port:          7350,
+		DashboardPort: 7351,
+		Dsns:          []string{"root@localhost:26257"},
+		Session:       NewSessionConfig(),
+		Transport:     NewTransportConfig(),
+		Database:      NewDatabaseConfig(),
+		Social:        NewSocialConfig(),
+		Runtime:       NewRuntimeConfig(),
 	}
 }
 
@@ -83,8 +83,8 @@ func (c *config) GetPort() int {
 	return c.Port
 }
 
-func (c *config) GetOpsPort() int {
-	return c.OpsPort
+func (c *config) GetDashboardPort() int {
+	return c.DashboardPort
 }
 
 func (c *config) GetDSNS() []string {
