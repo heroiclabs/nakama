@@ -38,17 +38,18 @@ type Config interface {
 }
 
 type config struct {
-	Name      string           `yaml:"name" json:"name"`
-	Datadir   string           `yaml:"data_dir" json:"data_dir"`
-	Port      int              `yaml:"port" json:"port"`
-	OpsPort   int              `yaml:"ops_port" json:"ops_port"`
-	Dsns      []string         `yaml:"dsns" json:"dsns"`
-	Log       *LogConfig       `yaml:"log" json:"log" flag:"log"`
-	Session   *SessionConfig   `yaml:"session" json:"session"`
-	Transport *TransportConfig `yaml:"transport" json:"transport"`
-	Database  *DatabaseConfig  `yaml:"database" json:"database"`
-	Social    *SocialConfig    `yaml:"social" json:"social"`
-	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime"`
+	Name      string           `yaml:"name" json:"name" flag:"name" usage:"Nakama server’s node name - must be unique"`
+	Config    string           `yaml:"config" json:"config" flag:"config" usage:"The absolute file path to configuration YAML file."`
+	Datadir   string           `yaml:"data_dir" json:"data_dir" flag:"data-dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Port      int              `yaml:"port" json:"port" flag:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
+	OpsPort   int              `yaml:"ops_port" json:"ops_port" flag:"ops-port" usage:"The port for accepting connections to the ops dashboard, listening on all interfaces."`
+	Dsns      []string         `yaml:"dsns" json:"dsns" flag:"dsns" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
+	Log       *LogConfig       `yaml:"log" json:"log" flag:"log" usage:"Log levels and output"`
+	Session   *SessionConfig   `yaml:"session" json:"session" flag:"session" usage:"Session authentication settings"`
+	Transport *TransportConfig `yaml:"transport" json:"transport" flag:"transport" usage:"Data transport configurations"`
+	Database  *DatabaseConfig  `yaml:"database" json:"database" flag:"database" usage:"Database connection settings"`
+	Social    *SocialConfig    `yaml:"social" json:"social" flag:"social" usage:"Properties for social providers"`
+	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime" flag:"runtime" usage:"Script Runtime properties"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
@@ -130,8 +131,8 @@ func NewLogConfig() *LogConfig {
 
 // SessionConfig is configuration relevant to the session
 type SessionConfig struct {
-	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" flag:"encryption-key"`
-	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" flag:"token-expiry-ms"`
+	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" flag:"encryption-key" usage:"The encryption key used to produce the client token."`
+	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" flag:"token-expiry-ms" usage:"Token expiry in milliseconds."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct
@@ -144,11 +145,11 @@ func NewSessionConfig() *SessionConfig {
 
 // TransportConfig is configuration relevant to the transport socket and protocol
 type TransportConfig struct {
-	ServerKey           string `yaml:"server_key" json:"server_key" flag:"server-key"`
-	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" flag:"max-message-size-bytes"`
-	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" flag:"write-wait-ms"`
-	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" flag:"pong-wait-ms"`
-	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" flag:"ping-period-ms"`
+	ServerKey           string `yaml:"server_key" json:"server_key" flag:"server-key" usage:" Server key to use to establish a connection to the server."`
+	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" flag:"max-message-size-bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
+	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" flag:"write-wait-ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
+	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" flag:"pong-wait-ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`
+	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" flag:"ping-period-ms" usage:"Time in milliseconds to wait between client ping messages. This value must be less than the pong_wait_ms."`
 }
 
 // NewTransportConfig creates a new TransportConfig struct
@@ -164,9 +165,9 @@ func NewTransportConfig() *TransportConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage
 type DatabaseConfig struct {
-	ConnMaxLifetimeMs int `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" flag:"conn-max-lifetime-ms"`
-	MaxOpenConns      int `yaml:"max_open_conns" json:"max_open_conns" flag:"max-open-conns"`
-	MaxIdleConns      int `yaml:"max_idle_conns" json:"max_idle_conns" flag:"max-idle-conns"`
+	ConnMaxLifetimeMs int `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" flag:"conn-max-lifetime-ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
+	MaxOpenConns      int `yaml:"max_open_conns" json:"max_open_conns" flag:"max-open-conns" usage:"Maximum number of allowed open connections to the database."`
+	MaxIdleConns      int `yaml:"max_idle_conns" json:"max_idle_conns" flag:"max-idle-conns" usage:"Maximum number of allowed open but unused connections to the database."`
 }
 
 // NewDatabaseConfig creates a new DatabaseConfig struct
@@ -180,13 +181,13 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the Social providers
 type SocialConfig struct {
-	Steam *SocialConfigSteam `yaml:"steam" json:"steam" flag:"steam"`
+	Steam *SocialConfigSteam `yaml:"steam" json:"steam" flag:"steam" usage:"Steam configuration"`
 }
 
 // SocialConfigSteam is configuration relevant to Steam
 type SocialConfigSteam struct {
-	PublisherKey string `yaml:"publisher_key" json:"publisher_key" flag:"publisher-key"`
-	AppID        int    `yaml:"app_id" json:"app_id" flag:"app-id"`
+	PublisherKey string `yaml:"publisher_key" json:"publisher_key" flag:"publisher-key" usage:"Steam Publisher Key value."`
+	AppID        int    `yaml:"app_id" json:"app_id" flag:"app-id" usage:"Steam App ID."`
 }
 
 // NewSocialConfig creates a new SocialConfig struct
@@ -201,9 +202,9 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM
 type RuntimeConfig struct {
-	Environment map[string]interface{} `yaml:"env" json:"env"`
-	Path        string                 `yaml:"path" json:"path"`
-	HTTPKey     string                 `yaml:"http_key" json:"http_key"`
+	Environment map[string]interface{} `yaml:"env" json:"env"` // not supported in FlagOverrides
+	Path        string                 `yaml:"path" json:"path" flag:"path" usage:"Path of modules for the server to scan."`
+	HTTPKey     string                 `yaml:"http_key" json:"http_key" flag:"http-key" usage:"Runtime HTTP Invocation key"`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct

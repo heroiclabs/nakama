@@ -152,22 +152,22 @@ func parseArgs(consoleLogger *zap.Logger) server.Config {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--config":
-			data, err := ioutil.ReadFile(os.Args[2])
+			configPath := os.Args[2]
+			data, err := ioutil.ReadFile(configPath)
 			if err != nil {
 				consoleLogger.Error("Could not read config file, using defaults", zap.Error(err))
 			} else {
 				err = yaml.Unmarshal(data, config)
 				if err != nil {
 					consoleLogger.Error("Could not parse config file, using defaults", zap.Error(err))
+				} else {
+					config.Config = configPath
 				}
 			}
 		}
 	}
 
 	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
-	var configPath string
-	flagSet.StringVar(&configPath, "config", "", "The absolute file path to configuration YAML file.")
-
 	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
 		UseLowerCase: true,
 		Flatten:      false,
