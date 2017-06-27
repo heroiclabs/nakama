@@ -4,8 +4,6 @@ import (
 	"nakama/server"
 	"os"
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 const CONFIG_FILE = "config_test.yml"
@@ -14,8 +12,6 @@ var l = server.NewConsoleLogger(os.Stdout, true)
 
 func TestConfigLoad(t *testing.T) {
 	c := server.ParseArgs(l, []string{"nakama", "--config", CONFIG_FILE})
-
-	l.Warn("Config", zap.Any("c", c))
 
 	if c.GetName() != "nakama-test" {
 		t.Error("Unmatched config value - name")
