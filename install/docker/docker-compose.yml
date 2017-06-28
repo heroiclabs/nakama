@@ -12,25 +12,22 @@ services:
     ports:
       - "26257:26257"
       - "8080:8080"
-  nakama-migration:
+  nakama:
     image: heroiclabs/nakama:latest
-    command: migrate up --db "root@cockroachdb:26257"
+    entrypoint:
+      - /bin/bash
+      - -ecx
+      - /nakama/nakama migrate up --db "root@cockroachdb:26257" && /nakama/nakama --db "root@cockroachdb:26257"
+    restart: always
     links:
       - "cockroachdb:db"
     depends_on:
       - cockroachdb
     volumes:
       - data:/var/lib/nakama
-  nakama:
-    image: heroiclabs/nakama:latest
-    command: --name nakama --db "root@cockroachdb:26257"
-    restart: always
-    depends_on:
-      - nakama-migration
-    links:
-      - "cockroachdb:db"
-    volumes:
-      - data:/var/lib/nakama
+    expose:
+      - "7350"
+      - "7351"
     ports:
       - "7350:7350"
       - "7351:7351"
