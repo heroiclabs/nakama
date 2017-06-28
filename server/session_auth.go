@@ -186,7 +186,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		path := mux.Vars(r)["path"]
+		path := strings.ToLower(mux.Vars(r)["path"])
 		fn := a.runtime.GetRuntimeCallback(HTTP, path)
 		if fn == nil {
 			a.logger.Warn("HTTP invocation failed as path was not found", zap.String("path", path))

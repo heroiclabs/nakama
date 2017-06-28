@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 
 	"encoding/base64"
+
 	"github.com/fatih/structs"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
@@ -142,6 +143,19 @@ func (n *NakamaModule) registerBefore(l *lua.LState) int {
 
 	messageName = strings.ToLower(messageName)
 
+	foundMessage := false
+	for _, v := range RUNTIME_MESSAGES {
+		if v == messageName {
+			foundMessage = true
+			break
+		}
+	}
+
+	if !foundMessage {
+		l.ArgError(2, "Invalid message name for register hook.")
+		return 0
+	}
+
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.Before[messageName] = fn
 	n.logger.Info("Registered Before function invocation", zap.String("message", messageName))
@@ -158,6 +172,19 @@ func (n *NakamaModule) registerAfter(l *lua.LState) int {
 	}
 
 	messageName = strings.ToLower(messageName)
+
+	foundMessage := false
+	for _, v := range RUNTIME_MESSAGES {
+		if v == messageName {
+			foundMessage = true
+			break
+		}
+	}
+
+	if !foundMessage {
+		l.ArgError(2, "Invalid message name for register hook.")
+		return 0
+	}
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.After[messageName] = fn

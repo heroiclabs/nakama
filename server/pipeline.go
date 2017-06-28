@@ -20,8 +20,6 @@ import (
 
 	"nakama/pkg/social"
 
-	"strings"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
@@ -73,7 +71,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	messageType := fmt.Sprintf("%T", originalEnvelope.Payload)
 	logger.Debug("Received message", zap.String("type", messageType))
 
-	messageType = strings.TrimPrefix(messageType, "*server.Envelope_")
+	messageType = RUNTIME_MESSAGES[messageType]
 	envelope, fnErr := RuntimeBeforeHook(p.runtime, p.jsonpbMarshaler, p.jsonpbUnmarshaler, messageType, originalEnvelope, session)
 	if fnErr != nil {
 		logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
