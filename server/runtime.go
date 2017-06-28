@@ -185,17 +185,16 @@ func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
 }
 
 func (r *Runtime) GetRuntimeCallback(e ExecutionMode, key string) *lua.LFunction {
-	k := strings.ToLower(key)
 	cp := r.vm.Context().Value(CALLBACKS).(*Callbacks)
 	switch e {
 	case HTTP:
-		return cp.HTTP[k]
+		return cp.HTTP[key]
 	case RPC:
-		return cp.RPC[k]
+		return cp.RPC[key]
 	case BEFORE:
-		return cp.Before[k]
+		return cp.Before[key]
 	case AFTER:
-		return cp.After[k]
+		return cp.After[key]
 	}
 
 	return nil
