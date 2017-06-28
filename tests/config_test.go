@@ -17,7 +17,7 @@ func TestConfigLoad(t *testing.T) {
 		t.Error("Unmatched config value - name")
 	}
 	if c.GetRuntime().HTTPKey != "testkey" {
-		t.Error("Unmatched config value - runtime.http-key")
+		t.Error("Unmatched config value - runtime.http_key")
 	}
 }
 
@@ -27,7 +27,7 @@ func TestConfigLoadOverride(t *testing.T) {
 		"--config",
 		CONFIG_FILE,
 		"--log.stdout",
-		"--runtime.http-key",
+		"--runtime.http_key",
 		"testkey-override",
 	})
 
@@ -50,7 +50,7 @@ func TestCmdOverride(t *testing.T) {
 		"--name",
 		"nakama-test-override",
 		"--log.stdout",
-		"--runtime.http-key",
+		"--runtime.http_key",
 		"testkey-override",
 	})
 
@@ -63,6 +63,6 @@ func TestCmdOverride(t *testing.T) {
 	}
 
 	if c.GetRuntime().HTTPKey != "testkey-override" {
-		t.Error("Unmatched config value - runtime.http-key")
+		t.Error("Unmatched config value - runtime.http_key")
 	}
 }
