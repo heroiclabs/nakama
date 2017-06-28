@@ -78,9 +78,9 @@ func main() {
 	multiLogger.Info("Nakama starting")
 	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver))
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
-	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDSNS()))
+	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDB()))
 
-	db := dbConnect(multiLogger, config.GetDSNS())
+	db := dbConnect(multiLogger, config.GetDB())
 
 	// Check migration status and log if the schema has diverged.
 	cmd.MigrationStartupCheck(multiLogger, db)

@@ -34,7 +34,7 @@ type Config interface {
 	GetDataDir() string
 	GetPort() int
 	GetDashboardPort() int
-	GetDSNS() []string
+	GetDB() []string
 	GetLog() *LogConfig
 	GetSession() *SessionConfig
 	GetTransport() *TransportConfig
@@ -90,7 +90,7 @@ type config struct {
 	Datadir       string           `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
 	Port          int              `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
 	DashboardPort int              `yaml:"dashboard_port" json:"dashboard_port" usage:"The port for accepting connections to the dashboard, listening on all interfaces."`
-	Dsns          []string         `yaml:"dsns" json:"dsns" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
+	DB            []string         `yaml:"db" json:"db" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
 	Log           *LogConfig       `yaml:"log" json:"log" usage:"Log levels and output"`
 	Session       *SessionConfig   `yaml:"session" json:"session" usage:"Session authentication settings"`
 	Transport     *TransportConfig `yaml:"transport" json:"transport" usage:"Data transport configurations"`
@@ -109,7 +109,7 @@ func NewConfig() *config {
 		Datadir:       dataDirectory,
 		Port:          7350,
 		DashboardPort: 7351,
-		Dsns:          []string{"root@localhost:26257"},
+		DB:            []string{"root@localhost:26257"},
 		Session:       NewSessionConfig(),
 		Transport:     NewTransportConfig(),
 		Database:      NewDatabaseConfig(),
@@ -134,8 +134,8 @@ func (c *config) GetDashboardPort() int {
 	return c.DashboardPort
 }
 
-func (c *config) GetDSNS() []string {
-	return c.Dsns
+func (c *config) GetDB() []string {
+	return c.DB
 }
 
 func (c *config) GetLog() *LogConfig {
