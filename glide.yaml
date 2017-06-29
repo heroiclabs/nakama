@@ -17,7 +17,7 @@ import:
   - bcrypt
 - package: github.com/golang/protobuf
 - package: github.com/gogo/protobuf
-  version: ~0.3.0
+  version: ~0.4.0
 - package: github.com/gorilla/websocket
   version: ~1.0.0
 - package: github.com/gorilla/mux
