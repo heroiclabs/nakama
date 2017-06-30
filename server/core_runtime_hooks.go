@@ -101,7 +101,7 @@ func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jso
 }
 
 func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
-	messageType := RUNTIME_MESSAGE[fmt.Sprintf("%T", envelope.Id)]
+	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
 		return envelope, nil
@@ -140,7 +140,7 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 }
 
 func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId uuid.UUID, handle string, expiry int64) {
-	messageType := RUNTIME_MESSAGE[fmt.Sprintf("%T", envelope.Id)]
+	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
 		return

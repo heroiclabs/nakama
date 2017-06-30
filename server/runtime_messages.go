@@ -14,7 +14,7 @@
 
 package server
 
-var RUNTIME_MESSAGE = map[string]string{
+var RUNTIME_MESSAGES = map[string]string{
 	"*server.AuthenticateRequest_Device":       "authenticaterequest_device",
 	"*server.AuthenticateRequest_Custom":       "authenticaterequest_custom",
 	"*server.AuthenticateRequest_Email_":       "authenticaterequest_email",
