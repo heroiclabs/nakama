@@ -152,7 +152,7 @@ func (n *NakamaModule) registerBefore(l *lua.LState) int {
 	}
 
 	if !foundMessage {
-		l.ArgError(2, "message not found - ignoring")
+		l.ArgError(2, "Invalid message name for register hook.")
 		return 0
 	}
 
@@ -182,7 +182,7 @@ func (n *NakamaModule) registerAfter(l *lua.LState) int {
 	}
 
 	if !foundMessage {
-		l.ArgError(2, "message not found - ignoring")
+		l.ArgError(2, "Invalid message name for register hook.")
 		return 0
 	}
 
