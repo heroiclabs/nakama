@@ -38,57 +38,6 @@ type groupCursor struct {
 	GroupID   []byte
 }
 
-func (p *pipeline) extractGroup(r scanner) (*Group, error) {
-	var id []byte
-	var creatorID []byte
-	var name sql.NullString
-	var description sql.NullString
-	var avatarURL sql.NullString
-	var lang sql.NullString
-	var utcOffsetMs sql.NullInt64
-	var metadata []byte
-	var state sql.NullInt64
-	var count sql.NullInt64
-	var createdAt sql.NullInt64
-	var updatedAt sql.NullInt64
-
-	err := r.Scan(&id, &creatorID, &name,
-		&description, &avatarURL, &lang,
-		&utcOffsetMs, &metadata, &state,
-		&count, &createdAt, &updatedAt)
-
-	if err != nil {
-		return &Group{}, err
-	}
-
-	desc := ""
-	if description.Valid {
-		desc = description.String
-	}
-
-	avatar := ""
-	if avatarURL.Valid {
-		avatar = avatarURL.String
-	}
-
-	private := state.Int64 == 1
-
-	return &Group{
-		Id:          id,
-		CreatorId:   creatorID,
-		Name:        name.String,
-		Description: desc,
-		AvatarUrl:   avatar,
-		Lang:        lang.String,
-		UtcOffsetMs: utcOffsetMs.Int64,
-		Metadata:    metadata,
-		Private:     private,
-		Count:       count.Int64,
-		CreatedAt:   createdAt.Int64,
-		UpdatedAt:   updatedAt.Int64,
-	}, nil
-}
-
 func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *Envelope) {
 	e := envelope.GetGroupsCreate()
 
@@ -135,7 +84,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *E
 				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
 			} else {
 				logger.Info("Created new group", zap.String("name", group.Name))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Group{Group: &TGroup{Group: group}}})
+				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{&TGroups{Groups: []*Group{group}}}})
 			}
 		}
 	}()
@@ -194,7 +143,7 @@ VALUES ($1, $2, $3, $4, 1, $5, $5, `+strings.Join(params, ",")+")"+`
 RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
 `, values...)
 
-	group, err = p.extractGroup(r)
+	group, err = extractGroup(r)
 	if err != nil {
 		return
 	}
@@ -421,7 +370,7 @@ FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
 
 	groups := make([]*Group, 0)
 	for rows.Next() {
-		group, err := p.extractGroup(rows)
+		group, err := extractGroup(rows)
 		if err != nil {
 			logger.Error("Could not get groups", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"))
@@ -530,7 +479,7 @@ LIMIT $` + strconv.Itoa(len(params))
 			cursor = cursorBuf.Bytes()
 			break
 		}
-		lastGroup, err = p.extractGroup(rows)
+		lastGroup, err = extractGroup(rows)
 		if err != nil {
 			logger.Error("Could not list groups", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
@@ -564,7 +513,7 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 	groups := make([]*Group, 0)
 	var lastGroup *Group
 	for rows.Next() {
-		lastGroup, err = p.extractGroup(rows)
+		lastGroup, err = extractGroup(rows)
 		if err != nil {
 			logger.Error("Could not list joined groups", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list joined groups"))

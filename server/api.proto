@@ -213,50 +213,48 @@ message Envelope {
     TGroupUsersAdd group_users_add = 26;
     TGroupUsersKick group_users_kick = 27;
     TGroupUsersPromote group_users_promote = 28;
-    TGroup group = 29;
-    TGroups groups = 30;
-    TGroupUsers group_users = 31;
+    TGroups groups = 29;
+    TGroupUsers group_users = 30;
 
-    TTopicsJoin topics_join = 32;
-    TTopicsLeave topics_leave = 33;
-    TTopicMessageSend topic_message_send = 34;
-    TTopicMessagesList topic_messages_list = 35;
-    TTopics topics = 36;
-    TTopicMessageAck topic_message_ack = 37;
-    TopicMessage topic_message = 38;
-    TTopicMessages topic_messages = 39;
-    TopicPresence topic_presence = 40;
+    TTopicsJoin topics_join = 31;
+    TTopicsLeave topics_leave = 32;
+    TTopicMessageSend topic_message_send = 33;
+    TTopicMessagesList topic_messages_list = 34;
+    TTopics topics = 35;
+    TTopicMessageAck topic_message_ack = 36;
+    TopicMessage topic_message = 37;
+    TTopicMessages topic_messages = 38;
+    TopicPresence topic_presence = 39;
 
-    TMatchCreate match_create = 41;
-    TMatchesJoin matches_join = 42;
-    TMatchesLeave matches_leave = 43;
-    MatchDataSend match_data_send = 44;
-    TMatch match = 45;
-    TMatches matches = 46;
-    MatchData match_data = 47;
-    MatchPresence match_presence = 48;
+    TMatchCreate match_create = 40;
+    TMatchesJoin matches_join = 41;
+    TMatchesLeave matches_leave = 42;
+    MatchDataSend match_data_send = 43;
+    TMatch match = 44;
+    TMatches matches = 45;
+    MatchData match_data = 46;
+    MatchPresence match_presence = 47;
 
-    TStorageList storage_list = 49;
-    TStorageFetch storage_fetch = 50;
-    TStorageWrite storage_write = 51;
-    TStorageRemove storage_remove = 52;
-    TStorageData storage_data = 53;
-    TStorageKeys storage_keys = 54;
+    TStorageList storage_list = 48;
+    TStorageFetch storage_fetch = 49;
+    TStorageWrite storage_write = 50;
+    TStorageRemove storage_remove = 51;
+    TStorageData storage_data = 52;
+    TStorageKeys storage_keys = 53;
 
-    TLeaderboardsList leaderboards_list = 55;
-    TLeaderboardRecordsWrite leaderboard_records_write = 56;
-    TLeaderboardRecordsFetch leaderboard_records_fetch = 57;
-    TLeaderboardRecordsList leaderboard_records_list = 58;
-    TLeaderboards leaderboards = 59;
+    TLeaderboardsList leaderboards_list = 54;
+    TLeaderboardRecordsWrite leaderboard_records_write = 55;
+    TLeaderboardRecordsFetch leaderboard_records_fetch = 56;
+    TLeaderboardRecordsList leaderboard_records_list = 57;
+    TLeaderboards leaderboards = 58;
+    TLeaderboardRecords leaderboard_records = 59;
 
-    TLeaderboardRecords leaderboard_records = 60;
+    TMatchmakeAdd matchmake_add = 60;
+    TMatchmakeRemove matchmake_remove = 61;
+    TMatchmakeTicket matchmake_ticket = 62;
+    MatchmakeMatched matchmake_matched = 63;
 
-    TMatchmakeAdd matchmake_add = 61;
-    TMatchmakeRemove matchmake_remove = 62;
-    TMatchmakeTicket matchmake_ticket = 63;
-    MatchmakeMatched matchmake_matched = 64;
-
-    TRpc rpc = 65;
+    TRpc rpc = 64;
   }
 }
 
@@ -509,7 +507,7 @@ message Group {
 /**
  * TGroupsCreate creates a new group.
  *
- * @returns TGroup
+ * @returns TGroups
  *
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
@@ -527,13 +525,6 @@ message TGroupsCreate {
     bool private = 6;
   }
   repeated GroupCreate groups = 1;
-}
-
-/**
- * TGroup contains the group information.
- */
-message TGroup {
-  Group group = 1;
 }
 
 /**
