@@ -6,14 +6,13 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - New storage list feature.
+- Ban users and create groups from within the Runtime environment.
 
 ### Changed
 - Run Facebook friends import after registration completes.
-- Streamline command line flags to be inline with the config file. 
-
-### Changed
+- Streamline command line flags to be inline with the config file.
 - Restructure and stabilize API messages.
-- Add batch operations Friends social graph.
+- Update Runtime modules to uses plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
 
 ### Fixed
 - Invocation type was always set to "Before" in After Runtime scripts.

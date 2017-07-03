@@ -1,15 +1,38 @@
+// Copyright 2017 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
-	"go.uber.org/zap"
-	"strings"
-	"github.com/satori/go.uuid"
-	"strconv"
-	"encoding/json"
 	"database/sql"
 	"errors"
-	"golang.org/x/tools/go/gcimporter15/testdata"
+	"strconv"
+	"strings"
+
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
+
+type GroupCreateParam struct {
+	Name        string    // mandatory
+	Creator     uuid.UUID // mandatory
+	Description string
+	AvatarURL   string
+	Lang        string
+	Metadata    []byte
+	Private     bool
+}
 
 func extractGroup(r scanner) (*Group, error) {
 	var id []byte
@@ -62,56 +85,61 @@ func extractGroup(r scanner) (*Group, error) {
 	}, nil
 }
 
-func groupCreate(logger *zap.Logger, db *sql.DB, session *session, envelope *Envelope) {
-	e := envelope.GetGroupsCreate()
-
-	if len(e.Groups) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
-		return
-	} else if len(e.Groups) > 1 {
-		logger.Warn("There are more than one item passed to the request - only processing the first item.")
+func GroupsCreate(logger *zap.Logger, db *sql.DB, groupCreateParams []*GroupCreateParam) ([]*Group, error) {
+	if groupCreateParams == nil || len(groupCreateParams) == 0 {
+		return nil, errors.New("Could not create groups. At least one group param must be supplied")
 	}
 
-	g := e.Groups[0]
-	if g.Name == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group name is mandatory."))
-		return
-	}
-
-	var group *Group
-
+	groups := make([]*Group, 0)
 	tx, err := db.Begin()
 	if err != nil {
-		logger.Error("Could not create group", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Could not create group"))
-		return
+		logger.Error("Could not create groups", zap.Error(err))
+		return nil, err
 	}
 
 	defer func() {
 		if err != nil {
-			logger.Error("Could not create group", zap.Error(err))
+			logger.Error("Could not create groups", zap.Error(err))
 			if tx != nil {
 				txErr := tx.Rollback()
 				if txErr != nil {
 					logger.Error("Could not rollback transaction", zap.Error(txErr))
 				}
 			}
-			if strings.HasSuffix(err.Error(), "violates unique constraint \"groups_name_key\"") {
-				session.Send(ErrorMessage(envelope.CollationId, GROUP_NAME_INUSE, "Name is in use"))
-			} else {
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
-			}
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
 			} else {
-				logger.Info("Created new group", zap.String("name", group.Name))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Group{Group: &TGroup{Group: group}}})
+				groupNames := make([]string, 0)
+				for _, p := range groups {
+					groupNames = append(groupNames, p.Name)
+				}
+				logger.Info("Created new groups", zap.Strings("names", groupNames))
 			}
 		}
 	}()
+
+	for _, g := range groupCreateParams {
+		newGroup, err := groupCreate(tx, g)
+		if err != nil {
+			logger.Warn("Could not create group", zap.String("name", g.Name), zap.Error(err))
+			return nil, err
+		}
+
+		groups = append(groups, newGroup)
+	}
+
+	return groups, err
+}
+
+func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
+	if g.Name == "" {
+		return nil, errors.New("Group name must not be empty")
+	}
+	if uuid.Equal(uuid.Nil, g.Creator) {
+		return nil, errors.New("Group creator must be set")
+	}
 
 	state := 0
 	if g.Private {
@@ -125,7 +153,7 @@ func groupCreate(logger *zap.Logger, db *sql.DB, session *session, envelope *Env
 	updatedAt := nowMs()
 
 	values[0] = uuid.NewV4().Bytes()
-	values[1] = session.userID.Bytes()
+	values[1] = g.Creator.Bytes()
 	values[2] = g.Name
 	values[3] = state
 	values[4] = updatedAt
@@ -136,10 +164,10 @@ func groupCreate(logger *zap.Logger, db *sql.DB, session *session, envelope *Env
 		values = append(values, g.Description)
 	}
 
-	if g.AvatarUrl != "" {
+	if g.AvatarURL != "" {
 		columns = append(columns, "avatar_url")
 		params = append(params, "$"+strconv.Itoa(len(values)+1))
-		values = append(values, g.AvatarUrl)
+		values = append(values, g.AvatarURL)
 	}
 
 	if g.Lang != "" {
@@ -149,15 +177,8 @@ func groupCreate(logger *zap.Logger, db *sql.DB, session *session, envelope *Env
 	}
 
 	if g.Metadata != nil {
-		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal(g.Metadata, &maybeJSON) != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
-			return
-		}
-
 		columns = append(columns, "metadata")
-		params = append(params, "$"+strconv.Itoa(len(values)))
+		params = append(params, "$"+strconv.Itoa(len(values)+1))
 		values = append(values, g.Metadata)
 	}
 
@@ -167,26 +188,28 @@ VALUES ($1, $2, $3, $4, 1, $5, $5, `+strings.Join(params, ",")+")"+`
 RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
 `, values...)
 
-	group, err = extractGroup(r)
+	group, err := extractGroup(r)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
-		group.Id, updatedAt, session.userID.Bytes())
+		group.Id, updatedAt, g.Creator.Bytes())
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	rowAffected, err := res.RowsAffected()
 	if err != nil {
-		return
+		return nil, err
 	}
 	if rowAffected == 0 {
 		err = errors.New("Could not insert into group_edge table")
-		return
+		return nil, err
 	}
+
+	return group, nil
 }

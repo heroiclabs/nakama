@@ -69,13 +69,15 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_before":    n.registerBefore,
 		"register_after":     n.registerAfter,
 		"register_http":      n.registerHTTP,
-		"user_fetch_id":      n.userFetchId,
-		"user_fetch_handle":  n.userFetchHandle,
+		"users_fetch_id":     n.usersFetchId,
+		"users_fetch_handle": n.usersFetchHandle,
+		"users_ban":          n.usersBan,
 		"storage_list":       n.storageList,
 		"storage_fetch":      n.storageFetch,
 		"storage_write":      n.storageWrite,
 		"storage_remove":     n.storageRemove,
 		"leaderboard_create": n.leaderboardCreate,
+		"groups_create":      n.groupsCreate,
 	})
 
 	l.Push(mod)
@@ -214,7 +216,7 @@ func (n *NakamaModule) registerHTTP(l *lua.LState) int {
 	return 0
 }
 
-func (n *NakamaModule) userFetchId(l *lua.LState) int {
+func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 	lt := l.CheckTable(1)
 	userIds, ok := convertLuaValue(lt).([]interface{})
 	if !ok {
@@ -256,7 +258,7 @@ func (n *NakamaModule) userFetchId(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
+func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 	lt := l.CheckTable(1)
 	handles, ok := convertLuaValue(lt).([]interface{})
 	if !ok {
@@ -291,6 +293,41 @@ func (n *NakamaModule) userFetchHandle(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) usersBan(l *lua.LState) int {
+	usersTable := l.CheckTable(1)
+	if usersTable == nil || usersTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of users")
+		return 0
+	}
+	usersRaw, ok := convertLuaValue(usersTable).([]interface{})
+	if !ok {
+		l.ArgError(1, "expects a valid set of users")
+		return 0
+	}
+
+	ids := make([][]byte, 0)
+	handles := make([]string, 0)
+	for _, d := range usersRaw {
+		if m, ok := d.(string); !ok {
+			l.ArgError(1, "expects a valid set of users")
+			return 0
+		} else {
+			uid, err := uuid.FromString(m)
+			if err == nil {
+				ids = append(ids, uid.Bytes())
+			} else {
+				handles = append(handles, m) // assume that they've passed in a handle
+			}
+		}
+	}
+
+	if err := UsersBan(n.logger, n.db, ids, handles); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to ban users: %s", err.Error()))
+	}
+
+	return 0
 }
 
 func (n *NakamaModule) storageList(l *lua.LState) int {
@@ -725,4 +762,83 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+func (n *NakamaModule) groupsCreate(l *lua.LState) int {
+	groupsTable := l.CheckTable(1)
+	if groupsTable == nil || groupsTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of groups")
+		return 0
+	}
+
+	conversionError := false
+	groupParams := make([]*GroupCreateParam, 0)
+
+	groupsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		groupTable, ok := g.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			return
+		}
+
+		groupTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			p := &GroupCreateParam{}
+			switch k.String() {
+			case "Name":
+				p.Name = v.String()
+			case "Description":
+				p.Description = v.String()
+			case "AvatarUrl":
+				p.AvatarURL = v.String()
+			case "Lang":
+				p.Lang = v.String()
+			case "Private":
+				p.Private = lua.LVAsBool(v)
+			case "Metadata":
+				j := []byte(v.String())
+				maybeJson := make(map[string]interface{})
+				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
+					conversionError = true
+					return
+				}
+				p.Metadata = j
+			case "CreatorId":
+				u, err := uuid.FromString(v.String())
+				if err != nil {
+					conversionError = true
+					return
+				}
+				p.Creator = u
+			}
+
+			if p.Name == "" || len(p.Creator) == 0 { // mandatory items
+				conversionError = true
+				return
+			}
+
+			groupParams = append(groupParams, p)
+		})
+	})
+
+	if conversionError {
+		l.ArgError(1, "expects a valid set of groups")
+		return 0
+	}
+
+	groups, err := GroupsCreate(n.logger, n.db, groupParams)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to create groups: %s", err.Error()))
+	}
+
+	//translate uuid to string bytes
+	lv := l.NewTable()
+	for i, g := range groups {
+		uid, _ := uuid.FromBytes(g.Id)
+		g.Id = []byte(uid.String())
+		gm := structs.Map(g)
+		lv.RawSetInt(i+1, convertValue(l, gm))
+	}
+
+	l.Push(lv)
+	return 1
 }

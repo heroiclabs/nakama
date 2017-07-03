@@ -133,7 +133,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *E
 		}
 
 		columns = append(columns, "metadata")
-		params = append(params, "$"+strconv.Itoa(len(values)))
+		params = append(params, "$"+strconv.Itoa(len(values)+1))
 		values = append(values, g.Metadata)
 	}
 
