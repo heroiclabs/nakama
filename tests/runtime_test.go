@@ -31,7 +31,6 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 )
 
 const DATA_PATH = "/tmp/nakama/data/"
@@ -41,7 +40,6 @@ func newRuntime() (*server.Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 	c := server.NewRuntimeConfig()
 	c.Path = filepath.Join(DATA_PATH, "modules")
 	return server.NewRuntime(logger, logger, db, c)
@@ -448,7 +446,31 @@ local user_ids = {
   "fd8db1fc-6f79-4302-a54c-5960c99601a1"
 }
 
-local users = nk.user_fetch_id(user_ids)
+local users = nk.users_fetch_id(user_ids)
+	`)
+
+	setupDB()
+	r, err := newRuntime()
+	defer r.Stop()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRuntimeUsersBan(t *testing.T) {
+	defer os.RemoveAll(DATA_PATH)
+	writeLuaModule("userid.lua", `
+local nk = require("nakama")
+
+local user_handles = {
+  "02ebb2c8"
+}
+
+local status, res = pcall(nk.users_ban, user_handles)
+if not status then
+  print(res)
+end
+assert(status == true)
 	`)
 
 	setupDB()

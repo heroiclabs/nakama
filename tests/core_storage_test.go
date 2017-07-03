@@ -16,34 +16,13 @@ package tests
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
+	"nakama/server"
+	"testing"
+
 	"github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"nakama/server"
-	"net/url"
-	"strconv"
-	"testing"
-	"time"
 )
-
-func setupDB() (*sql.DB, error) {
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", "root@localhost:26257/nakama")
-	url, err := url.Parse(rawurl)
-	if err != nil {
-		return nil, err
-	}
-	db, err := sql.Open("postgres", url.String())
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func generateString() string {
-	return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-}
 
 func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 	db, err := setupDB()
@@ -51,7 +30,6 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -105,7 +83,6 @@ func TestStorageWriteRuntimeGlobalMultiple(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -162,7 +139,6 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -222,7 +198,6 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -249,7 +224,6 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -304,7 +278,6 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -354,7 +327,6 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -386,7 +358,6 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -436,7 +407,6 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -471,7 +441,6 @@ func TestStorageWritePipelineSingleGlobalNotAllowed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -497,7 +466,6 @@ func TestStorageWritePipelineSingleOtherClientNotAllowed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	data := []*server.StorageData{
 		&server.StorageData{
@@ -524,7 +492,6 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -558,7 +525,6 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -620,7 +586,6 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -700,7 +665,6 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -771,7 +735,6 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -801,7 +764,6 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -854,7 +816,6 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -913,7 +874,6 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -948,7 +908,6 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1002,7 +961,6 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1055,7 +1013,6 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1109,7 +1066,6 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1168,7 +1124,6 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1225,7 +1180,6 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1272,7 +1226,6 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1322,7 +1275,6 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1379,7 +1331,6 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1436,7 +1387,6 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1486,7 +1436,6 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1543,7 +1492,6 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -1621,7 +1569,6 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1671,7 +1618,6 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1721,7 +1667,6 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1774,7 +1719,6 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1827,7 +1771,6 @@ func TestStorageRemovePipelineGlobalRejected(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1873,7 +1816,6 @@ func TestStorageRemovePipelineUserOtherRejected(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -1921,7 +1863,6 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -1969,7 +1910,6 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 	uid := uuid.NewV4()
@@ -2018,7 +1958,6 @@ func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	keys := []*server.StorageKey{
 		&server.StorageKey{
@@ -2041,7 +1980,6 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -2088,7 +2026,6 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record := generateString()
 
@@ -2134,7 +2071,6 @@ func TestStorageRemoveRuntimeGlobalMultiple(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2198,7 +2134,6 @@ func TestStorageRemoveRuntimeGlobalMultipleMixed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2250,7 +2185,6 @@ func TestStorageRemoveRuntimeGlobalMultipleMixedIfMatch(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2316,7 +2250,6 @@ func TestStorageRemovePipelineUserMultipleMixedDenied(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2386,7 +2319,6 @@ func TestStorageRemoveRuntimeUserMultipleMixed(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2455,7 +2387,6 @@ func TestStorageRemoveRuntimeUserMultipleIfMatchFail(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2557,7 +2488,6 @@ func TestStorageRemoveRuntimeUserMultipleIfMatch(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	record1 := generateString()
 	record2 := generateString()
@@ -2648,7 +2578,6 @@ func TestStorageListRuntimeUser(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 
@@ -2706,7 +2635,6 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 	collection := generateString()
@@ -2764,7 +2692,6 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 		t.Error(err)
 	}
 	defer db.Close()
-	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 
 	uid := uuid.NewV4()
 	collection := generateString()

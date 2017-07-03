@@ -128,33 +128,34 @@ func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User
 }
 
 func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, handles []string) ([]*User, error) {
-	statements := make([]string, 0)
+	idStatements := make([]string, 0)
+	handleStatements := make([]string, 0)
 	params := make([]interface{}, 0)
 
 	counter := 1
 	for _, userID := range userIds {
 		statement := "$" + strconv.Itoa(counter)
 		counter += 1
-		statements = append(statements, statement)
+		idStatements = append(idStatements, statement)
 		params = append(params, userID)
 	}
 	for _, handle := range handles {
 		statement := "$" + strconv.Itoa(counter)
 		counter += 1
-		statements = append(statements, statement)
+		handleStatements = append(handleStatements, statement)
 		params = append(params, handle)
 	}
 
 	query := "WHERE "
 	if len(userIds) > 0 {
-		query += "users.id IN (" + strings.Join(statements, ", ") + ")"
+		query += "users.id IN (" + strings.Join(idStatements, ", ") + ")"
 	}
 
 	if len(handles) > 0 {
 		if len(userIds) > 0 {
 			query += " OR "
 		}
-		query += "users.handle IN (" + strings.Join(statements, ", ") + ")"
+		query += "users.handle IN (" + strings.Join(handleStatements, ", ") + ")"
 	}
 
 	users, err := querySocialGraph(logger, db, query, params)
@@ -163,4 +164,44 @@ func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, hand
 	}
 
 	return users, nil
+}
+
+func UsersBan(logger *zap.Logger, db *sql.DB, userIds [][]byte, handles []string) error {
+	idStatements := make([]string, 0)
+	handleStatements := make([]string, 0)
+	params := []interface{}{nowMs()} // $1
+
+	counter := 2
+	for _, userID := range userIds {
+		statement := "$" + strconv.Itoa(counter)
+		idStatements = append(idStatements, statement)
+		params = append(params, userID)
+		counter++
+	}
+	for _, handle := range handles {
+		statement := "$" + strconv.Itoa(counter)
+		handleStatements = append(handleStatements, statement)
+		params = append(params, handle)
+		counter++
+	}
+
+	query := "UPDATE users SET disabled_at = $1 WHERE "
+	if len(userIds) > 0 {
+		query += "users.id IN (" + strings.Join(idStatements, ", ") + ")"
+	}
+
+	if len(handles) > 0 {
+		if len(userIds) > 0 {
+			query += " OR "
+		}
+		query += "users.handle IN (" + strings.Join(handleStatements, ", ") + ")"
+	}
+
+	logger.Debug("ban user query", zap.String("query", query))
+	_, err := db.Exec(query, params...)
+	if err != nil {
+		logger.Error("Failed to ban users", zap.Error(err))
+	}
+
+	return err
 }

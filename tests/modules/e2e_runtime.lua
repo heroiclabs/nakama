@@ -73,25 +73,29 @@ do
   assert(message == "\"WARN logger.\"")
 end
 
--- logger_error
-do
-  local message = nk.logger_error(("%q"):format("ERROR logger."))
-  assert(message == "\"ERROR logger.\"")
-end
-
--- user_fetch_id
+-- users_fetch_id
 do
   local user_ids = {"4c2ae592-b2a7-445e-98ec-697694478b1c"}
-  local users = nk.user_fetch_id(user_ids)
+  local users = nk.users_fetch_id(user_ids)
   assert(#users == 1)
   assert(user_ids[1] == users[1].Id)
 end
 
--- user_fetch_handle
+-- users_fetch_handle
 do
   local user_handles = {"02ebb2c8"}
-  local users = nk.user_fetch_handle(user_handles)
+  local users = nk.users_fetch_handle(user_handles)
   assert(user_handles[1] == users[1].Handle)
+end
+
+-- users_ban
+do
+  local user_ids = {"4c2ae592-b2a7-445e-98ec-697694478b1c"}
+  local status, res = pcall(nk.users_ban, user_ids)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
 end
 
 --[[
