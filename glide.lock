@@ -1,6 +1,10 @@
-hash: 00c4318ad08f168ebf525164ff9fb486692a8f72905ef5d514bfe41bb006fb71
-updated: 2017-06-29T10:26:44.307843698+01:00
+hash: ff9abb7b8ba5a48c7ca600b2e89bc295be3d62101e22ef8ed817b7114a3015a7
+updated: 2017-07-09T16:20:42.443074055+01:00
 imports:
+- name: cloud.google.com/go
+  version: 934866196d63fdcd8291ef6f16e70f4a830cda22
+  subpackages:
+  - compute/metadata
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
 - name: github.com/dgrijalva/jwt-go
@@ -26,7 +30,6 @@ imports:
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
   subpackages:
   - proto
-  - protoc-gen-go/descriptor
 - name: github.com/gorhill/cronexpr
   version: a557574d6c024ed6e36acc8b610f5f211c91568a
 - name: github.com/gorilla/context
@@ -73,6 +76,26 @@ imports:
   version: 69d4b8aa71caaaa75c3dfc11211d1be495abec7c
   subpackages:
   - context
+  - context/ctxhttp
+- name: golang.org/x/oauth2
+  version: cce311a261e6fcf29de72ca96827bdb0b7d9c9e6
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
+- name: google.golang.org/appengine
+  version: ad2570cd3913654e00c5f0183b39d2f998e54046
+  subpackages:
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+  - internal/urlfetch
+  - urlfetch
 - name: gopkg.in/gorp.v1
   version: c87af80f3cc5036b55b83d77171e156791085e2e
 testImports:

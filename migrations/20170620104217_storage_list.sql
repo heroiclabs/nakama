@@ -33,4 +33,23 @@ CREATE INDEX IF NOT EXISTS deleted_at_user_id_bucket_collection_read_record_idx 
 CREATE INDEX IF NOT EXISTS deleted_at_bucket_read_collection_record_user_id_idx ON storage (deleted_at, bucket, read, collection, record, user_id);
 CREATE INDEX IF NOT EXISTS deleted_at_bucket_collection_read_record_user_id_idx ON storage (deleted_at, bucket, collection, read, record, user_id);
 
+CREATE TABLE IF NOT EXISTS purchase (
+    PRIMARY KEY (user_id, provider, receipt_id), -- ad-hoc purchase lookup
+    user_id         BYTEA        NOT NULL,
+    provider        SMALLINT     NOT NULL, -- google(0), apple(1)
+    product_id      VARCHAR(255)  NOT NULL,
+    receipt_id      VARCHAR(255)  NOT NULL, -- the transaction ID
+    receipt         BYTEA        NOT NULL,
+    provider_resp   BYTEA        NOT NULL,
+    created_at      BIGINT       CHECK (created_at > 0) NOT NULL
+);
+
+-- look up purchase by ID and retrieve user. This must be unique.
+CREATE UNIQUE INDEX IF NOT EXISTS purchase_provider_receipt_id_user_id_idx ON purchase (provider, receipt_id, user_id);
+-- list purchases by user
+CREATE INDEX IF NOT EXISTS purchase_user_id_created_at_provider_receipt_id_idx ON purchase (user_id, created_at, provider, receipt_id);
+-- list purchases by most recent timestamp
+CREATE INDEX IF NOT EXISTS purchase_created_at_user_id_provider_receipt_id_idx ON purchase (created_at, user_id, provider, receipt_id);
+
 -- +migrate Down
+DROP TABLE IF EXISTS purchase;

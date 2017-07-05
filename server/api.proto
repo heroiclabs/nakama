@@ -255,6 +255,9 @@ message Envelope {
     MatchmakeMatched matchmake_matched = 63;
 
     TRpc rpc = 64;
+
+    TPurchaseValidation purchase = 65;
+    TPurchaseRecord purchase_record = 66;
   }
 }
 
@@ -1237,3 +1240,55 @@ message TRpc {
   string id = 1;
   bytes payload = 2;
 }
+
+/**
+ * TPurchaseValidation is used to validation purchases made by the client.
+ * Verify an In-App Purchase receipt from Apple or Google purchases.
+ *
+ * @returns TPurchaseRecord
+ */
+message TPurchaseValidation {
+  /**
+   * Verify an In-App Purchase receipt from Apple purchases.
+   */
+  message ApplePurchase {
+    // The product, item, or subscription package ID the purchase relates to.
+    string product_id = 1;
+    // The receipt data returned by the purchase operation itself. This must be converted to base64.
+    string receipt_data = 2;
+  }
+
+  /**
+   * Verify an In-App Purchase receipt from Google purchases.
+   */
+  message GooglePurchase {
+    // The identifier of the product or subscription being purchased.
+    string product_id = 1;
+    // Whether the purchase is for a single product or a subscription.
+    string product_type = 2;
+    // The token returned in the purchase operation response, acts as a transaction identifier.
+    string purchase_token = 3;
+  }
+
+  oneof id {
+    ApplePurchase apple_purchase = 1;
+    GooglePurchase google_purchase = 2;
+  }
+}
+
+/**
+ * TPurchaseRecord is the response of purchase validation
+ */
+message TPurchaseRecord {
+  // Whether or not the transaction is valid and all the information matches.
+  bool success = 1;
+  // If this is a new transaction or if Nakama has a log of it.
+  bool seen_before = 2;
+  // Indicates whether or not Nakama was able to reach the remote purchase service.
+  bool purchase_provider_reachable = 3;
+  // A string indicating why the purchase verification failed, if appropriate.
+  string message = 6;
+  // The complete response Nakama received from the remote service.
+  string data = 5;
+}
+
