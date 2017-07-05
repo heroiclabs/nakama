@@ -34,14 +34,15 @@ CREATE INDEX IF NOT EXISTS deleted_at_bucket_read_collection_record_user_id_idx 
 CREATE INDEX IF NOT EXISTS deleted_at_bucket_collection_read_record_user_id_idx ON storage (deleted_at, bucket, collection, read, record, user_id);
 
 CREATE TABLE IF NOT EXISTS purchase (
-    PRIMARY KEY (user_id, provider, product_id), -- ad-hoc purchase lookup
-    created_at      BIGINT       CHECK (created_at > 0) NOT NULL,
+    PRIMARY KEY (user_id, provider, receipt_id), -- ad-hoc purchase lookup
+    user_id         BYTEA        NOT NULL,
     provider        SMALLINT     NOT NULL, -- google(0), apple(1)
     type            VARCHAR(70)  NOT NULL, -- product, subscription, etc
-    user_id         BYTEA        NOT NULL,
     product_id      VARCHAR(70)  NOT NULL,
+    receipt_id      VARCHAR(70)  NOT NULL, -- the transaction ID
     receipt         BYTEA        NOT NULL,
-    provider_resp   BYTEA        NOT NULL
+    provider_resp   BYTEA        NOT NULL,
+    created_at      BIGINT       CHECK (created_at > 0) NOT NULL
 );
 
 -- list purchases by user
