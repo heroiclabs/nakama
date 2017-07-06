@@ -46,11 +46,9 @@ CREATE TABLE IF NOT EXISTS purchase (
 );
 
 -- list purchases by user
-CREATE INDEX IF NOT EXISTS purchase_user_id_created_at_provider_idx ON purchase (user_id, created_at DESC, provider);
--- list users who've purchased a particular product
-CREATE INDEX IF NOT EXISTS purchase_product_id_created_at_user_id_idx ON purchase (product_id, created_at DESC, user_id);
--- list purchases by most recent timestamp, and optionally for a given user
-CREATE INDEX IF NOT EXISTS purchase_created_at_user_id_idx ON purchase (created_at DESC, user_id);
+CREATE INDEX IF NOT EXISTS purchase_user_id_created_at_provider_receipt_id_idx ON purchase (user_id, created_at, provider, receipt_id);
+-- list purchases by most recent timestamp
+CREATE INDEX IF NOT EXISTS purchase_created_at_user_id_provider_receipt_id_idx ON purchase (created_at, user_id, provider, receipt_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS purchase;
