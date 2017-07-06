@@ -29,6 +29,15 @@ const (
 	GOOGLE_IAP_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 )
 
+type GooglePurchase struct {
+	// The identifier of the product or subscription being purchased.
+	ProductId string
+	// Whether the purchase is for a single product or a subscription.
+	ProductType string
+	// The token returned in the purchase operation response, acts as a transaction identifier.
+	PurchaseToken string
+}
+
 type GoogleClient struct {
 	client             *http.Client
 	logger             *zap.Logger
@@ -76,6 +85,16 @@ func (gc *GoogleClient) init() {
 	gc.enabled = true
 }
 
-func (gc *GoogleClient) Verify(product_type, product_id, purchase_token string) {
+func (gc *GoogleClient) Verify(ps []*GooglePurchase) []*PurchaseVerify {
+	pr := make([]*PurchaseVerify, 0)
+	for _, p := range ps {
+		r := gc.singleVerify(p)
+		pr = append(pr, r)
+	}
 
+	return pr
+}
+
+func (gc *GoogleClient) singleVerify(p *GooglePurchase) *PurchaseVerify {
+	//TODO send data
 }

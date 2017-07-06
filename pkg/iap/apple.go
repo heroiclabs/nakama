@@ -21,13 +21,25 @@ import (
 
 	"database/sql"
 
+	"encoding/json"
+
+	"strings"
+
 	"go.uber.org/zap"
 )
 
 const (
-	APPLE_ENV_PRODUCTION = "https://buy.itunes.apple.com/verifyReceipt"
-	APPLE_ENV_SANDBOX    = "https://sandbox.itunes.apple.com/verifyReceipt"
+	APPLE_ENV_PRODUCTION  = "https://buy.itunes.apple.com/verifyReceipt"
+	APPLE_ENV_SANDBOX     = "https://sandbox.itunes.apple.com/verifyReceipt"
+	CONTENT_TYPE_APP_JSON = "application/json"
 )
+
+type ApplePurchase struct {
+	// The receipt data returned by the purchase operation itself.
+	ProductId string
+	// The product, item, or subscription package ID the purchase relates to.
+	ReceiptData string
+}
 
 type AppleClient struct {
 	client   *http.Client
@@ -66,6 +78,30 @@ func (ac *AppleClient) init(production bool, timeout int) {
 	ac.enabled = true
 }
 
-func (ac *AppleClient) Verify(product_id, receipt_data string) {
+func (ac *AppleClient) Verify(ps []*ApplePurchase) []*PurchaseVerify {
+	pr := make([]*PurchaseVerify, 0)
+	for _, p := range ps {
+		r := ac.singleVerify(p)
+		pr = append(pr, r)
+	}
 
+	return pr
+}
+
+func (ac *AppleClient) singleVerify(p *ApplePurchase) *PurchaseVerify {
+	r := &PurchaseVerify{}
+	payload, _ := json.Marshal(map[string]string{
+		"receipt_data": p.ReceiptData,
+		"password":     ac.password,
+	})
+
+	resp, err := ac.client.Post(ac.env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
+	if err != nil {
+		ac.logger.Warn("Could not connect to Apple verification service.", zap.Error(err))
+		return r
+	}
+
+	//TODO deal with resp
+
+	return r
 }
