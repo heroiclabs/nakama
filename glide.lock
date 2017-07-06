@@ -1,5 +1,5 @@
-hash: 00c4318ad08f168ebf525164ff9fb486692a8f72905ef5d514bfe41bb006fb71
-updated: 2017-06-29T10:26:44.307843698+01:00
+hash: 82655047d2b696e7d712321a274ecabc8141d8ab9179435a449f72425d76818f
+updated: 2017-07-06T22:26:23.873034319+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -24,9 +24,6 @@ imports:
   - types
 - name: github.com/golang/protobuf
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
-  subpackages:
-  - proto
-  - protoc-gen-go/descriptor
 - name: github.com/gorhill/cronexpr
   version: a557574d6c024ed6e36acc8b610f5f211c91568a
 - name: github.com/gorilla/context
@@ -73,6 +70,10 @@ imports:
   version: 69d4b8aa71caaaa75c3dfc11211d1be495abec7c
   subpackages:
   - context
+- name: golang.org/x/oauth2
+  version: cce311a261e6fcf29de72ca96827bdb0b7d9c9e6
+  subpackages:
+  - google
 - name: gopkg.in/gorp.v1
   version: c87af80f3cc5036b55b83d77171e156791085e2e
 testImports:

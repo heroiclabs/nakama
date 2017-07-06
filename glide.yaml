@@ -15,6 +15,7 @@ import:
 - package: golang.org/x/crypto
   subpackages:
   - bcrypt
+- package: golang.org/x/oauth2/google
 - package: github.com/golang/protobuf
 - package: github.com/gogo/protobuf
   version: ~0.4.0

@@ -41,6 +41,7 @@ type Config interface {
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
+	GetPurchase() *PurchaseConfig
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -97,6 +98,7 @@ type config struct {
 	Database      *DatabaseConfig  `yaml:"database" json:"database" usage:"Database connection settings"`
 	Social        *SocialConfig    `yaml:"social" json:"social" usage:"Properties for social providers"`
 	Runtime       *RuntimeConfig   `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
+	Purchase      *PurchaseConfig  `yaml:"purchase" json:"purchase" usage:"In-App Purchase provider configuration"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
@@ -115,6 +117,7 @@ func NewConfig() *config {
 		Database:      NewDatabaseConfig(),
 		Social:        NewSocialConfig(),
 		Runtime:       NewRuntimeConfig(),
+		Purchase:      NewPurchaseProviderConfig(),
 	}
 }
 
@@ -160,6 +163,10 @@ func (c *config) GetSocial() *SocialConfig {
 
 func (c *config) GetRuntime() *RuntimeConfig {
 	return c.Runtime
+}
+
+func (c *config) GetPurchase() *PurchaseConfig {
+	return c.Purchase
 }
 
 // LogConfig is configuration relevant to logging levels and output
@@ -266,4 +273,29 @@ func NewRuntimeConfig() *RuntimeConfig {
 		Path:        "",
 		HTTPKey:     "defaultkey",
 	}
+}
+
+// PurchaseConfig is configuration relevant to the In-App Purchase providers.
+type PurchaseConfig struct {
+	Apple  *ApplePurchaseProviderConfig  `yaml:"apple" json:"apple" usage:"Apple In-App Purchase configuration"`
+	Google *GooglePurchaseProviderConfig `yaml:"google" json:"google" usage:"Google In-App Purchase configuration"`
+}
+
+// NewPurchaseProviderConfig creates a new PurchaseConfig struct
+func NewPurchaseProviderConfig() *PurchaseConfig {
+	return &PurchaseConfig{
+		Apple:  &ApplePurchaseProviderConfig{TimeoutMs: 1500},
+		Google: &GooglePurchaseProviderConfig{},
+	}
+}
+
+type ApplePurchaseProviderConfig struct {
+	Password   string `yaml:"password" json:"password" usage:"In-App Purchase password"`
+	Production bool   `yaml:"production" json:"production" usage:"If set, the server will try Production environment then sandbox."`
+	TimeoutMs  int    `yaml:"timeout_ms" json:"timeout_ms" usage:"Apple connection timeout in milliseconds"`
+}
+
+type GooglePurchaseProviderConfig struct {
+	PackageName        string `yaml:"package" json:"package" usage:"Android package name"`
+	ServiceKeyFilePath string `yaml:"service_key_file" json:"service_key_file" usage:"Absolute file path to the service key JSON file."`
 }

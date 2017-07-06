@@ -13,3 +13,59 @@
 // limitations under the License.
 
 package iap
+
+import (
+	"net/http"
+
+	"time"
+
+	"database/sql"
+
+	"go.uber.org/zap"
+)
+
+const (
+	APPLE_ENV_PRODUCTION = "https://buy.itunes.apple.com/verifyReceipt"
+	APPLE_ENV_SANDBOX    = "https://sandbox.itunes.apple.com/verifyReceipt"
+)
+
+type AppleClient struct {
+	client   *http.Client
+	logger   *zap.Logger
+	db       *sql.DB
+	password string
+	env      string
+	enabled  bool
+}
+
+func NewAppleClient(logger *zap.Logger, db *sql.DB, password string, production bool, timeout int) *AppleClient {
+	ac := &AppleClient{
+		logger:   logger,
+		db:       db,
+		password: password,
+	}
+	ac.init(production, timeout)
+	return ac
+}
+
+func (ac *AppleClient) init(production bool, timeout int) {
+	if ac.password == "" {
+		ac.logger.Warn("Apple Purchase configuration is inactive.", zap.String("reason", "Missing password"))
+		return
+	}
+
+	if production {
+		ac.env = APPLE_ENV_PRODUCTION
+		ac.logger.Info("Apple Purchase environment is set to Production priority.")
+	} else {
+		ac.env = APPLE_ENV_SANDBOX
+		ac.logger.Info("Apple Purchase environment is set to Sandbox priority.")
+	}
+
+	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
+	ac.enabled = true
+}
+
+func (ac *AppleClient) Verify(product_id, receipt_data string) {
+
+}

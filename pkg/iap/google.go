@@ -15,10 +15,67 @@
 package iap
 
 import (
+	"context"
+	"io/ioutil"
 	"net/http"
+
+	"database/sql"
+
+	"go.uber.org/zap"
+	"golang.org/x/oauth2/google"
 )
 
-// Client is responsible for making calls to different providers
+const (
+	GOOGLE_IAP_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
+)
+
 type GoogleClient struct {
-	client *http.Client
+	client             *http.Client
+	logger             *zap.Logger
+	db                 *sql.DB
+	packageName        string
+	serviceKeyFilePath string
+	enabled            bool
+}
+
+func NewGoogleClient(logger *zap.Logger, db *sql.DB, packageName, serviceKeyFilePath string) *GoogleClient {
+	gc := &GoogleClient{
+		logger:             logger,
+		db:                 db,
+		packageName:        packageName,
+		serviceKeyFilePath: serviceKeyFilePath,
+	}
+	gc.init()
+	return gc
+}
+
+func (gc *GoogleClient) init() {
+	if gc.packageName == "" {
+		gc.logger.Warn("Google Purchase configuration is inactive.", zap.String("reason", "Missing package name"))
+		return
+	}
+	if gc.serviceKeyFilePath == "" {
+		gc.logger.Warn("Google Purchase configuration is inactive.", zap.String("reason", "Missing service account key"))
+		return
+	}
+
+	jsonContent, err := ioutil.ReadFile(gc.serviceKeyFilePath)
+	if err != nil {
+		gc.logger.Error("Failed to read Google service account key", zap.Error(err))
+		return
+	}
+
+	config, err := google.JWTConfigFromJSON(jsonContent, GOOGLE_IAP_SCOPE)
+	if err != nil {
+		gc.logger.Error("Failed to parse Google service account key", zap.Error(err))
+		return
+	}
+
+	gc.client = config.Client(context.Background())
+	gc.logger.Info("Successfully initiated Google In-App Purchase provider")
+	gc.enabled = true
+}
+
+func (gc *GoogleClient) Verify(product_type, product_id, purchase_token string) {
+
 }

@@ -1261,9 +1261,9 @@ message TPurchaseValidation {
    * Verify an In-App Purchase receipt from Apple purchases.
    */
   message ApplePurchase {
-    // The receipt data returned by the purchase operation itself.
-    string product_id = 1;
     // The product, item, or subscription package ID the purchase relates to.
+    string product_id = 1;
+    // The receipt data returned by the purchase operation itself. This must be converted to base64.
     string receipt_data = 2;
   }
 
