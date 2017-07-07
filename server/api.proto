@@ -258,8 +258,8 @@ message Envelope {
 
     TRpc rpc = 65;
 
-    TPurchaseValidation purchases = 66;
-    TPurchaseRecords purchase_records = 67;
+    TPurchaseValidation purchase = 66;
+    TPurchaseRecord purchase_record = 67;
   }
 }
 
@@ -1254,7 +1254,7 @@ message TRpc {
  * TPurchaseValidation is used to validation purchases made by the client.
  * Verify an In-App Purchase receipt from Apple or Google purchases.
  *
- * @returns TPurchaseRecords
+ * @returns TPurchaseRecord
  */
 message TPurchaseValidation {
   /**
@@ -1279,32 +1279,25 @@ message TPurchaseValidation {
     string purchase_token = 3;
   }
 
-  message Purchase {
-    oneof id {
-      ApplePurchase apple_purchase = 1;
-      GooglePurchase google_purchase = 2;
-    }
+  oneof id {
+    ApplePurchase apple_purchase = 1;
+    GooglePurchase google_purchase = 2;
   }
-
-  repeated Purchase purchases = 1;
 }
 
 /**
- * TPurchaseRecords is response of purchase validation
+ * TPurchaseRecord is the response of purchase validation
  */
-message TPurchaseRecords {
-  message PurchaseRecord {
-    // Whether or not the transaction is valid and all the information matches.
-    bool success = 1;
-    // If this is a new transaction or if Nakama has a log of it.
-    bool seen_before = 2;
-    // Indicates whether or not Nakama was able to reach the remote purchase service.
-    bool purchase_provider_reachable = 3;
-    // A string indicating why the purchase verification failed, if appropriate.
-    string message = 6;
-    // The complete response Nakama received from the remote service.
-    string data = 5;
-  }
-
-  repeated PurchaseRecord records = 1;
+message TPurchaseRecord {
+  // Whether or not the transaction is valid and all the information matches.
+  bool success = 1;
+  // If this is a new transaction or if Nakama has a log of it.
+  bool seen_before = 2;
+  // Indicates whether or not Nakama was able to reach the remote purchase service.
+  bool purchase_provider_reachable = 3;
+  // A string indicating why the purchase verification failed, if appropriate.
+  string message = 6;
+  // The complete response Nakama received from the remote service.
+  string data = 5;
 }
+

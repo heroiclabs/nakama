@@ -34,12 +34,21 @@ type pipeline struct {
 	sessionRegistry   *SessionRegistry
 	socialClient      *social.Client
 	runtime           *Runtime
+	purchaseService   *PurchaseService
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 }
 
 // NewPipeline creates a new Pipeline
-func NewPipeline(config Config, db *sql.DB, tracker Tracker, matchmaker Matchmaker, messageRouter MessageRouter, registry *SessionRegistry, socialClient *social.Client, runtime *Runtime) *pipeline {
+func NewPipeline(config Config,
+	db *sql.DB,
+	tracker Tracker,
+	matchmaker Matchmaker,
+	messageRouter MessageRouter,
+	registry *SessionRegistry,
+	socialClient *social.Client,
+	runtime *Runtime,
+	purchaseService *PurchaseService) *pipeline {
 	return &pipeline{
 		config:          config,
 		db:              db,
@@ -50,6 +59,7 @@ func NewPipeline(config Config, db *sql.DB, tracker Tracker, matchmaker Matchmak
 		sessionRegistry: registry,
 		socialClient:    socialClient,
 		runtime:         runtime,
+		purchaseService: purchaseService,
 		jsonpbMarshaler: &jsonpb.Marshaler{
 			EnumsAsInts:  true,
 			EmitDefaults: false,

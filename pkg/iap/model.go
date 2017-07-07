@@ -58,23 +58,23 @@ type appleResponse struct {
 	//Either 0 if the receipt is valid, or one of the error codes
 	Status int `json:"status"`
 	// A JSON representation of the receipt that was sent for verification
-	Receipt *appleReceipt `json:"receipt"`
+	Receipt *AppleReceipt `json:"receipt"`
 	// Only returned for iOS 6 style transaction receipts for auto-renewable subscriptions. The base-64 encoded transaction receipt for the most recent renewal.
 	LatestReceipt string `json:"latest_receipt"`
 	// Only returned for iOS 6 style transaction receipts for auto-renewable subscriptions. The JSON representation of the receipt for the most recent renewal.
 	LatestReceiptInfo map[string]interface{} `json:"latest_receipt_info"`
 }
 
-type appleReceipt struct {
+type AppleReceipt struct {
 	BundleId                   string                  `json:"bundle_id"`
 	ApplicationVersion         string                  `json:"application_version"`
-	InApp                      []*applePurchaseReceipt `json:"in_app"`
+	InApp                      []*ApplePurchaseReceipt `json:"in_app"`
 	OriginalApplicationVersion string                  `json:"original_application_version"`
 	CreationDate               string                  `json:"creation_date"`
 	ExpirationDate             string                  `json:"expiration_date"`
 }
 
-type applePurchaseReceipt struct {
+type ApplePurchaseReceipt struct {
 	Quantity                  string `json:"quantity"`
 	ProductId                 string `json:"product_id"`
 	TransactionId             string `json:"transaction_id"`

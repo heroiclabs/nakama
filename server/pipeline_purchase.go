@@ -14,16 +14,87 @@
 
 package server
 
-import "go.uber.org/zap"
+import (
+	"errors"
+	"nakama/pkg/iap"
+
+	"go.uber.org/zap"
+)
 
 func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelope *Envelope) {
+	purchase := envelope.GetPurchase()
 
+	var validationResponse *iap.PurchaseVerifyResponse
+
+	switch purchase.Id.(type) {
+	case *TPurchaseValidation_ApplePurchase:
+		ap, err := p.convertApplePurchase(purchase.GetApplePurchase())
+		if err != nil {
+			logger.Warn("Could not process purchases", zap.Error(err))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
+			return
+		}
+		validationResponse = p.purchaseService.validateApplePurchase(session.userID, ap)
+	case *TPurchaseValidation_GooglePurchase:
+		gp, err := p.convertGooglePurchase(purchase.GetGooglePurchase())
+		if err != nil {
+			logger.Warn("Could not process purchases", zap.Error(err))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
+			return
+		}
+		validationResponse = p.purchaseService.validateGooglePurchase(session.userID, gp)
+	}
+
+	response := &Envelope_PurchaseRecord{PurchaseRecord: &TPurchaseRecord{
+		Success:                   validationResponse.Success,
+		PurchaseProviderReachable: validationResponse.PurchaseProviderReachable,
+		SeenBefore:                validationResponse.SeenBefore,
+		Message:                   validationResponse.Message,
+		Data:                      validationResponse.Data,
+	}}
+
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: response})
 }
 
-func (p *pipeline) purchaseValidateApple(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) convertApplePurchase(purchase *TPurchaseValidation_ApplePurchase) (*iap.ApplePurchase, error) {
+	if p.purchaseService.AppleClient == nil {
+		return nil, errors.New("Apple in-app purchase environment is not setup.")
+	}
 
+	if purchase.ReceiptData == "" {
+		return nil, errors.New("Missing receipt data.")
+	}
+
+	if purchase.ProductId == "" {
+		return nil, errors.New("Missing product ID.")
+	}
+
+	return &iap.ApplePurchase{
+		ProductId:   purchase.ProductId,
+		ReceiptData: purchase.ReceiptData,
+	}, nil
 }
 
-func (p *pipeline) purchaseValidateGoogle(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) convertGooglePurchase(purchase *TPurchaseValidation_GooglePurchase) (*iap.GooglePurchase, error) {
+	if p.purchaseService.AppleClient == nil {
+		return nil, errors.New("Apple in-app purchase environment is not setup.")
+	}
 
+	if purchase.ProductType == "" {
+		return nil, errors.New("Missing product type.")
+	}
+
+	if purchase.ProductId == "" {
+		return nil, errors.New("Missing product ID.")
+	}
+
+	if purchase.PurchaseToken == "" {
+		return nil, errors.New("Missing purchase token.")
+	}
+
+	return &iap.GooglePurchase{
+		ProductType:   purchase.ProductType,
+		ProductId:     purchase.ProductId,
+		PurchaseToken: purchase.PurchaseToken,
+	}, nil
 }

@@ -15,19 +15,13 @@
 package iap
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
-
+	"strings"
 	"time"
 
-	"database/sql"
-
-	"encoding/json"
-
-	"strings"
-
-	"io/ioutil"
-
-	"go.uber.org/zap"
+	"errors"
 )
 
 const (
@@ -49,52 +43,38 @@ const (
 
 type AppleClient struct {
 	client   *http.Client
-	logger   *zap.Logger
-	db       *sql.DB
 	password string
 	env      string
-	enabled  bool
 }
 
-func NewAppleClient(logger *zap.Logger, db *sql.DB, password string, production bool, timeout int) *AppleClient {
+func NewAppleClient(password string, production bool, timeout int) (*AppleClient, error) {
 	ac := &AppleClient{
-		logger:   logger,
-		db:       db,
 		password: password,
 	}
-	ac.init(production, timeout)
-	return ac
+	err := ac.init(production, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return ac, nil
 }
 
-func (ac *AppleClient) init(production bool, timeout int) {
+func (ac *AppleClient) init(production bool, timeout int) error {
 	if ac.password == "" {
-		ac.logger.Warn("Apple Purchase configuration is inactive.", zap.String("reason", "Missing password"))
-		return
+		return errors.New("Apple in-app purchase configuration is inactive. Reason: Missing password")
 	}
 
 	if production {
 		ac.env = APPLE_ENV_PRODUCTION
-		ac.logger.Info("Apple Purchase environment is set to Production priority.")
 	} else {
 		ac.env = APPLE_ENV_SANDBOX
-		ac.logger.Info("Apple Purchase environment is set to Sandbox priority.")
 	}
 
 	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
-	ac.enabled = true
+	return nil
 }
 
-func (ac *AppleClient) Verify(ps []*ApplePurchase) []*PurchaseVerifyResponse {
-	pr := make([]*PurchaseVerifyResponse, 0)
-	for _, p := range ps {
-		r := ac.singleVerify(p)
-		pr = append(pr, r)
-	}
-
-	return pr
-}
-
-func (ac *AppleClient) singleVerify(p *ApplePurchase) (r *PurchaseVerifyResponse) {
+func (ac *AppleClient) Verify(p *ApplePurchase) (r *PurchaseVerifyResponse) {
 	payload, _ := json.Marshal(&appleRequest{
 		ReceiptData: p.ReceiptData,
 		Password:    ac.password,
@@ -103,7 +83,6 @@ func (ac *AppleClient) singleVerify(p *ApplePurchase) (r *PurchaseVerifyResponse
 	resp, err := ac.client.Post(ac.env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
 	if err != nil {
 		r.Message = "Could not connect to Apple verification service."
-		ac.logger.Warn(r.Message, zap.Error(err))
 		return
 	}
 
@@ -111,30 +90,28 @@ func (ac *AppleClient) singleVerify(p *ApplePurchase) (r *PurchaseVerifyResponse
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		r.Message = "Could not read response from Apple verification service."
-		ac.logger.Warn(r.Message, zap.Error(err))
 		return
 	}
 
 	appleResp := &appleResponse{}
 	if err = json.Unmarshal(body, &appleResp); err != nil {
 		r.Message = "Could not parse response from Apple verification service."
-		ac.logger.Warn(r.Message, zap.Error(err))
 		return
 	}
 
+	r.PurchaseProviderReachable = true
+	r.Data = string(body)
 	if valid, reason := ac.checkStatus(appleResp); !valid {
 		r.Message = reason
-		ac.logger.Warn("Apple purchase status failed", zap.String("reason", reason))
 		return
 	}
 
-	if valid, reason := ac.checkReceipt(appleResp); !valid {
+	if valid, reason := ac.checkReceipt(appleResp.Receipt); !valid {
 		r.Message = reason
-		ac.logger.Warn("Apple receipt verification failed", zap.String("reason", reason))
 		return
 	}
 
-	ac.saveReceipt(appleResp)
+	r.Success = true
 	return
 }
 
@@ -163,10 +140,7 @@ func (ac *AppleClient) checkStatus(a *appleResponse) (valid bool, reason string)
 	}
 }
 
-func (ac *AppleClient) checkReceipt(a *appleResponse) (valid bool, reason string) {
-
-}
-
-func (ac *AppleClient) saveReceipt(a *appleResponse) {
-
+func (ac *AppleClient) checkReceipt(a *AppleReceipt) (valid bool, reason string) {
+	// TODO complete this
+	return false, ""
 }

@@ -19,7 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"database/sql"
+	"errors"
 
 	"go.uber.org/zap"
 	"golang.org/x/oauth2/google"
@@ -32,60 +32,44 @@ const (
 type GoogleClient struct {
 	client             *http.Client
 	logger             *zap.Logger
-	db                 *sql.DB
 	packageName        string
 	serviceKeyFilePath string
-	enabled            bool
 }
 
-func NewGoogleClient(logger *zap.Logger, db *sql.DB, packageName, serviceKeyFilePath string) *GoogleClient {
+func NewGoogleClient(packageName string, serviceKeyFilePath string) (*GoogleClient, error) {
 	gc := &GoogleClient{
-		logger:             logger,
-		db:                 db,
 		packageName:        packageName,
 		serviceKeyFilePath: serviceKeyFilePath,
 	}
-	gc.init()
-	return gc
+	err := gc.init()
+	if err != nil {
+		return nil, err
+	}
+	return gc, nil
 }
 
-func (gc *GoogleClient) init() {
+func (gc *GoogleClient) init() error {
 	if gc.packageName == "" {
-		gc.logger.Warn("Google Purchase configuration is inactive.", zap.String("reason", "Missing package name"))
-		return
+		return errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name")
 	}
 	if gc.serviceKeyFilePath == "" {
-		gc.logger.Warn("Google Purchase configuration is inactive.", zap.String("reason", "Missing service account key"))
-		return
+		return errors.New("Google in-app purchase configuration is inactive. Reason: Missing service account key")
 	}
 
 	jsonContent, err := ioutil.ReadFile(gc.serviceKeyFilePath)
 	if err != nil {
-		gc.logger.Error("Failed to read Google service account key", zap.Error(err))
-		return
+		return errors.New("Google in-app purchase configuration is inactive. Reason: Failed to read Google service account key")
 	}
 
 	config, err := google.JWTConfigFromJSON(jsonContent, GOOGLE_IAP_SCOPE)
 	if err != nil {
-		gc.logger.Error("Failed to parse Google service account key", zap.Error(err))
-		return
+		return errors.New("Google in-app purchase configuration is inactive. Reason: Failed to parse Google service account key")
 	}
 
 	gc.client = config.Client(context.Background())
-	gc.logger.Info("Successfully initiated Google In-App Purchase provider")
-	gc.enabled = true
+	return nil
 }
 
-func (gc *GoogleClient) Verify(ps []*GooglePurchase) []*PurchaseVerifyResponse {
-	pr := make([]*PurchaseVerifyResponse, 0)
-	for _, p := range ps {
-		r := gc.singleVerify(p)
-		pr = append(pr, r)
-	}
-
-	return pr
-}
-
-func (gc *GoogleClient) singleVerify(p *GooglePurchase) *PurchaseVerifyResponse {
+func (gc *GoogleClient) Verify(p *GooglePurchase) *PurchaseVerifyResponse {
 	//TODO send data
 }
