@@ -25,6 +25,8 @@ import (
 
 	"strings"
 
+	"io/ioutil"
+
 	"go.uber.org/zap"
 )
 
@@ -34,12 +36,17 @@ const (
 	CONTENT_TYPE_APP_JSON = "application/json"
 )
 
-type ApplePurchase struct {
-	// The receipt data returned by the purchase operation itself.
-	ProductId string
-	// The product, item, or subscription package ID the purchase relates to.
-	ReceiptData string
-}
+const (
+	VALID                   = 0
+	UNREADABLE_JSON         = 21000
+	MALFORMED_DATA          = 21002
+	AUTHENTICATION_ERROR    = 21003
+	UNMATCHED_SECRET        = 21004
+	SERVER_UNAVAILABLE      = 21005
+	SUBSCRIPTION_EXPIRED    = 21006
+	SANDBOX_RECEIPT_ON_PROD = 21007
+	PROD_RECEIPT_ON_SANDBOX = 21008
+)
 
 type AppleClient struct {
 	client   *http.Client
@@ -78,8 +85,8 @@ func (ac *AppleClient) init(production bool, timeout int) {
 	ac.enabled = true
 }
 
-func (ac *AppleClient) Verify(ps []*ApplePurchase) []*PurchaseVerify {
-	pr := make([]*PurchaseVerify, 0)
+func (ac *AppleClient) Verify(ps []*ApplePurchase) []*PurchaseVerifyResponse {
+	pr := make([]*PurchaseVerifyResponse, 0)
 	for _, p := range ps {
 		r := ac.singleVerify(p)
 		pr = append(pr, r)
@@ -88,20 +95,79 @@ func (ac *AppleClient) Verify(ps []*ApplePurchase) []*PurchaseVerify {
 	return pr
 }
 
-func (ac *AppleClient) singleVerify(p *ApplePurchase) *PurchaseVerify {
-	r := &PurchaseVerify{}
-	payload, _ := json.Marshal(map[string]string{
-		"receipt_data": p.ReceiptData,
-		"password":     ac.password,
+func (ac *AppleClient) singleVerify(p *ApplePurchase) (r *PurchaseVerifyResponse) {
+	payload, _ := json.Marshal(&appleRequest{
+		ReceiptData: p.ReceiptData,
+		Password:    ac.password,
 	})
 
 	resp, err := ac.client.Post(ac.env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
 	if err != nil {
-		ac.logger.Warn("Could not connect to Apple verification service.", zap.Error(err))
-		return r
+		r.Message = "Could not connect to Apple verification service."
+		ac.logger.Warn(r.Message, zap.Error(err))
+		return
 	}
 
-	//TODO deal with resp
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		r.Message = "Could not read response from Apple verification service."
+		ac.logger.Warn(r.Message, zap.Error(err))
+		return
+	}
 
-	return r
+	appleResp := &appleResponse{}
+	if err = json.Unmarshal(body, &appleResp); err != nil {
+		r.Message = "Could not parse response from Apple verification service."
+		ac.logger.Warn(r.Message, zap.Error(err))
+		return
+	}
+
+	if valid, reason := ac.checkStatus(appleResp); !valid {
+		r.Message = reason
+		ac.logger.Warn("Apple purchase status failed", zap.String("reason", reason))
+		return
+	}
+
+	if valid, reason := ac.checkReceipt(appleResp); !valid {
+		r.Message = reason
+		ac.logger.Warn("Apple receipt verification failed", zap.String("reason", reason))
+		return
+	}
+
+	ac.saveReceipt(appleResp)
+	return
+}
+
+func (ac *AppleClient) checkStatus(a *appleResponse) (valid bool, reason string) {
+	switch a.Status {
+	case VALID:
+		return true, ""
+	case UNREADABLE_JSON:
+		return false, "Apple could not read the receipt."
+	case MALFORMED_DATA:
+		return false, "Receipt was malformed."
+	case AUTHENTICATION_ERROR:
+		return false, "The receipt could not be authenticated."
+	case UNMATCHED_SECRET:
+		return false, "Apple Purchase password is invalid."
+	case SERVER_UNAVAILABLE:
+		return false, "Apple purchase verification servers are not currently available."
+	case SUBSCRIPTION_EXPIRED:
+		return false, "This receipt is valid but the subscription has expired."
+	case SANDBOX_RECEIPT_ON_PROD:
+		return false, "This receipt is a sandbox receipt, but it was sent to the production service for verification."
+	case PROD_RECEIPT_ON_SANDBOX:
+		return false, "This receipt is a production receipt, but it was sent to the sandbox service for verification."
+	default:
+		return false, "An unknown error occurred"
+	}
+}
+
+func (ac *AppleClient) checkReceipt(a *appleResponse) (valid bool, reason string) {
+
+}
+
+func (ac *AppleClient) saveReceipt(a *appleResponse) {
+
 }
