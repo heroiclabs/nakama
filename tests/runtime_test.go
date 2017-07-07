@@ -381,7 +381,7 @@ return test
 	writeLuaModule("http-invoke.lua", `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_before(test.printWorld, "SelfFetch")
+nakama.register_before(test.printWorld, "tselffetch")
 	`)
 
 	jsonpbMarshaler := &jsonpb.Marshaler{
@@ -400,7 +400,7 @@ nakama.register_before(test.printWorld, "SelfFetch")
 		t.Error(err)
 	}
 
-	fn := r.GetRuntimeCallback(server.BEFORE, "SelfFetch")
+	fn := r.GetRuntimeCallback(server.BEFORE, "tselffetch")
 	envelope := &server.Envelope{
 		CollationId: "123",
 		Payload: &server.Envelope_SelfFetch{
