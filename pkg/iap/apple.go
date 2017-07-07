@@ -31,21 +31,20 @@ import (
 )
 
 const (
-	APPLE_ENV_PRODUCTION  = "https://buy.itunes.apple.com/verifyReceipt"
-	APPLE_ENV_SANDBOX     = "https://sandbox.itunes.apple.com/verifyReceipt"
-	CONTENT_TYPE_APP_JSON = "application/json"
+	APPLE_ENV_PRODUCTION = "https://buy.itunes.apple.com/verifyReceipt"
+	APPLE_ENV_SANDBOX    = "https://sandbox.itunes.apple.com/verifyReceipt"
 )
 
 const (
-	VALID                   = 0
-	UNREADABLE_JSON         = 21000
-	MALFORMED_DATA          = 21002
-	AUTHENTICATION_ERROR    = 21003
-	UNMATCHED_SECRET        = 21004
-	SERVER_UNAVAILABLE      = 21005
-	SUBSCRIPTION_EXPIRED    = 21006
-	SANDBOX_RECEIPT_ON_PROD = 21007
-	PROD_RECEIPT_ON_SANDBOX = 21008
+	APPLE_VALID                   = 0
+	APPLE_UNREADABLE_JSON         = 21000
+	APPLE_MALFORMED_DATA          = 21002
+	APPLE_AUTHENTICATION_ERROR    = 21003
+	APPLE_UNMATCHED_SECRET        = 21004
+	APPLE_SERVER_UNAVAILABLE      = 21005
+	APPLE_SUBSCRIPTION_EXPIRED    = 21006
+	APPLE_SANDBOX_RECEIPT_ON_PROD = 21007
+	APPLE_PROD_RECEIPT_ON_SANDBOX = 21008
 )
 
 type AppleClient struct {
@@ -141,23 +140,23 @@ func (ac *AppleClient) singleVerify(p *ApplePurchase) (r *PurchaseVerifyResponse
 
 func (ac *AppleClient) checkStatus(a *appleResponse) (valid bool, reason string) {
 	switch a.Status {
-	case VALID:
+	case APPLE_VALID:
 		return true, ""
-	case UNREADABLE_JSON:
+	case APPLE_UNREADABLE_JSON:
 		return false, "Apple could not read the receipt."
-	case MALFORMED_DATA:
+	case APPLE_MALFORMED_DATA:
 		return false, "Receipt was malformed."
-	case AUTHENTICATION_ERROR:
+	case APPLE_AUTHENTICATION_ERROR:
 		return false, "The receipt could not be authenticated."
-	case UNMATCHED_SECRET:
+	case APPLE_UNMATCHED_SECRET:
 		return false, "Apple Purchase password is invalid."
-	case SERVER_UNAVAILABLE:
+	case APPLE_SERVER_UNAVAILABLE:
 		return false, "Apple purchase verification servers are not currently available."
-	case SUBSCRIPTION_EXPIRED:
+	case APPLE_SUBSCRIPTION_EXPIRED:
 		return false, "This receipt is valid but the subscription has expired."
-	case SANDBOX_RECEIPT_ON_PROD:
+	case APPLE_SANDBOX_RECEIPT_ON_PROD:
 		return false, "This receipt is a sandbox receipt, but it was sent to the production service for verification."
-	case PROD_RECEIPT_ON_SANDBOX:
+	case APPLE_PROD_RECEIPT_ON_SANDBOX:
 		return false, "This receipt is a production receipt, but it was sent to the sandbox service for verification."
 	default:
 		return false, "An unknown error occurred"

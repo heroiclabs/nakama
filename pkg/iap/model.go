@@ -14,6 +14,10 @@
 
 package iap
 
+const (
+	CONTENT_TYPE_APP_JSON = "application/json"
+)
+
 type PurchaseVerifyResponse struct {
 	// Whether or not the transaction is valid and all the information matches.
 	Success bool
