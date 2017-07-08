@@ -66,23 +66,24 @@ type appleResponse struct {
 }
 
 type AppleReceipt struct {
-	BundleId                   string                  `json:"bundle_id"`
-	ApplicationVersion         string                  `json:"application_version"`
-	InApp                      []*ApplePurchaseReceipt `json:"in_app"`
-	OriginalApplicationVersion string                  `json:"original_application_version"`
-	CreationDate               string                  `json:"creation_date"`
-	ExpirationDate             string                  `json:"expiration_date"`
+	BundleID                   string               `json:"bundle_id"`
+	ApplicationVersion         string               `json:"application_version"`
+	InApp                      []*AppleInAppReceipt `json:"in_app"`
+	OriginalApplicationVersion string               `json:"original_application_version"`
+	CreationDate               string               `json:"creation_date"`
+	ExpirationDate             string               `json:"expiration_date"`
 }
 
-type ApplePurchaseReceipt struct {
+type AppleInAppReceipt struct {
 	Quantity                  string `json:"quantity"`
-	ProductId                 string `json:"product_id"`
-	TransactionId             string `json:"transaction_id"`
-	OriginalTransactionId     string `json:"original_transaction_id"`
+	ProductID                 string `json:"product_id"`
+	TransactionID             string `json:"transaction_id"`
+	OriginalTransactionID     string `json:"original_transaction_id"`
 	PurchaseDate              string `json:"purchase_date"`
 	OriginalPurchaseDate      string `json:"original_purchase_date"`
 	ExpiresDate               string `json:"expires_date"`
-	AppItemId                 string `json:"app_item_id"`
+	AppItemID                 string `json:"app_item_id"`
 	VersionExternalIdentifier string `json:"version_external_identifier"`
-	WebOrderLineItemId        string `json:"web_order_line_item_id"`
+	WebOrderLineItemID        string `json:"web_order_line_item_id"`
+	CancellationDate          string `json:"cancellation_date"`
 }

@@ -56,13 +56,18 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 }
 
 func (p *PurchaseService) validateApplePurchase(userID uuid.UUID, purchase *iap.ApplePurchase) *iap.PurchaseVerifyResponse {
-	r := p.AppleClient.Verify(purchase)
+	r, appleReceipt := p.AppleClient.Verify(purchase)
 	if !r.Success {
 		return r
 	}
 
-	//TODO check against ledger and store
+	// Only processing one item in the apple in-app receipts
+	inAppReceipt := appleReceipt.InApp[0]
+	p.checkUser(userID, r, 1, inAppReceipt.TransactionID)
 
+	if r.Success && !r.SeenBefore {
+		p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
+	}
 	return r
 }
 
@@ -72,7 +77,62 @@ func (p *PurchaseService) validateGooglePurchase(userID uuid.UUID, purchase *iap
 		return r
 	}
 
-	//TODO check against ledger and store
-
+	//inAppReceipt := appleReceipt.InApp[0]
+	//p.checkUser(userID, r, 1, inAppReceipt.TransactionID)
+	//
+	//if r.Success && !r.SeenBefore {
+	//	p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
+	//}
 	return r
+}
+
+func (p *PurchaseService) checkUser(userID uuid.UUID, r *iap.PurchaseVerifyResponse, provider int, receiptID string) {
+	purchaseUserID, err := p.findPurchase(1, receiptID)
+	if err != nil {
+		r.Success = false
+		r.Message = "Failed to validate Apple purchase against ledger."
+		p.logger.Error(r.Message, zap.Error(err))
+		return
+	}
+
+	// We've not seen this transaction
+	if len(purchaseUserID) == 0 {
+		r.Success = true
+		r.SeenBefore = false
+		r.Message = ""
+	} else { // We've seen this transaction
+		if uuid.Equal(userID, uuid.FromBytesOrNil(purchaseUserID)) {
+			r.Success = true
+			r.SeenBefore = true
+			r.Message = ""
+		} else {
+			r.Success = false
+			r.SeenBefore = true
+			r.Message = "Transaction already registered to a different user"
+		}
+	}
+}
+
+func (p *PurchaseService) findPurchase(provider int, receiptID string) ([]byte, error) {
+	var purchaseUserId []byte
+	err := p.db.QueryRow("SELECT user_id FROM purchase WHERE provider = $1 AND receipt_id = $2", provider, receiptID).Scan(&purchaseUserId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	return purchaseUserId, nil
+}
+
+func (p *PurchaseService) savePurchase(userID []byte, provider int, productID string, receiptID string, rawPurchase string, rawReceipt string) error {
+	createdAt := nowMs()
+	_, err := p.db.Exec(`
+INSERT INTO purchase (user_id, provider, product_id, receipt_id, receipt, provider_resp, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		userID, provider, productID, receiptID, rawPurchase, rawReceipt, createdAt)
+
+	return err
 }

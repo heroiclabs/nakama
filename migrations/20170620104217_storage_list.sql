@@ -37,14 +37,15 @@ CREATE TABLE IF NOT EXISTS purchase (
     PRIMARY KEY (user_id, provider, receipt_id), -- ad-hoc purchase lookup
     user_id         BYTEA        NOT NULL,
     provider        SMALLINT     NOT NULL, -- google(0), apple(1)
-    type            VARCHAR(70)  NOT NULL, -- product, subscription, etc
-    product_id      VARCHAR(70)  NOT NULL,
-    receipt_id      VARCHAR(70)  NOT NULL, -- the transaction ID
+    product_id      VARCHAR(255)  NOT NULL,
+    receipt_id      VARCHAR(255)  NOT NULL, -- the transaction ID
     receipt         BYTEA        NOT NULL,
     provider_resp   BYTEA        NOT NULL,
     created_at      BIGINT       CHECK (created_at > 0) NOT NULL
 );
 
+-- look up purchase by ID and retrieve user. This must be unique.
+CREATE UNIQUE INDEX IF NOT EXISTS purchase_provider_receipt_id_user_id_idx ON purchase (provider, receipt_id, user_id);
 -- list purchases by user
 CREATE INDEX IF NOT EXISTS purchase_user_id_created_at_provider_receipt_id_idx ON purchase (user_id, created_at, provider, receipt_id);
 -- list purchases by most recent timestamp

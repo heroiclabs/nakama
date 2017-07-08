@@ -42,14 +42,15 @@ const (
 )
 
 type AppleClient struct {
-	client   *http.Client
-	password string
-	env      string
+	client     *http.Client
+	password   string
+	production bool
 }
 
 func NewAppleClient(password string, production bool, timeout int) (*AppleClient, error) {
 	ac := &AppleClient{
-		password: password,
+		password:   password,
+		production: production,
 	}
 	err := ac.init(production, timeout)
 	if err != nil {
@@ -64,83 +65,114 @@ func (ac *AppleClient) init(production bool, timeout int) error {
 		return errors.New("Apple in-app purchase configuration is inactive. Reason: Missing password")
 	}
 
-	if production {
-		ac.env = APPLE_ENV_PRODUCTION
-	} else {
-		ac.env = APPLE_ENV_SANDBOX
-	}
-
 	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
 	return nil
 }
 
-func (ac *AppleClient) Verify(p *ApplePurchase) (r *PurchaseVerifyResponse) {
+func (ac *AppleClient) Verify(p *ApplePurchase) (*PurchaseVerifyResponse, *AppleReceipt) {
 	payload, _ := json.Marshal(&appleRequest{
 		ReceiptData: p.ReceiptData,
 		Password:    ac.password,
 	})
+	return ac.verify(payload, p, ac.production, false)
+}
 
-	resp, err := ac.client.Post(ac.env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
+func (ac *AppleClient) verify(payload []byte, p *ApplePurchase, production bool, retrying bool) (*PurchaseVerifyResponse, *AppleReceipt) {
+	r := &PurchaseVerifyResponse{}
+
+	env := APPLE_ENV_SANDBOX
+	if production {
+		env = APPLE_ENV_PRODUCTION
+	}
+
+	resp, err := ac.client.Post(env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
 	if err != nil {
 		r.Message = "Could not connect to Apple verification service."
-		return
+		return r, nil
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		r.Message = "Could not read response from Apple verification service."
-		return
+		return r, nil
 	}
 
 	appleResp := &appleResponse{}
 	if err = json.Unmarshal(body, &appleResp); err != nil {
 		r.Message = "Could not parse response from Apple verification service."
-		return
+		return r, nil
 	}
 
 	r.PurchaseProviderReachable = true
 	r.Data = string(body)
-	if valid, reason := ac.checkStatus(appleResp); !valid {
+
+	if reason := ac.checkStatus(appleResp); reason != "" {
+		if appleResp.Status == APPLE_SANDBOX_RECEIPT_ON_PROD && !retrying {
+			return ac.verify(payload, p, false, true)
+		} else if appleResp.Status == APPLE_PROD_RECEIPT_ON_SANDBOX && !retrying {
+			return ac.verify(payload, p, true, true)
+		}
+
 		r.Message = reason
-		return
+		return r, nil
 	}
 
-	if valid, reason := ac.checkReceipt(appleResp.Receipt); !valid {
+	if reason := ac.checkReceipt(p.ProductId, appleResp.Receipt); reason != "" {
 		r.Message = reason
-		return
+		return r, nil
 	}
 
 	r.Success = true
-	return
+	return r, appleResp.Receipt
 }
 
-func (ac *AppleClient) checkStatus(a *appleResponse) (valid bool, reason string) {
+func (ac *AppleClient) checkStatus(a *appleResponse) string {
 	switch a.Status {
 	case APPLE_VALID:
-		return true, ""
+		return ""
 	case APPLE_UNREADABLE_JSON:
-		return false, "Apple could not read the receipt."
+		return "Apple could not read the receipt."
 	case APPLE_MALFORMED_DATA:
-		return false, "Receipt was malformed."
+		return "Receipt was malformed."
 	case APPLE_AUTHENTICATION_ERROR:
-		return false, "The receipt could not be authenticated."
+		return "The receipt could not be validated."
 	case APPLE_UNMATCHED_SECRET:
-		return false, "Apple Purchase password is invalid."
+		return "Apple Purchase password is invalid."
 	case APPLE_SERVER_UNAVAILABLE:
-		return false, "Apple purchase verification servers are not currently available."
+		return "Apple purchase verification servers are not currently available."
 	case APPLE_SUBSCRIPTION_EXPIRED:
-		return false, "This receipt is valid but the subscription has expired."
+		return "This receipt is valid but the subscription has expired."
 	case APPLE_SANDBOX_RECEIPT_ON_PROD:
-		return false, "This receipt is a sandbox receipt, but it was sent to the production service for verification."
+		return "This receipt is a sandbox receipt, but it was sent to the production service for verification."
 	case APPLE_PROD_RECEIPT_ON_SANDBOX:
-		return false, "This receipt is a production receipt, but it was sent to the sandbox service for verification."
+		return "This receipt is a production receipt, but it was sent to the sandbox service for verification."
 	default:
-		return false, "An unknown error occurred"
+		return "An unknown error occurred"
 	}
 }
 
-func (ac *AppleClient) checkReceipt(a *AppleReceipt) (valid bool, reason string) {
-	// TODO complete this
-	return false, ""
+func (ac *AppleClient) checkReceipt(productId string, receipt *AppleReceipt) string {
+	// This only support receipts in iOS 7+
+
+	if len(receipt.InApp) < 1 {
+		return "No in-app purchase receipts were found"
+	}
+
+	// Only processing one item in the apple in-app receipts
+	a := receipt.InApp[0]
+	if productId != a.ProductID {
+		return "Product ID does not match receipt"
+	}
+
+	// Treat a canceled receipt the same as if no purchase had ever been made.
+	if len(a.CancellationDate) > 0 {
+		return "Purchase has been cancelled: " + a.CancellationDate
+	}
+
+	if len(a.ExpiresDate) > 0 {
+		return "Purchase is a subscription that expired: " + a.ExpiresDate
+	}
+
+	return "" // valid
 }
