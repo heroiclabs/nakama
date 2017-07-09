@@ -53,6 +53,18 @@ func NewGoogleClient(packageName string, serviceKeyFilePath string) (*GoogleClie
 	return gc, nil
 }
 
+func NewGoogleClientWithHTTP(packageName string, httpClient *http.Client) (*GoogleClient, error) {
+	if packageName == "" {
+		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")
+	}
+
+	gc := &GoogleClient{
+		packageName: packageName,
+		client:      httpClient,
+	}
+	return gc, nil
+}
+
 func (gc *GoogleClient) init() error {
 	if gc.packageName == "" {
 		return errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")

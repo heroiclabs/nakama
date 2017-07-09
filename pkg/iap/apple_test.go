@@ -17,11 +17,11 @@ package iap
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"errors"
+	"fmt"
 )
 
 const (
@@ -29,10 +29,10 @@ const (
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
-
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
 }
+
 
 func assertEquals(t *testing.T, expected, reality string) {
 	if expected != reality {
@@ -42,7 +42,7 @@ func assertEquals(t *testing.T, expected, reality string) {
 
 // ----
 
-func setupAppleClient(ar *appleResponse) *AppleClient {
+func setupAppleClient(ar *AppleResponse) *AppleClient {
 	a, _ := json.Marshal(ar)
 	return &AppleClient{
 		production: true,
@@ -107,7 +107,7 @@ func TestApplePurchaseProviderInvalidResponse(t *testing.T) {
 }
 
 func TestInvalidStatus(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status: APPLE_AUTHENTICATION_ERROR,
 	})
 
@@ -127,7 +127,7 @@ func TestInvalidStatus(t *testing.T) {
 }
 
 func TestNoInAppReceipt(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status:  APPLE_VALID,
 		Receipt: &AppleReceipt{},
 	})
@@ -148,7 +148,7 @@ func TestNoInAppReceipt(t *testing.T) {
 }
 
 func TestUnmatchingProductID(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status: APPLE_VALID,
 		Receipt: &AppleReceipt{
 			InApp: []*AppleInAppReceipt{
@@ -175,7 +175,7 @@ func TestUnmatchingProductID(t *testing.T) {
 }
 
 func TestCancelledPurchase(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status: APPLE_VALID,
 		Receipt: &AppleReceipt{
 			InApp: []*AppleInAppReceipt{
@@ -203,7 +203,7 @@ func TestCancelledPurchase(t *testing.T) {
 }
 
 func TestExpiredPurchase(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status: APPLE_VALID,
 		Receipt: &AppleReceipt{
 			InApp: []*AppleInAppReceipt{
@@ -231,7 +231,7 @@ func TestExpiredPurchase(t *testing.T) {
 }
 
 func TestValidPurchase(t *testing.T) {
-	ac := setupAppleClient(&appleResponse{
+	ac := setupAppleClient(&AppleResponse{
 		Status: APPLE_VALID,
 		Receipt: &AppleReceipt{
 			InApp: []*AppleInAppReceipt{

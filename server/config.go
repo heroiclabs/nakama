@@ -117,7 +117,7 @@ func NewConfig() *config {
 		Database:      NewDatabaseConfig(),
 		Social:        NewSocialConfig(),
 		Runtime:       NewRuntimeConfig(),
-		Purchase:      NewPurchaseProviderConfig(),
+		Purchase:      NewPurchaseConfig(),
 	}
 }
 
@@ -281,8 +281,8 @@ type PurchaseConfig struct {
 	Google *GooglePurchaseProviderConfig `yaml:"google" json:"google" usage:"Google In-App Purchase configuration"`
 }
 
-// NewPurchaseProviderConfig creates a new PurchaseConfig struct
-func NewPurchaseProviderConfig() *PurchaseConfig {
+// NewPurchaseConfig creates a new PurchaseConfig struct
+func NewPurchaseConfig() *PurchaseConfig {
 	return &PurchaseConfig{
 		Apple:  &ApplePurchaseProviderConfig{TimeoutMs: 1500},
 		Google: &GooglePurchaseProviderConfig{},

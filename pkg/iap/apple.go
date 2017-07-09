@@ -52,25 +52,41 @@ func NewAppleClient(password string, production bool, timeout int) (*AppleClient
 		password:   password,
 		production: production,
 	}
-	err := ac.init(production, timeout)
+	err := ac.init(production)
 	if err != nil {
 		return nil, err
 	}
 
+	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
+
 	return ac, nil
 }
 
-func (ac *AppleClient) init(production bool, timeout int) error {
-	if ac.password == "" {
-		return errors.New("Apple in-app purchase configuration is inactive. Reason: Missing password")
+func NewAppleClientWithHTTP(password string, production bool, httpClient *http.Client) (*AppleClient, error) {
+	ac := &AppleClient{
+		password:   password,
+		production: production,
+	}
+	err := ac.init(production)
+	if err != nil {
+		return nil, err
 	}
 
-	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
+	ac.client = httpClient
+
+	return ac, nil
+}
+
+func (ac *AppleClient) init(production bool) error {
+	if ac.password == "" {
+		return errors.New("Apple in-app purchase configuration is inactive. Reason: Missing password.")
+	}
+
 	return nil
 }
 
 func (ac *AppleClient) Verify(p *ApplePurchase) (*PurchaseVerifyResponse, *AppleReceipt) {
-	payload, _ := json.Marshal(&appleRequest{
+	payload, _ := json.Marshal(&AppleRequest{
 		ReceiptData: p.ReceiptData,
 		Password:    ac.password,
 	})
@@ -98,7 +114,7 @@ func (ac *AppleClient) verify(payload []byte, p *ApplePurchase, production bool,
 		return r, nil
 	}
 
-	appleResp := &appleResponse{}
+	appleResp := &AppleResponse{}
 	if err = json.Unmarshal(body, &appleResp); err != nil {
 		r.Message = errors.New("Could not parse response from Apple verification service.")
 		return r, nil
@@ -128,7 +144,7 @@ func (ac *AppleClient) verify(payload []byte, p *ApplePurchase, production bool,
 	return r, appleResp.Receipt
 }
 
-func (ac *AppleClient) checkStatus(a *appleResponse) string {
+func (ac *AppleClient) checkStatus(a *AppleResponse) string {
 	switch a.Status {
 	case APPLE_VALID:
 		return ""

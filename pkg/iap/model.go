@@ -38,12 +38,12 @@ type ApplePurchase struct {
 	ReceiptData string
 }
 
-type appleRequest struct {
+type AppleRequest struct {
 	ReceiptData string `json:"receipt-data"`
 	Password    string `json:"password"`
 }
 
-type appleResponse struct {
+type AppleResponse struct {
 	//Either 0 if the receipt is valid, or one of the error codes
 	Status int `json:"status"`
 	// A JSON representation of the receipt that was sent for verification

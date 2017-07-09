@@ -36,7 +36,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
 			return
 		}
-		validationResponse = p.purchaseService.validateApplePurchase(session.userID, ap)
+		validationResponse = p.purchaseService.ValidateApplePurchase(session.userID, ap)
 	case *TPurchaseValidation_GooglePurchase_:
 		gp, err := p.convertGooglePurchase(purchase.GetGooglePurchase())
 		if err != nil {
@@ -47,9 +47,9 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 
 		switch gp.ProductType {
 		case "product":
-			validationResponse = p.purchaseService.validateGooglePurchaseProduct(session.userID, gp)
+			validationResponse = p.purchaseService.ValidateGooglePurchaseProduct(session.userID, gp)
 		case "subscription":
-			validationResponse = p.purchaseService.validateGooglePurchaseSubscription(session.userID, gp)
+			validationResponse = p.purchaseService.ValidateGooglePurchaseSubscription(session.userID, gp)
 		}
 	}
 

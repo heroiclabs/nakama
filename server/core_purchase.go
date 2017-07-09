@@ -36,7 +36,7 @@ type PurchaseService struct {
 func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *PurchaseConfig) *PurchaseService {
 	ac, err := iap.NewAppleClient(config.Apple.Password, config.Apple.Production, config.Apple.TimeoutMs)
 	if err != nil {
-		multiLogger.Warn("Skip initialising Apple in-app purchase provider.", zap.Error(err))
+		multiLogger.Warn("Skip initialising Apple in-app purchase provider", zap.Error(err))
 	} else {
 		if config.Apple.Production {
 			multiLogger.Info("Apple in-app purchase environment is set to Production priority.")
@@ -48,7 +48,7 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 
 	gc, err := iap.NewGoogleClient(config.Google.PackageName, config.Google.ServiceKeyFilePath)
 	if err != nil {
-		multiLogger.Warn("Skip initialising Google in-app purchase provider.", zap.Error(err))
+		multiLogger.Warn("Skip initialising Google in-app purchase provider", zap.Error(err))
 	}
 
 	return &PurchaseService{
@@ -59,7 +59,7 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 	}
 }
 
-func (p *PurchaseService) validateApplePurchase(userID uuid.UUID, purchase *iap.ApplePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateApplePurchase(userID uuid.UUID, purchase *iap.ApplePurchase) *iap.PurchaseVerifyResponse {
 	r, appleReceipt := p.AppleClient.Verify(purchase)
 	if !r.Success {
 		return r
@@ -70,12 +70,16 @@ func (p *PurchaseService) validateApplePurchase(userID uuid.UUID, purchase *iap.
 	p.checkUser(userID, r, 1, inAppReceipt.TransactionID)
 
 	if r.Success && !r.SeenBefore {
-		p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
+		err := p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
+		if err != nil {
+			jsonPurchase, _ := json.Marshal(purchase)
+			p.logger.Error("Could not save Apple purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
+		}
 	}
 	return r
 }
 
-func (p *PurchaseService) validateGooglePurchaseProduct(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateGooglePurchaseProduct(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
 	r, _ := p.GoogleClient.VerifyProduct(purchase)
 	if !r.Success {
 		return r
@@ -84,12 +88,15 @@ func (p *PurchaseService) validateGooglePurchaseProduct(userID uuid.UUID, purcha
 	p.checkUser(userID, r, 0, purchase.PurchaseToken)
 	if r.Success && !r.SeenBefore {
 		jsonPurchase, _ := json.Marshal(purchase)
-		p.savePurchase(userID.Bytes(), 1, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		if err != nil {
+			p.logger.Error("Could not save Google product purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
+		}
 	}
 	return r
 }
 
-func (p *PurchaseService) validateGooglePurchaseSubscription(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
 	r, _ := p.GoogleClient.VerifySubscription(purchase)
 	if !r.Success {
 		return r
@@ -98,7 +105,10 @@ func (p *PurchaseService) validateGooglePurchaseSubscription(userID uuid.UUID, p
 	p.checkUser(userID, r, 0, purchase.PurchaseToken)
 	if r.Success && !r.SeenBefore {
 		jsonPurchase, _ := json.Marshal(purchase)
-		p.savePurchase(userID.Bytes(), 1, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		if err != nil {
+			p.logger.Error("Could not save Google subscription purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
+		}
 	}
 	return r
 }
@@ -136,7 +146,7 @@ func (p *PurchaseService) savePurchase(userID []byte, provider int, productID st
 	createdAt := nowMs()
 	_, err := p.db.Exec(`
 INSERT INTO purchase (user_id, provider, product_id, receipt_id, receipt, provider_resp, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		userID, provider, productID, receiptID, rawPurchase, rawReceipt, createdAt)
 
 	return err

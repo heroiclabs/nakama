@@ -158,3 +158,42 @@ func TestGoogleSubscriptionExpired(t *testing.T) {
 
 	assertEquals(t, "Purchase is a subscription that expired.", r.Message.Error())
 }
+
+func TestGoogleProductValid(t *testing.T) {
+	gc := setupGoogleClient(&GoogleProductReceipt{
+		PurchaseState:    0,
+		ConsumptionState: 0,
+	})
+
+	r, _ := gc.VerifyProduct(&GooglePurchase{
+		ProductType: "product",
+		ProductId:   TEST_GOOGLE_PRODUCT_ID,
+	})
+
+	if !r.PurchaseProviderReachable {
+		t.Fatal("Google purchase provider should have been reachable.")
+	}
+
+	if !r.Success || r.Message != nil {
+		t.Fatal("Google purchase should have been successful.")
+	}
+}
+
+func TestGoogleSubscriptionValid(t *testing.T) {
+	gc := setupGoogleClient(&GoogleSubscriptionReceipt{
+		ExpiryTimeMillis: (time.Now().UnixNano() / 1000000) + 30,
+	})
+
+	r, _ := gc.VerifySubscription(&GooglePurchase{
+		ProductType: "subscription",
+		ProductId:   TEST_GOOGLE_PRODUCT_ID,
+	})
+
+	if !r.PurchaseProviderReachable {
+		t.Fatal("Google purchase provider should have been reachable.")
+	}
+
+	if !r.Success || r.Message != nil {
+		t.Fatal("Google purchase should have been successful.")
+	}
+}
