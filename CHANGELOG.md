@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - New storage list feature.
+- New In-App Purchase validation feature. 
 
 ### Changed
 - Run Facebook friends import after registration completes.
