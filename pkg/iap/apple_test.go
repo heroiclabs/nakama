@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -33,6 +34,14 @@ func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) 
 	return fn(req)
 }
 
+func assertEquals(t *testing.T, expected, reality string) {
+	if expected != reality {
+		t.Fatal(fmt.Sprintf("Assertion failed. \"%s\" is not same as \"%s\"", expected, reality))
+	}
+}
+
+// ----
+
 func setupAppleClient(ar *appleResponse) *AppleClient {
 	a, _ := json.Marshal(ar)
 	return &AppleClient{
@@ -44,12 +53,6 @@ func setupAppleClient(ar *appleResponse) *AppleClient {
 			}
 			return resp, nil
 		})},
-	}
-}
-
-func assertEquals(t *testing.T, expected, reality string) {
-	if expected != reality {
-		t.Error("Assertion failed. " + expected + " is not same as " + reality)
 	}
 }
 
@@ -66,11 +69,11 @@ func TestApplePurchaseProviderUnavailable(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should NOT have been reachable.")
+		t.Fatal("Apple purchase provider should NOT have been reachable.")
 	}
 
 	assertEquals(t, "Could not connect to Apple verification service.", r.Message.Error())
@@ -93,11 +96,11 @@ func TestApplePurchaseProviderInvalidResponse(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should NOT have been reachable.")
+		t.Fatal("Apple purchase provider should NOT have been reachable.")
 	}
 
 	assertEquals(t, "Could not parse response from Apple verification service.", r.Message.Error())
@@ -113,11 +116,11 @@ func TestInvalidStatus(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	assertEquals(t, "The receipt could not be validated.", r.Message.Error())
@@ -134,11 +137,11 @@ func TestNoInAppReceipt(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	assertEquals(t, "No in-app purchase receipts were found", r.Message.Error())
@@ -161,11 +164,11 @@ func TestUnmatchingProductID(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	assertEquals(t, "Product ID does not match receipt", r.Message.Error())
@@ -189,11 +192,11 @@ func TestCancelledPurchase(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	assertEquals(t, "Purchase has been cancelled: 123", r.Message.Error())
@@ -217,11 +220,11 @@ func TestExpiredPurchase(t *testing.T) {
 	})
 
 	if r.Success || r.Message == nil {
-		t.Error("Apple purchase should not have been successful.")
+		t.Fatal("Apple purchase should not have been successful.")
 	}
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	assertEquals(t, "Purchase is a subscription that expired: 123", r.Message.Error())
@@ -244,10 +247,10 @@ func TestValidPurchase(t *testing.T) {
 	})
 
 	if !r.PurchaseProviderReachable {
-		t.Error("Apple purchase provider should have been reachable.")
+		t.Fatal("Apple purchase provider should have been reachable.")
 	}
 
 	if !r.Success || r.Message != nil {
-		t.Error("Apple purchase should have been successful.")
+		t.Fatal("Apple purchase should have been successful.")
 	}
 }
