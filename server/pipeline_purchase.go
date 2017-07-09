@@ -18,6 +18,8 @@ import (
 	"errors"
 	"nakama/pkg/iap"
 
+	"strings"
+
 	"go.uber.org/zap"
 )
 
@@ -42,14 +44,20 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
 			return
 		}
-		validationResponse = p.purchaseService.validateGooglePurchase(session.userID, gp)
+
+		switch gp.ProductType {
+		case "product":
+			validationResponse = p.purchaseService.validateGooglePurchaseProduct(session.userID, gp)
+		case "subscription":
+			validationResponse = p.purchaseService.validateGooglePurchaseSubscription(session.userID, gp)
+		}
 	}
 
 	response := &Envelope_PurchaseRecord{PurchaseRecord: &TPurchaseRecord{
 		Success:                   validationResponse.Success,
 		PurchaseProviderReachable: validationResponse.PurchaseProviderReachable,
 		SeenBefore:                validationResponse.SeenBefore,
-		Message:                   validationResponse.Message,
+		Message:                   validationResponse.Message.Error(),
 		Data:                      validationResponse.Data,
 	}}
 
@@ -80,8 +88,8 @@ func (p *pipeline) convertGooglePurchase(purchase *TPurchaseValidation_GooglePur
 		return nil, errors.New("Apple in-app purchase environment is not setup.")
 	}
 
-	if purchase.ProductType == "" {
-		return nil, errors.New("Missing product type.")
+	if !(purchase.ProductType == "product" || purchase.ProductType == "subscription") {
+		return nil, errors.New("Product type is required and must be one of: product, subscription")
 	}
 
 	if purchase.ProductId == "" {
@@ -93,7 +101,7 @@ func (p *pipeline) convertGooglePurchase(purchase *TPurchaseValidation_GooglePur
 	}
 
 	return &iap.GooglePurchase{
-		ProductType:   purchase.ProductType,
+		ProductType:   strings.ToLower(purchase.ProductType),
 		ProductId:     purchase.ProductId,
 		PurchaseToken: purchase.PurchaseToken,
 	}, nil

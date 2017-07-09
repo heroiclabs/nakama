@@ -87,20 +87,20 @@ func (ac *AppleClient) verify(payload []byte, p *ApplePurchase, production bool,
 
 	resp, err := ac.client.Post(env, CONTENT_TYPE_APP_JSON, strings.NewReader(string(payload)))
 	if err != nil {
-		r.Message = "Could not connect to Apple verification service."
+		r.Message = errors.New("Could not connect to Apple verification service.")
 		return r, nil
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		r.Message = "Could not read response from Apple verification service."
+		r.Message = errors.New("Could not read response from Apple verification service.")
 		return r, nil
 	}
 
 	appleResp := &appleResponse{}
 	if err = json.Unmarshal(body, &appleResp); err != nil {
-		r.Message = "Could not parse response from Apple verification service."
+		r.Message = errors.New("Could not parse response from Apple verification service.")
 		return r, nil
 	}
 
@@ -114,16 +114,17 @@ func (ac *AppleClient) verify(payload []byte, p *ApplePurchase, production bool,
 			return ac.verify(payload, p, true, true)
 		}
 
-		r.Message = reason
+		r.Message = errors.New(reason)
 		return r, nil
 	}
 
 	if reason := ac.checkReceipt(p.ProductId, appleResp.Receipt); reason != "" {
-		r.Message = reason
+		r.Message = errors.New(reason)
 		return r, nil
 	}
 
 	r.Success = true
+	r.Message = nil
 	return r, appleResp.Receipt
 }
 
@@ -159,7 +160,7 @@ func (ac *AppleClient) checkReceipt(productId string, receipt *AppleReceipt) str
 		return "No in-app purchase receipts were found"
 	}
 
-	// Only processing one item in the apple in-app receipts
+	//TODO: Improvement - Process more than one in-app receipts
 	a := receipt.InApp[0]
 	if productId != a.ProductID {
 		return "Product ID does not match receipt"

@@ -21,17 +21,22 @@ import (
 
 	"errors"
 
-	"go.uber.org/zap"
+	"encoding/json"
+
+	"fmt"
+
+	"time"
+
 	"golang.org/x/oauth2/google"
 )
 
 const (
 	GOOGLE_IAP_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
+	GOOGLE_IAP_URL   = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/%s/%s/tokens/%s"
 )
 
 type GoogleClient struct {
 	client             *http.Client
-	logger             *zap.Logger
 	packageName        string
 	serviceKeyFilePath string
 }
@@ -70,6 +75,82 @@ func (gc *GoogleClient) init() error {
 	return nil
 }
 
-func (gc *GoogleClient) Verify(p *GooglePurchase) *PurchaseVerifyResponse {
-	//TODO send data
+func (gc *GoogleClient) VerifyProduct(p *GooglePurchase) (*PurchaseVerifyResponse, *GoogleProductReceipt) {
+	r := &PurchaseVerifyResponse{}
+
+	body, err := gc.sendGoogleRequest(p)
+	if err != nil {
+		r.Message = err
+		return r, nil
+	}
+
+	googleProductResp := &GoogleProductReceipt{}
+	if err = json.Unmarshal(body, &googleProductResp); err != nil {
+		r.Message = errors.New("Could not parse product response from Google verification service.")
+		return r, nil
+	}
+
+	r.PurchaseProviderReachable = true
+	r.Data = string(body)
+
+	// 0=Purchased, 1=Cancelled
+	if googleProductResp.PurchaseState != 0 {
+		r.Message = errors.New("Purchase has been voided or cancelled.")
+		return r, nil
+	}
+
+	// 0=Yet to be consumed, 1=Consumed
+	if googleProductResp.ConsumptionState != 0 {
+		r.Message = errors.New("Purchase has already been consumed.")
+		return r, nil
+	}
+
+	r.Success = true
+	r.Message = nil
+	return r, googleProductResp
+}
+
+func (gc *GoogleClient) VerifySubscription(p *GooglePurchase) (*PurchaseVerifyResponse, *GoogleSubscriptionReceipt) {
+	r := &PurchaseVerifyResponse{}
+
+	body, err := gc.sendGoogleRequest(p)
+	if err != nil {
+		r.Message = err
+		return r, nil
+	}
+
+	googleSubscriptionResp := &GoogleSubscriptionReceipt{}
+	if err = json.Unmarshal(body, &googleSubscriptionResp); err != nil {
+		r.Message = errors.New("Could not parse subscription response from Google verification service.")
+		return r, nil
+	}
+
+	r.PurchaseProviderReachable = true
+	r.Data = string(body)
+
+	nowEpoch := time.Now().UnixNano() / 1000000
+
+	if googleSubscriptionResp.ExpiryTimeMillis < nowEpoch {
+		r.Message = errors.New("Purchase is a subscription that expired.")
+		return r, nil
+	}
+
+	r.Success = true
+	r.Message = nil
+	return r, googleSubscriptionResp
+}
+
+func (gc *GoogleClient) sendGoogleRequest(p *GooglePurchase) ([]byte, error) {
+	url := fmt.Sprintf(GOOGLE_IAP_URL, gc.packageName, p.ProductType, p.ProductId, p.PurchaseToken)
+	resp, err := gc.client.Post(url, CONTENT_TYPE_APP_JSON, nil)
+	if err != nil {
+		return nil, errors.New("Could not connect to Google verification service.")
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.New("Could not read response from Google verification service.")
+	}
+	return body, nil
 }

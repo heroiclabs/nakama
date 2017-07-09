@@ -26,7 +26,7 @@ type PurchaseVerifyResponse struct {
 	// Indicates whether or not Nakama was able to reach the remote purchase service.
 	PurchaseProviderReachable bool
 	// A string indicating why the purchase verification failed, if appropriate.
-	Message string
+	Message error
 	// The complete response Nakama received from the remote service.
 	Data string
 }
@@ -37,17 +37,6 @@ type ApplePurchase struct {
 	// The product, item, or subscription package ID the purchase relates to.
 	ReceiptData string
 }
-
-type GooglePurchase struct {
-	// The identifier of the product or subscription being purchased.
-	ProductId string
-	// Whether the purchase is for a single product or a subscription.
-	ProductType string
-	// The token returned in the purchase operation response, acts as a transaction identifier.
-	PurchaseToken string
-}
-
-// Unexported structs
 
 type appleRequest struct {
 	ReceiptData string `json:"receipt-data"`
@@ -86,4 +75,35 @@ type AppleInAppReceipt struct {
 	VersionExternalIdentifier string `json:"version_external_identifier"`
 	WebOrderLineItemID        string `json:"web_order_line_item_id"`
 	CancellationDate          string `json:"cancellation_date"`
+}
+
+type GooglePurchase struct {
+	// The identifier of the product or subscription being purchased.
+	ProductId string `json:"ProductId"`
+	// Whether the purchase is for a single product or a subscription.
+	ProductType string `json:"ProductType"`
+	// The token returned in the purchase operation response, acts as a transaction identifier.
+	PurchaseToken string `json:"PurchaseToken"`
+}
+
+type GoogleProductReceipt struct {
+	Kind               string `json:"kind"`
+	PurchaseTimeMillis int64  `json:"purchaseTimeMillis"`
+	PurchaseState      int    `json:"purchaseState"`
+	ConsumptionState   int    `json:"consumptionState"`
+	DeveloperPayload   string `json:"developerPayload"`
+}
+
+type GoogleSubscriptionReceipt struct {
+	Kind                       string `json:"kind"`
+	StartTimeMillis            int64  `json:"startTimeMillis"`
+	ExpiryTimeMillis           int64  `json:"expiryTimeMillis"`
+	AutoRenewing               bool   `json:"autoRenewing"`
+	PriceCurrencyCode          string `json:"priceCurrencyCode"`
+	PriceAmountMicros          int64  `json:"priceAmountMicros"`
+	CountryCode                string `json:"countryCode"`
+	DeveloperPayload           string `json:"developerPayload"`
+	PaymentState               int    `json:"paymentState"`
+	CancelReason               int    `json:"cancelReason"`
+	UserCancellationTimeMillis int64  `json:"userCancellationTimeMillis"`
 }
