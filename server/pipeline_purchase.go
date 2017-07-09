@@ -29,7 +29,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 	var validationResponse *iap.PurchaseVerifyResponse
 
 	switch purchase.Id.(type) {
-	case *TPurchaseValidation_ApplePurchase:
+	case *TPurchaseValidation_ApplePurchase_:
 		ap, err := p.convertApplePurchase(purchase.GetApplePurchase())
 		if err != nil {
 			logger.Warn("Could not process purchases", zap.Error(err))
@@ -37,7 +37,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 			return
 		}
 		validationResponse = p.purchaseService.validateApplePurchase(session.userID, ap)
-	case *TPurchaseValidation_GooglePurchase:
+	case *TPurchaseValidation_GooglePurchase_:
 		gp, err := p.convertGooglePurchase(purchase.GetGooglePurchase())
 		if err != nil {
 			logger.Warn("Could not process purchases", zap.Error(err))
