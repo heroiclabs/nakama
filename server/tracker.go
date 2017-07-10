@@ -55,6 +55,8 @@ type Tracker interface {
 	ListByTopic(topic string) []Presence
 	// List presences on the current node by topic.
 	ListLocalByTopic(topic string) []Presence
+	// List presences by topic and user ID.
+	ListByTopicUser(topic string, userID uuid.UUID) []Presence
 }
 
 type presenceCompact struct {
@@ -217,6 +219,18 @@ func (t *TrackerService) ListLocalByTopic(topic string) []Presence {
 	t.RLock()
 	for pc, m := range t.values {
 		if pc.Topic == topic && pc.ID.Node == t.name {
+			ps = append(ps, Presence{ID: pc.ID, Topic: topic, UserID: pc.UserID, Meta: m})
+		}
+	}
+	t.RUnlock()
+	return ps
+}
+
+func (t *TrackerService) ListByTopicUser(topic string, userID uuid.UUID) []Presence {
+	ps := make([]Presence, 0)
+	t.RLock()
+	for pc, m := range t.values {
+		if pc.Topic == topic && pc.UserID == userID {
 			ps = append(ps, Presence{ID: pc.ID, Topic: topic, UserID: pc.UserID, Meta: m})
 		}
 	}

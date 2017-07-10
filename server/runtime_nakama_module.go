@@ -43,11 +43,12 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger *zap.Logger
-	db     *sql.DB
+	logger              *zap.Logger
+	db                  *sql.DB
+	notificationService *NotificationService
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -55,29 +56,31 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState) *NakamaModul
 		HTTP:   make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger: logger,
-		db:     db,
+		logger:              logger,
+		db:                  db,
+		notificationService: notificationService,
 	}
 }
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"logger_info":        n.loggerInfo,
-		"logger_warn":        n.loggerWarn,
-		"logger_error":       n.loggerError,
-		"register_rpc":       n.registerRPC,
-		"register_before":    n.registerBefore,
-		"register_after":     n.registerAfter,
-		"register_http":      n.registerHTTP,
-		"users_fetch_id":     n.usersFetchId,
-		"users_fetch_handle": n.usersFetchHandle,
-		"users_ban":          n.usersBan,
-		"storage_list":       n.storageList,
-		"storage_fetch":      n.storageFetch,
-		"storage_write":      n.storageWrite,
-		"storage_remove":     n.storageRemove,
-		"leaderboard_create": n.leaderboardCreate,
-		"groups_create":      n.groupsCreate,
+		"logger_info":           n.loggerInfo,
+		"logger_warn":           n.loggerWarn,
+		"logger_error":          n.loggerError,
+		"register_rpc":          n.registerRPC,
+		"register_before":       n.registerBefore,
+		"register_after":        n.registerAfter,
+		"register_http":         n.registerHTTP,
+		"users_fetch_id":        n.usersFetchId,
+		"users_fetch_handle":    n.usersFetchHandle,
+		"users_ban":             n.usersBan,
+		"storage_list":          n.storageList,
+		"storage_fetch":         n.storageFetch,
+		"storage_write":         n.storageWrite,
+		"storage_remove":        n.storageRemove,
+		"leaderboard_create":    n.leaderboardCreate,
+		"groups_create":         n.groupsCreate,
+		"notifications_send_id": n.notificationsSendId,
 	})
 
 	l.Push(mod)
@@ -778,56 +781,102 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 		groupTable, ok := g.(*lua.LTable)
 		if !ok {
 			conversionError = true
+			l.ArgError(1, "expects a valid group")
 			return
 		}
 
+		p := &GroupCreateParam{}
 		groupTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			p := &GroupCreateParam{}
 			switch k.String() {
 			case "Name":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Name to be string")
+					return
+				}
 				p.Name = v.String()
 			case "Description":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Description to be string")
+					return
+				}
 				p.Description = v.String()
 			case "AvatarUrl":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects AvatarUrl to be string")
+					return
+				}
 				p.AvatarURL = v.String()
 			case "Lang":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Lang to be string")
+					return
+				}
 				p.Lang = v.String()
 			case "Private":
+				if v.Type() != lua.LTBool {
+					conversionError = true
+					l.ArgError(1, "expects Private to be boolean")
+					return
+				}
 				p.Private = lua.LVAsBool(v)
 			case "Metadata":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Metadata to be string")
+					return
+				}
+
 				j := []byte(v.String())
 				maybeJson := make(map[string]interface{})
 				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
 					conversionError = true
+					l.ArgError(1, "expects Metadata to be JSON")
 					return
 				}
 				p.Metadata = j
 			case "CreatorId":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects CreatorId to be string")
+					return
+				}
+
 				u, err := uuid.FromString(v.String())
 				if err != nil {
 					conversionError = true
+					l.ArgError(1, "invalid CreatorId")
 					return
 				}
 				p.Creator = u
 			}
-
-			if p.Name == "" || len(p.Creator) == 0 { // mandatory items
-				conversionError = true
-				return
-			}
-
-			groupParams = append(groupParams, p)
 		})
+
+		// mandatory items
+		if p.Name == "" {
+			conversionError = true
+			l.ArgError(1, "missing group Name")
+			return
+		} else if len(p.Creator) == 0 {
+			conversionError = true
+			l.ArgError(1, "missing CreatorId")
+			return
+		}
+
+		groupParams = append(groupParams, p)
 	})
 
 	if conversionError {
-		l.ArgError(1, "expects a valid set of groups")
 		return 0
 	}
 
 	groups, err := GroupsCreate(n.logger, n.db, groupParams)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create groups: %s", err.Error()))
+		return 0
 	}
 
 	//translate uuid to string bytes
@@ -841,4 +890,119 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
+	notificationsTable := l.CheckTable(1)
+	if notificationsTable == nil {
+		l.ArgError(1, "expects a valid set of notifications")
+		return 0
+	}
+
+	conversionError := false
+	notifications := make([]*NNotification, 0)
+	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		notificationTable, ok := g.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of notifications")
+			return
+		}
+
+		notification := &NNotification{}
+		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			switch k.String() {
+			case "Persistent":
+				if v.Type() != lua.LTBool {
+					conversionError = true
+					l.ArgError(1, "expects Persistent to be boolean")
+					return
+				}
+				notification.Persistent = lua.LVAsBool(v)
+			case "Subject":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Subject to be string")
+					return
+				}
+				notification.Subject = v.String()
+			case "Content":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Content to be string")
+					return
+				}
+				j := []byte(v.String())
+				maybeJson := make(map[string]interface{})
+				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
+					l.ArgError(1, "expects Content to be a valid JSON")
+					return
+				}
+				notification.Content = j
+			case "Code":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects Code to be number")
+					return
+				}
+				number := int64(lua.LVAsNumber(v))
+				if number <= 100 {
+					l.ArgError(1, "expects Code to number above 100")
+					return
+				}
+				notification.Code = int64(number)
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects UserId to be string")
+					return
+				}
+				u, err := uuid.FromString(v.String())
+				if err != nil {
+					l.ArgError(1, "expects UserId to be a valid UUID")
+					return
+				}
+				notification.UserID = u.Bytes()
+			case "SenderId":
+				if v.Type() == lua.LTNil {
+					return
+				}
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects SenderId to be string")
+					return
+				}
+				u, err := uuid.FromString(v.String())
+				if err != nil {
+					l.ArgError(1, "expects SenderId to be a valid UUID")
+					return
+				}
+				notification.SenderID = u.Bytes()
+			}
+		})
+
+		if notification.Subject == "" {
+			l.ArgError(1, "expects Subject to be non-empty")
+			return
+		} else if len(notification.Content) == 0 {
+			l.ArgError(1, "expects Content to be a valid JSON")
+			return
+		} else if len(notification.UserID) == 0 {
+			l.ArgError(1, "expects UserId to be a valid UUID")
+			return
+		}
+
+		notifications = append(notifications, notification)
+	})
+
+	if conversionError {
+		return 0
+	}
+
+	err := n.notificationService.NotificationSend(notifications)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
+	return 0
 }

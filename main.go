@@ -92,15 +92,16 @@ func main() {
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
+	notificationService := server.NewNotificationService(jsonLogger, db, trackerService, messageRouter, config.GetSocial().Notification)
 
-	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config.GetRuntime())
+	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config.GetRuntime(), notificationService)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules.", zap.Error(err))
 	}
 
 	socialClient := social.NewClient(5 * time.Second)
 	purchaseService := server.NewPurchaseService(jsonLogger, multiLogger, db, config.GetPurchase())
-	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime, purchaseService)
+	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime, purchaseService, notificationService)
 	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtime)
 	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
 

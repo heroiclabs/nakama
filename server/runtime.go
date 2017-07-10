@@ -44,7 +44,7 @@ type Runtime struct {
 	luaEnv *lua.LTable
 }
 
-func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig) (*Runtime, error) {
+func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, notificationService *NotificationService) (*Runtime, error) {
 	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config 
 		vm.Call(1, 0)
 	}
 
-	nakamaModule := NewNakamaModule(logger, db, vm)
+	nakamaModule := NewNakamaModule(logger, db, vm, notificationService)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	nakamaxModule := NewNakamaxModule(logger)
 	vm.PreloadModule("nakamax", nakamaxModule.Loader)
