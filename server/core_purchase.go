@@ -46,7 +46,7 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 		multiLogger.Info("Successfully initiated Apple in-app purchase provider.")
 	}
 
-	gc, err := iap.NewGoogleClient(config.Google.PackageName, config.Google.ServiceKeyFilePath)
+	gc, err := iap.NewGoogleClient(config.Google.PackageName, config.Google.ServiceKeyFilePath, config.Google.TimeoutMs)
 	if err != nil {
 		multiLogger.Warn("Skip initialising Google in-app purchase provider", zap.Error(err))
 	}
@@ -72,6 +72,8 @@ func (p *PurchaseService) ValidateApplePurchase(userID uuid.UUID, purchase *iap.
 	if r.Success && !r.SeenBefore {
 		err := p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
 		if err != nil {
+			r.Success = false
+			r.Message = errors.New("Failed to validate purchase against ledger.")
 			jsonPurchase, _ := json.Marshal(purchase)
 			p.logger.Error("Could not save Apple purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
 		}
@@ -90,6 +92,8 @@ func (p *PurchaseService) ValidateGooglePurchaseProduct(userID uuid.UUID, purcha
 		jsonPurchase, _ := json.Marshal(purchase)
 		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
 		if err != nil {
+			r.Success = false
+			r.Message = errors.New("Failed to validate purchase against ledger.")
 			p.logger.Error("Could not save Google product purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
 		}
 	}
@@ -107,6 +111,8 @@ func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID uuid.UUID, p
 		jsonPurchase, _ := json.Marshal(purchase)
 		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
 		if err != nil {
+			r.Success = false
+			r.Message = errors.New("Failed to validate purchase against ledger.")
 			p.logger.Error("Could not save Google subscription purchase", zap.String("receipt", string(jsonPurchase)), zap.String("provider_resp", r.Data), zap.Error(err))
 		}
 	}
@@ -119,13 +125,13 @@ func (p *PurchaseService) checkUser(userID uuid.UUID, r *iap.PurchaseVerifyRespo
 	if err != nil {
 		if err != sql.ErrNoRows {
 			r.Success = false
-			r.Message = errors.New("Failed to validate Apple purchase against ledger.")
+			r.Message = errors.New("Failed to validate purchase against ledger.")
 			p.logger.Error(r.Message.Error(), zap.Error(err))
 		}
 	}
 
 	// We've not seen this transaction
-	if purchaseUserID == nil || len(purchaseUserID) == 0 {
+	if len(purchaseUserID) == 0 {
 		r.Success = true
 		r.SeenBefore = false
 		r.Message = nil

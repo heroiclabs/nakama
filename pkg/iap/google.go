@@ -41,15 +41,31 @@ type GoogleClient struct {
 	serviceKeyFilePath string
 }
 
-func NewGoogleClient(packageName string, serviceKeyFilePath string) (*GoogleClient, error) {
+func NewGoogleClient(packageName string, serviceKeyFilePath string, timeout int) (*GoogleClient, error) {
 	gc := &GoogleClient{
 		packageName:        packageName,
 		serviceKeyFilePath: serviceKeyFilePath,
 	}
-	err := gc.init()
-	if err != nil {
-		return nil, err
+
+	if gc.packageName == "" {
+		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")
 	}
+	if gc.serviceKeyFilePath == "" {
+		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing service account key.")
+	}
+
+	jsonContent, err := ioutil.ReadFile(gc.serviceKeyFilePath)
+	if err != nil {
+		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Failed to read Google service account key.")
+	}
+
+	config, err := google.JWTConfigFromJSON(jsonContent, GOOGLE_IAP_SCOPE)
+	if err != nil {
+		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Failed to parse Google service account key.")
+	}
+
+	gc.client = config.Client(context.Background())
+	gc.client.Timeout = time.Duration(int64(timeout)) * time.Millisecond
 	return gc, nil
 }
 
@@ -63,28 +79,6 @@ func NewGoogleClientWithHTTP(packageName string, httpClient *http.Client) (*Goog
 		client:      httpClient,
 	}
 	return gc, nil
-}
-
-func (gc *GoogleClient) init() error {
-	if gc.packageName == "" {
-		return errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")
-	}
-	if gc.serviceKeyFilePath == "" {
-		return errors.New("Google in-app purchase configuration is inactive. Reason: Missing service account key.")
-	}
-
-	jsonContent, err := ioutil.ReadFile(gc.serviceKeyFilePath)
-	if err != nil {
-		return errors.New("Google in-app purchase configuration is inactive. Reason: Failed to read Google service account key.")
-	}
-
-	config, err := google.JWTConfigFromJSON(jsonContent, GOOGLE_IAP_SCOPE)
-	if err != nil {
-		return errors.New("Google in-app purchase configuration is inactive. Reason: Failed to parse Google service account key.")
-	}
-
-	gc.client = config.Client(context.Background())
-	return nil
 }
 
 func (gc *GoogleClient) VerifyProduct(p *GooglePurchase) (*PurchaseVerifyResponse, *GoogleProductReceipt) {

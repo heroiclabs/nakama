@@ -285,7 +285,7 @@ type PurchaseConfig struct {
 func NewPurchaseConfig() *PurchaseConfig {
 	return &PurchaseConfig{
 		Apple:  &ApplePurchaseProviderConfig{TimeoutMs: 1500},
-		Google: &GooglePurchaseProviderConfig{},
+		Google: &GooglePurchaseProviderConfig{TimeoutMs: 1500},
 	}
 }
 
@@ -298,4 +298,5 @@ type ApplePurchaseProviderConfig struct {
 type GooglePurchaseProviderConfig struct {
 	PackageName        string `yaml:"package" json:"package" usage:"Android package name"`
 	ServiceKeyFilePath string `yaml:"service_key_file" json:"service_key_file" usage:"Absolute file path to the service key JSON file."`
+	TimeoutMs          int    `yaml:"timeout_ms" json:"timeout_ms" usage:"Google connection timeout in milliseconds"`
 }

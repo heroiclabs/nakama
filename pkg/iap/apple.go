@@ -57,8 +57,7 @@ func NewAppleClient(password string, production bool, timeout int) (*AppleClient
 		return nil, err
 	}
 
-	ac.client = &http.Client{Timeout: 1500 * time.Millisecond}
-
+	ac.client = &http.Client{Timeout: time.Duration(int64(timeout)) * time.Millisecond}
 	return ac, nil
 }
 
