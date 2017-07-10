@@ -51,5 +51,21 @@ CREATE INDEX IF NOT EXISTS purchase_user_id_created_at_provider_receipt_id_idx O
 -- list purchases by most recent timestamp
 CREATE INDEX IF NOT EXISTS purchase_created_at_user_id_provider_receipt_id_idx ON purchase (created_at, user_id, provider, receipt_id);
 
+CREATE TABLE IF NOT EXISTS notification (
+    PRIMARY KEY (id),
+    id              BYTEA        NOT NULL,
+    user_id         BYTEA        NOT NULL,
+    subject         VARCHAR(255) NOT NULL,
+    content         BYTEA        DEFAULT '{}' CHECK (length(content) < 16000) NOT NULL,
+    code            SMALLINT     NOT NULL,      -- O to 100 is System reserved.
+    sender_id       BYTEA,                      -- NULL for System messages
+    created_at      BIGINT       CHECK (created_at > 0) NOT NULL,
+    expires_at      BIGINT       CHECK (expires_at > created_at) NOT NULL,
+    deleted_at      BIGINT       DEFAULT 0 NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS notification_expires_at_user_id_created_at_id_idx ON notification (expires_at, user_id, created_at DESC, id);
+
 -- +migrate Down
 DROP TABLE IF EXISTS purchase;
+DROP TABLE IF EXISTS notification;
