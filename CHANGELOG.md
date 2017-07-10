@@ -12,7 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Run Facebook friends import after registration completes.
 - Streamline command line flags to be inline with the config file.
 - Restructure and stabilize API messages.
-- Update Runtime modules to uses plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
+- Update Runtime modules to use plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
 
 ### Fixed
 - Invocation type was always set to "Before" in After Runtime scripts.

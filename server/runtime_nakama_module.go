@@ -311,7 +311,7 @@ func (n *NakamaModule) usersBan(l *lua.LState) int {
 	handles := make([]string, 0)
 	for _, d := range usersRaw {
 		if m, ok := d.(string); !ok {
-			l.ArgError(1, "expects a valid set of users")
+			l.ArgError(1, "expects a valid set of user IDs or handles")
 			return 0
 		} else {
 			uid, err := uuid.FromString(m)

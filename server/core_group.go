@@ -54,7 +54,7 @@ func extractGroup(r scanner) (*Group, error) {
 		&count, &createdAt, &updatedAt)
 
 	if err != nil {
-		return &Group{}, err
+		return nil, err
 	}
 
 	desc := ""
@@ -115,7 +115,7 @@ func GroupsCreate(logger *zap.Logger, db *sql.DB, groupCreateParams []*GroupCrea
 				for _, p := range groups {
 					groupNames = append(groupNames, p.Name)
 				}
-				logger.Info("Created new groups", zap.Strings("names", groupNames))
+				logger.Debug("Created new groups", zap.Strings("names", groupNames))
 			}
 		}
 	}()
@@ -148,15 +148,14 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 
 	columns := make([]string, 0)
 	params := make([]string, 0)
-	values := make([]interface{}, 5)
 
-	updatedAt := nowMs()
-
-	values[0] = uuid.NewV4().Bytes()
-	values[1] = g.Creator.Bytes()
-	values[2] = g.Name
-	values[3] = state
-	values[4] = updatedAt
+	values := []interface{}{
+		uuid.NewV4().Bytes(),
+		g.Creator.Bytes(),
+		g.Name,
+		state,
+		nowMs(), // updated_at
+	}
 
 	if g.Description != "" {
 		columns = append(columns, "description")
