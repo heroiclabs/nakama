@@ -148,13 +148,13 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 
 	columns := make([]string, 0)
 	params := make([]string, 0)
-
+	updatedAt := nowMs()
 	values := []interface{}{
 		uuid.NewV4().Bytes(),
 		g.Creator.Bytes(),
 		g.Name,
 		state,
-		nowMs(), // updated_at
+		updatedAt,
 	}
 
 	if g.Description != "" {
