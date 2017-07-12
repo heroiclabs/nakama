@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS notification (
     deleted_at      BIGINT       DEFAULT 0 NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS notification_expires_at_user_id_created_at_id_idx ON notification (expires_at, user_id, created_at DESC, id);
+-- list notifications for a user that are not deleted or expired, starting from a given ID (cursor).
+CREATE INDEX IF NOT EXISTS notification_expires_at_user_id_created_at_id_idx ON notification (user_id, deleted_at ASC, expires_at ASC, id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS purchase;

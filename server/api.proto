@@ -258,6 +258,10 @@ message Envelope {
 
     TPurchaseValidation purchase = 65;
     TPurchaseRecord purchase_record = 66;
+
+    TNotificationsList notifications_list = 67;
+    TNotificationsRemove notifications_remove = 68;
+    TNotifications notifications = 69;
   }
 }
 
@@ -1290,5 +1294,43 @@ message TPurchaseRecord {
   string message = 6;
   // The complete response Nakama received from the remote service.
   string data = 5;
+}
+
+/**
+ * TNotificationsList is used to list unexpired notifications.
+ */
+message TNotificationsList {
+  // Max number of notifications to list. Between 10 and 100.
+  int64 limit = 1;
+  // Use this cursor to paginate notifications.
+  // Cache this to catch up to new notifications.
+  bytes resumable_cursor = 2;
+}
+
+/**
+ * TNotifications is the response of listing notifications
+ */
+message TNotifications {
+  message Notification {
+    bytes id = 1;
+    string subject = 2;
+    bytes content = 3;
+    int64 code = 4;
+    bytes sender_id = 5;
+    int64 created_at = 6;
+    int64 expires_at = 7;
+  }
+
+  repeated Notification notifications = 1;
+  // Use this cursor to paginate notifications.
+  // Cache this to catch up to new notifications.
+  bytes resumable_cursor = 2;
+}
+
+/**
+ * TNotificationsRemove is used to delete notifications.
+ */
+message TNotificationsRemove {
+  repeated bytes notification_ids = 1;
 }
 
