@@ -17,8 +17,6 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
-	"strconv"
-	"strings"
 
 	"go.uber.org/zap"
 )
@@ -109,77 +107,37 @@ WHERE u.id = $1`,
 
 func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *Envelope) {
 	update := envelope.GetSelfUpdate()
-	index := 1
-	statements := make([]string, 0)
-	params := make([]interface{}, 0)
-	if update.Handle != "" {
-		statements = append(statements, "handle = $"+strconv.Itoa(index))
-		params = append(params, update.Handle)
-		index++
+
+	// Validate any input possible before we hit database.
+	if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"))
+		return
 	}
-	if update.Fullname != "" {
-		statements = append(statements, "fullname = $"+strconv.Itoa(index))
-		params = append(params, update.Fullname)
-		index++
-	}
-	if update.Timezone != "" {
-		statements = append(statements, "timezone = $"+strconv.Itoa(index))
-		params = append(params, update.Timezone)
-		index++
-	}
-	if update.Location != "" {
-		statements = append(statements, "location = $"+strconv.Itoa(index))
-		params = append(params, update.Location)
-		index++
-	}
-	if update.Lang != "" {
-		statements = append(statements, "lang = $"+strconv.Itoa(index))
-		params = append(params, update.Lang)
-		index++
-	}
-	if update.Metadata != nil {
+	if len(update.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(update.Metadata, &maybeJSON) != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
 			return
 		}
-
-		statements = append(statements, "metadata = $"+strconv.Itoa(index))
-		params = append(params, update.Metadata)
-		index++
-	}
-	if update.AvatarUrl != "" {
-		statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
-		params = append(params, update.AvatarUrl)
-		index++
 	}
 
-	if len(statements) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"))
-		return
-	}
-
-	params = append(params, nowMs(), session.userID.Bytes())
-
-	res, err := p.db.Exec(
-		"UPDATE users SET updated_at = $"+strconv.Itoa(index)+", "+strings.Join(statements, ", ")+" WHERE id = $"+strconv.Itoa(index+1),
-		params...)
-
+	// Run the update.
+	code, err := SelfUpdate(logger, p.db, []*SelfUpdateOp{&SelfUpdateOp{
+		UserId:    session.userID.Bytes(),
+		Handle:    update.Handle,
+		Fullname:  update.Fullname,
+		Timezone:  update.Timezone,
+		Location:  update.Location,
+		Lang:      update.Lang,
+		Metadata:  update.Metadata,
+		AvatarUrl: update.AvatarUrl,
+	}})
 	if err != nil {
-		if strings.HasSuffix(err.Error(), "violates unique constraint \"users_handle_key\"") {
-			session.Send(ErrorMessage(envelope.CollationId, USER_HANDLE_INUSE, "Handle is in use"))
-		} else {
-			logger.Warn("Could not update user profile", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not update user profile"))
-		}
-		return
-	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to update user profile"))
-		return
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 	}
 
-	// Update handle in session and any presences.
+	// Update handle in session and any presences, if a handle update was processed.
 	if update.Handle != "" {
 		session.handle.Store(update.Handle)
 	}

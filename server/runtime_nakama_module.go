@@ -73,6 +73,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_http":         n.registerHTTP,
 		"users_fetch_id":        n.usersFetchId,
 		"users_fetch_handle":    n.usersFetchHandle,
+		"users_update":          n.usersUpdate,
 		"users_ban":             n.usersBan,
 		"storage_list":          n.storageList,
 		"storage_fetch":         n.storageFetch,
@@ -296,6 +297,121 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) usersUpdate(l *lua.LState) int {
+	updatesTable := l.CheckTable(1)
+	if updatesTable == nil || updatesTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of user updates")
+		return 0
+	}
+	updatesRaw, ok := convertLuaValue(updatesTable).([]interface{})
+	if !ok {
+		l.ArgError(1, "expects a valid set of user updates")
+		return 0
+	}
+
+	updates := make([]*SelfUpdateOp, 0)
+	for _, updateRaw := range updatesRaw {
+		if updateTable, ok := updateRaw.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of user updates")
+			return 0
+		} else {
+			update := &SelfUpdateOp{}
+			// Validate the user ID.
+			if u, ok := updateTable["UserId"]; ok {
+				if us, ok := u.(string); !ok {
+					l.ArgError(1, "expects valid user IDs in each update")
+					return 0
+				} else {
+					if uid, err := uuid.FromString(us); err != nil {
+						l.ArgError(1, "expects valid user IDs in each update")
+						return 0
+					} else {
+						update.UserId = uid.Bytes()
+					}
+				}
+			} else {
+				l.ArgError(1, "expects valid user IDs in each update")
+				return 0
+			}
+			// Validate the handle.
+			if h, ok := updateTable["Handle"]; ok {
+				if hs, ok := h.(string); !ok {
+					l.ArgError(1, "expects valid handles in each update, when provided")
+					return 0
+				} else {
+					update.Handle = hs
+				}
+			}
+			// Validate the fullname.
+			if f, ok := updateTable["Fullname"]; ok {
+				if fs, ok := f.(string); !ok {
+					l.ArgError(1, "expects valid fullnames in each update, when provided")
+					return 0
+				} else {
+					update.Fullname = fs
+				}
+			}
+			// Validate the timezone.
+			if t, ok := updateTable["Timezone"]; ok {
+				if ts, ok := t.(string); !ok {
+					l.ArgError(1, "expects valid timezones in each update, when provided")
+					return 0
+				} else {
+					update.Timezone = ts
+				}
+			}
+			// Validate the location.
+			if loc, ok := updateTable["Location"]; ok {
+				if locs, ok := loc.(string); !ok {
+					l.ArgError(1, "expects valid locations in each update, when provided")
+					return 0
+				} else {
+					update.Location = locs
+				}
+			}
+			// Validate the lang.
+			if lang, ok := updateTable["Lang"]; ok {
+				if langs, ok := lang.(string); !ok {
+					l.ArgError(1, "expects valid langs in each update, when provided")
+					return 0
+				} else {
+					update.Lang = langs
+				}
+			}
+			// Validate the metadata.
+			if m, ok := updateTable["Metadata"]; ok {
+				if ms, ok := m.(string); !ok {
+					l.ArgError(1, "expects valid metadata in each update, when provided")
+					return 0
+				} else {
+					update.Metadata = []byte(ms)
+				}
+			}
+			// Validate the avatar URL.
+			if a, ok := updateTable["AvatarUrl"]; ok {
+				if as, ok := a.(string); !ok {
+					l.ArgError(1, "expects valid avatar urls in each update, when provided")
+					return 0
+				} else {
+					update.AvatarUrl = as
+				}
+			}
+			// Check it's a valid update op.
+			if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
+				l.ArgError(1, "expects each update to contain at least one field to change")
+				return 0
+			}
+			updates = append(updates, update)
+		}
+	}
+
+	if _, err := SelfUpdate(n.logger, n.db, updates); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to update users: %s", err.Error()))
+	}
+
+	return 0
 }
 
 func (n *NakamaModule) usersBan(l *lua.LState) int {
