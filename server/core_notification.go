@@ -34,14 +34,48 @@ type notificationResumableCursor struct {
 }
 
 type Notification struct {
-	Id        []byte
-	UserID    []byte
-	Subject   string
-	Content   []byte
-	Code      int64
-	SenderID  []byte
-	CreatedAt int64
-	ExpiresAt int64
+	Id         []byte
+	UserID     []byte
+	Subject    string
+	Content    []byte
+	Code       int64
+	SenderID   []byte
+	CreatedAt  int64
+	ExpiresAt  int64
+	Persistent bool
+}
+
+type NotificationService struct {
+	logger   *zap.Logger
+	db       *sql.DB
+	tracker  Tracker
+	expiryMs int64
+}
+
+func NewNotificationService(logger *zap.Logger, db *sql.DB, tracker Tracker, config *NotificationConfig) *NotificationService {
+	return &NotificationService{
+		logger:   logger,
+		db:       db,
+		tracker:  tracker,
+		expiryMs: config.ExpiryMs,
+	}
+}
+
+func (n *NotificationService) NotificationSend(notifications []*Notification) error {
+	persistentNotifications := make([]*Notification, 0)
+	for _, n := range notifications {
+		if n.Persistent {
+			persistentNotifications = append(persistentNotifications, n)
+		}
+	}
+
+	if err := NotificationsSave(n.logger, n.db, n.expiryMs, persistentNotifications); err != nil {
+		return err
+	}
+
+	//NotificationsSend() //registy
+
+	return nil
 }
 
 func NotificationsList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int64, cursor []byte) ([]*Notification, []byte, error) {
@@ -80,6 +114,7 @@ LIMIT $4
 			logger.Error("Could not scan notification from database", zap.Error(err))
 			return nil, nil, errors.New("Could not retrieve notifications")
 		}
+		n.Persistent = true
 		notifications = append(notifications, n)
 	}
 

@@ -1320,6 +1320,7 @@ message TNotifications {
     bytes sender_id = 5;
     int64 created_at = 6;
     int64 expires_at = 7;
+    bool persistent = 8;
   }
 
   repeated Notification notifications = 1;

@@ -44,13 +44,13 @@ type Runtime struct {
 	luaEnv *lua.LTable
 }
 
-func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config) (*Runtime, error) {
-	if err := os.MkdirAll(config.GetRuntime().Path, os.ModePerm); err != nil {
+func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, notificationService *NotificationService) (*Runtime, error) {
+	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	// override before Package library is invoked.
-	lua.LuaLDir = config.GetRuntime().Path
+	lua.LuaLDir = config.Path
 	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
@@ -75,7 +75,7 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config 
 		vm.Call(1, 0)
 	}
 
-	nakamaModule := NewNakamaModule(logger, db, config, vm)
+	nakamaModule := NewNakamaModule(logger, db, vm, notificationService)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	nakamaxModule := NewNakamaxModule(logger)
 	vm.PreloadModule("nakamax", nakamaxModule.Loader)
@@ -83,7 +83,7 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config 
 	r := &Runtime{
 		logger: logger,
 		vm:     vm,
-		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
+		luaEnv: ConvertMap(vm, config.Environment),
 	}
 
 	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))

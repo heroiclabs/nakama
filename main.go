@@ -92,8 +92,9 @@ func main() {
 	messageRouter := server.NewMessageRouterService(sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
+	notificationService := server.NewNotificationService(jsonLogger, db, trackerService, config.GetSocial().Notification)
 
-	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config)
+	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config.GetRuntime(), notificationService)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules.", zap.Error(err))
 	}
