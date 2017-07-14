@@ -24,7 +24,7 @@ func (p *pipeline) listNotifications(logger *zap.Logger, session *session, envel
 		return
 	}
 
-	nots, cursor, err := listNotifications(logger, p.db, session.userID, incoming.GetLimit(), incoming.GetResumableCursor())
+	nots, cursor, err := NotificationsList(logger, p.db, session.userID, incoming.GetLimit(), incoming.GetResumableCursor())
 	if err != nil {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
 		return
@@ -41,7 +41,7 @@ func (p *pipeline) removeNotifications(logger *zap.Logger, session *session, env
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "There must be at least one notification ID to remove."))
 	}
 
-	if err := removeNotifications(logger, p.db, session.userID, incoming.NotificationIds); err != nil {
+	if err := NotificationsRemove(logger, p.db, session.userID, incoming.NotificationIds); err != nil {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
 		return
 	}

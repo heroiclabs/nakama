@@ -43,11 +43,12 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger *zap.Logger
-	db     *sql.DB
+	logger             *zap.Logger
+	db                 *sql.DB
+	notificationExpiry int64
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -55,29 +56,31 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState) *NakamaModul
 		HTTP:   make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger: logger,
-		db:     db,
+		logger:             logger,
+		db:                 db,
+		notificationExpiry: config.GetSocial().Notification.ExpiryMs,
 	}
 }
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"logger_info":        n.loggerInfo,
-		"logger_warn":        n.loggerWarn,
-		"logger_error":       n.loggerError,
-		"register_rpc":       n.registerRPC,
-		"register_before":    n.registerBefore,
-		"register_after":     n.registerAfter,
-		"register_http":      n.registerHTTP,
-		"users_fetch_id":     n.usersFetchId,
-		"users_fetch_handle": n.usersFetchHandle,
-		"users_ban":          n.usersBan,
-		"storage_list":       n.storageList,
-		"storage_fetch":      n.storageFetch,
-		"storage_write":      n.storageWrite,
-		"storage_remove":     n.storageRemove,
-		"leaderboard_create": n.leaderboardCreate,
-		"groups_create":      n.groupsCreate,
+		"logger_info":         n.loggerInfo,
+		"logger_warn":         n.loggerWarn,
+		"logger_error":        n.loggerError,
+		"register_rpc":        n.registerRPC,
+		"register_before":     n.registerBefore,
+		"register_after":      n.registerAfter,
+		"register_http":       n.registerHTTP,
+		"users_fetch_id":      n.usersFetchId,
+		"users_fetch_handle":  n.usersFetchHandle,
+		"users_ban":           n.usersBan,
+		"storage_list":        n.storageList,
+		"storage_fetch":       n.storageFetch,
+		"storage_write":       n.storageWrite,
+		"storage_remove":      n.storageRemove,
+		"leaderboard_create":  n.leaderboardCreate,
+		"groups_create":       n.groupsCreate,
+		"notification_create": n.notificationsCreate,
 	})
 
 	l.Push(mod)
@@ -828,6 +831,7 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 	groups, err := GroupsCreate(n.logger, n.db, groupParams)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create groups: %s", err.Error()))
+		return 0
 	}
 
 	//translate uuid to string bytes
@@ -841,4 +845,78 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) notificationsCreate(l *lua.LState) int {
+	notificationsTable := l.CheckTable(1)
+	if notificationsTable == nil || notificationsTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of notifications")
+		return 0
+	}
+
+	notifications := make([]*Notification, 0)
+	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		notificationTable, ok := g.(*lua.LTable)
+		if !ok {
+			l.ArgError(1, "expects a valid set of notifications")
+			return
+		}
+
+		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			notification := &Notification{}
+			switch k.String() {
+			case "Subject":
+				notification.Subject = v.String()
+			case "Content":
+				j := []byte(v.String())
+				maybeJson := make(map[string]interface{})
+				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
+					l.ArgError(1, "expects content to be a valid JSON")
+					return
+				}
+				notification.Content = j
+			case "Code":
+				number := int64(lua.LVAsNumber(v))
+				if number <= 100 {
+					l.ArgError(1, "expects code to values above 100")
+					return
+				}
+				notification.Code = int64(number)
+			case "UserId":
+				u, err := uuid.FromString(v.String())
+				if err != nil {
+					l.ArgError(1, "expects UserId to be a valid UUID")
+					return
+				}
+				notification.UserID = u.Bytes()
+			case "SenderId":
+				u, err := uuid.FromString(v.String())
+				if err != nil {
+					l.ArgError(1, "expects SenderId to be a valid UUID")
+					return
+				}
+				notification.SenderID = u.Bytes()
+			}
+
+			if notification.Subject == "" {
+				l.ArgError(1, "expects subject to be non-empty")
+				return
+			} else if len(notification.Content) == 0 {
+				l.ArgError(1, "expects content to be a valid JSON")
+				return
+			} else if len(notification.UserID) == 0 {
+				l.ArgError(1, "expects UserId to be a valid UUID")
+				return
+			}
+
+			notifications = append(notifications, notification)
+		})
+	})
+
+	err := NotificationsSave(n.logger, n.db, n.notificationExpiry, notifications)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to save notifications: %s", err.Error()))
+	}
+
+	return 0
 }

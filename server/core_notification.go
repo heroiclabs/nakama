@@ -35,6 +35,7 @@ type notificationResumableCursor struct {
 
 type Notification struct {
 	Id        []byte
+	UserID    []byte
 	Subject   string
 	Content   []byte
 	Code      int64
@@ -43,7 +44,7 @@ type Notification struct {
 	ExpiresAt int64
 }
 
-func listNotifications(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int64, cursor []byte) ([]*Notification, []byte, error) {
+func NotificationsList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int64, cursor []byte) ([]*Notification, []byte, error) {
 	expiryNow := nowMs()
 	nc := &notificationResumableCursor{}
 	if cursor != nil {
@@ -60,7 +61,7 @@ func listNotifications(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit i
 	}
 
 	rows, err := db.Query(`
-SELECT id, subject, content, code, sender_id, created_at, expires_at
+SELECT id, user_id, subject, content, code, sender_id, created_at, expires_at
 FROM notification
 WHERE user_id = $1 AND deleted_at = 0 AND (expires_at, id) > ($2, $3)
 LIMIT $4
@@ -74,7 +75,7 @@ LIMIT $4
 	notifications := make([]*Notification, 0)
 	for rows.Next() {
 		n := &Notification{}
-		err := rows.Scan(&n.Id, &n.Subject, &n.Content, &n.Code, &n.SenderID, &n.CreatedAt, &n.ExpiresAt)
+		err := rows.Scan(&n.Id, &n.UserID, &n.Subject, &n.Content, &n.Code, &n.SenderID, &n.CreatedAt, &n.ExpiresAt)
 		if err != nil {
 			logger.Error("Could not scan notification from database", zap.Error(err))
 			return nil, nil, errors.New("Could not retrieve notifications")
@@ -97,7 +98,7 @@ LIMIT $4
 	return notifications, cursorBuf.Bytes(), nil
 }
 
-func removeNotifications(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs [][]byte) error {
+func NotificationsRemove(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs [][]byte) error {
 	counter := 2 // userID is first element
 	statements := make([]string, 0)
 	for range notificationIDs {
@@ -116,7 +117,7 @@ func removeNotifications(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notif
 	return nil
 }
 
-func saveNotifications(logger *zap.Logger, db *sql.DB, userID uuid.UUID, expiryMs int64, notifications []*Notification) error {
+func NotificationsSave(logger *zap.Logger, db *sql.DB, expiryMs int64, notifications []*Notification) error {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 	counter := 0
@@ -134,7 +135,7 @@ expires_at = $` + strconv.Itoa(counter+8)
 		statements = append(statements, "("+statement+")")
 
 		params = append(params, uuid.NewV4().Bytes())
-		params = append(params, userID.Bytes())
+		params = append(params, n.UserID)
 		params = append(params, n.Subject)
 		params = append(params, n.Content)
 		params = append(params, n.Code)
