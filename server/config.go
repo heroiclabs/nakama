@@ -240,7 +240,8 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the Social providers
 type SocialConfig struct {
-	Steam *SocialConfigSteam `yaml:"steam" json:"steam" usage:"Steam configuration"`
+	Notification *NotificationConfig `yaml:"notification" json:"notification" usage:"Notification configuration"`
+	Steam        *SocialConfigSteam  `yaml:"steam" json:"steam" usage:"Steam configuration"`
 }
 
 // SocialConfigSteam is configuration relevant to Steam
@@ -249,12 +250,20 @@ type SocialConfigSteam struct {
 	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
 }
 
+// NotificationConfig is configuration relevant to notification center
+type NotificationConfig struct {
+	ExpiryMs int64 `yaml:"expiry_ms" json:"expiry_ms" usage:"Notification expiry in milliseconds."`
+}
+
 // NewSocialConfig creates a new SocialConfig struct
 func NewSocialConfig() *SocialConfig {
 	return &SocialConfig{
 		Steam: &SocialConfigSteam{
 			PublisherKey: "",
 			AppID:        0,
+		},
+		Notification: &NotificationConfig{
+			ExpiryMs: 86400000, // one day expiry
 		},
 	}
 }
