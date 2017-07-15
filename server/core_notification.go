@@ -70,7 +70,7 @@ func (n *NotificationService) NotificationSend(notifications []*Notification) er
 	}
 
 	if len(persistentNotifications) > 0 {
-		if err := NotificationsSave(n.logger, n.db, n.expiryMs, persistentNotifications); err != nil {
+		if err := n.notificationsSave(persistentNotifications); err != nil {
 			return err
 		}
 	}
@@ -80,12 +80,12 @@ func (n *NotificationService) NotificationSend(notifications []*Notification) er
 	return nil
 }
 
-func NotificationsList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int64, cursor []byte) ([]*Notification, []byte, error) {
+func (n *NotificationService) NotificationsList(userID uuid.UUID, limit int64, cursor []byte) ([]*Notification, []byte, error) {
 	expiryNow := nowMs()
 	nc := &notificationResumableCursor{}
 	if cursor != nil {
 		if err := gob.NewDecoder(bytes.NewReader(cursor)).Decode(nc); err != nil {
-			logger.Error("Could not decode notification cursor")
+			n.logger.Error("Could not decode notification cursor")
 			return nil, nil, errors.New("Malformed cursor was used")
 		}
 	}
@@ -96,7 +96,7 @@ func NotificationsList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit i
 		nc.NotificationID = uuid.Nil.Bytes()
 	}
 
-	rows, err := db.Query(`
+	rows, err := n.db.Query(`
 SELECT id, user_id, subject, content, code, sender_id, created_at, expires_at
 FROM notification
 WHERE user_id = $1 AND deleted_at = 0 AND (expires_at, id) > ($2, $3)
@@ -104,20 +104,19 @@ LIMIT $4
 `, userID.Bytes(), nc.Expiry, nc.NotificationID, limit)
 
 	if err != nil {
-		logger.Error("Could not retrieve notifications", zap.Error(err))
+		n.logger.Error("Could not retrieve notifications", zap.Error(err))
 		return nil, nil, errors.New("Could not retrieve notifications")
 	}
 
 	notifications := make([]*Notification, 0)
 	for rows.Next() {
-		n := &Notification{}
-		err := rows.Scan(&n.Id, &n.UserID, &n.Subject, &n.Content, &n.Code, &n.SenderID, &n.CreatedAt, &n.ExpiresAt)
+		no := &Notification{Persistent: true}
+		err := rows.Scan(&no.Id, &no.UserID, &no.Subject, &no.Content, &no.Code, &no.SenderID, &no.CreatedAt, &no.ExpiresAt)
 		if err != nil {
-			logger.Error("Could not scan notification from database", zap.Error(err))
+			n.logger.Error("Could not scan notification from database", zap.Error(err))
 			return nil, nil, errors.New("Could not retrieve notifications")
 		}
-		n.Persistent = true
-		notifications = append(notifications, n)
+		notifications = append(notifications, no)
 	}
 
 	cursorBuf := new(bytes.Buffer)
@@ -128,14 +127,14 @@ LIMIT $4
 			NotificationID: lastNotification.Id,
 		}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			logger.Error("Could not create new cursor.", zap.Error(err))
+			n.logger.Error("Could not create new cursor.", zap.Error(err))
 		}
 	}
 
 	return notifications, cursorBuf.Bytes(), nil
 }
 
-func NotificationsRemove(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs [][]byte) error {
+func (n *NotificationService) NotificationsRemove(userID uuid.UUID, notificationIDs [][]byte) error {
 	counter := 2 // userID is first element
 	statements := make([]string, 0)
 	for range notificationIDs {
@@ -144,21 +143,21 @@ func NotificationsRemove(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notif
 		statements = append(statements, statement)
 	}
 
-	_, err := db.Exec("UPDATE notification SET deleted_at = $1 WHERE user_id = $2 AND id IN ("+strings.Join(statements, ", ")+")", nowMs(), userID.Bytes(), notificationIDs)
+	_, err := n.db.Exec("UPDATE notification SET deleted_at = $1 WHERE user_id = $2 AND id IN ("+strings.Join(statements, ", ")+")", nowMs(), userID.Bytes(), notificationIDs)
 
 	if err != nil {
-		logger.Error("Could not delete notifications", zap.Error(err))
+		n.logger.Error("Could not delete notifications", zap.Error(err))
 		return errors.New("Could not delete notifications")
 	}
 
 	return nil
 }
 
-func NotificationsSave(logger *zap.Logger, db *sql.DB, expiryMs int64, notifications []*Notification) error {
+func (n *NotificationService) notificationsSave(notifications []*Notification) error {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 	counter := 0
-	for _, n := range notifications {
+	for _, no := range notifications {
 		statement := "$" + strconv.Itoa(counter+1) +
 			",$" + strconv.Itoa(counter+2) +
 			",$" + strconv.Itoa(counter+3) +
@@ -171,23 +170,23 @@ func NotificationsSave(logger *zap.Logger, db *sql.DB, expiryMs int64, notificat
 		statements = append(statements, "("+statement+")")
 
 		params = append(params, uuid.NewV4().Bytes())
-		params = append(params, n.UserID)
-		params = append(params, n.Subject)
-		params = append(params, n.Content)
-		params = append(params, n.Code)
-		params = append(params, n.SenderID)
+		params = append(params, no.UserID)
+		params = append(params, no.Subject)
+		params = append(params, no.Content)
+		params = append(params, no.Code)
+		params = append(params, no.SenderID)
 		params = append(params, nowMs())
-		params = append(params, nowMs()+expiryMs)
+		params = append(params, nowMs()+n.expiryMs)
 
 		counter = counter + 8
 	}
 
 	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id, created_at, expires_at) VALUES " + strings.Join(statements, ", ")
-	logger.Debug("notification save query", zap.String("query", query))
+	n.logger.Debug("notification save query", zap.String("query", query))
 
-	_, err := db.Exec(query, params...)
+	_, err := n.db.Exec(query, params...)
 	if err != nil {
-		logger.Error("Could not save notifications", zap.Error(err))
+		n.logger.Error("Could not save notifications", zap.Error(err))
 		return errors.New("Could not save notifications.")
 	}
 	return nil

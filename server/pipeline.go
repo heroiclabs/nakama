@@ -25,18 +25,19 @@ import (
 )
 
 type pipeline struct {
-	config            Config
-	db                *sql.DB
-	tracker           Tracker
-	matchmaker        Matchmaker
-	hmacSecretByte    []byte
-	messageRouter     MessageRouter
-	sessionRegistry   *SessionRegistry
-	socialClient      *social.Client
-	runtime           *Runtime
-	purchaseService   *PurchaseService
-	jsonpbMarshaler   *jsonpb.Marshaler
-	jsonpbUnmarshaler *jsonpb.Unmarshaler
+	config              Config
+	db                  *sql.DB
+	tracker             Tracker
+	matchmaker          Matchmaker
+	hmacSecretByte      []byte
+	messageRouter       MessageRouter
+	sessionRegistry     *SessionRegistry
+	socialClient        *social.Client
+	runtime             *Runtime
+	purchaseService     *PurchaseService
+	notificationService *NotificationService
+	jsonpbMarshaler     *jsonpb.Marshaler
+	jsonpbUnmarshaler   *jsonpb.Unmarshaler
 }
 
 // NewPipeline creates a new Pipeline
@@ -48,18 +49,20 @@ func NewPipeline(config Config,
 	registry *SessionRegistry,
 	socialClient *social.Client,
 	runtime *Runtime,
-	purchaseService *PurchaseService) *pipeline {
+	purchaseService *PurchaseService,
+	notificationService *NotificationService) *pipeline {
 	return &pipeline{
-		config:          config,
-		db:              db,
-		tracker:         tracker,
-		matchmaker:      matchmaker,
-		hmacSecretByte:  []byte(config.GetSession().EncryptionKey),
-		messageRouter:   messageRouter,
-		sessionRegistry: registry,
-		socialClient:    socialClient,
-		runtime:         runtime,
-		purchaseService: purchaseService,
+		config:              config,
+		db:                  db,
+		tracker:             tracker,
+		matchmaker:          matchmaker,
+		hmacSecretByte:      []byte(config.GetSession().EncryptionKey),
+		messageRouter:       messageRouter,
+		sessionRegistry:     registry,
+		socialClient:        socialClient,
+		runtime:             runtime,
+		purchaseService:     purchaseService,
+		notificationService: notificationService,
 		jsonpbMarshaler: &jsonpb.Marshaler{
 			EnumsAsInts:  true,
 			EmitDefaults: false,

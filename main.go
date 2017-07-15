@@ -101,7 +101,7 @@ func main() {
 
 	socialClient := social.NewClient(5 * time.Second)
 	purchaseService := server.NewPurchaseService(jsonLogger, multiLogger, db, config.GetPurchase())
-	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime, purchaseService)
+	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime, purchaseService, notificationService)
 	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtime)
 	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
 
