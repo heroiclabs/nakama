@@ -98,6 +98,21 @@ do
   assert(status == true)
 end
 
+-- create_groups
+do
+  -- This will error if it fails.
+   -- nk.groups_create({{ Name="test_group",Description="test_description",Lang="Lang",Private=true,CreatorId="4c2ae592-b2a7-445e-98ec-697694478b1c" }})
+end
+
+-- notifications_send_id
+do
+  -- This will error if it fails.
+  nk.notifications_send_id({
+    { Subject="test_notification",Content='{"hello": "world"}',UserId="4c2ae592-b2a7-445e-98ec-697694478b1c",Code=101,Persistent=true },
+    { Subject="test_notification_2",Content='{"hello": "world"}',UserId="4c2ae592-b2a7-445e-98ec-697694478b1c",Code=102,Persistent=true },
+  })
+end
+
 --[[
   Nakamax module
 ]]--

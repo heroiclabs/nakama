@@ -69,11 +69,13 @@ func (n *NotificationService) NotificationSend(notifications []*Notification) er
 		}
 	}
 
-	if err := NotificationsSave(n.logger, n.db, n.expiryMs, persistentNotifications); err != nil {
-		return err
+	if len(persistentNotifications) > 0 {
+		if err := NotificationsSave(n.logger, n.db, n.expiryMs, persistentNotifications); err != nil {
+			return err
+		}
 	}
 
-	//NotificationsSend() //registy
+	//NotificationsSend()
 
 	return nil
 }
@@ -157,15 +159,14 @@ func NotificationsSave(logger *zap.Logger, db *sql.DB, expiryMs int64, notificat
 	params := make([]interface{}, 0)
 	counter := 0
 	for _, n := range notifications {
-		statement := `
-id = $` + strconv.Itoa(counter+1) + `
-user_id = $` + strconv.Itoa(counter+2) + `
-subject = $` + strconv.Itoa(counter+3) + `
-content = $` + strconv.Itoa(counter+4) + `
-code = $` + strconv.Itoa(counter+5) + `
-sender_id = $` + strconv.Itoa(counter+6) + `
-created_at = $` + strconv.Itoa(counter+7) + `
-expires_at = $` + strconv.Itoa(counter+8)
+		statement := "$" + strconv.Itoa(counter+1) +
+			",$" + strconv.Itoa(counter+2) +
+			",$" + strconv.Itoa(counter+3) +
+			",$" + strconv.Itoa(counter+4) +
+			",$" + strconv.Itoa(counter+5) +
+			",$" + strconv.Itoa(counter+6) +
+			",$" + strconv.Itoa(counter+7) +
+			",$" + strconv.Itoa(counter+8)
 
 		statements = append(statements, "("+statement+")")
 
@@ -181,7 +182,10 @@ expires_at = $` + strconv.Itoa(counter+8)
 		counter = counter + 8
 	}
 
-	_, err := db.Exec("INSERT INTO notification (id, user_id, subject, content, code, sender_id, created_at, expires_at) VALUES "+strings.Join(statements, ", "), params)
+	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id, created_at, expires_at) VALUES " + strings.Join(statements, ", ")
+	logger.Debug("notification save query", zap.String("query", query))
+
+	_, err := db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not save notifications", zap.Error(err))
 		return errors.New("Could not save notifications.")

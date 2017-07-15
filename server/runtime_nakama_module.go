@@ -781,11 +781,12 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 		groupTable, ok := g.(*lua.LTable)
 		if !ok {
 			conversionError = true
+			l.ArgError(1, "expects a valid group")
 			return
 		}
 
+		p := &GroupCreateParam{}
 		groupTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			p := &GroupCreateParam{}
 			switch k.String() {
 			case "Name":
 				p.Name = v.String()
@@ -802,6 +803,7 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 				maybeJson := make(map[string]interface{})
 				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
 					conversionError = true
+					l.ArgError(1, "metadata must be JSON")
 					return
 				}
 				p.Metadata = j
@@ -809,22 +811,28 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 				u, err := uuid.FromString(v.String())
 				if err != nil {
 					conversionError = true
+					l.ArgError(1, "invalid creator id")
 					return
 				}
 				p.Creator = u
 			}
-
-			if p.Name == "" || len(p.Creator) == 0 { // mandatory items
-				conversionError = true
-				return
-			}
-
-			groupParams = append(groupParams, p)
 		})
+
+		// mandatory items
+		if p.Name == "" {
+			conversionError = true
+			l.ArgError(1, "missing group name")
+			return
+		} else if len(p.Creator) == 0 {
+			conversionError = true
+			l.ArgError(1, "missing creator id")
+			return
+		}
+
+		groupParams = append(groupParams, p)
 	})
 
 	if conversionError {
-		l.ArgError(1, "expects a valid set of groups")
 		return 0
 	}
 
@@ -849,7 +857,7 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 
 func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 	notificationsTable := l.CheckTable(1)
-	if notificationsTable == nil || notificationsTable.Len() == 0 {
+	if notificationsTable == nil {
 		l.ArgError(1, "expects a valid set of notifications")
 		return 0
 	}
@@ -862,8 +870,8 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 			return
 		}
 
+		notification := &Notification{}
 		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			notification := &Notification{}
 			switch k.String() {
 			case "Persistent":
 				notification.Persistent = lua.LVAsBool(v)
@@ -902,20 +910,20 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 				}
 				notification.SenderID = u.Bytes()
 			}
-
-			if notification.Subject == "" {
-				l.ArgError(1, "expects subject to be non-empty")
-				return
-			} else if len(notification.Content) == 0 {
-				l.ArgError(1, "expects content to be a valid JSON")
-				return
-			} else if len(notification.UserID) == 0 {
-				l.ArgError(1, "expects UserId to be a valid UUID")
-				return
-			}
-
-			notifications = append(notifications, notification)
 		})
+
+		if notification.Subject == "" {
+			l.ArgError(1, "expects subject to be non-empty")
+			return
+		} else if len(notification.Content) == 0 {
+			l.ArgError(1, "expects content to be a valid JSON")
+			return
+		} else if len(notification.UserID) == 0 {
+			l.ArgError(1, "expects UserId to be a valid UUID")
+			return
+		}
+
+		notifications = append(notifications, notification)
 	})
 
 	err := n.notificationService.NotificationSend(notifications)
