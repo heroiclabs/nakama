@@ -135,6 +135,7 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *En
 	}})
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		return
 	}
 
 	// Update handle in session and any presences, if a handle update was processed.

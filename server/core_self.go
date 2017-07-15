@@ -35,10 +35,6 @@ type SelfUpdateOp struct {
 }
 
 func SelfUpdate(logger *zap.Logger, db *sql.DB, updates []*SelfUpdateOp) (Error_Code, error) {
-	if len(updates) == 0 {
-		return BAD_INPUT, errors.New("At least one update is required")
-	}
-
 	// Use same timestamp for all updates in this batch.
 	ts := nowMs()
 

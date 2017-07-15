@@ -305,106 +305,94 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 		l.ArgError(1, "expects a valid set of user updates")
 		return 0
 	}
-	updatesRaw, ok := convertLuaValue(updatesTable).([]interface{})
-	if !ok {
-		l.ArgError(1, "expects a valid set of user updates")
-		return 0
-	}
 
+	conversionError := ""
 	updates := make([]*SelfUpdateOp, 0)
-	for _, updateRaw := range updatesRaw {
-		if updateTable, ok := updateRaw.(map[string]interface{}); !ok {
-			l.ArgError(1, "expects a valid set of user updates")
-			return 0
-		} else {
+
+	updatesTable.ForEach(func(i lua.LValue, u lua.LValue) {
+		updateTable, ok := u.(*lua.LTable)
+		if !ok {
+			conversionError = "expects a valid set of user updates"
+			return
+		}
+
+		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
 			update := &SelfUpdateOp{}
-			// Validate the user ID.
-			if u, ok := updateTable["UserId"]; ok {
-				if us, ok := u.(string); !ok {
-					l.ArgError(1, "expects valid user IDs in each update")
-					return 0
-				} else {
-					if uid, err := uuid.FromString(us); err != nil {
-						l.ArgError(1, "expects valid user IDs in each update")
-						return 0
-					} else {
-						update.UserId = uid.Bytes()
-					}
+			switch k.String() {
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid user IDs in each update"
+					return
 				}
-			} else {
-				l.ArgError(1, "expects valid user IDs in each update")
-				return 0
-			}
-			// Validate the handle.
-			if h, ok := updateTable["Handle"]; ok {
-				if hs, ok := h.(string); !ok {
-					l.ArgError(1, "expects valid handles in each update, when provided")
-					return 0
+				if uid, err := uuid.FromString(v.String()); err != nil {
+					conversionError = "expects valid user IDs in each update"
+					return
 				} else {
-					update.Handle = hs
+					update.UserId = uid.Bytes()
 				}
-			}
-			// Validate the fullname.
-			if f, ok := updateTable["Fullname"]; ok {
-				if fs, ok := f.(string); !ok {
-					l.ArgError(1, "expects valid fullnames in each update, when provided")
-					return 0
-				} else {
-					update.Fullname = fs
+			case "Handle":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid handles in each update, when provided"
+					return
 				}
-			}
-			// Validate the timezone.
-			if t, ok := updateTable["Timezone"]; ok {
-				if ts, ok := t.(string); !ok {
-					l.ArgError(1, "expects valid timezones in each update, when provided")
-					return 0
-				} else {
-					update.Timezone = ts
+				update.Handle = v.String()
+			case "Fullname":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid fullnames in each update, when provided"
+					return
 				}
-			}
-			// Validate the location.
-			if loc, ok := updateTable["Location"]; ok {
-				if locs, ok := loc.(string); !ok {
-					l.ArgError(1, "expects valid locations in each update, when provided")
-					return 0
-				} else {
-					update.Location = locs
+				update.Fullname = v.String()
+			case "Timezone":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid timezones in each update, when provided"
+					return
 				}
-			}
-			// Validate the lang.
-			if lang, ok := updateTable["Lang"]; ok {
-				if langs, ok := lang.(string); !ok {
-					l.ArgError(1, "expects valid langs in each update, when provided")
-					return 0
-				} else {
-					update.Lang = langs
+				update.Timezone = v.String()
+			case "Location":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid locations in each update, when provided"
+					return
 				}
-			}
-			// Validate the metadata.
-			if m, ok := updateTable["Metadata"]; ok {
-				if ms, ok := m.(string); !ok {
-					l.ArgError(1, "expects valid metadata in each update, when provided")
-					return 0
-				} else {
-					update.Metadata = []byte(ms)
+				update.Location = v.String()
+			case "Lang":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid langs in each update, when provided"
+					return
 				}
-			}
-			// Validate the avatar URL.
-			if a, ok := updateTable["AvatarUrl"]; ok {
-				if as, ok := a.(string); !ok {
-					l.ArgError(1, "expects valid avatar urls in each update, when provided")
-					return 0
-				} else {
-					update.AvatarUrl = as
+				update.Lang = v.String()
+			case "Metadata":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid metadata in each update, when provided"
+					return
 				}
+				update.Metadata = []byte(v.String())
+			case "AvatarUrl":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid avatar urls in each update, when provided"
+					return
+				}
+				update.AvatarUrl = v.String()
+			default:
+				conversionError = "unrecognised update key, expects a valid set of user updates"
+				return
 			}
+
 			// Check it's a valid update op.
+			if len(update.UserId) == 0 {
+				conversionError = "expects each update to contain a user ID"
+				return
+			}
 			if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
-				l.ArgError(1, "expects each update to contain at least one field to change")
-				return 0
+				conversionError = "expects each update to contain at least one field to change"
+				return
 			}
 			updates = append(updates, update)
-		}
+		})
+	})
+
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
 	}
 
 	if _, err := SelfUpdate(n.logger, n.db, updates); err != nil {
