@@ -46,26 +46,38 @@ type Notification struct {
 }
 
 type NotificationService struct {
-	logger   *zap.Logger
-	db       *sql.DB
-	tracker  Tracker
-	expiryMs int64
+	logger        *zap.Logger
+	db            *sql.DB
+	tracker       Tracker
+	messageRouter MessageRouter
+	expiryMs      int64
 }
 
-func NewNotificationService(logger *zap.Logger, db *sql.DB, tracker Tracker, config *NotificationConfig) *NotificationService {
+func NewNotificationService(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, config *NotificationConfig) *NotificationService {
 	return &NotificationService{
-		logger:   logger,
-		db:       db,
-		tracker:  tracker,
-		expiryMs: config.ExpiryMs,
+		logger:        logger,
+		db:            db,
+		tracker:       tracker,
+		messageRouter: messageRouter,
+		expiryMs:      config.ExpiryMs,
 	}
 }
 
 func (n *NotificationService) NotificationSend(notifications []*Notification) error {
 	persistentNotifications := make([]*Notification, 0)
+	notificationsByUser := make(map[uuid.UUID][]*Notification)
 	for _, n := range notifications {
+		// Select persistent notifications for storage.
 		if n.Persistent {
 			persistentNotifications = append(persistentNotifications, n)
+		}
+
+		// Split all notifications by user for grouped delivery later.
+		userID := uuid.FromBytesOrNil(n.UserID)
+		if ns, ok := notificationsByUser[userID]; ok {
+			notificationsByUser[userID] = append(ns, n)
+		} else {
+			notificationsByUser[userID] = []*Notification{n}
 		}
 	}
 
@@ -75,7 +87,14 @@ func (n *NotificationService) NotificationSend(notifications []*Notification) er
 		}
 	}
 
-	//NotificationsSend()
+	for userID, ns := range notificationsByUser {
+		presences := n.tracker.ListByTopicUser("notification", userID)
+		if len(presences) != 0 {
+			// TODO (mo) convert `ns` another way here
+			nots := convertNotifications(ns, nil)
+			n.messageRouter.Send(n.logger, presences, nots)
+		}
+	}
 
 	return nil
 }

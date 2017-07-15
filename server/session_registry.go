@@ -72,6 +72,11 @@ func (a *SessionRegistry) add(userID uuid.UUID, handle string, lang string, expi
 	a.Lock()
 	a.sessions[s.id] = s
 	a.Unlock()
+
+	// Register the session for notifications.
+	a.tracker.Track(s.id, "notifications", s.userID, PresenceMeta{Handle: handle})
+
+	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)
 }
 
