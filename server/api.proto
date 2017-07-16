@@ -262,6 +262,7 @@ message Envelope {
     TNotificationsList notifications_list = 67;
     TNotificationsRemove notifications_remove = 68;
     TNotifications notifications = 69;
+    Notifications live_notifications = 70;
   }
 }
 
@@ -1297,6 +1298,27 @@ message TPurchaseRecord {
 }
 
 /**
+ * Notification is the core domain type representing an in-app notification.
+ */
+message Notification {
+  bytes id = 1;
+  string subject = 2;
+  bytes content = 3;
+  int64 code = 4;
+  bytes sender_id = 5;
+  int64 created_at = 6;
+  int64 expires_at = 7;
+  bool persistent = 8;
+}
+
+/**
+ * Notification is the core domain type representing a list of live in-app notification.
+ */
+message Notifications {
+  repeated Notification notifications = 1;
+}
+
+/**
  * TNotificationsList is used to list unexpired notifications.
  */
 message TNotificationsList {
@@ -1312,17 +1334,6 @@ message TNotificationsList {
  * TNotifications is the response of listing notifications
  */
 message TNotifications {
-  message Notification {
-    bytes id = 1;
-    string subject = 2;
-    bytes content = 3;
-    int64 code = 4;
-    bytes sender_id = 5;
-    int64 created_at = 6;
-    int64 expires_at = 7;
-    bool persistent = 8;
-  }
-
   repeated Notification notifications = 1;
   /// Use this cursor to paginate notifications.
   /// Cache this to catch up to new notifications.

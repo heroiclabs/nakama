@@ -18,14 +18,24 @@ import (
 	"nakama/server"
 	"testing"
 
+	"bytes"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 var (
 	notificationUserID  = uuid.NewV4()
+	notificationId      []byte
 	notificationService *server.NotificationService
 )
+
+type fakeMessageRouter struct{}
+
+func (f *fakeMessageRouter) Send(logger *zap.Logger, ps []server.Presence, msg proto.Message) {
+
+}
 
 func setupNotificationService() (*server.NotificationService, error) {
 	db, err := setupDB()
@@ -35,7 +45,8 @@ func setupNotificationService() (*server.NotificationService, error) {
 
 	logger, _ := zap.NewDevelopment(zap.AddStacktrace(zap.ErrorLevel))
 	tracker := server.NewTrackerService("test-tracker")
-	ns := server.NewNotificationService(logger, db, tracker, &server.NotificationConfig{})
+	msgRouter := &fakeMessageRouter{}
+	ns := server.NewNotificationService(logger, db, tracker, msgRouter, server.NewSocialConfig().Notification)
 	return ns, nil
 }
 
@@ -45,14 +56,21 @@ func TestNotificationService(t *testing.T) {
 		t.Fatal(err)
 	}
 	notificationService = ns
-
 	t.Run("notification-service-send", testNotificationServiceSend)
 	t.Run("notification-service-list", testNotificationServiceList)
 	t.Run("notification-service-remove", testNotificationServiceRemove)
 }
 
 func testNotificationServiceSend(t *testing.T) {
-	err := notificationService.NotificationSend([]*server.Notification{})
+	err := notificationService.NotificationSend([]*server.NNotification{
+		{
+			UserID:     notificationUserID.Bytes(),
+			Persistent: true,
+			Content:    []byte("{\"key\":\"value\"}"),
+			Code:       101,
+			Subject:    "test",
+		},
+	})
 
 	if err != nil {
 		t.Error(err)
@@ -61,15 +79,38 @@ func testNotificationServiceSend(t *testing.T) {
 }
 
 func testNotificationServiceList(t *testing.T) {
-	//notifications, cursor, err := notificationService.NotificationsList(notificationUserID, 10, nil)
-	//if err != nil {
-	//	t.Error(err)
-	//	t.FailNow()
-	//}
+	notifications, cursor, err := notificationService.NotificationsList(notificationUserID, 10, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if len(cursor) == 0 {
+		t.Error("cursor was nil")
+		t.FailNow()
+	}
+
+	if len(notifications) != 1 {
+		t.Error("notification count was not 1.")
+		t.FailNow()
+	}
+
+	n := notifications[0]
+
+	if bytes.Compare(n.UserID, notificationUserID.Bytes()) != 0 {
+		t.Error("notification user Id was not the same")
+		t.FailNow()
+	}
+
+	if n.Subject != "test" || n.Code != 101 || n.CreatedAt == 0 || n.ExpiresAt == 0 {
+		t.Error("unexpected notification field data")
+	}
+
+	notificationId = n.Id
 }
 
 func testNotificationServiceRemove(t *testing.T) {
-	err := notificationService.NotificationsRemove(notificationUserID, [][]byte{})
+	err := notificationService.NotificationsRemove(notificationUserID, [][]byte{notificationId})
 
 	if err != nil {
 		t.Error(err)

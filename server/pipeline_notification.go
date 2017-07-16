@@ -30,7 +30,7 @@ func (p *pipeline) listNotifications(logger *zap.Logger, session *session, envel
 		return
 	}
 
-	notifications := convertNotifications(nots, cursor)
+	notifications := convertTNotifications(nots, cursor)
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Notifications{Notifications: notifications}})
 }
 
@@ -47,21 +47,4 @@ func (p *pipeline) removeNotifications(logger *zap.Logger, session *session, env
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
-}
-
-func convertNotifications(nots []*Notification, cursor []byte) *TNotifications {
-	notifications := &TNotifications{Notifications: make([]*TNotifications_Notification, 0), ResumableCursor: cursor}
-	for _, not := range nots {
-		n := &TNotifications_Notification{
-			Id:        not.Id,
-			Subject:   not.Subject,
-			Content:   not.Content,
-			Code:      not.Code,
-			SenderId:  not.SenderID,
-			CreatedAt: not.CreatedAt,
-			ExpiresAt: not.ExpiresAt,
-		}
-		notifications.Notifications = append(notifications.Notifications, n)
-	}
-	return notifications
 }

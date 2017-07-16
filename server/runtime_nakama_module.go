@@ -862,7 +862,7 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 		return 0
 	}
 
-	notifications := make([]*Notification, 0)
+	notifications := make([]*NNotification, 0)
 	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
 		notificationTable, ok := g.(*lua.LTable)
 		if !ok {
@@ -870,7 +870,7 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 			return
 		}
 
-		notification := &Notification{}
+		notification := &NNotification{}
 		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
 			switch k.String() {
 			case "Persistent":
