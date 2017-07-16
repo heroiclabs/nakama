@@ -47,6 +47,12 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 
 	// Group joins and leaves by topic.
 	for _, p := range joins {
+		// The "notifications" topic is a special case that does not generate presence notifications.
+		if p.Topic == "notifications" {
+			continue
+		}
+
+		// Group presences by topic.
 		if j, ok := topicJoins[p.Topic]; ok {
 			topicJoins[p.Topic] = append(j, p)
 		} else {
@@ -54,6 +60,12 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		}
 	}
 	for _, p := range leaves {
+		// The "notifications" topic is a special case that does not generate presence notifications.
+		if p.Topic == "notifications" {
+			continue
+		}
+
+		// Group presences by topic.
 		if l, ok := topicLeaves[p.Topic]; ok {
 			topicLeaves[p.Topic] = append(l, p)
 		} else {
