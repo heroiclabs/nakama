@@ -78,7 +78,7 @@ func NewAppleClientWithHTTP(password string, production bool, httpClient *http.C
 
 func (ac *AppleClient) init(production bool) error {
 	if ac.password == "" {
-		return errors.New("Missing password.")
+		return errors.New("Missing password")
 	}
 
 	return nil

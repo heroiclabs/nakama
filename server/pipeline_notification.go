@@ -16,7 +16,7 @@ package server
 
 import "go.uber.org/zap"
 
-func (p *pipeline) listNotifications(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) notificationsList(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetNotificationsList()
 
 	if incoming.GetLimit() < 10 || incoming.GetLimit() > 100 {
@@ -34,7 +34,7 @@ func (p *pipeline) listNotifications(logger *zap.Logger, session *session, envel
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Notifications{Notifications: notifications}})
 }
 
-func (p *pipeline) removeNotifications(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) notificationsRemove(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetNotificationsRemove()
 
 	if len(incoming.NotificationIds) == 0 {

@@ -188,6 +188,11 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_Rpc:
 		p.rpc(logger, session, envelope)
 
+	case *Envelope_NotificationsList:
+		p.notificationsList(logger, session, envelope)
+	case *Envelope_NotificationsRemove:
+		p.notificationsRemove(logger, session, envelope)
+
 	default:
 		session.Send(ErrorMessage(envelope.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
 		return
