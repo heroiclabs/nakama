@@ -36,7 +36,7 @@ type PurchaseService struct {
 func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *PurchaseConfig) *PurchaseService {
 	ac, err := iap.NewAppleClient(config.Apple.Password, config.Apple.Production, config.Apple.TimeoutMs)
 	if err != nil {
-		multiLogger.Warn("Skip initialising Apple in-app purchase provider", zap.Error(err))
+		multiLogger.Warn("Skip initialising Apple in-app purchase provider", zap.String("reason,", err.Error()))
 	} else {
 		if config.Apple.Production {
 			multiLogger.Info("Apple in-app purchase environment is set to Production priority.")
@@ -48,7 +48,7 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 
 	gc, err := iap.NewGoogleClient(config.Google.PackageName, config.Google.ServiceKeyFilePath, config.Google.TimeoutMs)
 	if err != nil {
-		multiLogger.Warn("Skip initialising Google in-app purchase provider", zap.Error(err))
+		multiLogger.Warn("Skip initialising Google in-app purchase provider", zap.String("reason", err.Error()))
 	}
 
 	return &PurchaseService{

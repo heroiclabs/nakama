@@ -48,20 +48,20 @@ func NewGoogleClient(packageName string, serviceKeyFilePath string, timeout int)
 	}
 
 	if gc.packageName == "" {
-		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")
+		return nil, errors.New("Missing package name.")
 	}
 	if gc.serviceKeyFilePath == "" {
-		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing service account key.")
+		return nil, errors.New("Missing service account key.")
 	}
 
 	jsonContent, err := ioutil.ReadFile(gc.serviceKeyFilePath)
 	if err != nil {
-		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Failed to read Google service account key.")
+		return nil, errors.New("Failed to read Google service account key.")
 	}
 
 	config, err := google.JWTConfigFromJSON(jsonContent, GOOGLE_IAP_SCOPE)
 	if err != nil {
-		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Failed to parse Google service account key.")
+		return nil, errors.New("Failed to parse Google service account key.")
 	}
 
 	gc.client = config.Client(context.Background())
@@ -71,7 +71,7 @@ func NewGoogleClient(packageName string, serviceKeyFilePath string, timeout int)
 
 func NewGoogleClientWithHTTP(packageName string, httpClient *http.Client) (*GoogleClient, error) {
 	if packageName == "" {
-		return nil, errors.New("Google in-app purchase configuration is inactive. Reason: Missing package name.")
+		return nil, errors.New("Missing package name.")
 	}
 
 	gc := &GoogleClient{
