@@ -85,7 +85,7 @@ func (p *pipeline) convertApplePurchase(purchase *TPurchaseValidation_ApplePurch
 
 func (p *pipeline) convertGooglePurchase(purchase *TPurchaseValidation_GooglePurchase) (*iap.GooglePurchase, error) {
 	if p.purchaseService.AppleClient == nil {
-		return nil, errors.New("Apple in-app purchase environment is not setup.")
+		return nil, errors.New("Google in-app purchase environment is not setup.")
 	}
 
 	if !(purchase.ProductType == "product" || purchase.ProductType == "subscription") {

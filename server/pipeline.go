@@ -188,6 +188,9 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_Rpc:
 		p.rpc(logger, session, envelope)
 
+	case *Envelope_Purchase:
+		p.purchaseValidate(logger, session, envelope)
+
 	case *Envelope_NotificationsList:
 		p.notificationsList(logger, session, envelope)
 	case *Envelope_NotificationsRemove:
