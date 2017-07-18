@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [1.0.0-rc.1] - 2017-07-18
 ### Added
 - New storage list feature.
