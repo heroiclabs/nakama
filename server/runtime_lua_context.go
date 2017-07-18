@@ -75,6 +75,7 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid uuid.
 
 func ConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
 	lt := l.NewTable()
+
 	for k, v := range data {
 		lt.RawSetString(k, convertValue(l, v))
 	}

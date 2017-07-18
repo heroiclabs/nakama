@@ -588,7 +588,17 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 			v.UserId = []byte(uid.String())
 		}
 		vm := structs.Map(v)
-		lv.RawSetInt(i+1, convertValue(l, vm))
+
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal(v.Value, &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+
+		lt := ConvertMap(l, vm)
+		lt.RawSetString("Value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
 	}
 
 	l.Push(lv)
@@ -660,11 +670,16 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 			l.ArgError(1, "expects a value in each key")
 			return 0
 		} else {
-			if vs, ok := v.(string); !ok {
-				l.ArgError(1, "value must be a string")
+			if vs, ok := v.(map[string]interface{}); !ok {
+				l.ArgError(1, "value must be a table")
 				return 0
 			} else {
-				value = []byte(vs)
+				dataJson, err := json.Marshal(vs)
+				if err != nil {
+					l.RaiseError("could not convert value to JSON: %v", err.Error())
+					return 0
+				}
+				value = dataJson
 			}
 		}
 		var userID []byte

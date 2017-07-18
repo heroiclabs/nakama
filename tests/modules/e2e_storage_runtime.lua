@@ -24,7 +24,7 @@ function test_storage(user_id)
   -- bad storage_write
   do
     local new_Records = {
-      {Bucket = 1, Collection = "settings", Record = "a", UserId = user_id, Value = "{}", PermissionRead = 0, PermissionWrite = 0}
+      {Bucket = 1, Collection = "settings", Record = "a", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 0}
     }
     local status, res = pcall(nk.storage_write, new_Records)
     assert(status == false)
@@ -36,9 +36,9 @@ function test_storage(user_id)
   -- storage_write
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = "{}", PermissionRead = 0, PermissionWrite = 0},
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = "{}", PermissionRead = 1, PermissionWrite = 1},
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = "{}", PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = {}, PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     if not status then
@@ -67,14 +67,14 @@ function test_storage(user_id)
       elseif r.Record == "c" then
         storage_version_c = r.Version
       end
-      assert(r.Value == "{}", "'r.Value' must be '{}'")
+      assert(#r.Value == 0, "'r.Value' must be '{}'")
     end
   end
 
   -- storage_write_overwrite
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = '{"hello":"world"}', PermissionRead = 0, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = {["hello"]="world"}, PermissionRead = 0, PermissionWrite = 0},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     if not status then
@@ -91,14 +91,14 @@ function test_storage(user_id)
     local Records = nk.storage_fetch(Record_keys)
     for i, r in ipairs(Records)
     do
-      assert(r.Value == '{"hello":"world"}', '"r.Value" must be {"hello":"world"}')
+      assert(r.Value.hello == 'world', '"r.Value" must be {"hello":"world"}')
     end
   end
 
   -- storage_write_overwrite_fail
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = '{"hello":"world"}', Version="*", PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = {["hello"]="world"}, Version="*", PermissionRead = 1, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     assert(status == false)
@@ -112,14 +112,14 @@ function test_storage(user_id)
     local Records = nk.storage_fetch(Record_keys)
     for i, r in ipairs(Records)
     do
-      assert(r.Value == "{}", "'r.Value' must be '{}'")
+      assert(#r.Value == 0, "'r.Value' must be '{}'")
     end
   end
 
   -- storage_write_overwrite_version_match
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = '{"hello":"world"}', Version=storage_version_c, PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = {["hello"]="world"}, Version=storage_version_c, PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     if not status then
@@ -131,8 +131,8 @@ function test_storage(user_id)
   -- storage_write_overwrite_mix_transaction_fail
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = '{"hello":"world"}', Version=storage_version_b, PermissionRead = 1, PermissionWrite = 1},
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = '{"hello":"world"}', Version="*", PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = {["hello"]="world"}, Version=storage_version_b, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = {["hello"]="world"}, Version="*", PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     if status then
@@ -158,9 +158,9 @@ function test_storage(user_id)
   -- storage_write_recreate
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = "{}", PermissionRead = 0, PermissionWrite = 0},
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = "{}", PermissionRead = 1, PermissionWrite = 1},
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = "{}", PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = user_id, Value = {}, PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     if not status then
@@ -179,16 +179,16 @@ function test_storage(user_id)
     local Records = nk.storage_fetch(Record_keys)
     for i, r in ipairs(Records)
     do
-      assert(r.Value == "{}", "'r.Value' must be '{}'")
+      assert(#r.Value == 0, "'r.Value' must be '{}'")
     end
   end
 
   -- storage_write_invalid_user
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nx.uuid_v4(), Value = "{}", PermissionRead = 0, PermissionWrite = 0},
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nx.uuid_v4(), Value = "{}", PermissionRead = 1, PermissionWrite = 1},
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nx.uuid_v4(), Value = "{}", PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 0, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     assert(status) -- we don't currently check whether user exists or not yet.
@@ -208,9 +208,9 @@ function test_storage(user_id)
 
   -- storage_list
   local new_Records = {
-    {Bucket = "mygame", Collection = "settingslist", Record = "b", UserId = user_id, Value = "{}", PermissionRead = 1, PermissionWrite = 0},
-    {Bucket = "mygame", Collection = "settingslist", Record = "a", UserId = user_id, Value = "{}", PermissionRead = 1, PermissionWrite = 1},
-    {Bucket = "mygame", Collection = "settingslist", Record = "c", UserId = user_id, Value = "{}", PermissionRead = 0, PermissionWrite = 1},
+    {Bucket = "mygame", Collection = "settingslist", Record = "b", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 0},
+    {Bucket = "mygame", Collection = "settingslist", Record = "a", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 1},
+    {Bucket = "mygame", Collection = "settingslist", Record = "c", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 1},
   }
   local status, res = pcall(nk.storage_write, new_Records)
   if not status then

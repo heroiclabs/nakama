@@ -42,7 +42,7 @@ func newRuntime() (*server.Runtime, error) {
 	}
 	c := server.NewRuntimeConfig()
 	c.Path = filepath.Join(DATA_PATH, "modules")
-	return server.NewRuntime(logger, logger, db, c)
+	return server.NewRuntime(logger, logger, db, c, nil)
 }
 
 func writeStatsModule() {
@@ -509,9 +509,9 @@ func TestStorageWrite(t *testing.T) {
 local nk = require("nakama")
 
 local new_records = {
-	{Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil, Value = "{}"},
-	{Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil, Value = "{}"},
-	{Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil, Value = "{}"}
+	{Bucket = "mygame", Collection = "settings", Record = "a", UserId = nil, Value = {}},
+	{Bucket = "mygame", Collection = "settings", Record = "b", UserId = nil, Value = {}},
+	{Bucket = "mygame", Collection = "settings", Record = "c", UserId = nil, Value = {}}
 }
 
 nk.storage_write(new_records)
@@ -537,7 +537,7 @@ local record_keys = {
 local records = nk.storage_fetch(record_keys)
 for i, r in ipairs(records)
 do
-  assert(r.Value == "{}", "'r.Value' must be '{}'")
+  assert(#r.Value == 0, "'r.Value' must be '{}'")
 end
 `)
 
