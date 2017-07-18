@@ -147,6 +147,20 @@ LIMIT $4
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			n.logger.Error("Could not create new cursor.", zap.Error(err))
 		}
+
+		return notifications, cursorBuf.Bytes(), nil
+	} else {
+		if len(cursor) != 0 {
+			return notifications, cursor, nil
+		}
+	}
+
+	newCursor := &notificationResumableCursor{
+		Expiry:         expiryNow,
+		NotificationID: make([]byte, 0),
+	}
+	if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+		n.logger.Error("Could not create new cursor.", zap.Error(err))
 	}
 
 	return notifications, cursorBuf.Bytes(), nil

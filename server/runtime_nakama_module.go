@@ -596,8 +596,9 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 			return 0
 		}
 
-		vm["value"] = ConvertMap(l, valueMap)
-		lv.RawSetInt(i+1, convertValue(l, vm))
+		lt := ConvertMap(l, vm)
+		lt.RawSetString("Value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
 	}
 
 	l.Push(lv)
@@ -669,12 +670,11 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 			l.ArgError(1, "expects a value in each key")
 			return 0
 		} else {
-			if vs, ok := v.(*lua.LTable); !ok {
+			if vs, ok := v.(map[string]interface{}); !ok {
 				l.ArgError(1, "value must be a table")
 				return 0
 			} else {
-				data := ConvertLuaTable(vs)
-				dataJson, err := json.Marshal(data)
+				dataJson, err := json.Marshal(vs)
 				if err != nil {
 					l.RaiseError("could not convert value to JSON: %v", err.Error())
 					return 0
