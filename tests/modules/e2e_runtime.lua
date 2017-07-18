@@ -139,10 +139,34 @@ do
   assert(object.hello == "world", "'object.hello' must equal 'world'")
 end
 
+-- json_decode_array
+do
+  local object = nx.json_decode('[{"hello": "world"}, {"hello": "world"}]')
+  assert(#object == 2)
+end
+
+-- json_decode_primitive
+do
+  local object = nx.json_decode('"hello"')
+  assert(object == "hello")
+end
+
 -- json_encode
 do
   local json = nx.json_encode({["id"] = "blah"})
   assert(json == '{"id":"blah"}', '"json" must equal "{"id":"blah"}"')
+end
+
+-- json_encode_array
+do
+  local json = nx.json_encode({{["id"] = "blah"},{["id"] = "blah"}})
+  assert(json == '[{"id":"blah"},{"id":"blah"}]', '"json" must equal "[{"id":"blah"}",{"id":"blah"}]')
+end
+
+-- json_encode_primitive
+do
+  local json = nx.json_encode("hello")
+  assert(json == '"hello"')
 end
 
 -- base64_encode_decode

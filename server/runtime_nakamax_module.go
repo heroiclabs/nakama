@@ -24,10 +24,11 @@ import (
 
 	"encoding/base64"
 
+	"encoding/hex"
+
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"encoding/hex"
 )
 
 type NakamaxModule struct {
@@ -131,17 +132,16 @@ func (nx *NakamaxModule) httpRequest(l *lua.LState) int {
 }
 
 func (nx *NakamaxModule) jsonEncode(l *lua.LState) int {
-	// TODO allow top-level arrays or primitives?
-	jsonTable := l.CheckTable(1)
+	jsonTable := l.Get(1)
 	if jsonTable == nil {
-		l.ArgError(1, "Expects a table to encode")
+		l.ArgError(1, "Expects a non-nil value to encode")
 		return 0
 	}
 
-	jsonData := ConvertLuaTable(jsonTable)
+	jsonData := convertLuaValue(jsonTable)
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
-		l.ArgError(1, "Error encoding to JSON")
+		l.RaiseError("Error encoding to JSON: %v", err.Error())
 		return 0
 	}
 
@@ -156,14 +156,13 @@ func (nx *NakamaxModule) jsonDecode(l *lua.LState) int {
 		return 0
 	}
 
-	// TODO allow top-level arrays or primitives?
-	var jsonData map[string]interface{}
+	var jsonData interface{}
 	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
 		l.RaiseError("Not a valid JSON string: %v", err.Error())
 		return 0
 	}
 
-	l.Push(ConvertMap(l, jsonData))
+	l.Push(convertValue(l, jsonData))
 	return 1
 }
 
