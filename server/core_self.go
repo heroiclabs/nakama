@@ -56,7 +56,7 @@ func SelfUpdate(logger *zap.Logger, db *sql.DB, updates []*SelfUpdateOp) (Error_
 			if e := tx.Commit(); e != nil {
 				logger.Error("Could not update user profile, commit error", zap.Error(e))
 				code = RUNTIME_EXCEPTION
-				err = errors.New("Could not update user profile, commit error")
+				err = errors.New("Could not update user profile")
 			}
 		}
 	}()
