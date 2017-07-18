@@ -73,6 +73,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_http":         n.registerHTTP,
 		"users_fetch_id":        n.usersFetchId,
 		"users_fetch_handle":    n.usersFetchHandle,
+		"users_update":          n.usersUpdate,
 		"users_ban":             n.usersBan,
 		"storage_list":          n.storageList,
 		"storage_fetch":         n.storageFetch,
@@ -296,6 +297,109 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) usersUpdate(l *lua.LState) int {
+	updatesTable := l.CheckTable(1)
+	if updatesTable == nil || updatesTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of user updates")
+		return 0
+	}
+
+	conversionError := ""
+	updates := make([]*SelfUpdateOp, 0)
+
+	updatesTable.ForEach(func(i lua.LValue, u lua.LValue) {
+		updateTable, ok := u.(*lua.LTable)
+		if !ok {
+			conversionError = "expects a valid set of user updates"
+			return
+		}
+
+		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			update := &SelfUpdateOp{}
+			switch k.String() {
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid user IDs in each update"
+					return
+				}
+				if uid, err := uuid.FromString(v.String()); err != nil {
+					conversionError = "expects valid user IDs in each update"
+					return
+				} else {
+					update.UserId = uid.Bytes()
+				}
+			case "Handle":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid handles in each update"
+					return
+				}
+				update.Handle = v.String()
+			case "Fullname":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid fullnames in each update"
+					return
+				}
+				update.Fullname = v.String()
+			case "Timezone":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid timezones in each update"
+					return
+				}
+				update.Timezone = v.String()
+			case "Location":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid locations in each update"
+					return
+				}
+				update.Location = v.String()
+			case "Lang":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid langs in each update"
+					return
+				}
+				update.Lang = v.String()
+			case "Metadata":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid metadata in each update"
+					return
+				}
+				update.Metadata = []byte(v.String())
+			case "AvatarUrl":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid avatar urls in each update"
+					return
+				}
+				update.AvatarUrl = v.String()
+			default:
+				conversionError = "unrecognised update key, expects a valid set of user updates"
+				return
+			}
+
+			// Check it's a valid update op.
+			if len(update.UserId) == 0 {
+				conversionError = "expects each update to contain a user ID"
+				return
+			}
+			if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
+				conversionError = "expects each update to contain at least one field to change"
+				return
+			}
+			updates = append(updates, update)
+		})
+	})
+
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
+	}
+
+	if _, err := SelfUpdate(n.logger, n.db, updates); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to update users: %s", err.Error()))
+	}
+
+	return 0
 }
 
 func (n *NakamaModule) usersBan(l *lua.LState) int {

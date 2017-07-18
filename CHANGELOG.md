@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - New storage list feature.
 - Ban users and create groups from within the Runtime environment.
+- Update users from within the Runtime environment.
 - New In-App Purchase validation feature. 
 - New In-App Notification feature.
 
