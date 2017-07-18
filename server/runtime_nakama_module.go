@@ -332,43 +332,43 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 				}
 			case "Handle":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid handles in each update, when provided"
+					conversionError = "expects valid handles in each update"
 					return
 				}
 				update.Handle = v.String()
 			case "Fullname":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid fullnames in each update, when provided"
+					conversionError = "expects valid fullnames in each update"
 					return
 				}
 				update.Fullname = v.String()
 			case "Timezone":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid timezones in each update, when provided"
+					conversionError = "expects valid timezones in each update"
 					return
 				}
 				update.Timezone = v.String()
 			case "Location":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid locations in each update, when provided"
+					conversionError = "expects valid locations in each update"
 					return
 				}
 				update.Location = v.String()
 			case "Lang":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid langs in each update, when provided"
+					conversionError = "expects valid langs in each update"
 					return
 				}
 				update.Lang = v.String()
 			case "Metadata":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid metadata in each update, when provided"
+					conversionError = "expects valid metadata in each update"
 					return
 				}
 				update.Metadata = []byte(v.String())
 			case "AvatarUrl":
 				if v.Type() != lua.LTString {
-					conversionError = "expects valid avatar urls in each update, when provided"
+					conversionError = "expects valid avatar urls in each update"
 					return
 				}
 				update.AvatarUrl = v.String()
