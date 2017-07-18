@@ -328,8 +328,10 @@ func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Req
 		Message: error,
 		Request: authRequest,
 	}}}
-	httpCode := 401
+	httpCode := 500
 	switch errorCode {
+	case RUNTIME_EXCEPTION:
+		httpCode = 500
 	case AUTH_ERROR:
 		httpCode = 401
 	case RUNTIME_FUNCTION_EXCEPTION:
@@ -341,7 +343,7 @@ func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Req
 	case USER_REGISTER_INUSE:
 		httpCode = 401
 	default:
-		httpCode = 401
+		httpCode = 500
 	}
 	a.sendAuthResponse(w, r, httpCode, authResponse)
 }
@@ -430,7 +432,7 @@ func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) ([]byt
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "device"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -462,7 +464,7 @@ func (a *authenticationService) loginFacebook(authReq *AuthenticateRequest) ([]b
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "facebook"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -494,7 +496,7 @@ func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) ([]byt
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "google"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -524,7 +526,7 @@ func (a *authenticationService) loginGameCenter(authReq *AuthenticateRequest) ([
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "game center"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -560,7 +562,7 @@ func (a *authenticationService) loginSteam(authReq *AuthenticateRequest) ([]byte
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "steam"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -593,7 +595,7 @@ func (a *authenticationService) loginEmail(authReq *AuthenticateRequest) ([]byte
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "email"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -626,7 +628,7 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "custom"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
@@ -664,7 +666,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	tx, err := a.db.Begin()
 	if err != nil {
 		a.logger.Warn("Could not register, transaction begin error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	userID, handle, errorMessage, errorCode := registerFunc(tx, authReq)
@@ -682,7 +684,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	err = tx.Commit()
 	if err != nil {
 		a.logger.Error("Could not commit transaction", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	// Run any post-registration steps outside the main registration transaction.
@@ -727,7 +729,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new device profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -736,15 +738,15 @@ WHERE NOT EXISTS
 	res, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 	if err != nil {
 		a.logger.Warn("Could not register, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -782,7 +784,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Facebook profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -790,7 +792,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -831,7 +833,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Google profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -839,7 +841,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -878,7 +880,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Game Center profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -886,7 +888,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -931,7 +933,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Steam profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -939,7 +941,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -986,7 +988,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new email profile, query error", zap.Error(err))
-		return nil, "", "Email already in use", AUTH_ERROR
+		return nil, "", "Email already in use", RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -994,7 +996,7 @@ WHERE NOT EXISTS
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "Email already in use", AUTH_ERROR
+		return nil, "", "Email already in use", RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
@@ -1031,7 +1033,7 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new custom profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
@@ -1040,7 +1042,7 @@ WHERE NOT EXISTS
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
 		a.logger.Error("Could not register new custom profile, user edge metadata error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, "", 0
