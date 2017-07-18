@@ -3,29 +3,29 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.0.0-rc.1] - 2017-07-18
 ### Added
 - New storage list feature.
-- Ban users and create groups from within the Runtime environment.
-- Update users from within the Runtime environment.
-- New In-App Purchase validation feature. 
+- Ban users and create groups from within the code runtime.
+- Update users from within the code runtime.
+- New In-App Purchase validation feature.
 - New In-App Notification feature.
 
 ### Changed
 - Run Facebook friends import after registration completes.
-- Streamline command line flags to be inline with the config file.
-- Restructure and stabilize API messages.
-- Update Runtime modules to use plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
-- Script runtime JSON encoder/decoder now support non-object JSON documents.
-- Script runtime storage bindings now expect and return Lua tables for values.
-- Attempting to login with an ID that does not exist will return a new dedicated error code.
-- Attempting to register with an ID that already exists will return a new dedicated error code.
+- Adjust command line flags to be follow pattern in the config file.
+- Extend the server protocol to be batch-orientated for more message types.
+- Update code runtime modules to use plural function names for batch operations.
+- The code runtime JSON encoder/decoder now support root level JSON array literals.
+- The code runtime storage functions now expect and return Lua tables for values.
+- Login attempts with an ID that does not exist will return a new dedicated error code.
+- Register attempts with an ID that already exists will return a new dedicated error code.
 
 ### Fixed
-- Invocation type was always set to "Before" in After Runtime scripts.
-- User ID was not passed to context in After Authentication invocations.
-- Authentication runtime invocation messages were named with leading "." and trailing "_".
-- Attempting to link a device ID that is already in use will return the correct "link in use" error code.
+- The runtime code for the after hook message was set to "before" incorrectly.
+- The user ID was not passed into the function context in "after" authentication messages.
+- Authentication messages required hook names which began with "." and "\_".
+- A device ID used in a link message which was already in use now returns "link in use" error code.
 
 ## [0.13.1] - 2017-06-08
 ### Added
