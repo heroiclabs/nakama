@@ -68,12 +68,17 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 	}
 	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.userID.Bytes())
 	if err != nil {
-		logger.Warn("Could not link, query error", zap.Error(err))
-		err = txn.Rollback()
-		if err != nil {
-			logger.Warn("Could not link, transaction rollback error", zap.Error(err))
+		// In any error case the link has failed, so we can rollback before checking what went wrong.
+		if e := txn.Rollback(); e != nil {
+			logger.Warn("Could not link, transaction rollback error", zap.Error(e))
 		}
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+
+		if strings.HasSuffix(err.Error(), "violates unique constraint \"primary\"") {
+			session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Device ID in use"))
+		} else {
+			logger.Warn("Could not link, query error", zap.Error(err))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		}
 		return
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
@@ -104,7 +109,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 	}
 	err = txn.Commit()
 	if err != nil {
-		logger.Warn("Could not register, transaction commit error", zap.Error(err))
+		logger.Warn("Could not link, transaction commit error", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
 		return
 	}

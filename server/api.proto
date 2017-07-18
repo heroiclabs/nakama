@@ -52,24 +52,28 @@ message Error {
     BAD_INPUT = 3;
     /// Authentication failure.
     AUTH_ERROR = 4;
+    /// Login failed because ID/device/email did not exist.
+    USER_NOT_FOUND = 5;
+    /// Registration failed because ID/device/email exists.
+    USER_REGISTER_INUSE = 6;
     /// Linking operation failed because link exists.
-    USER_LINK_INUSE = 5;
+    USER_LINK_INUSE = 7;
     /// Linking operation failed because third-party service was unreachable.
-    USER_LINK_PROVIDER_UNAVAILABLE = 6;
+    USER_LINK_PROVIDER_UNAVAILABLE = 8;
     /// Unlinking operation failed because you cannot unlink last ID.
-    USER_UNLINK_DISALLOWED = 7;
+    USER_UNLINK_DISALLOWED = 9;
     /// Handle is in-use by another user.
-    USER_HANDLE_INUSE = 8;
+    USER_HANDLE_INUSE = 10;
     /// Group names must be unique and it's already in use.
-    GROUP_NAME_INUSE = 9;
+    GROUP_NAME_INUSE = 11;
     /// Storage write operation failed.
-    STORAGE_REJECTED = 10;
+    STORAGE_REJECTED = 12;
     /// Match with given ID was not found in the system.
-    MATCH_NOT_FOUND = 11;
+    MATCH_NOT_FOUND = 13;
     /// Runtime function name was not found in system registry.
-    RUNTIME_FUNCTION_NOT_FOUND = 12;
+    RUNTIME_FUNCTION_NOT_FOUND = 14;
     /// Runtime function caused an internal server error and did not complete.
-    RUNTIME_FUNCTION_EXCEPTION = 13;
+    RUNTIME_FUNCTION_EXCEPTION = 15;
   }
 
   /// Error code - must be one of the Error.Code enums above.

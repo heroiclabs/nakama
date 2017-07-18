@@ -16,11 +16,14 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Streamline command line flags to be inline with the config file.
 - Restructure and stabilize API messages.
 - Update Runtime modules to use plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
+- Attempting to login with an ID that does not exist will return a new dedicated error code.
+- Attempting to register with an ID that already exists will return a new dedicated error code.
 
 ### Fixed
 - Invocation type was always set to "Before" in After Runtime scripts.
 - User ID was not passed to context in After Authentication invocations.
 - Authentication runtime invocation messages were named with leading "." and trailing "_".
+- Attempting to link a device ID that is already in use will return the correct "link in use" error code.
 
 ## [0.13.1] - 2017-06-08
 ### Added
