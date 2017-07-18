@@ -16,6 +16,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Streamline command line flags to be inline with the config file.
 - Restructure and stabilize API messages.
 - Update Runtime modules to use plural function names for batch operations. (`users_fetch_id` and `users_fetch_handle`)
+- Script runtime JSON encoder/decoder now support non-object JSON documents.
+- Script runtime storage bindings now expect and return Lua tables for values.
 - Attempting to login with an ID that does not exist will return a new dedicated error code.
 - Attempting to register with an ID that already exists will return a new dedicated error code.
 
