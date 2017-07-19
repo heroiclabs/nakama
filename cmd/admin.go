@@ -59,7 +59,7 @@ func createLeaderboard(args []string, logger *zap.Logger) {
 	var metadata string
 
 	flags := flag.NewFlagSet("admin", flag.ExitOnError)
-	flags.StringVar(&dsns, "db", "root@localhost:26257", "CockroachDB JDBC connection details.")
+	flags.StringVar(&dsns, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
 	flags.StringVar(&id, "id", "", "ID to assign to the leaderboard.")
 	flags.BoolVar(&authoritative, "authoritative", false, "True if clients may not submit scores directly, false otherwise.")
 	flags.StringVar(&sortOrder, "sort", "desc", "Leaderboard sort order, 'asc' or 'desc'.")

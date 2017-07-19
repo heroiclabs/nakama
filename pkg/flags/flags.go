@@ -479,16 +479,16 @@ func (fm *FlagMaker) defineFlag(name string, value reflect.Value, usage string) 
 }
 
 func (fm *FlagMaker) defineStringSlice(name string, value reflect.Value, usage string) {
-	ptrValue := value.Interface().([]string)
+	ptrValue := value.Addr().Interface().(*[]string)
 	fm.fs.Var(newStringSlice(ptrValue), name, usage)
 }
 
 func (fm *FlagMaker) defineIntSlice(name string, value reflect.Value, usage string) {
-	ptrValue := value.Interface().([]int)
+	ptrValue := value.Addr().Interface().(*[]int)
 	fm.fs.Var(newIntSlice(ptrValue), name, usage)
 }
 
 func (fm *FlagMaker) defineFloat64Slice(name string, value reflect.Value, usage string) {
-	ptrValue := value.Interface().([]float64)
+	ptrValue := value.Addr().Interface().(*[]float64)
 	fm.fs.Var(newFloat64Slice(ptrValue), name, usage)
 }

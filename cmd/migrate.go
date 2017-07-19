@@ -240,7 +240,7 @@ func (ms *migrationService) status() {
 
 func (ms *migrationService) parseSubcommand(args []string) {
 	flags := flag.NewFlagSet("migrate", flag.ExitOnError)
-	flags.StringVar(&ms.DSNS, "db", "root@localhost:26257", "CockroachDB JDBC connection details.")
+	flags.StringVar(&ms.DSNS, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
 	flags.IntVar(&ms.Limit, "limit", defaultLimit, "Number of migrations to apply forwards or backwards.")
 
 	if err := flags.Parse(args); err != nil {

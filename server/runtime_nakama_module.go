@@ -943,20 +943,21 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 				}
 				p.Private = lua.LVAsBool(v)
 			case "Metadata":
-				if v.Type() != lua.LTString {
+				if v.Type() != lua.LTTable {
 					conversionError = true
-					l.ArgError(1, "expects Metadata to be string")
+					l.ArgError(1, "expects Metadata to be a table")
 					return
 				}
 
-				j := []byte(v.String())
-				maybeJson := make(map[string]interface{})
-				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
+				metadataMap := ConvertLuaTable(v.(*lua.LTable))
+				metadataBytes, err := json.Marshal(metadataMap)
+				if err != nil {
 					conversionError = true
-					l.ArgError(1, "expects Metadata to be JSON")
+					l.ArgError(1, fmt.Sprintf("failed to convert metadata: %s", err.Error()))
 					return
 				}
-				p.Metadata = j
+
+				p.Metadata = metadataBytes
 			case "CreatorId":
 				if v.Type() != lua.LTString {
 					conversionError = true
@@ -1046,18 +1047,21 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 				}
 				notification.Subject = v.String()
 			case "Content":
-				if v.Type() != lua.LTString {
+				if v.Type() != lua.LTTable {
 					conversionError = true
-					l.ArgError(1, "expects Content to be string")
+					l.ArgError(1, "expects Content to be a table")
 					return
 				}
-				j := []byte(v.String())
-				maybeJson := make(map[string]interface{})
-				if jsonErr := json.Unmarshal(j, &maybeJson); jsonErr != nil {
-					l.ArgError(1, "expects Content to be a valid JSON")
+
+				contentMap := ConvertLuaTable(v.(*lua.LTable))
+				contentBytes, err := json.Marshal(contentMap)
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, fmt.Sprintf("failed to convert content: %s", err.Error()))
 					return
 				}
-				notification.Content = j
+
+				notification.Content = contentBytes
 			case "Code":
 				if v.Type() != lua.LTNumber {
 					conversionError = true

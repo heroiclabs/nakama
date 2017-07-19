@@ -32,12 +32,10 @@ import (
 type Config interface {
 	GetName() string
 	GetDataDir() string
-	GetPort() int
-	GetDashboardPort() int
-	GetDB() []string
+	GetDashboard() *DashboardConfig
 	GetLog() *LogConfig
 	GetSession() *SessionConfig
-	GetTransport() *TransportConfig
+	GetSocket() *SocketConfig
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
@@ -86,19 +84,17 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 }
 
 type config struct {
-	Name          string           `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique"`
-	Config        string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	Datadir       string           `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Port          int              `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
-	DashboardPort int              `yaml:"dashboard_port" json:"dashboard_port" usage:"The port for accepting connections to the dashboard, listening on all interfaces."`
-	DB            []string         `yaml:"db" json:"db" usage:"List of fully qualified JDBC addresses of CockroachDB servers."`
-	Log           *LogConfig       `yaml:"log" json:"log" usage:"Log levels and output"`
-	Session       *SessionConfig   `yaml:"session" json:"session" usage:"Session authentication settings"`
-	Transport     *TransportConfig `yaml:"transport" json:"transport" usage:"Data transport configurations"`
-	Database      *DatabaseConfig  `yaml:"database" json:"database" usage:"Database connection settings"`
-	Social        *SocialConfig    `yaml:"social" json:"social" usage:"Properties for social providers"`
-	Runtime       *RuntimeConfig   `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
-	Purchase      *PurchaseConfig  `yaml:"purchase" json:"purchase" usage:"In-App Purchase provider configuration"`
+	Name      string           `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique"`
+	Config    string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	Datadir   string           `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Dashboard *DashboardConfig `yaml:"dashboard" json:"dashboard" usage:"Dashboard configuration"`
+	Log       *LogConfig       `yaml:"log" json:"log" usage:"Log levels and output"`
+	Session   *SessionConfig   `yaml:"session" json:"session" usage:"Session authentication settings"`
+	Socket    *SocketConfig    `yaml:"socket" json:"socket" usage:"Socket configurations"`
+	Database  *DatabaseConfig  `yaml:"database" json:"database" usage:"Database connection settings"`
+	Social    *SocialConfig    `yaml:"social" json:"social" usage:"Properties for social providers"`
+	Runtime   *RuntimeConfig   `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
+	Purchase  *PurchaseConfig  `yaml:"purchase" json:"purchase" usage:"In-App Purchase provider configuration"`
 }
 
 // NewConfig constructs a Config struct which represents server settings.
@@ -107,17 +103,16 @@ func NewConfig() *config {
 	dataDirectory := filepath.Join(cwd, "data")
 	nodeName := "nakama-" + strings.Split(uuid.NewV4().String(), "-")[3]
 	return &config{
-		Name:          nodeName,
-		Datadir:       dataDirectory,
-		Port:          7350,
-		DashboardPort: 7351,
-		DB:            []string{"root@localhost:26257"},
-		Session:       NewSessionConfig(),
-		Transport:     NewTransportConfig(),
-		Database:      NewDatabaseConfig(),
-		Social:        NewSocialConfig(),
-		Runtime:       NewRuntimeConfig(),
-		Purchase:      NewPurchaseConfig(),
+		Name:      nodeName,
+		Datadir:   dataDirectory,
+		Dashboard: NewDashboardConfig(),
+		Log:       NewLogConfig(),
+		Session:   NewSessionConfig(),
+		Socket:    NewSocketConfig(),
+		Database:  NewDatabaseConfig(),
+		Social:    NewSocialConfig(),
+		Runtime:   NewRuntimeConfig(),
+		Purchase:  NewPurchaseConfig(),
 	}
 }
 
@@ -129,16 +124,8 @@ func (c *config) GetDataDir() string {
 	return c.Datadir
 }
 
-func (c *config) GetPort() int {
-	return c.Port
-}
-
-func (c *config) GetDashboardPort() int {
-	return c.DashboardPort
-}
-
-func (c *config) GetDB() []string {
-	return c.DB
+func (c *config) GetDashboard() *DashboardConfig {
+	return c.Dashboard
 }
 
 func (c *config) GetLog() *LogConfig {
@@ -149,8 +136,8 @@ func (c *config) GetSession() *SessionConfig {
 	return c.Session
 }
 
-func (c *config) GetTransport() *TransportConfig {
-	return c.Transport
+func (c *config) GetSocket() *SocketConfig {
+	return c.Socket
 }
 
 func (c *config) GetDatabase() *DatabaseConfig {
@@ -167,6 +154,18 @@ func (c *config) GetRuntime() *RuntimeConfig {
 
 func (c *config) GetPurchase() *PurchaseConfig {
 	return c.Purchase
+}
+
+// DashboardConfig is configuration relevant to the dashboard
+type DashboardConfig struct {
+	Port int `yaml:"port" json:"port" usage:"The port for accepting connections to the dashboard, listening on all interfaces."`
+}
+
+// NewSessionConfig creates a new SessionConfig struct
+func NewDashboardConfig() *DashboardConfig {
+	return &DashboardConfig{
+		Port: 7351,
+	}
 }
 
 // LogConfig is configuration relevant to logging levels and output
@@ -202,9 +201,10 @@ func NewSessionConfig() *SessionConfig {
 	}
 }
 
-// TransportConfig is configuration relevant to the transport socket and protocol
-type TransportConfig struct {
+// SocketConfig is configuration relevant to the transport socket and protocol
+type SocketConfig struct {
 	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
+	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
 	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`
@@ -212,9 +212,10 @@ type TransportConfig struct {
 }
 
 // NewTransportConfig creates a new TransportConfig struct
-func NewTransportConfig() *TransportConfig {
-	return &TransportConfig{
+func NewSocketConfig() *SocketConfig {
+	return &SocketConfig{
 		ServerKey:           "defaultkey",
+		Port:                7350,
 		MaxMessageSizeBytes: 1024,
 		WriteWaitMs:         5000,
 		PongWaitMs:          10000,
@@ -224,14 +225,16 @@ func NewTransportConfig() *TransportConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage
 type DatabaseConfig struct {
-	ConnMaxLifetimeMs int `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
-	MaxOpenConns      int `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database."`
-	MaxIdleConns      int `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database."`
+	Addresses         []string `yaml:"address" json:"address" usage:"List of CockroachDB servers (username:password@address:port/dbname)"`
+	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
+	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database."`
+	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database."`
 }
 
 // NewDatabaseConfig creates a new DatabaseConfig struct
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
+		Addresses:         []string{"root@localhost:26257"},
 		ConnMaxLifetimeMs: 60000,
 		MaxOpenConns:      0,
 		MaxIdleConns:      0,

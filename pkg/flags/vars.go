@@ -146,12 +146,14 @@ func (f *uint32Value) String() string { return fmt.Sprintf("%v", *f) }
 
 // string slice
 
+// string slice
+
 type strSlice struct {
-	s   []string
+	s   *[]string
 	set bool // if there a flag defined via command line, the slice will be cleared first.
 }
 
-func newStringSlice(p []string) *strSlice {
+func newStringSlice(p *[]string) *strSlice {
 	return &strSlice{
 		s:   p,
 		set: false,
@@ -160,15 +162,15 @@ func newStringSlice(p []string) *strSlice {
 
 func (s *strSlice) Set(str string) error {
 	if !s.set {
-		s.s = (s.s)[:0]
+		*s.s = (*s.s)[:0]
 		s.set = true
 	}
-	s.s = append(s.s, str)
+	*s.s = append(*s.s, str)
 	return nil
 }
 
 func (s *strSlice) Get() interface{} {
-	return []string(s.s)
+	return []string(*s.s)
 }
 
 func (s *strSlice) String() string {
@@ -177,11 +179,11 @@ func (s *strSlice) String() string {
 
 // int slice
 type intSlice struct {
-	s   []int
+	s   *[]int
 	set bool
 }
 
-func newIntSlice(p []int) *intSlice {
+func newIntSlice(p *[]int) *intSlice {
 	return &intSlice{
 		s:   p,
 		set: false,
@@ -194,15 +196,15 @@ func (is *intSlice) Set(str string) error {
 		return err
 	}
 	if !is.set {
-		is.s = (is.s)[:0]
+		*is.s = (*is.s)[:0]
 		is.set = true
 	}
-	is.s = append(is.s, i)
+	*is.s = append(*is.s, i)
 	return nil
 }
 
 func (is *intSlice) Get() interface{} {
-	return []int(is.s)
+	return []int(*is.s)
 }
 
 func (is *intSlice) String() string {
@@ -211,11 +213,11 @@ func (is *intSlice) String() string {
 
 // float64 slice
 type float64Slice struct {
-	s   []float64
+	s   *[]float64
 	set bool
 }
 
-func newFloat64Slice(p []float64) *float64Slice {
+func newFloat64Slice(p *[]float64) *float64Slice {
 	return &float64Slice{
 		s:   p,
 		set: false,
@@ -228,15 +230,15 @@ func (is *float64Slice) Set(str string) error {
 		return err
 	}
 	if !is.set {
-		is.s = (is.s)[:0]
+		*is.s = (*is.s)[:0]
 		is.set = true
 	}
-	is.s = append(is.s, i)
+	*is.s = append(*is.s, i)
 	return nil
 }
 
 func (is *float64Slice) Get() interface{} {
-	return []float64(is.s)
+	return []float64(*is.s)
 }
 
 func (is *float64Slice) String() string {
