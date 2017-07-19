@@ -233,12 +233,12 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 
 		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetPort()), handlerWithCORS)
+		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS)
 		if err != nil {
 			logger.Fatal("Client listener failed", zap.Error(err))
 		}
 	}()
-	logger.Info("Client", zap.Int("port", a.config.GetPort()))
+	logger.Info("Client", zap.Int("port", a.config.GetSocket().Port))
 }
 
 func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Request,
@@ -250,12 +250,12 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		a.sendAuthError(w, r, "Missing or invalid authentication header", AUTH_ERROR, nil)
 		return
-	} else if username != a.config.GetTransport().ServerKey {
+	} else if username != a.config.GetSocket().ServerKey {
 		a.sendAuthError(w, r, "Invalid server key", AUTH_ERROR, nil)
 		return
 	}
 
-	data, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, a.config.GetTransport().MaxMessageSizeBytes))
+	data, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, a.config.GetSocket().MaxMessageSizeBytes))
 	if err != nil {
 		a.logger.Warn("Could not read body", zap.Error(err))
 		a.sendAuthError(w, r, "Could not read request body", AUTH_ERROR, nil)

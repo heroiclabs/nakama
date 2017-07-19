@@ -51,7 +51,7 @@ func AdminParse(args []string, logger *zap.Logger) {
 }
 
 func createLeaderboard(args []string, logger *zap.Logger) {
-	var dsns string
+	var dbAddress string
 	var id string
 	var authoritative bool
 	var sortOrder string
@@ -59,7 +59,7 @@ func createLeaderboard(args []string, logger *zap.Logger) {
 	var metadata string
 
 	flags := flag.NewFlagSet("admin", flag.ExitOnError)
-	flags.StringVar(&dsns, "db", "root@localhost:26257", "CockroachDB JDBC connection details.")
+	flags.StringVar(&dbAddress, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
 	flags.StringVar(&id, "id", "", "ID to assign to the leaderboard.")
 	flags.BoolVar(&authoritative, "authoritative", false, "True if clients may not submit scores directly, false otherwise.")
 	flags.StringVar(&sortOrder, "sort", "desc", "Leaderboard sort order, 'asc' or 'desc'.")
@@ -70,7 +70,7 @@ func createLeaderboard(args []string, logger *zap.Logger) {
 		logger.Fatal("Could not parse admin flags.")
 	}
 
-	if dsns == "" {
+	if dbAddress == "" {
 		logger.Fatal("Database connection details are required.")
 	}
 
@@ -118,13 +118,13 @@ func createLeaderboard(args []string, logger *zap.Logger) {
 	}
 	params = append(params, metadataBytes)
 
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", dsns)
+	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", dbAddress)
 	url, err := url.Parse(rawurl)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
 
-	logger.Info("Database connection", zap.String("dsns", dsns))
+	logger.Info("Database connection", zap.String("db", dbAddress))
 
 	// Default to "nakama" as DB name.
 	dbname := "nakama"

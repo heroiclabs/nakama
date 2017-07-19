@@ -60,7 +60,7 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") //needs to be last
 
 	go func() {
-		bindAddr := fmt.Sprintf(":%d", config.GetDashboardPort())
+		bindAddr := fmt.Sprintf(":%d", config.GetDashboard().Port)
 		handlerWithCORS := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(service.mux)
 		err := http.ListenAndServe(bindAddr, handlerWithCORS)
 		if err != nil {
@@ -71,7 +71,7 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	if err != nil {
 		hostname = "127.0.0.1"
 	}
-	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboardPort())))
+	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
 
 	return service
 }

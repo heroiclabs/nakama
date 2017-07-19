@@ -61,7 +61,7 @@ func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle stri
 		expiry:           expiry,
 		conn:             websocketConn,
 		stopped:          false,
-		pingTicker:       time.NewTicker(time.Duration(config.GetTransport().PingPeriodMs) * time.Millisecond),
+		pingTicker:       time.NewTicker(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
 		pingTickerStopCh: make(chan bool),
 		unregister:       unregister,
 	}
@@ -69,10 +69,10 @@ func NewSession(logger *zap.Logger, config Config, userID uuid.UUID, handle stri
 
 func (s *session) Consume(processRequest func(logger *zap.Logger, session *session, envelope *Envelope)) {
 	defer s.cleanupClosedConnection()
-	s.conn.SetReadLimit(s.config.GetTransport().MaxMessageSizeBytes)
-	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetTransport().PongWaitMs) * time.Millisecond))
+	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
+	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
 	s.conn.SetPongHandler(func(string) error {
-		s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetTransport().PongWaitMs) * time.Millisecond))
+		s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
 		return nil
 	})
 
@@ -122,7 +122,7 @@ func (s *session) pingNow() bool {
 		s.Unlock()
 		return false
 	}
-	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
+	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
 	s.Unlock()
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *session) SendBytes(payload []byte) error {
 		return nil
 	}
 
-	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs) * time.Millisecond))
+	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
 	err := s.conn.WriteMessage(websocket.BinaryMessage, payload)
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
@@ -199,7 +199,7 @@ func (s *session) close() {
 
 	s.pingTicker.Stop()
 	s.pingTickerStopCh <- true
-	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetTransport().WriteWaitMs)*time.Millisecond))
+	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
