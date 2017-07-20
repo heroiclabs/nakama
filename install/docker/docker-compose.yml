@@ -24,7 +24,7 @@ services:
     depends_on:
       - cockroachdb
     volumes:
-      - data:/var/lib/nakama
+      - ./nakama/data:/nakama/data
     expose:
       - "7350"
       - "7351"
