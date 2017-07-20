@@ -106,6 +106,166 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 	return 1
 }
 
+func (n *NakamaModule) uuidV4(l *lua.LState) int {
+	// TODO ensure there were no arguments to the function
+	l.Push(lua.LString(uuid.NewV4().String()))
+	return 1
+}
+
+func (n *NakamaModule) httpRequest(l *lua.LState) int {
+	url := l.CheckString(1)
+	method := l.CheckString(2)
+	headers := l.CheckTable(3)
+	body := l.OptString(4, "")
+	if url == "" {
+		l.ArgError(1, "Expects URL string")
+		return 0
+	}
+	if method == "" {
+		l.ArgError(2, "Expects method string")
+		return 0
+	}
+
+	// Prepare request body, if any.
+	var requestBody io.Reader
+	if body != "" {
+		requestBody = strings.NewReader(body)
+	}
+	// Prepare the request.
+	req, err := http.NewRequest(method, url, requestBody)
+	if err != nil {
+		l.RaiseError("HTTP request error: %v", err.Error())
+		return 0
+	}
+	// Apply any request headers.
+	httpHeaders := ConvertLuaTable(headers)
+	for k, v := range httpHeaders {
+		if vs, ok := v.(string); !ok {
+			l.RaiseError("HTTP header values must be strings")
+			return 0
+		} else {
+			req.Header.Add(k, vs)
+		}
+	}
+	// Execute the request.
+	resp, err := n.client.Do(req)
+	if err != nil {
+		l.RaiseError("HTTP request error: %v", err.Error())
+		return 0
+	}
+	// Read the response body.
+	responseBody, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		l.RaiseError("HTTP response body error: %v", err.Error())
+		return 0
+	}
+	// Read the response headers.
+	responseHeaders := make(map[string]interface{}, len(resp.Header))
+	for k, vs := range resp.Header {
+		// TODO accept multiple values per header
+		for _, v := range vs {
+			responseHeaders[k] = v
+			break
+		}
+	}
+
+	l.Push(lua.LNumber(resp.StatusCode))
+	l.Push(ConvertMap(l, responseHeaders))
+	l.Push(lua.LString(string(responseBody)))
+	return 3
+}
+
+func (n *NakamaModule) jsonEncode(l *lua.LState) int {
+	jsonTable := l.Get(1)
+	if jsonTable == nil {
+		l.ArgError(1, "Expects a non-nil value to encode")
+		return 0
+	}
+
+	jsonData := convertLuaValue(jsonTable)
+	jsonBytes, err := json.Marshal(jsonData)
+	if err != nil {
+		l.RaiseError("Error encoding to JSON: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(string(jsonBytes)))
+	return 1
+}
+
+func (n *NakamaModule) jsonDecode(l *lua.LState) int {
+	jsonString := l.CheckString(1)
+	if jsonString == "" {
+		l.ArgError(1, "Expects JSON string")
+		return 0
+	}
+
+	var jsonData interface{}
+	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
+		l.RaiseError("Not a valid JSON string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(convertValue(l, jsonData))
+	return 1
+}
+
+func (n *NakamaModule) base64Encode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output := base64.StdEncoding.EncodeToString([]byte(input))
+	l.Push(lua.LString(output))
+	return 1
+}
+func (n *NakamaModule) base64Decode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output, err := base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		l.RaiseError("Not a valid base64 string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(output))
+	return 1
+}
+func (n *NakamaModule) base16Encode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output := hex.EncodeToString([]byte(input))
+	l.Push(lua.LString(output))
+	return 1
+}
+func (n *NakamaModule) base16decode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "Expects string")
+		return 0
+	}
+
+	output, err := hex.DecodeString(input)
+	if err != nil {
+		l.RaiseError("Not a valid base16 string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(output))
+	return 1
+}
+
 func (n *NakamaModule) loggerInfo(l *lua.LState) int {
 	message := l.CheckString(1)
 	if message == "" {
@@ -1154,164 +1314,4 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 	}
 
 	return 0
-}
-
-func (n *NakamaModule) uuidV4(l *lua.LState) int {
-	// TODO ensure there were no arguments to the function
-	l.Push(lua.LString(uuid.NewV4().String()))
-	return 1
-}
-
-func (n *NakamaModule) httpRequest(l *lua.LState) int {
-	url := l.CheckString(1)
-	method := l.CheckString(2)
-	headers := l.CheckTable(3)
-	body := l.OptString(4, "")
-	if url == "" {
-		l.ArgError(1, "Expects URL string")
-		return 0
-	}
-	if method == "" {
-		l.ArgError(2, "Expects method string")
-		return 0
-	}
-
-	// Prepare request body, if any.
-	var requestBody io.Reader
-	if body != "" {
-		requestBody = strings.NewReader(body)
-	}
-	// Prepare the request.
-	req, err := http.NewRequest(method, url, requestBody)
-	if err != nil {
-		l.RaiseError("HTTP request error: %v", err.Error())
-		return 0
-	}
-	// Apply any request headers.
-	httpHeaders := ConvertLuaTable(headers)
-	for k, v := range httpHeaders {
-		if vs, ok := v.(string); !ok {
-			l.RaiseError("HTTP header values must be strings")
-			return 0
-		} else {
-			req.Header.Add(k, vs)
-		}
-	}
-	// Execute the request.
-	resp, err := n.client.Do(req)
-	if err != nil {
-		l.RaiseError("HTTP request error: %v", err.Error())
-		return 0
-	}
-	// Read the response body.
-	responseBody, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		l.RaiseError("HTTP response body error: %v", err.Error())
-		return 0
-	}
-	// Read the response headers.
-	responseHeaders := make(map[string]interface{}, len(resp.Header))
-	for k, vs := range resp.Header {
-		// TODO accept multiple values per header
-		for _, v := range vs {
-			responseHeaders[k] = v
-			break
-		}
-	}
-
-	l.Push(lua.LNumber(resp.StatusCode))
-	l.Push(ConvertMap(l, responseHeaders))
-	l.Push(lua.LString(string(responseBody)))
-	return 3
-}
-
-func (n *NakamaModule) jsonEncode(l *lua.LState) int {
-	jsonTable := l.Get(1)
-	if jsonTable == nil {
-		l.ArgError(1, "Expects a non-nil value to encode")
-		return 0
-	}
-
-	jsonData := convertLuaValue(jsonTable)
-	jsonBytes, err := json.Marshal(jsonData)
-	if err != nil {
-		l.RaiseError("Error encoding to JSON: %v", err.Error())
-		return 0
-	}
-
-	l.Push(lua.LString(string(jsonBytes)))
-	return 1
-}
-
-func (n *NakamaModule) jsonDecode(l *lua.LState) int {
-	jsonString := l.CheckString(1)
-	if jsonString == "" {
-		l.ArgError(1, "Expects JSON string")
-		return 0
-	}
-
-	var jsonData interface{}
-	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
-		l.RaiseError("Not a valid JSON string: %v", err.Error())
-		return 0
-	}
-
-	l.Push(convertValue(l, jsonData))
-	return 1
-}
-
-func (n *NakamaModule) base64Encode(l *lua.LState) int {
-	input := l.CheckString(1)
-	if input == "" {
-		l.ArgError(1, "Expects string")
-		return 0
-	}
-
-	output := base64.StdEncoding.EncodeToString([]byte(input))
-	l.Push(lua.LString(output))
-	return 1
-}
-func (n *NakamaModule) base64Decode(l *lua.LState) int {
-	input := l.CheckString(1)
-	if input == "" {
-		l.ArgError(1, "Expects string")
-		return 0
-	}
-
-	output, err := base64.StdEncoding.DecodeString(input)
-	if err != nil {
-		l.RaiseError("Not a valid base64 string: %v", err.Error())
-		return 0
-	}
-
-	l.Push(lua.LString(output))
-	return 1
-}
-func (n *NakamaModule) base16Encode(l *lua.LState) int {
-	input := l.CheckString(1)
-	if input == "" {
-		l.ArgError(1, "Expects string")
-		return 0
-	}
-
-	output := hex.EncodeToString([]byte(input))
-	l.Push(lua.LString(output))
-	return 1
-}
-func (n *NakamaModule) base16decode(l *lua.LState) int {
-	input := l.CheckString(1)
-	if input == "" {
-		l.ArgError(1, "Expects string")
-		return 0
-	}
-
-	output, err := hex.DecodeString(input)
-	if err != nil {
-		l.RaiseError("Not a valid base16 string: %v", err.Error())
-		return 0
-	}
-
-	l.Push(lua.LString(output))
-	return 1
 }
