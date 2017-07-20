@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Changed
 - Use Lua table for Content field when creating new notifications.
 - Use Lua table for Metadata field for new groups.
+- Use Lua table for Metadata field when updating a user.
 - Changed configuration variable names. Most importantly `DB` is now changed to `database.address`.
 
 ## [1.0.0-rc.1] - 2017-07-18
