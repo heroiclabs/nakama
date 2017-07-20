@@ -361,11 +361,19 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 				}
 				update.Lang = v.String()
 			case "Metadata":
-				if v.Type() != lua.LTString {
-					conversionError = "expects valid metadata in each update"
+				if v.Type() != lua.LTTable {
+					conversionError = "expects Metadata to be a table"
 					return
 				}
-				update.Metadata = []byte(v.String())
+
+				metadataMap := ConvertLuaTable(v.(*lua.LTable))
+				metadataBytes, err := json.Marshal(metadataMap)
+				if err != nil {
+					conversionError = fmt.Sprintf("failed to convert metadata: %s", err.Error())
+					return
+				}
+
+				update.Metadata = metadataBytes
 			case "AvatarUrl":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid avatar urls in each update"

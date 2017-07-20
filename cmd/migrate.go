@@ -42,8 +42,8 @@ type statusRow struct {
 }
 
 type migrationService struct {
-	DSNS       string
-	Limit      int
+	dbAddress  string
+	limit      int
 	logger     *zap.Logger
 	migrations *migrate.AssetMigrationSource
 	db         *sql.DB
@@ -104,7 +104,7 @@ func MigrateParse(args []string, logger *zap.Logger) {
 
 	ms.parseSubcommand(args[1:])
 
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", ms.DSNS)
+	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", ms.dbAddress)
 	url, err := url.Parse(rawurl)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
@@ -115,7 +115,7 @@ func MigrateParse(args []string, logger *zap.Logger) {
 		dbname = url.Path[1:]
 	}
 
-	logger.Info("Database connection", zap.String("dsns", ms.DSNS))
+	logger.Info("Database connection", zap.String("db", ms.dbAddress))
 
 	url.Path = ""
 	db, err := sql.Open(dialect, url.String())
@@ -157,11 +157,11 @@ start:
 }
 
 func (ms *migrationService) up() {
-	if ms.Limit < defaultLimit {
-		ms.Limit = 0
+	if ms.limit < defaultLimit {
+		ms.limit = 0
 	}
 
-	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Up, ms.Limit)
+	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Up, ms.limit)
 	if err != nil {
 		ms.logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
@@ -170,11 +170,11 @@ func (ms *migrationService) up() {
 }
 
 func (ms *migrationService) down() {
-	if ms.Limit < defaultLimit {
-		ms.Limit = 1
+	if ms.limit < defaultLimit {
+		ms.limit = 1
 	}
 
-	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Down, ms.Limit)
+	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Down, ms.limit)
 	if err != nil {
 		ms.logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
@@ -183,7 +183,7 @@ func (ms *migrationService) down() {
 }
 
 func (ms *migrationService) redo() {
-	if ms.Limit > defaultLimit {
+	if ms.limit > defaultLimit {
 		ms.logger.Warn("Limit is ignored when redo is invoked")
 	}
 
@@ -201,7 +201,7 @@ func (ms *migrationService) redo() {
 }
 
 func (ms *migrationService) status() {
-	if ms.Limit > defaultLimit {
+	if ms.limit > defaultLimit {
 		ms.logger.Warn("Limit is ignored when status is invoked")
 	}
 
@@ -240,14 +240,14 @@ func (ms *migrationService) status() {
 
 func (ms *migrationService) parseSubcommand(args []string) {
 	flags := flag.NewFlagSet("migrate", flag.ExitOnError)
-	flags.StringVar(&ms.DSNS, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
-	flags.IntVar(&ms.Limit, "limit", defaultLimit, "Number of migrations to apply forwards or backwards.")
+	flags.StringVar(&ms.dbAddress, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
+	flags.IntVar(&ms.limit, "limit", defaultLimit, "Number of migrations to apply forwards or backwards.")
 
 	if err := flags.Parse(args); err != nil {
 		ms.logger.Fatal("Could not parse migration flags.")
 	}
 
-	if ms.DSNS == "" {
+	if ms.dbAddress == "" {
 		ms.logger.Fatal("Database connection details are required.")
 	}
 }
