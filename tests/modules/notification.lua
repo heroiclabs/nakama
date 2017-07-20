@@ -15,7 +15,6 @@
 --]]
 
 local nk = require("nakama")
-local nx = require("nakamax")
 
 function notification_send(ctx, payload)
   notifications = {

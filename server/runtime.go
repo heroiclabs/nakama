@@ -77,8 +77,6 @@ func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config 
 
 	nakamaModule := NewNakamaModule(logger, db, vm, notificationService)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
-	nakamaxModule := NewNakamaxModule(logger)
-	vm.PreloadModule("nakamax", nakamaxModule.Loader)
 
 	r := &Runtime{
 		logger: logger,

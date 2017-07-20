@@ -15,7 +15,6 @@
 --]]
 
 local nk = require("nakama")
-local nx = require("nakamax")
 
 -- NOTE You must preload datasets with "e2e_runtime.sql" before each run.
 local user = "4c2ae592-b2a7-445e-98ec-697694478b1c"
@@ -186,9 +185,9 @@ function test_storage(user_id)
   -- storage_write_invalid_user
   do
     local new_Records = {
-      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 0, PermissionWrite = 0},
-      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 1, PermissionWrite = 1},
-      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nx.uuid_v4(), Value = {}, PermissionRead = 2, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "a", UserId = nk.uuid_v4(), Value = {}, PermissionRead = 0, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settings", Record = "b", UserId = nk.uuid_v4(), Value = {}, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settings", Record = "c", UserId = nk.uuid_v4(), Value = {}, PermissionRead = 2, PermissionWrite = 1},
     }
     local status, res = pcall(nk.storage_write, new_Records)
     assert(status) -- we don't currently check whether user exists or not yet.

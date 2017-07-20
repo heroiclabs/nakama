@@ -15,7 +15,6 @@
 --]]
 
 local nk = require("nakama")
-local nx = require("nakamax")
 
 -- NOTE You must preload datasets with "e2e_runtime.sql" before each run.
 
@@ -48,7 +47,7 @@ end
 
 -- leaderboard_create
 do
-  local id = nx.uuid_v4()
+  local id = nk.uuid_v4()
   local md = {}
   -- This will error if it fails.
   nk.leaderboard_create(id, "desc", "0 0 * * 1", md, false)
@@ -119,7 +118,7 @@ end
 
 -- uuid_v4
 do
-  local uuid = nx.uuid_v4()
+  local uuid = nk.uuid_v4()
   assert(uuid, "'uuid' must not be nil")
   assert(type(uuid) == "string", "'uuid' type must be string")
 end
@@ -128,61 +127,61 @@ end
 do
   local url = "https://google.com/"
   local method = "HEAD"
-  local code, headers, respbody = nx.http_request(url, method, {}, nil)
+  local code, headers, respbody = nk.http_request(url, method, {}, nil)
   assert(code == 200, "'code' must equal 200")
 end
 
 -- json_decode
 do
-  local object = nx.json_decode('{"hello": "world"}')
+  local object = nk.json_decode('{"hello": "world"}')
   assert(object.hello, "'object.hello' must not be nil")
   assert(object.hello == "world", "'object.hello' must equal 'world'")
 end
 
 -- json_decode_array
 do
-  local object = nx.json_decode('[{"hello": "world"}, {"hello": "world"}]')
+  local object = nk.json_decode('[{"hello": "world"}, {"hello": "world"}]')
   assert(#object == 2)
 end
 
 -- json_decode_primitive
 do
-  local object = nx.json_decode('"hello"')
+  local object = nk.json_decode('"hello"')
   assert(object == "hello")
 end
 
 -- json_encode
 do
-  local json = nx.json_encode({["id"] = "blah"})
+  local json = nk.json_encode({["id"] = "blah"})
   assert(json == '{"id":"blah"}', '"json" must equal "{"id":"blah"}"')
 end
 
 -- json_encode_array
 do
-  local json = nx.json_encode({{["id"] = "blah"},{["id"] = "blah"}})
+  local json = nk.json_encode({{["id"] = "blah"},{["id"] = "blah"}})
   assert(json == '[{"id":"blah"},{"id":"blah"}]', '"json" must equal "[{"id":"blah"}",{"id":"blah"}]')
 end
 
 -- json_encode_primitive
 do
-  local json = nx.json_encode("hello")
+  local json = nk.json_encode("hello")
   assert(json == '"hello"')
 end
 
 -- base64_encode_decode
 do
-  local objectEncode = nx.base64_encode('{"hello": "world"}')
+  local objectEncode = nk.base64_encode('{"hello": "world"}')
   assert(objectEncode, "'objectEncode' must not be nil")
-  local objectDecode = nx.base64_decode(objectEncode)
+  local objectDecode = nk.base64_decode(objectEncode)
   assert(objectDecode, "'objectDecode' must not be nil")
   assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
 end
 
 -- base16_encode_decode
 do
-  local objectEncode = nx.base16_encode('{"hello": "world"}')
+  local objectEncode = nk.base16_encode('{"hello": "world"}')
   assert(objectEncode, "'objectEncode' must not be nil")
-  local objectDecode = nx.base16_decode(objectEncode)
+  local objectDecode = nk.base16_decode(objectEncode)
   assert(objectDecode, "'objectDecode' must not be nil")
   assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
 end

@@ -485,9 +485,8 @@ func TestRuntimeLeaderboardCreate(t *testing.T) {
 	defer os.RemoveAll(DATA_PATH)
 	writeLuaModule("userid.lua", `
 local nk = require("nakama")
-local nkx = require("nakamax")
 
-leaderboard_id = nkx.uuid_v4()
+leaderboard_id = nk.uuid_v4()
 local metadata = {
   weather_conditions = "rain"
 }
