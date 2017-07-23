@@ -43,44 +43,72 @@ type Config interface {
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
-	config := NewConfig()
+	//config := NewConfig()
+	//
+	//if len(args) > 1 {
+	//	switch args[1] {
+	//	case "--config":
+	//		configPath := args[2]
+	//		data, err := ioutil.ReadFile(configPath)
+	//		if err != nil {
+	//			logger.Error("Could not read config file, using defaults", zap.Error(err))
+	//		} else {
+	//			err = yaml.Unmarshal(data, config)
+	//			if err != nil {
+	//				logger.Error("Could not parse config file, using defaults", zap.Error(err))
+	//			} else {
+	//				config.Config = configPath
+	//			}
+	//		}
+	//	}
+	//}
 
-	if len(args) > 1 {
-		switch args[1] {
-		case "--config":
-			configPath := args[2]
-			data, err := ioutil.ReadFile(configPath)
-			if err != nil {
-				logger.Error("Could not read config file, using defaults", zap.Error(err))
-			} else {
-				err = yaml.Unmarshal(data, config)
-				if err != nil {
-					logger.Error("Could not parse config file, using defaults", zap.Error(err))
-				} else {
-					config.Config = configPath
-				}
-			}
-		}
-	}
-
-	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
-	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+	configFilePath := NewConfig()
+	configFileFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	configFileFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
 		UseLowerCase: true,
 		Flatten:      false,
 		TagName:      "yaml",
 		TagUsage:     "usage",
-	}, flagSet)
+	}, configFileFlagSet)
 
-	if _, err := fm.ParseArgs(config, args[1:]); err != nil {
-		logger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
+	if _, err := configFileFlagMaker.ParseArgs(configFilePath, args[1:]); err != nil {
+		logger.Fatal("Could not parse command line arguments", zap.Error(err))
+	}
+
+	mainConfig := NewConfig()
+	if configFilePath.Config != "" {
+		data, err := ioutil.ReadFile(configFilePath.Config)
+		if err != nil {
+			logger.Fatal("Could not read config file", zap.Error(err))
+		} else {
+			err = yaml.Unmarshal(data, mainConfig)
+			if err != nil {
+				logger.Fatal("Could not parse config file", zap.Error(err))
+			} else {
+				mainConfig.Config = configFilePath.Config
+			}
+		}
+	}
+
+	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	mainFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+		UseLowerCase: true,
+		Flatten:      false,
+		TagName:      "yaml",
+		TagUsage:     "usage",
+	}, mainFlagSet)
+
+	if _, err := mainFlagMaker.ParseArgs(mainConfig, args[1:]); err != nil {
+		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
 	// if the runtime path is not overridden, set it to `datadir/modules`
-	if config.GetRuntime().Path == "" {
-		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
+	if mainConfig.GetRuntime().Path == "" {
+		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
-	return config
+	return mainConfig
 }
 
 type config struct {
