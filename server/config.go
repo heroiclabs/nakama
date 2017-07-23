@@ -43,26 +43,7 @@ type Config interface {
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
-	//config := NewConfig()
-	//
-	//if len(args) > 1 {
-	//	switch args[1] {
-	//	case "--config":
-	//		configPath := args[2]
-	//		data, err := ioutil.ReadFile(configPath)
-	//		if err != nil {
-	//			logger.Error("Could not read config file, using defaults", zap.Error(err))
-	//		} else {
-	//			err = yaml.Unmarshal(data, config)
-	//			if err != nil {
-	//				logger.Error("Could not parse config file, using defaults", zap.Error(err))
-	//			} else {
-	//				config.Config = configPath
-	//			}
-	//		}
-	//	}
-	//}
-
+	// parse args to get path to a config file if passed in
 	configFilePath := NewConfig()
 	configFileFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
 	configFileFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
@@ -76,6 +57,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
+	// parse config file if path is set
 	mainConfig := NewConfig()
 	if configFilePath.Config != "" {
 		data, err := ioutil.ReadFile(configFilePath.Config)
@@ -91,6 +73,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		}
 	}
 
+	// override config with those passed from command-line
 	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
 	mainFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
 		UseLowerCase: true,
