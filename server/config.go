@@ -43,44 +43,55 @@ type Config interface {
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
-	config := NewConfig()
-
-	if len(args) > 1 {
-		switch args[1] {
-		case "--config":
-			configPath := args[2]
-			data, err := ioutil.ReadFile(configPath)
-			if err != nil {
-				logger.Error("Could not read config file, using defaults", zap.Error(err))
-			} else {
-				err = yaml.Unmarshal(data, config)
-				if err != nil {
-					logger.Error("Could not parse config file, using defaults", zap.Error(err))
-				} else {
-					config.Config = configPath
-				}
-			}
-		}
-	}
-
-	flagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
-	fm := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+	// parse args to get path to a config file if passed in
+	configFilePath := NewConfig()
+	configFileFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	configFileFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
 		UseLowerCase: true,
 		Flatten:      false,
 		TagName:      "yaml",
 		TagUsage:     "usage",
-	}, flagSet)
+	}, configFileFlagSet)
 
-	if _, err := fm.ParseArgs(config, args[1:]); err != nil {
-		logger.Error("Could not parse command line arguments - ignoring command-line overrides", zap.Error(err))
+	if _, err := configFileFlagMaker.ParseArgs(configFilePath, args[1:]); err != nil {
+		logger.Fatal("Could not parse command line arguments", zap.Error(err))
+	}
+
+	// parse config file if path is set
+	mainConfig := NewConfig()
+	if configFilePath.Config != "" {
+		data, err := ioutil.ReadFile(configFilePath.Config)
+		if err != nil {
+			logger.Fatal("Could not read config file", zap.Error(err))
+		} else {
+			err = yaml.Unmarshal(data, mainConfig)
+			if err != nil {
+				logger.Fatal("Could not parse config file", zap.Error(err))
+			} else {
+				mainConfig.Config = configFilePath.Config
+			}
+		}
+	}
+
+	// override config with those passed from command-line
+	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
+	mainFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
+		UseLowerCase: true,
+		Flatten:      false,
+		TagName:      "yaml",
+		TagUsage:     "usage",
+	}, mainFlagSet)
+
+	if _, err := mainFlagMaker.ParseArgs(mainConfig, args[1:]); err != nil {
+		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
 	// if the runtime path is not overridden, set it to `datadir/modules`
-	if config.GetRuntime().Path == "" {
-		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
+	if mainConfig.GetRuntime().Path == "" {
+		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
-	return config
+	return mainConfig
 }
 
 type config struct {
@@ -204,7 +215,7 @@ func NewSessionConfig() *SessionConfig {
 // SocketConfig is configuration relevant to the transport socket and protocol
 type SocketConfig struct {
 	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
-	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces. Unless explicitly defined, other ports will be chosen sequentially from here upwards."`
+	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
 	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`

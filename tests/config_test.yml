@@ -1,9 +1,12 @@
 name: nakama-test
 database:
   address:
-    - test@localhost:26257
+    - root@localhost:26257
 log:
   verbose: true
   stdout: false
 runtime:
   http_key: testkey
+purchase:
+  apple:
+    password: helloworld
