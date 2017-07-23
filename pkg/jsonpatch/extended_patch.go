@@ -15,41 +15,69 @@
 package jsonpatch
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 )
 
-type Operation operation
+type ExtendedPatch Patch
 
-type ExtendedPatch struct {
-	Patch
+func (o operation) assert() int {
+	if obj, ok := o["assert"]; ok {
+		var op int
+
+		err := json.Unmarshal(*obj, &op)
+
+		if err != nil {
+			return -2 // Bad value.
+		}
+
+		return op
+	}
+
+	return -2 // Bad value.
 }
 
-func ToExtendedPatch(ops []Operation) ExtendedPatch {
-	// Could also be done using unsafe pointers to avoid the loop, but
-	// prefer the type-safe way unless we find a very good reason not to.
-	// For reference:
-	//   return Patch(*(*[]operation)(unsafe.Pointer(&ops)))
-	// Where:
-	//   type Operation operation
-	patch := make(Patch, len(ops))
-	for i, op := range ops {
-		patch[i] = operation(op)
+func (o operation) conditional() bool {
+	if obj, ok := o["conditional"]; ok {
+		var op bool
+
+		err := json.Unmarshal(*obj, &op)
+
+		if err != nil {
+			return false // Treat bad values as not conditional.
+		}
+
+		return op
 	}
-	return ExtendedPatch{patch}
+
+	return false // Treat bad values as not conditional.
+}
+
+// DecodePatch decodes the passed JSON document as an RFC 6902 patch.
+func DecodeExtendedPatch(buf []byte) (ExtendedPatch, error) {
+	var ep ExtendedPatch
+
+	err := json.Unmarshal(buf, &ep)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ep, nil
 }
 
 // Apply mutates a JSON document according to the patch, and returns the new
 // document.
-func (p ExtendedPatch) Apply(doc []byte) ([]byte, error) {
-	return p.ApplyIndent(doc, "")
+func (ep ExtendedPatch) Apply(doc []byte) ([]byte, error) {
+	return ep.ApplyIndent(doc, "")
 }
 
 // ApplyIndent mutates a JSON document according to the patch, and returns the new
 // document indented.
-func (p ExtendedPatch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
+func (ep ExtendedPatch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
 	var pd container
 	if doc[0] == '[' {
 		pd = &partialArray{}
@@ -64,8 +92,9 @@ func (p ExtendedPatch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
 	}
 
 	err = nil
+	p := Patch(ep)
 
-	for _, op := range p.Patch {
+	for _, op := range p {
 		switch op.kind() {
 		case "add":
 			err = p.add(&pd, op)
@@ -81,17 +110,17 @@ func (p ExtendedPatch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
 			err = p.copy(&pd, op)
 		// Extended ops here:
 		case "append":
-			err = p.appendOp(&pd, op)
+			err = ep.appendOp(&pd, op)
 		case "incr":
-			err = p.incr(&pd, op)
+			err = ep.incr(&pd, op)
 		case "init":
-			err = p.init(&pd, op)
+			err = ep.init(&pd, op)
 		case "merge":
-			err = p.merge(&pd, op)
-		//case "patch":
-		//	err = p.patch(&pd, op)
-		//case "compare":
-		//	err = p.compare(&pd, op)
+			err = ep.merge(&pd, op)
+		case "patch":
+			err = ep.patch(&pd, op)
+		case "compare":
+			err = ep.compare(&pd, op)
 		default:
 			err = fmt.Errorf("Unexpected kind: %s", op.kind())
 		}
@@ -109,7 +138,7 @@ func (p ExtendedPatch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
 }
 
 // Note: named `appendOp` rather than `append` to avoid name collision with builtin function.
-func (p Patch) appendOp(doc *container, op operation) error {
+func (ep ExtendedPatch) appendOp(doc *container, op operation) error {
 	path := op.path()
 
 	con, key := findObject(doc, path)
@@ -143,7 +172,7 @@ func (p Patch) appendOp(doc *container, op operation) error {
 	return con.set(key, node)
 }
 
-func (p Patch) incr(doc *container, op operation) error {
+func (ep ExtendedPatch) incr(doc *container, op operation) error {
 	path := op.path()
 
 	con, key := findObject(doc, path)
@@ -172,7 +201,7 @@ func (p Patch) incr(doc *container, op operation) error {
 	return con.set(key, node)
 }
 
-func (p Patch) init(doc *container, op operation) error {
+func (ep ExtendedPatch) init(doc *container, op operation) error {
 	path := op.path()
 
 	con, key := findObject(doc, path)
@@ -185,14 +214,25 @@ func (p Patch) init(doc *container, op operation) error {
 	if ok != nil {
 		return fmt.Errorf("jsonpatch init operation does not apply: doc is missing key: %s", path)
 	}
+
+	// Initialise missing keys.
 	if val == nil {
+		return con.set(key, op.value())
+	}
+
+	// Overwrite "null" value keys.
+	b, err := json.Marshal(*val.raw)
+	if err != nil {
+		return fmt.Errorf("jsonpatch init operation does not apply: error converting value: %s", err.Error())
+	}
+	if bytes.Equal(b, []byte("null")) {
 		return con.set(key, op.value())
 	}
 
 	return nil
 }
 
-func (p Patch) merge(doc *container, op operation) error {
+func (ep ExtendedPatch) merge(doc *container, op operation) error {
 	path := op.path()
 
 	con, key := findObject(doc, path)
@@ -214,4 +254,155 @@ func (p Patch) merge(doc *container, op operation) error {
 	node := newLazyNode(&rawMessage)
 
 	return con.set(key, node)
+}
+
+func (ep ExtendedPatch) patch(doc *container, op operation) error {
+	path := op.path()
+	conditional := op.conditional()
+
+	con, key := findObject(doc, path)
+
+	if con == nil {
+		if conditional {
+			return nil
+		}
+		return fmt.Errorf("jsonpatch patch operation does not apply: doc is missing path: %s", path)
+	}
+
+	val, ok := con.get(key)
+	if val == nil || ok != nil {
+		if conditional {
+			return nil
+		}
+		return fmt.Errorf("jsonpatch patch operation does not apply: doc is missing key: %s", path)
+	}
+
+	patch, err := DecodeExtendedPatch(*op.value().raw)
+	if err != nil {
+		return errors.New("jsonpatch patch operation does not apply: value is not a valid patch op")
+	}
+
+	raw, err := patch.Apply(*val.raw)
+	if err != nil {
+		if conditional {
+			return nil
+		}
+		return fmt.Errorf("jsonpatch patch operation does not apply: patch op failed: %s", err.Error())
+	}
+
+	rawMessage := json.RawMessage(raw)
+	node := newLazyNode(&rawMessage)
+
+	return con.set(key, node)
+}
+
+func (ep ExtendedPatch) compare(doc *container, op operation) error {
+	path := op.path()
+	assert := op.assert()
+	if assert < -1 || assert > 1 {
+		return errors.New("jsonpatch compare operation does not apply: assert value must be -1, 0, or 1")
+	}
+
+	con, key := findObject(doc, path)
+
+	if con == nil {
+		return fmt.Errorf("jsonpatch compare operation does not apply: doc is missing path: %s", path)
+	}
+
+	val, ok := con.get(key)
+	if val == nil || ok != nil {
+		return fmt.Errorf("jsonpatch compare operation does not apply: doc is missing key: %s", path)
+	}
+
+	// Incoming compare value is a null.
+	if bytes.Equal(*op.value().raw, []byte("null")) {
+		if bytes.Equal(*val.raw, []byte("null")) && assert != 0 {
+			// Comparing nulls should be 0.
+			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+		} else if assert != -1 {
+			// Any existing non-null value compares as "greater than" a null.
+			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+		}
+		return nil
+	}
+
+	// Incoming compare value is a boolean.
+	var incomingBoolean bool
+	if err := json.Unmarshal(*op.value().raw, &incomingBoolean); err == nil {
+		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
+			// Any given boolean is "greater than" a null.
+			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+		}
+		var existingBoolean bool
+		if err := json.Unmarshal(*val.raw, &existingBoolean); err == nil {
+			if existingBoolean == incomingBoolean && assert != 0 {
+				// Same boolean value.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if !existingBoolean && incomingBoolean && assert != -1 {
+				// Existing false, incoming true.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if existingBoolean && !incomingBoolean && assert != 1 {
+				// Existing false, incoming true.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			}
+		} else {
+			// Existing value is not a boolean type, so we can't compare.
+			return fmt.Errorf("jsonpatch compare operation failed: incompatible types assert error on path: %s", path)
+		}
+		return nil
+	}
+
+	// Incoming value is a number.
+	var incomingNumber float64
+	if err := json.Unmarshal(*op.value().raw, &incomingNumber); err == nil {
+		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
+			// Any given number is "greater than" a null.
+			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+		}
+		var existingNumber float64
+		if err := json.Unmarshal(*val.raw, &existingNumber); err == nil {
+			if existingNumber == incomingNumber && assert != 0 {
+				// Same number value.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if existingNumber < incomingNumber && assert != -1 {
+				// Existing less than incoming.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if existingNumber > incomingNumber && assert != 1 {
+				// Existing greater than incoming.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			}
+		} else {
+			// Existing value is not a number type, so we can't compare.
+			return fmt.Errorf("jsonpatch compare operation failed: incompatible types assert error on path: %s", path)
+		}
+		return nil
+	}
+
+	// Incoming value is a string.
+	var incomingString string
+	if err := json.Unmarshal(*op.value().raw, &incomingString); err == nil {
+		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
+			// Any given string is "greater than" a null.
+			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+		}
+		var existingString string
+		if err := json.Unmarshal(*val.raw, &existingString); err == nil {
+			if existingString == incomingString && assert != 0 {
+				// Same string value.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if existingString < incomingString && assert != -1 {
+				// Existing less than incoming.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			} else if existingString > incomingString && assert != 1 {
+				// Existing greater than incoming.
+				return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
+			}
+		} else {
+			// Existing value is not a string type, so we can't compare.
+			return fmt.Errorf("jsonpatch compare operation failed: incompatible types assert error on path: %s", path)
+		}
+		return nil
+	}
+
+	return errors.New("jsonpatch compare operation failed: given value is not comparable")
 }

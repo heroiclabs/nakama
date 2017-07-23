@@ -37,6 +37,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"nakama/pkg/jsonpatch"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -96,6 +97,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"storage_list":          n.storageList,
 		"storage_fetch":         n.storageFetch,
 		"storage_write":         n.storageWrite,
+		"storage_update":        n.storageUpdate,
 		"storage_remove":        n.storageRemove,
 		"leaderboard_create":    n.leaderboardCreate,
 		"groups_create":         n.groupsCreate,
@@ -926,6 +928,129 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	keys, _, err := StorageWrite(n.logger, n.db, uuid.Nil, data)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, k := range keys {
+		km := structs.Map(k)
+		lv.RawSetInt(i+1, convertValue(l, km))
+	}
+
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageUpdate(l *lua.LState) int {
+	updatesTable := l.CheckTable(1)
+	if updatesTable == nil || updatesTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of user updates")
+		return 0
+	}
+
+	conversionError := ""
+	updates := make([]*StorageKeyUpdate, 0)
+
+	updatesTable.ForEach(func(i lua.LValue, u lua.LValue) {
+		updateTable, ok := u.(*lua.LTable)
+		if !ok {
+			conversionError = "expects a valid set of user updates"
+			return
+		}
+
+		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			// Initialise fields where default values for their types are not the logical defaults needed.
+			update := &StorageKeyUpdate{
+				permissionRead:  int64(1),
+				permissionWrite: int64(1),
+			}
+			switch k.String() {
+			case "Bucket":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid buckets in each update"
+					return
+				}
+				update.key.Bucket = v.String()
+			case "Collection":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid collections in each update"
+					return
+				}
+				update.key.Collection = v.String()
+			case "Record":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid records in each update"
+					return
+				}
+				update.key.Record = v.String()
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid user IDs in each update"
+					return
+				}
+				if uid, err := uuid.FromString(v.String()); err != nil {
+					conversionError = "expects valid user IDs in each update"
+					return
+				} else {
+					update.key.UserId = uid.Bytes()
+				}
+			case "Version":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid versions in each update"
+					return
+				}
+				update.key.Version = []byte(v.String())
+			case "PermissionRead":
+				if v.Type() != lua.LTNumber {
+					conversionError = "expects valid read permissions in each update"
+					return
+				}
+				update.permissionRead = int64(lua.LVAsNumber(v))
+			case "PermissionWrite":
+				if v.Type() != lua.LTNumber {
+					conversionError = "expects valid write permissions in each update"
+					return
+				}
+				update.permissionWrite = int64(lua.LVAsNumber(v))
+			case "Value":
+				if v.Type() != lua.LTTable {
+					conversionError = "expects valid patch op value in each update"
+					return
+				}
+				vi := convertLuaValue(v)
+				ve, err := json.Marshal(vi)
+				if err != nil {
+					conversionError = "expects valid patch op value in each update"
+					return
+				}
+				patch, err := jsonpatch.DecodeExtendedPatch(ve)
+				if err != nil {
+					conversionError = "expects valid patch op value in each update"
+					return
+				}
+				update.patch = patch
+			default:
+				conversionError = "unrecognised update key, expects a valid set of storage updates"
+				return
+			}
+
+			// Check it's a valid update op.
+			if update.key.Bucket == "" || update.key.Collection == "" || update.key.Record == "" || update.patch == nil {
+				conversionError = "expects each update to contain at least bucket, collection, record, and value"
+				return
+			}
+			updates = append(updates, update)
+		})
+	})
+
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
+	}
+
+	keys, _, err := StorageUpdate(n.logger, n.db, uuid.Nil, updates)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to update storage: %s", err.Error()))
 		return 0
 	}
 

@@ -297,6 +297,23 @@ func TestMergeEmptyArray(t *testing.T) {
 	}
 }
 
+func TestCreateMergePatchNil(t *testing.T) {
+	doc := `{ "title": "hello", "nested": {"one": 1, "two": [{"one":null}, {"two":null}, {"three":null}]} }`
+	pat := doc
+
+	exp := `{}`
+
+	res, err := CreateMergePatch([]byte(doc), []byte(pat))
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s, %s", err, string(res))
+	}
+
+	if !compareJSON(exp, string(res)) {
+		t.Fatalf("Object array was not added")
+	}
+}
+
 func TestMergeObjArray(t *testing.T) {
 	doc := `{ "array": [ {"a": {"b": 2}}, {"a": {"b": 3}} ]}`
 	exp := `{}`

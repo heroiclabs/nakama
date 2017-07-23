@@ -92,6 +92,13 @@ var Cases = []Case{
 		`{ "foo": [ "bar", "qux", "baz" ] }`,
 	},
 	{
+		`{ "foo": [ "bar", "baz" ] }`,
+		`[
+     { "op": "add", "path": "/foo/-1", "value": "qux" }
+    ]`,
+		`{ "foo": [ "bar", "baz", "qux" ] }`,
+	},
+	{
 		`{ "baz": "qux", "foo": "bar" }`,
 		`[ { "op": "remove", "path": "/baz" } ]`,
 		`{ "foo": "bar" }`,
@@ -237,6 +244,11 @@ var BadCases = []BadCase{
 		`{ "foo": ["bar","baz"]}`,
 		`[ { "op": "replace", "path": "/foo/2", "value": "bum"}]`,
 	},
+	{
+		`{ "foo": ["bar","baz"]}`,
+		`[ { "op": "add", "path": "/foo/-4", "value": "bum"}]`,
+	},
+
 	{
 		`{ "name":{ "foo": "bat", "qux": "bum"}}`,
 		`[ { "op": "replace", "path": "/foo/bar", "value":"baz"}]`,

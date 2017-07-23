@@ -250,6 +250,9 @@ func matchesValue(av, bv interface{}) bool {
 		if bt == at {
 			return true
 		}
+	case nil:
+		// Both nil, fine.
+		return true
 	case map[string]interface{}:
 		bt := bv.(map[string]interface{})
 		for key := range at {
@@ -309,7 +312,7 @@ func getDiff(a, b map[string]interface{}) (map[string]interface{}, error) {
 		case nil:
 			switch bv.(type) {
 			case nil:
-			// Both nil, fine.
+				// Both nil, fine.
 			default:
 				into[key] = bv
 			}
