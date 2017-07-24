@@ -558,7 +558,7 @@ func StorageUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*
 		query := `
 SELECT user_id, bucket, collection, record, value, version
 FROM storage
-WHERE (bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND deleted_at = 0`
+WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND deleted_at = 0`
 		if caller != uuid.Nil {
 			query += " AND write = 1"
 		}

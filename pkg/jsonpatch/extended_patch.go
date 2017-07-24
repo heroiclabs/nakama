@@ -174,8 +174,8 @@ func (ep ExtendedPatch) appendOp(doc *container, op operation) error {
 
 func (ep ExtendedPatch) incr(doc *container, op operation) error {
 	path := op.path()
-	incrValue := op.value()
-	if incrValue == nil {
+	incomingValue := op.value()
+	if incomingValue == nil {
 		return errors.New("jsonpatch incr operation does not apply: value is required")
 	}
 
@@ -195,7 +195,7 @@ func (ep ExtendedPatch) incr(doc *container, op operation) error {
 	if err := json.Unmarshal(*val.raw, &value); err != nil {
 		return fmt.Errorf("jsonpatch incr operation does not apply: path does not point to a number: %s", path)
 	}
-	if err := json.Unmarshal(*incrValue.raw, &incr); err != nil {
+	if err := json.Unmarshal(*incomingValue.raw, &incr); err != nil {
 		return errors.New("jsonpatch incr operation does not apply: value must be a number")
 	}
 
@@ -238,6 +238,10 @@ func (ep ExtendedPatch) init(doc *container, op operation) error {
 
 func (ep ExtendedPatch) merge(doc *container, op operation) error {
 	path := op.path()
+	incomingValue := op.value()
+	if incomingValue == nil {
+		return errors.New("jsonpatch merge operation does not apply: value is required")
+	}
 
 	con, key := findObject(doc, path)
 
@@ -250,7 +254,7 @@ func (ep ExtendedPatch) merge(doc *container, op operation) error {
 		return fmt.Errorf("jsonpatch merge operation does not apply: doc is missing key: %s", path)
 	}
 
-	raw, err := MergePatch(*val.raw, *op.value().raw)
+	raw, err := MergePatch(*val.raw, *incomingValue.raw)
 	if err != nil {
 		return fmt.Errorf("jsonpatch merge operation does not apply: doc cannot be merged: %s", err.Error())
 	}
@@ -263,6 +267,10 @@ func (ep ExtendedPatch) merge(doc *container, op operation) error {
 func (ep ExtendedPatch) patch(doc *container, op operation) error {
 	path := op.path()
 	conditional := op.conditional()
+	incomingValue := op.value()
+	if incomingValue == nil {
+		return errors.New("jsonpatch patch operation does not apply: value is required")
+	}
 
 	con, key := findObject(doc, path)
 
@@ -281,7 +289,7 @@ func (ep ExtendedPatch) patch(doc *container, op operation) error {
 		return fmt.Errorf("jsonpatch patch operation does not apply: doc is missing key: %s", path)
 	}
 
-	patch, err := DecodeExtendedPatch(*op.value().raw)
+	patch, err := DecodeExtendedPatch(*incomingValue.raw)
 	if err != nil {
 		return errors.New("jsonpatch patch operation does not apply: value is not a valid patch op")
 	}
@@ -306,6 +314,10 @@ func (ep ExtendedPatch) compare(doc *container, op operation) error {
 	if assert < -1 || assert > 1 {
 		return errors.New("jsonpatch compare operation does not apply: assert value must be -1, 0, or 1")
 	}
+	incomingValue := op.value()
+	if incomingValue == nil {
+		return errors.New("jsonpatch compare operation does not apply: value is required")
+	}
 
 	con, key := findObject(doc, path)
 
@@ -319,7 +331,7 @@ func (ep ExtendedPatch) compare(doc *container, op operation) error {
 	}
 
 	// Incoming compare value is a null.
-	if bytes.Equal(*op.value().raw, []byte("null")) {
+	if bytes.Equal(*incomingValue.raw, []byte("null")) {
 		if bytes.Equal(*val.raw, []byte("null")) && assert != 0 {
 			// Comparing nulls should be 0.
 			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
@@ -332,7 +344,7 @@ func (ep ExtendedPatch) compare(doc *container, op operation) error {
 
 	// Incoming compare value is a boolean.
 	var incomingBoolean bool
-	if err := json.Unmarshal(*op.value().raw, &incomingBoolean); err == nil {
+	if err := json.Unmarshal(*incomingValue.raw, &incomingBoolean); err == nil {
 		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
 			// Any given boolean is "greater than" a null.
 			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
@@ -358,7 +370,7 @@ func (ep ExtendedPatch) compare(doc *container, op operation) error {
 
 	// Incoming value is a number.
 	var incomingNumber float64
-	if err := json.Unmarshal(*op.value().raw, &incomingNumber); err == nil {
+	if err := json.Unmarshal(*incomingValue.raw, &incomingNumber); err == nil {
 		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
 			// Any given number is "greater than" a null.
 			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)
@@ -384,7 +396,7 @@ func (ep ExtendedPatch) compare(doc *container, op operation) error {
 
 	// Incoming value is a string.
 	var incomingString string
-	if err := json.Unmarshal(*op.value().raw, &incomingString); err == nil {
+	if err := json.Unmarshal(*incomingValue.raw, &incomingString); err == nil {
 		if bytes.Equal(*val.raw, []byte("null")) && assert != -1 {
 			// Any given string is "greater than" a null.
 			return fmt.Errorf("jsonpatch compare operation failed: assert failed on path: %s", path)

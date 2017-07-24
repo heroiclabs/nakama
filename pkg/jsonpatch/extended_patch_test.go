@@ -75,6 +75,26 @@ var ExtendedCases = []Case{
 		patch:  `[{"op":"merge","path":"/foo","value":{"baz":true,"bar":2}}]`,
 		result: `{"foo":{"bar":2,"baz":true}}`,
 	},
+	{
+		doc:    `{"foo":{"bar":1}}`,
+		patch:  `[{"op":"patch","path":"/foo","value":[{"op":"incr","path":"/bar","value":5}]}]`,
+		result: `{"foo":{"bar":6}}`,
+	},
+	{
+		doc:    `{"foo":{"bar":1}}`,
+		patch:  `[{"op":"patch","path":"/foo","value":[{"op":"incr","path":"/bar","value":5}]}]`,
+		result: `{"foo":{"bar":6}}`,
+	},
+	{
+		doc:    `{"foo":{"bar":1}}`,
+		patch:  `[{"op":"patch","path":"/foo","conditional":true,"value":[{"op":"test","path":"/bar","value":2},{"op":"incr","path":"/bar","value":5}]},{"op":"incr","path":"/foo/bar","value":2}]`,
+		result: `{"foo":{"bar":3}}`,
+	},
+	{
+		doc:    `{"foo":1}`,
+		patch:  `[{"op":"compare","path":"/foo","value":2,"assert":-1},{"op":"incr","path":"/foo","value":7}]`,
+		result: `{"foo":8}`,
+	},
 }
 
 func TestAllExtendedCases(t *testing.T) {

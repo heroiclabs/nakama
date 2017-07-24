@@ -206,25 +206,73 @@ function test_storage(user_id)
   end
 
   -- storage_list
-  local new_Records = {
-    {Bucket = "mygame", Collection = "settingslist", Record = "b", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 0},
-    {Bucket = "mygame", Collection = "settingslist", Record = "a", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 1},
-    {Bucket = "mygame", Collection = "settingslist", Record = "c", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 1},
-  }
-  local status, res = pcall(nk.storage_write, new_Records)
-  if not status then
-    print(res)
-  end
-  assert(status == true)
+  do
+    local new_Records = {
+      {Bucket = "mygame", Collection = "settingslist", Record = "b", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 0},
+      {Bucket = "mygame", Collection = "settingslist", Record = "a", UserId = user_id, Value = {}, PermissionRead = 1, PermissionWrite = 1},
+      {Bucket = "mygame", Collection = "settingslist", Record = "c", UserId = user_id, Value = {}, PermissionRead = 0, PermissionWrite = 1},
+    }
+    local status, res = pcall(nk.storage_write, new_Records)
+    if not status then
+      print(res)
+    end
+    assert(status == true)
 
-  local status, values, cursor = pcall(nk.storage_list, user_id, "mygame", "settingslist", 10, nil)
-  if not status then
-    print(values)
+    local status, values, cursor = pcall(nk.storage_list, user_id, "mygame", "settingslist", 10, nil)
+    if not status then
+      print(values)
+    end
+    assert(status == true)
+    assert(values[1].Record == "c")
+    assert(values[2].Record == "a")
+    assert(values[3].Record == "b")
   end
-  assert(status == true)
-  assert(values[1].Record == "c")
-  assert(values[2].Record == "a")
-  assert(values[3].Record == "b")
+
+  -- storage_update
+  do
+    local new_Records = {
+      {Bucket = "mygame", Collection = "settingsupdate", Record = "a", UserId = user_id, Update = {
+          {Op = "init", Path = "/foo", Value = {bar = 1}},
+          {Op = "incr", Path = "/foo/bar", Value = 3}
+        }
+      }
+    }
+
+    local status, res = pcall(nk.storage_update, new_Records)
+    if not status then
+      print(res)
+    end
+    assert(status == true)
+
+    local status, values, cursor = pcall(nk.storage_list, user_id, "mygame", "settingsupdate", 10, nil)
+    if not status then
+      print(values)
+    end
+    assert(status == true)
+    assert(#values == 1)
+    print(nk.json_encode(values))
+    assert(values[1].Value.foo.bar == 4)
+
+    local updated_Records = {
+      {Bucket = "mygame", Collection = "settingsupdate", Record = "a", UserId = user_id, Update = {
+          {Op = "incr", Path = "/foo/bar", Value = 5}
+        }
+      }
+    }
+
+    local status, res = pcall(nk.storage_update, updated_Records)
+    if not status then
+      print(res)
+    end
+    assert(status == true)
+
+    local status, values, cursor = pcall(nk.storage_list, user_id, "mygame", "settingsupdate", 10, nil)
+    if not status then
+      print(values)
+    end
+    assert(status == true)
+    assert(values[1].Value.foo.bar == 9)
+  end
 end
 
 test_storage(nil)

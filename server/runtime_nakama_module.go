@@ -663,7 +663,17 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 			v.UserId = []byte(uid.String())
 		}
 		vm := structs.Map(v)
-		lv.RawSetInt(i+1, convertValue(l, vm))
+
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal(v.Value, &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+
+		lt := ConvertMap(l, vm)
+		lt.RawSetString("Value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
 	}
 	l.Push(lv)
 
@@ -958,12 +968,13 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 			return
 		}
 
+		// Initialise fields where default values for their types are not the logical defaults needed.
+		update := &StorageKeyUpdate{
+			permissionRead:  int64(1),
+			permissionWrite: int64(1),
+		}
+
 		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			// Initialise fields where default values for their types are not the logical defaults needed.
-			update := &StorageKeyUpdate{
-				permissionRead:  int64(1),
-				permissionWrite: int64(1),
-			}
 			switch k.String() {
 			case "Bucket":
 				if v.Type() != lua.LTString {
@@ -1012,20 +1023,44 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					return
 				}
 				update.permissionWrite = int64(lua.LVAsNumber(v))
-			case "Value":
+			case "Update":
 				if v.Type() != lua.LTTable {
-					conversionError = "expects valid patch op value in each update"
+					conversionError = "expects valid patch op in each update"
 					return
 				}
-				vi := convertLuaValue(v)
+
+				vi, ok := convertLuaValue(v).([]interface{})
+				if !ok {
+					conversionError = "expects valid patch op in each update"
+					return
+				}
+
+				// Lowercase all key names in op declarations.
+				// eg. the Lua patch op: {{Op = "incr", Path = "/foo", Value = 1}}
+				// becomes the JSON:     [{"op": "incr", "path": "/foo", "value": 1}]
+				for _, vim := range vi {
+					vm, ok := vim.(map[string]interface{})
+					if !ok {
+						conversionError = "expects valid patch op in each update"
+						return
+					}
+					for vmK, vmV := range vm {
+						vmKlower := strings.ToLower(vmK)
+						if vmKlower != vmK {
+							delete(vm, vmK)
+							vm[vmKlower] = vmV
+						}
+					}
+				}
+
 				ve, err := json.Marshal(vi)
 				if err != nil {
-					conversionError = "expects valid patch op value in each update"
+					conversionError = "expects valid patch op in each update"
 					return
 				}
 				patch, err := jsonpatch.DecodeExtendedPatch(ve)
 				if err != nil {
-					conversionError = "expects valid patch op value in each update"
+					conversionError = "expects valid patch op in each update"
 					return
 				}
 				update.patch = patch
@@ -1033,14 +1068,19 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 				conversionError = "unrecognised update key, expects a valid set of storage updates"
 				return
 			}
-
-			// Check it's a valid update op.
-			if update.key.Bucket == "" || update.key.Collection == "" || update.key.Record == "" || update.patch == nil {
-				conversionError = "expects each update to contain at least bucket, collection, record, and value"
-				return
-			}
-			updates = append(updates, update)
 		})
+
+		// If there was an inner error allow it to propagate.
+		if conversionError != "" {
+			return
+		}
+
+		// Check it's a valid update op.
+		if update.key.Bucket == "" || update.key.Collection == "" || update.key.Record == "" || update.patch == nil {
+			conversionError = "expects each update to contain at least bucket, collection, record, and update"
+			return
+		}
+		updates = append(updates, update)
 	})
 
 	if conversionError != "" {
