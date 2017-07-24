@@ -174,6 +174,10 @@ func (ep ExtendedPatch) appendOp(doc *container, op operation) error {
 
 func (ep ExtendedPatch) incr(doc *container, op operation) error {
 	path := op.path()
+	incrValue := op.value()
+	if incrValue == nil {
+		return errors.New("jsonpatch incr operation does not apply: value is required")
+	}
 
 	con, key := findObject(doc, path)
 
@@ -191,7 +195,7 @@ func (ep ExtendedPatch) incr(doc *container, op operation) error {
 	if err := json.Unmarshal(*val.raw, &value); err != nil {
 		return fmt.Errorf("jsonpatch incr operation does not apply: path does not point to a number: %s", path)
 	}
-	if err := json.Unmarshal(*op.value().raw, &incr); err != nil {
+	if err := json.Unmarshal(*incrValue.raw, &incr); err != nil {
 		return errors.New("jsonpatch incr operation does not apply: value must be a number")
 	}
 

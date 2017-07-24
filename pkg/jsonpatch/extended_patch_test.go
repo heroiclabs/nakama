@@ -22,3 +22,72 @@ func TestDecodeExtendedPatch(t *testing.T) {
 		t.Fatalf("Error decoding extended patch: %v", err)
 	}
 }
+
+func applyExtendedPatch(doc, patch string) (string, error) {
+	obj, err := DecodeExtendedPatch([]byte(patch))
+
+	if err != nil {
+		panic(err)
+	}
+
+	out, err := obj.Apply([]byte(doc))
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
+}
+
+var ExtendedCases = []Case{
+	{
+		doc:    `{"foo":["bar"]}`,
+		patch:  `[{"op":"append","path":"/foo","value":"baz"}]`,
+		result: `{"foo":["bar","baz"]}`,
+	},
+	{
+		doc:    `{}`,
+		patch:  `[{"op":"init","path":"/foo","value":1}]`,
+		result: `{"foo":1}`,
+	},
+	{
+		doc:    `{"foo":"exists"}`,
+		patch:  `[{"op":"init","path":"/foo","value":1}]`,
+		result: `{"foo":"exists"}`,
+	},
+	{
+		doc:    `{"foo":1}`,
+		patch:  `[{"op":"incr","path":"/foo","value":3}]`,
+		result: `{"foo":4}`,
+	},
+	{
+		doc:    `{"foo":1}`,
+		patch:  `[{"op":"incr","path":"/foo","value":-2.5}]`,
+		result: `{"foo":-1.5}`,
+	},
+	{
+		doc:    `{"foo":{"bar":1}}`,
+		patch:  `[{"op":"merge","path":"/foo","value":{"baz":true}}]`,
+		result: `{"foo":{"bar":1,"baz":true}}`,
+	},
+	{
+		doc:    `{"foo":{"bar":1}}`,
+		patch:  `[{"op":"merge","path":"/foo","value":{"baz":true,"bar":2}}]`,
+		result: `{"foo":{"bar":2,"baz":true}}`,
+	},
+}
+
+func TestAllExtendedCases(t *testing.T) {
+	for _, c := range ExtendedCases {
+		out, err := applyExtendedPatch(c.doc, c.patch)
+
+		if err != nil {
+			t.Errorf("Unable to apply extended patch: %s", err)
+		}
+
+		if !compareJSON(out, c.result) {
+			t.Errorf("ExtendedPatch did not apply. Expected:\n%s\n\nActual:\n%s",
+				reformatJSON(c.result), reformatJSON(out))
+		}
+	}
+}
