@@ -583,7 +583,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		}
 
 		// Check if we need an immediate version compare.
-		if len(update.key.Version) != 0 && !bytes.Equal(update.key.Version, version) {
+		if len(update.key.Version) != 0 && ((bytes.Equal(update.key.Version, []byte("*")) && len(version) != 0) || !bytes.Equal(update.key.Version, version)) {
 			if e := tx.Rollback(); e != nil {
 				logger.Error("Could not update storage, rollback error", zap.Error(e))
 			}
