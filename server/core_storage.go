@@ -59,20 +59,11 @@ type StorageData struct {
 	ExpiresAt       int64
 }
 
-type StorageUpdateOp struct {
-	op          string
-	from        string
-	path        string
-	value       interface{}
-	assert      int
-	conditional bool
-}
-
 type StorageKeyUpdate struct {
-	key             StorageKey
-	permissionRead  int64
-	permissionWrite int64
-	patch           jsonpatch.ExtendedPatch
+	Key             StorageKey
+	PermissionRead  int64
+	PermissionWrite int64
+	Patch           jsonpatch.ExtendedPatch
 }
 
 func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte, bucket string, collection string, limit int64, cursor []byte) ([]*StorageData, []byte, Error_Code, error) {
@@ -527,22 +518,22 @@ func StorageUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*
 	// Process each update one by one.
 	for i, update := range updates {
 		// Check the storage identifiers.
-		if update.key.Bucket == "" || update.key.Collection == "" || update.key.Record == "" {
+		if update.Key.Bucket == "" || update.Key.Collection == "" || update.Key.Record == "" {
 			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: Invalid values for bucket, collection, or record", i))
 		}
 
 		// Check permission values.
-		if update.permissionRead < 0 || update.permissionRead > 2 {
+		if update.PermissionRead < 0 || update.PermissionRead > 2 {
 			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: Invalid read permission", i))
 		}
-		if update.permissionWrite < 0 || update.permissionWrite > 1 {
+		if update.PermissionWrite < 0 || update.PermissionWrite > 1 {
 			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: Invalid write permission", i))
 		}
 
 		// If a user ID is provided, validate the format.
 		owner := []byte{}
-		if len(update.key.UserId) != 0 {
-			if uid, err := uuid.FromBytes(update.key.UserId); err != nil {
+		if len(update.Key.UserId) != 0 {
+			if uid, err := uuid.FromBytes(update.Key.UserId); err != nil {
 				return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: Invalid user ID", i))
 			} else if caller != uuid.Nil && caller != uid {
 				// If the caller is a client, only allow them to write their own data.
@@ -556,12 +547,9 @@ func StorageUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*
 		}
 
 		query := `
-SELECT user_id, bucket, collection, record, value, version
+SELECT user_id, bucket, collection, record, value, version, write
 FROM storage
 WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND deleted_at = 0`
-		if caller != uuid.Nil {
-			query += " AND write = 1"
-		}
 
 		// Query and decode the row.
 		var userID []byte
@@ -570,8 +558,9 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		var record sql.NullString
 		var value []byte
 		var version []byte
-		err = tx.QueryRow(query, update.key.Bucket, update.key.Collection, owner, update.key.Record).
-			Scan(&userID, &bucket, &collection, &record, &value, &version)
+		var write sql.NullInt64
+		err = tx.QueryRow(query, update.Key.Bucket, update.Key.Collection, owner, update.Key.Record).
+			Scan(&userID, &bucket, &collection, &record, &value, &version, &write)
 		if err != nil && err != sql.ErrNoRows {
 			// Only fail on critical database or row scan errors.
 			// If no row was available we still allow storage updates to perform fresh inserts.
@@ -583,11 +572,17 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		}
 
 		// Check if we need an immediate version compare.
-		if len(update.key.Version) != 0 && ((bytes.Equal(update.key.Version, []byte("*")) && len(version) != 0) || !bytes.Equal(update.key.Version, version)) {
+		// If-None-Match and there's an existing version OR If-Match and the existing version doesn't match.
+		if len(update.Key.Version) != 0 && ((bytes.Equal(update.Key.Version, []byte("*")) && len(version) != 0) || (!bytes.Equal(update.Key.Version, []byte("*")) && !bytes.Equal(update.Key.Version, version))) {
 			if e := tx.Rollback(); e != nil {
 				logger.Error("Could not update storage, rollback error", zap.Error(e))
 			}
-			return nil, STORAGE_REJECTED, errors.New(fmt.Sprintf("Version check failed on update index %v: no existing value", i))
+			return nil, STORAGE_REJECTED, errors.New(fmt.Sprintf("Storage update index %v rejected: not found, version check failed, or permission denied", i))
+		}
+
+		// Check write permission if caller is not script runtime.
+		if caller != uuid.Nil && write.Valid && write.Int64 != 1 {
+			return nil, STORAGE_REJECTED, errors.New(fmt.Sprintf("Storage update index %v rejected: not found, version check failed, or permission denied", i))
 		}
 
 		// Allow updates to create new records.
@@ -596,7 +591,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		}
 
 		// Apply the patch operations.
-		newValue, err := update.patch.Apply(value)
+		newValue, err := update.Patch.Apply(value)
 		if err != nil {
 			if e := tx.Rollback(); e != nil {
 				logger.Error("Could not update storage, rollback error", zap.Error(e))
@@ -608,7 +603,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		query = `
 INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
 SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
-		params := []interface{}{uuid.NewV4().Bytes(), owner, update.key.Bucket, update.key.Collection, update.key.Record, newValue, newVersion, update.permissionRead, update.permissionWrite, ts}
+		params := []interface{}{uuid.NewV4().Bytes(), owner, update.Key.Bucket, update.Key.Collection, update.Key.Record, newValue, newVersion, update.PermissionRead, update.PermissionWrite, ts}
 		if len(version) == 0 {
 			// Treat this as an if-none-match.
 			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
@@ -645,10 +640,10 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 		}
 
 		keys[i] = &StorageKey{
-			Bucket:     update.key.Bucket,
-			Collection: update.key.Collection,
-			Record:     update.key.Record,
-			UserId:     update.key.UserId,
+			Bucket:     update.Key.Bucket,
+			Collection: update.Key.Collection,
+			Record:     update.Key.Record,
+			UserId:     update.Key.UserId,
 			Version:    newVersion[:],
 		}
 	}

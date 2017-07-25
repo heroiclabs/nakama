@@ -970,8 +970,8 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 
 		// Initialise fields where default values for their types are not the logical defaults needed.
 		update := &StorageKeyUpdate{
-			permissionRead:  int64(1),
-			permissionWrite: int64(1),
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
 		}
 
 		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
@@ -981,19 +981,19 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					conversionError = "expects valid buckets in each update"
 					return
 				}
-				update.key.Bucket = v.String()
+				update.Key.Bucket = v.String()
 			case "Collection":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid collections in each update"
 					return
 				}
-				update.key.Collection = v.String()
+				update.Key.Collection = v.String()
 			case "Record":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid records in each update"
 					return
 				}
-				update.key.Record = v.String()
+				update.Key.Record = v.String()
 			case "UserId":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid user IDs in each update"
@@ -1003,26 +1003,26 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					conversionError = "expects valid user IDs in each update"
 					return
 				} else {
-					update.key.UserId = uid.Bytes()
+					update.Key.UserId = uid.Bytes()
 				}
 			case "Version":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid versions in each update"
 					return
 				}
-				update.key.Version = []byte(v.String())
+				update.Key.Version = []byte(v.String())
 			case "PermissionRead":
 				if v.Type() != lua.LTNumber {
 					conversionError = "expects valid read permissions in each update"
 					return
 				}
-				update.permissionRead = int64(lua.LVAsNumber(v))
+				update.PermissionRead = int64(lua.LVAsNumber(v))
 			case "PermissionWrite":
 				if v.Type() != lua.LTNumber {
 					conversionError = "expects valid write permissions in each update"
 					return
 				}
-				update.permissionWrite = int64(lua.LVAsNumber(v))
+				update.PermissionWrite = int64(lua.LVAsNumber(v))
 			case "Update":
 				if v.Type() != lua.LTTable {
 					conversionError = "expects valid patch op in each update"
@@ -1063,7 +1063,7 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					conversionError = "expects valid patch op in each update"
 					return
 				}
-				update.patch = patch
+				update.Patch = patch
 			default:
 				conversionError = "unrecognised update key, expects a valid set of storage updates"
 				return
@@ -1076,7 +1076,7 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 		}
 
 		// Check it's a valid update op.
-		if update.key.Bucket == "" || update.key.Collection == "" || update.key.Record == "" || update.patch == nil {
+		if update.Key.Bucket == "" || update.Key.Collection == "" || update.Key.Record == "" || update.Patch == nil {
 			conversionError = "expects each update to contain at least bucket, collection, record, and update"
 			return
 		}
