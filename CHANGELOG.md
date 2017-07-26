@@ -5,12 +5,14 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 ### Changed
+- New storage partial update feature.
 - Use Lua table for Content field when creating new notifications.
 - Use Lua table for Metadata field for new groups.
 - Use Lua table for Metadata field when updating a user.
 - Updated configuration variable names. Most importantly `DB` is now changed to `database.address`.
-- Moved all `nakamax` functions into `nakama`. 
+- Moved all `nakamax` functions into `nakama`.
 - Invalid config file, or invalid command line config option prevents server from starting.
+- Matchmake token expiry increased from 15 seconds to 30 seconds.
 
 ## [1.0.0-rc.1] - 2017-07-18
 ### Added

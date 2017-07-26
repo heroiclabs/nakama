@@ -37,6 +37,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"nakama/pkg/jsonpatch"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -96,6 +97,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"storage_list":          n.storageList,
 		"storage_fetch":         n.storageFetch,
 		"storage_write":         n.storageWrite,
+		"storage_update":        n.storageUpdate,
 		"storage_remove":        n.storageRemove,
 		"leaderboard_create":    n.leaderboardCreate,
 		"groups_create":         n.groupsCreate,
@@ -661,7 +663,17 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 			v.UserId = []byte(uid.String())
 		}
 		vm := structs.Map(v)
-		lv.RawSetInt(i+1, convertValue(l, vm))
+
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal(v.Value, &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+
+		lt := ConvertMap(l, vm)
+		lt.RawSetString("Value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
 	}
 	l.Push(lv)
 
@@ -926,6 +938,159 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	keys, _, err := StorageWrite(n.logger, n.db, uuid.Nil, data)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, k := range keys {
+		km := structs.Map(k)
+		lv.RawSetInt(i+1, convertValue(l, km))
+	}
+
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageUpdate(l *lua.LState) int {
+	updatesTable := l.CheckTable(1)
+	if updatesTable == nil || updatesTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of user updates")
+		return 0
+	}
+
+	conversionError := ""
+	updates := make([]*StorageKeyUpdate, 0)
+
+	updatesTable.ForEach(func(i lua.LValue, u lua.LValue) {
+		updateTable, ok := u.(*lua.LTable)
+		if !ok {
+			conversionError = "expects a valid set of user updates"
+			return
+		}
+
+		// Initialise fields where default values for their types are not the logical defaults needed.
+		update := &StorageKeyUpdate{
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+		}
+
+		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			switch k.String() {
+			case "Bucket":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid buckets in each update"
+					return
+				}
+				update.Key.Bucket = v.String()
+			case "Collection":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid collections in each update"
+					return
+				}
+				update.Key.Collection = v.String()
+			case "Record":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid records in each update"
+					return
+				}
+				update.Key.Record = v.String()
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid user IDs in each update"
+					return
+				}
+				if uid, err := uuid.FromString(v.String()); err != nil {
+					conversionError = "expects valid user IDs in each update"
+					return
+				} else {
+					update.Key.UserId = uid.Bytes()
+				}
+			case "Version":
+				if v.Type() != lua.LTString {
+					conversionError = "expects valid versions in each update"
+					return
+				}
+				update.Key.Version = []byte(v.String())
+			case "PermissionRead":
+				if v.Type() != lua.LTNumber {
+					conversionError = "expects valid read permissions in each update"
+					return
+				}
+				update.PermissionRead = int64(lua.LVAsNumber(v))
+			case "PermissionWrite":
+				if v.Type() != lua.LTNumber {
+					conversionError = "expects valid write permissions in each update"
+					return
+				}
+				update.PermissionWrite = int64(lua.LVAsNumber(v))
+			case "Update":
+				if v.Type() != lua.LTTable {
+					conversionError = "expects valid patch op in each update"
+					return
+				}
+
+				vi, ok := convertLuaValue(v).([]interface{})
+				if !ok {
+					conversionError = "expects valid patch op in each update"
+					return
+				}
+
+				// Lowercase all key names in op declarations.
+				// eg. the Lua patch op: {{Op = "incr", Path = "/foo", Value = 1}}
+				// becomes the JSON:     [{"op": "incr", "path": "/foo", "value": 1}]
+				for _, vim := range vi {
+					vm, ok := vim.(map[string]interface{})
+					if !ok {
+						conversionError = "expects valid patch op in each update"
+						return
+					}
+					for vmK, vmV := range vm {
+						vmKlower := strings.ToLower(vmK)
+						if vmKlower != vmK {
+							delete(vm, vmK)
+							vm[vmKlower] = vmV
+						}
+					}
+				}
+
+				ve, err := json.Marshal(vi)
+				if err != nil {
+					conversionError = "expects valid patch op in each update"
+					return
+				}
+				patch, err := jsonpatch.DecodeExtendedPatch(ve)
+				if err != nil {
+					conversionError = "expects valid patch op in each update"
+					return
+				}
+				update.Patch = patch
+			default:
+				conversionError = "unrecognised update key, expects a valid set of storage updates"
+				return
+			}
+		})
+
+		// If there was an inner error allow it to propagate.
+		if conversionError != "" {
+			return
+		}
+
+		// Check it's a valid update op.
+		if update.Key.Bucket == "" || update.Key.Collection == "" || update.Key.Record == "" || update.Patch == nil {
+			conversionError = "expects each update to contain at least bucket, collection, record, and update"
+			return
+		}
+		updates = append(updates, update)
+	})
+
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
+	}
+
+	keys, _, err := StorageUpdate(n.logger, n.db, uuid.Nil, updates)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to update storage: %s", err.Error()))
 		return 0
 	}
 

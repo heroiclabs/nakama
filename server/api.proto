@@ -242,31 +242,32 @@ message Envelope {
     TStorageList storage_list = 48;
     TStorageFetch storage_fetch = 49;
     TStorageWrite storage_write = 50;
-    TStorageRemove storage_remove = 51;
-    TStorageData storage_data = 52;
-    TStorageKeys storage_keys = 53;
+    TStorageUpdate storage_update = 51;
+    TStorageRemove storage_remove = 52;
+    TStorageData storage_data = 53;
+    TStorageKeys storage_keys = 54;
 
-    TLeaderboardsList leaderboards_list = 54;
-    TLeaderboardRecordsWrite leaderboard_records_write = 55;
-    TLeaderboardRecordsFetch leaderboard_records_fetch = 56;
-    TLeaderboardRecordsList leaderboard_records_list = 57;
-    TLeaderboards leaderboards = 58;
-    TLeaderboardRecords leaderboard_records = 59;
+    TLeaderboardsList leaderboards_list = 55;
+    TLeaderboardRecordsWrite leaderboard_records_write = 56;
+    TLeaderboardRecordsFetch leaderboard_records_fetch = 57;
+    TLeaderboardRecordsList leaderboard_records_list = 58;
+    TLeaderboards leaderboards = 59;
+    TLeaderboardRecords leaderboard_records = 60;
 
-    TMatchmakeAdd matchmake_add = 60;
-    TMatchmakeRemove matchmake_remove = 61;
-    TMatchmakeTicket matchmake_ticket = 62;
-    MatchmakeMatched matchmake_matched = 63;
+    TMatchmakeAdd matchmake_add = 61;
+    TMatchmakeRemove matchmake_remove = 62;
+    TMatchmakeTicket matchmake_ticket = 63;
+    MatchmakeMatched matchmake_matched = 64;
 
-    TRpc rpc = 64;
+    TRpc rpc = 65;
 
-    TPurchaseValidation purchase = 65;
-    TPurchaseRecord purchase_record = 66;
+    TPurchaseValidation purchase = 66;
+    TPurchaseRecord purchase_record = 67;
 
-    TNotificationsList notifications_list = 67;
-    TNotificationsRemove notifications_remove = 68;
-    TNotifications notifications = 69;
-    Notifications live_notifications = 70;
+    TNotificationsList notifications_list = 68;
+    TNotificationsRemove notifications_remove = 69;
+    TNotifications notifications = 70;
+    Notifications live_notifications = 71;
   }
 }
 
@@ -1083,6 +1084,70 @@ message TStorageWrite {
 }
 
 /**
+ * TStorageUpdate is used to update a list of records in Storage.
+ *
+ * The server provides transactional gurantuees. If one record fails to be updated,
+ * the entire operation is rolled backed and marked as an error.
+ *
+ * @returns TStorageKey
+ */
+message TStorageUpdate {
+  message StorageUpdate {
+
+    message UpdateOp {
+      enum UpdateOpCode {
+        /// Add field or value to array at the path.
+        ADD = 0;
+        /// Append a value or array of values at the path.
+        APPEND = 1;
+        /// Copy value at the path to another path.
+        COPY = 2;
+        /// Add a positive/negative value to the value at the path.
+        INCR = 3;
+        /// Initialize the value at the path ONLY if it’s not already present.
+        INIT = 4;
+        /// Perform a merge of the object at the path.
+        MERGE = 5;
+        /// Move a value from one path to another and remove from the original path.
+        MOVE = 6;
+        /// Perform a JSON patch with the sequence of operations on the subpath specified
+        PATCH = 7;
+        /// Remove the value or array at the path.
+        REMOVE = 8;
+        /// Replaces an existing value at the specified path.
+        REPLACE = 9;
+        /// Tests equality of the value at the path. The entire patch set fails if the test fails.
+        TEST = 10;
+        /// Performs a comparator which returns -1, 0, or 1 depending on whether the value is less than, the same, or greater than the value in the path.
+        COMPARE = 11;
+      }
+
+      /// Update op code - must be one of the UpdateOpCode enums above.
+      int32 op = 1;
+      string path = 2;
+      bytes value = 3;
+      string from = 4;
+      bool conditional = 5;
+      int64 assert = 6;
+    }
+
+    message StorageKey {
+      string bucket = 1;
+      string collection = 2;
+      string record = 3;
+      bytes version = 4; // if-match and if-none-match
+    }
+
+    StorageKey key = 1;
+    int32 permission_read = 2;
+    int32 permission_write = 3;
+    repeated UpdateOp ops = 4;
+  }
+
+  repeated StorageUpdate updates = 1;
+}
+
+/**
  * TStorageKey contains a list of Storage keys for the newly stored data.
  */
 message TStorageKeys {
@@ -1350,4 +1415,3 @@ message TNotifications {
 message TNotificationsRemove {
   repeated bytes notification_ids = 1;
 }
-

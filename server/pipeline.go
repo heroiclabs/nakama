@@ -173,6 +173,8 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		p.storageFetch(logger, session, envelope)
 	case *Envelope_StorageWrite:
 		p.storageWrite(logger, session, envelope)
+	case *Envelope_StorageUpdate:
+		p.storageUpdate(logger, session, envelope)
 	case *Envelope_StorageRemove:
 		p.storageRemove(logger, session, envelope)
 

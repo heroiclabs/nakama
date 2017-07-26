@@ -22,6 +22,7 @@ import (
 
 	"github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
+	"nakama/pkg/jsonpatch"
 )
 
 func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
@@ -2739,4 +2740,542 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 	assert.NotNil(t, values, "values was nil")
 	assert.Len(t, values, 0, "values length was not 0")
 	assert.Nil(t, cursor, "cursor was not nil")
+}
+
+func TestStorageUpdateRuntimeNewRecord(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"init","path":"/foo","value":{"bar":2}},{"op":"incr","path":"/foo/bar","value":3}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+			},
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+			Patch:           patch,
+		},
+	}
+
+	keys, code, err := server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+		},
+	}
+	data, code, err := server.StorageFetch(logger, db, uuid.Nil, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":5}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdateRuntimeExistingRecord(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			Value:      []byte(`{"foo":{"bar":1}}`),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uuid.Nil, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+			},
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+			Patch:           patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uuid.Nil, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":3}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdatePipelineNewRecord(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	uid := uuid.NewV4()
+	collection := generateString()
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"init","path":"/foo","value":{"bar":2}},{"op":"incr","path":"/foo/bar","value":6}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				UserId:     uid.Bytes(),
+			},
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+			Patch:           patch,
+		},
+	}
+
+	keys, code, err := server.StorageUpdate(logger, db, uid, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			UserId:     uid.Bytes(),
+		},
+	}
+	data, code, err := server.StorageFetch(logger, db, uid, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":8}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdatePipelineExistingRecord(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	uid := uuid.NewV4()
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "record",
+			UserId:          uid.Bytes(),
+			Value:           []byte(`{"foo":{"bar":7}}`),
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":-2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				UserId:     uid.Bytes(),
+			},
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+			Patch:           patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uid, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			UserId:     uid.Bytes(),
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uid, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":5}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdatePipelineExistingRecordPermissionDenied(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	uid := uuid.NewV4()
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:          "testbucket",
+			Collection:      collection,
+			Record:          "record",
+			UserId:          uid.Bytes(),
+			Value:           []byte(`{"foo":{"bar":7}}`),
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(0),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uid, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":-2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				UserId:     uid.Bytes(),
+			},
+			PermissionRead:  int64(1),
+			PermissionWrite: int64(1),
+			Patch:           patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uid, updates)
+	assert.NotNil(t, err, "err was not nil")
+	assert.Equal(t, "Storage update index 0 rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code was not STORAGE_REJECTED")
+	assert.Nil(t, keys, "values was nil")
+}
+
+func TestStorageUpdateRuntimeBadPatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":-2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err := server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.NotNil(t, err, "err was not nil")
+	assert.Equal(t, "Storage update index 0 rejected: jsonpatch incr operation does not apply: doc is missing path: /foo/bar", err.Error(), "error message did not match")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code was not STORAGE_REJECTED")
+	assert.Nil(t, keys, "values was nil")
+}
+
+func TestStorageUpdateRuntimeNewRecordIfNoneMatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"init","path":"/foo","value":{"bar":2}},{"op":"incr","path":"/foo/bar","value":3}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				Version:    []byte("*"),
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err := server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+		},
+	}
+	data, code, err := server.StorageFetch(logger, db, uuid.Nil, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":5}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdateRuntimeExistingRecordIfNoneMatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			Value:      []byte(`{"foo":{"bar":1}}`),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uuid.Nil, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				Version:    []byte("*"),
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.NotNil(t, err, "err was not nil")
+	assert.Equal(t, "Storage update index 0 rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code was not STORAGE_REJECTED")
+	assert.Nil(t, keys, "values was nil")
+}
+
+func TestStorageUpdateRuntimeNewRecordIfMatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"init","path":"/foo","value":{"bar":2}},{"op":"incr","path":"/foo/bar","value":3}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				Version:    []byte("bad version"),
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err := server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.NotNil(t, err, "err was not nil")
+	assert.Equal(t, "Storage update index 0 rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code was not STORAGE_REJECTED")
+	assert.Nil(t, keys, "values was nil")
+}
+
+func TestStorageUpdateRuntimeExistingRecordIfMatch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			Value:      []byte(`{"foo":{"bar":1}}`),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uuid.Nil, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				Version:    keys[0].Version,
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	keys = []*server.StorageKey{
+		&server.StorageKey{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+		},
+	}
+	data, code, err = server.StorageFetch(logger, db, uuid.Nil, keys)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, data, "data was nil")
+	assert.Len(t, data, 1, "data length was not 0")
+	assert.EqualValues(t, []byte(`{"foo":{"bar":3}}`), data[0].Value, "data value did not match")
+}
+
+func TestStorageUpdateRuntimeExistingRecordIfMatchBadVersion(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	collection := generateString()
+
+	data := []*server.StorageData{
+		&server.StorageData{
+			Bucket:     "testbucket",
+			Collection: collection,
+			Record:     "record",
+			Value:      []byte(`{"foo":{"bar":1}}`),
+		},
+	}
+	keys, code, err := server.StorageWrite(logger, db, uuid.Nil, data)
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, keys, "values was nil")
+	assert.Len(t, keys, 1, "keys length was not 1")
+
+	patch, err := jsonpatch.DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo/bar","value":2}]`))
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, patch, "patch was nil")
+
+	updates := []*server.StorageKeyUpdate{
+		&server.StorageKeyUpdate{
+			Key: server.StorageKey{
+				Bucket:     "testbucket",
+				Collection: collection,
+				Record:     "record",
+				Version:    []byte("bad version"),
+			},
+			Patch: patch,
+		},
+	}
+
+	keys, code, err = server.StorageUpdate(logger, db, uuid.Nil, updates)
+	assert.NotNil(t, err, "err was not nil")
+	assert.Equal(t, "Storage update index 0 rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Equal(t, server.STORAGE_REJECTED, code, "code was not STORAGE_REJECTED")
+	assert.Nil(t, keys, "values was nil")
 }

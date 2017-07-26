@@ -14,7 +14,16 @@
 
 package server
 
-import "go.uber.org/zap"
+import (
+	"nakama/pkg/jsonpatch"
+
+	"encoding/json"
+
+	"fmt"
+
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
+)
 
 func (p *pipeline) storageList(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageList()
@@ -91,7 +100,7 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session *session, envelope *
 func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageWrite()
 	if len(incoming.Data) == 0 {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "At least one write value is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one write value is required"))
 		return
 	}
 
@@ -131,7 +140,7 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session *session, envelope *
 func (p *pipeline) storageRemove(logger *zap.Logger, session *session, envelope *Envelope) {
 	incoming := envelope.GetStorageRemove()
 	if len(incoming.Keys) == 0 {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "At least one remove key is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one remove key is required"))
 		return
 	}
 
@@ -153,4 +162,109 @@ func (p *pipeline) storageRemove(logger *zap.Logger, session *session, envelope 
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
+}
+
+func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope *Envelope) {
+	incoming := envelope.GetStorageUpdate()
+	if len(incoming.Updates) == 0 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one update is required"))
+		return
+	}
+
+	keyUpdates := make([]*StorageKeyUpdate, 0)
+	for _, update := range incoming.Updates {
+		if _, err := uuid.FromBytes(update.Key.UserId); err != nil {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "UserID is not valid UUID"))
+			return
+		}
+
+		keyUpdate := &StorageKeyUpdate{
+			PermissionRead:  int64(update.PermissionRead),
+			PermissionWrite: int64(update.PermissionWrite),
+			Key: &StorageKey{
+				Bucket:     update.Key.Bucket,
+				Collection: update.Key.Collection,
+				Record:     update.Key.Record,
+				Version:    update.Key.Version,
+				UserId:     session.userID.Bytes(),
+			},
+		}
+
+		jsonOps := make([]map[string]*json.RawMessage, 0)
+		for _, op := range update.Ops {
+			opString := ""
+			switch TStorageUpdate_StorageUpdate_UpdateOp_UpdateOpCode(op.Op) {
+			case ADD:
+				opString = "add"
+			case APPEND:
+				opString = "append"
+			case COPY:
+				opString = "copy"
+			case INCR:
+				opString = "incr"
+			case INIT:
+				opString = "init"
+			case MERGE:
+				opString = "merge"
+			case MOVE:
+				opString = "move"
+			case PATCH:
+				opString = "patch"
+			case REMOVE:
+				opString = "remove"
+			case REPLACE:
+				opString = "replace"
+			case TEST:
+				opString = "test"
+			case COMPARE:
+				opString = "compare"
+			default:
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid update operation supplied"))
+				return
+			}
+
+			opRaw := json.RawMessage(fmt.Sprintf(`"%s"`, opString))
+			value := json.RawMessage(op.Value)
+			path := json.RawMessage(fmt.Sprintf(`"%s"`, op.Path))
+			from := json.RawMessage(fmt.Sprintf(`"%s"`, op.From))
+			conditional := json.RawMessage(fmt.Sprintf(`%t`, op.Conditional))
+			assert := json.RawMessage(fmt.Sprintf(`%d`, op.Assert))
+
+			jsonOp := map[string]*json.RawMessage{
+				"op":          &opRaw,
+				"value":       &value,
+				"path":        &path,
+				"from":        &from,
+				"conditional": &conditional,
+				"assert":      &assert,
+			}
+			jsonOps = append(jsonOps, jsonOp)
+		}
+
+		p, err := jsonpatch.NewExtendedPatch(jsonOps)
+		if err != nil {
+			logger.Warn("Invalid patch operation", zap.Error(err))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, fmt.Sprintf("Invalid patch operation: %s", err.Error())))
+			return
+		}
+		keyUpdate.Patch = p
+		keyUpdates = append(keyUpdates, keyUpdate)
+	}
+
+	updatedKeys, errCode, err := StorageUpdate(logger, p.db, session.userID, keyUpdates)
+	if err != nil {
+		session.Send(ErrorMessage(envelope.CollationId, errCode, err.Error()))
+		return
+	}
+
+	storageKeys := make([]*TStorageKeys_StorageKey, len(updatedKeys))
+	for i, key := range updatedKeys {
+		storageKeys[i] = &TStorageKeys_StorageKey{
+			Bucket:     key.Bucket,
+			Collection: key.Collection,
+			Record:     key.Record,
+			Version:    key.Version,
+		}
+	}
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}})
 }

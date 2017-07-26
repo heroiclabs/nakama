@@ -41,7 +41,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 	matchID := uuid.NewV4()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"mid": matchID.String(),
-		"exp": time.Now().UTC().Add(15 * time.Second).Unix(),
+		"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
 	})
 	signedToken, _ := token.SignedString(p.hmacSecretByte)
 
