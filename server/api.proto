@@ -242,8 +242,8 @@ message Envelope {
     TStorageList storage_list = 48;
     TStorageFetch storage_fetch = 49;
     TStorageWrite storage_write = 50;
-    TStorageRemove storage_remove = 51;
-    TStorageUpdate storage_update = 52;
+    TStorageUpdate storage_update = 51;
+    TStorageRemove storage_remove = 52;
     TStorageData storage_data = 53;
     TStorageKeys storage_keys = 54;
 
@@ -1084,6 +1084,71 @@ message TStorageWrite {
 }
 
 /**
+ * TStorageUpdate is used to update a list of records in Storage.
+ *
+ * The server provides transactional gurantuees. If one record fails to be updated,
+ * the entire operation is rolled backed and marked as an error.
+ *
+ * @returns TStorageKey
+ */
+message TStorageUpdate {
+  message StorageUpdate {
+
+    message UpdateOp {
+      enum UpdateOpCode {
+        /// Add field or value to array at the path.
+        ADD = 0;
+        /// Append a value or array of values at the path.
+        APPEND = 1;
+        /// Copy value at the path to another path.
+        COPY = 2;
+        /// Add a positive/negative value to the value at the path.
+        INCR = 3;
+        /// Initialize the value at the path ONLY if it’s not already present.
+        INIT = 4;
+        /// Perform a merge of the object at the path.
+        MERGE = 5;
+        /// Move a value from one path to another and remove from the original path.
+        MOVE = 6;
+        /// Perform a JSON patch with the sequence of operations on the subpath specified
+        PATCH = 7;
+        /// Remove the value or array at the path.
+        REMOVE = 8;
+        /// Replaces an existing value at the specified path.
+        REPLACE = 9;
+        /// Tests equality of the value at the path. The entire patch set fails if the test fails.
+        TEST = 10;
+        /// Performs a comparator which returns -1, 0, or 1 depending on whether the value is less than, the same, or greater than the value in the path.
+        COMPARE = 11;
+      }
+
+      /// Update op code - must be one of the UpdateOpCode enums above.
+      int32 op = 1;
+      string path = 2;
+      bytes value = 3;
+      string from = 4;
+      bool conditional = 5;
+      int64 assert = 6;
+    }
+
+    message StorageKey {
+      string bucket = 1;
+      string collection = 2;
+      string record = 3;
+      bytes user_id = 4;
+      bytes version = 5; // if-match and if-none-match
+    }
+
+    StorageKey key = 1;
+    int32 permission_read = 2;
+    int32 permission_write = 3;
+    repeated UpdateOp ops = 4;
+  }
+
+  repeated StorageUpdate updates = 1;
+}
+
+/**
  * TStorageKey contains a list of Storage keys for the newly stored data.
  */
 message TStorageKeys {
@@ -1350,61 +1415,4 @@ message TNotifications {
  */
 message TNotificationsRemove {
   repeated bytes notification_ids = 1;
-}
-
-message TStorageUpdate {
-  message StorageUpdate {
-
-    message UpdateOp {
-      enum UpdateOpCode {
-        /// Add field or value to array at the path.
-        ADD = 0;
-        /// Append a value or array of values at the path.
-        APPEND = 1;
-        /// Copy value at the path to another path.
-        COPY = 2;
-        /// Add a positive/negative value to the value at the path.
-        INCR = 3;
-        /// Initialize the value at the path ONLY if it’s not already present.
-        INIT = 4;
-        /// Perform a merge of the object at the path.
-        MERGE = 5;
-        /// Move a value from one path to another and remove from the original path.
-        MOVE = 6;
-        /// Perform a JSON patch with the sequence of operations on the subpath specified
-        PATCH = 7;
-        /// Remove the value or array at the path.
-        REMOVE = 8;
-        /// Replaces an existing value at the specified path.
-        REPLACE = 9;
-        /// Tests equality of the value at the path. The entire patch set fails if the test fails.
-        TEST = 10;
-        /// Performs a comparator which returns -1, 0, or 1 depending on whether the value is less than, the same, or greater than the value in the path.
-        COMPARE = 11;
-      }
-
-      /// Update op code - must be one of the UpdateOpCode enums above.
-      int32 op = 1;
-      string path = 2;
-      bytes value = 3;
-      string from = 4;
-      bool conditional = 5;
-      int64 assert = 6;
-    }
-
-    message StorageKey {
-      string bucket = 1;
-      string collection = 2;
-      string record = 3;
-      bytes user_id = 4;
-      bytes version = 5;
-    }
-
-    StorageKey key = 1;
-    int32 permission_read = 2;
-    int32 permission_write = 3;
-    repeated UpdateOp ops = 4;
-  }
-
-  repeated StorageUpdate updates = 1;
 }

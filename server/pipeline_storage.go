@@ -192,15 +192,8 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 
 		jsonOps := make([]map[string]*json.RawMessage, 0)
 		for _, op := range update.Ops {
-			jsonOp := make(map[string]*json.RawMessage)
-			jsonOp["value"] = &json.RawMessage(op.Value)
-			jsonOp["path"] = &json.RawMessage(fmt.Sprintf(`"%s"`, op.Path))
-			jsonOp["from"] = &json.RawMessage(fmt.Sprintf(`"%s"`, op.From))
-			jsonOp["conditional"] = &json.RawMessage(fmt.Sprintf(`%t`, op.Conditional))
-			jsonOp["assert"] = &json.RawMessage(fmt.Sprintf(`%d`, op.Assert))
-
 			opString := ""
-			switch op.OpCode {
+			switch TStorageUpdate_StorageUpdate_UpdateOp_UpdateOpCode(op.Op) {
 			case ADD:
 				opString = "add"
 			case APPEND:
@@ -230,7 +223,21 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 				return
 			}
 
-			jsonOp["op"] = &json.RawMessage(fmt.Sprintf(`"%s"`, opString))
+			opRaw := json.RawMessage(fmt.Sprintf(`"%s"`, opString))
+			value := json.RawMessage(op.Value)
+			path := json.RawMessage(fmt.Sprintf(`"%s"`, op.Path))
+			from := json.RawMessage(fmt.Sprintf(`"%s"`, op.From))
+			conditional := json.RawMessage(fmt.Sprintf(`%t`, op.Conditional))
+			assert := json.RawMessage(fmt.Sprintf(`%d`, op.Assert))
+
+			jsonOp := map[string]*json.RawMessage{
+				"op":          &opRaw,
+				"value":       &value,
+				"path":        &path,
+				"from":        &from,
+				"conditional": &conditional,
+				"assert":      &assert,
+			}
 			jsonOps = append(jsonOps, jsonOp)
 		}
 
