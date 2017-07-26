@@ -21,7 +21,6 @@ import (
 
 	"fmt"
 
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -173,11 +172,6 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 
 	keyUpdates := make([]*StorageKeyUpdate, 0)
 	for _, update := range incoming.Updates {
-		if _, err := uuid.FromBytes(update.Key.UserId); err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "UserID is not valid UUID"))
-			return
-		}
-
 		keyUpdate := &StorageKeyUpdate{
 			PermissionRead:  int64(update.PermissionRead),
 			PermissionWrite: int64(update.PermissionWrite),
