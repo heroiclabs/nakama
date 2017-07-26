@@ -1135,8 +1135,7 @@ message TStorageUpdate {
       string bucket = 1;
       string collection = 2;
       string record = 3;
-      bytes user_id = 4;
-      bytes version = 5; // if-match and if-none-match
+      bytes version = 4; // if-match and if-none-match
     }
 
     StorageKey key = 1;

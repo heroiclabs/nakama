@@ -186,7 +186,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 				Collection: update.Key.Collection,
 				Record:     update.Key.Record,
 				Version:    update.Key.Version,
-				UserId:     update.Key.UserId,
+				UserId:     session.userID.Bytes(),
 			},
 		}
 
