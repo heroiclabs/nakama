@@ -57,7 +57,8 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	service.mux.HandleFunc("/v0/cluster/stats", service.statusHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/config", service.configHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/info", service.infoHandler).Methods("GET")
-	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") //needs to be last
+	// TODO coming soon
+	// service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") // Needs to be last.
 
 	go func() {
 		bindAddr := fmt.Sprintf(":%d", config.GetDashboard().Port)

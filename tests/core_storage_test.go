@@ -2757,7 +2757,7 @@ func TestStorageUpdateRuntimeNewRecord(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -2818,7 +2818,7 @@ func TestStorageUpdateRuntimeExistingRecord(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -2866,7 +2866,7 @@ func TestStorageUpdatePipelineNewRecord(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -2933,7 +2933,7 @@ func TestStorageUpdatePipelineExistingRecord(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3000,7 +3000,7 @@ func TestStorageUpdatePipelineExistingRecordPermissionDenied(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3034,7 +3034,7 @@ func TestStorageUpdateRuntimeBadPatch(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3065,7 +3065,7 @@ func TestStorageUpdateRuntimeNewRecordIfNoneMatch(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3125,7 +3125,7 @@ func TestStorageUpdateRuntimeExistingRecordIfNoneMatch(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3157,7 +3157,7 @@ func TestStorageUpdateRuntimeNewRecordIfMatch(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3203,7 +3203,7 @@ func TestStorageUpdateRuntimeExistingRecordIfMatch(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",
@@ -3263,7 +3263,7 @@ func TestStorageUpdateRuntimeExistingRecordIfMatchBadVersion(t *testing.T) {
 
 	updates := []*server.StorageKeyUpdate{
 		&server.StorageKeyUpdate{
-			Key: server.StorageKey{
+			Key: &server.StorageKey{
 				Bucket:     "testbucket",
 				Collection: collection,
 				Record:     "record",

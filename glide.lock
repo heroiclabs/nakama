@@ -51,7 +51,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/yuin/gopher-lua
-  version: b402f3114ec730d8bddb074a6c137309f561aa78
+  version: 2243d714d6c94951d8ccca8c851836ff47d401c9
   subpackages:
   - ast
   - parse
