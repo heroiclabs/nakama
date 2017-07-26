@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"nakama/build/generated/dashboard"
-	"os"
 	"runtime"
 
 	"github.com/elazarl/go-bindata-assetfs"
@@ -68,11 +67,11 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 			multiLogger.Fatal("Dashboard listener failed", zap.Error(err))
 		}
 	}()
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "127.0.0.1"
-	}
-	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
+	// hostname, err := os.Hostname()
+	// if err != nil {
+	// 	 hostname = "127.0.0.1"
+	// }
+	// multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
 
 	return service
 }

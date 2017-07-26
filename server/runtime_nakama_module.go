@@ -970,6 +970,7 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 
 		// Initialise fields where default values for their types are not the logical defaults needed.
 		update := &StorageKeyUpdate{
+			Key:             &StorageKey{},
 			PermissionRead:  int64(1),
 			PermissionWrite: int64(1),
 		}

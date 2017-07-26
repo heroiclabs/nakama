@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - New storage partial update feature.
+- Log warning messages at startup when using insecure default parameter values.
 
 ### Changed
 - Use Lua table for Content field when creating new notifications.
