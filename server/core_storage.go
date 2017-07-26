@@ -23,9 +23,10 @@ import (
 	"fmt"
 
 	"encoding/gob"
+	"nakama/pkg/jsonpatch"
+
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"nakama/pkg/jsonpatch"
 )
 
 type storageListCursor struct {
@@ -60,7 +61,7 @@ type StorageData struct {
 }
 
 type StorageKeyUpdate struct {
-	Key             StorageKey
+	Key             *StorageKey
 	PermissionRead  int64
 	PermissionWrite int64
 	Patch           jsonpatch.ExtendedPatch
