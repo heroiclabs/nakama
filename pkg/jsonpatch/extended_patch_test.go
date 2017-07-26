@@ -14,7 +14,36 @@
 
 package jsonpatch
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestNewExtendedPatch(t *testing.T) {
+	var ops []map[string]*json.RawMessage
+	err := json.Unmarshal([]byte(`[{"op":"init","path":"/foo","value":{"bar":1}},{"op":"incr","path":"/foo/bar","value":3}]`), &ops)
+	if err != nil {
+		t.Fatalf("Error decoding new extended patch: %v", err)
+	}
+
+	ep, err := NewExtendedPatch(ops)
+	if err != nil {
+		t.Fatalf("Error creating new extended patch: %v", err)
+	}
+
+	out, err := ep.Apply([]byte(`{}`))
+	if err != nil {
+		t.Fatalf("Error applying new extended patch: %v", err)
+	}
+
+	outString := string(out)
+	expectedString := `{"foo":{"bar":4}}`
+
+	if !compareJSON(expectedString, outString) {
+		t.Errorf("ExtendedPatch did not apply. Expected:\n%s\n\nActual:\n%s",
+			reformatJSON(expectedString), reformatJSON(outString))
+	}
+}
 
 func TestDecodeExtendedPatch(t *testing.T) {
 	_, err := DecodeExtendedPatch([]byte(`[{"op":"incr","path":"/foo"},{"op":"init","path":"/bar","value":{}}]`))

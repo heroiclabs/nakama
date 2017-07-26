@@ -56,6 +56,14 @@ func (o operation) conditional() bool {
 	return false // Treat bad values as not conditional.
 }
 
+func NewExtendedPatch(ops []map[string]*json.RawMessage) (ExtendedPatch, error) {
+	ep := make(ExtendedPatch, len(ops))
+	for i, op := range ops {
+		ep[i] = operation(op)
+	}
+	return ep, nil
+}
+
 // DecodePatch decodes the passed JSON document as an RFC 6902 patch.
 func DecodeExtendedPatch(buf []byte) (ExtendedPatch, error) {
 	var ep ExtendedPatch
