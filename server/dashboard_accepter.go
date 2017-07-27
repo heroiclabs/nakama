@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"nakama/build/generated/dashboard"
-	"os"
 	"runtime"
 
 	"github.com/elazarl/go-bindata-assetfs"
@@ -57,7 +56,8 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	service.mux.HandleFunc("/v0/cluster/stats", service.statusHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/config", service.configHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/info", service.infoHandler).Methods("GET")
-	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") //needs to be last
+	// TODO coming soon
+	// service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") // Needs to be last.
 
 	go func() {
 		bindAddr := fmt.Sprintf(":%d", config.GetDashboard().Port)
@@ -67,11 +67,11 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 			multiLogger.Fatal("Dashboard listener failed", zap.Error(err))
 		}
 	}()
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "127.0.0.1"
-	}
-	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
+	// hostname, err := os.Hostname()
+	// if err != nil {
+	// 	 hostname = "127.0.0.1"
+	// }
+	// multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
 
 	return service
 }

@@ -289,7 +289,7 @@ test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
 	print("Hello World")
-	print(ctx.execution_mode)
+	print(ctx.ExecutionMode)
 	return payload
 end
 
@@ -330,7 +330,7 @@ test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
 	print("Hello World")
-	print(ctx.execution_mode)
+	print(ctx.ExecutionMode)
 	return payload
 end
 
@@ -369,7 +369,7 @@ test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
 	print("Hello World")
-	print(ctx.execution_mode)
+	print(ctx.ExecutionMode)
 	return payload
 end
 

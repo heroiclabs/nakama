@@ -18,7 +18,7 @@ local nk = require("nakama")
 
 function notification_send(ctx, payload)
   notifications = {
-    { Subject="test_notification",Content='{["hello"] = "world"}',UserId=ctx["user_id"],Code=101,Persistent=true },
+    { Subject="test_notification",Content='{["hello"] = "world"}',UserId=ctx["UserId"],Code=101,Persistent=true },
   }
 
   local status, res = pcall(nk.notifications_send_id, notifications)

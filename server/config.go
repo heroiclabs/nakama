@@ -91,6 +91,17 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
+	// Log warnings for insecure default parameter values.
+	if mainConfig.GetSocket().ServerKey == "defaultkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
+	}
+	if mainConfig.GetSession().EncryptionKey == "defaultencryptionkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
+	}
+	if mainConfig.GetRuntime().HTTPKey == "defaultkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
+	}
+
 	return mainConfig
 }
 

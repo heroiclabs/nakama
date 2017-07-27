@@ -4,8 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
-### Changed
+### Added
 - New storage partial update feature.
+- Log warning messages at startup when using insecure default parameter values.
+
+### Changed
 - Use Lua table for Content field when creating new notifications.
 - Use Lua table for Metadata field for new groups.
 - Use Lua table for Metadata field when updating a user.
@@ -13,6 +16,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Moved all `nakamax` functions into `nakama`.
 - Invalid config file, or invalid command line config option prevents server from starting.
 - Matchmake token expiry increased from 15 seconds to 30 seconds.
+- Script runtime `os.date()` function now returns correct day of year.
+- Script runtime contexts passed to function hooks now use `PascalCase` naming for fields. For example `context.user_id` must now be `context.UserId`.
 
 ## [1.0.0-rc.1] - 2017-07-18
 ### Added

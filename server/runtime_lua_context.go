@@ -52,11 +52,11 @@ func (e ExecutionMode) String() string {
 }
 
 const (
-	__CTX_ENV              = "env"
-	__CTX_MODE             = "execution_mode"
-	__CTX_USER_ID          = "user_id"
-	__CTX_USER_HANDLE      = "user_handle"
-	__CTX_USER_SESSION_EXP = "user_session_exp"
+	__CTX_ENV              = "Env"
+	__CTX_MODE             = "ExecutionMode"
+	__CTX_USER_ID          = "UserId"
+	__CTX_USER_HANDLE      = "UserHandle"
+	__CTX_USER_SESSION_EXP = "UserSessionExp"
 )
 
 func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid uuid.UUID, handle string, sessionExpiry int64) *lua.LTable {

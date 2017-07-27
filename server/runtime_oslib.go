@@ -94,8 +94,8 @@ func osDate(L *lua.LState) int {
 			ret.RawSetString("min", lua.LNumber(t.Minute()))
 			ret.RawSetString("sec", lua.LNumber(t.Second()))
 			ret.RawSetString("wday", lua.LNumber(t.Weekday()))
-			// TODO yday & dst
-			ret.RawSetString("yday", lua.LNumber(0))
+			ret.RawSetString("yday", lua.LNumber(t.YearDay()))
+			// TODO dst
 			ret.RawSetString("isdst", lua.LFalse)
 			L.Push(ret)
 			return 1
