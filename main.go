@@ -62,8 +62,6 @@ func main() {
 			cmd.DoctorParse(os.Args[2:])
 		case "migrate":
 			cmd.MigrateParse(os.Args[2:], cmdLogger)
-		case "admin":
-			cmd.AdminParse(os.Args[2:], cmdLogger)
 		}
 	}
 

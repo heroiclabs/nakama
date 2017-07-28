@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - New storage partial update feature.
 - Log warning messages at startup when using insecure default parameter values.
+- Add script runtime function to update groups.
+- Add script runtime function to list groups a user is part of.
+- Add script runtime function to list users belonging to a group.
 
 ### Changed
 - Use Lua table for Content field when creating new notifications.
@@ -18,6 +21,9 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Matchmake token expiry increased from 15 seconds to 30 seconds.
 - Script runtime `os.date()` function now returns correct day of year.
 - Script runtime contexts passed to function hooks now use `PascalCase` naming for fields. For example `context.user_id` must now be `context.UserId`.
+- `admin` sub-command is no longer available.
+- Group leave operations now return a specific error code when the last admin attempts to leave.
+- Group self list operations now return the user's membership type to each group.
 
 ## [1.0.0-rc.1] - 2017-07-18
 ### Added

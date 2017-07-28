@@ -66,14 +66,16 @@ message Error {
     USER_HANDLE_INUSE = 10;
     /// Group names must be unique and it's already in use.
     GROUP_NAME_INUSE = 11;
+    /// Group leave operation not allowed because the user is the last admin.
+    GROUP_LAST_ADMIN = 12;
     /// Storage write operation failed.
-    STORAGE_REJECTED = 12;
+    STORAGE_REJECTED = 13;
     /// Match with given ID was not found in the system.
-    MATCH_NOT_FOUND = 13;
+    MATCH_NOT_FOUND = 14;
     /// Runtime function name was not found in system registry.
-    RUNTIME_FUNCTION_NOT_FOUND = 14;
+    RUNTIME_FUNCTION_NOT_FOUND = 15;
     /// Runtime function caused an internal server error and did not complete.
-    RUNTIME_FUNCTION_EXCEPTION = 15;
+    RUNTIME_FUNCTION_EXCEPTION = 16;
   }
 
   /// Error code - must be one of the Error.Code enums above.
@@ -218,56 +220,57 @@ message Envelope {
     TGroupUsersKick group_users_kick = 27;
     TGroupUsersPromote group_users_promote = 28;
     TGroups groups = 29;
-    TGroupUsers group_users = 30;
+    TGroupsSelf groups_self = 30;
+    TGroupUsers group_users = 31;
 
-    TTopicsJoin topics_join = 31;
-    TTopicsLeave topics_leave = 32;
-    TTopicMessageSend topic_message_send = 33;
-    TTopicMessagesList topic_messages_list = 34;
-    TTopics topics = 35;
-    TTopicMessageAck topic_message_ack = 36;
-    TopicMessage topic_message = 37;
-    TTopicMessages topic_messages = 38;
-    TopicPresence topic_presence = 39;
+    TTopicsJoin topics_join = 32;
+    TTopicsLeave topics_leave = 33;
+    TTopicMessageSend topic_message_send = 34;
+    TTopicMessagesList topic_messages_list = 35;
+    TTopics topics = 36;
+    TTopicMessageAck topic_message_ack = 37;
+    TopicMessage topic_message = 38;
+    TTopicMessages topic_messages = 39;
+    TopicPresence topic_presence = 40;
 
-    TMatchCreate match_create = 40;
-    TMatchesJoin matches_join = 41;
-    TMatchesLeave matches_leave = 42;
-    MatchDataSend match_data_send = 43;
-    TMatch match = 44;
-    TMatches matches = 45;
-    MatchData match_data = 46;
-    MatchPresence match_presence = 47;
+    TMatchCreate match_create = 41;
+    TMatchesJoin matches_join = 42;
+    TMatchesLeave matches_leave = 43;
+    MatchDataSend match_data_send = 44;
+    TMatch match = 45;
+    TMatches matches = 46;
+    MatchData match_data = 47;
+    MatchPresence match_presence = 48;
 
-    TStorageList storage_list = 48;
-    TStorageFetch storage_fetch = 49;
-    TStorageWrite storage_write = 50;
-    TStorageUpdate storage_update = 51;
-    TStorageRemove storage_remove = 52;
-    TStorageData storage_data = 53;
-    TStorageKeys storage_keys = 54;
+    TStorageList storage_list = 49;
+    TStorageFetch storage_fetch = 50;
+    TStorageWrite storage_write = 51;
+    TStorageUpdate storage_update = 52;
+    TStorageRemove storage_remove = 53;
+    TStorageData storage_data = 54;
+    TStorageKeys storage_keys = 55;
 
-    TLeaderboardsList leaderboards_list = 55;
-    TLeaderboardRecordsWrite leaderboard_records_write = 56;
-    TLeaderboardRecordsFetch leaderboard_records_fetch = 57;
-    TLeaderboardRecordsList leaderboard_records_list = 58;
-    TLeaderboards leaderboards = 59;
-    TLeaderboardRecords leaderboard_records = 60;
+    TLeaderboardsList leaderboards_list = 56;
+    TLeaderboardRecordsWrite leaderboard_records_write = 57;
+    TLeaderboardRecordsFetch leaderboard_records_fetch = 58;
+    TLeaderboardRecordsList leaderboard_records_list = 59;
+    TLeaderboards leaderboards = 60;
+    TLeaderboardRecords leaderboard_records = 61;
 
-    TMatchmakeAdd matchmake_add = 61;
-    TMatchmakeRemove matchmake_remove = 62;
-    TMatchmakeTicket matchmake_ticket = 63;
-    MatchmakeMatched matchmake_matched = 64;
+    TMatchmakeAdd matchmake_add = 62;
+    TMatchmakeRemove matchmake_remove = 63;
+    TMatchmakeTicket matchmake_ticket = 64;
+    MatchmakeMatched matchmake_matched = 65;
 
-    TRpc rpc = 65;
+    TRpc rpc = 66;
 
-    TPurchaseValidation purchase = 66;
-    TPurchaseRecord purchase_record = 67;
+    TPurchaseValidation purchase = 67;
+    TPurchaseRecord purchase_record = 68;
 
-    TNotificationsList notifications_list = 68;
-    TNotificationsRemove notifications_remove = 69;
-    TNotifications notifications = 70;
-    Notifications live_notifications = 71;
+    TNotificationsList notifications_list = 69;
+    TNotificationsRemove notifications_remove = 70;
+    TNotifications notifications = 71;
+    Notifications live_notifications = 72;
   }
 }
 
@@ -577,7 +580,7 @@ message TGroupsRemove {
 /**
  * TGroupsSelfList fetches a list of groups that the current user is part of.
  *
- * @returns TGroups
+ * @returns TGroupsSelf
  */
 message TGroupsSelfList {}
 
@@ -628,6 +631,20 @@ message TGroups {
   repeated Group groups = 1;
   /// Use cursor to paginate results.
   bytes cursor = 2;
+}
+
+message TGroupsSelf {
+  message GroupSelf {
+    /// The core group information.
+    Group group = 1;
+    /// The user's relationship to the group. One of:
+    /// Admin(0): User is an admin for this group.
+    /// Member(1): User is a regular member of this group.
+    /// Join(2): User is currently waiting to be accepted in this group.
+    int64 type = 2;
+  }
+
+  repeated GroupSelf groups_self = 1;
 }
 
 /**
