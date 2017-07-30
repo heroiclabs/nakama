@@ -101,6 +101,9 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"storage_remove":        n.storageRemove,
 		"leaderboard_create":    n.leaderboardCreate,
 		"groups_create":         n.groupsCreate,
+		"groups_update":         n.groupsUpdate,
+		"group_users_list":      n.groupUsersList,
+		"groups_user_list":      n.groupsUserList,
 		"notifications_send_id": n.notificationsSendId,
 	})
 
@@ -1361,6 +1364,177 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 	}
 
 	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
+	groupsTable := l.CheckTable(1)
+	if groupsTable == nil || groupsTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of groups")
+		return 0
+	}
+
+	conversionError := ""
+	groupUpdates := make([]*TGroupsUpdate_GroupUpdate, 0)
+
+	groupsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		groupTable, ok := g.(*lua.LTable)
+		if !ok {
+			conversionError = "expects a valid group"
+			return
+		}
+
+		p := &TGroupsUpdate_GroupUpdate{}
+		groupTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			switch k.String() {
+			case "GroupId":
+				if v.Type() != lua.LTString {
+					conversionError = "expects GroupId to be a string"
+					return
+				}
+				gid, err := uuid.FromString(v.String())
+				if err != nil {
+					conversionError = "expects GroupId to be a valid ID"
+					return
+				}
+				p.GroupId = gid.Bytes()
+			case "Name":
+				if v.Type() != lua.LTString {
+					conversionError = "expects Name to be a string"
+					return
+				}
+				p.Name = v.String()
+			case "Description":
+				if v.Type() != lua.LTString {
+					conversionError = "expects Description to be string"
+					return
+				}
+				p.Description = v.String()
+			case "AvatarUrl":
+				if v.Type() != lua.LTString {
+					conversionError = "expects AvatarUrl to be string"
+					return
+				}
+				p.AvatarUrl = v.String()
+			case "Lang":
+				if v.Type() != lua.LTString {
+					conversionError = "expects Lang to be string"
+					return
+				}
+				p.Lang = v.String()
+			case "Private":
+				if v.Type() != lua.LTBool {
+					conversionError = "expects Private to be boolean"
+					return
+				}
+				p.Private = lua.LVAsBool(v)
+			case "Metadata":
+				if v.Type() != lua.LTTable {
+					conversionError = "expects Metadata to be a table"
+					return
+				}
+
+				metadataMap := ConvertLuaTable(v.(*lua.LTable))
+				metadataBytes, err := json.Marshal(metadataMap)
+				if err != nil {
+					conversionError = "invalid Metadata"
+					return
+				}
+
+				p.Metadata = metadataBytes
+			default:
+				conversionError = fmt.Sprintf("unknown group field: %v", k.String())
+				return
+			}
+		})
+
+		if conversionError != "" {
+			return
+		}
+
+		// mandatory items
+		if len(p.GroupId) == 0 {
+			conversionError = "missing GroupId"
+			return
+		}
+
+		groupUpdates = append(groupUpdates, p)
+	})
+
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
+	}
+
+	_, err := GroupsUpdate(n.logger, n.db, uuid.Nil, groupUpdates)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to update groups: %s", err.Error()))
+	}
+
+	return 0
+}
+
+func (n *NakamaModule) groupUsersList(l *lua.LState) int {
+	group := l.CheckString(1)
+	if group == "" {
+		l.ArgError(1, "expects a valid group ID")
+		return 0
+	}
+	groupID, err := uuid.FromString(group)
+	if err != nil {
+		l.ArgError(1, "expects a valid group ID")
+		return 0
+	}
+
+	users, _, err := GroupUsersList(n.logger, n.db, uuid.Nil, groupID)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list group users: %s", err.Error()))
+		return 0
+	}
+
+	//translate uuid to string bytes
+	lv := l.NewTable()
+	for i, u := range users {
+		uid, _ := uuid.FromBytes(u.User.Id)
+		u.User.Id = []byte(uid.String())
+		um := structs.Map(u)
+		lv.RawSetInt(i+1, convertValue(l, um))
+	}
+
+	l.Push(lv)
+
+	return 1
+}
+
+func (n *NakamaModule) groupsUserList(l *lua.LState) int {
+	user := l.CheckString(1)
+	if user == "" {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+	userID, err := uuid.FromString(user)
+	if err != nil {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+
+	groups, _, err := GroupsSelfList(n.logger, n.db, uuid.Nil, userID)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list user groups: %s", err.Error()))
+		return 0
+	}
+
+	//translate uuid to string bytes
+	lv := l.NewTable()
+	for i, g := range groups {
+		gid, _ := uuid.FromBytes(g.Group.Id)
+		g.Group.Id = []byte(gid.String())
+		gm := structs.Map(g)
+		lv.RawSetInt(i+1, convertValue(l, gm))
+	}
+
+	l.Push(lv)
+
 	return 1
 }
 

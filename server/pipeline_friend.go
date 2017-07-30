@@ -232,7 +232,7 @@ FROM users, user_edge ` + filterQuery
 				UpdatedAt:    updatedAt.Int64,
 				LastOnlineAt: lastOnlineAt.Int64,
 			},
-			Type: state.Int64,
+			State: state.Int64,
 		})
 	}
 

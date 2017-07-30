@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"fmt"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
@@ -181,11 +182,17 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 		values = append(values, g.Metadata)
 	}
 
-	r := tx.QueryRow(`
-INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
-VALUES ($1, $2, $3, $4, 1, $5, $5, `+strings.Join(params, ",")+")"+`
-RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
-`, values...)
+	query := "INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at"
+	if len(columns) != 0 {
+		query += ", " + strings.Join(columns, ", ")
+	}
+	query += ") VALUES ($1, $2, $3, $4, 1, $5, $5"
+	if len(params) != 0 {
+		query += ", " + strings.Join(params, ",")
+	}
+	query += ") RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at"
+
+	r := tx.QueryRow(query, values...)
 
 	group, err := extractGroup(r)
 	if err != nil {
@@ -211,4 +218,240 @@ VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 	}
 
 	return group, nil
+}
+
+func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*TGroupsUpdate_GroupUpdate) (Error_Code, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not update groups, begin error", zap.Error(err))
+		return RUNTIME_EXCEPTION, errors.New("Could not update groups")
+	}
+
+	code := RUNTIME_EXCEPTION
+	defer func() {
+		if err != nil {
+			logger.Error("Could not update groups", zap.Error(err))
+			if tx != nil {
+				if e := tx.Rollback(); e != nil {
+					logger.Error("Could not update groups, rollback error", zap.Error(e))
+				}
+			}
+		} else {
+			if e := tx.Commit(); e != nil {
+				logger.Error("Could not update groups, commit error", zap.Error(e))
+				err = errors.New("Could not update groups")
+			}
+		}
+	}()
+
+	for _, g := range updates {
+		// TODO notify members that group has been updated.
+		groupID, err := uuid.FromBytes(g.GroupId)
+		if err != nil {
+			code = BAD_INPUT
+			err = errors.New("Group ID is not valid.")
+			return code, err
+		}
+
+		groupLogger := logger.With(zap.String("group_id", groupID.String()))
+
+		statements := make([]string, 6)
+		params := make([]interface{}, 7)
+
+		params[0] = groupID.Bytes()
+
+		statements[0] = "updated_at = $2"
+		params[1] = nowMs()
+
+		statements[1] = "description = $3"
+		params[2] = g.Description
+
+		statements[2] = "avatar_url = $4"
+		params[3] = g.AvatarUrl
+
+		statements[3] = "lang = $5"
+		params[4] = g.Lang
+
+		statements[4] = "metadata = $6"
+		params[5] = g.Metadata
+
+		statements[5] = "state = $7"
+		params[6] = 0
+		if g.Private {
+			params[6] = 1
+		}
+
+		if g.Name != "" {
+			statements = append(statements, "name = $8")
+			params = append(params, g.Name)
+		}
+
+		query := "UPDATE groups SET " + strings.Join(statements, ", ") + " WHERE id = $1"
+
+		// If the caller is not the script runtime, apply group membership and admin role checks.
+		if caller != uuid.Nil {
+			params = append(params, caller.Bytes())
+			query += fmt.Sprintf(" AND EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $%v AND state = 0)", len(params))
+		}
+
+		res, err := db.Exec(query, params...)
+		if err != nil {
+			if strings.HasSuffix(err.Error(), "violates unique constraint \"groups_name_key\"") {
+				code = GROUP_NAME_INUSE
+				err = fmt.Errorf("Name is in use: %v", g.Name)
+			} else {
+				groupLogger.Error("Could not update group, exec error", zap.Error(err))
+				err = errors.New("Could not update group")
+			}
+			return code, err
+		}
+		if affectedRows, _ := res.RowsAffected(); affectedRows == 0 {
+			code = BAD_INPUT
+			err = errors.New("Could not accept group join envelope. Group may not exists with the given ID")
+			return code, err
+		}
+
+		groupLogger.Debug("Updated group")
+	}
+
+	return code, err
+}
+
+func GroupsSelfList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID uuid.UUID) ([]*TGroupsSelf_GroupSelf, Error_Code, error) {
+	// Pipeline callers can only list their own groups.
+	if caller != uuid.Nil && caller != userID {
+		return nil, BAD_INPUT, errors.New("Users can only list their own joined groups")
+	}
+
+	rows, err := db.Query(`
+SELECT id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, groups.state, count, created_at, groups.updated_at, group_edge.state
+FROM groups
+JOIN group_edge ON (group_edge.source_id = id)
+WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state = 1 OR group_edge.state = 0)
+`, userID.Bytes())
+
+	if err != nil {
+		logger.Error("Could not list joined groups, query error", zap.Error(err))
+		return nil, RUNTIME_EXCEPTION, errors.New("Could not list joined groups")
+	}
+	defer rows.Close()
+
+	groups := make([]*TGroupsSelf_GroupSelf, 0)
+	for rows.Next() {
+		var id []byte
+		var creatorID []byte
+		var name sql.NullString
+		var description sql.NullString
+		var avatarURL sql.NullString
+		var lang sql.NullString
+		var utcOffsetMs sql.NullInt64
+		var metadata []byte
+		var state sql.NullInt64
+		var count sql.NullInt64
+		var createdAt sql.NullInt64
+		var updatedAt sql.NullInt64
+		var userState sql.NullInt64
+
+		err := rows.Scan(&id, &creatorID, &name,
+			&description, &avatarURL, &lang,
+			&utcOffsetMs, &metadata, &state,
+			&count, &createdAt, &updatedAt, &userState)
+
+		if err != nil {
+			logger.Error("Could not list joined groups, scan error", zap.Error(err))
+			return nil, RUNTIME_EXCEPTION, errors.New("Could not list joined groups")
+		}
+
+		desc := ""
+		if description.Valid {
+			desc = description.String
+		}
+
+		avatar := ""
+		if avatarURL.Valid {
+			avatar = avatarURL.String
+		}
+
+		private := state.Int64 == 1
+
+		groups = append(groups, &TGroupsSelf_GroupSelf{
+			Group: &Group{
+				Id:          id,
+				CreatorId:   creatorID,
+				Name:        name.String,
+				Description: desc,
+				AvatarUrl:   avatar,
+				Lang:        lang.String,
+				UtcOffsetMs: utcOffsetMs.Int64,
+				Metadata:    metadata,
+				Private:     private,
+				Count:       count.Int64,
+				CreatedAt:   createdAt.Int64,
+				UpdatedAt:   updatedAt.Int64,
+			},
+			State: userState.Int64,
+		})
+	}
+
+	return groups, 0, nil
+}
+
+func GroupUsersList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID) ([]*GroupUser, Error_Code, error) {
+	groupLogger := logger.With(zap.String("group_id", groupID.String()))
+
+	query := `
+SELECT u.id, u.handle, u.fullname, u.avatar_url,
+	u.lang, u.location, u.timezone, u.metadata,
+	u.created_at, u.updated_at, u.last_online_at, ge.state
+FROM users u, group_edge ge
+WHERE u.id = ge.source_id AND ge.destination_id = $1`
+
+	rows, err := db.Query(query, groupID.Bytes())
+	if err != nil {
+		groupLogger.Error("Could not get group users, query error", zap.Error(err))
+		return nil, RUNTIME_EXCEPTION, errors.New("Could not get group users")
+	}
+	defer rows.Close()
+
+	users := make([]*GroupUser, 0)
+
+	for rows.Next() {
+		var id []byte
+		var handle sql.NullString
+		var fullname sql.NullString
+		var avatarURL sql.NullString
+		var lang sql.NullString
+		var location sql.NullString
+		var timezone sql.NullString
+		var metadata []byte
+		var createdAt sql.NullInt64
+		var updatedAt sql.NullInt64
+		var lastOnlineAt sql.NullInt64
+		var state sql.NullInt64
+
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt, &state)
+		if err != nil {
+			groupLogger.Error("Could not get group users, scan error", zap.Error(err))
+			return nil, RUNTIME_EXCEPTION, errors.New("Could not get group users")
+		}
+
+		users = append(users, &GroupUser{
+			User: &User{
+				Id:           id,
+				Handle:       handle.String,
+				Fullname:     fullname.String,
+				AvatarUrl:    avatarURL.String,
+				Lang:         lang.String,
+				Location:     location.String,
+				Timezone:     timezone.String,
+				Metadata:     metadata,
+				CreatedAt:    createdAt.Int64,
+				UpdatedAt:    updatedAt.Int64,
+				LastOnlineAt: lastOnlineAt.Int64,
+			},
+			State: state.Int64,
+		})
+	}
+
+	return users, 0, nil
 }

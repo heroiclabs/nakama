@@ -97,10 +97,68 @@ do
   assert(status == true)
 end
 
--- create_groups
+-- groups create
 do
-  -- This will error if it fails.
-   -- nk.groups_create({{ Name="test_group",Description="test_description",Lang="Lang",Private=true,CreatorId="4c2ae592-b2a7-445e-98ec-697694478b1c" }})
+  local name = nk.uuid_v4()
+  local status, res = pcall(nk.groups_create, {{ Name=name,Description="test_description",Lang="Lang",Private=true,CreatorId="4c2ae592-b2a7-445e-98ec-697694478b1c" }})
+  assert(status == true)
+  assert(#res == 1)
+end
+
+-- groups user list
+do
+  local group_name_1 = nk.uuid_v4()
+  local group_name_2 = nk.uuid_v4()
+  local user_id = nk.uuid_v4()
+
+  local status, res = pcall(nk.groups_create, {
+    { Name = group_name_1, Private = true, CreatorId = user_id },
+    { Name = group_name_2, Private = true, CreatorId = user_id }
+  })
+  assert(status == true)
+  assert(#res == 2)
+
+  local status_list, res_list = pcall(nk.groups_user_list, user_id)
+  assert(status_list == true)
+  assert(#res_list == 2)
+  assert(((res_list[1].Group.Name == group_name_1) and (res_list[2].Group.Name == group_name_2)) or
+         ((res_list[1].Group.Name == group_name_2) and (res_list[2].Group.Name == group_name_1)))
+end
+
+-- group update
+do
+  local user_id = nk.uuid_v4()
+  local group_name = nk.uuid_v4()
+
+  local status, res = pcall(nk.groups_create, {{ Name = group_name, Private = true, CreatorId = user_id }})
+  assert(status == true)
+  assert(#res == 1)
+
+  local group_id = res[1].Id
+  local updated_group_name = nk.uuid_v4()
+
+  local status_update, res_update = pcall(nk.groups_update, {{ GroupId = group_id, Name = updated_group_name, Private = true }})
+  assert(status_update == true)
+
+  local status_list, res_list = pcall(nk.groups_user_list, user_id)
+  assert(status_list == true)
+  assert(#res_list == 1)
+  assert(res_list[1].Group.Name == updated_group_name)
+end
+
+-- group users list
+do
+  local status, res = pcall(nk.groups_create, {{ Name = nk.uuid_v4(), Private = true, CreatorId = "4c2ae592-b2a7-445e-98ec-697694478b1c" }})
+  assert(status == true)
+  assert(#res == 1)
+
+  local group_id = res[1].Id
+
+  -- NOTE: will fail if DB is not seeded with the expected user.
+  local status_list, res_list = pcall(nk.group_users_list, group_id)
+  assert(status_list == true)
+  assert(#res_list == 1)
+  assert(res_list[1].User.Id == "4c2ae592-b2a7-445e-98ec-697694478b1c")
 end
 
 -- notifications_send_id
@@ -111,10 +169,6 @@ do
     { Subject="test_notification_2",Content={["hello"] = "world"},UserId="4c2ae592-b2a7-445e-98ec-697694478b1c",Code=102,Persistent=true },
   })
 end
-
---[[
-  Nakamax module
-]]--
 
 -- uuid_v4
 do
