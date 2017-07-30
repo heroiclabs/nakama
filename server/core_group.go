@@ -184,11 +184,11 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 
 	query := "INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at"
 	if len(columns) != 0 {
-		query += ", "+strings.Join(columns, ", ")
+		query += ", " + strings.Join(columns, ", ")
 	}
 	query += ") VALUES ($1, $2, $3, $4, 1, $5, $5"
 	if len(params) != 0 {
-		query += ", "+strings.Join(params, ",")
+		query += ", " + strings.Join(params, ",")
 	}
 	query += ") RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at"
 
