@@ -182,11 +182,17 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 		values = append(values, g.Metadata)
 	}
 
-	r := tx.QueryRow(`
-INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at, `+strings.Join(columns, ", ")+")"+`
-VALUES ($1, $2, $3, $4, 1, $5, $5, `+strings.Join(params, ",")+")"+`
-RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at
-`, values...)
+	query := "INSERT INTO groups (id, creator_id, name, state, count, created_at, updated_at"
+	if len(columns) != 0 {
+		query += ", "+strings.Join(columns, ", ")
+	}
+	query += ") VALUES ($1, $2, $3, $4, 1, $5, $5"
+	if len(params) != 0 {
+		query += ", "+strings.Join(params, ",")
+	}
+	query += ") RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metadata, state, count, created_at, updated_at"
+
+	r := tx.QueryRow(query, values...)
 
 	group, err := extractGroup(r)
 	if err != nil {
@@ -276,7 +282,7 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 		}
 
 		if g.Name != "" {
-			statements = append(statements, "name = $"+strconv.Itoa(len(statements)))
+			statements = append(statements, "name = $8")
 			params = append(params, g.Name)
 		}
 
@@ -383,7 +389,7 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 				CreatedAt:   createdAt.Int64,
 				UpdatedAt:   updatedAt.Int64,
 			},
-			Type: userState.Int64,
+			State: userState.Int64,
 		})
 	}
 
@@ -443,7 +449,7 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 				UpdatedAt:    updatedAt.Int64,
 				LastOnlineAt: lastOnlineAt.Int64,
 			},
-			Type: state.Int64,
+			State: state.Int64,
 		})
 	}
 

@@ -447,7 +447,7 @@ message Friend {
   /// Invite(1): Current user has sent an invitation.
   /// Invited(2): Current user has received an invitation.
   /// Blocked(3): Current user has blocked this friend.
-  int64 type = 2;
+  int64 state = 2;
 }
 
 /**
@@ -633,6 +633,9 @@ message TGroups {
   bytes cursor = 2;
 }
 
+/**
+ * TGroupsSelf contains a list of groups a particular user belongs to, and the user's relationsip to each.
+ */
 message TGroupsSelf {
   message GroupSelf {
     /// The core group information.
@@ -641,7 +644,7 @@ message TGroupsSelf {
     /// Admin(0): User is an admin for this group.
     /// Member(1): User is a regular member of this group.
     /// Join(2): User is currently waiting to be accepted in this group.
-    int64 type = 2;
+    int64 state = 2;
   }
 
   repeated GroupSelf groups_self = 1;
@@ -656,7 +659,7 @@ message GroupUser {
   /// Admin(0): User is an admin for this group.
   /// Member(1): User is a regular member of this group.
   /// Join(2): User is currently waiting to be accepted in this group.
-  int64 type = 2;
+  int64 state = 2;
 }
 
 /**
