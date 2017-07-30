@@ -18,15 +18,20 @@ import (
 	"database/sql"
 	"errors"
 
+	"encoding/json"
+	"fmt"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
-func friendAdd(logger *zap.Logger, db *sql.DB, userID []byte, friendID []byte) error {
+func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID []byte, handle string, friendID []byte) error {
 	tx, txErr := db.Begin()
 	if txErr != nil {
 		return txErr
 	}
 
+	isFriendAccept := false
+	updatedAt := nowMs()
 	var err error
 	defer func() {
 		if err != nil {
@@ -34,13 +39,52 @@ func friendAdd(logger *zap.Logger, db *sql.DB, userID []byte, friendID []byte) e
 				logger.Error("Could not rollback transaction", zap.Error(rollbackErr))
 			}
 		} else {
-			if err = tx.Commit(); err != nil {
-				logger.Error("Could not commit transaction", zap.Error(err))
+			if e := tx.Commit(); e != nil {
+				logger.Error("Could not commit transaction", zap.Error(e))
+				err = e
+				return
+			}
+
+			// If the operation was successful, send a notification.
+			content, e := json.Marshal(map[string]interface{}{"handle": handle})
+			if e != nil {
+				logger.Warn("Failed to send friend add notification", zap.Error(e))
+				return
+			}
+			var recipient []byte
+			var sender []byte
+			var subject string
+			var code int64
+			if isFriendAccept {
+				recipient = userID
+				sender = friendID
+				subject = fmt.Sprintf("%v accepted your friend request", handle)
+				code = 3
+			} else {
+				recipient = friendID
+				sender = userID
+				subject = fmt.Sprintf("%v wants to add you as a friend", handle)
+				code = 2
+			}
+
+			if e := ns.NotificationSend([]*NNotification{
+				&NNotification{
+					Id:         uuid.NewV4().Bytes(),
+					UserID:     recipient,
+					Subject:    subject,
+					Content:    content,
+					Code:       code,
+					SenderID:   sender,
+					CreatedAt:  updatedAt,
+					ExpiresAt:  updatedAt + ns.expiryMs,
+					Persistent: true,
+				},
+			}); e != nil {
+				logger.Warn("Failed to send friend add notification", zap.Error(e))
 			}
 		}
 	}()
 
-	updatedAt := nowMs()
 	// Mark an invite as accepted, if one was in place.
 	res, err := tx.Exec(`
 UPDATE user_edge SET state = 0, updated_at = $3
@@ -52,7 +96,8 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 	}
 	// If both edges were updated, it was accepting an invite was successful.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
-		return nil
+		isFriendAccept = true
+		return err
 	}
 
 	// If no edge updates took place, it's a new invite being set up.
@@ -94,12 +139,12 @@ OR source_id = $3`,
 	return nil
 }
 
-func friendAddHandle(logger *zap.Logger, db *sql.DB, userID []byte, friendHandle string) error {
+func friendAddHandle(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID []byte, handle string, friendHandle string) error {
 	var friendIdBytes []byte
 	err := db.QueryRow("SELECT id FROM users WHERE handle = $1", friendHandle).Scan(&friendIdBytes)
 	if err != nil {
 		return err
 	}
 
-	return friendAdd(logger, db, userID, friendIdBytes)
+	return friendAdd(logger, db, ns, userID, handle, friendIdBytes)
 }
