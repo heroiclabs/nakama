@@ -155,7 +155,7 @@ AND NOT EXISTS
 		return
 	}
 
-	p.addFacebookFriends(logger, userID, accessToken)
+	p.addFacebookFriends(logger, userID, session.handle.Load(), fbProfile.ID, accessToken)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }

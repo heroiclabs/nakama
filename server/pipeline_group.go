@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"fmt"
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -498,6 +499,13 @@ func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope
 
 	logger := l.With(zap.String("group_id", groupID.String()))
 
+	ts := nowMs()
+
+	// Group admin user IDs to notify there's a new user join request, if the group is private.
+	var groupName sql.NullString
+	privateGroup := false
+	adminUserIDs := make([][]byte, 0)
+
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not add user to group", zap.Error(err))
@@ -522,31 +530,65 @@ func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope
 				logger.Info("User joined group")
 				session.Send(&Envelope{CollationId: envelope.CollationId})
 
-				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
-				if err != nil {
-					logger.Error("Error handling group user join notification topic message", zap.Error(err))
+				if !privateGroup {
+					// If the user was added directly.
+					err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
+					if err != nil {
+						logger.Error("Error handling group user join notification topic message", zap.Error(err))
+					}
+				} else if len(adminUserIDs) != 0 {
+					// If the user has requested to join and there are admins to notify.
+					handle := session.handle.Load()
+					name := groupName.String
+					content, err := json.Marshal(map[string]string{"handle": handle, "name": name})
+					if err != nil {
+						logger.Warn("Failed to send group join request notification", zap.Error(err))
+						return
+					}
+					subject := fmt.Sprintf("%v wants to join your group %v", handle, name)
+					userID := session.userID.Bytes()
+					expiresAt := ts + p.notificationService.expiryMs
+
+					notifications := make([]*NNotification, len(adminUserIDs))
+					for i, adminUserID := range adminUserIDs {
+						notifications[i] = &NNotification{
+							Id:         uuid.NewV4().Bytes(),
+							UserID:     adminUserID,
+							Subject:    subject,
+							Content:    content,
+							Code:       NOTIFICATION_GROUP_JOIN_REQUEST,
+							SenderID:   userID,
+							CreatedAt:  ts,
+							ExpiresAt:  expiresAt,
+							Persistent: true,
+						}
+					}
+
+					err = p.notificationService.NotificationSend(notifications)
+					if err != nil {
+						logger.Warn("Failed to send group join request notification", zap.Error(err))
+					}
 				}
 			}
 		}
 	}()
 
 	var groupState sql.NullInt64
-	err = tx.QueryRow("SELECT state FROM groups WHERE id = $1 AND disabled_at = 0", groupID.Bytes()).Scan(&groupState)
+	err = tx.QueryRow("SELECT state, name FROM groups WHERE id = $1 AND disabled_at = 0", groupID.Bytes()).Scan(&groupState, &groupName)
 	if err != nil {
 		return
 	}
 
 	userState := 1
 	if groupState.Int64 == 1 {
+		privateGroup = true
 		userState = 2
 	}
-
-	updatedAt := nowMs()
 
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
-		groupID.Bytes(), updatedAt, session.userID.Bytes(), userState)
+		groupID.Bytes(), ts, session.userID.Bytes(), userState)
 
 	if err != nil {
 		return
@@ -557,11 +599,32 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 		return
 	}
 
-	if groupState.Int64 == 0 {
-		_, err = tx.Exec("UPDATE groups SET count = count + 1, updated_at = $2 WHERE id = $1", groupID.Bytes(), updatedAt)
+	// If the group is not private and the user joined directly, increase the group count.
+	if !privateGroup {
+		_, err = tx.Exec("UPDATE groups SET count = count + 1, updated_at = $2 WHERE id = $1", groupID.Bytes(), ts)
 	}
 	if err != nil {
 		return
+	}
+
+	// If group is private, look up admin user IDs to notify about a new user requesting to join.
+	if privateGroup {
+		rows, e := tx.Query("SELECT destination_id FROM group_edge WHERE source_id = $1 AND state = 0", groupID.Bytes())
+		if e != nil {
+			logger.Warn("Failed to send group join request notification", zap.Error(e))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var adminUserID []byte
+			e = rows.Scan(&adminUserID)
+			if e != nil {
+				logger.Warn("Failed to send group join request notification", zap.Error(e))
+				return
+			}
+			adminUserIDs = append(adminUserIDs, adminUserID)
+		}
 	}
 }
 
@@ -709,7 +772,9 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envel
 	}
 
 	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	ts := nowMs()
 	var handle string
+	var name string
 
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -743,6 +808,30 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envel
 				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
 				if err != nil {
 					logger.Error("Error handling group user added notification topic message", zap.Error(err))
+					return
+				}
+
+				adminHandle := session.handle.Load()
+				content, err := json.Marshal(map[string]string{"handle": adminHandle, "name": name})
+				if err != nil {
+					logger.Warn("Failed to send group add notification", zap.Error(err))
+					return
+				}
+				err = p.notificationService.NotificationSend([]*NNotification{
+					&NNotification{
+						Id:         uuid.NewV4().Bytes(),
+						UserID:     userID.Bytes(),
+						Subject:    fmt.Sprintf("%v has added you to group %v", adminHandle, name),
+						Content:    content,
+						Code:       NOTIFICATION_GROUP_ADD,
+						SenderID:   session.userID.Bytes(),
+						CreatedAt:  ts,
+						ExpiresAt:  ts + p.notificationService.expiryMs,
+						Persistent: true,
+					},
+				})
+				if err != nil {
+					logger.Warn("Failed to send group add notification", zap.Error(err))
 				}
 			}
 		}
@@ -750,6 +839,12 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envel
 
 	// Look up the user being added.
 	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1 AND disabled_at = 0", userID.Bytes()).Scan(&handle)
+	if err != nil {
+		return
+	}
+
+	// Look up the name of the group.
+	err = tx.QueryRow("SELECT name FROM groups WHERE id = $1", groupID.Bytes()).Scan(&name)
 	if err != nil {
 		return
 	}
@@ -768,7 +863,7 @@ AND
   EXISTS (SELECT id FROM groups WHERE id = $1::BYTEA AND disabled_at = 0)
 ON CONFLICT (source_id, destination_id)
 DO UPDATE SET state = 1, updated_at = $2::INT`,
-		groupID.Bytes(), nowMs(), userID.Bytes(), session.userID.Bytes())
+		groupID.Bytes(), ts, userID.Bytes(), session.userID.Bytes())
 
 	if err != nil {
 		return

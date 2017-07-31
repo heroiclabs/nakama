@@ -41,7 +41,8 @@ type Tracker interface {
 	AddDiffListener(func([]Presence, []Presence))
 	Stop()
 
-	Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta)
+	// Track a presence. Returns `true` if it was a new presence, `false` otherwise.
+	Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) bool
 	Untrack(sessionID uuid.UUID, topic string, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID)
 	Update(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) error
@@ -90,11 +91,11 @@ func (t *TrackerService) Stop() {
 	// TODO cleanup after service shutdown.
 }
 
-func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) {
+func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) bool {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
 	t.Lock()
-	_, ok := t.values[pc]
-	if !ok {
+	_, alreadyTracked := t.values[pc]
+	if !alreadyTracked {
 		t.values[pc] = meta
 		t.notifyDiffListeners(
 			[]Presence{
@@ -104,6 +105,7 @@ func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UU
 		)
 	}
 	t.Unlock()
+	return !alreadyTracked
 }
 
 func (t *TrackerService) Untrack(sessionID uuid.UUID, topic string, userID uuid.UUID) {

@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"encoding/json"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
@@ -81,10 +82,12 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessToken string) {
+func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, handle string, fbid string, accessToken string) {
 	var tx *sql.Tx
 	var err error
 
+	ts := nowMs()
+	friendUserIDs := make([]interface{}, 0)
 	defer func() {
 		if err != nil {
 			logger.Error("Could not import friends from Facebook", zap.Error(err))
@@ -100,7 +103,39 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 				if err != nil {
 					logger.Error("Could not commit transaction", zap.Error(err))
 				} else {
-					logger.Info("Imported friends from Facebook")
+					logger.Debug("Imported friends from Facebook")
+
+					// Send out notifications.
+					if len(friendUserIDs) != 0 {
+						content, err := json.Marshal(map[string]interface{}{"handle": handle, "facebook_id": fbid})
+						if err != nil {
+							logger.Warn("Failed to send Facebook friend join notifications", zap.Error(err))
+							return
+						}
+						subject := "Your friend has just joined the game"
+						expiresAt := ts + p.notificationService.expiryMs
+
+						notifications := make([]*NNotification, len(friendUserIDs))
+						for i, friendUserID := range friendUserIDs {
+							fid := friendUserID.([]byte)
+							notifications[i] = &NNotification{
+								Id:         uuid.NewV4().Bytes(),
+								UserID:     fid,
+								Subject:    subject,
+								Content:    content,
+								Code:       NOTIFICATION_FRIEND_JOIN_GAME,
+								SenderID:   userID,
+								CreatedAt:  ts,
+								ExpiresAt:  expiresAt,
+								Persistent: true,
+							}
+						}
+
+						err = p.notificationService.NotificationSend(notifications)
+						if err != nil {
+							logger.Warn("Failed to send Facebook friend join notifications", zap.Error(err))
+						}
+					}
 				}
 			}
 		}
@@ -135,11 +170,10 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 	}
 	defer rows.Close()
 
-	updatedAt := nowMs()
 	queryEdge := "INSERT INTO user_edge (source_id, position, updated_at, destination_id, state) VALUES "
-	paramsEdge := []interface{}{userID, updatedAt}
+	paramsEdge := []interface{}{userID, ts}
 	queryEdgeMetadata := "UPDATE user_edge_metadata SET count = count + 1, updated_at = $1 WHERE source_id IN ("
-	paramsEdgeMetadata := []interface{}{updatedAt}
+	paramsEdgeMetadata := []interface{}{ts}
 	for rows.Next() {
 		var currentUser []byte
 		err = rows.Scan(&currentUser)
@@ -181,7 +215,13 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, accessT
 		return
 	}
 	// Update edge metadata for current user to bump count by number of new friends.
-	_, err = tx.Exec(`UPDATE user_edge_metadata SET count = $1, updated_at = $2 WHERE source_id = $3`, len(paramsEdge)-2, updatedAt, userID)
+	_, err = tx.Exec(`UPDATE user_edge_metadata SET count = $1, updated_at = $2 WHERE source_id = $3`, len(paramsEdge)-2, ts, userID)
+	if err != nil {
+		return
+	}
+
+	// Track the user IDs to notify their friend has joined the game.
+	friendUserIDs = paramsEdge[2:]
 }
 
 func (p *pipeline) getFriends(filterQuery string, userID []byte) ([]*Friend, error) {
@@ -277,13 +317,13 @@ func (p *pipeline) friendAddById(l *zap.Logger, session *session, envelope *Enve
 		return
 	}
 
-	if err := friendAdd(logger, p.db, session.userID.Bytes(), friendID.Bytes()); err != nil {
+	if err := friendAdd(logger, p.db, p.notificationService, session.userID.Bytes(), session.handle.Load(), friendID.Bytes()); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
 		return
 	}
 
-	logger.Info("Added friend")
+	logger.Debug("Added friend")
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
@@ -294,13 +334,13 @@ func (p *pipeline) friendAddByHandle(l *zap.Logger, session *session, envelope *
 	}
 
 	logger := l.With(zap.String("friend_handle", friendHandle))
-	if err := friendAddHandle(logger, p.db, session.userID.Bytes(), friendHandle); err != nil {
+	if err := friendAddHandle(logger, p.db, p.notificationService, session.userID.Bytes(), session.handle.Load(), friendHandle); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
 		return
 	}
 
-	logger.Info("Added friend")
+	logger.Debug("Added friend")
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 

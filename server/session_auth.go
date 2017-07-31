@@ -637,17 +637,17 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 
 func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
 	// Route to correct register handler
-	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code)
-	var registerHook func(authReq *AuthenticateRequest, userID []byte, handle string)
+	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code)
+	var registerHook func(authReq *AuthenticateRequest, userID []byte, handle string, identifier string)
 
 	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		registerFunc = a.registerDevice
 	case *AuthenticateRequest_Facebook:
 		registerFunc = a.registerFacebook
-		registerHook = func(authReq *AuthenticateRequest, userID []byte, handle string) {
+		registerHook = func(authReq *AuthenticateRequest, userID []byte, handle string, identifier string) {
 			l := a.logger.With(zap.String("user_id", uuid.FromBytesOrNil(userID).String()))
-			a.pipeline.addFacebookFriends(l, userID, authReq.GetFacebook())
+			a.pipeline.addFacebookFriends(l, userID, handle, identifier, authReq.GetFacebook())
 		}
 	case *AuthenticateRequest_Google:
 		registerFunc = a.registerGoogle
@@ -669,7 +669,9 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	userID, handle, errorMessage, errorCode := registerFunc(tx, authReq)
+	// The userID and handle that have been assigned to the user.
+	// `identifier` represents the identity token that was just registered: social ID, email, device etc
+	userID, handle, identifier, errorMessage, errorCode := registerFunc(tx, authReq)
 
 	if errorMessage != "" {
 		if tx != nil {
@@ -690,7 +692,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	// Run any post-registration steps outside the main registration transaction.
 	// Errors here should not cause registration to fail.
 	if registerHook != nil {
-		registerHook(authReq, userID, handle)
+		registerHook(authReq, userID, handle, identifier)
 	}
 
 	a.logger.Info("Registration complete", zap.String("uid", uuid.FromBytesOrNil(userID).String()))
@@ -702,14 +704,14 @@ func (a *authenticationService) addUserEdgeMetadata(tx *sql.Tx, userID []byte, u
 	return err
 }
 
-func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	deviceID := authReq.GetDevice()
 	if deviceID == "" {
-		return nil, "", "Device ID is required", BAD_INPUT
+		return nil, "", "", "Device ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		return nil, "", "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(deviceID) < 10 || len(deviceID) > 64 {
-		return nil, "", "Invalid device ID, must be 10-64 bytes", BAD_INPUT
+		return nil, "", "", "Invalid device ID, must be 10-64 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
@@ -729,41 +731,41 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new device profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	res, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 	if err != nil {
 		a.logger.Warn("Could not register, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, deviceID, "", 0
 }
 
-func (a *authenticationService) registerFacebook(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerFacebook(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	accessToken := authReq.GetFacebook()
 	if accessToken == "" {
-		return nil, "", errorAccessTokenIsRequired, BAD_INPUT
+		return nil, "", "", errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	fbProfile, err := a.socialClient.GetFacebookProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Facebook profile", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
@@ -784,32 +786,32 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Facebook profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, fbProfile.ID, "", 0
 }
 
-func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	accessToken := authReq.GetGoogle()
 	if accessToken == "" {
-		return nil, "", errorAccessTokenIsRequired, BAD_INPUT
+		return nil, "", "", errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	googleProfile, err := a.socialClient.GetGoogleProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Google profile", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
@@ -833,30 +835,30 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Google profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, googleProfile.ID, "", 0
 }
 
-func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	gc := authReq.GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
-		return nil, "", errorInvalidPayload, BAD_INPUT
+		return nil, "", "", errorInvalidPayload, BAD_INPUT
 	}
 
 	_, err := a.socialClient.CheckGameCenterID(gc.PlayerId, gc.BundleId, gc.Timestamp, gc.Salt, gc.Signature, gc.PublicKeyUrl)
 	if err != nil {
 		a.logger.Warn("Could not get Game Center profile", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
@@ -880,41 +882,42 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Game Center profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, gc.PlayerId, "", 0
 }
 
-func (a *authenticationService) registerSteam(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerSteam(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	if a.config.GetSocial().Steam.PublisherKey == "" || a.config.GetSocial().Steam.AppID == 0 {
-		return nil, "", "Steam registration not available", AUTH_ERROR
+		return nil, "", "", "Steam registration not available", AUTH_ERROR
 	}
 
 	ticket := authReq.GetSteam()
 	if ticket == "" {
-		return nil, "", "Steam ticket is required", BAD_INPUT
+		return nil, "", "", "Steam ticket is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(ticket) {
-		return nil, "", "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	steamProfile, err := a.socialClient.GetSteamProfile(a.config.GetSocial().Steam.PublisherKey, a.config.GetSocial().Steam.AppID, ticket)
 	if err != nil {
 		a.logger.Warn("Could not get Steam profile", zap.Error(err))
-		return nil, "", errorCouldNotRegister, AUTH_ERROR
+		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
 	userID := uuid.NewV4().Bytes()
 	handle := a.generateHandle()
+	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, steam_id, created_at, updated_at)
 SELECT $1 AS id,
@@ -928,39 +931,39 @@ WHERE NOT EXISTS
  WHERE steam_id = $3)`,
 		userID,
 		handle,
-		strconv.FormatUint(steamProfile.SteamID, 10),
+		steamID,
 		updatedAt)
 
 	if err != nil {
 		a.logger.Warn("Could not register new Steam profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, steamID, "", 0
 }
 
-func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	email := authReq.GetEmail()
 	if email == nil {
-		return nil, "", errorInvalidPayload, BAD_INPUT
+		return nil, "", "", errorInvalidPayload, BAD_INPUT
 	} else if email.Email == "" {
-		return nil, "", "Email address is required", BAD_INPUT
+		return nil, "", "", "Email address is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(email.Email) {
-		return nil, "", "Invalid email address, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid email address, no spaces or control characters allowed", BAD_INPUT
 	} else if len(email.Password) < 8 {
-		return nil, "", "Password must be longer than 8 characters", BAD_INPUT
+		return nil, "", "", "Password must be longer than 8 characters", BAD_INPUT
 	} else if !emailRegex.MatchString(email.Email) {
-		return nil, "", "Invalid email address format", BAD_INPUT
+		return nil, "", "", "Invalid email address format", BAD_INPUT
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
-		return nil, "", "Invalid email address, must be 10-255 bytes", BAD_INPUT
+		return nil, "", "", "Invalid email address, must be 10-255 bytes", BAD_INPUT
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(email.Password), bcrypt.DefaultCost)
@@ -968,6 +971,7 @@ func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateR
 	updatedAt := nowMs()
 	userID := uuid.NewV4().Bytes()
 	handle := a.generateHandle()
+	cleanEmail := strings.ToLower(email.Email)
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, email, password, created_at, updated_at)
 SELECT $1 AS id,
@@ -982,34 +986,34 @@ WHERE NOT EXISTS
  WHERE email = $3)`,
 		userID,
 		handle,
-		strings.ToLower(email.Email),
+		cleanEmail,
 		hashedPassword,
 		updatedAt)
 
 	if err != nil {
 		a.logger.Warn("Could not register new email profile, query error", zap.Error(err))
-		return nil, "", "Email already in use", RUNTIME_EXCEPTION
+		return nil, "", "", "Email already in use", RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "Email already in use", RUNTIME_EXCEPTION
+		return nil, "", "", "Email already in use", RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, cleanEmail, "", 0
 }
 
-func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
 	customID := authReq.GetCustom()
 	if customID == "" {
-		return nil, "", "Custom ID is required", BAD_INPUT
+		return nil, "", "", "Custom ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(customID) {
-		return nil, "", "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
+		return nil, "", "", "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(customID) < 10 || len(customID) > 64 {
-		return nil, "", "Invalid custom ID, must be 10-64 bytes", BAD_INPUT
+		return nil, "", "", "Invalid custom ID, must be 10-64 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
@@ -1033,19 +1037,19 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new custom profile, query error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
 		a.logger.Error("Could not register new custom profile, user edge metadata error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, "", 0
+	return userID, handle, customID, "", 0
 }
 
 func (a *authenticationService) generateHandle() string {
