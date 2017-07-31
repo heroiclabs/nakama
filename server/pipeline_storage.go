@@ -202,8 +202,9 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 				opString = "merge"
 			case MOVE:
 				opString = "move"
-			case PATCH:
-				opString = "patch"
+			//TODO Add patch support for client operations
+			//case PATCH:
+			//	opString = "patch"
 			case REMOVE:
 				opString = "remove"
 			case REPLACE:
