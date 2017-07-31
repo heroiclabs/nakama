@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"unicode/utf8"
 
+	"fmt"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
@@ -46,6 +47,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 
 	t := e.Joins[0]
 
+	dmOtherUserID := uuid.Nil
 	var topic *TopicId
 	var trackerTopic string
 	switch t.Id.(type) {
@@ -84,6 +86,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
 			trackerTopic = "dm:" + otherUserIDString + ":" + userIDString
 		}
+		dmOtherUserID = otherUserID
 	case *TTopicsJoin_TopicJoin_Room:
 		// Check input is valid room name.
 		room := t.GetRoom()
@@ -135,10 +138,45 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 	handle := session.handle.Load()
 
 	// Track the presence, and gather current member list.
-	p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{
+	isNewPresence := p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{
 		Handle: handle,
 	})
 	presences := p.tracker.ListByTopic(trackerTopic)
+
+	// If the topic join is a DM check if we should notify the other user.
+	// Only new presences are allowed to send notifications to avoid duplicates.
+	if isNewPresence && dmOtherUserID != uuid.Nil {
+		otherUserPresent := false
+		for _, pr := range presences {
+			if pr.UserID == dmOtherUserID {
+				otherUserPresent = true
+				break
+			}
+		}
+		if !otherUserPresent {
+			ts := nowMs()
+			content, e := json.Marshal(map[string]string{"handle": handle})
+			if e != nil {
+				logger.Warn("Failed to send topic direct message notification", zap.Error(e))
+			} else {
+				if e := p.notificationService.NotificationSend([]*NNotification{
+					&NNotification{
+						Id:         uuid.NewV4().Bytes(),
+						UserID:     dmOtherUserID.Bytes(),
+						Subject:    fmt.Sprintf("%v wants to chat", handle),
+						Content:    content,
+						Code:       int64(1),
+						SenderID:   session.userID.Bytes(),
+						CreatedAt:  ts,
+						ExpiresAt:  ts + p.notificationService.expiryMs,
+						Persistent: true,
+					},
+				}); e != nil {
+					logger.Warn("Failed to send topic direct message notification", zap.Error(e))
+				}
+			}
+		}
+	}
 
 	userPresences := make([]*UserPresence, len(presences))
 	for i := 0; i < len(presences); i++ {
