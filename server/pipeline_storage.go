@@ -170,8 +170,8 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 		return
 	}
 
-	keyUpdates := make([]*StorageKeyUpdate, 0)
-	for _, update := range incoming.Updates {
+	keyUpdates := make([]*StorageKeyUpdate, len(incoming.Updates))
+	for i, update := range incoming.Updates {
 		keyUpdate := &StorageKeyUpdate{
 			PermissionRead:  int64(update.PermissionRead),
 			PermissionWrite: int64(update.PermissionWrite),
@@ -184,8 +184,8 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 			},
 		}
 
-		jsonOps := make([]map[string]*json.RawMessage, 0)
-		for _, op := range update.Ops {
+		jsonOps := make([]map[string]*json.RawMessage, len(update.Ops))
+		for i, op := range update.Ops {
 			opString := ""
 			switch TStorageUpdate_StorageUpdate_UpdateOp_UpdateOpCode(op.Op) {
 			case ADD:
@@ -232,7 +232,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 				"conditional": &conditional,
 				"assert":      &assert,
 			}
-			jsonOps = append(jsonOps, jsonOp)
+			jsonOps[i] = jsonOp
 		}
 
 		p, err := jsonpatch.NewExtendedPatch(jsonOps)
@@ -242,7 +242,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session *session, envelope 
 			return
 		}
 		keyUpdate.Patch = p
-		keyUpdates = append(keyUpdates, keyUpdate)
+		keyUpdates[i] = keyUpdate
 	}
 
 	updatedKeys, errCode, err := StorageUpdate(logger, p.db, session.userID, keyUpdates)
