@@ -165,7 +165,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 						UserID:     dmOtherUserID.Bytes(),
 						Subject:    fmt.Sprintf("%v wants to chat", handle),
 						Content:    content,
-						Code:       int64(1),
+						Code:       NOTIFICATION_DM_REQUEST,
 						SenderID:   session.userID.Bytes(),
 						CreatedAt:  ts,
 						ExpiresAt:  ts + p.notificationService.expiryMs,

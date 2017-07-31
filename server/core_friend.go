@@ -59,12 +59,12 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID [
 				recipient = userID
 				sender = friendID
 				subject = fmt.Sprintf("%v accepted your friend request", handle)
-				code = 3
+				code = NOTIFICATION_FRIEND_ACCEPT
 			} else {
 				recipient = friendID
 				sender = userID
 				subject = fmt.Sprintf("%v wants to add you as a friend", handle)
-				code = 2
+				code = NOTIFICATION_FRIEND_REQUEST
 			}
 
 			if e := ns.NotificationSend([]*NNotification{

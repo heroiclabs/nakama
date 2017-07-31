@@ -123,7 +123,7 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, handle 
 								UserID:     fid,
 								Subject:    subject,
 								Content:    content,
-								Code:       int64(6),
+								Code:       NOTIFICATION_FRIEND_JOIN_GAME,
 								SenderID:   userID,
 								CreatedAt:  ts,
 								ExpiresAt:  expiresAt,

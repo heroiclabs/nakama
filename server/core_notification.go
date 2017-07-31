@@ -28,6 +28,15 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	NOTIFICATION_DM_REQUEST         int64 = 1
+	NOTIFICATION_FRIEND_REQUEST     int64 = 2
+	NOTIFICATION_FRIEND_ACCEPT      int64 = 3
+	NOTIFICATION_GROUP_ADD          int64 = 4
+	NOTIFICATION_GROUP_JOIN_REQUEST int64 = 5
+	NOTIFICATION_FRIEND_JOIN_GAME   int64 = 6
+)
+
 type notificationResumableCursor struct {
 	Expiry         int64
 	NotificationID []byte
