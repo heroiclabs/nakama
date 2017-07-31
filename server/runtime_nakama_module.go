@@ -33,11 +33,12 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 
+	"nakama/pkg/jsonpatch"
+
 	"github.com/fatih/structs"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"nakama/pkg/jsonpatch"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -75,36 +76,40 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"uuid_v4":               n.uuidV4,
-		"http_request":          n.httpRequest,
-		"json_encode":           n.jsonEncode,
-		"json_decode":           n.jsonDecode,
-		"base64_encode":         n.base64Encode,
-		"base64_decode":         n.base64Decode,
-		"base16_encode":         n.base16Encode,
-		"base16_decode":         n.base16decode,
-		"logger_info":           n.loggerInfo,
-		"logger_warn":           n.loggerWarn,
-		"logger_error":          n.loggerError,
-		"register_rpc":          n.registerRPC,
-		"register_before":       n.registerBefore,
-		"register_after":        n.registerAfter,
-		"register_http":         n.registerHTTP,
-		"users_fetch_id":        n.usersFetchId,
-		"users_fetch_handle":    n.usersFetchHandle,
-		"users_update":          n.usersUpdate,
-		"users_ban":             n.usersBan,
-		"storage_list":          n.storageList,
-		"storage_fetch":         n.storageFetch,
-		"storage_write":         n.storageWrite,
-		"storage_update":        n.storageUpdate,
-		"storage_remove":        n.storageRemove,
-		"leaderboard_create":    n.leaderboardCreate,
-		"groups_create":         n.groupsCreate,
-		"groups_update":         n.groupsUpdate,
-		"group_users_list":      n.groupUsersList,
-		"groups_user_list":      n.groupsUserList,
-		"notifications_send_id": n.notificationsSendId,
+		"uuid_v4":                 n.uuidV4,
+		"http_request":            n.httpRequest,
+		"json_encode":             n.jsonEncode,
+		"json_decode":             n.jsonDecode,
+		"base64_encode":           n.base64Encode,
+		"base64_decode":           n.base64Decode,
+		"base16_encode":           n.base16Encode,
+		"base16_decode":           n.base16decode,
+		"logger_info":             n.loggerInfo,
+		"logger_warn":             n.loggerWarn,
+		"logger_error":            n.loggerError,
+		"register_rpc":            n.registerRPC,
+		"register_before":         n.registerBefore,
+		"register_after":          n.registerAfter,
+		"register_http":           n.registerHTTP,
+		"users_fetch_id":          n.usersFetchId,
+		"users_fetch_handle":      n.usersFetchHandle,
+		"users_update":            n.usersUpdate,
+		"users_ban":               n.usersBan,
+		"storage_list":            n.storageList,
+		"storage_fetch":           n.storageFetch,
+		"storage_write":           n.storageWrite,
+		"storage_update":          n.storageUpdate,
+		"storage_remove":          n.storageRemove,
+		"leaderboard_create":      n.leaderboardCreate,
+		"leaderboard_submit_incr": n.leaderboardSubmitIncr,
+		"leaderboard_submit_decr": n.leaderboardSubmitDecr,
+		"leaderboard_submit_set":  n.leaderboardSubmitSet,
+		"leaderboard_submit_best": n.leaderboardSubmitBest,
+		"groups_create":           n.groupsCreate,
+		"groups_update":           n.groupsUpdate,
+		"group_users_list":        n.groupUsersList,
+		"groups_user_list":        n.groupsUserList,
+		"notifications_send_id":   n.notificationsSendId,
 	})
 
 	l.Push(mod)
@@ -1232,13 +1237,58 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 		return 0
 	}
 
-	_, err = createLeaderboard(n.logger, n.db, leaderboardId.String(), sort, reset, string(metadataBytes), authoritative)
+	_, err = leaderboardCreate(n.logger, n.db, leaderboardId.String(), sort, reset, string(metadataBytes), authoritative)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
 		return 0
 	}
 
 	return 0
+}
+
+func (n *NakamaModule) leaderboardSubmitIncr(l *lua.LState) int {
+
+	return n.leaderboardSubmit(l, "incr")
+}
+func (n *NakamaModule) leaderboardSubmitDecr(l *lua.LState) int {
+
+	return n.leaderboardSubmit(l, "decr")
+}
+func (n *NakamaModule) leaderboardSubmitSet(l *lua.LState) int {
+	return n.leaderboardSubmit(l, "set")
+}
+func (n *NakamaModule) leaderboardSubmitBest(l *lua.LState) int {
+	return n.leaderboardSubmit(l, "best")
+}
+
+func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
+	id := l.CheckString(1)
+	value := l.CheckInt64(2)
+	location := l.OptString(3, "")
+	timezone := l.OptString(4, "")
+	metadata := l.OptTable(5, l.NewTable())
+
+	leaderboardId, err := uuid.FromString(id)
+	if err != nil {
+		l.ArgError(1, "invalid leaderboard id")
+		return 0
+	}
+
+	metadataMap := ConvertLuaTable(metadata)
+	metadataBytes, err := json.Marshal(metadataMap)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert metadata: %s", err.Error()))
+		return 0
+	}
+
+	err = leaderboardSubmit(n.logger, n.db, false, leaderboardId, op, value, location, timezone, string(metadataBytes))
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
+		return 0
+	}
+
+	return 0
+
 }
 
 func (n *NakamaModule) groupsCreate(l *lua.LState) int {
