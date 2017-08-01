@@ -62,7 +62,7 @@ end
 
 -- leaderboard_create
 do
-  local status, res = nk.leaderboard_submit_set("ce042d38-c3db-4ebd-bc99-3aaa0adbdef7", 10, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  local status, res = pcall(nk.leaderboard_submit_set, "ce042d38-c3db-4ebd-bc99-3aaa0adbdef7", 10, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
   if not status then
     print(res)
   end
