@@ -1262,7 +1262,7 @@ func (n *NakamaModule) leaderboardSubmitBest(l *lua.LState) int {
 }
 
 func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
-	id := l.CheckString(1)
+	leaderboardID := l.CheckString(1)
 	value := l.CheckInt64(2)
 	oId := l.CheckString(3)
 	handle := l.OptString(4, "")
@@ -1270,12 +1270,6 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	location := l.OptString(6, "")
 	timezone := l.OptString(7, "")
 	metadata := l.OptTable(8, l.NewTable())
-
-	leaderboardID, err := uuid.FromString(id)
-	if err != nil {
-		l.ArgError(1, "invalid leaderboard id")
-		return 0
-	}
 
 	ownerID, err := uuid.FromString(oId)
 	if err != nil {
@@ -1290,19 +1284,16 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 		return 0
 	}
 
-	record, err := leaderboardSubmit(n.logger, n.db, false, leaderboardID, ownerID, handle, lang, op, value, location, timezone, metadataBytes)
+	record, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
 		return 0
 	}
 
-	lv := l.NewTable()
-	lid, _ := uuid.FromBytes(record.LeaderboardId)
-	record.LeaderboardId = []byte(lid.String())
 	oid, _ := uuid.FromBytes(record.OwnerId)
 	record.OwnerId = []byte(oid.String())
 	rm := structs.Map(record)
-	lv.RawSetInt(1, convertValue(l, rm))
+	lv := ConvertMap(l, rm)
 
 	l.Push(lv)
 	return 1
