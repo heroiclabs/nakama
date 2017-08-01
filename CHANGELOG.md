@@ -3,14 +3,14 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2017-08-01
 ### Added
 - New storage partial update feature.
-- Log warning messages at startup when using insecure default parameter values.
-- Add script runtime function to update groups.
-- Add script runtime function to list groups a user is part of.
-- Add script runtime function to list users belonging to a group.
-- Add script runtime function to submit leaderboard record.
+- Log warn messages at startup when using insecure default parameter values.
+- Add code runtime function to update groups.
+- Add code runtime function to list groups a user is part of.
+- Add code runtime function to list users who're members of a group.
+- Add code runtime function to submit a score to a leaderboard.
 - Send in-app notification on friend request.
 - Send in-app notification on friend request accept.
 - Send in-app notification when a Facebook friend signs into the game for the first time.
@@ -19,18 +19,18 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Send in-app notification to the user when someone wants to DM chat.
 
 ### Changed
-- Use Lua table for Content field when creating new notifications.
-- Use Lua table for Metadata field for new groups.
-- Use Lua table for Metadata field when updating a user.
-- Updated configuration variable names. Most importantly `DB` is now changed to `database.address`.
-- Moved all `nakamax` functions into `nakama`.
-- Invalid config file, or invalid command line config option prevents server from starting.
-- Matchmake token expiry increased from 15 seconds to 30 seconds.
-- Script runtime `os.date()` function now returns correct day of year.
-- Script runtime contexts passed to function hooks now use `PascalCase` naming for fields. For example `context.user_id` must now be `context.UserId`.
+- Use a Lua table with content field when creating new notifications.
+- Use a Lua table with metadata field when creating new groups.
+- Use a Lua table with metadata field when updating a user.
+- Updated configuration variable names. The most important one is `DB` which is now `database.address`.
+- Moved all `nakamax` functions into `nakama` runtime module.
+- An invalid config file or invalid cmdflag now prevents the server from startup.
+- A matchmake token now expires after 30 instead of 15 seconds.
+- The code runtime `os.date()` function now returns correct day of year.
+- The code runtime context passed to function hooks now use PascalCase case in fields names. For example `context.user_id` is now `context.UserId`.
 - Remove `admin` sub-command.
-- Group leave operations now return a specific error code when the last admin attempts to leave.
-- Group self list operations now return the user's membership type to each group.
+- A group leave operation now returns a specific error code when the last admin attempts to leave.
+- A group self list operations now return the user's membership state with each group.
 
 ## [1.0.0-rc.1] - 2017-07-18
 ### Added
@@ -166,7 +166,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Server configuration in dashboard is now displayed as YAML.
 - Update server protocol to simplify presence messages across chat and multiplayer.
 
-### Fixed
+### Fixed
 - Work around a limitation in cockroachdb with type information in group sub-queries.
 
 ## [0.11.0] - 2017-02-09
@@ -175,13 +175,13 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Database name can now be set in migrations and at server startup. i.e. `nakama --db root@127.0.0.1:26257/mydbname`.
 - Improve SQL compatibility.
 
-### Changed
+### Changed
 - Update db schema to support 64 characters with device IDs. This enables `SystemInfo.deviceUniqueIdentifier` to be used as a source for device IDs on Windows 10.
 - Logout messages now close the server-side connection and won't reply.
 - Rename logout protocol message type from `TLogout` to `Logout`.
 - Update server protocol for friend messages to use IDs as bytes.
 
-### Fixed
+### Fixed
 - Fix issue where random handle generator wasn't seeded properly.
 - Improve various SQL storage, friend, and group queries.
 - Send close frame message in the websocket to gracefully close a client connection.
