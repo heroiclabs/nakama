@@ -86,25 +86,17 @@ func leaderboardCreate(logger *zap.Logger, db *sql.DB, id, sortOrder, resetSched
 	return params[0].([]byte), nil
 }
 
-func leaderboardSubmit(logger *zap.Logger, db *sql.DB, clientSubmit bool, leaderboardId uuid.UUID, op string, value int64, location, timezone, metadata string) error {
-	if len(metadata) != 0 {
-		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal(metadata, &maybeJSON) != nil {
-			return errors.New("Metadata must be a valid JSON object")
-		}
-	}
-
+func leaderboardSubmit(logger *zap.Logger, db *sql.DB, clientSubmit bool, leaderboardID uuid.UUID, ownerID uuid.UUID, handle string, lang string, op string, value int64, location string, timezone string, metadata []byte) (*LeaderboardRecord, error) {
 	var authoritative bool
 	var sortOrder int64
 	var resetSchedule sql.NullString
 	query := "SELECT authoritative, sort_order, reset_schedule FROM leaderboard WHERE id = $1"
-	logger.Debug("Leaderboard lookup", zap.String("query", query))
-	err := db.QueryRow(query, leaderboardId).
+	logger.Debug("Leaderboard lookup", zap.String("query", query), zap.String("leaderboard_id", leaderboardID.String()))
+	err := db.QueryRow(query, leaderboardID.Bytes()).
 		Scan(&authoritative, &sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
-		return errors.New("Error writing leaderboard record")
+		return nil, errors.New("Error writing leaderboard record")
 	}
 
 	now := now()
@@ -114,13 +106,13 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, clientSubmit bool, leader
 		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			return errors.New("Error writing leaderboard record")
+			return nil, errors.New("Error writing leaderboard record")
 		}
 		expiresAt = timeToMs(expr.Next(now))
 	}
 
 	if authoritative == true && clientSubmit {
-		return errors.New("Cannot submit to authoritative leaderboard")
+		return nil, errors.New("Cannot submit to authoritative leaderboard")
 	}
 
 	var scoreOpSql string
@@ -149,14 +141,11 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, clientSubmit bool, leader
 		}
 		scoreDelta = value
 		scoreAbs = value
-	case nil:
-		return errors.New("No leaderboard record write operator found")
 	default:
-		return errors.New("Unknown leaderboard record write operator")
+		return nil, errors.New("Unknown leaderboard record write operator")
 	}
 
-	handle := session.handle.Load()
-	params := []interface{}{uuid.NewV4().Bytes(), leaderboardId, session.userID.Bytes(), handle, lang}
+	params := []interface{}{uuid.NewV4().Bytes(), leaderboardID.Bytes(), ownerID.Bytes(), handle, lang}
 	if location != "" {
 		params = append(params, location)
 	} else {
@@ -186,12 +175,55 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, clientSubmit bool, leader
 	res, err := db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
-		return errors.New("Error writing leaderboard record")
+		return nil, errors.New("Error writing leaderboard record")
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		logger.Error("Unexpected row count from leaderboard record write query")
-		return errors.New("Error writing leaderboard record")
+		return nil, errors.New("Error writing leaderboard record")
 	}
 
-	return nil
+	record, err := leaderboardQueryRecords(logger, db, leaderboardID, ownerID, handle, lang, expiresAt, updatedAt)
+	if err != nil {
+		return nil, errors.New("Error writing leaderboard record")
+	}
+	return record, nil
+}
+
+func leaderboardQueryRecords(logger *zap.Logger, db *sql.DB, leaderboardID uuid.UUID, ownerID uuid.UUID, handle string, lang string, expiresAt int64, updatedAt int64) (*LeaderboardRecord, error) {
+	var location sql.NullString
+	var timezone sql.NullString
+	var rankValue int64
+	var score int64
+	var numScore int64
+	var metadata []byte
+	var rankedAt int64
+	var bannedAt int64
+	query := `SELECT location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at
+		FROM leaderboard_record
+		WHERE leaderboard_id = $1
+		AND expires_at = $2
+		AND owner_id = $3`
+	logger.Debug("Leaderboard record read", zap.String("query", query))
+	err := db.QueryRow(query, leaderboardID.Bytes(), expiresAt, ownerID.Bytes()).
+		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
+	if err != nil {
+		logger.Error("Could not execute leaderboard record read query", zap.Error(err))
+		return nil, err
+	}
+
+	return &LeaderboardRecord{
+		LeaderboardId: leaderboardID.Bytes(),
+		OwnerId:       ownerID.Bytes(),
+		Handle:        handle,
+		Lang:          lang,
+		Location:      location.String,
+		Timezone:      timezone.String,
+		Rank:          rankValue,
+		Score:         score,
+		NumScore:      numScore,
+		Metadata:      metadata,
+		RankedAt:      rankedAt,
+		UpdatedAt:     updatedAt,
+		ExpiresAt:     expiresAt,
+	}, nil
 }

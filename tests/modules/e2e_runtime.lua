@@ -23,20 +23,20 @@ function print_r(arr, indentLevel)
   local indentStr = "#"
 
   if(indentLevel == nil) then
-      print(print_r(arr, 0))
-      return
+    print(print_r(arr, 0))
+    return
   end
 
   for i = 0, indentLevel do
-      indentStr = indentStr.."\t"
+    indentStr = indentStr.."\t"
   end
 
   for index,Value in pairs(arr) do
-      if type(Value) == "table" then
-          str = str..indentStr..index..": \n"..print_r(Value, (indentLevel + 1))
-      else
-          str = str..indentStr..index..": "..Value.."\n"
-      end
+    if type(Value) == "table" then
+      str = str..indentStr..index..": \n"..print_r(Value, (indentLevel + 1))
+    else
+      str = str..indentStr..index..": "..Value.."\n"
+    end
   end
   return str
 end
@@ -58,6 +58,15 @@ do
   local id = "ce042d38-c3db-4ebd-bc99-3aaa0adbdef7"
   -- This will error if it fails.
   -- nk.leaderboard_create(id, "desc", "0 0 * * 1", {}, false)
+end
+
+-- leaderboard_create
+do
+  local status, res = nk.leaderboard_submit_set("ce042d38-c3db-4ebd-bc99-3aaa0adbdef7", 10, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  if not status then
+    print(res)
+  end
+  assert(status == true)
 end
 
 -- logger_info
@@ -122,7 +131,7 @@ do
   assert(status_list == true)
   assert(#res_list == 2)
   assert(((res_list[1].Group.Name == group_name_1) and (res_list[2].Group.Name == group_name_2)) or
-         ((res_list[1].Group.Name == group_name_2) and (res_list[2].Group.Name == group_name_1)))
+    ((res_list[1].Group.Name == group_name_2) and (res_list[2].Group.Name == group_name_1)))
 end
 
 -- group update
