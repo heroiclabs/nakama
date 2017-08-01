@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Add script runtime function to update groups.
 - Add script runtime function to list groups a user is part of.
 - Add script runtime function to list users belonging to a group.
+- Add script runtime function to submit leaderboard record.
 - Send in-app notification on friend request.
 - Send in-app notification on friend request accept.
 - Send in-app notification when a Facebook friend signs into the game for the first time.
