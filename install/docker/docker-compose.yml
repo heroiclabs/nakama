@@ -17,7 +17,7 @@ services:
     entrypoint:
       - /bin/bash
       - -ecx
-      - /nakama/nakama migrate up --db "root@cockroachdb:26257" && /nakama/nakama --db "root@cockroachdb:26257"
+      - /nakama/nakama migrate up --database.address "root@cockroachdb:26257" && /nakama/nakama --database.address "root@cockroachdb:26257"
     restart: always
     links:
       - "cockroachdb:db"
