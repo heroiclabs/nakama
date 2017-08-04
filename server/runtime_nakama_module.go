@@ -469,13 +469,24 @@ func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -506,13 +517,24 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -1325,7 +1347,16 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	oid, _ := uuid.FromBytes(record.OwnerId)
 	record.OwnerId = []byte(oid.String())
 	rm := structs.Map(record)
+
+	outgoingMetadataMap := make(map[string]interface{})
+	err = json.Unmarshal(record.Metadata, &outgoingMetadataMap)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		return 0
+	}
+
 	lv := ConvertMap(l, rm)
+	lv.RawSetString("Metadata", ConvertMap(l, outgoingMetadataMap))
 
 	l.Push(lv)
 	return 1
@@ -1444,13 +1475,24 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
-		uid, _ := uuid.FromBytes(g.Id)
-		g.Id = []byte(uid.String())
+		// Convert UUIDs to string representation.
+		gid, _ := uuid.FromBytes(g.Id)
+		g.Id = []byte(gid.String())
 		gm := structs.Map(g)
-		lv.RawSetInt(i+1, convertValue(l, gm))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(g.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		gt := ConvertMap(l, gm)
+		gt.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, gt)
 	}
 
 	l.Push(lv)
@@ -1582,13 +1624,24 @@ func (n *NakamaModule) groupUsersList(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.User.Id)
 		u.User.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.User.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawGetString("User").(*lua.LTable).RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -1614,13 +1667,24 @@ func (n *NakamaModule) groupsUserList(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
+		// Convert UUIDs to string representation.
 		gid, _ := uuid.FromBytes(g.Group.Id)
 		g.Group.Id = []byte(gid.String())
 		gm := structs.Map(g)
-		lv.RawSetInt(i+1, convertValue(l, gm))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(g.Group.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		gt := ConvertMap(l, gm)
+		gt.RawGetString("Group").(*lua.LTable).RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, gt)
 	}
 
 	l.Push(lv)

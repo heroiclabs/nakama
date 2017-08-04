@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Changed
 - Improve index selection in storage list operations.
 - Payloads in `register_before` hooks now use `PascalCase` field names and expose correctly formatted IDs.
+- Metadata regions in users, groups, and leaderboard records are now exposed to the script runtime as Lua tables.
 
 ### Fixed
 - Script runtime batch user update operations now process correctly.
