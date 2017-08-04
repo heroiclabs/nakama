@@ -448,7 +448,7 @@ func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshale
 		if groupsRemove.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsRemove conversion from script runtime")
 		}
-		groupIds := lt.RawGetString("GroupIds")
+		groupIds := groupsRemove.(*lua.LTable).RawGetString("GroupIds")
 		if groupIds.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsRemove conversion from script runtime")
 		}
@@ -475,7 +475,7 @@ func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshale
 		if groupsJoin.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsJoin conversion from script runtime")
 		}
-		groupIds := lt.RawGetString("GroupIds")
+		groupIds := groupsJoin.(*lua.LTable).RawGetString("GroupIds")
 		if groupIds.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsJoin conversion from script runtime")
 		}
@@ -502,7 +502,7 @@ func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshale
 		if groupsLeave.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsLeave conversion from script runtime")
 		}
-		groupIds := lt.RawGetString("GroupIds")
+		groupIds := groupsLeave.(*lua.LTable).RawGetString("GroupIds")
 		if groupIds.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupsLeave conversion from script runtime")
 		}
@@ -529,7 +529,7 @@ func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshale
 		if groupUsersKick.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupUsersKick conversion from script runtime")
 		}
-		groupUsers := lt.RawGetString("GroupUsers")
+		groupUsers := groupUsersKick.(*lua.LTable).RawGetString("GroupUsers")
 		if groupUsers.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupUsersKick conversion from script runtime")
 		}
@@ -572,7 +572,7 @@ func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshale
 		if groupUsersPromote.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupUsersPromote conversion from script runtime")
 		}
-		groupUsers := lt.RawGetString("GroupUsers")
+		groupUsers := groupUsersPromote.(*lua.LTable).RawGetString("GroupUsers")
 		if groupUsers.Type() != lua.LTTable {
 			return nil, errors.New("Invalid payload in GroupUsersPromote conversion from script runtime")
 		}
