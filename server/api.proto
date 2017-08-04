@@ -24,6 +24,7 @@ syntax = "proto3";
 package server;
 
 option csharp_namespace = "Nakama";
+option java_package = "com.heroiclabs.nakama";
 
 /**
  * Heartbeat message used as server ping to check for client liveliness.
