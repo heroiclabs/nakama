@@ -170,6 +170,23 @@ do
   assert(res_list[1].User.Id == "4c2ae592-b2a7-445e-98ec-697694478b1c")
 end
 
+-- users update
+do
+  local users_before = nk.users_fetch_id({"4c2ae592-b2a7-445e-98ec-697694478b1c"})
+  assert(#users_before == 1)
+  assert(users_before[1].Handle == "02ebb2c8")
+
+  local status, reason = pcall(nk.users_update, {{UserId = "4c2ae592-b2a7-445e-98ec-697694478b1c", Handle = "updated!"}})
+  if not status then
+    print(reason)
+  end
+  assert(status == true)
+
+  local users_after = nk.users_fetch_id({"4c2ae592-b2a7-445e-98ec-697694478b1c"})
+  assert(#users_after == 1)
+  assert(users_after[1].Handle == "updated!")
+end
+
 -- notifications_send_id
 do
   -- This will error if it fails.
