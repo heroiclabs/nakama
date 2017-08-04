@@ -31,16 +31,6 @@ func RuntimeBeforeHook(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, json
 		return envelope, nil
 	}
 
-	strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
-	if err != nil {
-		return nil, err
-	}
-
-	var jsonEnvelope map[string]interface{}
-	if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
-		return nil, err
-	}
-
 	userId := uuid.Nil
 	handle := ""
 	expiry := int64(0)
@@ -50,22 +40,7 @@ func RuntimeBeforeHook(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, json
 		expiry = session.expiry
 	}
 
-	result, fnErr := runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonEnvelope)
-	if fnErr != nil {
-		return nil, fnErr
-	}
-
-	bytesEnvelope, err := json.Marshal(result)
-	if err != nil {
-		return nil, err
-	}
-
-	resultEnvelope := &Envelope{}
-	if err = jsonpbUnmarshaler.Unmarshal(bytes.NewReader(bytesEnvelope), resultEnvelope); err != nil {
-		return nil, err
-	}
-
-	return resultEnvelope, nil
+	return runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
 }
 
 func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session *session) {
@@ -121,7 +96,7 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 	handle := ""
 	expiry := int64(0)
 
-	result, fnErr := runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonEnvelope)
+	result, fnErr := runtime.InvokeFunctionBeforeAuthentication(fn, userId, handle, expiry, jsonEnvelope)
 	if fnErr != nil {
 		return nil, fnErr
 	}

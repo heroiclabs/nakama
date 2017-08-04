@@ -105,18 +105,18 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 	// Select the correct index. NOTE: should be removed when DB index selection is smarter.
 	index := ""
 	if len(userID) == 0 {
+		if collection == "" {
+			index = "deleted_at_bucket_read_collection_record_user_id_idx"
+		} else {
+			index = "deleted_at_bucket_collection_read_record_user_id_idx"
+		}
+	} else {
 		if bucket == "" {
 			index = "deleted_at_user_id_read_bucket_collection_record_idx"
 		} else if collection == "" {
 			index = "deleted_at_user_id_bucket_read_collection_record_idx"
 		} else {
 			index = "deleted_at_user_id_bucket_collection_read_record_idx"
-		}
-	} else {
-		if collection == "" {
-			index = "deleted_at_bucket_read_collection_record_user_id_idx"
-		} else {
-			index = "deleted_at_bucket_collection_read_record_user_id_idx"
 		}
 	}
 

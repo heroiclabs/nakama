@@ -77,6 +77,8 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
 		"uuid_v4":                 n.uuidV4,
+		"uuid_bytes_to_string":    n.uuidBytesToString,
+		"uuid_string_to_bytes":    n.uuidStringToBytes,
 		"http_request":            n.httpRequest,
 		"json_encode":             n.jsonEncode,
 		"json_decode":             n.jsonDecode,
@@ -119,6 +121,36 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 func (n *NakamaModule) uuidV4(l *lua.LState) int {
 	// TODO ensure there were no arguments to the function
 	l.Push(lua.LString(uuid.NewV4().String()))
+	return 1
+}
+
+func (n *NakamaModule) uuidBytesToString(l *lua.LState) int {
+	uuidBytes := l.CheckString(1)
+	if uuidBytes == "" {
+		l.ArgError(1, "Expects a UUID byte string")
+		return 0
+	}
+	u, err := uuid.FromBytes([]byte(uuidBytes))
+	if err != nil {
+		l.ArgError(1, "Not a valid UUID byte string")
+		return 0
+	}
+	l.Push(lua.LString(u.String()))
+	return 1
+}
+
+func (n *NakamaModule) uuidStringToBytes(l *lua.LState) int {
+	uuidString := l.CheckString(1)
+	if uuidString == "" {
+		l.ArgError(1, "Expects a UUID string")
+		return 0
+	}
+	u, err := uuid.FromString(uuidString)
+	if err != nil {
+		l.ArgError(1, "Not a valid UUID string")
+		return 0
+	}
+	l.Push(lua.LString(u.Bytes()))
 	return 1
 }
 
@@ -504,8 +536,8 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 			return
 		}
 
+		update := &SelfUpdateOp{}
 		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			update := &SelfUpdateOp{}
 			switch k.String() {
 			case "UserId":
 				if v.Type() != lua.LTString {
@@ -572,18 +604,18 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 				conversionError = "unrecognised update key, expects a valid set of user updates"
 				return
 			}
-
-			// Check it's a valid update op.
-			if len(update.UserId) == 0 {
-				conversionError = "expects each update to contain a user ID"
-				return
-			}
-			if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
-				conversionError = "expects each update to contain at least one field to change"
-				return
-			}
-			updates = append(updates, update)
 		})
+
+		// Check it's a valid update op.
+		if len(update.UserId) == 0 {
+			conversionError = "expects each update to contain a user ID"
+			return
+		}
+		if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
+			conversionError = "expects each update to contain at least one field to change"
+			return
+		}
+		updates = append(updates, update)
 	})
 
 	if conversionError != "" {
