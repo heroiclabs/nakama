@@ -1273,12 +1273,6 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 	metadata := l.OptTable(4, l.NewTable())
 	authoritative := l.OptBool(5, false)
 
-	leaderboardId, err := uuid.FromString(id)
-	if err != nil {
-		l.ArgError(1, "invalid leaderboard id")
-		return 0
-	}
-
 	if sort != "asc" && sort != "desc" {
 		l.ArgError(2, "invalid sort - only acceptable values are 'asc' and 'desc'")
 		return 0
@@ -1291,7 +1285,7 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 		return 0
 	}
 
-	_, err = leaderboardCreate(n.logger, n.db, leaderboardId.String(), sort, reset, string(metadataBytes), authoritative)
+	_, err = leaderboardCreate(n.logger, n.db, []byte(id), sort, reset, string(metadataBytes), authoritative)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
 		return 0
@@ -1334,13 +1328,13 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	metadataMap := ConvertLuaTable(metadata)
 	metadataBytes, err := json.Marshal(metadataMap)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to convert metadata: %s", err.Error()))
+		l.RaiseError(fmt.Sprintf("failed to convert leaderboard record metadata: %s", err.Error()))
 		return 0
 	}
 
 	record, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
+		l.RaiseError(fmt.Sprintf("failed to submit leaderboard record: %s", err.Error()))
 		return 0
 	}
 
@@ -1351,7 +1345,7 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	outgoingMetadataMap := make(map[string]interface{})
 	err = json.Unmarshal(record.Metadata, &outgoingMetadataMap)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		l.RaiseError(fmt.Sprintf("failed to convert leaderboard record metadata to json: %s", err.Error()))
 		return 0
 	}
 
@@ -1451,7 +1445,7 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 			}
 		})
 
-		// mandatory items
+		// Check mandatory items.
 		if p.Name == "" {
 			conversionError = true
 			l.ArgError(1, "missing group Name")
@@ -1460,6 +1454,11 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 			conversionError = true
 			l.ArgError(1, "missing CreatorId")
 			return
+		}
+
+		// Set defaults if the values are missing.
+		if len(p.Metadata) == 0 {
+			p.Metadata = []byte("{}")
 		}
 
 		groupParams = append(groupParams, p)

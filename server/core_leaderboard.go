@@ -25,16 +25,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func leaderboardCreate(logger *zap.Logger, db *sql.DB, id, sortOrder, resetSchedule, metadata string, authoritative bool) ([]byte, error) {
+func leaderboardCreate(logger *zap.Logger, db *sql.DB, id []byte, sortOrder, resetSchedule, metadata string, authoritative bool) ([]byte, error) {
 	query := `INSERT INTO leaderboard (id, authoritative, sort_order, reset_schedule, metadata)
 	VALUES ($1, $2, $3, $4, $5)`
 	params := []interface{}{}
 
 	// ID.
-	if id == "" {
+	if len(id) == 0 {
 		params = append(params, uuid.NewV4().Bytes())
 	} else {
-		params = append(params, []byte(id))
+		params = append(params, id)
 	}
 
 	// Authoritative.

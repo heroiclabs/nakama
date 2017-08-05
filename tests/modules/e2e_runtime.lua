@@ -62,7 +62,14 @@ end
 
 -- leaderboard_create
 do
-  local status, res = pcall(nk.leaderboard_submit_set, "ce042d38-c3db-4ebd-bc99-3aaa0adbdef7", 10, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  local id = nk.uuid_v4()
+  local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res = pcall(nk.leaderboard_submit_set, id, 10, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
   if not status then
     print(res)
   end
@@ -150,6 +157,9 @@ do
   assert(status_update == true)
 
   local status_list, res_list = pcall(nk.groups_user_list, user_id)
+  if not status_list then
+    print(res_list)
+  end
   assert(status_list == true)
   assert(#res_list == 1)
   assert(res_list[1].Group.Name == updated_group_name)

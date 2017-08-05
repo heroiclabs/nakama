@@ -255,8 +255,8 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 
 		groupLogger := logger.With(zap.String("group_id", groupID.String()))
 
-		statements := make([]string, 6)
-		params := make([]interface{}, 7)
+		statements := make([]string, 5)
+		params := make([]interface{}, 6)
 
 		params[0] = groupID.Bytes()
 
@@ -272,17 +272,19 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 		statements[3] = "lang = $5"
 		params[4] = g.Lang
 
-		statements[4] = "metadata = $6"
-		params[5] = g.Metadata
-
-		statements[5] = "state = $7"
-		params[6] = 0
+		statements[4] = "state = $6"
+		params[5] = 0
 		if g.Private {
-			params[6] = 1
+			params[5] = 1
+		}
+
+		if len(g.Metadata) != 0 {
+			statements = append(statements, fmt.Sprintf("metadata = $%v", len(params)+1))
+			params = append(params, g.Metadata)
 		}
 
 		if g.Name != "" {
-			statements = append(statements, "name = $8")
+			statements = append(statements, fmt.Sprintf("name = $%v", len(params)+1))
 			params = append(params, g.Name)
 		}
 
