@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [1.0.1] - 2017-08-05
 ### Added
 - New code runtime functions to convert UUIDs between byte and string representations.
