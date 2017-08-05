@@ -77,7 +77,7 @@ func TestGroupCreate(t *testing.T) {
 	defer db.Close()
 
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{{
-		Name:        "name3",
+		Name:        generateString(),
 		Creator:     uuid.NewV4(),
 		Private:     true,
 		Lang:        "en",
@@ -96,16 +96,18 @@ func TestGroupCreateMultipleSameName(t *testing.T) {
 	}
 	defer db.Close()
 
+	name := generateString()
+
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{
 		{
-			Name:        "group",
+			Name:        name,
 			Creator:     uuid.NewV4(),
 			Private:     true,
 			Lang:        "en",
 			Description: "desc",
 		},
 		{
-			Name:        "group",
+			Name:        name,
 			Creator:     uuid.NewV4(),
 			Private:     true,
 			Lang:        "en",
@@ -126,7 +128,7 @@ func TestGroupCreateMultiple(t *testing.T) {
 
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{
 		{
-			Name:        "group1",
+			Name:        generateString(),
 			Creator:     uuid.NewV4(),
 			Private:     true,
 			Lang:        "en",
@@ -134,7 +136,7 @@ func TestGroupCreateMultiple(t *testing.T) {
 			Metadata:    []byte("{\"key\":\"value\"}"),
 		},
 		{
-			Name:        "group2",
+			Name:        generateString(),
 			Creator:     uuid.NewV4(),
 			Private:     true,
 			Lang:        "en",

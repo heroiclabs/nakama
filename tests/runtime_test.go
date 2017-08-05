@@ -23,12 +23,9 @@ import (
 
 	"nakama/server"
 
-	"encoding/json"
-
-	"bytes"
-
 	"reflect"
 
+	"bytes"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
 )
@@ -405,35 +402,83 @@ nakama.register_before(test.printWorld, "tselffetch")
 			SelfFetch: &server.TSelfFetch{},
 		}}
 
-	strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
+	result, err := r.InvokeFunctionBefore(fn, uuid.Nil, "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
 	if err != nil {
 		t.Error(err)
 	}
 
-	var jsonEnvelope map[string]interface{}
-	if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
-		t.Error(err)
-	}
-
-	result, err := r.InvokeFunctionBefore(fn, uuid.Nil, "", 0, jsonEnvelope)
-	if err != nil {
-		t.Error(err)
-	}
-
-	bytesEnvelope, err := json.Marshal(result)
-	if err != nil {
-		t.Error(err)
-	}
-
-	resultEnvelope := &server.Envelope{}
-	if err = jsonpbUnmarshaler.Unmarshal(bytes.NewReader(bytesEnvelope), resultEnvelope); err != nil {
-		t.Error(err)
-	}
-
-	if !reflect.DeepEqual(envelope, resultEnvelope) {
+	if !reflect.DeepEqual(envelope, result) {
 		t.Error("Input Proto is not the same as Output proto.")
 	}
+	if result.CollationId != "123" {
+		t.Error("Input Proto CollationId is not the same as Output proto.")
+	}
+}
 
+func TestRuntimeRegisterBeforeWithGroupPayload(t *testing.T) {
+	defer os.RemoveAll(DATA_PATH)
+	writeLuaModule("test.lua", `
+test={}
+-- Get the mean value of a table
+function test.printWorld(ctx, payload)
+	print("Hello World")
+	print(ctx.ExecutionMode)
+	return payload
+end
+
+print("Test Module Loaded")
+return test
+	`)
+	writeLuaModule("http-invoke.lua", `
+local nakama = require("nakama")
+local test = require("test")
+nakama.register_before(test.printWorld, "tgroupsjoin")
+	`)
+
+	jsonpbMarshaler := &jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+		Indent:       "",
+		OrigName:     false,
+	}
+	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
+
+	r, err := newRuntime()
+	defer r.Stop()
+	if err != nil {
+		t.Error(err)
+	}
+
+	gid := uuid.NewV4().Bytes()
+
+	fn := r.GetRuntimeCallback(server.BEFORE, "tgroupsjoin")
+	envelope := &server.Envelope{
+		CollationId: "1234",
+		Payload: &server.Envelope_GroupsJoin{
+			GroupsJoin: &server.TGroupsJoin{
+				GroupIds: [][]byte{gid},
+			},
+		}}
+
+	result, err := r.InvokeFunctionBefore(fn, uuid.Nil, "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(envelope, result) {
+		t.Error("Input Proto is not the same as Output proto.")
+	}
+	if result.CollationId != "1234" {
+		t.Error("Input Proto CollationId is not the same as Output proto.")
+	}
+	if len(result.GetGroupsJoin().GroupIds) != 1 {
+		t.Error("Input Proto GroupIds length is not the same as Output proto.")
+	}
+	if !bytes.Equal(result.GetGroupsJoin().GroupIds[0], gid) {
+		t.Error("Input Proto GroupIds value is not the same as Output proto.")
+	}
 }
 
 func TestRuntimeUserId(t *testing.T) {

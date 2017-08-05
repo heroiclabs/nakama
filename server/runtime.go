@@ -245,7 +245,7 @@ func (r *Runtime) InvokeFunctionBefore(fn *lua.LFunction, uid uuid.UUID, handle 
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return nil, nil
+		return nil, errors.New("Runtime before hook did not return the payload")
 	} else if retValue.Type() == lua.LTTable {
 		return ConvertLTableToEnvelope(l, jsonpbUnmarshaler, retValue.(*lua.LTable), envelope)
 	}
@@ -269,7 +269,7 @@ func (r *Runtime) InvokeFunctionBeforeAuthentication(fn *lua.LFunction, uid uuid
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return nil, nil
+		return nil, errors.New("Runtime before hook did not return the payload")
 	} else if retValue.Type() == lua.LTTable {
 		return ConvertLuaTable(retValue.(*lua.LTable)), nil
 	}
