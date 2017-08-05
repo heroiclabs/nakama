@@ -24,6 +24,9 @@ import (
 
 	"database/sql"
 
+	"bytes"
+	"encoding/json"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
@@ -222,7 +225,35 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid uuid.UUID, handle str
 	return nil, errors.New("Runtime function returned invalid data. Only allowed one return value of type String/Byte")
 }
 
-func (r *Runtime) InvokeFunctionBefore(fn *lua.LFunction, uid uuid.UUID, handle string, sessionExpiry int64, payload map[string]interface{}) (map[string]interface{}, error) {
+func (r *Runtime) InvokeFunctionBefore(fn *lua.LFunction, uid uuid.UUID, handle string, sessionExpiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *Envelope) (*Envelope, error) {
+	l, _ := r.NewStateThread()
+	defer l.Close()
+
+	ctx := NewLuaContext(l, r.luaEnv, BEFORE, uid, handle, sessionExpiry)
+	var lv lua.LValue
+	var err error
+	if envelope != nil {
+		lv, err = ConvertEnvelopeToLTable(l, jsonpbMarshaler, envelope)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	retValue, err := r.invokeFunction(l, fn, ctx, lv)
+	if err != nil {
+		return nil, err
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		return nil, errors.New("Runtime before hook did not return the payload")
+	} else if retValue.Type() == lua.LTTable {
+		return ConvertLTableToEnvelope(l, jsonpbUnmarshaler, retValue.(*lua.LTable), envelope)
+	}
+
+	return nil, errors.New("Runtime function returned invalid data. Only allowed one return value of type Table")
+}
+
+func (r *Runtime) InvokeFunctionBeforeAuthentication(fn *lua.LFunction, uid uuid.UUID, handle string, sessionExpiry int64, payload map[string]interface{}) (map[string]interface{}, error) {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
@@ -238,7 +269,7 @@ func (r *Runtime) InvokeFunctionBefore(fn *lua.LFunction, uid uuid.UUID, handle 
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return nil, nil
+		return nil, errors.New("Runtime before hook did not return the payload")
 	} else if retValue.Type() == lua.LTTable {
 		return ConvertLuaTable(retValue.(*lua.LTable)), nil
 	}
@@ -311,4 +342,286 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 
 func (r *Runtime) Stop() {
 	r.vm.Close()
+}
+
+func ConvertEnvelopeToLTable(l *lua.LState, jsonpbMarshaler *jsonpb.Marshaler, envelope *Envelope) (lua.LValue, error) {
+	lt := l.NewTable()
+
+	switch envelope.Payload.(type) {
+	case *Envelope_GroupsRemove:
+		ids := l.NewTable()
+		for i, l := range envelope.GetGroupsRemove().GroupIds {
+			gid, err := uuid.FromBytes(l)
+			if err != nil {
+				return nil, errors.New("Invalid Group ID in GroupsRemove conversion to script runtime")
+			}
+			ids.RawSetInt(i+1, lua.LString(gid.String()))
+		}
+		groupIDs := l.NewTable()
+		groupIDs.RawSetString("GroupIds", ids)
+		lt.RawSetString("GroupsRemove", groupIDs)
+	case *Envelope_GroupsJoin:
+		ids := l.NewTable()
+		for i, l := range envelope.GetGroupsJoin().GroupIds {
+			gid, err := uuid.FromBytes(l)
+			if err != nil {
+				return nil, errors.New("Invalid Group ID in GroupsJoin conversion to script runtime")
+			}
+			ids.RawSetInt(i+1, lua.LString(gid.String()))
+		}
+		groupIDs := l.NewTable()
+		groupIDs.RawSetString("GroupIds", ids)
+		lt.RawSetString("GroupsJoin", groupIDs)
+	case *Envelope_GroupsLeave:
+		ids := l.NewTable()
+		for i, l := range envelope.GetGroupsLeave().GroupIds {
+			gid, err := uuid.FromBytes(l)
+			if err != nil {
+				return nil, errors.New("Invalid Group ID in GroupsLeave conversion to script runtime")
+			}
+			ids.RawSetInt(i+1, lua.LString(gid.String()))
+		}
+		groupIDs := l.NewTable()
+		groupIDs.RawSetString("GroupIds", ids)
+		lt.RawSetString("GroupsLeave", groupIDs)
+	case *Envelope_GroupUsersKick:
+		pairs := l.NewTable()
+		for i, p := range envelope.GetGroupUsersKick().GroupUsers {
+			gid, err := uuid.FromBytes(p.GroupId)
+			if err != nil {
+				return nil, errors.New("Invalid Group ID in GroupUsersKick conversion to script runtime")
+			}
+			uid, err := uuid.FromBytes(p.UserId)
+			if err != nil {
+				return nil, errors.New("Invalid User ID in GroupUsersKick conversion to script runtime")
+			}
+			pair := l.NewTable()
+			pair.RawSetString("GroupId", lua.LString(gid.String()))
+			pair.RawSetString("UserId", lua.LString(uid.String()))
+			pairs.RawSetInt(i+1, pair)
+		}
+		kicks := l.NewTable()
+		kicks.RawSetString("GroupUsers", pairs)
+		lt.RawSetString("GroupUsersKick", kicks)
+	case *Envelope_GroupUsersPromote:
+		pairs := l.NewTable()
+		for i, p := range envelope.GetGroupUsersPromote().GroupUsers {
+			gid, err := uuid.FromBytes(p.GroupId)
+			if err != nil {
+				return nil, errors.New("Invalid Group ID in GroupUsersPromote conversion to script runtime")
+			}
+			uid, err := uuid.FromBytes(p.UserId)
+			if err != nil {
+				return nil, errors.New("Invalid User ID in GroupUsersPromote conversion to script runtime")
+			}
+			pair := l.NewTable()
+			pair.RawSetString("GroupId", lua.LString(gid.String()))
+			pair.RawSetString("UserId", lua.LString(uid.String()))
+			pairs.RawSetInt(i+1, pair)
+		}
+		kicks := l.NewTable()
+		kicks.RawSetString("GroupUsers", pairs)
+		lt.RawSetString("GroupUsersPromote", kicks)
+	default:
+		strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
+		if err != nil {
+			return nil, err
+		}
+
+		var jsonEnvelope map[string]interface{}
+		if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
+			return nil, err
+		}
+
+		for k, v := range jsonEnvelope {
+			lt.RawSetString(k, convertValue(l, v))
+		}
+	}
+
+	return lt, nil
+}
+
+func ConvertLTableToEnvelope(l *lua.LState, jsonpbUnmarshaler *jsonpb.Unmarshaler, lt *lua.LTable, envelope *Envelope) (*Envelope, error) {
+	switch envelope.Payload.(type) {
+	case *Envelope_GroupsRemove:
+		groupsRemove := lt.RawGetString("GroupsRemove")
+		if groupsRemove.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsRemove conversion from script runtime")
+		}
+		groupIds := groupsRemove.(*lua.LTable).RawGetString("GroupIds")
+		if groupIds.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsRemove conversion from script runtime")
+		}
+		ids := make([][]byte, 0)
+		var err error
+		groupIds.(*lua.LTable).ForEach(func(k lua.LValue, v lua.LValue) {
+			if v.Type() != lua.LTString {
+				err = errors.New("Invalid Group ID in GroupsRemove conversion from script runtime")
+				return
+			}
+			gid, e := uuid.FromString(v.String())
+			if e != nil {
+				err = errors.New("Invalid Group ID in GroupsRemove conversion from script runtime")
+				return
+			}
+			ids = append(ids, gid.Bytes())
+		})
+		if err != nil {
+			return nil, err
+		}
+		envelope.GetGroupsRemove().GroupIds = ids
+	case *Envelope_GroupsJoin:
+		groupsJoin := lt.RawGetString("GroupsJoin")
+		if groupsJoin.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsJoin conversion from script runtime")
+		}
+		groupIds := groupsJoin.(*lua.LTable).RawGetString("GroupIds")
+		if groupIds.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsJoin conversion from script runtime")
+		}
+		ids := make([][]byte, 0)
+		var err error
+		groupIds.(*lua.LTable).ForEach(func(k lua.LValue, v lua.LValue) {
+			if v.Type() != lua.LTString {
+				err = errors.New("Invalid Group ID in GroupsJoin conversion from script runtime")
+				return
+			}
+			gid, e := uuid.FromString(v.String())
+			if e != nil {
+				err = errors.New("Invalid Group ID in GroupsJoin conversion from script runtime")
+				return
+			}
+			ids = append(ids, gid.Bytes())
+		})
+		if err != nil {
+			return nil, err
+		}
+		envelope.GetGroupsJoin().GroupIds = ids
+	case *Envelope_GroupsLeave:
+		groupsLeave := lt.RawGetString("GroupsLeave")
+		if groupsLeave.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsLeave conversion from script runtime")
+		}
+		groupIds := groupsLeave.(*lua.LTable).RawGetString("GroupIds")
+		if groupIds.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupsLeave conversion from script runtime")
+		}
+		ids := make([][]byte, 0)
+		var err error
+		groupIds.(*lua.LTable).ForEach(func(k lua.LValue, v lua.LValue) {
+			if v.Type() != lua.LTString {
+				err = errors.New("Invalid Group ID in GroupsLeave conversion from script runtime")
+				return
+			}
+			gid, e := uuid.FromString(v.String())
+			if e != nil {
+				err = errors.New("Invalid Group ID in GroupsLeave conversion from script runtime")
+				return
+			}
+			ids = append(ids, gid.Bytes())
+		})
+		if err != nil {
+			return nil, err
+		}
+		envelope.GetGroupsLeave().GroupIds = ids
+	case *Envelope_GroupUsersKick:
+		groupUsersKick := lt.RawGetString("GroupUsersKick")
+		if groupUsersKick.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupUsersKick conversion from script runtime")
+		}
+		groupUsers := groupUsersKick.(*lua.LTable).RawGetString("GroupUsers")
+		if groupUsers.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupUsersKick conversion from script runtime")
+		}
+		gu := make([]*TGroupUsersKick_GroupUserKick, 0)
+		var err error
+		groupUsers.(*lua.LTable).ForEach(func(k lua.LValue, v lua.LValue) {
+			if v.Type() != lua.LTTable {
+				err = errors.New("Invalid Group User pair in GroupUsersKick conversion from script runtime")
+				return
+			}
+			vt := v.(*lua.LTable)
+			g := vt.RawGetString("GroupId")
+			if g.Type() != lua.LTString {
+				err = errors.New("Invalid Group ID in GroupUsersKick conversion from script runtime")
+				return
+			}
+			gid, e := uuid.FromString(g.String())
+			if e != nil {
+				err = errors.New("Invalid Group ID in GroupUsersKick conversion from script runtime")
+				return
+			}
+			u := vt.RawGetString("UserId")
+			if u.Type() != lua.LTString {
+				err = errors.New("Invalid User ID in GroupUsersKick conversion from script runtime")
+				return
+			}
+			uid, e := uuid.FromString(u.String())
+			if e != nil {
+				err = errors.New("Invalid User ID in GroupUsersKick conversion from script runtime")
+				return
+			}
+			gu = append(gu, &TGroupUsersKick_GroupUserKick{GroupId: gid.Bytes(), UserId: uid.Bytes()})
+		})
+		if err != nil {
+			return nil, err
+		}
+		envelope.GetGroupUsersKick().GroupUsers = gu
+	case *Envelope_GroupUsersPromote:
+		groupUsersPromote := lt.RawGetString("GroupUsersPromote")
+		if groupUsersPromote.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupUsersPromote conversion from script runtime")
+		}
+		groupUsers := groupUsersPromote.(*lua.LTable).RawGetString("GroupUsers")
+		if groupUsers.Type() != lua.LTTable {
+			return nil, errors.New("Invalid payload in GroupUsersPromote conversion from script runtime")
+		}
+		gu := make([]*TGroupUsersPromote_GroupUserPromote, 0)
+		var err error
+		groupUsers.(*lua.LTable).ForEach(func(k lua.LValue, v lua.LValue) {
+			if v.Type() != lua.LTTable {
+				err = errors.New("Invalid Group User pair in GroupUsersPromote conversion from script runtime")
+				return
+			}
+			vt := v.(*lua.LTable)
+			g := vt.RawGetString("GroupId")
+			if g.Type() != lua.LTString {
+				err = errors.New("Invalid Group ID in GroupUsersPromote conversion from script runtime")
+				return
+			}
+			gid, e := uuid.FromString(g.String())
+			if e != nil {
+				err = errors.New("Invalid Group ID in GroupUsersPromote conversion from script runtime")
+				return
+			}
+			u := vt.RawGetString("UserId")
+			if u.Type() != lua.LTString {
+				err = errors.New("Invalid User ID in GroupUsersPromote conversion from script runtime")
+				return
+			}
+			uid, e := uuid.FromString(u.String())
+			if e != nil {
+				err = errors.New("Invalid User ID in GroupUsersPromote conversion from script runtime")
+				return
+			}
+			gu = append(gu, &TGroupUsersPromote_GroupUserPromote{GroupId: gid.Bytes(), UserId: uid.Bytes()})
+		})
+		if err != nil {
+			return nil, err
+		}
+		envelope.GetGroupUsersPromote().GroupUsers = gu
+	default:
+		result := ConvertLuaTable(lt)
+
+		bytesEnvelope, err := json.Marshal(result)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = jsonpbUnmarshaler.Unmarshal(bytes.NewReader(bytesEnvelope), envelope); err != nil {
+			return nil, err
+		}
+	}
+
+	return envelope, nil
 }

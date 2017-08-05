@@ -77,6 +77,8 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
 		"uuid_v4":                 n.uuidV4,
+		"uuid_bytes_to_string":    n.uuidBytesToString,
+		"uuid_string_to_bytes":    n.uuidStringToBytes,
 		"http_request":            n.httpRequest,
 		"json_encode":             n.jsonEncode,
 		"json_decode":             n.jsonDecode,
@@ -119,6 +121,36 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 func (n *NakamaModule) uuidV4(l *lua.LState) int {
 	// TODO ensure there were no arguments to the function
 	l.Push(lua.LString(uuid.NewV4().String()))
+	return 1
+}
+
+func (n *NakamaModule) uuidBytesToString(l *lua.LState) int {
+	uuidBytes := l.CheckString(1)
+	if uuidBytes == "" {
+		l.ArgError(1, "Expects a UUID byte string")
+		return 0
+	}
+	u, err := uuid.FromBytes([]byte(uuidBytes))
+	if err != nil {
+		l.ArgError(1, "Not a valid UUID byte string")
+		return 0
+	}
+	l.Push(lua.LString(u.String()))
+	return 1
+}
+
+func (n *NakamaModule) uuidStringToBytes(l *lua.LState) int {
+	uuidString := l.CheckString(1)
+	if uuidString == "" {
+		l.ArgError(1, "Expects a UUID string")
+		return 0
+	}
+	u, err := uuid.FromString(uuidString)
+	if err != nil {
+		l.ArgError(1, "Not a valid UUID string")
+		return 0
+	}
+	l.Push(lua.LString(u.Bytes()))
 	return 1
 }
 
@@ -437,13 +469,24 @@ func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -474,13 +517,24 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.Id)
 		u.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -504,8 +558,8 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 			return
 		}
 
+		update := &SelfUpdateOp{}
 		updateTable.ForEach(func(k lua.LValue, v lua.LValue) {
-			update := &SelfUpdateOp{}
 			switch k.String() {
 			case "UserId":
 				if v.Type() != lua.LTString {
@@ -572,18 +626,18 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 				conversionError = "unrecognised update key, expects a valid set of user updates"
 				return
 			}
-
-			// Check it's a valid update op.
-			if len(update.UserId) == 0 {
-				conversionError = "expects each update to contain a user ID"
-				return
-			}
-			if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
-				conversionError = "expects each update to contain at least one field to change"
-				return
-			}
-			updates = append(updates, update)
 		})
+
+		// Check it's a valid update op.
+		if len(update.UserId) == 0 {
+			conversionError = "expects each update to contain a user ID"
+			return
+		}
+		if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
+			conversionError = "expects each update to contain at least one field to change"
+			return
+		}
+		updates = append(updates, update)
 	})
 
 	if conversionError != "" {
@@ -1293,7 +1347,16 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	oid, _ := uuid.FromBytes(record.OwnerId)
 	record.OwnerId = []byte(oid.String())
 	rm := structs.Map(record)
+
+	outgoingMetadataMap := make(map[string]interface{})
+	err = json.Unmarshal(record.Metadata, &outgoingMetadataMap)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		return 0
+	}
+
 	lv := ConvertMap(l, rm)
+	lv.RawSetString("Metadata", ConvertMap(l, outgoingMetadataMap))
 
 	l.Push(lv)
 	return 1
@@ -1412,13 +1475,24 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
-		uid, _ := uuid.FromBytes(g.Id)
-		g.Id = []byte(uid.String())
+		// Convert UUIDs to string representation.
+		gid, _ := uuid.FromBytes(g.Id)
+		g.Id = []byte(gid.String())
 		gm := structs.Map(g)
-		lv.RawSetInt(i+1, convertValue(l, gm))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(g.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		gt := ConvertMap(l, gm)
+		gt.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, gt)
 	}
 
 	l.Push(lv)
@@ -1550,13 +1624,24 @@ func (n *NakamaModule) groupUsersList(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
+		// Convert UUIDs to string representation.
 		uid, _ := uuid.FromBytes(u.User.Id)
 		u.User.Id = []byte(uid.String())
 		um := structs.Map(u)
-		lv.RawSetInt(i+1, convertValue(l, um))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(u.User.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		ut := ConvertMap(l, um)
+		ut.RawGetString("User").(*lua.LTable).RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, ut)
 	}
 
 	l.Push(lv)
@@ -1582,13 +1667,24 @@ func (n *NakamaModule) groupsUserList(l *lua.LState) int {
 		return 0
 	}
 
-	//translate uuid to string bytes
+	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
+		// Convert UUIDs to string representation.
 		gid, _ := uuid.FromBytes(g.Group.Id)
 		g.Group.Id = []byte(gid.String())
 		gm := structs.Map(g)
-		lv.RawSetInt(i+1, convertValue(l, gm))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(g.Group.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		gt := ConvertMap(l, gm)
+		gt.RawGetString("Group").(*lua.LTable).RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, gt)
 	}
 
 	l.Push(lv)

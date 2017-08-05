@@ -4,6 +4,16 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- New script runtime functions to convert UUIDs between byte and string representations.
+
+### Changed
+- Improve index selection in storage list operations.
+- Payloads in `register_before` hooks now use `PascalCase` field names and expose correctly formatted IDs.
+- Metadata regions in users, groups, and leaderboard records are now exposed to the script runtime as Lua tables.
+
+### Fixed
+- Script runtime batch user update operations now process correctly.
 
 ## [1.0.0] - 2017-08-01
 ### Added
