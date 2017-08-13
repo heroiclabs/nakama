@@ -66,6 +66,11 @@ func SelfUpdate(logger *zap.Logger, db *sql.DB, updates []*SelfUpdateOp) (Error_
 		statements := make([]string, 0)
 		params := make([]interface{}, 0)
 		if update.Handle != "" {
+			if len(update.Handle) > 20 {
+				code = BAD_INPUT
+				err = errors.New("Handle must be 1-20 characters long")
+				return code, err
+			}
 			statements = append(statements, "handle = $"+strconv.Itoa(index))
 			params = append(params, update.Handle)
 			index++
