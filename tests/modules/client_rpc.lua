@@ -16,16 +16,14 @@
 
 local nk = require("nakama")
 
-local client_rpc_test = {}
-
-function client_rpc_test.echo(context, payload)
+-- A simple echo example which returns the payload received as input.
+local function echo(context, payload)
   return payload
 end
-nk.register_rpc(client_rpc_test.echo, "client_rpc_test_echo")
+nk.register_rpc(echo, "client_rpc_echo")
 
-function client_rpc_test.fail(context, payload)
+-- Tests whether a client handles a Lua error gracefully.
+local function fail(context, payload)
   error("fail")
 end
-nk.register_rpc(client_rpc_test.fail, "client_rpc_test_fail")
-
-return client_rpc_test
+nk.register_rpc(fail, "client_rpc_fail")
