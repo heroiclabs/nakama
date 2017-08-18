@@ -76,6 +76,31 @@ do
   assert(status == true)
 end
 
+-- leaderboard_list
+do
+  local id = nk.uuid_v4()
+  local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res = pcall(nk.leaderboard_submit_set, id, 22, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res, cursor = pcall(nk.leaderboard_records_list_users, id, {"4c2ae592-b2a7-445e-98ec-697694478b1c"}, 10, nil)
+  if not status then
+    print(res)
+  end
+  assert(#res == 1)
+  assert(res[1].OwnerId == "4c2ae592-b2a7-445e-98ec-697694478b1c")
+  assert(res[1].Score == 22)
+  assert(cursor == nil)
+end
+
 -- logger_info
 do
   local message = nk.logger_info(("%q"):format("INFO logger."))

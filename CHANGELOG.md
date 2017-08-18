@@ -4,6 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- New code runtime function to list leaderboard records.
+
+### Changed
+- Handle update now returns a bad input error code if handle is too long.
 
 ## [1.0.1] - 2017-08-05
 ### Added

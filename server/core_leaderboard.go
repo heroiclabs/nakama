@@ -20,9 +20,13 @@ import (
 	"database/sql"
 	"errors"
 
+	"bytes"
+	"encoding/gob"
 	"github.com/gorhill/cronexpr"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"strconv"
+	"strings"
 )
 
 func leaderboardCreate(logger *zap.Logger, db *sql.DB, id []byte, sortOrder, resetSchedule, metadata string, authoritative bool) ([]byte, error) {
@@ -75,8 +79,12 @@ func leaderboardCreate(logger *zap.Logger, db *sql.DB, id []byte, sortOrder, res
 
 	res, err := db.Exec(query, params...)
 	if err != nil {
-		logger.Error("Error creating leaderboard", zap.Error(err))
-		return nil, err
+		if strings.HasSuffix(err.Error(), "violates unique constraint \"primary\"") {
+			return nil, errors.New("Leaderboard ID already in use")
+		} else {
+			logger.Error("Error creating leaderboard", zap.Error(err))
+			return nil, err
+		}
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
 		logger.Error("Error creating leaderboard, unexpected insert result")
@@ -84,6 +92,378 @@ func leaderboardCreate(logger *zap.Logger, db *sql.DB, id []byte, sortOrder, res
 	}
 
 	return params[0].([]byte), nil
+}
+
+func leaderboardRecordsList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *TLeaderboardRecordsList) ([]*LeaderboardRecord, []byte, Error_Code, error) {
+	if len(list.LeaderboardId) == 0 {
+		return nil, nil, BAD_INPUT, errors.New("Leaderboard ID must be present")
+	}
+
+	limit := list.Limit
+	if limit == 0 {
+		limit = 10
+	} else if limit < 10 || limit > 100 {
+		return nil, nil, BAD_INPUT, errors.New("Limit must be between 10 and 100")
+	}
+
+	var incomingCursor *leaderboardRecordListCursor
+	if len(list.Cursor) != 0 {
+		incomingCursor = &leaderboardRecordListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(list.Cursor)).Decode(incomingCursor); err != nil {
+			return nil, nil, BAD_INPUT, errors.New("Invalid cursor data")
+		}
+	}
+
+	var sortOrder int64
+	var resetSchedule sql.NullString
+	query := "SELECT sort_order, reset_schedule FROM leaderboard WHERE id = $1"
+	logger.Debug("Leaderboard lookup", zap.String("query", query))
+	err := db.QueryRow(query, list.LeaderboardId).
+		Scan(&sortOrder, &resetSchedule)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list metadata query", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+
+	currentExpiresAt := int64(0)
+	if resetSchedule.Valid {
+		expr, err := cronexpr.Parse(resetSchedule.String)
+		if err != nil {
+			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
+			return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+		}
+		currentExpiresAt = timeToMs(expr.Next(now()))
+	}
+
+	query = `SELECT id, owner_id, handle, lang, location, timezone,
+	  rank_value, score, num_score, metadata, ranked_at, updated_at, expires_at, banned_at
+	FROM leaderboard_record
+	WHERE leaderboard_id = $1
+	AND expires_at = $2`
+	params := []interface{}{list.LeaderboardId, currentExpiresAt}
+
+	returnCursor := true
+	switch list.Filter.(type) {
+	case *TLeaderboardRecordsList_OwnerId:
+		if incomingCursor != nil {
+			return nil, nil, BAD_INPUT, errors.New("Cursor not allowed with haystack query")
+		}
+		// Haystack queries are executed in a separate flow.
+		return loadLeaderboardRecordsHaystack(logger, db, caller, list, list.LeaderboardId, list.GetOwnerId(), currentExpiresAt, limit, sortOrder, query, params)
+	case *TLeaderboardRecordsList_OwnerIds:
+		if incomingCursor != nil {
+			return nil, nil, BAD_INPUT, errors.New("Cursor not allowed with batch filter query")
+		}
+		if len(list.GetOwnerIds().OwnerIds) < 1 || len(list.GetOwnerIds().OwnerIds) > 100 {
+			return nil, nil, BAD_INPUT, errors.New("Must be 1-100 owner IDs")
+		}
+		statements := []string{}
+		for _, ownerId := range list.GetOwnerIds().OwnerIds {
+			params = append(params, ownerId)
+			statements = append(statements, "$"+strconv.Itoa(len(params)))
+		}
+		query += " AND owner_id IN (" + strings.Join(statements, ", ") + ")"
+		// Never return a cursor with this filter type.
+		returnCursor = false
+	case *TLeaderboardRecordsList_Lang:
+		query += " AND lang = $3"
+		params = append(params, list.GetLang())
+	case *TLeaderboardRecordsList_Location:
+		query += " AND location = $3"
+		params = append(params, list.GetLocation())
+	case *TLeaderboardRecordsList_Timezone:
+		query += " AND timezone = $3"
+		params = append(params, list.GetTimezone())
+	case nil:
+		// No filter.
+		break
+	default:
+		return nil, nil, BAD_INPUT, errors.New("Unknown leaderboard record list filter")
+	}
+
+	if incomingCursor != nil {
+		count := len(params)
+		if sortOrder == 0 {
+			// Ascending leaderboard.
+			query += " AND (score, updated_at, id) > ($" + strconv.Itoa(count) +
+				", $" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) + ")"
+			params = append(params, incomingCursor.Score, incomingCursor.UpdatedAt, incomingCursor.Id)
+		} else {
+			// Descending leaderboard.
+			query += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count) +
+				", $" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) + ")"
+			params = append(params, incomingCursor.Score, invertMs(incomingCursor.UpdatedAt), incomingCursor.Id)
+		}
+	}
+
+	if sortOrder == 0 {
+		// Ascending leaderboard, lower score is better.
+		query += " ORDER BY score ASC, updated_at ASC"
+	} else {
+		// Descending leaderboard, higher score is better.
+		query += " ORDER BY score DESC, updated_at_inverse DESC"
+	}
+
+	params = append(params, limit+1)
+	query += " LIMIT $" + strconv.Itoa(len(params))
+
+	logger.Debug("Leaderboard records list", zap.String("query", query))
+	rows, err := db.Query(query, params...)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+	defer rows.Close()
+
+	leaderboardRecords := []*LeaderboardRecord{}
+	var outgoingCursor []byte
+
+	var id []byte
+	var ownerId []byte
+	var handle string
+	var lang string
+	var location sql.NullString
+	var timezone sql.NullString
+	var rankValue int64
+	var score int64
+	var numScore int64
+	var metadata []byte
+	var rankedAt int64
+	var updatedAt int64
+	var expiresAt int64
+	var bannedAt int64
+	for rows.Next() {
+		if returnCursor && int64(len(leaderboardRecords)) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			newCursor := &leaderboardRecordListCursor{
+				Score:     score,
+				UpdatedAt: updatedAt,
+				Id:        id,
+			}
+			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
+				return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+			}
+			outgoingCursor = cursorBuf.Bytes()
+			break
+		}
+
+		err = rows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
+			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
+		if err != nil {
+			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
+			return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+		}
+
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
+			LeaderboardId: list.LeaderboardId,
+			OwnerId:       ownerId,
+			Handle:        handle,
+			Lang:          lang,
+			Location:      location.String,
+			Timezone:      timezone.String,
+			Rank:          rankValue,
+			Score:         score,
+			NumScore:      numScore,
+			Metadata:      metadata,
+			RankedAt:      rankedAt,
+			UpdatedAt:     updatedAt,
+			ExpiresAt:     expiresAt,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+
+	return normalizeLeaderboardRecords(leaderboardRecords), outgoingCursor, 0, nil
+}
+
+func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *TLeaderboardRecordsList, leaderboardId, findOwnerId []byte, currentExpiresAt, limit, sortOrder int64, query string, params []interface{}) ([]*LeaderboardRecord, []byte, Error_Code, error) {
+	// Find the owner's record.
+	var id []byte
+	var score int64
+	var updatedAt int64
+	findQuery := `SELECT id, score, updated_at
+		FROM leaderboard_record
+		WHERE leaderboard_id = $1
+		AND expires_at = $2
+		AND owner_id = $3`
+	logger.Debug("Leaderboard record find", zap.String("query", findQuery))
+	err := db.QueryRow(findQuery, leaderboardId, currentExpiresAt, findOwnerId).Scan(&id, &score, &updatedAt)
+	if err != nil {
+		// TODO handle errors other than record not found?
+		return []*LeaderboardRecord{}, nil, 0, nil
+	}
+
+	// First half.
+	count := len(params)
+	firstQuery := query
+	firstParams := make([]interface{}, len(params))
+	copy(firstParams, params)
+	if sortOrder == 0 {
+		// Lower score is better, but get in reverse order from current user to get those immediately above.
+		firstQuery += " AND (score, updated_at_inverse, id) <= ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at_inverse DESC"
+		firstParams = append(firstParams, score, invertMs(updatedAt), id)
+	} else {
+		// Higher score is better.
+		firstQuery += " AND (score, updated_at, id) >= ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
+		firstParams = append(firstParams, score, updatedAt, id)
+	}
+	firstParams = append(firstParams, int64(limit/2))
+	firstQuery += " LIMIT $" + strconv.Itoa(len(firstParams))
+
+	logger.Debug("Leaderboard records list", zap.String("query", firstQuery))
+	firstRows, err := db.Query(firstQuery, firstParams...)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+	defer firstRows.Close()
+
+	leaderboardRecords := []*LeaderboardRecord{}
+
+	var ownerId []byte
+	var handle string
+	var lang string
+	var location sql.NullString
+	var timezone sql.NullString
+	var rankValue int64
+	var numScore int64
+	var metadata []byte
+	var rankedAt int64
+	var expiresAt int64
+	var bannedAt int64
+	for firstRows.Next() {
+		err = firstRows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
+			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
+		if err != nil {
+			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
+			return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+		}
+
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
+			LeaderboardId: leaderboardId,
+			OwnerId:       ownerId,
+			Handle:        handle,
+			Lang:          lang,
+			Location:      location.String,
+			Timezone:      timezone.String,
+			Rank:          rankValue,
+			Score:         score,
+			NumScore:      numScore,
+			Metadata:      metadata,
+			RankedAt:      rankedAt,
+			UpdatedAt:     updatedAt,
+			ExpiresAt:     expiresAt,
+		})
+	}
+	if err = firstRows.Err(); err != nil {
+		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+
+	// We went 'up' on the leaderboard, so reverse the first half of records.
+	for left, right := 0, len(leaderboardRecords)-1; left < right; left, right = left+1, right-1 {
+		leaderboardRecords[left], leaderboardRecords[right] = leaderboardRecords[right], leaderboardRecords[left]
+	}
+
+	// Second half.
+	secondQuery := query
+	secondParams := make([]interface{}, len(params))
+	copy(secondParams, params)
+	if sortOrder == 0 {
+		// Lower score is better.
+		secondQuery += " AND (score, updated_at, id) > ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
+		secondParams = append(secondParams, score, updatedAt, id)
+	} else {
+		// Higher score is better.
+		secondQuery += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count+1) +
+			", $" + strconv.Itoa(count+2) +
+			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at DESC"
+		secondParams = append(secondParams, score, invertMs(updatedAt), id)
+	}
+	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)
+	secondQuery += " LIMIT $" + strconv.Itoa(len(secondParams))
+
+	logger.Debug("Leaderboard records list", zap.String("query", secondQuery))
+	secondRows, err := db.Query(secondQuery, secondParams...)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+	defer secondRows.Close()
+
+	var outgoingCursor []byte
+
+	for secondRows.Next() {
+		if int64(len(leaderboardRecords)) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			newCursor := &leaderboardRecordListCursor{
+				Score:     score,
+				UpdatedAt: updatedAt,
+				Id:        id,
+			}
+			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+				logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
+				return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+			}
+			outgoingCursor = cursorBuf.Bytes()
+			break
+		}
+
+		err = secondRows.Scan(&id, &ownerId, &handle, &lang, &location, &timezone,
+			&rankValue, &score, &numScore, &metadata, &rankedAt, &updatedAt, &expiresAt, &bannedAt)
+		if err != nil {
+			logger.Error("Could not scan leaderboard records list query results", zap.Error(err))
+			return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+		}
+
+		leaderboardRecords = append(leaderboardRecords, &LeaderboardRecord{
+			LeaderboardId: leaderboardId,
+			OwnerId:       ownerId,
+			Handle:        handle,
+			Lang:          lang,
+			Location:      location.String,
+			Timezone:      timezone.String,
+			Rank:          rankValue,
+			Score:         score,
+			NumScore:      numScore,
+			Metadata:      metadata,
+			RankedAt:      rankedAt,
+			UpdatedAt:     updatedAt,
+			ExpiresAt:     expiresAt,
+		})
+	}
+	if err = secondRows.Err(); err != nil {
+		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
+	}
+
+	return normalizeLeaderboardRecords(leaderboardRecords), outgoingCursor, 0, nil
+}
+
+func normalizeLeaderboardRecords(records []*LeaderboardRecord) []*LeaderboardRecord {
+	var bestRank int64
+	for _, record := range records {
+		if record.Rank != 0 && record.Rank < bestRank {
+			bestRank = record.Rank
+		}
+	}
+	if bestRank != 0 {
+		for i := int64(0); i < int64(len(records)); i++ {
+			records[i].Rank = bestRank + i
+		}
+	}
+	return records
 }
 
 func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderboardID []byte, ownerID uuid.UUID, handle string, lang string, op string, value int64, location string, timezone string, metadata []byte) (*LeaderboardRecord, error) {
