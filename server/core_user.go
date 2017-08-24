@@ -29,8 +29,9 @@ func querySocialGraph(logger *zap.Logger, db *sql.DB, filterQuery string, params
 
 	query := `
 SELECT id, handle, fullname, avatar_url,
-	lang, location, timezone, metadata,
-	created_at, users.updated_at, last_online_at
+	lang, location, timezone, metadata, 
+    email, facebook_id, google_id, gamecenter_id, steam_id, custom_id,
+	created_at, users.updated_at, verified_at, last_online_at
 FROM users ` + filterQuery
 
 	rows, err := db.Query(query, params...)
@@ -48,12 +49,19 @@ FROM users ` + filterQuery
 	var location sql.NullString
 	var timezone sql.NullString
 	var metadata []byte
+	var email sql.NullString
+	var facebook sql.NullString
+	var google sql.NullString
+	var gamecenter sql.NullString
+	var steam sql.NullString
+	var customID sql.NullString
+    var verifiedAt sql.NullInt64
 	var createdAt sql.NullInt64
 	var updatedAt sql.NullInt64
 	var lastOnlineAt sql.NullInt64
-
+    
 	for rows.Next() {
-		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt)
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &email, &facebook, &google, &gamecenter, &steam, &customID, &createdAt, &updatedAt, &verifiedAt, &lastOnlineAt)
 		if err != nil {
 			logger.Error("Could not execute social graph query", zap.Error(err))
 			return nil, err
@@ -71,6 +79,13 @@ FROM users ` + filterQuery
 			CreatedAt:    createdAt.Int64,
 			UpdatedAt:    updatedAt.Int64,
 			LastOnlineAt: lastOnlineAt.Int64,
+            Email:        email.String,
+            FacebookId:   facebook.String,
+            GoogleId:     google.String,
+            GamecenterId: gamecenter.String,
+            SteamId:      steam.String,
+            CustomId:     customID.String,
+            Verified:     verifiedAt.Int64 > 0,
 		})
 	}
 	if err = rows.Err(); err != nil {
