@@ -1,0 +1,67 @@
+[[constraint]]
+  name = "github.com/armon/go-metrics"
+
+[[constraint]]
+  name = "github.com/dgrijalva/jwt-go"
+  version = "~3.0.0"
+
+[[constraint]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+
+[[constraint]]
+  name = "github.com/fatih/structs"
+  version = "~1.0.0"
+
+[[constraint]]
+  branch = "v2"
+  name = "github.com/go-yaml/yaml"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  version = "0.4.0"
+
+[[constraint]]
+  name = "github.com/gorhill/cronexpr"
+  version = "~1.0.0"
+
+[[constraint]]
+  name = "github.com/gorilla/handlers"
+  version = "~1.1.0"
+
+[[constraint]]
+  name = "github.com/gorilla/mux"
+  version = "~1.1.0"
+
+[[constraint]]
+  name = "github.com/gorilla/websocket"
+  version = "~1.0.0"
+
+[[constraint]]
+  name = "github.com/lib/pq"
+
+[[constraint]]
+  name = "github.com/rubenv/sql-migrate"
+
+[[constraint]]
+  name = "github.com/satori/go.uuid"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "~1.1.4"
+
+[[constraint]]
+  name = "github.com/yuin/gopher-lua"
+
+[[constraint]]
+  name = "go.uber.org/atomic"
+  version = "~1.2.0"
+
+[[constraint]]
+  name = "go.uber.org/zap"
+  version = "~1.4.0"
+
+[[constraint]]
+  name = "golang.org/x/crypto"
+
+[[constraint]]
+  name = "golang.org/x/net"
