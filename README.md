@@ -70,7 +70,7 @@ You'll need to setup your Go environment variables like `GOPATH` as usual. You c
 $> git clone https://github.com/heroiclabs/nakama
 $> cd nakama
 $> make gettools
-$> glide install
+$> dep ensure
 ```
 
 To run a Nakama server you'll need to connect it to a database. The system has been specially designed to work with CockroachDB for storage and queries. You can install it on OS X with `brew install cockroach`. For more detailed instructions see their [documentation](https://www.cockroachlabs.com/docs/install-cockroachdb.html).
