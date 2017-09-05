@@ -60,7 +60,7 @@ To build the codebase you will need to install these dependencies:
 
 * __go__ The Go compiler toolchain.
 * __nodejs__ A JavaScript runtime.
-* __glide__ A dependency manager for Go projects.
+* __dep__ A dependency manager for Go projects.
 * __protobuf__ A toolchain used to create custom protocols.
 * __make__ A rule-based build tool (installed by default on most platforms).
 
