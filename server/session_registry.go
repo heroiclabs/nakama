@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,7 @@ type SessionRegistry struct {
 	config     Config
 	tracker    Tracker
 	matchmaker Matchmaker
-	sessions   map[uuid.UUID]*session
+	sessions   map[uuid.UUID]session
 }
 
 // NewSessionRegistry creates a new SessionRegistry
@@ -39,54 +40,67 @@ func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker, matc
 		config:     config,
 		tracker:    tracker,
 		matchmaker: matchmaker,
-		sessions:   make(map[uuid.UUID]*session),
+		sessions:   make(map[uuid.UUID]session),
 	}
 }
 
 func (a *SessionRegistry) stop() {
 	a.Lock()
 	for _, session := range a.sessions {
-		if a.sessions[session.id] != nil {
-			delete(a.sessions, session.id)
+		if a.sessions[session.ID()] != nil {
+			delete(a.sessions, session.ID())
 			go func() {
-				a.matchmaker.RemoveAll(session.id) // Drop all active matchmaking requests for this session.
-				a.tracker.UntrackAll(session.id)   // Drop all tracked presences for this session.
+				a.matchmaker.RemoveAll(session.ID()) // Drop all active matchmaking requests for this session.
+				a.tracker.UntrackAll(session.ID())   // Drop all tracked presences for this session.
 			}()
 		}
-		session.close()
+		session.Close()
 	}
 	a.Unlock()
 }
 
 // Get returns a session matching the sessionID
-func (a *SessionRegistry) Get(sessionID uuid.UUID) *session {
-	var s *session
+func (a *SessionRegistry) Get(sessionID uuid.UUID) session {
+	var s session
 	a.RLock()
 	s = a.sessions[sessionID]
 	a.RUnlock()
 	return s
 }
 
-func (a *SessionRegistry) add(userID uuid.UUID, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session *session, envelope *Envelope)) {
-	s := NewSession(a.logger, a.config, userID, handle, lang, expiry, conn, a.remove)
+func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+	s := NewWSSession(a.logger, a.config, userID, handle, lang, expiry, conn, a.remove)
 	a.Lock()
-	a.sessions[s.id] = s
+	a.sessions[s.ID()] = s
 	a.Unlock()
 
 	// Register the session for notifications.
-	a.tracker.Track(s.id, "notifications", s.userID, PresenceMeta{Handle: handle})
+	a.tracker.Track(s.ID(), "notifications", s.UserID(), PresenceMeta{Handle: handle})
 
 	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)
 }
 
-func (a *SessionRegistry) remove(c *session) {
+func (a *SessionRegistry) addUDP(server *netcode.Server, userID uuid.UUID, handle string, lang string, expiry int64, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+	s := NewUDPSession(server, a.logger, a.config, userID, handle, lang, expiry, a.remove)
 	a.Lock()
-	if a.sessions[c.id] != nil {
-		delete(a.sessions, c.id)
+	a.sessions[s.ID()] = s
+	a.Unlock()
+
+	// Register the session for notifications.
+	a.tracker.Track(s.ID(), "notifications", s.UserID(), PresenceMeta{Handle: handle})
+
+	// Allow the server to begin processing incoming messages from this session.
+	s.Consume(processRequest)
+}
+
+func (a *SessionRegistry) remove(c session) {
+	a.Lock()
+	if a.sessions[c.ID()] != nil {
+		delete(a.sessions, c.ID())
 		go func() {
-			a.matchmaker.RemoveAll(c.id) // Drop all active matchmaking requests for this session.
-			a.tracker.UntrackAll(c.id)   // Drop all tracked presences for this session.
+			a.matchmaker.RemoveAll(c.ID()) // Drop all active matchmaking requests for this session.
+			a.tracker.UntrackAll(c.ID())   // Drop all tracked presences for this session.
 		}()
 	}
 	a.Unlock()

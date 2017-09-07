@@ -16,7 +16,7 @@ package server
 
 import "go.uber.org/zap"
 
-func (p *pipeline) usersFetch(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) usersFetch(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetUsersFetch()
 
 	if len(e.Users) == 0 {

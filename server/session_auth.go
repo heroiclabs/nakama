@@ -42,6 +42,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"nakama/pkg/httputil"
+	"github.com/wirepair/netcode"
+	"net"
 )
 
 const (
@@ -67,8 +69,13 @@ type authenticationService struct {
 	registry          *SessionRegistry
 	pipeline          *pipeline
 	runtimePool       *RuntimePool
+	udpServer         *netcode.Server
 	mux               *mux.Router
 	hmacSecretByte    []byte
+	udpProtocolId     uint64
+	udpAddr           net.UDPAddr
+	udpKeyByte        []byte
+	udpMaxClients     int
 	upgrader          *websocket.Upgrader
 	socialClient      *social.Client
 	random            *rand.Rand
@@ -89,6 +96,10 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		socialClient:   socialClient,
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
+		udpProtocolId:  uint64(1),
+		udpAddr:        net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: config.GetSocket().Port},
+		udpKeyByte:     []byte(config.GetSession().UdpKey),
+		udpMaxClients:  1024,
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -110,6 +121,12 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 }
 
 func (a *authenticationService) configure() {
+	a.udpServer = netcode.NewServer(&a.udpAddr, a.udpKeyByte, a.udpProtocolId, a.udpMaxClients)
+	if err := a.udpServer.Init(); err != nil {
+		a.logger.Fatal("UDP client listener init failed", zap.Error(err))
+	}
+	a.udpServer.SetTimeout(time.Duration(int64(a.config.GetSocket().PingPeriodMs+a.config.GetSocket().PongWaitMs) * int64(time.Millisecond)))
+
 	a.mux = mux.NewRouter()
 
 	a.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +178,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		a.registry.add(uid, handle, lang, exp, conn, a.pipeline.processRequest)
+		a.registry.addWS(uid, handle, lang, exp, conn, a.pipeline.processRequest)
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
@@ -268,16 +285,26 @@ func (a *authenticationService) configure() {
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
+	// Start HTTP and WebSocket client listener.
 	go func() {
 		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 
 		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS)
-		if err != nil {
-			logger.Fatal("Client listener failed", zap.Error(err))
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS); err != nil {
+			logger.Fatal("WebSocket client listener failed", zap.Error(err))
 		}
 	}()
+
+	// Start UDP client listener.
+	go func() {
+		if err := a.udpServer.Listen(); err != nil {
+			logger.Fatal("UDP client listener failed", zap.Error(err))
+		}
+
+		a.registry.addUDP(a.udpServer, uuid.NewV4(), "handle", "en", 1234, a.pipeline.processRequest)
+	}()
+
 	logger.Info("Client", zap.Int("port", a.config.GetSocket().Port))
 }
 
@@ -352,7 +379,27 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	})
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
 
-	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
+	udpToken := netcode.NewConnectToken()
+	userData := append(uid.Bytes(), handle...)
+	if l := len(userData); l < netcode.USER_DATA_BYTES {
+		userData = append(userData, make([]byte, netcode.USER_DATA_BYTES-l)...)
+	}
+	if err := udpToken.Generate(1, []net.UDPAddr{a.udpAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
+		a.logger.Error("UDP token generate error", zap.Error(fnErr))
+		a.sendAuthError(w, r, "UDP token generate error", AUTH_ERROR, authReq)
+		return
+	}
+	udpTokenBytes, err := udpToken.Write()
+	if err != nil {
+		a.logger.Error("UDP token write error", zap.Error(fnErr))
+		a.sendAuthError(w, r, "UDP token write error", AUTH_ERROR, authReq)
+		return
+	}
+
+	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{
+		Token:    signedToken,
+		UdpToken: udpTokenBytes,
+	}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
 	RuntimeAfterHookAuthentication(a.logger, a.runtimePool, a.jsonpbMarshaler, authReq, uid, handle, exp)

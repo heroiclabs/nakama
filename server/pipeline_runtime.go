@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "RPC ID must be set"))
@@ -35,7 +35,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope)
 		return
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, session.userID, session.handle.Load(), session.expiry, rpcMessage.Payload)
+	result, fnErr := runtime.InvokeFunctionRPC(lf, session.UserID(), session.Handle(), session.Expiry(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))

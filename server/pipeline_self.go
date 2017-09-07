@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *pipeline) selfFetch(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) selfFetch(logger *zap.Logger, session session, envelope *Envelope) {
 	var fullname sql.NullString
 	var handle sql.NullString
 	var email sql.NullString
@@ -50,7 +50,7 @@ SELECT u.handle, u.fullname, u.avatar_url, u.lang, u.location, u.timezone, u.met
 FROM users u
 LEFT JOIN user_device ud ON u.id = ud.user_id
 WHERE u.id = $1`,
-		session.userID.Bytes())
+		session.UserID().Bytes())
 	if err != nil {
 		logger.Error("Could not lookup user profile", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"))
@@ -80,7 +80,7 @@ WHERE u.id = $1`,
 
 	s := &Self{
 		User: &User{
-			Id:           session.userID.Bytes(),
+			Id:           session.UserID().Bytes(),
 			Handle:       handle.String,
 			Fullname:     fullname.String,
 			AvatarUrl:    avatarURL.String,
@@ -105,7 +105,7 @@ WHERE u.id = $1`,
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Self{Self: &TSelf{Self: s}}})
 }
 
-func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Envelope) {
 	update := envelope.GetSelfUpdate()
 
 	// Validate any input possible before we hit database.
@@ -124,7 +124,7 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *En
 
 	// Run the update.
 	code, err := SelfUpdate(logger, p.db, []*SelfUpdateOp{&SelfUpdateOp{
-		UserId:    session.userID.Bytes(),
+		UserId:    session.UserID().Bytes(),
 		Handle:    update.Handle,
 		Fullname:  update.Fullname,
 		Timezone:  update.Timezone,
@@ -140,7 +140,7 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session *session, envelope *En
 
 	// Update handle in session and any presences, if a handle update was processed.
 	if update.Handle != "" {
-		session.handle.Store(update.Handle)
+		session.SetHandle(update.Handle)
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})

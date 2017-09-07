@@ -40,7 +40,7 @@ type leaderboardRecordListCursor struct {
 	Id        []byte
 }
 
-func (p *pipeline) leaderboardsList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetLeaderboardsList()
 
 	limit := incoming.Limit
@@ -147,7 +147,7 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session *session, envelo
 	}}})
 }
 
-func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetLeaderboardRecordsWrite()
 
 	if len(e.Records) == 0 {
@@ -196,7 +196,7 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 		return
 	}
 
-	record, code, err := leaderboardSubmit(logger, p.db, session.userID, incoming.LeaderboardId, session.userID, session.handle.Load(), session.lang, op, value, incoming.Location, incoming.Timezone, incoming.Metadata)
+	record, code, err := leaderboardSubmit(logger, p.db, session.UserID(), incoming.LeaderboardId, session.UserID(), session.Handle(), session.Lang(), op, value, incoming.Location, incoming.Timezone, incoming.Metadata)
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return
@@ -212,7 +212,7 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 	}})
 }
 
-func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetLeaderboardRecordsFetch()
 	leaderboardIds := incoming.LeaderboardIds
 	if len(leaderboardIds) == 0 {
@@ -241,7 +241,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session *session,
 	// TODO special handling of banned records?
 
 	statements := []string{}
-	params := []interface{}{session.userID.Bytes()}
+	params := []interface{}{session.UserID().Bytes()}
 	for _, leaderboardId := range leaderboardIds {
 		params = append(params, leaderboardId)
 		statements = append(statements, "$"+strconv.Itoa(len(params)))
@@ -339,10 +339,10 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session *session,
 	}}})
 }
 
-func (p *pipeline) leaderboardRecordsList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) leaderboardRecordsList(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetLeaderboardRecordsList()
 
-	leaderboardRecords, outgoingCursor, code, err := leaderboardRecordsList(logger, p.db, session.userID, incoming)
+	leaderboardRecords, outgoingCursor, code, err := leaderboardRecordsList(logger, p.db, session.UserID(), incoming)
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return

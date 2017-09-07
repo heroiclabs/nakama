@@ -28,18 +28,18 @@ type matchDataFilter struct {
 	sessionID uuid.UUID
 }
 
-func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *Envelope) {
 	matchID := uuid.NewV4()
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
-	p.tracker.Track(session.id, "match:"+matchID.String(), session.userID, PresenceMeta{
+	p.tracker.Track(session.ID(), "match:"+matchID.String(), session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 
 	self := &UserPresence{
-		UserId:    session.userID.Bytes(),
-		SessionId: session.id.Bytes(),
+		UserId:    session.UserID().Bytes(),
+		SessionId: session.ID().Bytes(),
 		Handle:    handle,
 	}
 
@@ -50,7 +50,7 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *E
 	}}}})
 }
 
-func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetMatchesJoin()
 
 	if len(e.Matches) == 0 {
@@ -120,9 +120,9 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 		return
 	}
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
-	p.tracker.Track(session.id, topic, session.userID, PresenceMeta{
+	p.tracker.Track(session.ID(), topic, session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 
@@ -136,8 +136,8 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 		}
 	}
 	self := &UserPresence{
-		UserId:    session.userID.Bytes(),
-		SessionId: session.id.Bytes(),
+		UserId:    session.UserID().Bytes(),
+		SessionId: session.ID().Bytes(),
 		Handle:    handle,
 	}
 	userPresences[len(ps)] = self
@@ -153,7 +153,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 	}}})
 }
 
-func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetMatchesLeave()
 
 	if len(e.MatchIds) == 0 {
@@ -179,7 +179,7 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *En
 
 	found := false
 	for _, p := range ps {
-		if p.ID.SessionID == session.id && p.UserID == session.userID {
+		if p.ID.SessionID == session.ID() && p.UserID == session.UserID() {
 			found = true
 			break
 		}
@@ -191,12 +191,12 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *En
 		return
 	}
 
-	p.tracker.Untrack(session.id, topic, session.userID)
+	p.tracker.Untrack(session.ID(), topic, session.UserID())
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetMatchDataSend()
 	matchIDBytes := incoming.MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
@@ -232,7 +232,7 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 	senderFound := false
 	for i := 0; i < len(ps); i++ {
 		p := ps[i]
-		if p.ID.SessionID == session.id && p.UserID == session.userID {
+		if p.ID.SessionID == session.ID() && p.UserID == session.UserID() {
 			// Don't echo back to sender.
 			ps[i] = ps[len(ps)-1]
 			ps = ps[:len(ps)-1]
@@ -278,9 +278,9 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 			MatchData: &MatchData{
 				MatchId: matchIDBytes,
 				Presence: &UserPresence{
-					UserId:    session.userID.Bytes(),
-					SessionId: session.id.Bytes(),
-					Handle:    session.handle.Load(),
+					UserId:    session.UserID().Bytes(),
+					SessionId: session.ID().Bytes(),
+					Handle:    session.Handle(),
 				},
 				OpCode: incoming.OpCode,
 				Data:   incoming.Data,

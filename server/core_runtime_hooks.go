@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *Envelope, session *session) (*Envelope, error) {
+func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *Envelope, session session) (*Envelope, error) {
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
@@ -37,9 +37,9 @@ func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshal
 	handle := ""
 	expiry := int64(0)
 	if session != nil {
-		userId = session.userID
-		handle = session.handle.Load()
-		expiry = session.expiry
+		userId = session.UserID()
+		handle = session.Handle()
+		expiry = session.Expiry()
 	}
 
 	env, err := runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
@@ -47,7 +47,7 @@ func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshal
 	return env, err
 }
 
-func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session *session) {
+func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session session) {
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
@@ -71,9 +71,9 @@ func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarsha
 	handle := ""
 	expiry := int64(0)
 	if session != nil {
-		userId = session.userID
-		handle = session.handle.Load()
-		expiry = session.expiry
+		userId = session.UserID()
+		handle = session.Handle()
+		expiry = session.Expiry()
 	}
 
 	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {

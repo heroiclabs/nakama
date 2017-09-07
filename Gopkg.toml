@@ -65,3 +65,6 @@
 
 [[constraint]]
   name = "golang.org/x/net"
+
+[[constraint]]
+  name = "github.com/wirepair/netcode"

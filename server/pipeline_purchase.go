@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) purchaseValidate(logger *zap.Logger, session session, envelope *Envelope) {
 	purchase := envelope.GetPurchase()
 
 	var validationResponse *iap.PurchaseVerifyResponse
@@ -36,7 +36,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
 			return
 		}
-		validationResponse = p.purchaseService.ValidateApplePurchase(session.userID, ap)
+		validationResponse = p.purchaseService.ValidateApplePurchase(session.UserID(), ap)
 	case *TPurchaseValidation_GooglePurchase_:
 		gp, err := p.convertGooglePurchase(purchase.GetGooglePurchase())
 		if err != nil {
@@ -47,9 +47,9 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session *session, envelo
 
 		switch gp.ProductType {
 		case "product":
-			validationResponse = p.purchaseService.ValidateGooglePurchaseProduct(session.userID, gp)
+			validationResponse = p.purchaseService.ValidateGooglePurchaseProduct(session.UserID(), gp)
 		case "subscription":
-			validationResponse = p.purchaseService.ValidateGooglePurchaseSubscription(session.userID, gp)
+			validationResponse = p.purchaseService.ValidateGooglePurchaseSubscription(session.UserID(), gp)
 		}
 	}
 

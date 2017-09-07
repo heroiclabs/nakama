@@ -39,7 +39,7 @@ type groupCursor struct {
 	GroupID   []byte
 }
 
-func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsCreate()
 
 	if len(e.Groups) == 0 {
@@ -102,7 +102,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session *session, envelope *E
 	updatedAt := nowMs()
 
 	values[0] = uuid.NewV4().Bytes()
-	values[1] = session.userID.Bytes()
+	values[1] = session.UserID().Bytes()
 	values[2] = g.Name
 	values[3] = state
 	values[4] = updatedAt
@@ -152,7 +152,7 @@ RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, me
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
-		group.Id, updatedAt, session.userID.Bytes())
+		group.Id, updatedAt, session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -168,7 +168,7 @@ VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 	}
 }
 
-func (p *pipeline) groupUpdate(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUpdate(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsUpdate()
 
 	if len(e.Groups) == 0 {
@@ -195,7 +195,7 @@ func (p *pipeline) groupUpdate(l *zap.Logger, session *session, envelope *Envelo
 		return
 	}
 
-	code, err := GroupsUpdate(l, p.db, session.userID, []*TGroupsUpdate_GroupUpdate{g})
+	code, err := GroupsUpdate(l, p.db, session.UserID(), []*TGroupsUpdate_GroupUpdate{g})
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return
@@ -204,7 +204,7 @@ func (p *pipeline) groupUpdate(l *zap.Logger, session *session, envelope *Envelo
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) groupRemove(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsRemove()
 
 	if len(e.GroupIds) == 0 {
@@ -257,7 +257,7 @@ WHERE
 	id = $1
 AND
 	EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $2 AND state = 0)
-	`, groupID.Bytes(), session.userID.Bytes())
+	`, groupID.Bytes(), session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -276,7 +276,7 @@ AND
 	_, err = tx.Exec("DELETE FROM group_edge WHERE source_id = $1 OR destination_id = $1", groupID.Bytes())
 }
 
-func (p *pipeline) groupsFetch(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsFetch()
 
 	if len(e.Groups) == 0 {
@@ -340,7 +340,7 @@ FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{Groups: groups}}})
 }
 
-func (p *pipeline) groupsList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupsList(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetGroupsList()
 	params := make([]interface{}, 0)
 
@@ -452,8 +452,8 @@ LIMIT $` + strconv.Itoa(len(params))
 	}}})
 }
 
-func (p *pipeline) groupsSelfList(logger *zap.Logger, session *session, envelope *Envelope) {
-	groups, code, err := GroupsSelfList(logger, p.db, session.userID, session.userID)
+func (p *pipeline) groupsSelfList(logger *zap.Logger, session session, envelope *Envelope) {
+	groups, code, err := GroupsSelfList(logger, p.db, session.UserID(), session.UserID())
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return
@@ -462,7 +462,7 @@ func (p *pipeline) groupsSelfList(logger *zap.Logger, session *session, envelope
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupsSelf{GroupsSelf: &TGroupsSelf{GroupsSelf: groups}}})
 }
 
-func (p *pipeline) groupUsersList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUsersList(logger *zap.Logger, session session, envelope *Envelope) {
 	g := envelope.GetGroupUsersList()
 
 	groupID, err := uuid.FromBytes(g.GroupId)
@@ -471,7 +471,7 @@ func (p *pipeline) groupUsersList(logger *zap.Logger, session *session, envelope
 		return
 	}
 
-	users, code, err := GroupUsersList(logger, p.db, session.userID, groupID)
+	users, code, err := GroupUsersList(logger, p.db, session.UserID(), groupID)
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return
@@ -480,7 +480,7 @@ func (p *pipeline) groupUsersList(logger *zap.Logger, session *session, envelope
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupUsers{GroupUsers: &TGroupUsers{Users: users}}})
 }
 
-func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsJoin()
 
 	if len(e.GroupIds) == 0 {
@@ -538,7 +538,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope
 					}
 				} else if len(adminUserIDs) != 0 {
 					// If the user has requested to join and there are admins to notify.
-					handle := session.handle.Load()
+					handle := session.Handle()
 					name := groupName.String
 					content, err := json.Marshal(map[string]string{"handle": handle, "name": name})
 					if err != nil {
@@ -546,7 +546,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope
 						return
 					}
 					subject := fmt.Sprintf("%v wants to join your group %v", handle, name)
-					userID := session.userID.Bytes()
+					userID := session.UserID().Bytes()
 					expiresAt := ts + p.notificationService.expiryMs
 
 					notifications := make([]*NNotification, len(adminUserIDs))
@@ -588,7 +588,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session *session, envelope *Envelope
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
-		groupID.Bytes(), ts, session.userID.Bytes(), userState)
+		groupID.Bytes(), ts, session.UserID().Bytes(), userState)
 
 	if err != nil {
 		return
@@ -628,7 +628,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 	}
 }
 
-func (p *pipeline) groupLeave(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsLeave()
 
 	if len(e.GroupIds) == 0 {
@@ -691,7 +691,7 @@ WHERE
 	(source_id = $1 AND destination_id = $2 AND state = 2)
 OR
 	(source_id = $2 AND destination_id = $1 AND state = 2)`,
-		groupID.Bytes(), session.userID.Bytes())
+		groupID.Bytes(), session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -711,7 +711,7 @@ AND
 	EXISTS (SELECT id FROM groups WHERE id = $1 AND disabled_at = 0)
 AND
 	EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $2 AND state = 0)`,
-		groupID.Bytes(), session.userID.Bytes()).Scan(&adminCount)
+		groupID.Bytes(), session.UserID().Bytes()).Scan(&adminCount)
 
 	if err != nil {
 		return
@@ -730,7 +730,7 @@ WHERE
 	(source_id = $1 AND destination_id = $2)
 OR
 	(source_id = $2 AND destination_id = $1)`,
-		groupID.Bytes(), session.userID.Bytes())
+		groupID.Bytes(), session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -748,7 +748,7 @@ OR
 	}
 }
 
-func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupUsersAdd()
 
 	if len(e.GroupUsers) == 0 {
@@ -811,7 +811,7 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envel
 					return
 				}
 
-				adminHandle := session.handle.Load()
+				adminHandle := session.Handle()
 				content, err := json.Marshal(map[string]string{"handle": adminHandle, "name": name})
 				if err != nil {
 					logger.Warn("Failed to send group add notification", zap.Error(err))
@@ -824,7 +824,7 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session *session, envelope *Envel
 						Subject:    fmt.Sprintf("%v has added you to group %v", adminHandle, name),
 						Content:    content,
 						Code:       NOTIFICATION_GROUP_ADD,
-						SenderID:   session.userID.Bytes(),
+						SenderID:   session.UserID().Bytes(),
 						CreatedAt:  ts,
 						ExpiresAt:  ts + p.notificationService.expiryMs,
 						Persistent: true,
@@ -863,7 +863,7 @@ AND
   EXISTS (SELECT id FROM groups WHERE id = $1::BYTEA AND disabled_at = 0)
 ON CONFLICT (source_id, destination_id)
 DO UPDATE SET state = 1, updated_at = $2::INT`,
-		groupID.Bytes(), ts, userID.Bytes(), session.userID.Bytes())
+		groupID.Bytes(), ts, userID.Bytes(), session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -880,7 +880,7 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 	}
 }
 
-func (p *pipeline) groupUserKick(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envelope) {
 	// TODO Force kick the user out.
 	e := envelope.GetGroupUsersKick()
 
@@ -905,7 +905,7 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session *session, envelope *Enve
 		return
 	}
 
-	if userID == session.userID {
+	if userID == session.UserID() {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't kick yourself from the group"))
 		return
 	}
@@ -966,7 +966,7 @@ AND
 		(source_id = $1 AND destination_id = $2)
 	OR
 		(source_id = $2 AND destination_id = $1)
-	)`, groupID.Bytes(), userID.Bytes(), session.userID.Bytes())
+	)`, groupID.Bytes(), userID.Bytes(), session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -993,7 +993,7 @@ AND
 	}
 }
 
-func (p *pipeline) groupUserPromote(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) groupUserPromote(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupUsersPromote()
 
 	if len(e.GroupUsers) == 0 {
@@ -1016,7 +1016,7 @@ func (p *pipeline) groupUserPromote(l *zap.Logger, session *session, envelope *E
 		return
 	}
 
-	if userID == session.userID {
+	if userID == session.UserID() {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't promote yourself"))
 		return
 	}
@@ -1034,7 +1034,7 @@ AND
 		(source_id = $1 AND destination_id = $2)
 	OR
 		(source_id = $2 AND destination_id = $1)
-	)`, groupID.Bytes(), userID.Bytes(), session.userID.Bytes(), nowMs())
+	)`, groupID.Bytes(), userID.Bytes(), session.UserID().Bytes(), nowMs())
 
 	if err != nil {
 		logger.Warn("Could not promote user", zap.Error(err))

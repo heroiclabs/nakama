@@ -16,7 +16,7 @@ package server
 
 import "go.uber.org/zap"
 
-func (p *pipeline) notificationsList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) notificationsList(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetNotificationsList()
 
 	if incoming.GetLimit() < 10 || incoming.GetLimit() > 100 {
@@ -24,7 +24,7 @@ func (p *pipeline) notificationsList(logger *zap.Logger, session *session, envel
 		return
 	}
 
-	nots, cursor, err := p.notificationService.NotificationsList(session.userID, incoming.GetLimit(), incoming.GetResumableCursor())
+	nots, cursor, err := p.notificationService.NotificationsList(session.UserID(), incoming.GetLimit(), incoming.GetResumableCursor())
 	if err != nil {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
 		return
@@ -34,14 +34,14 @@ func (p *pipeline) notificationsList(logger *zap.Logger, session *session, envel
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Notifications{Notifications: notifications}})
 }
 
-func (p *pipeline) notificationsRemove(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) notificationsRemove(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetNotificationsRemove()
 
 	if len(incoming.NotificationIds) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "There must be at least one notification ID to remove."))
 	}
 
-	if err := p.notificationService.NotificationsRemove(session.userID, incoming.NotificationIds); err != nil {
+	if err := p.notificationService.NotificationsRemove(session.UserID(), incoming.NotificationIds); err != nil {
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
 		return
 	}

@@ -23,7 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (p *pipeline) linkID(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkID(logger *zap.Logger, session session, envelope *Envelope) {
 	// Route to correct link handler
 	switch envelope.GetLink().Id.(type) {
 	case *TLink_Device:
@@ -47,7 +47,7 @@ func (p *pipeline) linkID(logger *zap.Logger, session *session, envelope *Envelo
 	}
 }
 
-func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Envelope) {
 	deviceID := envelope.GetLink().GetDevice()
 	if deviceID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Device ID is required"))
@@ -66,7 +66,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
 		return
 	}
-	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.userID.Bytes())
+	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.UserID().Bytes())
 	if err != nil {
 		// In any error case the link has failed, so we can rollback before checking what went wrong.
 		if e := txn.Rollback(); e != nil {
@@ -89,7 +89,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
 		return
 	}
-	res, err = txn.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", nowMs(), session.userID.Bytes())
+	res, err = txn.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", nowMs(), session.UserID().Bytes())
 	if err != nil {
 		logger.Warn("Could not link, query error", zap.Error(err))
 		err = txn.Rollback()
@@ -117,7 +117,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkFacebook(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkFacebook(logger *zap.Logger, session session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetFacebook()
 	if accessToken == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
@@ -134,7 +134,7 @@ func (p *pipeline) linkFacebook(logger *zap.Logger, session *session, envelope *
 		return
 	}
 
-	userID := session.userID.Bytes()
+	userID := session.UserID().Bytes()
 
 	res, err := p.db.Exec(`
 UPDATE users
@@ -155,12 +155,12 @@ AND NOT EXISTS
 		return
 	}
 
-	p.addFacebookFriends(logger, userID, session.handle.Load(), fbProfile.ID, accessToken)
+	p.addFacebookFriends(logger, userID, session.Handle(), fbProfile.ID, accessToken)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkGoogle(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkGoogle(logger *zap.Logger, session session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetGoogle()
 	if accessToken == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
@@ -185,7 +185,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE google_id = $2)`,
-		session.userID.Bytes(),
+		session.UserID().Bytes(),
 		googleProfile.ID,
 		nowMs())
 
@@ -201,7 +201,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkGameCenter(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkGameCenter(logger *zap.Logger, session session, envelope *Envelope) {
 	gc := envelope.GetLink().GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Game Center credentials required"))
@@ -223,7 +223,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE gamecenter_id = $2)`,
-		session.userID.Bytes(),
+		session.UserID().Bytes(),
 		gc.PlayerId,
 		nowMs())
 
@@ -239,7 +239,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkSteam(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkSteam(logger *zap.Logger, session session, envelope *Envelope) {
 	if p.config.GetSocial().Steam.PublisherKey == "" || p.config.GetSocial().Steam.AppID == 0 {
 		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Steam link not available"))
 		return
@@ -269,7 +269,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE steam_id = $2)`,
-		session.userID.Bytes(),
+		session.UserID().Bytes(),
 		strconv.FormatUint(steamProfile.SteamID, 10),
 		nowMs())
 
@@ -285,7 +285,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkEmail(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkEmail(logger *zap.Logger, session session, envelope *Envelope) {
 	email := envelope.GetLink().GetEmail()
 	if email == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"))
@@ -317,7 +317,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE email = $2)`,
-		session.userID.Bytes(),
+		session.UserID().Bytes(),
 		strings.ToLower(email.Email),
 		hashedPassword,
 		nowMs())
@@ -334,7 +334,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) linkCustom(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) linkCustom(logger *zap.Logger, session session, envelope *Envelope) {
 	customID := envelope.GetLink().GetCustom()
 	if customID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Custom ID is required"))
@@ -355,7 +355,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE custom_id = $2)`,
-		session.userID.Bytes(),
+		session.UserID().Bytes(),
 		customID,
 		nowMs())
 
@@ -371,7 +371,7 @@ AND NOT EXISTS
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) unlinkID(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) unlinkID(logger *zap.Logger, session session, envelope *Envelope) {
 	// Select correct unlink query
 	var query string
 	var param interface{}
@@ -393,7 +393,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
        OR email IS NOT NULL
        OR custom_id IS NOT NULL))
      OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2))`,
-			session.userID.Bytes(),
+			session.UserID().Bytes(),
 			envelope.GetUnlink().GetDevice())
 		if err != nil {
 			logger.Warn("Could not unlink, query error", zap.Error(err))
@@ -412,7 +412,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"))
 			return
 		}
-		res, err = txn.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", session.userID.Bytes(), nowMs())
+		res, err = txn.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", session.UserID().Bytes(), nowMs())
 		if err != nil {
 			logger.Warn("Could not unlink, query error", zap.Error(err))
 			err = txn.Rollback()
@@ -517,7 +517,7 @@ AND ((facebook_id IS NOT NULL
 		return
 	}
 
-	res, err := p.db.Exec(query, session.userID.Bytes(), param, nowMs())
+	res, err := p.db.Exec(query, session.UserID().Bytes(), param, nowMs())
 
 	if err != nil {
 		logger.Warn("Could not unlink", zap.Error(err))

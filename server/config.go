@@ -91,12 +91,20 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
+	// Enforce rules for parameters with strict requirements.
+	if len(mainConfig.GetSession().UdpKey) != 32 {
+		logger.Fatal("session.udp_key must be exactly 32 characters")
+	}
+
 	// Log warnings for insecure default parameter values.
 	if mainConfig.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 	}
 	if mainConfig.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
+	}
+	if mainConfig.GetSession().UdpKey == "1234567890abcdef1234567890abcdef" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.udp_key"))
 	}
 	if mainConfig.GetRuntime().HTTPKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
@@ -212,6 +220,7 @@ func NewLogConfig() *LogConfig {
 // SessionConfig is configuration relevant to the session
 type SessionConfig struct {
 	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
+	UdpKey        string `yaml:"udp_key" json:"udp_key" usage:"The UDP key used to produce the raw UDP connection token."`
 	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" usage:"Token expiry in milliseconds."`
 }
 
@@ -219,6 +228,7 @@ type SessionConfig struct {
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
 		EncryptionKey: "defaultencryptionkey",
+		UdpKey:        "1234567890abcdef1234567890abcdef",
 		TokenExpiryMs: 60000,
 	}
 }

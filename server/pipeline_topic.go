@@ -35,7 +35,7 @@ type messageCursor struct {
 
 var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
-func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicJoin(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetTopicsJoin()
 
 	if len(e.Joins) == 0 {
@@ -61,13 +61,13 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		}
 
 		// Don't allow chat to self.
-		if session.userID == otherUserID {
+		if session.UserID() == otherUserID {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
 			return
 		}
 
 		// Check the user exists and does not block the requester.
-		existsAndDoesNotBlock, err := p.userExistsAndDoesNotBlock(otherUserIDBytes, session.userID.Bytes())
+		existsAndDoesNotBlock, err := p.userExistsAndDoesNotBlock(otherUserIDBytes, session.UserID().Bytes())
 		if err != nil {
 			logger.Error("Could not check if user exists", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up user ID"))
@@ -77,13 +77,13 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 			return
 		}
 
-		userIDString := session.userID.String()
+		userIDString := session.UserID().String()
 		otherUserIDString := otherUserID.String()
 		if userIDString < otherUserIDString {
-			topic = &TopicId{Id: &TopicId_Dm{Dm: append(session.userID.Bytes(), otherUserIDBytes...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(session.UserID().Bytes(), otherUserIDBytes...)}}
 			trackerTopic = "dm:" + userIDString + ":" + otherUserIDString
 		} else {
-			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.UserID().Bytes()...)}}
 			trackerTopic = "dm:" + otherUserIDString + ":" + userIDString
 		}
 		dmOtherUserID = otherUserID
@@ -115,7 +115,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		}
 
 		// Check if group exists and user is a member.
-		member, err := p.isGroupMember(session.userID, groupIDBytes)
+		member, err := p.isGroupMember(session.UserID(), groupIDBytes)
 		if err != nil {
 			logger.Error("Could not check if user is group member", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"))
@@ -135,10 +135,10 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		return
 	}
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
 	// Track the presence, and gather current member list.
-	isNewPresence := p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{
+	isNewPresence := p.tracker.Track(session.ID(), trackerTopic, session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 	presences := p.tracker.ListByTopic(trackerTopic)
@@ -166,7 +166,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 						Subject:    fmt.Sprintf("%v wants to chat", handle),
 						Content:    content,
 						Code:       NOTIFICATION_DM_REQUEST,
-						SenderID:   session.userID.Bytes(),
+						SenderID:   session.UserID().Bytes(),
 						CreatedAt:  ts,
 						ExpiresAt:  ts + p.notificationService.expiryMs,
 						Persistent: true,
@@ -193,8 +193,8 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 				Topic:     topic,
 				Presences: userPresences,
 				Self: &UserPresence{
-					UserId:    session.userID.Bytes(),
-					SessionId: session.id.Bytes(),
+					UserId:    session.UserID().Bytes(),
+					SessionId: session.ID().Bytes(),
 					Handle:    handle,
 				},
 			},
@@ -202,7 +202,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 	}}})
 }
 
-func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicLeave(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetTopicsLeave()
 
 	if len(e.Topics) == 0 {
@@ -246,7 +246,7 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		}
 
 		// Check one of the users in this DM topic is the current one.
-		if userID1 != session.userID && userID2 != session.userID {
+		if userID1 != session.UserID() && userID2 != session.UserID() {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
 			return
 		}
@@ -294,12 +294,12 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 	}
 
 	// Drop the session's presence from this topic, if any.
-	p.tracker.Untrack(session.id, trackerTopic, session.userID)
+	p.tracker.Untrack(session.ID(), trackerTopic, session.UserID())
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
 }
 
-func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessageSend(logger *zap.Logger, session session, envelope *Envelope) {
 	topic := envelope.GetTopicMessageSend().Topic
 	if topic == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
@@ -350,7 +350,7 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		}
 
 		// Check one of the users in this DM topic is the current one.
-		if userID1 != session.userID && userID2 != session.userID {
+		if userID1 != session.UserID() && userID2 != session.UserID() {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
 			return
 		}
@@ -397,7 +397,7 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		return
 	}
 
-	if !p.tracker.CheckLocalByIDTopicUser(session.id, trackerTopic, session.userID) {
+	if !p.tracker.CheckLocalByIDTopicUser(session.ID(), trackerTopic, session.UserID()) {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Must join topic before sending messages"))
 		return
 	}
@@ -422,7 +422,7 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 	p.deliverMessage(logger, session, topic, 0, data, messageID, handle, createdAt, expiresAt)
 }
 
-func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessagesList(logger *zap.Logger, session session, envelope *Envelope) {
 	input := envelope.GetTopicMessagesList()
 	if input.Id == nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
@@ -451,17 +451,17 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		}
 
 		// Don't allow chat to self.
-		if session.userID == otherUserID {
+		if session.UserID() == otherUserID {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
 			return
 		}
 
-		userIDString := session.userID.String()
+		userIDString := session.UserID().String()
 		otherUserIDString := otherUserID.String()
 		if userIDString < otherUserIDString {
-			topicBytes = append(session.userID.Bytes(), otherUserIDBytes...)
+			topicBytes = append(session.UserID().Bytes(), otherUserIDBytes...)
 		} else {
-			topicBytes = append(otherUserIDBytes, session.userID.Bytes()...)
+			topicBytes = append(otherUserIDBytes, session.UserID().Bytes()...)
 		}
 		topic = &TopicId{Id: &TopicId_Dm{Dm: topicBytes}}
 		topicType = 0
@@ -494,7 +494,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		}
 
 		// Check if group exists and user is a member.
-		member, err := p.isGroupMember(session.userID, groupIDBytes)
+		member, err := p.isGroupMember(session.UserID(), groupIDBytes)
 		if err != nil {
 			logger.Error("Could not check if user is group member", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"))
@@ -622,7 +622,7 @@ WHERE id = $1 AND NOT EXISTS (
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.
-func (p *pipeline) storeMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
+func (p *pipeline) storeMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
 	var topicBytes []byte
 	var topicType int64
 	switch topic.Id.(type) {
@@ -639,11 +639,11 @@ func (p *pipeline) storeMessage(logger *zap.Logger, session *session, topic *Top
 	createdAt := nowMs()
 	messageID := uuid.NewV4().Bytes()
 	expiresAt := int64(0)
-	handle := session.handle.Load()
+	handle := session.Handle()
 	_, err := p.db.Exec(`
 INSERT INTO message (topic, topic_type, message_id, user_id, created_at, expires_at, handle, type, data)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		topicBytes, topicType, messageID, session.userID.Bytes(), createdAt, expiresAt, handle, msgType, data)
+		topicBytes, topicType, messageID, session.UserID().Bytes(), createdAt, expiresAt, handle, msgType, data)
 	if err != nil {
 		logger.Error("Failed to insert new message", zap.Error(err))
 		return nil, "", 0, 0, err
@@ -652,7 +652,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 	return messageID, handle, createdAt, expiresAt, nil
 }
 
-func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
+func (p *pipeline) deliverMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
 	var trackerTopic string
 	switch topic.Id.(type) {
 	case *TopicId_Dm:
@@ -671,7 +671,7 @@ func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *T
 		Payload: &Envelope_TopicMessage{
 			TopicMessage: &TopicMessage{
 				Topic:     topic,
-				UserId:    session.userID.Bytes(),
+				UserId:    session.UserID().Bytes(),
 				MessageId: messageID,
 				CreatedAt: createdAt,
 				ExpiresAt: expiresAt,
@@ -686,7 +686,7 @@ func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *T
 	p.messageRouter.Send(logger, presences, outgoing)
 }
 
-func (p *pipeline) storeAndDeliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) error {
+func (p *pipeline) storeAndDeliverMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte) error {
 	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, msgType, data)
 	if err != nil {
 		return err

@@ -75,7 +75,7 @@ func NewPipeline(config Config,
 	}
 }
 
-func (p *pipeline) processRequest(logger *zap.Logger, session *session, originalEnvelope *Envelope) {
+func (p *pipeline) processRequest(logger *zap.Logger, session session, originalEnvelope *Envelope) {
 	if originalEnvelope.Payload == nil {
 		session.Send(ErrorMessage(originalEnvelope.CollationId, MISSING_PAYLOAD, "No payload found"))
 		return
@@ -96,7 +96,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_Logout:
 		// TODO Store JWT into a blacklist until remaining JWT expiry.
 		p.sessionRegistry.remove(session)
-		session.close()
+		session.Close()
 
 	case *Envelope_Link:
 		p.linkID(logger, session, envelope)

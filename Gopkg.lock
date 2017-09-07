@@ -107,6 +107,12 @@
   version = "v1.1.4"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/wirepair/netcode"
+  packages = ["."]
+  revision = "89fd4ed2c8f6eb786fac06216f7db7857547e18d"
+
+[[projects]]
   name = "github.com/yuin/gopher-lua"
   packages = [".","ast","parse","pm"]
   revision = "2243d714d6c94951d8ccca8c851836ff47d401c9"
@@ -125,7 +131,7 @@
 
 [[projects]]
   name = "golang.org/x/crypto"
-  packages = ["bcrypt","blowfish"]
+  packages = ["bcrypt","blowfish","chacha20poly1305","chacha20poly1305/internal/chacha20","poly1305"]
   revision = "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
 
 [[projects]]
@@ -152,6 +158,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9bb457dbd056b3d2d11c7230286f5f8e0e5320e125201c02663c6c2f11d5b23e"
+  inputs-digest = "236259571d8b1200dedc57ce5b31279347957756ab61040ed49165df486c3d5d"
   solver-name = "gps-cdcl"
   solver-version = 1
