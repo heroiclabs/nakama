@@ -28,6 +28,7 @@ import (
 
 	"nakama/cmd"
 	"nakama/pkg/ga"
+	"nakama/pkg/netcode"
 	"nakama/server"
 
 	"nakama/pkg/social"
@@ -48,6 +49,8 @@ var (
 )
 
 func main() {
+	netcode.NewConnectToken()
+
 	startedAt := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	http.DefaultClient.Timeout = 1500 * time.Millisecond // Always set default timeout on HTTP client
