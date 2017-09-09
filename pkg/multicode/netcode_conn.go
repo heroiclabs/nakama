@@ -164,18 +164,25 @@ func (c *NetcodeConn) read() error {
 	var packetType netcode.PacketType
 	switch packetType.Peek(netData.data) {
 	case netcode.ConnectionRequest:
+		c.logger.Info("INCOMING PACKET! ConnectionRequest")
 		break
 	case netcode.ConnectionDenied:
+		c.logger.Info("INCOMING PACKET! ConnectionDenied")
 		break
 	case netcode.ConnectionChallenge:
+		c.logger.Info("INCOMING PACKET! ConnectionChallenge")
 		break
 	case netcode.ConnectionResponse:
+		c.logger.Info("INCOMING PACKET! ConnectionResponse")
 		break
 	case netcode.ConnectionKeepAlive:
+		c.logger.Info("INCOMING PACKET! ConnectionKeepAlive")
 		break
 	case netcode.ConnectionPayload:
+		c.logger.Info("INCOMING PACKET! ConnectionPayload")
 		break
 	case netcode.ConnectionDisconnect:
+		c.logger.Info("INCOMING PACKET! ConnectionDisconnect")
 		break
 	default:
 		return netcode.ErrInvalidPacket

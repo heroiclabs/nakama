@@ -94,7 +94,9 @@ func (s *Server) Listen() error {
 		for {
 			select {
 			case recv := <-s.packetCh:
+				s.logger.Info("onPacketData start")
 				s.onPacketData(recv.data, recv.from)
+				s.logger.Info("onPacketData end")
 			case <-s.shutdownCh:
 				return
 			}
@@ -159,7 +161,6 @@ func (s *Server) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	var readPacketKey []byte
 	if clientInstance != nil {
 		replayProtection = clientInstance.replayProtection
-		// TODO check key expiry
 		readPacketKey = clientInstance.recvKey
 	}
 
@@ -175,6 +176,7 @@ func (s *Server) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	timestamp := uint64(time.Now().Unix())
 	if err := packet.Read(packetData, size, s.protocolId, timestamp, readPacketKey, s.privateKey, s.allowedPackets, replayProtection); err != nil {
 		// If there was no `readPacketKey` found then everything except a `ConnectionRequest` packet type will fail here.
+		// Expired connect tokens also end up here.
 		s.logger.Debug("error reading packet", zap.String("addr", addr.String()), zap.Error(err))
 		return
 	}
@@ -243,7 +245,7 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
 	s.Lock()
-	s.clients[addr.String()] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+	s.clients[addr.String()] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, requestPacket.ConnectTokenExpireTimestamp, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
 	s.Unlock()
 
 	var bytesWritten int
@@ -272,6 +274,8 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 	if _, err := s.serverConn.WriteTo(buffer[:bytesWritten], addr); err != nil {
 		s.logger.Error("error sending packet", zap.String("addr", addr.String()), zap.Error(err))
 	}
+
+	s.logger.Info("SENT PACKET! ConnectionChallenge")
 }
 
 func (s *Server) processConnectionResponse(clientInstance *ClientInstance, packet netcode.Packet, addr *net.UDPAddr) {

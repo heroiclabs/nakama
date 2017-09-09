@@ -122,8 +122,20 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 func (a *authenticationService) configure() {
 	udpTimeoutMs := int64(a.config.GetSocket().PingPeriodMs + a.config.GetSocket().PongWaitMs)
 	udpOnConnectFn := func(clientInstance *multicode.ClientInstance) {
+		a.logger.Info("NEW UDP ======")
 		// Expects to be called on a separate goroutine.
-		a.registry.addUDP(uuid.NewV4(), "handle", "en", 1234, clientInstance, a.pipeline.processRequest)
+
+		uid, err := uuid.FromBytes(clientInstance.UserData[:16])
+		if err != nil {
+			a.logger.Warn("Invalid user ID in new UDP client connection, rejecting client")
+			clientInstance.Close(false)
+			return
+		}
+		handleLen := int(clientInstance.UserData[16])
+		handle := string(clientInstance.UserData[17 : 17+handleLen])
+
+		// TODO pass lang through token user data or other medium.
+		a.registry.addUDP(uid, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
 	}
 	var err error
 	a.udpServer, err = multicode.NewServer(a.logger, &a.udpAddr, a.udpKeyByte, a.udpProtocolId, udpOnConnectFn, udpTimeoutMs)
@@ -381,10 +393,12 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
 
 	udpToken := netcode.NewConnectToken()
-	userData := append(uid.Bytes(), handle...)
-	if l := len(userData); l < netcode.USER_DATA_BYTES {
-		userData = append(userData, make([]byte, netcode.USER_DATA_BYTES-l)...)
-	}
+	// User data is always a fixed length.
+	userData := make([]byte, netcode.USER_DATA_BYTES)
+	copy(userData, uid.Bytes())
+	handleBytes := []byte(handle)
+	userData[16] = byte(len(handleBytes))
+	copy(userData[17:], handleBytes)
 	if err := udpToken.Generate(1, []net.UDPAddr{a.udpAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
 		a.logger.Error("UDP token generate error", zap.Error(fnErr))
 		a.sendAuthError(w, r, "UDP token generate error", AUTH_ERROR, authReq)
@@ -1177,7 +1191,8 @@ func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID
 }
 
 func (a *authenticationService) Stop() {
-	// TODO stop incoming net connections
+	a.udpServer.Stop()
+	// TODO stop incoming HTTP and WebSocket connections
 	a.registry.stop()
 }
 

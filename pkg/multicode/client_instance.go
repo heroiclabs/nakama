@@ -34,6 +34,7 @@ type ClientInstance struct {
 	lastSend int64
 	lastRecv int64
 
+	ExpiresAt  int64
 	UserData   []byte
 	ProtocolId uint64
 
@@ -42,7 +43,7 @@ type ClientInstance struct {
 	packetData       []byte
 }
 
-func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
+func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
 	c := &ClientInstance{
 		logger:        logger,
 		Address:       addr,
@@ -65,6 +66,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		// the client before the challenge and response handshake is even complete.
 		lastRecv: nowMs(),
 
+		ExpiresAt:  int64(expiry),
 		UserData:   make([]byte, netcode.USER_DATA_BYTES),
 		ProtocolId: protocolId,
 
