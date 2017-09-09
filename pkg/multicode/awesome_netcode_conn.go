@@ -1,9 +1,17 @@
-package netcode
+package multicode
 
 import (
 	"go.uber.org/zap"
 	"net"
+	"github.com/wirepair/netcode"
 )
+
+type AwesomeNetcodeData struct {
+	data []byte
+	from *net.UDPAddr
+}
+
+type AwesomeNetcodeRecvHandler func(data *AwesomeNetcodeData)
 
 type AwesomeNetcodeConn struct {
 	logger   *zap.Logger
@@ -15,7 +23,8 @@ type AwesomeNetcodeConn struct {
 	sendSize int
 	maxBytes int
 
-	recvHandlerFn NetcodeRecvHandler
+	// Must NOT be a blocking call.
+	recvHandlerFn AwesomeNetcodeRecvHandler
 }
 
 func NewAwesomeNetcodeConn(logger *zap.Logger) *AwesomeNetcodeConn {
@@ -25,26 +34,26 @@ func NewAwesomeNetcodeConn(logger *zap.Logger) *AwesomeNetcodeConn {
 
 	c.closeCh = make(chan struct{})
 	c.isClosed = true
-	c.maxBytes = MAX_PACKET_BYTES
-	c.recvSize = SOCKET_RCVBUF_SIZE
-	c.sendSize = SOCKET_SNDBUF_SIZE
+	c.maxBytes = netcode.MAX_PACKET_BYTES
+	c.recvSize = netcode.SOCKET_RCVBUF_SIZE
+	c.sendSize = netcode.SOCKET_SNDBUF_SIZE
 	return c
 }
 
-func (c *AwesomeNetcodeConn) SetRecvHandler(recvHandlerFn NetcodeRecvHandler) {
+func (c *AwesomeNetcodeConn) SetRecvHandler(recvHandlerFn AwesomeNetcodeRecvHandler) {
 	c.recvHandlerFn = recvHandlerFn
 }
 
 func (c *AwesomeNetcodeConn) Write(b []byte) (int, error) {
 	if c.isClosed {
-		return -1, ErrWriteClosedSocket
+		return -1, netcode.ErrWriteClosedSocket
 	}
 	return c.conn.Write(b)
 }
 
 func (c *AwesomeNetcodeConn) WriteTo(b []byte, to *net.UDPAddr) (int, error) {
 	if c.isClosed {
-		return -1, ErrWriteClosedSocket
+		return -1, netcode.ErrWriteClosedSocket
 	}
 	return c.conn.WriteTo(b, to)
 }
@@ -83,7 +92,7 @@ func (c *AwesomeNetcodeConn) Dial(address *net.UDPAddr) error {
 	var err error
 
 	if c.recvHandlerFn == nil {
-		return ErrPacketHandlerBeforeListen
+		return netcode.ErrPacketHandlerBeforeListen
 	}
 
 	c.closeCh = make(chan struct{})
@@ -98,7 +107,7 @@ func (c *AwesomeNetcodeConn) Listen(address *net.UDPAddr) error {
 	var err error
 
 	if c.recvHandlerFn == nil {
-		return ErrPacketHandlerBeforeListen
+		return netcode.ErrPacketHandlerBeforeListen
 	}
 
 	c.conn, err = net.ListenUDP(address.Network(), address)
@@ -145,7 +154,7 @@ func (c *AwesomeNetcodeConn) read() error {
 	var n int
 	var from *net.UDPAddr
 	var err error
-	netData := &NetcodeData{}
+	netData := &AwesomeNetcodeData{}
 	netData.data = make([]byte, c.maxBytes)
 
 	n, from, err = c.conn.ReadFromUDP(netData.data)
@@ -154,16 +163,33 @@ func (c *AwesomeNetcodeConn) read() error {
 	}
 
 	if n == 0 {
-		return ErrSocketZeroRecv
+		return netcode.ErrSocketZeroRecv
 	}
 
 	if n > c.maxBytes {
-		return ErrPacketSizeMax
+		return netcode.ErrPacketSizeMax
 	}
 
 	// check if it's a valid packet
-	if NewPacket(netData.data) == nil {
-		return ErrInvalidPacket
+	// Some repetition here but avoids allocating a packet struct until needed.
+	var packetType netcode.PacketType
+	switch packetType.Peek(netData.data) {
+	case netcode.ConnectionRequest:
+		break
+	case netcode.ConnectionDenied:
+		break
+	case netcode.ConnectionChallenge:
+		break
+	case netcode.ConnectionResponse:
+		break
+	case netcode.ConnectionKeepAlive:
+		break
+	case netcode.ConnectionPayload:
+		break
+	case netcode.ConnectionDisconnect:
+		break
+	default:
+		return netcode.ErrInvalidPacket
 	}
 
 	netData.data = netData.data[:n]

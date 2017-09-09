@@ -28,7 +28,7 @@ import (
 
 	"nakama/cmd"
 	"nakama/pkg/ga"
-	"nakama/pkg/netcode"
+	"nakama/pkg/multicode"
 	"nakama/server"
 
 	"nakama/pkg/social"
@@ -49,7 +49,7 @@ var (
 )
 
 func main() {
-	netcode.NewConnectToken()
+	_ = &multicode.AwesomeServer{}
 
 	startedAt := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
 	semver := fmt.Sprintf("%s+%s", version, commitID)

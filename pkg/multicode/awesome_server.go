@@ -1,4 +1,4 @@
-package netcode
+package multicode
 
 import (
 	"go.uber.org/zap"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"github.com/wirepair/netcode"
 )
 
 // Not a true connection limit, only used to initialise/allocate various buffer and data structure sizes.
@@ -34,7 +35,7 @@ type AwesomeServer struct {
 	challengeKey      []byte
 	challengeSequence uint64
 
-	packetCh chan *NetcodeData
+	packetCh chan *AwesomeNetcodeData
 }
 
 func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*AwesomeClientInstance), timeoutMs int) (*AwesomeServer, error) {
@@ -59,24 +60,24 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 		// challengeKey set below.
 		challengeSequence: uint64(0),
 
-		packetCh: make(chan *NetcodeData, MAX_CLIENTS*MAX_SERVER_PACKETS*2),
+		packetCh: make(chan *AwesomeNetcodeData, MAX_CLIENTS*netcode.MAX_SERVER_PACKETS*2),
 	}
 
 	s.serverConn = NewAwesomeNetcodeConn(logger)
-	s.serverConn.SetReadBuffer(SOCKET_RCVBUF_SIZE * MAX_CLIENTS)
-	s.serverConn.SetWriteBuffer(SOCKET_SNDBUF_SIZE * MAX_CLIENTS)
+	s.serverConn.SetReadBuffer(netcode.SOCKET_RCVBUF_SIZE * MAX_CLIENTS)
+	s.serverConn.SetWriteBuffer(netcode.SOCKET_SNDBUF_SIZE * MAX_CLIENTS)
 	s.serverConn.SetRecvHandler(s.handleNetcodeData)
 
 	// set allowed packets for this server
-	s.allowedPackets = make([]byte, ConnectionNumPackets)
-	s.allowedPackets[ConnectionRequest] = 1
-	s.allowedPackets[ConnectionResponse] = 1
-	s.allowedPackets[ConnectionKeepAlive] = 1
-	s.allowedPackets[ConnectionPayload] = 1
-	s.allowedPackets[ConnectionDisconnect] = 1
+	s.allowedPackets = make([]byte, netcode.ConnectionNumPackets)
+	s.allowedPackets[netcode.ConnectionRequest] = 1
+	s.allowedPackets[netcode.ConnectionResponse] = 1
+	s.allowedPackets[netcode.ConnectionKeepAlive] = 1
+	s.allowedPackets[netcode.ConnectionPayload] = 1
+	s.allowedPackets[netcode.ConnectionDisconnect] = 1
 
 	var err error
-	s.challengeKey, err = GenerateKey()
+	s.challengeKey, err = netcode.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +170,7 @@ func (s *AwesomeServer) closeClient(clientInstance *AwesomeClientInstance, sendD
 // that the recv'd data is > 0 < maxBytes and is of a valid packet type before
 // this is even called.
 // Must NOT be a blocking call.
-func (s *AwesomeServer) handleNetcodeData(packetData *NetcodeData) {
+func (s *AwesomeServer) handleNetcodeData(packetData *AwesomeNetcodeData) {
 	s.packetCh <- packetData
 }
 
@@ -181,7 +182,7 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	s.Lock()
 	clientInstance := s.clients[addr.String()]
 	s.Unlock()
-	var replayProtection *ReplayProtection
+	var replayProtection *netcode.ReplayProtection
 	var readPacketKey []byte
 	if clientInstance != nil {
 		replayProtection = clientInstance.replayProtection
@@ -191,8 +192,9 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 
 	// TODO Read packet after handoff to client instance channel, to free up the server routine?
 
-	packet := NewPacket(packetData)
-	if clientInstance == nil && packet.GetType() != ConnectionRequest {
+	// Packet type has already been validated by NetcodeConn, so `packet` will not be nil.
+	packet := netcode.NewPacket(packetData)
+	if clientInstance == nil && packet.GetType() != netcode.ConnectionRequest {
 		// Don't even bother decoding, unknown addresses must open up communication strictly with a connection request.
 		return
 	}
@@ -207,23 +209,23 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	s.processPacket(clientInstance, packet, addr)
 }
 
-func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, packet Packet, addr *net.UDPAddr) {
+func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
 	switch packet.GetType() {
-	case ConnectionRequest:
+	case netcode.ConnectionRequest:
 		s.logger.Debug("server received connection request", zap.String("addr", addr.String()))
 		s.processConnectionRequest(packet, addr)
-	case ConnectionResponse:
+	case netcode.ConnectionResponse:
 		s.logger.Debug("server received connection response", zap.String("addr", addr.String()))
 		s.processConnectionResponse(clientInstance, packet, addr)
-	case ConnectionKeepAlive:
+	case netcode.ConnectionKeepAlive:
 		// Pass keep alive packets to client instance as well.
 		// Will advance expiry time.
 		clientInstance.packetCh <- packet
-	case ConnectionPayload:
+	case netcode.ConnectionPayload:
 		// Data packets handled by individual client instances.
 		// Will advance expiry time.
 		clientInstance.packetCh <- packet
-	case ConnectionDisconnect:
+	case netcode.ConnectionDisconnect:
 		s.logger.Debug("server received connection disconnect", zap.String("addr", addr.String()))
 		// Disconnect packets not required when client triggers disconnect.
 		// Send on a separate routine to unblock server.
@@ -231,8 +233,8 @@ func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, pac
 	}
 }
 
-func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAddr) {
-	requestPacket, ok := packet.(*RequestPacket)
+func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *net.UDPAddr) {
+	requestPacket, ok := packet.(*netcode.RequestPacket)
 	if !ok {
 		return
 	}
@@ -274,20 +276,20 @@ func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAdd
 	var bytesWritten int
 	var err error
 
-	challenge := NewChallengeToken(requestPacket.Token.ClientId)
+	challenge := netcode.NewChallengeToken(requestPacket.Token.ClientId)
 	challengeBuf := challenge.Write(requestPacket.Token.UserData)
 	challengeSequence := atomic.AddUint64(&s.challengeSequence, 1) - 1
 
-	if err := EncryptChallengeToken(challengeBuf, challengeSequence, s.challengeKey); err != nil {
+	if err := netcode.EncryptChallengeToken(challengeBuf, challengeSequence, s.challengeKey); err != nil {
 		s.logger.Debug("server ignored connection request. failed to encrypt challenge token")
 		return
 	}
 
-	challengePacket := &ChallengePacket{}
+	challengePacket := &netcode.ChallengePacket{}
 	challengePacket.ChallengeTokenData = challengeBuf
 	challengePacket.ChallengeTokenSequence = challengeSequence
 
-	buffer := make([]byte, MAX_PACKET_BYTES)
+	buffer := make([]byte, netcode.MAX_PACKET_BYTES)
 	if bytesWritten, err = challengePacket.Write(buffer, s.protocolId, atomic.AddUint64(&s.globalSequence, 1)-1, requestPacket.Token.ServerKey); err != nil {
 		s.logger.Error("server error while writing challenge packet", zap.Error(err))
 		return
@@ -298,22 +300,22 @@ func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAdd
 	}
 }
 
-func (s *AwesomeServer) processConnectionResponse(clientInstance *AwesomeClientInstance, packet Packet, addr *net.UDPAddr) {
+func (s *AwesomeServer) processConnectionResponse(clientInstance *AwesomeClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
 	var err error
 	var tokenBuffer []byte
-	var challengeToken *ChallengeToken
+	var challengeToken *netcode.ChallengeToken
 
-	responsePacket, ok := packet.(*ResponsePacket)
+	responsePacket, ok := packet.(*netcode.ResponsePacket)
 	if !ok {
 		return
 	}
 
-	if tokenBuffer, err = DecryptChallengeToken(responsePacket.ChallengeTokenData, responsePacket.ChallengeTokenSequence, s.challengeKey); err != nil {
+	if tokenBuffer, err = netcode.DecryptChallengeToken(responsePacket.ChallengeTokenData, responsePacket.ChallengeTokenSequence, s.challengeKey); err != nil {
 		s.logger.Debug("failed to decrypt challenge token", zap.Error(err))
 		return
 	}
 
-	if challengeToken, err = ReadChallengeToken(tokenBuffer); err != nil {
+	if challengeToken, err = netcode.ReadChallengeToken(tokenBuffer); err != nil {
 		s.logger.Debug("failed to read challenge token", zap.Error(err))
 		return
 	}
@@ -324,4 +326,11 @@ func (s *AwesomeServer) processConnectionResponse(clientInstance *AwesomeClientI
 	clientInstance.connect(challengeToken.UserData)
 
 	go s.onConnect(clientInstance)
+}
+
+func addressEqual(addr1, addr2 *net.UDPAddr) bool {
+	if addr1 == nil || addr2 == nil {
+		return false
+	}
+	return addr1.IP.Equal(addr2.IP) && addr1.Port == addr2.Port
 }

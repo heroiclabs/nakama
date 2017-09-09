@@ -1,4 +1,4 @@
-package netcode
+package multicode
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"github.com/wirepair/netcode"
 )
 
 type AwesomeClientInstance struct {
@@ -31,11 +32,11 @@ type AwesomeClientInstance struct {
 
 	sequence uint64
 
-	userData   []byte
-	protocolId uint64
+	UserData   []byte
+	ProtocolId uint64
 
-	replayProtection *ReplayProtection
-	packetCh         chan Packet
+	replayProtection *netcode.ReplayProtection
+	packetCh         chan netcode.Packet
 	packetData       []byte
 }
 
@@ -48,20 +49,20 @@ func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn 
 		confirmed:     false,
 		connected:     false,
 
-		sendKey: make([]byte, KEY_BYTES),
-		recvKey: make([]byte, KEY_BYTES),
+		sendKey: make([]byte, netcode.KEY_BYTES),
+		recvKey: make([]byte, netcode.KEY_BYTES),
 
 		shutdownCh: make(chan bool),
 		stopped:    false,
 
 		sequence: 0.0,
 
-		userData:   make([]byte, USER_DATA_BYTES),
-		protocolId: protocolId,
+		UserData:   make([]byte, netcode.USER_DATA_BYTES),
+		ProtocolId: protocolId,
 
-		replayProtection: NewReplayProtection(),
-		packetCh:         make(chan Packet, PACKET_QUEUE_SIZE),
-		packetData:       make([]byte, MAX_PACKET_BYTES),
+		replayProtection: netcode.NewReplayProtection(),
+		packetCh:         make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
+		packetData:       make([]byte, netcode.MAX_PACKET_BYTES),
 	}
 
 	copy(c.sendKey, sendKey)
@@ -98,7 +99,7 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 		select {
 		case packet := <-c.packetCh:
 			switch packet.GetType() {
-			case ConnectionKeepAlive:
+			case netcode.ConnectionKeepAlive:
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
@@ -110,7 +111,7 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 				}
 				c.Unlock()
 				continue
-			case ConnectionPayload:
+			case netcode.ConnectionPayload:
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
@@ -121,7 +122,7 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 					c.confirmed = true
 				}
 				c.Unlock()
-				p, ok := packet.(*PayloadPacket)
+				p, ok := packet.(*netcode.PayloadPacket)
 				if !ok {
 					// Should not happen, already checked the type.
 					// If it does then silently discard the packet and keep waiting.
@@ -153,7 +154,7 @@ func (c *AwesomeClientInstance) Send(payloadData []byte) error {
 		c.sendKeepAlive()
 	}
 
-	packet := NewPayloadPacket(payloadData)
+	packet := netcode.NewPayloadPacket(payloadData)
 	err := c.sendPacket(packet)
 	c.Unlock()
 	return err
@@ -172,8 +173,8 @@ func (c *AwesomeClientInstance) close(sendDisconnect bool) {
 	c.stopped = true
 
 	if sendDisconnect && c.connected {
-		packet := &DisconnectPacket{}
-		for i := 0; i < NUM_DISCONNECT_PACKETS; i += 1 {
+		packet := &netcode.DisconnectPacket{}
+		for i := 0; i < netcode.NUM_DISCONNECT_PACKETS; i += 1 {
 			c.sendPacket(packet)
 		}
 	}
@@ -186,20 +187,20 @@ func (c *AwesomeClientInstance) close(sendDisconnect bool) {
 	close(c.shutdownCh)
 }
 
-func (c *AwesomeClientInstance) connect(userData *Buffer) {
+func (c *AwesomeClientInstance) connect(userData *netcode.Buffer) {
 	c.Lock()
 	if c.stopped || c.connected {
 		c.Unlock()
 		return
 	}
 	c.connected = true
-	copy(c.userData, userData.Bytes())
+	copy(c.UserData, userData.Bytes())
 	c.sendKeepAlive()
 	c.Unlock()
 }
 
 func (c *AwesomeClientInstance) sendKeepAlive() {
-	packet := &KeepAlivePacket{
+	packet := &netcode.KeepAlivePacket{
 		ClientIndex: uint32(0),
 		MaxClients:  uint32(2),
 	}
@@ -209,11 +210,11 @@ func (c *AwesomeClientInstance) sendKeepAlive() {
 	}
 }
 
-func (c *AwesomeClientInstance) sendPacket(packet Packet) error {
+func (c *AwesomeClientInstance) sendPacket(packet netcode.Packet) error {
 	var bytesWritten int
 	var err error
 
-	if bytesWritten, err = packet.Write(c.packetData, c.protocolId, c.sequence, c.sendKey); err != nil {
+	if bytesWritten, err = packet.Write(c.packetData, c.ProtocolId, c.sequence, c.sendKey); err != nil {
 		return fmt.Errorf("error: unable to write packet: %s", err)
 	}
 
