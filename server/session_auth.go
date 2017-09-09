@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"nakama/pkg/multicode"
 	"nakama/pkg/social"
 
 	"github.com/dgrijalva/jwt-go"
@@ -69,13 +70,12 @@ type authenticationService struct {
 	registry          *SessionRegistry
 	pipeline          *pipeline
 	runtimePool       *RuntimePool
-	udpServer         *netcode.Server
+	udpServer         *multicode.Server
 	mux               *mux.Router
 	hmacSecretByte    []byte
 	udpProtocolId     uint64
 	udpAddr           net.UDPAddr
 	udpKeyByte        []byte
-	udpMaxClients     int
 	upgrader          *websocket.Upgrader
 	socialClient      *social.Client
 	random            *rand.Rand
@@ -99,7 +99,6 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		udpProtocolId:  uint64(1),
 		udpAddr:        net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: config.GetSocket().Port},
 		udpKeyByte:     []byte(config.GetSession().UdpKey),
-		udpMaxClients:  1024,
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -121,11 +120,16 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 }
 
 func (a *authenticationService) configure() {
-	a.udpServer = netcode.NewServer(&a.udpAddr, a.udpKeyByte, a.udpProtocolId, a.udpMaxClients)
-	if err := a.udpServer.Init(); err != nil {
+	udpTimeoutMs := int64(a.config.GetSocket().PingPeriodMs + a.config.GetSocket().PongWaitMs)
+	udpOnConnectFn := func(clientInstance *multicode.ClientInstance) {
+		// Expects to be called on a separate goroutine.
+		a.registry.addUDP(uuid.NewV4(), "handle", "en", 1234, clientInstance, a.pipeline.processRequest)
+	}
+	var err error
+	a.udpServer, err = multicode.NewServer(a.logger, &a.udpAddr, a.udpKeyByte, a.udpProtocolId, udpOnConnectFn, udpTimeoutMs)
+	if err != nil {
 		a.logger.Fatal("UDP client listener init failed", zap.Error(err))
 	}
-	a.udpServer.SetTimeout(time.Duration(int64(a.config.GetSocket().PingPeriodMs+a.config.GetSocket().PongWaitMs) * int64(time.Millisecond)))
 
 	a.mux = mux.NewRouter()
 
@@ -290,8 +294,6 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 	if err := a.udpServer.Listen(); err != nil {
 		logger.Fatal("UDP client listener failed", zap.Error(err))
 	}
-	// TODO temporary, for testing only
-	go a.registry.addUDP(a.udpServer, uuid.NewV4(), "handle", "en", 1234, a.pipeline.processRequest)
 
 	// Start HTTP and WebSocket client listener.
 	go func() {

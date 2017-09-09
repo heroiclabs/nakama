@@ -6,14 +6,14 @@ import (
 	"net"
 )
 
-type AwesomeNetcodeData struct {
+type NetcodeData struct {
 	data []byte
 	from *net.UDPAddr
 }
 
-type AwesomeNetcodeRecvHandler func(data *AwesomeNetcodeData)
+type NetcodeRecvHandler func(data *NetcodeData)
 
-type AwesomeNetcodeConn struct {
+type NetcodeConn struct {
 	logger   *zap.Logger
 	conn     *net.UDPConn
 	closeCh  chan bool
@@ -24,11 +24,11 @@ type AwesomeNetcodeConn struct {
 	maxBytes int
 
 	// Must NOT be a blocking call.
-	recvHandlerFn AwesomeNetcodeRecvHandler
+	recvHandlerFn NetcodeRecvHandler
 }
 
-func NewAwesomeNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerFn AwesomeNetcodeRecvHandler) *AwesomeNetcodeConn {
-	return &AwesomeNetcodeConn{
+func NewNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerFn NetcodeRecvHandler) *NetcodeConn {
+	return &NetcodeConn{
 		logger: logger,
 		// conn is set in Dial()
 		closeCh:       make(chan bool),
@@ -40,21 +40,21 @@ func NewAwesomeNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvH
 	}
 }
 
-func (c *AwesomeNetcodeConn) Write(b []byte) (int, error) {
+func (c *NetcodeConn) Write(b []byte) (int, error) {
 	if c.isClosed {
 		return -1, netcode.ErrWriteClosedSocket
 	}
 	return c.conn.Write(b)
 }
 
-func (c *AwesomeNetcodeConn) WriteTo(b []byte, to *net.UDPAddr) (int, error) {
+func (c *NetcodeConn) WriteTo(b []byte, to *net.UDPAddr) (int, error) {
 	if c.isClosed {
 		return -1, netcode.ErrWriteClosedSocket
 	}
 	return c.conn.WriteTo(b, to)
 }
 
-func (c *AwesomeNetcodeConn) Close() error {
+func (c *NetcodeConn) Close() error {
 	if !c.isClosed {
 		close(c.closeCh)
 	}
@@ -67,16 +67,16 @@ func (c *AwesomeNetcodeConn) Close() error {
 }
 
 // LocalAddr returns the local network address.
-func (c *AwesomeNetcodeConn) LocalAddr() net.Addr {
+func (c *NetcodeConn) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
 // RemoteAddr returns the remote network address.
-func (c *AwesomeNetcodeConn) RemoteAddr() net.Addr {
+func (c *NetcodeConn) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-func (c *AwesomeNetcodeConn) Dial(address *net.UDPAddr) error {
+func (c *NetcodeConn) Dial(address *net.UDPAddr) error {
 	var err error
 
 	if c.recvHandlerFn == nil {
@@ -91,7 +91,7 @@ func (c *AwesomeNetcodeConn) Dial(address *net.UDPAddr) error {
 	return c.create()
 }
 
-func (c *AwesomeNetcodeConn) Listen(address *net.UDPAddr) error {
+func (c *NetcodeConn) Listen(address *net.UDPAddr) error {
 	var err error
 
 	if c.recvHandlerFn == nil {
@@ -107,7 +107,7 @@ func (c *AwesomeNetcodeConn) Listen(address *net.UDPAddr) error {
 	return err
 }
 
-func (c *AwesomeNetcodeConn) create() error {
+func (c *NetcodeConn) create() error {
 	c.isClosed = false
 	c.conn.SetReadBuffer(c.recvSize)
 	c.conn.SetWriteBuffer(c.sendSize)
@@ -115,7 +115,7 @@ func (c *AwesomeNetcodeConn) create() error {
 	return nil
 }
 
-func (c *AwesomeNetcodeConn) receiverLoop() {
+func (c *NetcodeConn) receiverLoop() {
 	for {
 
 		if err := c.read(); err == nil {
@@ -138,11 +138,11 @@ func (c *AwesomeNetcodeConn) receiverLoop() {
 // read does the actual connection read call, verifies we have a
 // buffer > 0 and < maxBytes and is of a valid packet type before
 // we bother to attempt to actually dispatch it to the recvHandlerFn.
-func (c *AwesomeNetcodeConn) read() error {
+func (c *NetcodeConn) read() error {
 	var n int
 	var from *net.UDPAddr
 	var err error
-	netData := &AwesomeNetcodeData{
+	netData := &NetcodeData{
 		data: make([]byte, c.maxBytes),
 	}
 

@@ -19,8 +19,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
-	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
+	"nakama/pkg/multicode"
 )
 
 // SessionRegistry maintains a list of sessions to their IDs. This is thread-safe.
@@ -81,8 +81,8 @@ func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, ex
 	s.Consume(processRequest)
 }
 
-func (a *SessionRegistry) addUDP(server *netcode.Server, userID uuid.UUID, handle string, lang string, expiry int64, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
-	s := NewUDPSession(server, a.logger, a.config, userID, handle, lang, expiry, a.remove)
+func (a *SessionRegistry) addUDP(userID uuid.UUID, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+	s := NewUDPSession(a.logger, a.config, userID, handle, lang, expiry, clientInstance, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s
 	a.Unlock()

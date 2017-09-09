@@ -10,13 +10,16 @@ import (
 	"time"
 )
 
-type AwesomeClientInstance struct {
+// Higher value == more frequent keep alive sends and expiry checks within the connection timeout window.
+const KEEP_ALIVE_EXPIRY_RESOLUTION = 4
+
+type ClientInstance struct {
 	sync.Mutex
 	logger  *zap.Logger
 	Address *net.UDPAddr
 
-	serverConn    *AwesomeNetcodeConn
-	closeClientFn func(*AwesomeClientInstance, bool)
+	serverConn    *NetcodeConn
+	closeClientFn func(*ClientInstance, bool)
 	confirmed     bool
 	connected     bool
 
@@ -39,8 +42,8 @@ type AwesomeClientInstance struct {
 	packetData       []byte
 }
 
-func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *AwesomeNetcodeConn, closeClientFn func(*AwesomeClientInstance, bool), protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *AwesomeClientInstance {
-	c := &AwesomeClientInstance{
+func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
+	c := &ClientInstance{
 		logger:        logger,
 		Address:       addr,
 		serverConn:    serverConn,
@@ -73,10 +76,13 @@ func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn 
 	copy(c.sendKey, sendKey)
 	copy(c.recvKey, recvKey)
 
+	// Check client keep alive send and enforce expiry.
 	go func() {
-		// Check client keep alive send and expiry at timeout / 4 resolution.
-		// This means less load, but in exchange for a 10 second timeout it could take up to 12.5 seconds to expire.
-		ticker := time.NewTicker(time.Duration(c.timeoutMs/4) * time.Millisecond)
+		// (Assumes KEEP_ALIVE_EXPIRY_RESOLUTION == 4, higher value means more frequent ticks.)
+		// Resolution is timeout / 4 to reduce load caused by frequent checks.
+		// In exchange for a 10 second timeout it could take up to 12.5 seconds to expire.
+		// Similarly we sent up to 4 keep alive packets per timeout window.
+		ticker := time.NewTicker(time.Duration(c.timeoutMs/KEEP_ALIVE_EXPIRY_RESOLUTION) * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
@@ -110,7 +116,7 @@ func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn 
 	return c
 }
 
-func (c *AwesomeClientInstance) Read() ([]byte, error) {
+func (c *ClientInstance) Read() ([]byte, error) {
 	for {
 		select {
 		case packet := <-c.packetCh:
@@ -160,7 +166,7 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 	}
 }
 
-func (c *AwesomeClientInstance) Send(payloadData []byte) error {
+func (c *ClientInstance) Send(payloadData []byte) error {
 	c.Lock()
 	if c.stopped || !c.connected {
 		c.Unlock()
@@ -178,11 +184,12 @@ func (c *AwesomeClientInstance) Send(payloadData []byte) error {
 	return err
 }
 
-func (c *AwesomeClientInstance) Close(sendDisconnect bool) {
+func (c *ClientInstance) Close(sendDisconnect bool) {
+	// Hand off close control to server, so it can lock around the actual close and dropping the client from address map.
 	c.closeClientFn(c, sendDisconnect)
 }
 
-func (c *AwesomeClientInstance) close(sendDisconnect bool) {
+func (c *ClientInstance) close(sendDisconnect bool) {
 	c.Lock()
 	if c.stopped {
 		c.Unlock()
@@ -205,7 +212,7 @@ func (c *AwesomeClientInstance) close(sendDisconnect bool) {
 	close(c.shutdownCh)
 }
 
-func (c *AwesomeClientInstance) connect(userData *netcode.Buffer) {
+func (c *ClientInstance) connect(userData *netcode.Buffer) {
 	c.Lock()
 	if c.stopped || c.connected {
 		c.Unlock()
@@ -217,7 +224,7 @@ func (c *AwesomeClientInstance) connect(userData *netcode.Buffer) {
 	c.Unlock()
 }
 
-func (c *AwesomeClientInstance) sendKeepAlive() {
+func (c *ClientInstance) sendKeepAlive() {
 	packet := &netcode.KeepAlivePacket{
 		ClientIndex: uint32(0),
 		MaxClients:  uint32(2),
@@ -228,7 +235,7 @@ func (c *AwesomeClientInstance) sendKeepAlive() {
 	}
 }
 
-func (c *AwesomeClientInstance) sendPacket(packet netcode.Packet) error {
+func (c *ClientInstance) sendPacket(packet netcode.Packet) error {
 	var bytesWritten int
 	var err error
 

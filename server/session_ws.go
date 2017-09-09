@@ -40,11 +40,11 @@ type wsSession struct {
 	stopped          bool
 	conn             *websocket.Conn
 	pingTicker       *time.Ticker
-	pingTickerStopCh chan (bool)
+	pingTickerStopCh chan bool
 	unregister       func(s session)
 }
 
-// NewWSSession creates a new session which encapsulates a WebSocket connection
+// NewWSSession creates a new session which encapsulates a WebSocket connection.
 func NewWSSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, expiry int64, websocketConn *websocket.Conn, unregister func(s session)) session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
@@ -212,12 +212,12 @@ func (s *wsSession) cleanupClosedConnection() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
 	s.pingTickerStopCh <- true
 	s.conn.Close()
-	s.logger.Info("Closed client connection")
+	s.logger.Debug("Closed client connection")
 }
 
 func (s *wsSession) Close() {
@@ -236,5 +236,5 @@ func (s *wsSession) Close() {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
 	s.conn.Close()
-	s.logger.Info("Closed client connection")
+	s.logger.Debug("Closed client connection")
 }

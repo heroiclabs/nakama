@@ -12,7 +12,7 @@ import (
 // Not a true connection limit, only used to initialise/allocate various buffer and data structure sizes.
 const MAX_CLIENTS = 1024
 
-type AwesomeServer struct {
+type Server struct {
 	sync.Mutex
 	logger     *zap.Logger
 	serverAddr *net.UDPAddr
@@ -20,14 +20,14 @@ type AwesomeServer struct {
 	privateKey []byte
 
 	// Will be handed off to a new goroutine.
-	onConnect func(*AwesomeClientInstance)
+	onConnect func(*ClientInstance)
 
-	serverConn *AwesomeNetcodeConn
+	serverConn *NetcodeConn
 	shutdownCh chan bool
 	running    bool
 	timeoutMs  int64
 
-	clients        map[string]*AwesomeClientInstance
+	clients        map[string]*ClientInstance
 	globalSequence uint64
 
 	allowedPackets []byte
@@ -35,11 +35,11 @@ type AwesomeServer struct {
 	challengeKey      []byte
 	challengeSequence uint64
 
-	packetCh chan *AwesomeNetcodeData
+	packetCh chan *NetcodeData
 }
 
-func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*AwesomeClientInstance), timeoutMs int64) (*AwesomeServer, error) {
-	s := &AwesomeServer{
+func NewServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*ClientInstance), timeoutMs int64) (*Server, error) {
+	s := &Server{
 		logger:     logger,
 		serverAddr: serverAddress,
 		protocolId: protocolId,
@@ -52,7 +52,7 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 		running:    false,
 		timeoutMs:  timeoutMs,
 
-		clients:        make(map[string]*AwesomeClientInstance, MAX_CLIENTS),
+		clients:        make(map[string]*ClientInstance, MAX_CLIENTS),
 		globalSequence: uint64(1) << 63,
 
 		// allowedPackets set below.
@@ -60,10 +60,10 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 		// challengeKey set below.
 		challengeSequence: uint64(0),
 
-		packetCh: make(chan *AwesomeNetcodeData, MAX_CLIENTS*netcode.MAX_SERVER_PACKETS*2),
+		packetCh: make(chan *NetcodeData, MAX_CLIENTS*netcode.MAX_SERVER_PACKETS*2),
 	}
 
-	s.serverConn = NewAwesomeNetcodeConn(logger, netcode.SOCKET_RCVBUF_SIZE*MAX_CLIENTS, netcode.SOCKET_SNDBUF_SIZE*MAX_CLIENTS, s.handleNetcodeData)
+	s.serverConn = NewNetcodeConn(logger, netcode.SOCKET_RCVBUF_SIZE*MAX_CLIENTS, netcode.SOCKET_SNDBUF_SIZE*MAX_CLIENTS, s.handleNetcodeData)
 
 	// set allowed packets for this server
 	s.allowedPackets = make([]byte, netcode.ConnectionNumPackets)
@@ -82,7 +82,7 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 	return s, nil
 }
 
-func (s *AwesomeServer) Listen() error {
+func (s *Server) Listen() error {
 	s.running = true
 
 	if err := s.serverConn.Listen(s.serverAddr); err != nil {
@@ -104,7 +104,7 @@ func (s *AwesomeServer) Listen() error {
 	return nil
 }
 
-func (s *AwesomeServer) Stop() {
+func (s *Server) Stop() {
 	if !s.running {
 		return
 	}
@@ -125,7 +125,7 @@ func (s *AwesomeServer) Stop() {
 	return
 }
 
-func (s *AwesomeServer) closeClient(clientInstance *AwesomeClientInstance, sendDisconnect bool) {
+func (s *Server) closeClient(clientInstance *ClientInstance, sendDisconnect bool) {
 	s.Lock()
 	addr := clientInstance.Address.String()
 	if foundInstance, ok := s.clients[addr]; !ok {
@@ -143,11 +143,11 @@ func (s *AwesomeServer) closeClient(clientInstance *AwesomeClientInstance, sendD
 // that the recv'd data is > 0 < maxBytes and is of a valid packet type before
 // this is even called.
 // Must NOT be a blocking call.
-func (s *AwesomeServer) handleNetcodeData(packetData *AwesomeNetcodeData) {
+func (s *Server) handleNetcodeData(packetData *NetcodeData) {
 	s.packetCh <- packetData
 }
 
-func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
+func (s *Server) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	if !s.running {
 		return
 	}
@@ -182,7 +182,7 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 	s.processPacket(clientInstance, packet, addr)
 }
 
-func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
+func (s *Server) processPacket(clientInstance *ClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
 	switch packet.GetType() {
 	case netcode.ConnectionRequest:
 		s.logger.Debug("server received connection request", zap.String("addr", addr.String()))
@@ -206,7 +206,7 @@ func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, pac
 	}
 }
 
-func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *net.UDPAddr) {
+func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAddr) {
 	requestPacket, ok := packet.(*netcode.RequestPacket)
 	if !ok {
 		return
@@ -243,7 +243,7 @@ func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *ne
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
 	s.Lock()
-	s.clients[addr.String()] = NewAwesomeClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+	s.clients[addr.String()] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
 	s.Unlock()
 
 	var bytesWritten int
@@ -274,7 +274,7 @@ func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *ne
 	}
 }
 
-func (s *AwesomeServer) processConnectionResponse(clientInstance *AwesomeClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
+func (s *Server) processConnectionResponse(clientInstance *ClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
 	var err error
 	var tokenBuffer []byte
 	var challengeToken *netcode.ChallengeToken
