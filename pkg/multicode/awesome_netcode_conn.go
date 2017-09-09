@@ -1,9 +1,9 @@
 package multicode
 
 import (
+	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
 	"net"
-	"github.com/wirepair/netcode"
 )
 
 type AwesomeNetcodeData struct {
@@ -16,7 +16,7 @@ type AwesomeNetcodeRecvHandler func(data *AwesomeNetcodeData)
 type AwesomeNetcodeConn struct {
 	logger   *zap.Logger
 	conn     *net.UDPConn
-	closeCh  chan struct{}
+	closeCh  chan bool
 	isClosed bool
 
 	recvSize int
@@ -27,21 +27,17 @@ type AwesomeNetcodeConn struct {
 	recvHandlerFn AwesomeNetcodeRecvHandler
 }
 
-func NewAwesomeNetcodeConn(logger *zap.Logger) *AwesomeNetcodeConn {
-	c := &AwesomeNetcodeConn{
+func NewAwesomeNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerFn AwesomeNetcodeRecvHandler) *AwesomeNetcodeConn {
+	return &AwesomeNetcodeConn{
 		logger: logger,
+		// conn is set in Dial()
+		closeCh:       make(chan bool),
+		isClosed:      true,
+		maxBytes:      netcode.MAX_PACKET_BYTES,
+		recvSize:      recvSize,
+		sendSize:      sendSize,
+		recvHandlerFn: recvHandlerFn,
 	}
-
-	c.closeCh = make(chan struct{})
-	c.isClosed = true
-	c.maxBytes = netcode.MAX_PACKET_BYTES
-	c.recvSize = netcode.SOCKET_RCVBUF_SIZE
-	c.sendSize = netcode.SOCKET_SNDBUF_SIZE
-	return c
-}
-
-func (c *AwesomeNetcodeConn) SetRecvHandler(recvHandlerFn AwesomeNetcodeRecvHandler) {
-	c.recvHandlerFn = recvHandlerFn
 }
 
 func (c *AwesomeNetcodeConn) Write(b []byte) (int, error) {
@@ -70,14 +66,6 @@ func (c *AwesomeNetcodeConn) Close() error {
 	return nil
 }
 
-func (c *AwesomeNetcodeConn) SetReadBuffer(bytes int) {
-	c.recvSize = bytes
-}
-
-func (c *AwesomeNetcodeConn) SetWriteBuffer(bytes int) {
-	c.sendSize = bytes
-}
-
 // LocalAddr returns the local network address.
 func (c *AwesomeNetcodeConn) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
@@ -95,7 +83,7 @@ func (c *AwesomeNetcodeConn) Dial(address *net.UDPAddr) error {
 		return netcode.ErrPacketHandlerBeforeListen
 	}
 
-	c.closeCh = make(chan struct{})
+	c.closeCh = make(chan bool)
 	c.conn, err = net.DialUDP(address.Network(), nil, address)
 	if err != nil {
 		return err
@@ -154,8 +142,9 @@ func (c *AwesomeNetcodeConn) read() error {
 	var n int
 	var from *net.UDPAddr
 	var err error
-	netData := &AwesomeNetcodeData{}
-	netData.data = make([]byte, c.maxBytes)
+	netData := &AwesomeNetcodeData{
+		data: make([]byte, c.maxBytes),
+	}
 
 	n, from, err = c.conn.ReadFromUDP(netData.data)
 	if err != nil {

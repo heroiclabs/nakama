@@ -1,12 +1,12 @@
 package multicode
 
 import (
+	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
-	"github.com/wirepair/netcode"
 )
 
 // Not a true connection limit, only used to initialise/allocate various buffer and data structure sizes.
@@ -23,9 +23,9 @@ type AwesomeServer struct {
 	onConnect func(*AwesomeClientInstance)
 
 	serverConn *AwesomeNetcodeConn
-	shutdownCh chan struct{}
+	shutdownCh chan bool
 	running    bool
-	timeoutMs  int
+	timeoutMs  int64
 
 	clients        map[string]*AwesomeClientInstance
 	globalSequence uint64
@@ -38,7 +38,7 @@ type AwesomeServer struct {
 	packetCh chan *AwesomeNetcodeData
 }
 
-func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*AwesomeClientInstance), timeoutMs int) (*AwesomeServer, error) {
+func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*AwesomeClientInstance), timeoutMs int64) (*AwesomeServer, error) {
 	s := &AwesomeServer{
 		logger:     logger,
 		serverAddr: serverAddress,
@@ -48,7 +48,7 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 		onConnect: onConnect,
 
 		// serverConn set below.
-		shutdownCh: make(chan struct{}),
+		shutdownCh: make(chan bool),
 		running:    false,
 		timeoutMs:  timeoutMs,
 
@@ -63,10 +63,7 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 		packetCh: make(chan *AwesomeNetcodeData, MAX_CLIENTS*netcode.MAX_SERVER_PACKETS*2),
 	}
 
-	s.serverConn = NewAwesomeNetcodeConn(logger)
-	s.serverConn.SetReadBuffer(netcode.SOCKET_RCVBUF_SIZE * MAX_CLIENTS)
-	s.serverConn.SetWriteBuffer(netcode.SOCKET_SNDBUF_SIZE * MAX_CLIENTS)
-	s.serverConn.SetRecvHandler(s.handleNetcodeData)
+	s.serverConn = NewAwesomeNetcodeConn(logger, netcode.SOCKET_RCVBUF_SIZE*MAX_CLIENTS, netcode.SOCKET_SNDBUF_SIZE*MAX_CLIENTS, s.handleNetcodeData)
 
 	// set allowed packets for this server
 	s.allowedPackets = make([]byte, netcode.ConnectionNumPackets)
@@ -91,30 +88,6 @@ func (s *AwesomeServer) Listen() error {
 	if err := s.serverConn.Listen(s.serverAddr); err != nil {
 		return err
 	}
-
-	// Periodically drop expired/shutdown clients.
-	//go func() {
-	//	ticker := time.NewTicker(time.Duration(s.timeoutMs/2) * time.Millisecond)
-	//
-	//	for {
-	//		select {
-	//		case <-ticker.C:
-	//			ts := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
-	//
-	//			s.Lock()
-	//			for addr, clientInstance := range s.clients {
-	//				if clientInstance.stopped {
-	//					delete(s.clients, addr)
-	//					continue
-	//				}
-	//			}
-	//			s.Unlock()
-	//		case <-s.shutdownCh:
-	//			ticker.Stop()
-	//			return
-	//		}
-	//	}
-	//}()
 
 	// Continuously process incoming packets as fast as possible.
 	go func() {
@@ -270,7 +243,7 @@ func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *ne
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
 	s.Lock()
-	s.clients[addr.String()] = NewAwesomeClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+	s.clients[addr.String()] = NewAwesomeClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
 	s.Unlock()
 
 	var bytesWritten int
@@ -281,13 +254,14 @@ func (s *AwesomeServer) processConnectionRequest(packet netcode.Packet, addr *ne
 	challengeSequence := atomic.AddUint64(&s.challengeSequence, 1) - 1
 
 	if err := netcode.EncryptChallengeToken(challengeBuf, challengeSequence, s.challengeKey); err != nil {
-		s.logger.Debug("server ignored connection request. failed to encrypt challenge token")
+		s.logger.Warn("server ignored connection request. failed to encrypt challenge token")
 		return
 	}
 
-	challengePacket := &netcode.ChallengePacket{}
-	challengePacket.ChallengeTokenData = challengeBuf
-	challengePacket.ChallengeTokenSequence = challengeSequence
+	challengePacket := &netcode.ChallengePacket{
+		ChallengeTokenData:     challengeBuf,
+		ChallengeTokenSequence: challengeSequence,
+	}
 
 	buffer := make([]byte, netcode.MAX_PACKET_BYTES)
 	if bytesWritten, err = challengePacket.Write(buffer, s.protocolId, atomic.AddUint64(&s.globalSequence, 1)-1, requestPacket.Token.ServerKey); err != nil {

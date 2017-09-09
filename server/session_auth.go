@@ -285,6 +285,14 @@ func (a *authenticationService) configure() {
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
+	// Start UDP client listener first.
+	// Avoids the race condition where we issue tokens via login/register but UDP connections aren't available yet.
+	if err := a.udpServer.Listen(); err != nil {
+		logger.Fatal("UDP client listener failed", zap.Error(err))
+	}
+	// TODO temporary, for testing only
+	go a.registry.addUDP(a.udpServer, uuid.NewV4(), "handle", "en", 1234, a.pipeline.processRequest)
+
 	// Start HTTP and WebSocket client listener.
 	go func() {
 		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
@@ -294,15 +302,6 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 		if err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS); err != nil {
 			logger.Fatal("WebSocket client listener failed", zap.Error(err))
 		}
-	}()
-
-	// Start UDP client listener.
-	go func() {
-		if err := a.udpServer.Listen(); err != nil {
-			logger.Fatal("UDP client listener failed", zap.Error(err))
-		}
-
-		a.registry.addUDP(a.udpServer, uuid.NewV4(), "handle", "en", 1234, a.pipeline.processRequest)
 	}()
 
 	logger.Info("Client", zap.Int("port", a.config.GetSocket().Port))
