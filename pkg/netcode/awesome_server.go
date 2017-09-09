@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Not a true connection limit, only used to initialise/allocate various buffer and data structure sizes.
 const MAX_CLIENTS = 1024
 
 type AwesomeServer struct {
@@ -16,6 +17,9 @@ type AwesomeServer struct {
 	serverAddr *net.UDPAddr
 	protocolId uint64
 	privateKey []byte
+
+	// Will be handed off to a new goroutine.
+	onConnect func(*AwesomeClientInstance)
 
 	serverConn *AwesomeNetcodeConn
 	shutdownCh chan struct{}
@@ -33,12 +37,14 @@ type AwesomeServer struct {
 	packetCh chan *NetcodeData
 }
 
-func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, timeoutMs int) (*AwesomeServer, error) {
+func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*AwesomeClientInstance), timeoutMs int) (*AwesomeServer, error) {
 	s := &AwesomeServer{
 		logger:     logger,
 		serverAddr: serverAddress,
 		protocolId: protocolId,
 		privateKey: privateKey,
+
+		onConnect: onConnect,
 
 		// serverConn set below.
 		shutdownCh: make(chan struct{}),
@@ -76,17 +82,6 @@ func NewAwesomeServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey
 	}
 
 	return s, nil
-}
-
-// increments the challenge sequence and returns the un-incremented value
-func (s *AwesomeServer) incChallengeSequence() uint64 {
-	val := atomic.AddUint64(&s.challengeSequence, 1)
-	return val - 1
-}
-
-func (s *AwesomeServer) incGlobalSequence() uint64 {
-	val := atomic.AddUint64(&s.globalSequence, 1)
-	return val - 1
 }
 
 func (s *AwesomeServer) Listen() error {
@@ -135,9 +130,9 @@ func (s *AwesomeServer) Listen() error {
 	return nil
 }
 
-func (s *AwesomeServer) Stop() error {
+func (s *AwesomeServer) Stop() {
 	if !s.running {
-		return nil
+		return
 	}
 	s.running = false
 	close(s.shutdownCh)
@@ -145,16 +140,7 @@ func (s *AwesomeServer) Stop() error {
 	// Send disconnect messages to any connected clients.
 	s.Lock()
 	for addr, clientInstance := range s.clients {
-		if !clientInstance.connected || clientInstance.stopped {
-			continue
-		}
-
-		packet := &DisconnectPacket{}
-		for i := 0; i < NUM_DISCONNECT_PACKETS; i += 1 {
-			clientInstance.sendPacket(packet)
-		}
-
-		clientInstance.Close()
+		clientInstance.close(true)
 		delete(s.clients, addr)
 	}
 	s.Unlock()
@@ -162,20 +148,27 @@ func (s *AwesomeServer) Stop() error {
 	s.serverConn.Close()
 	close(s.packetCh)
 
-	return nil
+	return
 }
 
-func (s *AwesomeServer) dropClientInstance(addr *net.UDPAddr) {
+func (s *AwesomeServer) closeClient(clientInstance *AwesomeClientInstance, sendDisconnect bool) {
 	s.Lock()
-	delete(s.clients, addr.String())
+	addr := clientInstance.Address.String()
+	if foundInstance, ok := s.clients[addr]; !ok {
+		s.Unlock()
+		return
+	} else if foundInstance == clientInstance {
+		// In the unlikely case there is already another client taking up this address slot by the time this client is cleaned up.
+		clientInstance.close(sendDisconnect)
+		delete(s.clients, addr)
+	}
 	s.Unlock()
 }
 
 // write the netcodeData to our buffered packet channel. The NetcodeConn verifies
 // that the recv'd data is > 0 < maxBytes and is of a valid packet type before
 // this is even called.
-// NOTE: we will block the netcodeConn from processing which is what we want since
-// we want to synchronize access from the Update call.
+// Must NOT be a blocking call.
 func (s *AwesomeServer) handleNetcodeData(packetData *NetcodeData) {
 	s.packetCh <- packetData
 }
@@ -196,18 +189,7 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 		readPacketKey = clientInstance.recvKey
 	}
 
-	//encryptionIndex := -1
-	//clientIndex := s.clientManager.FindClientIndexByAddress(addr)
-	//if clientIndex != -1 {
-	//	encryptionIndex = s.clientManager.FindEncryptionIndexByClientIndex(clientIndex)
-	//} else {
-	//	encryptionIndex = s.clientManager.FindEncryptionEntryIndex(addr, s.serverTime)
-	//}
-	//readPacketKey = s.clientManager.GetEncryptionEntryRecvKey(encryptionIndex)
-
-	timestamp := uint64(time.Now().Unix())
-
-	// TODO Do this after handoff to client instance routine?
+	// TODO Read packet after handoff to client instance channel, to free up the server routine?
 
 	packet := NewPacket(packetData)
 	if clientInstance == nil && packet.GetType() != ConnectionRequest {
@@ -215,6 +197,7 @@ func (s *AwesomeServer) onPacketData(packetData []byte, addr *net.UDPAddr) {
 		return
 	}
 	size := len(packetData)
+	timestamp := uint64(time.Now().Unix())
 	if err := packet.Read(packetData, size, s.protocolId, timestamp, readPacketKey, s.privateKey, s.allowedPackets, replayProtection); err != nil {
 		// If there was no `readPacketKey` found then everything except a `ConnectionRequest` packet type will fail here.
 		s.logger.Debug("error reading packet", zap.String("addr", addr.String()), zap.Error(err))
@@ -234,44 +217,17 @@ func (s *AwesomeServer) processPacket(clientInstance *AwesomeClientInstance, pac
 		s.processConnectionResponse(clientInstance, packet, addr)
 	case ConnectionKeepAlive:
 		// Pass keep alive packets to client instance as well.
-		// Will be used to advance expiry time.
+		// Will advance expiry time.
 		clientInstance.packetCh <- packet
 	case ConnectionPayload:
+		// Data packets handled by individual client instances.
+		// Will advance expiry time.
 		clientInstance.packetCh <- packet
 	case ConnectionDisconnect:
-		//if clientIndex == -1 {
-		//	return
-		//}
-		//client := s.clientManager.instances[clientIndex]
-		//log.Printf("server received disconnect packet from client %d:%s\n", client.clientId, client.address.String())
-		//s.clientManager.disconnectClient(client, false, s.serverTime)
-		//if !clientInstance.connected {
-		//	return
-		//}
-
-		//if sendDisconnect {
-		//	packet := &DisconnectPacket{}
-		//	writePacketKey := m.GetEncryptionEntrySendKey(client.encryptionIndex)
-		//	if writePacketKey == nil {
-		//		log.Printf("error: unable to retrieve encryption key for client for disconnect: %d\n", client.clientId)
-		//	} else {
-		//		for i := 0; i < NUM_DISCONNECT_PACKETS; i += 1 {
-		//			client.SendPacket(packet, writePacketKey, serverTime)
-		//		}
-		//	}
-		//}
-		//log.Printf("removing encryption entry for: %s", client.address.String())
-		//m.RemoveEncryptionEntry(client.address, serverTime)
-		//client.Clear()
-
 		s.logger.Debug("server received connection disconnect", zap.String("addr", addr.String()))
-		if clientInstance == nil {
-			return
-		}
-		clientInstance.Close()
-		s.Lock()
-		delete(s.clients, addr.String())
-		s.Unlock()
+		// Disconnect packets not required when client triggers disconnect.
+		// Send on a separate routine to unblock server.
+		go clientInstance.Close(false)
 	}
 }
 
@@ -312,7 +268,7 @@ func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAdd
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
 	s.Lock()
-	s.clients[addr.String()] = NewAwesomeClientInstance(s.logger, addr, s.serverConn, s.protocolId, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+	s.clients[addr.String()] = NewAwesomeClientInstance(s.logger, addr, s.serverConn, s.closeClient, s.protocolId, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
 	s.Unlock()
 
 	var bytesWritten int
@@ -320,7 +276,7 @@ func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAdd
 
 	challenge := NewChallengeToken(requestPacket.Token.ClientId)
 	challengeBuf := challenge.Write(requestPacket.Token.UserData)
-	challengeSequence := s.incChallengeSequence()
+	challengeSequence := atomic.AddUint64(&s.challengeSequence, 1) - 1
 
 	if err := EncryptChallengeToken(challengeBuf, challengeSequence, s.challengeKey); err != nil {
 		s.logger.Debug("server ignored connection request. failed to encrypt challenge token")
@@ -332,7 +288,7 @@ func (s *AwesomeServer) processConnectionRequest(packet Packet, addr *net.UDPAdd
 	challengePacket.ChallengeTokenSequence = challengeSequence
 
 	buffer := make([]byte, MAX_PACKET_BYTES)
-	if bytesWritten, err = challengePacket.Write(buffer, s.protocolId, s.incGlobalSequence(), requestPacket.Token.ServerKey); err != nil {
+	if bytesWritten, err = challengePacket.Write(buffer, s.protocolId, atomic.AddUint64(&s.globalSequence, 1)-1, requestPacket.Token.ServerKey); err != nil {
 		s.logger.Error("server error while writing challenge packet", zap.Error(err))
 		return
 	}
@@ -366,5 +322,6 @@ func (s *AwesomeServer) processConnectionResponse(clientInstance *AwesomeClientI
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
 	clientInstance.connect(challengeToken.UserData)
-	clientInstance.sendKeepAlive()
+
+	go s.onConnect(clientInstance)
 }

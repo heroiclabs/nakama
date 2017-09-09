@@ -114,11 +114,11 @@ func (c *AwesomeNetcodeConn) create() error {
 	c.isClosed = false
 	c.conn.SetReadBuffer(c.recvSize)
 	c.conn.SetWriteBuffer(c.sendSize)
-	go c.readLoop()
+	go c.receiverLoop()
 	return nil
 }
 
-func (c *AwesomeNetcodeConn) receiver(ch chan *NetcodeData) {
+func (c *AwesomeNetcodeConn) receiverLoop() {
 	for {
 
 		if err := c.read(); err == nil {
@@ -170,10 +170,4 @@ func (c *AwesomeNetcodeConn) read() error {
 	netData.from = from
 	c.recvHandlerFn(netData)
 	return nil
-}
-
-// dispatch the NetcodeData to the bound recvHandler function.
-func (c *AwesomeNetcodeConn) readLoop() {
-	dataCh := make(chan *NetcodeData)
-	go c.receiver(dataCh)
 }

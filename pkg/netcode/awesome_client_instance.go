@@ -13,9 +13,10 @@ type AwesomeClientInstance struct {
 	logger  *zap.Logger
 	Address *net.UDPAddr
 
-	serverConn *AwesomeNetcodeConn
-	confirmed  bool
-	connected  bool
+	serverConn    *AwesomeNetcodeConn
+	closeClientFn func(*AwesomeClientInstance, bool)
+	confirmed     bool
+	connected     bool
 
 	//encryption *encryptionEntry
 	//expireTime float64
@@ -38,13 +39,14 @@ type AwesomeClientInstance struct {
 	packetData       []byte
 }
 
-func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *AwesomeNetcodeConn, protocolId uint64, sendKey []byte, recvKey []byte) *AwesomeClientInstance {
+func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *AwesomeNetcodeConn, closeClientFn func(*AwesomeClientInstance, bool), protocolId uint64, sendKey []byte, recvKey []byte) *AwesomeClientInstance {
 	c := &AwesomeClientInstance{
-		logger:     logger,
-		Address:    addr,
-		serverConn: serverConn,
-		confirmed:  false,
-		connected:  false,
+		logger:        logger,
+		Address:       addr,
+		serverConn:    serverConn,
+		closeClientFn: closeClientFn,
+		confirmed:     false,
+		connected:     false,
 
 		sendKey: make([]byte, KEY_BYTES),
 		recvKey: make([]byte, KEY_BYTES),
@@ -65,6 +67,29 @@ func NewAwesomeClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn 
 	copy(c.sendKey, sendKey)
 	copy(c.recvKey, recvKey)
 
+	//go func() {
+	//	ticker := time.NewTicker(time.Duration(s.timeoutMs/2) * time.Millisecond)
+	//
+	//	for {
+	//		select {
+	//		case <-ticker.C:
+	//			ts := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
+	//
+	//			s.Lock()
+	//			for addr, clientInstance := range s.clients {
+	//				if clientInstance.stopped {
+	//					delete(s.clients, addr)
+	//					continue
+	//				}
+	//			}
+	//			s.Unlock()
+	//		case <-s.shutdownCh:
+	//			ticker.Stop()
+	//			return
+	//		}
+	//	}
+	//}()
+
 	return c
 }
 
@@ -75,6 +100,10 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 			switch packet.GetType() {
 			case ConnectionKeepAlive:
 				c.Lock()
+				if c.stopped {
+					c.Unlock()
+					return nil, io.EOF
+				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
 					c.confirmed = true
@@ -83,6 +112,10 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 				continue
 			case ConnectionPayload:
 				c.Lock()
+				if c.stopped {
+					c.Unlock()
+					return nil, io.EOF
+				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
 					c.confirmed = true
@@ -91,12 +124,15 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 				p, ok := packet.(*PayloadPacket)
 				if !ok {
 					// Should not happen, already checked the type.
+					// If it does then silently discard the packet and keep waiting.
 					c.logger.Debug("not a payload packet")
 					continue
 				}
 				return p.PayloadData, nil
 			default:
 				// Silently discard any other packets and keep waiting.
+				// The server should not have sent any other types down the channel but handle it just in case.
+				c.logger.Debug("not a keep alive or payload packet")
 				continue
 			}
 		case <-c.shutdownCh:
@@ -106,42 +142,48 @@ func (c *AwesomeClientInstance) Read() ([]byte, error) {
 }
 
 func (c *AwesomeClientInstance) Send(payloadData []byte) error {
-	isConfirmed := false
-	isConnected := false
 	c.Lock()
-	if c.stopped {
+	if c.stopped || !c.connected {
 		c.Unlock()
 		return io.ErrUnexpectedEOF
 	}
-	isConfirmed = c.confirmed
-	isConnected = c.connected
-	c.Unlock()
 
-	if isConfirmed {
-		// No problem if confirmation happens between check above and here.
+	// Per spec all packets sent to unconfirmed clients are preceded by keep alive packets.
+	if !c.confirmed {
 		c.sendKeepAlive()
 	}
 
-	if isConnected {
-		packet := NewPayloadPacket(payloadData)
-		return c.sendPacket(packet)
-	}
-	return io.ErrUnexpectedEOF
+	packet := NewPayloadPacket(payloadData)
+	err := c.sendPacket(packet)
+	c.Unlock()
+	return err
 }
 
-func (c *AwesomeClientInstance) Close() {
+func (c *AwesomeClientInstance) Close(sendDisconnect bool) {
+	c.closeClientFn(c, sendDisconnect)
+}
+
+func (c *AwesomeClientInstance) close(sendDisconnect bool) {
 	c.Lock()
 	if c.stopped {
 		c.Unlock()
 		return
 	}
 	c.stopped = true
+
+	if sendDisconnect && c.connected {
+		packet := &DisconnectPacket{}
+		for i := 0; i < NUM_DISCONNECT_PACKETS; i += 1 {
+			c.sendPacket(packet)
+		}
+	}
+
 	c.Unlock()
-	close(c.shutdownCh)
 
 	// Do not close this, to avoid excessive locking we don't check the status of this channel before writing.
 	// Leave it for GC to clean up.
 	// close(c.packetCh)
+	close(c.shutdownCh)
 }
 
 func (c *AwesomeClientInstance) connect(userData *Buffer) {
@@ -152,6 +194,7 @@ func (c *AwesomeClientInstance) connect(userData *Buffer) {
 	}
 	c.connected = true
 	copy(c.userData, userData.Bytes())
+	c.sendKeepAlive()
 	c.Unlock()
 }
 
@@ -167,16 +210,10 @@ func (c *AwesomeClientInstance) sendKeepAlive() {
 }
 
 func (c *AwesomeClientInstance) sendPacket(packet Packet) error {
-	c.Lock()
-	if c.stopped || c.connected {
-		c.Unlock()
-		return nil
-	}
 	var bytesWritten int
 	var err error
 
 	if bytesWritten, err = packet.Write(c.packetData, c.protocolId, c.sequence, c.sendKey); err != nil {
-		c.Unlock()
 		return fmt.Errorf("error: unable to write packet: %s", err)
 	}
 
@@ -185,6 +222,5 @@ func (c *AwesomeClientInstance) sendPacket(packet Packet) error {
 	}
 
 	c.sequence++
-	c.Unlock()
 	return nil
 }
