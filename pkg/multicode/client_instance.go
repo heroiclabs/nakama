@@ -118,6 +118,12 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 	return c
 }
 
+func (c *ClientInstance) IsConnected() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.connected
+}
+
 func (c *ClientInstance) Read() ([]byte, error) {
 	for {
 		select {

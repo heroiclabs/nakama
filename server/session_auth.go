@@ -74,7 +74,8 @@ type authenticationService struct {
 	mux               *mux.Router
 	hmacSecretByte    []byte
 	udpProtocolId     uint64
-	udpAddr           net.UDPAddr
+	udpListenAddr     net.UDPAddr
+	udpPublicAddr     net.UDPAddr
 	udpKeyByte        []byte
 	upgrader          *websocket.Upgrader
 	socialClient      *social.Client
@@ -97,8 +98,10 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
 		udpProtocolId:  uint64(1),
-		udpAddr:        net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: config.GetSocket().Port},
-		udpKeyByte:     []byte(config.GetSession().UdpKey),
+		//udpListenAddr:  net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: config.GetSocket().Port},
+		udpListenAddr: net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: config.GetSocket().Port},
+		udpPublicAddr: net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: config.GetSocket().Port},
+		udpKeyByte:    []byte(config.GetSession().UdpKey),
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -122,7 +125,6 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 func (a *authenticationService) configure() {
 	udpTimeoutMs := int64(a.config.GetSocket().PingPeriodMs + a.config.GetSocket().PongWaitMs)
 	udpOnConnectFn := func(clientInstance *multicode.ClientInstance) {
-		a.logger.Info("NEW UDP ======")
 		// Expects to be called on a separate goroutine.
 
 		uid, err := uuid.FromBytes(clientInstance.UserData[:16])
@@ -138,7 +140,7 @@ func (a *authenticationService) configure() {
 		a.registry.addUDP(uid, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
 	}
 	var err error
-	a.udpServer, err = multicode.NewServer(a.logger, &a.udpAddr, a.udpKeyByte, a.udpProtocolId, udpOnConnectFn, udpTimeoutMs)
+	a.udpServer, err = multicode.NewServer(a.logger, &a.udpListenAddr, &a.udpPublicAddr, a.udpKeyByte, a.udpProtocolId, udpOnConnectFn, udpTimeoutMs)
 	if err != nil {
 		a.logger.Fatal("UDP client listener init failed", zap.Error(err))
 	}
@@ -399,7 +401,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	handleBytes := []byte(handle)
 	userData[16] = byte(len(handleBytes))
 	copy(userData[17:], handleBytes)
-	if err := udpToken.Generate(1, []net.UDPAddr{a.udpAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
+	if err := udpToken.Generate(1, []net.UDPAddr{a.udpPublicAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
 		a.logger.Error("UDP token generate error", zap.Error(fnErr))
 		a.sendAuthError(w, r, "UDP token generate error", AUTH_ERROR, authReq)
 		return

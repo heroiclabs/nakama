@@ -15,7 +15,8 @@ const MAX_CLIENTS = 1024
 type Server struct {
 	sync.Mutex
 	logger     *zap.Logger
-	serverAddr *net.UDPAddr
+	listenAddr *net.UDPAddr
+	publicAddr *net.UDPAddr
 	protocolId uint64
 	privateKey []byte
 
@@ -38,10 +39,11 @@ type Server struct {
 	packetCh chan *NetcodeData
 }
 
-func NewServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*ClientInstance), timeoutMs int64) (*Server, error) {
+func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*ClientInstance), timeoutMs int64) (*Server, error) {
 	s := &Server{
 		logger:     logger,
-		serverAddr: serverAddress,
+		listenAddr: listenAddr,
+		publicAddr: publicAddr,
 		protocolId: protocolId,
 		privateKey: privateKey,
 
@@ -85,7 +87,7 @@ func NewServer(logger *zap.Logger, serverAddress *net.UDPAddr, privateKey []byte
 func (s *Server) Listen() error {
 	s.running = true
 
-	if err := s.serverConn.Listen(s.serverAddr); err != nil {
+	if err := s.serverConn.Listen(s.listenAddr); err != nil {
 		return err
 	}
 
@@ -94,9 +96,7 @@ func (s *Server) Listen() error {
 		for {
 			select {
 			case recv := <-s.packetCh:
-				s.logger.Info("onPacketData start")
 				s.onPacketData(recv.data, recv.from)
-				s.logger.Info("onPacketData end")
 			case <-s.shutdownCh:
 				return
 			}
@@ -137,6 +137,7 @@ func (s *Server) closeClient(clientInstance *ClientInstance, sendDisconnect bool
 		// In the unlikely case there is already another client taking up this address slot by the time this client is cleaned up.
 		clientInstance.close(sendDisconnect)
 		delete(s.clients, addr)
+		s.logger.Debug("server closed client", zap.String("addr", addr))
 	}
 	s.Unlock()
 }
@@ -150,10 +151,6 @@ func (s *Server) handleNetcodeData(packetData *NetcodeData) {
 }
 
 func (s *Server) onPacketData(packetData []byte, addr *net.UDPAddr) {
-	if !s.running {
-		return
-	}
-
 	s.Lock()
 	clientInstance := s.clients[addr.String()]
 	s.Unlock()
@@ -205,6 +202,8 @@ func (s *Server) processPacket(clientInstance *ClientInstance, packet netcode.Pa
 		// Disconnect packets not required when client triggers disconnect.
 		// Send on a separate routine to unblock server.
 		go clientInstance.Close(false)
+	default:
+		s.logger.Debug("server received unknown packet", zap.String("addr", addr.String()))
 	}
 }
 
@@ -221,7 +220,7 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 
 	addrFound := false
 	for _, tokenAddr := range requestPacket.Token.ServerAddrs {
-		if addressEqual(s.serverAddr, &tokenAddr) {
+		if addressEqual(s.publicAddr, &tokenAddr) {
 			addrFound = true
 			break
 		}
@@ -232,20 +231,18 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 		return
 	}
 
+	addrStr := addr.String()
 	s.Lock()
-	clientInstance := s.clients[addr.String()]
-	s.Unlock()
-	if clientInstance != nil {
+	if clientInstance, ok := s.clients[addrStr]; !ok {
+		s.clients[addrStr] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, requestPacket.ConnectTokenExpireTimestamp, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+	} else if clientInstance.IsConnected() {
+		s.Unlock()
 		s.logger.Debug("server ignored connection request. a client with this address is already connected", zap.String("addr", addr.String()))
 		return
 	}
-
 	// SKIP FindClientIndexById - don't use the protocol client IDs.
 	// SKIP FindOrAddTokenEntry - allow multiple connections with the same token.
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
-
-	s.Lock()
-	s.clients[addr.String()] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, requestPacket.ConnectTokenExpireTimestamp, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
 	s.Unlock()
 
 	var bytesWritten int
@@ -274,8 +271,6 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 	if _, err := s.serverConn.WriteTo(buffer[:bytesWritten], addr); err != nil {
 		s.logger.Error("error sending packet", zap.String("addr", addr.String()), zap.Error(err))
 	}
-
-	s.logger.Info("SENT PACKET! ConnectionChallenge")
 }
 
 func (s *Server) processConnectionResponse(clientInstance *ClientInstance, packet netcode.Packet, addr *net.UDPAddr) {

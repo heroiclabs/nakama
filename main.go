@@ -36,6 +36,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"runtime"
 )
 
 const (
@@ -74,7 +75,7 @@ func main() {
 
 	// Print startup information
 	multiLogger.Info("Nakama starting")
-	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver))
+	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()))
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 
