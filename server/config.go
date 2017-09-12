@@ -26,6 +26,7 @@ import (
 	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"net"
 )
 
 // Config interface is the Nakama Core configuration
@@ -94,6 +95,12 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	// Enforce rules for parameters with strict requirements.
 	if len(mainConfig.GetSession().UdpKey) != 32 {
 		logger.Fatal("session.udp_key must be exactly 32 characters")
+	}
+	if net.ParseIP(mainConfig.GetSocket().ListenAddress) == nil {
+		logger.Fatal("socket.listen_address must be a valid IP address")
+	}
+	if net.ParseIP(mainConfig.GetSocket().PublicAddress) == nil {
+		logger.Fatal("socket.public_address must be a valid IP address")
 	}
 
 	// Log warnings for insecure default parameter values.
@@ -236,6 +243,8 @@ func NewSessionConfig() *SessionConfig {
 // SocketConfig is configuration relevant to the transport socket and protocol
 type SocketConfig struct {
 	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
+	ListenAddress       string `yaml:"listen_address" json:"listen_address" usage:"IP address to listen for traffic on."`
+	PublicAddress       string `yaml:"public_address" json:"public_address" usage:"IP address to advertise to clients."`
 	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
@@ -247,6 +256,8 @@ type SocketConfig struct {
 func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:           "defaultkey",
+		ListenAddress:       "0.0.0.0",
+		PublicAddress:       "127.0.0.1",
 		Port:                7350,
 		MaxMessageSizeBytes: 1024,
 		WriteWaitMs:         5000,

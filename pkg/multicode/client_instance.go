@@ -220,16 +220,19 @@ func (c *ClientInstance) close(sendDisconnect bool) {
 	close(c.shutdownCh)
 }
 
-func (c *ClientInstance) connect(userData *netcode.Buffer) {
+// Returns true if this is a new connection, false otherwise.
+// This allows handling of duplicate connection challenge responses.
+func (c *ClientInstance) connect(userData *netcode.Buffer) bool {
 	c.Lock()
 	if c.stopped || c.connected {
 		c.Unlock()
-		return
+		return false
 	}
 	c.connected = true
 	copy(c.UserData, userData.Bytes())
 	c.sendKeepAlive()
 	c.Unlock()
+	return true
 }
 
 func (c *ClientInstance) sendKeepAlive() {

@@ -25,7 +25,6 @@ type Server struct {
 
 	serverConn *NetcodeConn
 	shutdownCh chan bool
-	running    bool
 	timeoutMs  int64
 
 	clients        map[string]*ClientInstance
@@ -51,7 +50,6 @@ func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateK
 
 		// serverConn set below.
 		shutdownCh: make(chan bool),
-		running:    false,
 		timeoutMs:  timeoutMs,
 
 		clients:        make(map[string]*ClientInstance, MAX_CLIENTS),
@@ -85,8 +83,6 @@ func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateK
 }
 
 func (s *Server) Listen() error {
-	s.running = true
-
 	if err := s.serverConn.Listen(s.listenAddr); err != nil {
 		return err
 	}
@@ -96,7 +92,9 @@ func (s *Server) Listen() error {
 		for {
 			select {
 			case recv := <-s.packetCh:
-				s.onPacketData(recv.data, recv.from)
+				if recv != nil {
+					s.onPacketData(recv.data, recv.from)
+				}
 			case <-s.shutdownCh:
 				return
 			}
@@ -107,10 +105,6 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) Stop() {
-	if !s.running {
-		return
-	}
-	s.running = false
 	close(s.shutdownCh)
 
 	// Send disconnect messages to any connected clients.
@@ -271,6 +265,8 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 	if _, err := s.serverConn.WriteTo(buffer[:bytesWritten], addr); err != nil {
 		s.logger.Error("error sending packet", zap.String("addr", addr.String()), zap.Error(err))
 	}
+
+	// Do not trigger the application new client callback here while the connection is still in the challenge phase.
 }
 
 func (s *Server) processConnectionResponse(clientInstance *ClientInstance, packet netcode.Packet, addr *net.UDPAddr) {
@@ -296,9 +292,11 @@ func (s *Server) processConnectionResponse(clientInstance *ClientInstance, packe
 	// SKIP FindClientIndexById - don't use the protocol client IDs.
 	// SKIP ConnectedClientCount - allow arbitrary number of client connections.
 
-	clientInstance.connect(challengeToken.UserData)
-
-	go s.onConnect(clientInstance)
+	// Only notify the application if this client is newly connected.
+	// This handles duplicate connection challenge responses.
+	if clientInstance.connect(challengeToken.UserData) {
+		go s.onConnect(clientInstance)
+	}
 }
 
 func addressEqual(addr1, addr2 *net.UDPAddr) bool {

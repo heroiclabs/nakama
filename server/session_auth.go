@@ -98,10 +98,9 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
 		udpProtocolId:  uint64(1),
-		//udpListenAddr:  net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: config.GetSocket().Port},
-		udpListenAddr: net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: config.GetSocket().Port},
-		udpPublicAddr: net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: config.GetSocket().Port},
-		udpKeyByte:    []byte(config.GetSession().UdpKey),
+		udpListenAddr:  net.UDPAddr{IP: net.ParseIP(config.GetSocket().ListenAddress), Port: config.GetSocket().Port},
+		udpPublicAddr:  net.UDPAddr{IP: net.ParseIP(config.GetSocket().PublicAddress), Port: config.GetSocket().Port},
+		udpKeyByte:     []byte(config.GetSession().UdpKey),
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
