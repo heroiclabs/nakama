@@ -1,6 +1,7 @@
 // BSD 3-Clause License
 //
 // Copyright (c) 2017, Isaac Dawson
+// Copyright (c) 2017, The Nakama Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -41,8 +42,6 @@ type NetcodeData struct {
 	from *net.UDPAddr
 }
 
-type NetcodeRecvHandler func(data *NetcodeData)
-
 type NetcodeConn struct {
 	logger   *zap.Logger
 	conn     *net.UDPConn
@@ -54,10 +53,10 @@ type NetcodeConn struct {
 	maxBytes int
 
 	// Must NOT be a blocking call.
-	recvHandlerFn NetcodeRecvHandler
+	recvHandlerFn func(data *NetcodeData)
 }
 
-func NewNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerFn NetcodeRecvHandler) *NetcodeConn {
+func NewNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerFn func(data *NetcodeData)) *NetcodeConn {
 	return &NetcodeConn{
 		logger: logger,
 		// conn is set in Listen()
@@ -68,13 +67,6 @@ func NewNetcodeConn(logger *zap.Logger, recvSize int, sendSize int, recvHandlerF
 		sendSize:      sendSize,
 		recvHandlerFn: recvHandlerFn,
 	}
-}
-
-func (c *NetcodeConn) Write(b []byte) (int, error) {
-	if c.isClosed {
-		return -1, netcode.ErrWriteClosedSocket
-	}
-	return c.conn.Write(b)
 }
 
 func (c *NetcodeConn) WriteTo(b []byte, to *net.UDPAddr) (int, error) {
@@ -94,31 +86,6 @@ func (c *NetcodeConn) Close() error {
 		return c.conn.Close()
 	}
 	return nil
-}
-
-// LocalAddr returns the local network address.
-func (c *NetcodeConn) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
-}
-
-// RemoteAddr returns the remote network address.
-func (c *NetcodeConn) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
-}
-
-func (c *NetcodeConn) Dial(address *net.UDPAddr) error {
-	var err error
-
-	if c.recvHandlerFn == nil {
-		return netcode.ErrPacketHandlerBeforeListen
-	}
-
-	c.closeCh = make(chan bool)
-	c.conn, err = net.DialUDP(address.Network(), nil, address)
-	if err != nil {
-		return err
-	}
-	return c.create()
 }
 
 func (c *NetcodeConn) Listen(address *net.UDPAddr) error {

@@ -1,3 +1,34 @@
+// BSD 3-Clause License
+//
+// Copyright (c) 2017, Isaac Dawson
+// Copyright (c) 2017, The Nakama Authors
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// * Redistributions of source code must retain the above copyright notice, this
+// list of conditions and the following disclaimer.
+//
+// * Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// * Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 package multicode
 
 import (
@@ -38,9 +69,9 @@ type ClientInstance struct {
 	UserData   []byte
 	ProtocolId uint64
 
-	replayProtection *netcode.ReplayProtection
-	packetCh         chan netcode.Packet
-	packetData       []byte
+	replayProtection   *netcode.ReplayProtection
+	incomingPacketCh   chan netcode.Packet
+	outgoingPacketData []byte
 }
 
 func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
@@ -61,7 +92,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 
 		sequence: 0.0,
 		lastSend: 0,
-		// Assume clients are created off the back of an incoming connection request.
+		// Assume client instances are created off the back of an incoming connection request.
 		// Setting a real value here avoids the expiry check routine from instantly killing
 		// the client before the challenge and response handshake is even complete.
 		lastRecv: nowMs(),
@@ -70,9 +101,9 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		UserData:   make([]byte, netcode.USER_DATA_BYTES),
 		ProtocolId: protocolId,
 
-		replayProtection: netcode.NewReplayProtection(),
-		packetCh:         make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
-		packetData:       make([]byte, netcode.MAX_PACKET_BYTES),
+		replayProtection:   netcode.NewReplayProtection(),
+		incomingPacketCh:   make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
+		outgoingPacketData: make([]byte, netcode.MAX_PACKET_BYTES),
 	}
 
 	copy(c.sendKey, sendKey)
@@ -104,8 +135,10 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 				// Expiry is checked regardless of c.connected to handle clients that request connection but never
 				// respond to challenge to complete handshake.
 				if c.lastRecv < ts-c.timeoutMs {
+					// Only send disconnects if client was fully connected.
+					sendDisconnect := c.connected
 					c.Unlock()
-					c.Close(true)
+					c.Close(sendDisconnect)
 					return
 				}
 				c.Unlock()
@@ -124,10 +157,15 @@ func (c *ClientInstance) IsConnected() bool {
 	return c.connected
 }
 
+// An external routine is expected to continuously call this, otherwise
+// no input attributed to this client instance will be processed.
 func (c *ClientInstance) Read() ([]byte, error) {
 	for {
 		select {
-		case packet := <-c.packetCh:
+		case packet := <-c.incomingPacketCh:
+			if packet == nil {
+				return nil, io.EOF
+			}
 			switch packet.GetType() {
 			case netcode.ConnectionKeepAlive:
 				c.Lock()
@@ -250,11 +288,11 @@ func (c *ClientInstance) sendPacket(packet netcode.Packet) error {
 	var bytesWritten int
 	var err error
 
-	if bytesWritten, err = packet.Write(c.packetData, c.ProtocolId, c.sequence, c.sendKey); err != nil {
+	if bytesWritten, err = packet.Write(c.outgoingPacketData, c.ProtocolId, c.sequence, c.sendKey); err != nil {
 		return fmt.Errorf("error: unable to write packet: %s", err)
 	}
 
-	if _, err := c.serverConn.WriteTo(c.packetData[:bytesWritten], c.Address); err != nil {
+	if _, err := c.serverConn.WriteTo(c.outgoingPacketData[:bytesWritten], c.Address); err != nil {
 		c.logger.Error("error writing to client", zap.Error(err))
 	}
 
