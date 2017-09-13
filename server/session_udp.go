@@ -106,8 +106,7 @@ func (s *udpSession) Consume(processRequest func(logger *zap.Logger, session ses
 		data, err := s.clientInstance.Read()
 		if err != nil {
 			// Will happen if client disconnects while Read() is waiting.
-			s.cleanupClosedConnection()
-			return
+			break
 		}
 
 		request := &Envelope{}
@@ -152,7 +151,9 @@ func (s *udpSession) pingNow() bool {
 	// Server heartbeat.
 	err := s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}})
 	if err != nil {
-		s.logger.Warn("Could not send heartbeat", zap.String("remoteAddress", s.clientInstance.Address.String()), zap.Error(err))
+		s.logger.Warn("Could not send heartbeat. Closing channel", zap.String("remoteAddress", s.clientInstance.Address.String()), zap.Error(err))
+		//s.cleanupClosedConnection() // The connection has already failed
+		return false
 	}
 
 	return true
@@ -183,7 +184,7 @@ func (s *udpSession) SendBytes(payload []byte) error {
 	err := s.clientInstance.Send(payload)
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
-		//TODO investigate whether we need to cleanupClosedConnection if write fails
+		// TODO investigate whether we need to cleanupClosedConnection if write fails
 	}
 
 	return err
@@ -201,7 +202,7 @@ func (s *udpSession) cleanupClosedConnection() {
 	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.clientInstance.Address.String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	s.clientInstance.Close(false)
 	s.logger.Debug("Closed client connection")
 }
@@ -216,7 +217,7 @@ func (s *udpSession) Close() {
 	s.Unlock()
 
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	s.clientInstance.Close(true)
 	s.logger.Debug("Closed client connection")
 }

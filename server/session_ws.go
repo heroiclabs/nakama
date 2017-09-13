@@ -197,7 +197,7 @@ func (s *wsSession) SendBytes(payload []byte) error {
 	err := s.conn.WriteMessage(websocket.BinaryMessage, payload)
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
-		//TODO investigate whether we need to cleanupClosedConnection if write fails
+		// TODO investigate whether we need to cleanupClosedConnection if write fails
 	}
 
 	return err
@@ -215,7 +215,7 @@ func (s *wsSession) cleanupClosedConnection() {
 	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	s.conn.Close()
 	s.logger.Debug("Closed client connection")
 }
@@ -230,7 +230,7 @@ func (s *wsSession) Close() {
 	s.Unlock()
 
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))

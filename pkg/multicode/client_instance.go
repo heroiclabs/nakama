@@ -32,10 +32,10 @@
 package multicode
 
 import (
+	"errors"
 	"fmt"
 	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
-	"io"
 	"net"
 	"sync"
 	"time"
@@ -43,6 +43,10 @@ import (
 
 // Higher value == more frequent keep alive sends and expiry checks within the connection timeout window.
 const KEEP_ALIVE_EXPIRY_RESOLUTION = 4
+
+var ErrClientInstanceClosed = errors.New("client instance closed")
+var ErrClientInstanceNotConnected = errors.New("client instance not connected")
+var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
 
 type ClientInstance struct {
 	sync.Mutex
@@ -164,14 +168,14 @@ func (c *ClientInstance) Read() ([]byte, error) {
 		select {
 		case packet := <-c.incomingPacketCh:
 			if packet == nil {
-				return nil, io.EOF
+				return nil, ErrClientInstanceClosed
 			}
 			switch packet.GetType() {
 			case netcode.ConnectionKeepAlive:
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
-					return nil, io.EOF
+					return nil, ErrClientInstanceClosed
 				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
@@ -184,7 +188,7 @@ func (c *ClientInstance) Read() ([]byte, error) {
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
-					return nil, io.EOF
+					return nil, ErrClientInstanceClosed
 				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
@@ -207,16 +211,21 @@ func (c *ClientInstance) Read() ([]byte, error) {
 				continue
 			}
 		case <-c.shutdownCh:
-			return nil, io.EOF
+			return nil, ErrClientInstanceClosed
 		}
 	}
 }
 
 func (c *ClientInstance) Send(payloadData []byte) error {
+	if len(payloadData) > netcode.MAX_PACKET_BYTES {
+		c.logger.Warn("server attempting to send packet data exceeding max length, dropping packet")
+		return ErrClientInstancePacketDataTooLarge
+	}
+
 	c.Lock()
 	if c.stopped || !c.connected {
 		c.Unlock()
-		return io.ErrUnexpectedEOF
+		return ErrClientInstanceNotConnected
 	}
 
 	// Per spec all packets sent to unconfirmed clients are preceded by keep alive packets.
@@ -250,11 +259,12 @@ func (c *ClientInstance) close(sendDisconnect bool) {
 		}
 	}
 
+	c.connected = false
 	c.Unlock()
 
 	// Do not close this, to avoid excessive locking we don't check the status of this channel before writing.
 	// Leave it for GC to clean up.
-	// close(c.packetCh)
+	// close(c.incomingPacketCh)
 	close(c.shutdownCh)
 }
 

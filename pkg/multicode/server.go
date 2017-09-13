@@ -148,8 +148,6 @@ func (s *Server) Stop() {
 
 	s.serverConn.Close()
 	close(s.packetCh)
-
-	return
 }
 
 func (s *Server) closeClient(clientInstance *ClientInstance, sendDisconnect bool) {
