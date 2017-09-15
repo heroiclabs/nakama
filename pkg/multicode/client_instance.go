@@ -216,6 +216,7 @@ func (c *ClientInstance) Read() ([]byte, error) {
 	}
 }
 
+// NOTE: Only for payload data packets, other protocol messages must be sent through other functions.
 func (c *ClientInstance) Send(payloadData []byte) error {
 	if len(payloadData) > netcode.MAX_PACKET_BYTES {
 		c.logger.Warn("server attempting to send packet data exceeding max length, dropping packet")
