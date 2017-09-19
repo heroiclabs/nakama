@@ -16,7 +16,11 @@ package multicode
 
 import "errors"
 
-const FRAGMENT_HEADER_BYTES = 5
+const (
+	MAX_PACKET_HEADER_BYTES = 9
+	FRAGMENT_HEADER_BYTES   = 5
+	NULL_SEQUENCE           = uint16(0xFFFFFFFF)
+)
 
 func SequenceGreaterThan(s1, s2 uint16) bool {
 	return ((s1 > s2) && (s1-s2 <= 32768)) || ((s1 < s2) && (s2-s1 > 32768))
