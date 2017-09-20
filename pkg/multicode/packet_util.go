@@ -19,7 +19,7 @@ import "errors"
 const (
 	MAX_PACKET_HEADER_BYTES = 9
 	FRAGMENT_HEADER_BYTES   = 5
-	NULL_SEQUENCE           = uint16(0xFFFFFFFF)
+	NULL_SEQUENCE           = uint32(0xFFFFFFFF)
 )
 
 func SequenceGreaterThan(s1, s2 uint16) bool {

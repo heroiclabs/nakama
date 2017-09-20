@@ -23,7 +23,7 @@ type SentPacketData struct {
 type SequenceBufferSent struct {
 	sequence      uint16
 	numEntries    uint16
-	entrySequence []uint16
+	entrySequence []uint32
 	entryData     []*SentPacketData
 }
 
@@ -31,7 +31,7 @@ func NewSequenceBufferSent(bufferSize int) *SequenceBufferSent {
 	s := &SequenceBufferSent{
 		sequence:      0,
 		numEntries:    uint16(bufferSize),
-		entrySequence: make([]uint16, bufferSize),
+		entrySequence: make([]uint32, bufferSize),
 		entryData:     make([]*SentPacketData, bufferSize),
 	}
 	for i := 0; i < bufferSize; i++ {
@@ -44,7 +44,7 @@ func NewSequenceBufferSent(bufferSize int) *SequenceBufferSent {
 func (s *SequenceBufferSent) Find(sequence uint16) *SentPacketData {
 	index := sequence % s.numEntries
 	sequenceNum := s.entrySequence[index]
-	if sequenceNum == sequence {
+	if sequenceNum == uint32(sequence) {
 		return s.entryData[index]
 	}
 	return nil
@@ -56,22 +56,22 @@ func (s *SequenceBufferSent) Insert(sequence uint16) *SentPacketData {
 	}
 
 	if SequenceGreaterThan(sequence+1, s.sequence) {
-		s.RemoveEntries(s.sequence, sequence)
+		s.RemoveEntries(int32(s.sequence), int32(sequence))
 		s.sequence = sequence + 1
 	}
 
 	index := sequence % s.numEntries
-	s.entrySequence[index] = sequence
+	s.entrySequence[index] = uint32(sequence)
 	return s.entryData[index]
 }
 
-func (s *SequenceBufferSent) RemoveEntries(startSequence, finishSequence uint16) {
+func (s *SequenceBufferSent) RemoveEntries(startSequence, finishSequence int32) {
 	if finishSequence < startSequence {
 		finishSequence += 65536
 	}
-	if finishSequence-startSequence < s.numEntries {
+	if uint16(finishSequence-startSequence) < s.numEntries {
 		for sequence := startSequence; sequence <= finishSequence; sequence++ {
-			s.entrySequence[sequence%s.numEntries] = NULL_SEQUENCE
+			s.entrySequence[uint16(sequence)%s.numEntries] = NULL_SEQUENCE
 		}
 	} else {
 		for i := uint16(0); i < s.numEntries; i++ {

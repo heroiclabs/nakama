@@ -22,7 +22,7 @@ type ReceivedPacketData struct {
 type SequenceBufferReceived struct {
 	sequence      uint16
 	numEntries    uint16
-	entrySequence []uint16
+	entrySequence []uint32
 	entryData     []*ReceivedPacketData
 }
 
@@ -30,7 +30,7 @@ func NewSequenceBufferReceived(bufferSize int) *SequenceBufferReceived {
 	s := &SequenceBufferReceived{
 		sequence:      0,
 		numEntries:    uint16(bufferSize),
-		entrySequence: make([]uint16, bufferSize),
+		entrySequence: make([]uint32, bufferSize),
 		entryData:     make([]*ReceivedPacketData, bufferSize),
 	}
 	for i := 0; i < bufferSize; i++ {
@@ -38,4 +38,67 @@ func NewSequenceBufferReceived(bufferSize int) *SequenceBufferReceived {
 		s.entryData[i] = &ReceivedPacketData{}
 	}
 	return s
+}
+
+func (s *SequenceBufferReceived) Exists(sequence uint16) bool {
+	return s.entrySequence[sequence%s.numEntries] == uint32(sequence)
+}
+
+func (s *SequenceBufferReceived) TestInsert(sequence uint16) bool {
+	return SequenceLessThan(sequence, s.sequence-s.numEntries)
+}
+
+func (s *SequenceBufferReceived) Find(sequence uint16) *ReceivedPacketData {
+	index := sequence % s.numEntries
+	sequenceNum := s.entrySequence[index]
+	if sequenceNum == uint32(sequence) {
+		return s.entryData[index]
+	}
+	return nil
+}
+
+func (s *SequenceBufferReceived) Insert(sequence uint16) *ReceivedPacketData {
+	if SequenceLessThan(sequence, s.sequence-s.numEntries) {
+		return nil
+	}
+
+	if SequenceGreaterThan(sequence+1, s.sequence) {
+		s.RemoveEntries(int32(s.sequence), int32(sequence))
+		s.sequence = sequence + 1
+	}
+
+	index := sequence % s.numEntries
+	s.entrySequence[index] = uint32(sequence)
+	return s.entryData[index]
+}
+
+func (s *SequenceBufferReceived) RemoveEntries(startSequence, finishSequence int32) {
+	if finishSequence < startSequence {
+		finishSequence += 65536
+	}
+	if uint16(finishSequence-startSequence) < s.numEntries {
+		for sequence := startSequence; sequence <= finishSequence; sequence++ {
+			s.entrySequence[uint16(sequence)%s.numEntries] = NULL_SEQUENCE
+		}
+	} else {
+		for i := uint16(0); i < s.numEntries; i++ {
+			s.entrySequence[i] = NULL_SEQUENCE
+		}
+	}
+}
+
+func (s *SequenceBufferReceived) GenerateAckBits() (uint16, uint32) {
+	ack := s.sequence - 1
+	var ackBits uint32
+
+	mask := uint32(1)
+	for i := uint16(0); i < 32; i++ {
+		sequence := ack - i
+		if s.Exists(sequence) {
+			ackBits |= mask
+		}
+		mask <<= 1
+	}
+
+	return ack, ackBits
 }
