@@ -107,6 +107,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_submit_decr":        n.leaderboardSubmitDecr,
 		"leaderboard_submit_set":         n.leaderboardSubmitSet,
 		"leaderboard_submit_best":        n.leaderboardSubmitBest,
+		"leaderboard_records_list_user":  n.leaderboardRecordsListUser,
 		"leaderboard_records_list_users": n.leaderboardRecordsListUsers,
 		"groups_create":                  n.groupsCreate,
 		"groups_update":                  n.groupsUpdate,
@@ -1330,7 +1331,7 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 		return 0
 	}
 
-	record, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
+	record, _, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to submit leaderboard record: %s", err.Error()))
 		return 0
@@ -1352,6 +1353,73 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) leaderboardRecordsListUser(l *lua.LState) int {
+	leaderboardID := l.CheckString(1)
+	if leaderboardID == "" {
+		l.ArgError(1, "expects a valid leaderboard id")
+		return 0
+	}
+	user := l.CheckString(2)
+	if user == "" {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+	userID, err := uuid.FromString(user)
+	if err != nil {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+	limit := l.CheckInt64(3)
+	if limit == 0 {
+		l.ArgError(2, "expects a valid limit 10-100")
+		return 0
+	}
+
+	// Construct the operation.
+	list := &TLeaderboardRecordsList{
+		LeaderboardId: []byte(leaderboardID),
+		Filter: &TLeaderboardRecordsList_OwnerId{
+			OwnerId: userID.Bytes(),
+		},
+		Limit: limit,
+	}
+
+	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, uuid.Nil, list)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list leadeboard records: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	lv := l.NewTable()
+	for i, r := range records {
+		// Convert UUIDs to string representation.
+		uid, _ := uuid.FromBytes(r.OwnerId)
+		r.OwnerId = []byte(uid.String())
+		rm := structs.Map(r)
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(r.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		rt := ConvertMap(l, rm)
+		rt.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, rt)
+	}
+	l.Push(lv)
+
+	if newCursor == nil {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(newCursor))
+	}
+
+	return 2
 }
 
 func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {

@@ -76,7 +76,7 @@ do
   assert(status == true)
 end
 
--- leaderboard_list
+-- leaderboard_records_list_users
 do
   local id = nk.uuid_v4()
   local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
@@ -98,6 +98,31 @@ do
   assert(#res == 1)
   assert(res[1].OwnerId == "4c2ae592-b2a7-445e-98ec-697694478b1c")
   assert(res[1].Score == 22)
+  assert(cursor == nil)
+end
+
+-- leaderboard_records_list_user
+do
+  local id = nk.uuid_v4()
+  local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res = pcall(nk.leaderboard_submit_set, id, 33, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res, cursor = pcall(nk.leaderboard_records_list_user, id, "4c2ae592-b2a7-445e-98ec-697694478b1c", 10)
+  if not status then
+    print(res)
+  end
+  assert(#res == 1)
+  assert(res[1].OwnerId == "4c2ae592-b2a7-445e-98ec-697694478b1c")
+  assert(res[1].Score == 33)
   assert(cursor == nil)
 end
 

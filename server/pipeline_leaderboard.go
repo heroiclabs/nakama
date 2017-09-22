@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorhill/cronexpr"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -175,63 +173,21 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 		}
 	}
 
-	var authoritative bool
-	var sortOrder int64
-	var resetSchedule sql.NullString
-	query := "SELECT authoritative, sort_order, reset_schedule FROM leaderboard WHERE id = $1"
-	logger.Debug("Leaderboard lookup", zap.String("query", query))
-	err := p.db.QueryRow(query, incoming.LeaderboardId).
-		Scan(&authoritative, &sortOrder, &resetSchedule)
-	if err != nil {
-		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
-		return
-	}
-
-	now := now()
-	updatedAt := timeToMs(now)
-	expiresAt := int64(0)
-	if resetSchedule.Valid {
-		expr, err := cronexpr.Parse(resetSchedule.String)
-		if err != nil {
-			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
-			return
-		}
-		expiresAt = timeToMs(expr.Next(now))
-	}
-
-	if authoritative == true {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot submit to authoritative leaderboard"))
-		return
-	}
-
-	var scoreOpSql string
-	var scoreDelta int64
-	var scoreAbs int64
+	var op string
+	var value int64
 	switch incoming.Op.(type) {
 	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Incr:
-		scoreOpSql = "score = leaderboard_record.score + $17::BIGINT"
-		scoreDelta = incoming.GetIncr()
-		scoreAbs = incoming.GetIncr()
+		op = "incr"
+		value = incoming.GetIncr()
 	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Decr:
-		scoreOpSql = "score = leaderboard_record.score - $17::BIGINT"
-		scoreDelta = incoming.GetDecr()
-		scoreAbs = 0 - incoming.GetDecr()
+		op = "decr"
+		value = incoming.GetDecr()
 	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Set:
-		scoreOpSql = "score = $17::BIGINT"
-		scoreDelta = incoming.GetSet()
-		scoreAbs = incoming.GetSet()
+		op = "set"
+		value = incoming.GetSet()
 	case *TLeaderboardRecordsWrite_LeaderboardRecordWrite_Best:
-		if sortOrder == 0 {
-			// Lower score is better.
-			scoreOpSql = "score = ((leaderboard_record.score + $17::BIGINT - abs(leaderboard_record.score - $17::BIGINT)) / 2)::BIGINT"
-		} else {
-			// Higher score is better.
-			scoreOpSql = "score = ((leaderboard_record.score + $17::BIGINT + abs(leaderboard_record.score - $17::BIGINT)) / 2)::BIGINT"
-		}
-		scoreDelta = incoming.GetBest()
-		scoreAbs = incoming.GetBest()
+		op = "best"
+		value = incoming.GetBest()
 	case nil:
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "No leaderboard record write operator found"))
 		return
@@ -240,86 +196,16 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session *session, 
 		return
 	}
 
-	handle := session.handle.Load()
-	params := []interface{}{uuid.NewV4().Bytes(), incoming.LeaderboardId, session.userID.Bytes(), handle, session.lang}
-	if incoming.Location != "" {
-		params = append(params, incoming.Location)
-	} else {
-		params = append(params, nil)
-	}
-	if incoming.Timezone != "" {
-		params = append(params, incoming.Timezone)
-	} else {
-		params = append(params, nil)
-	}
-	params = append(params, 0, scoreAbs, 1)
-	if len(incoming.Metadata) != 0 {
-		params = append(params, incoming.Metadata)
-	} else {
-		params = append(params, nil)
-	}
-	params = append(params, 0, updatedAt, invertMs(updatedAt), expiresAt, 0, scoreDelta)
-
-	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
-				rank_value, score, num_score, metadata, ranked_at, updated_at, updated_at_inverse, expires_at, banned_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15, $16)
-			ON CONFLICT (leaderboard_id, expires_at, owner_id)
-			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
-			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,
-			  metadata = COALESCE($11, leaderboard_record.metadata), updated_at = $13`
-	logger.Debug("Leaderboard record write", zap.String("query", query))
-	res, err := p.db.Exec(query, params...)
+	record, code, err := leaderboardSubmit(logger, p.db, session.userID, incoming.LeaderboardId, session.userID, session.handle.Load(), session.lang, op, value, incoming.Location, incoming.Timezone, incoming.Metadata)
 	if err != nil {
-		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
-		return
-	}
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		logger.Error("Unexpected row count from leaderboard record write query")
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
-		return
-	}
-
-	var location sql.NullString
-	var timezone sql.NullString
-	var rankValue int64
-	var score int64
-	var numScore int64
-	var metadata []byte
-	var rankedAt int64
-	var bannedAt int64
-	query = `SELECT location, timezone, rank_value, score, num_score, metadata, ranked_at, banned_at
-		FROM leaderboard_record
-		WHERE leaderboard_id = $1
-		AND expires_at = $2
-		AND owner_id = $3`
-	logger.Debug("Leaderboard record read", zap.String("query", query))
-	err = p.db.QueryRow(query, incoming.LeaderboardId, expiresAt, session.userID.Bytes()).
-		Scan(&location, &timezone, &rankValue, &score, &numScore, &metadata, &rankedAt, &bannedAt)
-	if err != nil {
-		logger.Error("Could not execute leaderboard record read query", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error writing leaderboard record"))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
 		return
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_LeaderboardRecords{
 		LeaderboardRecords: &TLeaderboardRecords{
 			Records: []*LeaderboardRecord{
-				&LeaderboardRecord{
-					LeaderboardId: incoming.LeaderboardId,
-					OwnerId:       session.userID.Bytes(),
-					Handle:        handle,
-					Lang:          session.lang,
-					Location:      location.String,
-					Timezone:      timezone.String,
-					Rank:          rankValue,
-					Score:         score,
-					NumScore:      numScore,
-					Metadata:      metadata,
-					RankedAt:      rankedAt,
-					UpdatedAt:     updatedAt,
-					ExpiresAt:     expiresAt,
-				},
+				record,
 			},
 			// No cursor.
 		},

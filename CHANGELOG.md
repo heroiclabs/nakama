@@ -5,10 +5,12 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 ### Added
-- New code runtime function to list leaderboard records.
+- New code runtime function to list leaderboard records for a given set of users.
+- New code runtime function to list leaderboard records around a given user.
 
 ### Changed
 - Handle update now returns a bad input error code if handle is too long.
+- Improved handling of content type request headers in HTTP runtime script invocations.
 
 ## [1.0.1] - 2017-08-05
 ### Added

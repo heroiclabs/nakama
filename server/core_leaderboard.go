@@ -293,9 +293,11 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 		AND owner_id = $3`
 	logger.Debug("Leaderboard record find", zap.String("query", findQuery))
 	err := db.QueryRow(findQuery, leaderboardId, currentExpiresAt, findOwnerId).Scan(&id, &score, &updatedAt)
-	if err != nil {
-		// TODO handle errors other than record not found?
+	if err == sql.ErrNoRows {
 		return []*LeaderboardRecord{}, nil, 0, nil
+	} else if err != nil {
+		logger.Error("Could not load owner record in leaderboard records list haystack", zap.Error(err))
+		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
 	}
 
 	// First half.
@@ -466,7 +468,7 @@ func normalizeLeaderboardRecords(records []*LeaderboardRecord) []*LeaderboardRec
 	return records
 }
 
-func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderboardID []byte, ownerID uuid.UUID, handle string, lang string, op string, value int64, location string, timezone string, metadata []byte) (*LeaderboardRecord, error) {
+func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderboardID []byte, ownerID uuid.UUID, handle string, lang string, op string, value int64, location string, timezone string, metadata []byte) (*LeaderboardRecord, Error_Code, error) {
 	var authoritative bool
 	var sortOrder int64
 	var resetSchedule sql.NullString
@@ -476,7 +478,7 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderb
 		Scan(&authoritative, &sortOrder, &resetSchedule)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write metadata query", zap.Error(err))
-		return nil, errors.New("Error writing leaderboard record")
+		return nil, RUNTIME_EXCEPTION, errors.New("Error writing leaderboard record")
 	}
 
 	now := now()
@@ -486,13 +488,13 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderb
 		expr, err := cronexpr.Parse(resetSchedule.String)
 		if err != nil {
 			logger.Error("Could not parse leaderboard reset schedule query", zap.Error(err))
-			return nil, errors.New("Error writing leaderboard record")
+			return nil, RUNTIME_EXCEPTION, errors.New("Error writing leaderboard record")
 		}
 		expiresAt = timeToMs(expr.Next(now))
 	}
 
-	if authoritative == true && caller != uuid.Nil {
-		return nil, errors.New("Cannot submit to authoritative leaderboard")
+	if authoritative && caller != uuid.Nil {
+		return nil, BAD_INPUT, errors.New("Cannot submit to authoritative leaderboard")
 	}
 
 	var scoreOpSql string
@@ -522,7 +524,7 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderb
 		scoreDelta = value
 		scoreAbs = value
 	default:
-		return nil, errors.New("Unknown leaderboard record write operator")
+		return nil, BAD_INPUT, errors.New("Unknown leaderboard record write operator")
 	}
 
 	params := []interface{}{uuid.NewV4().Bytes(), leaderboardID, ownerID.Bytes(), handle, lang}
@@ -555,18 +557,18 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller uuid.UUID, leaderb
 	res, err := db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard record write query", zap.Error(err))
-		return nil, errors.New("Error writing leaderboard record")
+		return nil, RUNTIME_EXCEPTION, errors.New("Error writing leaderboard record")
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		logger.Error("Unexpected row count from leaderboard record write query")
-		return nil, errors.New("Error writing leaderboard record")
+		return nil, RUNTIME_EXCEPTION, errors.New("Error writing leaderboard record")
 	}
 
 	record, err := leaderboardQueryRecords(logger, db, leaderboardID, ownerID, handle, lang, expiresAt, updatedAt)
 	if err != nil {
-		return nil, errors.New("Error writing leaderboard record")
+		return nil, RUNTIME_EXCEPTION, errors.New("Error writing leaderboard record")
 	}
-	return record, nil
+	return record, 0, nil
 }
 
 func leaderboardQueryRecords(logger *zap.Logger, db *sql.DB, leaderboardID []byte, ownerID uuid.UUID, handle string, lang string, expiresAt int64, updatedAt int64) (*LeaderboardRecord, error) {
