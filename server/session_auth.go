@@ -155,7 +155,7 @@ func (a *authenticationService) configure() {
 		conn, err := a.upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			// http.Error is invoked automatically from within the Upgrade func
-			a.logger.Warn("Could not upgrade to websockets", zap.Error(err))
+			a.logger.Warn("Could not upgrade to WebSocket", zap.Error(err))
 			return
 		}
 
@@ -163,25 +163,20 @@ func (a *authenticationService) configure() {
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
-
-
 		accept := r.Header.Get("accept")
 		if accept == "" {
 			accept = "application/json"
 		}
-		acceptMediaType, _, err : mime.ParseMediaType(accept)
+		acceptMediaType, _, err := mime.ParseMediaType(accept)
 		if err != nil {
 			a.logger.Warn("Could not decode accept header", zap.Error(err))
 			http.Error(w, fmt.Sprintf("Runtime function handler was unable to parse accept header: %s", accept), 400)
 			return
 		}
-
 		if acceptMediaType != "application/json" {
-			http.Error(w, fmt.Sprintf("Runtime function received invalid accept header: \"%s\", expected:\"application/json\"", accept), 400)			
+			http.Error(w, fmt.Sprintf("Runtime function received invalid accept header: \"%s\", expected:\"application/json\"", accept), 400)
 			return
 		}
-
-
 
 		contentType := r.Header.Get("content-type")
 		if contentType == "" {
@@ -190,10 +185,9 @@ func (a *authenticationService) configure() {
 		contentMediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil {
 			a.logger.Warn("Could not decode content-type header", zap.Error(err))
-			http.Error(w,  fmt.Sprintf("Runtime function handler was unable to parse content-type header: %s ", contentType), 400)
+			http.Error(w, fmt.Sprintf("Runtime function handler was unable to parse content-type header: %s ", contentType), 400)
 			return
 		}
-
 		if contentMediaType != "application/json" {
 			http.Error(w, fmt.Sprintf("Runtime function received invalid content-type header: \"%s\", expected: \"application/json\"", contentType), 400)
 			return
@@ -220,7 +214,7 @@ func (a *authenticationService) configure() {
 
 		payload := make(map[string]interface{})
 		defer r.Body.Close()
-		err := json.NewDecoder(r.Body).Decode(&payload)
+		err = json.NewDecoder(r.Body).Decode(&payload)
 		switch {
 		case err == io.EOF:
 			payload = nil
