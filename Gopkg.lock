@@ -110,7 +110,7 @@
   branch = "master"
   name = "github.com/wirepair/netcode"
   packages = ["."]
-  revision = "89fd4ed2c8f6eb786fac06216f7db7857547e18d"
+  revision = "14d712a4beed1986c5739f12cc0ab307fe0c8771"
 
 [[projects]]
   name = "github.com/yuin/gopher-lua"

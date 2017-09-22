@@ -17,8 +17,8 @@ package multicode
 import "errors"
 
 const (
-	MAX_PACKET_HEADER_BYTES = 9
-	FRAGMENT_HEADER_BYTES   = 5
+	MAX_PACKET_HEADER_BYTES = 10
+	FRAGMENT_HEADER_BYTES   = 6
 	NULL_SEQUENCE           = uint32(0xFFFFFFFF)
 )
 

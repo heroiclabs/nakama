@@ -22,7 +22,7 @@ type FragmentReassemblyPacketData struct {
 	numFragmentsTotal    int
 	packetDataBuffer     []byte // TODO Replace with a pooled and/or resizable buffer?
 	packetBytes          int
-	packetHeaderBytes    int
+	headerOffset         int
 	fragmentReceived     []bool
 }
 
@@ -38,9 +38,10 @@ func (d *FragmentReassemblyPacketData) StoreFragmentData(channelID byte, sequenc
 	if fragmentID == 0 {
 		// TODO Use a buffer pool.
 		packetHeader := make([]byte, MAX_PACKET_HEADER_BYTES)
-		d.packetHeaderBytes = WritePacketHeader(packetHeader, channelID, sequence, ack, ackBits)
+		headerBytes := WritePacketHeader(packetHeader, channelID, sequence, ack, ackBits)
+		d.headerOffset = MAX_PACKET_HEADER_BYTES - headerBytes
 
-		requiredBufferSize := d.packetHeaderBytes + fragmentSize
+		requiredBufferSize := MAX_PACKET_HEADER_BYTES + fragmentSize
 		if d.packetDataBuffer == nil {
 			d.packetDataBuffer = make([]byte, requiredBufferSize)
 		} else if len(d.packetDataBuffer) < requiredBufferSize {
@@ -49,13 +50,13 @@ func (d *FragmentReassemblyPacketData) StoreFragmentData(channelID byte, sequenc
 			d.packetDataBuffer = buf
 		}
 
-		copy(d.packetDataBuffer, packetHeader[:d.packetHeaderBytes])
-		copyOffset = d.packetHeaderBytes
+		copy(d.packetDataBuffer[d.headerOffset:], packetHeader[:headerBytes])
+		copyOffset = headerBytes
 
-		fragmentBytes -= d.packetHeaderBytes
+		fragmentBytes -= headerBytes
 	}
 
-	requiredTotalBufferSize := d.packetHeaderBytes + fragmentID*fragmentSize + fragmentBytes
+	requiredTotalBufferSize := MAX_PACKET_HEADER_BYTES + fragmentID*fragmentSize + fragmentBytes
 	if d.packetDataBuffer == nil {
 		d.packetDataBuffer = make([]byte, requiredTotalBufferSize)
 	} else {
@@ -68,7 +69,7 @@ func (d *FragmentReassemblyPacketData) StoreFragmentData(channelID byte, sequenc
 		d.packetBytes = (d.numFragmentsTotal-1)*fragmentSize + fragmentBytes
 	}
 
-	copy(d.packetDataBuffer[(d.packetHeaderBytes+fragmentID*fragmentSize):], fragmentData[copyOffset:(copyOffset+fragmentBytes)])
+	copy(d.packetDataBuffer[(MAX_PACKET_HEADER_BYTES+fragmentID*fragmentSize):], fragmentData[copyOffset:(copyOffset+fragmentBytes)])
 }
 
 type SequenceBufferReassembly struct {
