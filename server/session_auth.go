@@ -163,21 +163,45 @@ func (a *authenticationService) configure() {
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
+
+
 		accept := r.Header.Get("accept")
-		if accept != "" && accept != "application/json" {
-			http.Error(w, "Runtime function only accept JSON data", 400)
+		if accept == "" {
+			accept = "application/json"
+		}
+		acceptMediaType, _, err : mime.ParseMediaType(accept)
+		if err != nil {
+			a.logger.Warn("Could not decode accept header", zap.Error(err))
+			http.Error(w, fmt.Sprintf("Runtime function handler was unable to parse accept header: %s", accept), 400)
 			return
 		}
 
+		if acceptMediaType != "application/json" {
+			http.Error(w, fmt.Sprintf("Runtime function received invalid accept header: \"%s\", expected:\"application/json\"", accept), 400)			
+			return
+		}
+
+
+
 		contentType := r.Header.Get("content-type")
-		if contentType != "" && contentType != "application/json" {
-			http.Error(w, "Runtime function expects JSON data", 400)
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		contentMediaType, _, err := mime.ParseMediaType(contentType)
+		if err != nil {
+			a.logger.Warn("Could not decode content-type header", zap.Error(err))
+			http.Error(w,  fmt.Sprintf("Runtime function handler was unable to parse content-type header: %s ", contentType), 400)
+			return
+		}
+
+		if contentMediaType != "application/json" {
+			http.Error(w, fmt.Sprintf("Runtime function received invalid content-type header: \"%s\", expected: \"application/json\"", contentType), 400)
 			return
 		}
 
 		key := r.URL.Query().Get("key")
 		if key != a.config.GetRuntime().HTTPKey {
-			http.Error(w, "Invalid runtime key", 401)
+			http.Error(w, fmt.Sprintf("Invalid runtime key: %s", key), 401)
 			return
 		}
 
@@ -190,7 +214,7 @@ func (a *authenticationService) configure() {
 		fn := a.runtime.GetRuntimeCallback(HTTP, path)
 		if fn == nil {
 			a.logger.Warn("HTTP invocation failed as path was not found", zap.String("path", path))
-			http.Error(w, "Runtime function could not be invoked. Path not found.", 404)
+			http.Error(w, fmt.Sprintf("Runtime function could not be invoked. Path: \"%s\", was not found.", path), 404)
 			return
 		}
 
