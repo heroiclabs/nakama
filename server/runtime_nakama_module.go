@@ -76,6 +76,8 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
+		"sql_exec":                       n.sqlExec,
+		"sql_query":                      n.sqlQuery,
 		"uuid_v4":                        n.uuidV4,
 		"uuid_bytes_to_string":           n.uuidBytesToString,
 		"uuid_string_to_bytes":           n.uuidStringToBytes,
@@ -117,6 +119,106 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 	})
 
 	l.Push(mod)
+	return 1
+}
+
+func (n *NakamaModule) sqlExec(l *lua.LState) int {
+	query := l.CheckString(1)
+	if query == "" {
+		l.ArgError(1, "expects query string")
+		return 0
+	}
+	paramsTable := l.OptTable(2, l.NewTable())
+	if paramsTable == nil {
+		l.ArgError(2, "expects params table")
+		return 0
+	}
+	var params []interface{}
+	if paramsTable.Len() != 0 {
+		var ok bool
+		params, ok = convertLuaValue(paramsTable).([]interface{})
+		if !ok {
+			l.ArgError(2, "expects a list of params as a table")
+			return 0
+		}
+	}
+
+	result, err := n.db.Exec(query, params...)
+	if err != nil {
+		l.RaiseError("sql exec error: %v", err.Error())
+		return 0
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		l.RaiseError("sql exec rows affected error: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LNumber(count))
+	return 1
+}
+
+func (n *NakamaModule) sqlQuery(l *lua.LState) int {
+	query := l.CheckString(1)
+	if query == "" {
+		l.ArgError(1, "expects query string")
+		return 0
+	}
+	paramsTable := l.OptTable(2, l.NewTable())
+	if paramsTable == nil {
+		l.ArgError(2, "expects params table")
+		return 0
+	}
+	var params []interface{}
+	if paramsTable.Len() != 0 {
+		var ok bool
+		params, ok = convertLuaValue(paramsTable).([]interface{})
+		if !ok {
+			l.ArgError(2, "expects a list of params as a table")
+			return 0
+		}
+	}
+
+	rows, err := n.db.Query(query, params...)
+	if err != nil {
+		l.RaiseError("sql query error: %v", err.Error())
+		return 0
+	}
+	defer rows.Close()
+
+	resultColumns, err := rows.Columns()
+	if err != nil {
+		l.RaiseError("sql query column lookup error: %v", err.Error())
+		return 0
+	}
+	resultColumnCount := len(resultColumns)
+	resultRows := make([][]interface{}, 0)
+	for rows.Next() {
+		resultRowValues := make([]interface{}, resultColumnCount)
+		resultRowPointers := make([]interface{}, resultColumnCount)
+		for i, _ := range resultRowValues {
+			resultRowPointers[i] = &resultRowValues[i]
+		}
+		if err = rows.Scan(resultRowPointers...); err != nil {
+			l.RaiseError("sql query scan error: %v", err.Error())
+			return 0
+		}
+		resultRows = append(resultRows, resultRowValues)
+	}
+	if err = rows.Err(); err != nil {
+		l.RaiseError("sql query row scan error: %v", err.Error())
+		return 0
+	}
+
+	rt := l.NewTable()
+	for i, r := range resultRows {
+		rowTable := l.NewTable()
+		for j, col := range resultColumns {
+			rowTable.RawSetString(col, convertValue(l, r[j]))
+		}
+		rt.RawSetInt(i+1, rowTable)
+	}
+	l.Push(rt)
 	return 1
 }
 
