@@ -4,6 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- New code runtime function to list leaderboard records for a given set of users.
+- New code runtime function to list leaderboard records around a given user.
+- New code runtime function to execute raw SQL queries. 
+
+### Changed
+- Handle update now returns a bad input error code if handle is too long.
+- Improved handling of content type request headers in HTTP runtime script invocations.
 
 ## [1.0.1] - 2017-08-05
 ### Added

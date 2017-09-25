@@ -76,45 +76,149 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"uuid_v4":                 n.uuidV4,
-		"uuid_bytes_to_string":    n.uuidBytesToString,
-		"uuid_string_to_bytes":    n.uuidStringToBytes,
-		"http_request":            n.httpRequest,
-		"json_encode":             n.jsonEncode,
-		"json_decode":             n.jsonDecode,
-		"base64_encode":           n.base64Encode,
-		"base64_decode":           n.base64Decode,
-		"base16_encode":           n.base16Encode,
-		"base16_decode":           n.base16decode,
-		"logger_info":             n.loggerInfo,
-		"logger_warn":             n.loggerWarn,
-		"logger_error":            n.loggerError,
-		"register_rpc":            n.registerRPC,
-		"register_before":         n.registerBefore,
-		"register_after":          n.registerAfter,
-		"register_http":           n.registerHTTP,
-		"users_fetch_id":          n.usersFetchId,
-		"users_fetch_handle":      n.usersFetchHandle,
-		"users_update":            n.usersUpdate,
-		"users_ban":               n.usersBan,
-		"storage_list":            n.storageList,
-		"storage_fetch":           n.storageFetch,
-		"storage_write":           n.storageWrite,
-		"storage_update":          n.storageUpdate,
-		"storage_remove":          n.storageRemove,
-		"leaderboard_create":      n.leaderboardCreate,
-		"leaderboard_submit_incr": n.leaderboardSubmitIncr,
-		"leaderboard_submit_decr": n.leaderboardSubmitDecr,
-		"leaderboard_submit_set":  n.leaderboardSubmitSet,
-		"leaderboard_submit_best": n.leaderboardSubmitBest,
-		"groups_create":           n.groupsCreate,
-		"groups_update":           n.groupsUpdate,
-		"group_users_list":        n.groupUsersList,
-		"groups_user_list":        n.groupsUserList,
-		"notifications_send_id":   n.notificationsSendId,
+		"sql_exec":                       n.sqlExec,
+		"sql_query":                      n.sqlQuery,
+		"uuid_v4":                        n.uuidV4,
+		"uuid_bytes_to_string":           n.uuidBytesToString,
+		"uuid_string_to_bytes":           n.uuidStringToBytes,
+		"http_request":                   n.httpRequest,
+		"json_encode":                    n.jsonEncode,
+		"json_decode":                    n.jsonDecode,
+		"base64_encode":                  n.base64Encode,
+		"base64_decode":                  n.base64Decode,
+		"base16_encode":                  n.base16Encode,
+		"base16_decode":                  n.base16decode,
+		"logger_info":                    n.loggerInfo,
+		"logger_warn":                    n.loggerWarn,
+		"logger_error":                   n.loggerError,
+		"register_rpc":                   n.registerRPC,
+		"register_before":                n.registerBefore,
+		"register_after":                 n.registerAfter,
+		"register_http":                  n.registerHTTP,
+		"users_fetch_id":                 n.usersFetchId,
+		"users_fetch_handle":             n.usersFetchHandle,
+		"users_update":                   n.usersUpdate,
+		"users_ban":                      n.usersBan,
+		"storage_list":                   n.storageList,
+		"storage_fetch":                  n.storageFetch,
+		"storage_write":                  n.storageWrite,
+		"storage_update":                 n.storageUpdate,
+		"storage_remove":                 n.storageRemove,
+		"leaderboard_create":             n.leaderboardCreate,
+		"leaderboard_submit_incr":        n.leaderboardSubmitIncr,
+		"leaderboard_submit_decr":        n.leaderboardSubmitDecr,
+		"leaderboard_submit_set":         n.leaderboardSubmitSet,
+		"leaderboard_submit_best":        n.leaderboardSubmitBest,
+		"leaderboard_records_list_user":  n.leaderboardRecordsListUser,
+		"leaderboard_records_list_users": n.leaderboardRecordsListUsers,
+		"groups_create":                  n.groupsCreate,
+		"groups_update":                  n.groupsUpdate,
+		"group_users_list":               n.groupUsersList,
+		"groups_user_list":               n.groupsUserList,
+		"notifications_send_id":          n.notificationsSendId,
 	})
 
 	l.Push(mod)
+	return 1
+}
+
+func (n *NakamaModule) sqlExec(l *lua.LState) int {
+	query := l.CheckString(1)
+	if query == "" {
+		l.ArgError(1, "expects query string")
+		return 0
+	}
+	paramsTable := l.OptTable(2, l.NewTable())
+	if paramsTable == nil {
+		l.ArgError(2, "expects params table")
+		return 0
+	}
+	var params []interface{}
+	if paramsTable.Len() != 0 {
+		var ok bool
+		params, ok = convertLuaValue(paramsTable).([]interface{})
+		if !ok {
+			l.ArgError(2, "expects a list of params as a table")
+			return 0
+		}
+	}
+
+	result, err := n.db.Exec(query, params...)
+	if err != nil {
+		l.RaiseError("sql exec error: %v", err.Error())
+		return 0
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		l.RaiseError("sql exec rows affected error: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LNumber(count))
+	return 1
+}
+
+func (n *NakamaModule) sqlQuery(l *lua.LState) int {
+	query := l.CheckString(1)
+	if query == "" {
+		l.ArgError(1, "expects query string")
+		return 0
+	}
+	paramsTable := l.OptTable(2, l.NewTable())
+	if paramsTable == nil {
+		l.ArgError(2, "expects params table")
+		return 0
+	}
+	var params []interface{}
+	if paramsTable.Len() != 0 {
+		var ok bool
+		params, ok = convertLuaValue(paramsTable).([]interface{})
+		if !ok {
+			l.ArgError(2, "expects a list of params as a table")
+			return 0
+		}
+	}
+
+	rows, err := n.db.Query(query, params...)
+	if err != nil {
+		l.RaiseError("sql query error: %v", err.Error())
+		return 0
+	}
+	defer rows.Close()
+
+	resultColumns, err := rows.Columns()
+	if err != nil {
+		l.RaiseError("sql query column lookup error: %v", err.Error())
+		return 0
+	}
+	resultColumnCount := len(resultColumns)
+	resultRows := make([][]interface{}, 0)
+	for rows.Next() {
+		resultRowValues := make([]interface{}, resultColumnCount)
+		resultRowPointers := make([]interface{}, resultColumnCount)
+		for i, _ := range resultRowValues {
+			resultRowPointers[i] = &resultRowValues[i]
+		}
+		if err = rows.Scan(resultRowPointers...); err != nil {
+			l.RaiseError("sql query scan error: %v", err.Error())
+			return 0
+		}
+		resultRows = append(resultRows, resultRowValues)
+	}
+	if err = rows.Err(); err != nil {
+		l.RaiseError("sql query row scan error: %v", err.Error())
+		return 0
+	}
+
+	rt := l.NewTable()
+	for i, r := range resultRows {
+		rowTable := l.NewTable()
+		for j, col := range resultColumns {
+			rowTable.RawSetString(col, convertValue(l, r[j]))
+		}
+		rt.RawSetInt(i+1, rowTable)
+	}
+	l.Push(rt)
 	return 1
 }
 
@@ -1288,18 +1392,15 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 	_, err = leaderboardCreate(n.logger, n.db, []byte(id), sort, reset, string(metadataBytes), authoritative)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
-		return 0
 	}
 
 	return 0
 }
 
 func (n *NakamaModule) leaderboardSubmitIncr(l *lua.LState) int {
-
 	return n.leaderboardSubmit(l, "incr")
 }
 func (n *NakamaModule) leaderboardSubmitDecr(l *lua.LState) int {
-
 	return n.leaderboardSubmit(l, "decr")
 }
 func (n *NakamaModule) leaderboardSubmitSet(l *lua.LState) int {
@@ -1332,7 +1433,7 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 		return 0
 	}
 
-	record, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
+	record, _, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to submit leaderboard record: %s", err.Error()))
 		return 0
@@ -1354,6 +1455,161 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 
 	l.Push(lv)
 	return 1
+}
+
+func (n *NakamaModule) leaderboardRecordsListUser(l *lua.LState) int {
+	leaderboardID := l.CheckString(1)
+	if leaderboardID == "" {
+		l.ArgError(1, "expects a valid leaderboard id")
+		return 0
+	}
+	user := l.CheckString(2)
+	if user == "" {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+	userID, err := uuid.FromString(user)
+	if err != nil {
+		l.ArgError(1, "expects a valid user ID")
+		return 0
+	}
+	limit := l.CheckInt64(3)
+	if limit == 0 {
+		l.ArgError(2, "expects a valid limit 10-100")
+		return 0
+	}
+
+	// Construct the operation.
+	list := &TLeaderboardRecordsList{
+		LeaderboardId: []byte(leaderboardID),
+		Filter: &TLeaderboardRecordsList_OwnerId{
+			OwnerId: userID.Bytes(),
+		},
+		Limit: limit,
+	}
+
+	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, uuid.Nil, list)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list leadeboard records: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	lv := l.NewTable()
+	for i, r := range records {
+		// Convert UUIDs to string representation.
+		uid, _ := uuid.FromBytes(r.OwnerId)
+		r.OwnerId = []byte(uid.String())
+		rm := structs.Map(r)
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(r.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		rt := ConvertMap(l, rm)
+		rt.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, rt)
+	}
+	l.Push(lv)
+
+	if newCursor == nil {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(newCursor))
+	}
+
+	return 2
+}
+
+func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
+	leaderboardID := l.CheckString(1)
+	if leaderboardID == "" {
+		l.ArgError(1, "expects a valid leaderboard id")
+		return 0
+	}
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects a valid list of user ids")
+		return 0
+	}
+	limit := l.CheckInt64(3)
+	if limit == 0 {
+		l.ArgError(2, "expects a valid limit 10-100")
+		return 0
+	}
+	cursor := l.OptString(4, "")
+
+	// Construct the operation.
+	list := &TLeaderboardRecordsList{
+		LeaderboardId: []byte(leaderboardID),
+		Filter: &TLeaderboardRecordsList_OwnerIds{
+			OwnerIds: &TLeaderboardRecordsList_Owners{
+				OwnerIds: make([][]byte, 0),
+			},
+		},
+		Limit: limit,
+	}
+	if cursor != "" {
+		list.Cursor = []byte(cursor)
+	}
+
+	conversionError := ""
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			conversionError = "expects user ids to be strings"
+			return
+		}
+
+		u, err := uuid.FromString(v.String())
+		if err != nil {
+			conversionError = "expects user ids to be valid"
+			return
+		}
+		list.GetOwnerIds().OwnerIds = append(list.GetOwnerIds().OwnerIds, u.Bytes())
+	})
+
+	if conversionError != "" {
+		l.ArgError(2, conversionError)
+		return 0
+	}
+
+	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, uuid.Nil, list)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list leadeboard records: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	lv := l.NewTable()
+	for i, r := range records {
+		// Convert UUIDs to string representation.
+		uid, _ := uuid.FromBytes(r.OwnerId)
+		r.OwnerId = []byte(uid.String())
+		rm := structs.Map(r)
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal(r.Metadata, &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+
+		rt := ConvertMap(l, rm)
+		rt.RawSetString("Metadata", ConvertMap(l, metadataMap))
+		lv.RawSetInt(i+1, rt)
+	}
+	l.Push(lv)
+
+	if newCursor == nil {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(newCursor))
+	}
+
+	return 2
 }
 
 func (n *NakamaModule) groupsCreate(l *lua.LState) int {

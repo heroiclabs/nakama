@@ -41,6 +41,23 @@ function print_r(arr, indentLevel)
   return str
 end
 
+-- qwertyuiopasdfghjklzxcvbnm
+for i = 97, 122 do table.insert(charset, string.char(i)) end
+
+function string.random(length)
+  math.randomseed(os.time())
+
+  if length > 0 then
+    return string.random(length - 1) .. charset[math.random(1, #charset)]
+  else
+    return ""
+  end
+end
+
+function string.ends(str, with)
+  return with == '' or string.sub(str, -string.len(with)) == with
+end
+
 --[[
   Nakama module
 ]]--
@@ -74,6 +91,56 @@ do
     print(res)
   end
   assert(status == true)
+end
+
+-- leaderboard_records_list_users
+do
+  local id = nk.uuid_v4()
+  local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res = pcall(nk.leaderboard_submit_set, id, 22, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res, cursor = pcall(nk.leaderboard_records_list_users, id, {"4c2ae592-b2a7-445e-98ec-697694478b1c"}, 10, nil)
+  if not status then
+    print(res)
+  end
+  assert(#res == 1)
+  assert(res[1].OwnerId == "4c2ae592-b2a7-445e-98ec-697694478b1c")
+  assert(res[1].Score == 22)
+  assert(cursor == nil)
+end
+
+-- leaderboard_records_list_user
+do
+  local id = nk.uuid_v4()
+  local status, res = pcall(nk.leaderboard_create, id, "desc", "0 0 * * 1", {}, true)
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res = pcall(nk.leaderboard_submit_set, id, 33, "4c2ae592-b2a7-445e-98ec-697694478b1c", "02ebb2c8")
+  if not status then
+    print(res)
+  end
+  assert(status == true)
+
+  local status, res, cursor = pcall(nk.leaderboard_records_list_user, id, "4c2ae592-b2a7-445e-98ec-697694478b1c", 10)
+  if not status then
+    print(res)
+  end
+  assert(#res == 1)
+  assert(res[1].OwnerId == "4c2ae592-b2a7-445e-98ec-697694478b1c")
+  assert(res[1].Score == 33)
+  assert(cursor == nil)
 end
 
 -- logger_info
@@ -274,4 +341,89 @@ do
   local objectDecode = nk.base16_decode(objectEncode)
   assert(objectDecode, "'objectDecode' must not be nil")
   assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
+end
+
+-- sql_exec and sql_query
+do
+  -- Table names cannot start with a number so we can't use our usual UUID here.
+  local t = string.random(20)
+
+  local query = "CREATE TABLE " .. t .. " ( foo VARCHAR(20), bar BIGINT )"
+  local params = {}
+  local status, result = pcall(nk.sql_exec, query, params)
+  if not status then
+    print(result)
+  end
+  assert(result == 0)
+
+  local query = "INSERT INTO " .. t .. " (foo, bar) VALUES ($1, $2), ($3, $4), ($5, $6)"
+  local params = {"foo1", 1, "foo2", 2, "foo3", 3}
+  local status, result = pcall(nk.sql_exec, query, params)
+  if not status then
+    print(result)
+  end
+  assert(result == 3)
+
+  local query = "SELECT * FROM " .. t .. " WHERE bar = $1"
+  local params = {2}
+  local status, result = pcall(nk.sql_query, query, params)
+  if not status then
+    print(result)
+  end
+  assert(#result == 1)
+  assert(result[1].foo == "foo2")
+  assert(result[1].bar == 2)
+
+  local query = "SELECT * FROM " .. t .. " WHERE bar >= $1 ORDER BY bar DESC"
+  local params = {2}
+  local status, result = pcall(nk.sql_query, query, params)
+  if not status then
+    print(result)
+  end
+  assert(#result == 2)
+  assert(result[1].foo == "foo3")
+  assert(result[1].bar == 3)
+  assert(result[2].foo == "foo2")
+  assert(result[2].bar == 2)
+
+  local query = "DELETE FROM " .. t .. " WHERE bar = $1"
+  local params = {2}
+  local status, result = pcall(nk.sql_exec, query, params)
+  if not status then
+    print(result)
+  end
+  assert(result == 1)
+
+  local status, result = pcall(nk.sql_exec, query, params)
+  if not status then
+    print(result)
+  end
+  assert(result == 0)
+
+  local query = "SELECT * FROM " .. t .. " WHERE bar >= $1 ORDER BY bar DESC"
+  local params = {2}
+  local status, result = pcall(nk.sql_query, query, params)
+  if not status then
+    print(result)
+  end
+  assert(#result == 1)
+  assert(result[1].foo == "foo3")
+  assert(result[1].bar == 3)
+
+  local query = "DROP TABLE " .. t
+  local params = {}
+  local status, result = pcall(nk.sql_exec, query, params)
+  if not status then
+    print(result)
+  end
+  assert(result == 0)
+
+  local query = "SELECT * FROM " .. t
+  local params = {}
+  local status, result = pcall(nk.sql_query, query, params)
+  if not status then
+    print(result)
+  end
+  assert(not status)
+  assert(string.ends(result, 'sql query error: pq: table "' .. t .. '" does not exist'))
 end
