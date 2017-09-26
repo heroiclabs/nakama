@@ -17,7 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Increase default maximum length of device and custom IDs from 64 to 128 characters.
 - Increase default maximum length of various name, location, timezone, and other free text fields to 255 characters.
 - Increase default maximum length of storage bucket, collection, and record from 70 to 128 characters.
-- Increase default maximum length of topic room names from 64 to 128 characters. 
+- Increase default maximum length of topic room names from 64 to 128 characters.
 
 ### Fixed
 - Realtime notification routing now correctly resolves connected users.
