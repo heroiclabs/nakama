@@ -35,25 +35,25 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     -- in the same transaction breaks. See issue cockroachdb/cockroach#13505.
     -- In this case we prefer the indexes over the constraint.
     -- FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(id),
-    id                 BYTEA        UNIQUE NOT NULL,
-    leaderboard_id     BYTEA        NOT NULL,
-    owner_id           BYTEA        NOT NULL,
-    handle             VARCHAR(20)  NOT NULL,
-    lang               VARCHAR(18)  DEFAULT 'en' NOT NULL,
-    location           VARCHAR(64), -- e.g. "San Francisco, CA"
-    timezone           VARCHAR(64), -- e.g. "Pacific Time (US & Canada)"
-    rank_value         BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
-    score              BIGINT       DEFAULT 0 NOT NULL,
-    num_score          INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
+    id                 BYTEA         UNIQUE NOT NULL,
+    leaderboard_id     BYTEA         NOT NULL,
+    owner_id           BYTEA         NOT NULL,
+    handle             VARCHAR(128)  NOT NULL,
+    lang               VARCHAR(18)   DEFAULT 'en' NOT NULL,
+    location           VARCHAR(255), -- e.g. "San Francisco, CA"
+    timezone           VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
+    rank_value         BIGINT        DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
+    score              BIGINT        DEFAULT 0 NOT NULL,
+    num_score          INT           DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
     -- FIXME replace with JSONB
-    metadata           BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
-    ranked_at          INT          CHECK (ranked_at >= 0) DEFAULT 0 NOT NULL,
-    updated_at         INT          CHECK (updated_at > 0) NOT NULL,
+    metadata           BYTEA         DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
+    ranked_at          BIGINT        CHECK (ranked_at >= 0) DEFAULT 0 NOT NULL,
+    updated_at         BIGINT        CHECK (updated_at > 0) NOT NULL,
     -- Used to enable proper order in revscan when sorting by score descending.
     -- Revscan is unaviodable here due to cockroachdb/cockroach#14241.
-    updated_at_inverse INT          CHECK (updated_at > 0) NOT NULL,
-    expires_at         INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
-    banned_at          INT          CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
+    updated_at_inverse BIGINT        CHECK (updated_at > 0) NOT NULL,
+    expires_at         BIGINT        CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
+    banned_at          BIGINT        CHECK (expires_at >= 0) DEFAULT 0 NOT NULL
 );
 CREATE INDEX IF NOT EXISTS owner_id_leaderboard_id_idx ON leaderboard_record (owner_id, leaderboard_id);
 CREATE INDEX IF NOT EXISTS leaderboard_id_expires_at_score_updated_at_inverse_id_idx ON leaderboard_record (leaderboard_id, expires_at, score, updated_at_inverse, id);

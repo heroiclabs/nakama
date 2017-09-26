@@ -7,11 +7,21 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - New code runtime function to list leaderboard records for a given set of users.
 - New code runtime function to list leaderboard records around a given user.
-- New code runtime function to execute raw SQL queries. 
+- New code runtime function to execute raw SQL queries.
+- New code runtime function to run CRON expressions.
 
 ### Changed
 - Handle update now returns a bad input error code if handle is too long.
 - Improved handling of content type request headers in HTTP runtime script invocations.
+- Increase default maximum length of user handle from 20 to 128 characters.
+- Increase default maximum length of device and custom IDs from 64 to 128 characters.
+- Increase default maximum length of various name, location, timezone, and other free text fields to 255 characters.
+- Increase default maximum length of storage bucket, collection, and record from 70 to 128 characters.
+- Increase default maximum length of topic room names from 64 to 128 characters. 
+
+### Fixed
+- Realtime notification routing now correctly resolves connected users.
+- The server will now correctly log a reason when clients disconnect unexpectedly.
 
 ## [1.0.1] - 2017-08-05
 ### Added

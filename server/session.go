@@ -83,7 +83,7 @@ func (s *session) Consume(processRequest func(logger *zap.Logger, session *sessi
 	for {
 		_, data, err := s.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 				s.logger.Warn("Error reading message from client", zap.Error(err))
 			}
 			break

@@ -343,6 +343,14 @@ do
   assert(objectDecode == '{"hello": "world"}', '"objectDecode" must equal {"hello": "world"}')
 end
 
+-- cron_next
+do
+  -- Normally use os.time() here.
+  local time = 1506433906
+  local next = nk.cron_next("1 * * * *", time)
+  assert(next == 1506434460)
+end
+
 -- sql_exec and sql_query
 do
   -- Table names cannot start with a number so we can't use our usual UUID here.

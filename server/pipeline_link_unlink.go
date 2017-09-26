@@ -55,8 +55,8 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session *session, envelope *En
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, no spaces or control characters allowed"))
 		return
-	} else if len(deviceID) < 10 || len(deviceID) > 64 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-64 bytes"))
+	} else if len(deviceID) < 10 || len(deviceID) > 128 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-128 bytes"))
 		return
 	}
 
@@ -342,8 +342,8 @@ func (p *pipeline) linkCustom(logger *zap.Logger, session *session, envelope *En
 	} else if invalidCharsRegex.MatchString(customID) {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, no spaces or control characters allowed"))
 		return
-	} else if len(customID) < 10 || len(customID) > 64 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, must be 10-64 bytes"))
+	} else if len(customID) < 10 || len(customID) > 128 {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, must be 10-128 bytes"))
 		return
 	}
 

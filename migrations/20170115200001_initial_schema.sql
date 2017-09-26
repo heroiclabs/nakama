@@ -18,22 +18,22 @@
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
     id             BYTEA         NOT NULL,
-    handle         VARCHAR(20)   CONSTRAINT users_handle_key UNIQUE NOT NULL,
-    fullname       VARCHAR(70),
+    handle         VARCHAR(128)  CONSTRAINT users_handle_key UNIQUE NOT NULL,
+    fullname       VARCHAR(255),
     avatar_url     VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
     lang           VARCHAR(18)   DEFAULT 'en' NOT NULL,
-    location       VARCHAR(64),  -- e.g. "San Francisco, CA"
-    timezone       VARCHAR(64),  -- e.g. "Pacific Time (US & Canada)"
+    location       VARCHAR(255), -- e.g. "San Francisco, CA"
+    timezone       VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
     utc_offset_ms  SMALLINT      DEFAULT 0 NOT NULL,
     metadata       BYTEA         DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
     email          VARCHAR(255)  UNIQUE,
     password       BYTEA         CHECK (length(password) < 32000),
-    facebook_id    VARCHAR(64)   UNIQUE,
-    google_id      VARCHAR(64)   UNIQUE,
-    gamecenter_id  VARCHAR(64)   UNIQUE,
-    steam_id       VARCHAR(64)   UNIQUE,
-    custom_id      VARCHAR(64)   UNIQUE,
+    facebook_id    VARCHAR(128)  UNIQUE,
+    google_id      VARCHAR(128)  UNIQUE,
+    gamecenter_id  VARCHAR(128)  UNIQUE,
+    steam_id       VARCHAR(128)  UNIQUE,
+    custom_id      VARCHAR(128)  UNIQUE,
     created_at     BIGINT        CHECK (created_at > 0) NOT NULL,
     updated_at     BIGINT        CHECK (updated_at > 0) NOT NULL,
     verified_at    BIGINT        CHECK (verified_at >= 0) DEFAULT 0 NOT NULL,
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users(id),
-    id      VARCHAR(64) NOT NULL,
-    user_id BYTEA       NOT NULL
+    id      VARCHAR(128) NOT NULL,
+    user_id BYTEA        NOT NULL
 );
 -- In cockroachdb a FK relationship will implicitly create an index on the
 -- column. As a result we don't need the separate index creation which breaks
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS groups (
     PRIMARY KEY (id),
     id            BYTEA         NOT NULL,
     creator_id    BYTEA         NOT NULL,
-    name          VARCHAR(70)   CONSTRAINT groups_name_key UNIQUE NOT NULL,
+    name          VARCHAR(255)  CONSTRAINT groups_name_key UNIQUE NOT NULL,
     description   VARCHAR(255),
     avatar_url    VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
@@ -111,37 +111,37 @@ CREATE INDEX IF NOT EXISTS source_id_destination_id_state_idx ON group_edge (sou
 
 CREATE TABLE IF NOT EXISTS message (
     PRIMARY KEY (topic, topic_type, message_id),
-    topic      BYTEA       CHECK (length(topic) <= 64) NOT NULL,
-    topic_type SMALLINT    NOT NULL, -- dm(0), room(1), group(2)
-    message_id BYTEA       NOT NULL,
-    user_id    BYTEA       NOT NULL,
-    created_at BIGINT      CHECK (created_at > 0) NOT NULL,
-    expires_at BIGINT      DEFAULT 0 CHECK (created_at >= 0) NOT NULL,
-    handle     VARCHAR(20) NOT NULL,
-    type       SMALLINT    NOT NULL, -- chat(0), group_join(1), group_add(2), group_leave(3), group_kick(4), group_promoted(5)
+    topic      BYTEA        CHECK (length(topic) <= 128) NOT NULL,
+    topic_type SMALLINT     NOT NULL, -- dm(0), room(1), group(2)
+    message_id BYTEA        NOT NULL,
+    user_id    BYTEA        NOT NULL,
+    created_at BIGINT       CHECK (created_at > 0) NOT NULL,
+    expires_at BIGINT       DEFAULT 0 CHECK (created_at >= 0) NOT NULL,
+    handle     VARCHAR(128) NOT NULL,
+    type       SMALLINT     NOT NULL, -- chat(0), group_join(1), group_add(2), group_leave(3), group_kick(4), group_promoted(5)
     -- FIXME replace with JSONB
-    data       BYTEA       DEFAULT '{}' CHECK (length(data) <= 1000) NOT NULL
+    data       BYTEA        DEFAULT '{}' CHECK (length(data) <= 1000) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS topic_topic_type_created_at_idx ON message (topic, topic_type, created_at);
 CREATE INDEX IF NOT EXISTS topic_topic_type_created_at_message_id_user_id_idx ON message (topic, topic_type, created_at, message_id, user_id);
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (bucket, collection, user_id, record, deleted_at),
-    id         BYTEA       NOT NULL,
+    id         BYTEA        NOT NULL,
     user_id    BYTEA,
-    bucket     VARCHAR(70) NOT NULL,
-    collection VARCHAR(70) NOT NULL,
-    record     VARCHAR(70) NOT NULL,
+    bucket     VARCHAR(128) NOT NULL,
+    collection VARCHAR(128) NOT NULL,
+    record     VARCHAR(128) NOT NULL,
     -- FIXME replace with JSONB
-    value      BYTEA       DEFAULT '{}' CHECK (length(value) < 16000) NOT NULL,
-    version    BYTEA       NOT NULL,
-    read       SMALLINT    DEFAULT 1 CHECK (read >= 0) NOT NULL,
-    write      SMALLINT    DEFAULT 1 CHECK (write >= 0) NOT NULL,
-    created_at BIGINT      CHECK (created_at > 0) NOT NULL,
-    updated_at BIGINT      CHECK (updated_at > 0) NOT NULL,
+    value      BYTEA        DEFAULT '{}' CHECK (length(value) < 16000) NOT NULL,
+    version    BYTEA        NOT NULL,
+    read       SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,
+    write      SMALLINT     DEFAULT 1 CHECK (write >= 0) NOT NULL,
+    created_at BIGINT       CHECK (created_at > 0) NOT NULL,
+    updated_at BIGINT       CHECK (updated_at > 0) NOT NULL,
     -- FIXME replace with TTL support
-    expires_at BIGINT      CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
-    deleted_at BIGINT      CHECK (deleted_at >= 0) DEFAULT 0 NOT NULL
+    expires_at BIGINT       CHECK (expires_at >= 0) DEFAULT 0 NOT NULL,
+    deleted_at BIGINT       CHECK (deleted_at >= 0) DEFAULT 0 NOT NULL
 );
 
 -- +migrate Down
