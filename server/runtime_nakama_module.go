@@ -36,6 +36,7 @@ import (
 	"nakama/pkg/jsonpatch"
 
 	"github.com/fatih/structs"
+	"github.com/gorhill/cronexpr"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
@@ -88,6 +89,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"base64_decode":                  n.base64Decode,
 		"base16_encode":                  n.base16Encode,
 		"base16_decode":                  n.base16decode,
+		"cron_next":                      n.cronNext,
 		"logger_info":                    n.loggerInfo,
 		"logger_warn":                    n.loggerWarn,
 		"logger_error":                   n.loggerError,
@@ -409,6 +411,30 @@ func (n *NakamaModule) base16decode(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(output))
+	return 1
+}
+
+func (n *NakamaModule) cronNext(l *lua.LState) int {
+	cron := l.CheckString(1)
+	if cron == "" {
+		l.ArgError(1, "expects cron string")
+		return 0
+	}
+	ts := l.CheckInt64(2)
+	if ts == 0 {
+		l.ArgError(1, "expects timestamp in seconds")
+		return 0
+	}
+
+	expr, err := cronexpr.Parse(cron)
+	if err != nil {
+		l.ArgError(1, "expects a valid cron string")
+		return 0
+	}
+	t := time.Unix(ts, 0)
+	next := expr.Next(t)
+	nextTs := next.UTC().Unix()
+	l.Push(lua.LNumber(nextTs))
 	return 1
 }
 

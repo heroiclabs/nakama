@@ -435,8 +435,8 @@ func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) ([]byt
 		return nil, "", 0, "Device ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		return nil, "", 0, "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
-	} else if len(deviceID) < 10 || len(deviceID) > 64 {
-		return nil, "", 0, "Invalid device ID, must be 10-64 bytes", BAD_INPUT
+	} else if len(deviceID) < 10 || len(deviceID) > 128 {
+		return nil, "", 0, "Invalid device ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	var userID []byte
@@ -631,8 +631,8 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 		return nil, "", 0, "Custom ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(customID) {
 		return nil, "", 0, "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
-	} else if len(customID) < 10 || len(customID) > 64 {
-		return nil, "", 0, "Invalid custom ID, must be 10-64 bytes", BAD_INPUT
+	} else if len(customID) < 10 || len(customID) > 128 {
+		return nil, "", 0, "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	var userID []byte
@@ -728,8 +728,8 @@ func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *Authenticate
 		return nil, "", "", "Device ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(deviceID) {
 		return nil, "", "", "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
-	} else if len(deviceID) < 10 || len(deviceID) > 64 {
-		return nil, "", "", "Invalid device ID, must be 10-64 bytes", BAD_INPUT
+	} else if len(deviceID) < 10 || len(deviceID) > 128 {
+		return nil, "", "", "Invalid device ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
@@ -1030,8 +1030,8 @@ func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *Authenticate
 		return nil, "", "", "Custom ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(customID) {
 		return nil, "", "", "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
-	} else if len(customID) < 10 || len(customID) > 64 {
-		return nil, "", "", "Invalid custom ID, must be 10-64 bytes", BAD_INPUT
+	} else if len(customID) < 10 || len(customID) > 128 {
+		return nil, "", "", "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
