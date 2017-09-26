@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -263,7 +264,7 @@ func (c *Client) requestRaw(provider, path string, headers map[string]string) ([
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, errors.New(provider + " error")
+		return nil, fmt.Errorf("%v error url %v, status code %v, body %v", provider, path, resp.StatusCode, body)
 	}
 	return body, nil
 }

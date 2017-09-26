@@ -22,6 +22,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Realtime notification routing now correctly resolves connected users.
 - The server will now correctly log a reason when clients disconnect unexpectedly.
+- Log a more informative error message when social providers are unreachable or return errors.
 
 ## [1.0.1] - 2017-08-05
 ### Added
