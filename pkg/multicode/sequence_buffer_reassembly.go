@@ -72,6 +72,10 @@ func (d *FragmentReassemblyPacketData) StoreFragmentData(channelID byte, sequenc
 	copy(d.packetDataBuffer[(MAX_PACKET_HEADER_BYTES+fragmentID*fragmentSize):], fragmentData[copyOffset:(copyOffset+fragmentBytes)])
 }
 
+func (d *FragmentReassemblyPacketData) Clear() {
+	d.fragmentReceived = make([]bool, 256)
+}
+
 type SequenceBufferReassembly struct {
 	sequence      uint16
 	numEntries    uint16
@@ -91,4 +95,47 @@ func NewSequenceBufferReassembly(bufferSize int) *SequenceBufferReassembly {
 		s.entryData[i] = NewFragmentReassemblyPacketData()
 	}
 	return s
+}
+
+func (s *SequenceBufferReassembly) Find(sequence uint16) *FragmentReassemblyPacketData {
+	index := sequence % s.numEntries
+	sequenceNum := s.entrySequence[index]
+	if sequenceNum == uint32(sequence) {
+		return s.entryData[index]
+	}
+	return nil
+}
+
+func (s *SequenceBufferReassembly) Insert(sequence uint16) *FragmentReassemblyPacketData {
+	if SequenceLessThan(sequence, s.sequence-s.numEntries) {
+		return nil
+	}
+
+	if SequenceGreaterThan(sequence+1, s.sequence) {
+		s.RemoveEntries(int32(s.sequence), int32(sequence))
+		s.sequence = sequence + 1
+	}
+
+	index := sequence % s.numEntries
+	s.entrySequence[index] = uint32(sequence)
+	return s.entryData[index]
+}
+
+func (s *SequenceBufferReassembly) Remove(sequence uint16) {
+	s.entrySequence[sequence%s.numEntries] = NULL_SEQUENCE
+}
+
+func (s *SequenceBufferReassembly) RemoveEntries(startSequence, finishSequence int32) {
+	if finishSequence < startSequence {
+		finishSequence += 65536
+	}
+	if uint16(finishSequence-startSequence) < s.numEntries {
+		for sequence := startSequence; sequence <= finishSequence; sequence++ {
+			s.entrySequence[uint16(sequence)%s.numEntries] = NULL_SEQUENCE
+		}
+	} else {
+		for i := uint16(0); i < s.numEntries; i++ {
+			s.entrySequence[i] = NULL_SEQUENCE
+		}
+	}
 }
