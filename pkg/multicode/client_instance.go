@@ -76,6 +76,10 @@ type ClientInstance struct {
 	replayProtection   *netcode.ReplayProtection
 	incomingPacketCh   chan netcode.Packet
 	outgoingPacketData []byte
+
+	// Reliable layer.
+	unreliableReceiveBuffer *SequenceBufferReceived
+	unreliableController    *ReliablePacketController
 }
 
 func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
@@ -118,7 +122,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		// (Assumes KEEP_ALIVE_EXPIRY_RESOLUTION == 4, higher value means more frequent ticks.)
 		// Resolution is timeout / 4 to reduce load caused by frequent checks.
 		// In exchange for a 10 second timeout it could take up to 12.5 seconds to expire.
-		// Similarly we sent up to 4 keep alive packets per timeout window.
+		// Similarly we send up to 4 keep alive packets per timeout window.
 		ticker := time.NewTicker(time.Duration(c.timeoutMs/KEEP_ALIVE_EXPIRY_RESOLUTION) * time.Millisecond)
 		defer ticker.Stop()
 
@@ -185,6 +189,9 @@ func (c *ClientInstance) Read() ([]byte, error) {
 				c.Unlock()
 				continue
 			case netcode.ConnectionPayload:
+				ts := nowMs()
+
+				// General client instance maintenance.
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
@@ -194,16 +201,53 @@ func (c *ClientInstance) Read() ([]byte, error) {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
 					c.confirmed = true
 				}
-				c.lastRecv = nowMs()
-				c.Unlock()
+				c.lastRecv = ts
+
+				// Check we have a valid payload packet.
 				p, ok := packet.(*netcode.PayloadPacket)
 				if !ok {
+					c.Unlock()
 					// Should not happen, already checked the type.
 					// If it does then silently discard the packet and keep waiting.
 					c.logger.Debug("not a payload packet")
 					continue
 				}
-				return p.PayloadData, nil
+
+				// Process through the correct channel.
+				channelID := p.PayloadData[1]
+				if channelID == 0 {
+					// Reliable.
+					// TODO
+
+					c.Unlock()
+					continue
+				} else if channelID == 1 {
+					// Unreliable.
+					// Unreliable packets are not expected to generate ack sequences, so ignore that return value.
+					sequence, data, length, _, err := c.unreliableController.ReceivePacket(ts, p.PayloadData, len(p.PayloadData))
+					if err != nil {
+						c.Unlock()
+						c.logger.Debug("error processing unreliable packet", zap.Error(err))
+						continue
+					}
+					if data != nil {
+						// A packet is ready to be processed, ie. either arrived complete or has finished reassembly.
+						if !c.unreliableReceiveBuffer.Exists(sequence) {
+							// If it wasn't a stale packet, deliver to the reader.
+							c.unreliableReceiveBuffer.Insert(sequence)
+							c.Unlock()
+							return data[:length], nil
+						}
+						c.Unlock()
+						continue
+					}
+				}
+
+				// Other channel IDs not supported.
+				c.Unlock()
+				c.logger.Debug("server received payload with unknown channelID")
+				continue
+				//return p.PayloadData, nil
 			default:
 				// Silently discard any other packets and keep waiting.
 				// The server should not have sent any other types down the channel but handle it just in case.
@@ -216,12 +260,12 @@ func (c *ClientInstance) Read() ([]byte, error) {
 	}
 }
 
-// NOTE: Only for payload data packets, other protocol messages must be sent through other functions.
-func (c *ClientInstance) Send(payloadData []byte) error {
-	if len(payloadData) > netcode.MAX_PACKET_BYTES {
-		c.logger.Warn("server attempting to send packet data exceeding max length, dropping packet")
-		return ErrClientInstancePacketDataTooLarge
-	}
+// NOTE: Only for payload data packets, other protocol-level messages MUST be sent through other functions.
+func (c *ClientInstance) Send(payloadData []byte, reliable bool) error {
+	//if len(payloadData) > netcode.MAX_PACKET_BYTES {
+	//	c.logger.Warn("server attempting to send packet data exceeding max length, dropping packet")
+	//	return ErrClientInstancePacketDataTooLarge
+	//}
 
 	c.Lock()
 	if c.stopped || !c.connected {
@@ -229,15 +273,44 @@ func (c *ClientInstance) Send(payloadData []byte) error {
 		return ErrClientInstanceNotConnected
 	}
 
+	var sequence uint16
+	var fragments [][]byte
+	var fragmentLengths []int
+	var err error
+	if reliable {
+		// Reliable.
+		// TODO
+
+	} else {
+		// Unreliable.
+		sequence, fragments, fragmentLengths, err = c.unreliableController.SendPacket(nowMs(), payloadData, len(payloadData), byte(1))
+	}
+	if err != nil {
+		c.Unlock()
+		return err
+	}
+
+	// TODO placeholder to stop variable warning
+	if sequence < uint16(1) {
+		sequence = 1
+	}
+
 	// Per spec all packets sent to unconfirmed clients are preceded by keep alive packets.
 	if !c.confirmed {
 		c.sendKeepAlive()
 	}
 
-	packet := netcode.NewPayloadPacket(payloadData)
-	err := c.sendPacket(packet)
+	for i := 0; i < len(fragments); i++ {
+		packet := netcode.NewPayloadPacket(fragments[i][:fragmentLengths[i]])
+		err := c.sendPacket(packet)
+		if err != nil {
+			c.Unlock()
+			return err
+		}
+	}
+
 	c.Unlock()
-	return err
+	return nil
 }
 
 func (c *ClientInstance) Close(sendDisconnect bool) {

@@ -34,16 +34,6 @@ type ReliablePacketController struct {
 	bandwidthSmoothingFactor     float64
 	packetHeaderSize             int
 
-	time int64
-	// TODO flip this responsibility.
-	// A function used to send outgoing data.
-	sendFn func([]byte, int)
-	// TODO flip this responsibility.
-	// A function used to hand off data ready for the application to consume.
-	receiveFn func(uint16, []byte, int)
-	// TODO flip?
-	ackFn func(uint16)
-
 	rtt                   float64
 	packetLoss            float64
 	sentBandwidthKBPS     float64
@@ -55,7 +45,7 @@ type ReliablePacketController struct {
 	fragmentReassembly    *SequenceBufferReassembly
 }
 
-func NewReliablePacketController(time int64, sendFn func([]byte, int), receiveFn func(uint16, []byte, int), ackFn func(uint16)) *ReliablePacketController {
+func NewReliablePacketController() *ReliablePacketController {
 	return &ReliablePacketController{
 		maxPacketSize:                16 * 1024,
 		fragmentThreshold:            1024,
@@ -69,47 +59,43 @@ func NewReliablePacketController(time int64, sendFn func([]byte, int), receiveFn
 		bandwidthSmoothingFactor:     0.1,
 		packetHeaderSize:             28,
 
-		time:      time,
-		sendFn:    sendFn,
-		receiveFn: receiveFn,
-		ackFn:     ackFn,
-
 		sentPackets:        NewSequenceBufferSent(256),
 		receivedPackets:    NewSequenceBufferReceived(256),
 		fragmentReassembly: NewSequenceBufferReassembly(64),
 	}
 }
 
-func (r *ReliablePacketController) Update(time int64) {
-	r.time = time
-
+func (r *ReliablePacketController) Update() {
 	r.calculatePacketLoss()
 	r.calculateSentBandwidth()
 	r.calculateReceivedBandwidth()
 	r.calculateAckedBandwidth()
 }
 
-func (r *ReliablePacketController) SendAck(channelID byte) {
+func (r *ReliablePacketController) SendAck(channelID byte) ([]byte, int) {
 	ack, ackBits := r.receivedPackets.GenerateAckBits()
 	// TODO pool.
 	transmitData := make([]byte, 16)
 	headerBytes := WriteAckPacket(transmitData, channelID, ack, ackBits)
-	r.sendFn(transmitData, headerBytes)
+	return transmitData, headerBytes
+	//r.sendFn(transmitData, headerBytes)
 }
 
-func (r *ReliablePacketController) SendPacket(packetData []byte, length int, channelID byte) (uint16, error) {
+func (r *ReliablePacketController) SendPacket(time int64, packetData []byte, length int, channelID byte) (uint16, [][]byte, []int, error) {
 	if length > r.maxPacketSize {
-		return 0, ErrReliablePacketControllerPacketDataTooLarge
+		return 0, nil, nil, ErrReliablePacketControllerPacketDataTooLarge
 	}
 
 	sequence := r.sequence
 	r.sequence++
+
 	ack, ackBits := r.receivedPackets.GenerateAckBits()
+
 	sentPacketData := r.sentPackets.Insert(sequence)
-	// TODO use current time from function call
-	sentPacketData.time = r.time
+	sentPacketData.time = time
 	sentPacketData.packetBytes = uint32(r.packetHeaderSize + length)
 	sentPacketData.acked = false
+
 	if length <= r.fragmentThreshold {
 		// Regular, non-fragmented packet.
 		// TODO pool.
@@ -118,7 +104,8 @@ func (r *ReliablePacketController) SendPacket(packetData []byte, length int, cha
 		transmitBufferLength := length + headerBytes
 		copy(transmitData[headerBytes:], packetData[:length])
 
-		r.sendFn(transmitData, transmitBufferLength)
+		//r.sendFn(transmitData, transmitBufferLength)
+		return sequence, [][]byte{transmitData}, []int{transmitBufferLength}, nil
 	} else {
 		// Fragmented packet.
 		packetHeader := make([]byte, MAX_PACKET_HEADER_BYTES)
@@ -135,6 +122,8 @@ func (r *ReliablePacketController) SendPacket(packetData []byte, length int, cha
 		prefixByte := byte(1)
 		prefixByte |= (channelID & 0x03) << 6
 
+		d := make([][]byte, numFragments)
+		l := make([]int, numFragments)
 		for fragmentID := byte(0); fragmentID < numFragments; fragmentID++ {
 			rw := NewByteArrayReaderWriter(fragmentPacketData)
 			rw.WriteByte(prefixByte)
@@ -156,16 +145,19 @@ func (r *ReliablePacketController) SendPacket(packetData []byte, length int, cha
 			}
 
 			fragmentPacketBytes := rw.writePosition
-			r.sendFn(fragmentPacketData, fragmentPacketBytes)
+			//r.sendFn(fragmentPacketData, fragmentPacketBytes)
+			d[fragmentID] = fragmentPacketData
+			l[fragmentID] = fragmentPacketBytes
 		}
+		return sequence, d, l, nil
 	}
 
-	return sequence, nil
+	//return sequence, nil
 }
 
-func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength int) error {
+func (r *ReliablePacketController) ReceivePacket(time int64, packetData []byte, bufferLength int) (uint16, []byte, int, []uint16, error) {
 	if bufferLength > r.maxPacketSize {
-		return ErrReliablePacketControllerPacketDataTooLarge
+		return 0, nil, 0, nil, ErrReliablePacketControllerPacketDataTooLarge
 	}
 
 	prefixByte := packetData[0]
@@ -173,30 +165,33 @@ func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength
 		// Regular, non-fragmented packet.
 		packetHeaderBytes, _, sequence, ack, ackBits, err := ReadPacketHeader(packetData, 0, bufferLength)
 		if err != nil {
-			return err
+			return 0, nil, 0, nil, err
 		}
 		isStale := r.receivedPackets.TestInsert(sequence)
 		// All stale packets are dropped.
 		if !isStale && (prefixByte&0x80) == 0 {
-			r.receiveFn(sequence, packetData[packetHeaderBytes:(packetHeaderBytes+bufferLength-packetHeaderBytes)], bufferLength-packetHeaderBytes)
-
 			receivedPacketData := r.receivedPackets.Insert(sequence)
-			// TODO use current time from function call
-			receivedPacketData.time = r.time
+			receivedPacketData.time = time
 			receivedPacketData.packetBytes = uint32(r.packetHeaderSize + bufferLength)
-		}
-		if !isStale || (prefixByte&0x80) != 0 {
+
+			return sequence, packetData[packetHeaderBytes:(packetHeaderBytes + bufferLength - packetHeaderBytes)], bufferLength - packetHeaderBytes, nil, nil
+		} else if !isStale {
+			var ackSequences []uint16
 			for i := uint16(0); i < 32; i++ {
 				if (ackBits & 1) != 0 {
 					ackSequence := ack - i
 					sentPacketData := r.sentPackets.Find(ackSequence)
 					if sentPacketData != nil && !sentPacketData.acked {
 						sentPacketData.acked = true
-						if r.ackFn != nil {
-							r.ackFn(ackSequence)
+						if ackSequences == nil {
+							ackSequences = []uint16{ackSequence}
+						} else {
+							ackSequences = append(ackSequences, ackSequence)
 						}
-						// TODO use current time from function call
-						rtt := float64((r.time - sentPacketData.time) * 1000)
+						//if r.ackFn != nil {
+						//	r.ackFn(ackSequence)
+						//}
+						rtt := float64((time - sentPacketData.time) * 1000)
 						if (r.rtt == 0 && rtt > 0) || math.Abs(r.rtt-rtt) < 0.00001 {
 							r.rtt = rtt
 						} else {
@@ -206,19 +201,20 @@ func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength
 				}
 				ackBits >>= 1
 			}
+			return 0, nil, 0, ackSequences, nil
 		}
 	} else {
 		// Fragmented packet.
 		fragmentHeaderBytes, fragmentID, numFragments, _, sequence, ack, ackBits, channelID, err := ReadFragmentHeader(packetData, 0, bufferLength, r.maxFragments, r.fragmentSize)
 		if err != nil {
-			return err
+			return 0, nil, 0, nil, err
 		}
 		reassemblyData := r.fragmentReassembly.Find(sequence)
 		if reassemblyData == nil {
 			reassemblyData = r.fragmentReassembly.Insert(sequence)
 			if reassemblyData == nil {
 				// Insert fail indicates stale.
-				return nil
+				return 0, nil, 0, nil, nil
 			}
 			reassemblyData.sequence = sequence
 			reassemblyData.ack = 0
@@ -228,10 +224,10 @@ func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength
 			reassemblyData.packetBytes = 0
 		}
 		if numFragments != reassemblyData.numFragmentsTotal {
-			return nil
+			return 0, nil, 0, nil, nil
 		}
 		if reassemblyData.fragmentReceived[fragmentID] {
-			return nil
+			return 0, nil, 0, nil, nil
 		}
 		reassemblyData.numFragmentsReceived++
 		reassemblyData.fragmentReceived[fragmentID] = true
@@ -249,18 +245,18 @@ func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength
 			copy(temp, reassemblyData.packetDataBuffer[reassemblyData.headerOffset:(reassemblyData.headerOffset+length)])
 
 			// Pass it back to this same function as a non-fragmented packet.
-			err := r.ReceivePacket(temp, length)
-			if err != nil {
-				return err
-			}
+			s, p, l, a, err := r.ReceivePacket(time, temp, length)
 
+			// Even if there's an error processing the reassembled fragment just above, we still clear it.
 			// TODO is clearing fragmentReassembly.packetDataBuffer necessary?
 			reassemblyData.packetDataBuffer = nil
 			r.fragmentReassembly.Remove(sequence)
+
+			return s, p, l, a, err
 		}
 	}
 
-	return nil
+	return 0, nil, 0, nil, nil
 }
 
 func (r *ReliablePacketController) calculatePacketLoss() {
