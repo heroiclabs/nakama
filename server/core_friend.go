@@ -51,18 +51,12 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID [
 				logger.Warn("Failed to send friend add notification", zap.Error(e))
 				return
 			}
-			var recipient []byte
-			var sender []byte
 			var subject string
 			var code int64
 			if isFriendAccept {
-				recipient = userID
-				sender = friendID
 				subject = fmt.Sprintf("%v accepted your friend request", handle)
 				code = NOTIFICATION_FRIEND_ACCEPT
 			} else {
-				recipient = friendID
-				sender = userID
 				subject = fmt.Sprintf("%v wants to add you as a friend", handle)
 				code = NOTIFICATION_FRIEND_REQUEST
 			}
@@ -70,11 +64,11 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID [
 			if e := ns.NotificationSend([]*NNotification{
 				&NNotification{
 					Id:         uuid.NewV4().Bytes(),
-					UserID:     recipient,
+					UserID:     friendID,
 					Subject:    subject,
 					Content:    content,
 					Code:       code,
-					SenderID:   sender,
+					SenderID:   userID,
 					CreatedAt:  updatedAt,
 					ExpiresAt:  updatedAt + ns.expiryMs,
 					Persistent: true,

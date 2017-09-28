@@ -99,8 +99,12 @@ func (n *NotificationService) NotificationSend(notifications []*NNotification) e
 	for userID, ns := range notificationsByUser {
 		presences := n.tracker.ListByTopicUser("notifications", userID)
 		if len(presences) != 0 {
-			nots := convertNotifications(ns)
-			n.messageRouter.Send(n.logger, presences, nots)
+			envelope := &Envelope{
+				Payload: &Envelope_LiveNotifications{
+					LiveNotifications: convertNotifications(ns),
+				},
+			}
+			n.messageRouter.Send(n.logger, presences, envelope)
 		}
 	}
 
