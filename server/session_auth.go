@@ -40,6 +40,7 @@ import (
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"nakama/pkg/httputil"
 )
 
 const (
@@ -163,18 +164,20 @@ func (a *authenticationService) configure() {
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
-		accept := r.Header.Get("accept")
-		if accept == "" {
-			accept = "application/json"
+		if r.Header.Get("accept") == "" {
+			// If no Accept header is provided, assume the client can handle application/json.
+			r.Header.Add("accept", "application/json")
 		}
-		acceptMediaType, _, err := mime.ParseMediaType(accept)
-		if err != nil {
-			a.logger.Warn("Could not decode accept header", zap.Error(err))
-			http.Error(w, fmt.Sprintf("Runtime function handler was unable to parse accept header: %s", accept), 400)
-			return
+		acceptSpecs := httputil.ParseAccept(r.Header, "Accept")
+		acceptable := false
+		for _, acceptSpec := range acceptSpecs {
+			if acceptSpec.Value == "application/json" || acceptSpec.Value == "*/*" {
+				acceptable = true
+				break
+			}
 		}
-		if acceptMediaType != "application/json" {
-			http.Error(w, fmt.Sprintf("Runtime function received invalid accept header: \"%s\", expected:\"application/json\"", accept), 400)
+		if !acceptable {
+			http.Error(w, fmt.Sprintf("Runtime function received invalid accept header: \"%s\", expected at least: \"application/json\"", r.Header.Get("accept")), 400)
 			return
 		}
 

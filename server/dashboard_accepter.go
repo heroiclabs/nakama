@@ -26,6 +26,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"os"
 )
 
 // DashboardService is responsible for serving the dashboard and all of its required resources
@@ -56,8 +57,7 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	service.mux.HandleFunc("/v0/cluster/stats", service.statusHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/config", service.configHandler).Methods("GET")
 	service.mux.HandleFunc("/v0/info", service.infoHandler).Methods("GET")
-	// TODO coming soon
-	// service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") // Needs to be last.
+	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") // Needs to be last.
 
 	go func() {
 		bindAddr := fmt.Sprintf(":%d", config.GetDashboard().Port)
@@ -67,11 +67,11 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 			multiLogger.Fatal("Dashboard listener failed", zap.Error(err))
 		}
 	}()
-	// hostname, err := os.Hostname()
-	// if err != nil {
-	// 	 hostname = "127.0.0.1"
-	// }
-	// multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "127.0.0.1"
+	}
+	multiLogger.Info("Dashboard", zap.String("address", fmt.Sprintf("http://%s:%d", hostname, config.GetDashboard().Port)))
 
 	return service
 }

@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - Handle update now returns a bad input error code if handle is too long.
+- Improved handling of accept request headers in HTTP runtime script invocations.
 - Improved handling of content type request headers in HTTP runtime script invocations.
 - Increase default maximum length of user handle from 20 to 128 characters.
 - Increase default maximum length of device and custom IDs from 64 to 128 characters.
