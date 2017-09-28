@@ -254,7 +254,8 @@ func (r *ReliablePacketController) ReceivePacket(packetData []byte, bufferLength
 				return err
 			}
 
-			// TODO also clear fragmentReassembly.packetDataBuffer?
+			// TODO is clearing fragmentReassembly.packetDataBuffer necessary?
+			reassemblyData.packetDataBuffer = nil
 			r.fragmentReassembly.Remove(sequence)
 		}
 	}
