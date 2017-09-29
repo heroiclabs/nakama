@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.0.2] - 2017-09-29
 ### Added
 - New code runtime function to list leaderboard records for a given set of users.
 - New code runtime function to list leaderboard records around a given user.
@@ -20,11 +20,11 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Increase default maximum length of storage bucket, collection, and record from 70 to 128 characters.
 - Increase default maximum length of topic room names from 64 to 128 characters.
 - Better error responses when runtime function RPC or HTTP hooks fail or return errors.
+- Log a more informative error message when social providers are unreachable or return errors.
 
 ### Fixed
 - Realtime notification routing now correctly resolves connected users.
 - The server will now correctly log a reason when clients disconnect unexpectedly.
-- Log a more informative error message when social providers are unreachable or return errors.
 - Use correct wire format when sending live notifications to clients.
 
 ## [1.0.1] - 2017-08-05
