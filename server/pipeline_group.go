@@ -43,7 +43,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 	e := envelope.GetGroupsCreate()
 
 	if len(e.Groups) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.Groups) > 1 {
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -51,7 +51,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 
 	g := e.Groups[0]
 	if g.Name == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group name is mandatory."))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group name is mandatory."), true)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not create group", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Could not create group"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Could not create group"), true)
 		return
 	}
 
@@ -74,18 +74,18 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 				}
 			}
 			if strings.HasSuffix(err.Error(), "violates unique constraint \"groups_name_key\"") {
-				session.Send(ErrorMessage(envelope.CollationId, GROUP_NAME_INUSE, "Name is in use"))
+				session.Send(ErrorMessage(envelope.CollationId, GROUP_NAME_INUSE, "Name is in use"), true)
 			} else {
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"), true)
 			}
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create group"), true)
 			} else {
 				logger.Info("Created new group", zap.String("name", group.Name))
-				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{&TGroups{Groups: []*Group{group}}}})
+				session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{&TGroups{Groups: []*Group{group}}}}, true)
 			}
 		}
 	}()
@@ -129,7 +129,7 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(g.Metadata, &maybeJSON) != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 			return
 		}
 
@@ -172,7 +172,7 @@ func (p *pipeline) groupUpdate(l *zap.Logger, session session, envelope *Envelop
 	e := envelope.GetGroupsUpdate()
 
 	if len(e.Groups) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.Groups) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -184,31 +184,31 @@ func (p *pipeline) groupUpdate(l *zap.Logger, session session, envelope *Envelop
 	// Validate input.
 	_, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
 		return
 	}
 
 	// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 	var maybeJSON map[string]interface{}
 	if len(g.Metadata) != 0 && json.Unmarshal(g.Metadata, &maybeJSON) != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 		return
 	}
 
 	code, err := GroupsUpdate(l, p.db, session.UserID(), []*TGroupsUpdate_GroupUpdate{g})
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsRemove()
 
 	if len(e.GroupIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupIds) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -218,7 +218,7 @@ func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelop
 	//TODO kick all users out
 	groupID, err := uuid.FromBytes(g)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
 		return
 	}
 
@@ -228,7 +228,7 @@ func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelop
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not remove group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 		return
 	}
 	defer func() {
@@ -238,15 +238,15 @@ func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelop
 			if err != nil {
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 			} else {
 				logger.Info("Removed group")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 			}
 		}
 	}()
@@ -280,7 +280,7 @@ func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *En
 	e := envelope.GetGroupsFetch()
 
 	if len(e.Groups) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	}
 
@@ -295,23 +295,23 @@ func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *En
 				params = append(params, groupID.Bytes())
 				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
 			} else {
-				session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is invalid"))
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is invalid"), true)
 				return
 			}
 		case *TGroupsFetch_GroupFetch_Name:
 			params = append(params, g.GetName())
 			statements = append(statements, "name = $"+strconv.Itoa(len(params)))
 		case nil:
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch identifier is required"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "A fetch identifier is required"), true)
 			return
 		default:
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch identifier"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Unknown fetch identifier"), true)
 			return
 		}
 	}
 
 	if len(statements) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "One or more fetch set values are required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "One or more fetch set values are required"), true)
 		return
 	}
 
@@ -321,7 +321,7 @@ FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
 		params...)
 	if err != nil {
 		logger.Error("Could not get groups", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"), true)
 		return
 	}
 	defer rows.Close()
@@ -331,13 +331,13 @@ FROM groups WHERE disabled_at = 0 AND ( `+strings.Join(statements, " OR ")+" )",
 		group, err := extractGroup(rows)
 		if err != nil {
 			logger.Error("Could not get groups", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get groups"), true)
 			return
 		}
 		groups = append(groups, group)
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{Groups: groups}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{Groups: groups}}}, true)
 }
 
 func (p *pipeline) groupsList(logger *zap.Logger, session session, envelope *Envelope) {
@@ -348,7 +348,7 @@ func (p *pipeline) groupsList(logger *zap.Logger, session session, envelope *Env
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Page limit must be between 10 and 100"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Page limit must be between 10 and 100"), true)
 		return
 	}
 
@@ -357,7 +357,7 @@ func (p *pipeline) groupsList(logger *zap.Logger, session session, envelope *Env
 	if incoming.Cursor != nil {
 		var c groupCursor
 		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(&c); err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
 			return
 		}
 
@@ -407,7 +407,7 @@ LIMIT $` + strconv.Itoa(len(params))
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not list groups", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"), true)
 		return
 	}
 	defer rows.Close()
@@ -431,7 +431,7 @@ LIMIT $` + strconv.Itoa(len(params))
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Could not create group list cursor", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"), true)
 				return
 			}
 			cursor = cursorBuf.Bytes()
@@ -440,7 +440,7 @@ LIMIT $` + strconv.Itoa(len(params))
 		lastGroup, err = extractGroup(rows)
 		if err != nil {
 			logger.Error("Could not list groups", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"), true)
 			return
 		}
 		groups = append(groups, lastGroup)
@@ -449,17 +449,17 @@ LIMIT $` + strconv.Itoa(len(params))
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Groups{Groups: &TGroups{
 		Groups: groups,
 		Cursor: cursor,
-	}}})
+	}}}, true)
 }
 
 func (p *pipeline) groupsSelfList(logger *zap.Logger, session session, envelope *Envelope) {
 	groups, code, err := GroupsSelfList(logger, p.db, session.UserID(), session.UserID())
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupsSelf{GroupsSelf: &TGroupsSelf{GroupsSelf: groups}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupsSelf{GroupsSelf: &TGroupsSelf{GroupsSelf: groups}}}, true)
 }
 
 func (p *pipeline) groupUsersList(logger *zap.Logger, session session, envelope *Envelope) {
@@ -467,24 +467,24 @@ func (p *pipeline) groupUsersList(logger *zap.Logger, session session, envelope 
 
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
 	users, code, err := GroupUsersList(logger, p.db, session.UserID(), groupID)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupUsers{GroupUsers: &TGroupUsers{Users: users}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_GroupUsers{GroupUsers: &TGroupUsers{Users: users}}}, true)
 }
 
 func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetGroupsJoin()
 
 	if len(e.GroupIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupIds) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -493,7 +493,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 	g := e.GroupIds[0]
 	groupID, err := uuid.FromBytes(g)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
 		return
 	}
 
@@ -509,7 +509,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not add user to group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"), true)
 		return
 	}
 	defer func() {
@@ -520,15 +520,15 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not join group"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not join group"), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not join group"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not join group"), true)
 			} else {
 				logger.Info("User joined group")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
 				if !privateGroup {
 					// If the user was added directly.
@@ -595,7 +595,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 	}
 
 	if affectedRows, _ := res.RowsAffected(); affectedRows == 0 {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not accept group join envelope. Group may not exists with the given ID"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not accept group join envelope. Group may not exists with the given ID"), true)
 		return
 	}
 
@@ -632,7 +632,7 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 	e := envelope.GetGroupsLeave()
 
 	if len(e.GroupIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupIds) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -641,7 +641,7 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 	g := e.GroupIds[0]
 	groupID, err := uuid.FromBytes(g)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
@@ -652,7 +652,7 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not leave group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 		return
 	}
 	defer func() {
@@ -663,15 +663,15 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessage(envelope.CollationId, code, failureReason))
+			session.Send(ErrorMessage(envelope.CollationId, code, failureReason), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 			} else {
 				logger.Info("User left group")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
 				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
 				if err != nil {
@@ -752,7 +752,7 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 	e := envelope.GetGroupUsersAdd()
 
 	if len(e.GroupUsers) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupUsers) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -761,13 +761,13 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 	g := e.GroupUsers[0]
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
 	userID, err := uuid.FromBytes(g.UserId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
 
@@ -779,7 +779,7 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not add user to group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"), true)
 		return
 	}
 	defer func() {
@@ -794,15 +794,15 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not add user to group"), true)
 			} else {
 				logger.Info("Added user to the group")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
 				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
 				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
@@ -885,7 +885,7 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 	e := envelope.GetGroupUsersKick()
 
 	if len(e.GroupUsers) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupUsers) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -895,18 +895,18 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
 	userID, err := uuid.FromBytes(g.UserId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
 
 	if userID == session.UserID() {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't kick yourself from the group"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't kick yourself from the group"), true)
 		return
 	}
 
@@ -917,7 +917,7 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not kick user from group", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 		return
 	}
 	defer func() {
@@ -932,15 +932,15 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, failureReason), true)
 			} else {
 				logger.Info("Kicked user from group")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
 				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
 				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 4, data)
@@ -997,7 +997,7 @@ func (p *pipeline) groupUserPromote(l *zap.Logger, session session, envelope *En
 	e := envelope.GetGroupUsersPromote()
 
 	if len(e.GroupUsers) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.GroupUsers) > 1 {
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -1006,18 +1006,18 @@ func (p *pipeline) groupUserPromote(l *zap.Logger, session session, envelope *En
 	g := e.GroupUsers[0]
 	groupID, err := uuid.FromBytes(g.GroupId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
 	userID, err := uuid.FromBytes(g.UserId)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
 
 	if userID == session.UserID() {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't promote yourself"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "You can't promote yourself"), true)
 		return
 	}
 
@@ -1038,13 +1038,13 @@ AND
 
 	if err != nil {
 		logger.Warn("Could not promote user", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not promote user"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not promote user"), true)
 		return
 	}
 
 	if count, _ := res.RowsAffected(); count == 0 {
 		logger.Warn("Could not promote user - Make sure user is part of the group or group exists")
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not promote user - Make sure user is part of the group or group exists"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not promote user - Make sure user is part of the group or group exists"), true)
 		return
 	}
 
@@ -1061,5 +1061,5 @@ AND
 		logger.Error("Error handling group user promoted notification topic message", zap.Error(err))
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }

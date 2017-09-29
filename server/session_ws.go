@@ -95,7 +95,7 @@ func (s *wsSession) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
@@ -121,11 +121,11 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 		err = proto.Unmarshal(data, request)
 		if err != nil {
 			s.logger.Warn("Received malformed payload", zap.Any("data", data))
-			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
+			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), true)
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.CollationId))
-			processRequest(requestLogger, s, request)
+			processRequest(requestLogger, s, request, true)
 		}
 	}
 }
@@ -164,7 +164,7 @@ func (s *wsSession) pingNow() bool {
 	}
 
 	// Server heartbeat.
-	err = s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}})
+	err = s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}}, true)
 	if err != nil {
 		s.logger.Warn("Could not send heartbeat", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
@@ -172,7 +172,7 @@ func (s *wsSession) pingNow() bool {
 	return true
 }
 
-func (s *wsSession) Send(envelope *Envelope) error {
+func (s *wsSession) Send(envelope *Envelope, reliable bool) error {
 	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
 
 	payload, err := proto.Marshal(envelope)
@@ -182,10 +182,11 @@ func (s *wsSession) Send(envelope *Envelope) error {
 		return err
 	}
 
-	return s.SendBytes(payload)
+	return s.SendBytes(payload, reliable)
 }
 
-func (s *wsSession) SendBytes(payload []byte) error {
+func (s *wsSession) SendBytes(payload []byte, reliable bool) error {
+	// NOTE: WebSocket sessions ignore the reliable flag and will always deliver messages reliably.
 	// TODO Improve on mutex usage here.
 	s.Lock()
 	defer s.Unlock()

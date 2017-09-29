@@ -95,7 +95,7 @@ func (s *udpSession) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *udpSession) Consume(processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+func (s *udpSession) Consume(processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	defer s.cleanupClosedConnection()
 
 	// Send an initial ping immediately, then at intervals.
@@ -103,7 +103,7 @@ func (s *udpSession) Consume(processRequest func(logger *zap.Logger, session ses
 	go s.pingPeriodically()
 
 	for {
-		data, err := s.clientInstance.Read()
+		data, reliable, err := s.clientInstance.Read()
 		if err != nil {
 			// Will happen if client disconnects while Read() is waiting.
 			break
@@ -113,11 +113,11 @@ func (s *udpSession) Consume(processRequest func(logger *zap.Logger, session ses
 		err = proto.Unmarshal(data, request)
 		if err != nil {
 			s.logger.Warn("Received malformed payload", zap.Any("data", data))
-			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
+			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), reliable)
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.CollationId))
-			processRequest(requestLogger, s, request)
+			processRequest(requestLogger, s, request, reliable)
 		}
 	}
 }
@@ -149,7 +149,7 @@ func (s *udpSession) pingNow() bool {
 	s.Unlock()
 
 	// Server heartbeat.
-	err := s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}})
+	err := s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}}, true)
 	if err != nil {
 		s.logger.Warn("Could not send heartbeat. Closing channel", zap.String("remoteAddress", s.clientInstance.Address.String()), zap.Error(err))
 		//s.cleanupClosedConnection() // The connection has already failed
@@ -159,7 +159,7 @@ func (s *udpSession) pingNow() bool {
 	return true
 }
 
-func (s *udpSession) Send(envelope *Envelope) error {
+func (s *udpSession) Send(envelope *Envelope, reliable bool) error {
 	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
 
 	payload, err := proto.Marshal(envelope)
@@ -169,10 +169,10 @@ func (s *udpSession) Send(envelope *Envelope) error {
 		return err
 	}
 
-	return s.SendBytes(payload)
+	return s.SendBytes(payload, reliable)
 }
 
-func (s *udpSession) SendBytes(payload []byte) error {
+func (s *udpSession) SendBytes(payload []byte, reliable bool) error {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -181,7 +181,7 @@ func (s *udpSession) SendBytes(payload []byte) error {
 	s.Unlock()
 
 	// Send(...) is expected to be concurrency-safe so no need to lock here.
-	err := s.clientInstance.Send(payload)
+	err := s.clientInstance.Send(payload, reliable)
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
 		// TODO investigate whether we need to cleanupClosedConnection if write fails

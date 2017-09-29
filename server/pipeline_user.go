@@ -20,7 +20,7 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session session, envelope *Env
 	e := envelope.GetUsersFetch()
 
 	if len(e.Users) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	}
 
@@ -34,10 +34,10 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session session, envelope *Env
 		case *TUsersFetch_UsersFetch_Handle:
 			handles = append(handles, u.GetHandle())
 		case nil:
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"), true)
 			return
 		default:
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Users fetch identifier missing"), true)
 			return
 		}
 	}
@@ -45,9 +45,9 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session session, envelope *Env
 	users, err := UsersFetchIdsHandles(logger, p.db, userIds, handles)
 	if err != nil {
 		logger.Warn("Could not retrieve users", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not retrieve users"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Users{Users: &TUsers{Users: users}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Users{Users: &TUsers{Users: users}}}, true)
 }

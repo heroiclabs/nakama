@@ -30,11 +30,12 @@ type session interface {
 
 	Lang() string
 	Expiry() int64
-	Consume(func(logger *zap.Logger, session session, envelope *Envelope))
+
+	Consume(func(logger *zap.Logger, session session, envelope *Envelope, reliable bool))
 	Unregister()
 
-	Send(envelope *Envelope) error
-	SendBytes(payload []byte) error
+	Send(envelope *Envelope, reliable bool) error
+	SendBytes(payload []byte, reliable bool) error
 
 	Close()
 }

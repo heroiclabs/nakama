@@ -21,7 +21,7 @@ import (
 
 // MessageRouter is responsible for sending a message to a list of presences
 type MessageRouter interface {
-	Send(*zap.Logger, []Presence, proto.Message)
+	Send(*zap.Logger, []Presence, proto.Message, bool)
 }
 
 type messageRouterService struct {
@@ -34,7 +34,7 @@ func NewMessageRouterService(registry *SessionRegistry) *messageRouterService {
 	}
 }
 
-func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto.Message) {
+func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto.Message, reliable bool) {
 	if len(ps) == 0 {
 		return
 	}
@@ -48,7 +48,7 @@ func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto
 	for _, p := range ps {
 		session := m.registry.Get(p.ID.SessionID)
 		if session != nil {
-			err := session.SendBytes(payload)
+			err := session.SendBytes(payload, reliable)
 			if err != nil {
 				logger.Error("Failed to route to", zap.Any("p", p), zap.Error(err))
 			}

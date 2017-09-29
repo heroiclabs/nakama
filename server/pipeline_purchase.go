@@ -33,7 +33,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session session, envelop
 		ap, err := p.convertApplePurchase(purchase.GetApplePurchase())
 		if err != nil {
 			logger.Warn("Could not process purchases", zap.Error(err))
-			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()), true)
 			return
 		}
 		validationResponse = p.purchaseService.ValidateApplePurchase(session.UserID(), ap)
@@ -41,7 +41,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session session, envelop
 		gp, err := p.convertGooglePurchase(purchase.GetGooglePurchase())
 		if err != nil {
 			logger.Warn("Could not process purchases", zap.Error(err))
-			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, err.Error()), true)
 			return
 		}
 
@@ -61,7 +61,7 @@ func (p *pipeline) purchaseValidate(logger *zap.Logger, session session, envelop
 		Data:                      validationResponse.Data,
 	}}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: response})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: response}, true)
 }
 
 func (p *pipeline) convertApplePurchase(purchase *TPurchaseValidation_ApplePurchase) (*iap.ApplePurchase, error) {

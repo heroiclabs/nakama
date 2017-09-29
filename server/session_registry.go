@@ -68,7 +68,7 @@ func (a *SessionRegistry) Get(sessionID uuid.UUID) session {
 	return s
 }
 
-func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	s := NewWSSession(a.logger, a.config, userID, handle, lang, expiry, conn, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s
@@ -81,7 +81,7 @@ func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, ex
 	s.Consume(processRequest)
 }
 
-func (a *SessionRegistry) addUDP(userID uuid.UUID, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope)) {
+func (a *SessionRegistry) addUDP(userID uuid.UUID, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	s := NewUDPSession(a.logger, a.config, userID, handle, lang, expiry, clientInstance, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s

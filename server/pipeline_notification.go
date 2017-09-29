@@ -20,31 +20,31 @@ func (p *pipeline) notificationsList(logger *zap.Logger, session session, envelo
 	incoming := envelope.GetNotificationsList()
 
 	if incoming.GetLimit() < 10 || incoming.GetLimit() > 100 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be between 10 and 100"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be between 10 and 100"), true)
 		return
 	}
 
 	nots, cursor, err := p.notificationService.NotificationsList(session.UserID(), incoming.GetLimit(), incoming.GetResumableCursor())
 	if err != nil {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()), true)
 		return
 	}
 
 	notifications := convertTNotifications(nots, cursor)
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Notifications{Notifications: notifications}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Notifications{Notifications: notifications}}, true)
 }
 
 func (p *pipeline) notificationsRemove(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetNotificationsRemove()
 
 	if len(incoming.NotificationIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "There must be at least one notification ID to remove."))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "There must be at least one notification ID to remove."), true)
 	}
 
 	if err := p.notificationService.NotificationsRemove(session.UserID(), incoming.NotificationIds); err != nil {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, err.Error()), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }

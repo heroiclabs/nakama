@@ -42,7 +42,7 @@ func (p *pipeline) linkID(logger *zap.Logger, session session, envelope *Envelop
 		p.linkCustom(logger, session, envelope)
 	default:
 		logger.Error("Could not link", zap.String("error", "Invalid payload"))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"), true)
 		return
 	}
 }
@@ -50,20 +50,20 @@ func (p *pipeline) linkID(logger *zap.Logger, session session, envelope *Envelop
 func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Envelope) {
 	deviceID := envelope.GetLink().GetDevice()
 	if deviceID == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Device ID is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Device ID is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, no spaces or control characters allowed"), true)
 		return
 	} else if len(deviceID) < 10 || len(deviceID) > 128 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-128 bytes"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid device ID, must be 10-128 bytes"), true)
 		return
 	}
 
 	txn, err := p.db.Begin()
 	if err != nil {
 		logger.Warn("Could not link, transaction begin error", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
 	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.UserID().Bytes())
@@ -74,10 +74,10 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		}
 
 		if strings.HasSuffix(err.Error(), "violates unique constraint \"primary\"") {
-			session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Device ID in use"))
+			session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Device ID in use"), true)
 		} else {
 			logger.Warn("Could not link, query error", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		}
 		return
 	}
@@ -86,7 +86,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		if err != nil {
 			logger.Warn("Could not link, transaction rollback error", zap.Error(err))
 		}
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
 	res, err = txn.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", nowMs(), session.UserID().Bytes())
@@ -96,7 +96,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		if err != nil {
 			logger.Warn("Could not link, transaction rollback error", zap.Error(err))
 		}
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
@@ -104,33 +104,33 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		if err != nil {
 			logger.Warn("Could not link, transaction rollback error", zap.Error(err))
 		}
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
 	err = txn.Commit()
 	if err != nil {
 		logger.Warn("Could not link, transaction commit error", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkFacebook(logger *zap.Logger, session session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetFacebook()
 	if accessToken == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Facebook access token, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Facebook access token, no spaces or control characters allowed"), true)
 		return
 	}
 
 	fbProfile, err := p.socialClient.GetFacebookProfile(accessToken)
 	if err != nil {
 		logger.Warn("Could not get Facebook profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Facebook profile"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Facebook profile"), true)
 		return
 	}
 
@@ -148,32 +148,32 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Facebook ID in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Facebook ID in use"), true)
 		return
 	}
 
 	p.addFacebookFriends(logger, userID, session.Handle(), fbProfile.ID, accessToken)
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkGoogle(logger *zap.Logger, session session, envelope *Envelope) {
 	accessToken := envelope.GetLink().GetGoogle()
 	if accessToken == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Access token is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Google access token, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Google access token, no spaces or control characters allowed"), true)
 		return
 	}
 
 	googleProfile, err := p.socialClient.GetGoogleProfile(accessToken)
 	if err != nil {
 		logger.Warn("Could not get Google profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Google profile"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Google profile"), true)
 		return
 	}
 
@@ -191,27 +191,27 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Google ID in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Google ID in use"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkGameCenter(logger *zap.Logger, session session, envelope *Envelope) {
 	gc := envelope.GetLink().GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Game Center credentials required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Game Center credentials required"), true)
 		return
 	}
 
 	_, err := p.socialClient.CheckGameCenterID(gc.PlayerId, gc.BundleId, gc.Timestamp, gc.Salt, gc.Signature, gc.PublicKeyUrl)
 	if err != nil {
 		logger.Warn("Could not get Game Center profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Game Center profile"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Game Center profile"), true)
 		return
 	}
 
@@ -229,35 +229,35 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Game Center ID in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Game Center ID in use"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkSteam(logger *zap.Logger, session session, envelope *Envelope) {
 	if p.config.GetSocial().Steam.PublisherKey == "" || p.config.GetSocial().Steam.AppID == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Steam link not available"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Steam link not available"), true)
 		return
 	}
 
 	ticket := envelope.GetLink().GetSteam()
 	if ticket == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Steam ticket is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Steam ticket is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(ticket) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Steam ticket, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid Steam ticket, no spaces or control characters allowed"), true)
 		return
 	}
 
 	steamProfile, err := p.socialClient.GetSteamProfile(p.config.GetSocial().Steam.PublisherKey, p.config.GetSocial().Steam.AppID, ticket)
 	if err != nil {
 		logger.Warn("Could not get Steam profile", zap.Error(err))
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Steam profile"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Steam profile"), true)
 		return
 	}
 
@@ -275,35 +275,35 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Steam ID in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Steam ID in use"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkEmail(logger *zap.Logger, session session, envelope *Envelope) {
 	email := envelope.GetLink().GetEmail()
 	if email == nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"), true)
 		return
 	} else if email.Email == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Email address is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Email address is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(email.Email) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address, no spaces or control characters allowed"), true)
 		return
 	} else if !emailRegex.MatchString(email.Email) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address format"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address format"), true)
 		return
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address, must be 10-255 bytes"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid email address, must be 10-255 bytes"), true)
 		return
 	} else if len(email.Password) < 8 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Password must be longer than 8 characters"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Password must be longer than 8 characters"), true)
 		return
 	}
 
@@ -324,26 +324,26 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Email address in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Email address in use"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) linkCustom(logger *zap.Logger, session session, envelope *Envelope) {
 	customID := envelope.GetLink().GetCustom()
 	if customID == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Custom ID is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Custom ID is required"), true)
 		return
 	} else if invalidCharsRegex.MatchString(customID) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, no spaces or control characters allowed"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, no spaces or control characters allowed"), true)
 		return
 	} else if len(customID) < 10 || len(customID) > 128 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, must be 10-128 bytes"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid custom ID, must be 10-128 bytes"), true)
 		return
 	}
 
@@ -361,14 +361,14 @@ AND NOT EXISTS
 
 	if err != nil {
 		logger.Warn("Could not link", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Custom ID in use"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_INUSE, "Custom ID in use"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) unlinkID(logger *zap.Logger, session session, envelope *Envelope) {
@@ -380,7 +380,7 @@ func (p *pipeline) unlinkID(logger *zap.Logger, session session, envelope *Envel
 		txn, err := p.db.Begin()
 		if err != nil {
 			logger.Warn("Could not unlink, transaction begin error", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"), true)
 			return
 		}
 		res, err := txn.Exec(`
@@ -401,7 +401,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			if err != nil {
 				logger.Warn("Could not unlink, transaction rollback error", zap.Error(err))
 			}
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"), true)
 			return
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -409,7 +409,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			if err != nil {
 				logger.Warn("Could not unlink, transaction rollback error", zap.Error(err))
 			}
-			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"))
+			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"), true)
 			return
 		}
 		res, err = txn.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", session.UserID().Bytes(), nowMs())
@@ -419,7 +419,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			if err != nil {
 				logger.Warn("Could not unlink, transaction rollback error", zap.Error(err))
 			}
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"), true)
 			return
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -427,17 +427,17 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			if err != nil {
 				logger.Warn("Could not unlink, transaction rollback error", zap.Error(err))
 			}
-			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"))
+			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"), true)
 			return
 		}
 		err = txn.Commit()
 		if err != nil {
 			logger.Warn("Could not unlink, transaction commit error", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"), true)
 			return
 		}
 
-		session.Send(&Envelope{CollationId: envelope.CollationId})
+		session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 		return
 	case *TUnlink_Facebook:
 		query = `UPDATE users SET facebook_id = NULL, updated_at = $3
@@ -513,7 +513,7 @@ AND ((facebook_id IS NOT NULL
 		param = envelope.GetUnlink().GetCustom()
 	default:
 		logger.Error("Could not unlink", zap.String("error", "Invalid payload"))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid payload"), true)
 		return
 	}
 
@@ -521,12 +521,12 @@ AND ((facebook_id IS NOT NULL
 
 	if err != nil {
 		logger.Warn("Could not unlink", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not unlink"), true)
 		return
 	} else if count, _ := res.RowsAffected(); count == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"))
+		session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }

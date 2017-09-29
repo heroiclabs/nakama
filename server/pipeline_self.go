@@ -53,7 +53,7 @@ WHERE u.id = $1`,
 		session.UserID().Bytes())
 	if err != nil {
 		logger.Error("Could not lookup user profile", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"), true)
 		return
 	}
 
@@ -65,7 +65,7 @@ WHERE u.id = $1`,
 			&createdAt, &updatedAt, &verifiedAt, &lastOnlineAt, &deviceID)
 		if err != nil {
 			logger.Error("Error reading user profile", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"), true)
 			return
 		}
 		if deviceID.Valid {
@@ -74,7 +74,7 @@ WHERE u.id = $1`,
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Error reading user profile", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"), true)
 		return
 	}
 
@@ -102,7 +102,7 @@ WHERE u.id = $1`,
 		Verified:     verifiedAt.Int64 > 0,
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Self{Self: &TSelf{Self: s}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Self{Self: &TSelf{Self: s}}}, true)
 }
 
 func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Envelope) {
@@ -110,14 +110,14 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Env
 
 	// Validate any input possible before we hit database.
 	if update.Handle == "" && update.Fullname == "" && update.Timezone == "" && update.Location == "" && update.Lang == "" && len(update.Metadata) == 0 && update.AvatarUrl == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No fields to update"), true)
 		return
 	}
 	if len(update.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal(update.Metadata, &maybeJSON) != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 			return
 		}
 	}
@@ -134,7 +134,7 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Env
 		AvatarUrl: update.AvatarUrl,
 	}})
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
@@ -143,5 +143,5 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Env
 		session.SetHandle(update.Handle)
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }

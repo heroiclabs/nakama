@@ -167,19 +167,19 @@ func (c *ClientInstance) IsConnected() bool {
 
 // An external routine is expected to continuously call this, otherwise
 // no input attributed to this client instance will be processed.
-func (c *ClientInstance) Read() ([]byte, error) {
+func (c *ClientInstance) Read() ([]byte, bool, error) {
 	for {
 		select {
 		case packet := <-c.incomingPacketCh:
 			if packet == nil {
-				return nil, ErrClientInstanceClosed
+				return nil, false, ErrClientInstanceClosed
 			}
 			switch packet.GetType() {
 			case netcode.ConnectionKeepAlive:
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
-					return nil, ErrClientInstanceClosed
+					return nil, false, ErrClientInstanceClosed
 				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
@@ -195,7 +195,7 @@ func (c *ClientInstance) Read() ([]byte, error) {
 				c.Lock()
 				if c.stopped {
 					c.Unlock()
-					return nil, ErrClientInstanceClosed
+					return nil, false, ErrClientInstanceClosed
 				}
 				if !c.confirmed {
 					c.logger.Debug("server confirmed connection to client", zap.String("addr", c.Address.String()))
@@ -236,7 +236,7 @@ func (c *ClientInstance) Read() ([]byte, error) {
 							// If it wasn't a stale packet, deliver to the reader.
 							c.unreliableReceiveBuffer.Insert(sequence)
 							c.Unlock()
-							return data[:length], nil
+							return data[:length], false, nil
 						}
 						c.Unlock()
 						continue
@@ -255,7 +255,7 @@ func (c *ClientInstance) Read() ([]byte, error) {
 				continue
 			}
 		case <-c.shutdownCh:
-			return nil, ErrClientInstanceClosed
+			return nil, false, ErrClientInstanceClosed
 		}
 	}
 }

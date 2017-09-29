@@ -29,7 +29,7 @@ func (p *pipeline) storageList(logger *zap.Logger, session session, envelope *En
 
 	data, cursor, code, err := StorageList(logger, p.db, session.UserID(), incoming.UserId, incoming.Bucket, incoming.Collection, incoming.Limit, incoming.Cursor)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
@@ -50,13 +50,13 @@ func (p *pipeline) storageList(logger *zap.Logger, session session, envelope *En
 		}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageData{StorageData: &TStorageData{Data: storageData, Cursor: cursor}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageData{StorageData: &TStorageData{Data: storageData, Cursor: cursor}}}, true)
 }
 
 func (p *pipeline) storageFetch(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetStorageFetch()
 	if len(incoming.Keys) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one fetch key is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one fetch key is required"), true)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session session, envelope *E
 
 	data, code, err := StorageFetch(logger, p.db, session.UserID(), keys)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
@@ -93,13 +93,13 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session session, envelope *E
 		}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageData{StorageData: &TStorageData{Data: storageData}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageData{StorageData: &TStorageData{Data: storageData}}}, true)
 }
 
 func (p *pipeline) storageWrite(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetStorageWrite()
 	if len(incoming.Data) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one write value is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one write value is required"), true)
 		return
 	}
 
@@ -119,7 +119,7 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session session, envelope *E
 
 	keys, code, err := StorageWrite(logger, p.db, session.UserID(), data)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
@@ -133,13 +133,13 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session session, envelope *E
 		}
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}}, true)
 }
 
 func (p *pipeline) storageRemove(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetStorageRemove()
 	if len(incoming.Keys) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one remove key is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one remove key is required"), true)
 		return
 	}
 
@@ -156,17 +156,17 @@ func (p *pipeline) storageRemove(logger *zap.Logger, session session, envelope *
 
 	code, err := StorageRemove(logger, p.db, session.UserID(), keys)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *Envelope) {
 	incoming := envelope.GetStorageUpdate()
 	if len(incoming.Updates) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one update is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one update is required"), true)
 		return
 	}
 
@@ -214,7 +214,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *
 			case COMPARE:
 				opString = "compare"
 			default:
-				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid update operation supplied"))
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid update operation supplied"), true)
 				return
 			}
 
@@ -239,7 +239,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *
 		p, err := jsonpatch.NewExtendedPatch(jsonOps)
 		if err != nil {
 			logger.Warn("Invalid patch operation", zap.Error(err))
-			session.Send(ErrorMessageBadInput(envelope.CollationId, fmt.Sprintf("Invalid patch operation: %s", err.Error())))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, fmt.Sprintf("Invalid patch operation: %s", err.Error())), true)
 			return
 		}
 		keyUpdate.Patch = p
@@ -248,7 +248,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *
 
 	updatedKeys, errCode, err := StorageUpdate(logger, p.db, session.UserID(), keyUpdates)
 	if err != nil {
-		session.Send(ErrorMessage(envelope.CollationId, errCode, err.Error()))
+		session.Send(ErrorMessage(envelope.CollationId, errCode, err.Error()), true)
 		return
 	}
 
@@ -261,5 +261,5 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *
 			Version:    key.Version,
 		}
 	}
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_StorageKeys{StorageKeys: &TStorageKeys{Keys: storageKeys}}}, true)
 }
