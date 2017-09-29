@@ -38,6 +38,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"nakama/pkg/httputil"
@@ -230,7 +231,21 @@ func (a *authenticationService) configure() {
 		responseData, funError := a.runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
 		if funError != nil {
 			a.logger.Error("Runtime function caused an error", zap.String("path", path), zap.Error(funError))
-			http.Error(w, fmt.Sprintf("Runtime function caused an error: %s", funError.Error()), 500)
+			if apiErr, ok := funError.(*lua.ApiError); ok {
+				msg := apiErr.Object.String()
+				if strings.HasPrefix(msg, fn.Proto.SourceName) {
+					msg = msg[len(fn.Proto.SourceName):]
+					msgParts := strings.SplitN(msg, ": ", 2)
+					if len(msgParts) == 2 {
+						msg = msgParts[1]
+					} else {
+						msg = msgParts[0]
+					}
+				}
+				http.Error(w, msg, 500)
+			} else {
+				http.Error(w, funError.Error(), 500)
+			}
 			return
 		}
 

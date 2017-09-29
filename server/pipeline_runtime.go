@@ -15,9 +15,9 @@
 package server
 
 import (
-	"fmt"
-
+	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"strings"
 )
 
 func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope) {
@@ -36,7 +36,21 @@ func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope)
 	result, fnErr := p.runtime.InvokeFunctionRPC(lf, session.userID, session.handle.Load(), session.expiry, rpcMessage.Payload)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
-		session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime function caused an error: %s", fnErr.Error())))
+		if apiErr, ok := fnErr.(*lua.ApiError); ok {
+			msg := apiErr.Object.String()
+			if strings.HasPrefix(msg, lf.Proto.SourceName) {
+				msg = msg[len(lf.Proto.SourceName):]
+				msgParts := strings.SplitN(msg, ": ", 2)
+				if len(msgParts) == 2 {
+					msg = msgParts[1]
+				} else {
+					msg = msgParts[0]
+				}
+			}
+			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, msg))
+		} else {
+			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fnErr.Error()))
+		}
 		return
 	}
 
