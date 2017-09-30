@@ -45,6 +45,7 @@ type ReliablePacketController struct {
 	fragmentReassembly    *SequenceBufferReassembly
 }
 
+// TODO make max packet size configurable.
 func NewReliablePacketController() *ReliablePacketController {
 	return &ReliablePacketController{
 		maxPacketSize:                16 * 1024,

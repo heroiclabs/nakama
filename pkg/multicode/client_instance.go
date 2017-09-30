@@ -46,7 +46,8 @@ const KEEP_ALIVE_EXPIRY_RESOLUTION = 4
 
 var ErrClientInstanceClosed = errors.New("client instance closed")
 var ErrClientInstanceNotConnected = errors.New("client instance not connected")
-var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
+
+//var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
 
 type ClientInstance struct {
 	sync.Mutex
@@ -77,9 +78,20 @@ type ClientInstance struct {
 	incomingPacketCh   chan netcode.Packet
 	outgoingPacketData []byte
 
-	// Reliable layer.
-	unreliableReceiveBuffer *SequenceBufferReceived
+	// Reliable layer - unreliable channel.
 	unreliableController    *ReliablePacketController
+	unreliableReceiveBuffer *SequenceBufferReceived
+
+	// Reliable layer - reliable channel.
+	reliableCh            chan []byte
+	reliableController    *ReliablePacketController
+	reliablePacker        []byte
+	reliableSendBuffer    *SequenceBufferPacket
+	reliableReceiveBuffer *SequenceBufferPacket
+	reliableAckBuffer     *SequenceBufferOutgoing
+	reliableOldestUnacked uint16
+	reliableSequence      uint16
+	reliableNextReceive   uint16
 }
 
 func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
@@ -98,7 +110,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		shutdownCh: make(chan bool),
 		stopped:    false,
 
-		sequence: 0.0,
+		sequence: 0,
 		lastSend: 0,
 		// Assume client instances are created off the back of an incoming connection request.
 		// Setting a real value here avoids the expiry check routine from instantly killing
@@ -112,6 +124,19 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		replayProtection:   netcode.NewReplayProtection(),
 		incomingPacketCh:   make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
 		outgoingPacketData: make([]byte, netcode.MAX_PACKET_BYTES),
+
+		unreliableController:    NewReliablePacketController(),
+		unreliableReceiveBuffer: NewSequenceBufferReceived(256),
+
+		reliableCh:            make(chan []byte, netcode.PACKET_QUEUE_SIZE),
+		reliableController:    NewReliablePacketController(),
+		reliablePacker:        nil, // TODO init?
+		reliableSendBuffer:    NewSequenceBufferPacket(256),
+		reliableReceiveBuffer: NewSequenceBufferPacket(256),
+		reliableAckBuffer:     NewSequenceBufferOutgoing(256),
+		reliableOldestUnacked: 0,
+		reliableSequence:      0,
+		reliableNextReceive:   0,
 	}
 
 	copy(c.sendKey, sendKey)
@@ -170,6 +195,8 @@ func (c *ClientInstance) IsConnected() bool {
 func (c *ClientInstance) Read() ([]byte, bool, error) {
 	for {
 		select {
+		case reliableData := <-c.reliableCh:
+			return reliableData, true, nil
 		case packet := <-c.incomingPacketCh:
 			if packet == nil {
 				return nil, false, ErrClientInstanceClosed
@@ -217,7 +244,99 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 				channelID := p.PayloadData[1]
 				if channelID == 0 {
 					// Reliable.
-					// TODO
+					// Sequence unused here, the controller will drop anything with an unexpected sequence.
+					_, data, length, ackSequences, err := c.reliableController.ReceivePacket(ts, p.PayloadData, len(p.PayloadData))
+					if err != nil {
+						c.Unlock()
+						c.logger.Debug("error processing reliable packet", zap.Error(err))
+						continue
+					}
+
+					// Process possible received acks.
+					if ackSequences != nil {
+						for _, ackSequence := range ackSequences {
+							outgoing := c.reliableAckBuffer.Find(ackSequence)
+							if outgoing == nil {
+								// This sequence ID is already acked.
+								continue
+							}
+
+							for _, outgoingSequence := range outgoing.messageIDs {
+								if c.reliableSendBuffer.Exists(outgoingSequence) {
+									c.reliableSendBuffer.Find(outgoingSequence).writeLock = true
+									c.reliableSendBuffer.Remove(outgoingSequence)
+								}
+							}
+
+							allAcked := true
+							for seq := uint16(c.reliableOldestUnacked); seq == c.reliableSequence || SequenceLessThan(seq, c.reliableSequence); seq++ {
+								// If it's still in send buffer, it hasn't been acked yet.
+								if c.reliableSendBuffer.Exists(seq) {
+									c.reliableOldestUnacked = seq
+									allAcked = false
+									break
+								}
+							}
+							if allAcked {
+								c.reliableOldestUnacked = c.reliableSequence
+							}
+						}
+					}
+
+					// Process possible reassembled data.
+					if data != nil {
+						rw := NewByteArrayReaderWriter(data)
+						for rw.readPosition < length {
+							messageID, err := rw.ReadUint16()
+							if err != nil {
+								c.Unlock()
+								c.logger.Debug("error processing reliable packet message ID", zap.Error(err))
+								continue
+							}
+							messageLengthUint16, err := ReadVariableLengthUint16(rw)
+							if err != nil {
+								c.Unlock()
+								c.logger.Debug("error processing reliable packet message length", zap.Error(err))
+								continue
+							}
+							if messageLengthUint16 == 0 {
+								c.Unlock()
+								continue
+							}
+
+							messageLength := int(messageLengthUint16)
+							if !c.reliableReceiveBuffer.Exists(messageID) {
+								receivedMessage := c.reliableReceiveBuffer.Insert(messageID)
+								if receivedMessage.buffer == nil {
+									receivedMessage.buffer = make([]byte, messageLength)
+									receivedMessage.length = messageLength
+								} else if len(receivedMessage.buffer) < messageLength {
+									buf := make([]byte, messageLength)
+									copy(buf, receivedMessage.buffer)
+									receivedMessage.buffer = buf
+									receivedMessage.length = messageLength
+								}
+								err := rw.ReadBuffer(receivedMessage.buffer, messageLength)
+								if err != nil {
+									c.Unlock()
+									c.logger.Debug("error processing reliable packet read buffer", zap.Error(err))
+									continue
+								}
+							} else {
+								rw.SeekRead(rw.readPosition + messageLength)
+							}
+
+							// Process the receive buffer as far as possible.
+							// If the message just received was out of order then there may be some number of 'newer' messages
+							// ready to be handed off to the application in order.
+							for c.reliableReceiveBuffer.Exists(c.reliableNextReceive) {
+								msg := c.reliableReceiveBuffer.Find(c.reliableNextReceive)
+								c.reliableCh <- msg.buffer[:msg.length]
+								c.reliableReceiveBuffer.Remove(c.reliableNextReceive)
+								c.reliableNextReceive++
+							}
+						}
+					}
 
 					c.Unlock()
 					continue

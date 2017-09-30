@@ -22,6 +22,52 @@ const (
 	NULL_SEQUENCE           = uint32(0xFFFFFFFF)
 )
 
+var ErrValueOutOfRange = errors.New("variable length value out of range")
+
+func GetVariableLengthBytes(val uint16) (int, error) {
+	if val > 0x7fff {
+		return 0, ErrValueOutOfRange
+	}
+	b := byte(val >> 7)
+	if b != 0 {
+		return 2, nil
+	}
+	return 1, nil
+}
+
+func WriteVariableLengthUint16(val uint16, rw *ByteArrayReaderWriter) error {
+	if val > 0x7fff {
+		return ErrValueOutOfRange
+	}
+	b1 := byte(val & 0x007F) // Lowest 7 bits.
+	b2 := byte(val >> 7)     // Remaining 8 bits.
+	if b2 != 0 {
+		b1 |= 0x80
+	}
+	rw.WriteByte(b1)
+	if b2 != 0 {
+		rw.WriteByte(b2)
+	}
+	return nil
+}
+
+func ReadVariableLengthUint16(rw *ByteArrayReaderWriter) (uint16, error) {
+	var val uint16
+	b1, err := rw.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	val |= uint16(b1 & 0x7F)
+	if (b1 & 0x80) != 0 {
+		b2, err := rw.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		val |= uint16(b2 << 7)
+	}
+	return val, nil
+}
+
 func SequenceGreaterThan(s1, s2 uint16) bool {
 	return ((s1 > s2) && (s1-s2 <= 32768)) || ((s1 < s2) && (s2-s1 > 32768))
 }
