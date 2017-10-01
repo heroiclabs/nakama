@@ -41,11 +41,15 @@ import (
 	"time"
 )
 
-// Higher value == more frequent keep alive sends and expiry checks within the connection timeout window.
-const KEEP_ALIVE_EXPIRY_RESOLUTION = 4
+const (
+	KEEP_ALIVE_RESOLUTION = 4
+	RELIABLE_CHANNEL_ID   = byte(0)
+	UNRELIABLE_CHANNEL_ID = byte(1)
+)
 
 var ErrClientInstanceClosed = errors.New("client instance closed")
 var ErrClientInstanceNotConnected = errors.New("client instance not connected")
+var ErrClientInstanceSendBufferFull = errors.New("client instance send buffer full")
 
 //var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
 
@@ -78,14 +82,16 @@ type ClientInstance struct {
 	incomingPacketCh   chan netcode.Packet
 	outgoingPacketData []byte
 
-	// Reliable layer - unreliable channel.
+	// Unreliable channel.
 	unreliableController    *ReliablePacketController
 	unreliableReceiveBuffer *SequenceBufferReceived
 
-	// Reliable layer - reliable channel.
+	// Reliable channel.
 	reliableCh            chan []byte
 	reliableController    *ReliablePacketController
 	reliablePacker        []byte
+	reliablePackerLength  int
+	reliablePackerSeq     []uint16
 	reliableSendBuffer    *SequenceBufferPacket
 	reliableReceiveBuffer *SequenceBufferPacket
 	reliableAckBuffer     *SequenceBufferOutgoing
@@ -130,7 +136,9 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 
 		reliableCh:            make(chan []byte, netcode.PACKET_QUEUE_SIZE),
 		reliableController:    NewReliablePacketController(),
-		reliablePacker:        nil, // TODO init?
+		reliablePacker:        nil,
+		reliablePackerLength:  0,
+		reliablePackerSeq:     make([]uint16, 0),
 		reliableSendBuffer:    NewSequenceBufferPacket(256),
 		reliableReceiveBuffer: NewSequenceBufferPacket(256),
 		reliableAckBuffer:     NewSequenceBufferOutgoing(256),
@@ -142,15 +150,13 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 	copy(c.sendKey, sendKey)
 	copy(c.recvKey, recvKey)
 
-	// Check client keep alive send and enforce expiry.
 	go func() {
-		// (Assumes KEEP_ALIVE_EXPIRY_RESOLUTION == 4, higher value means more frequent ticks.)
-		// Resolution is timeout / 4 to reduce load caused by frequent checks.
-		// In exchange for a 10 second timeout it could take up to 12.5 seconds to expire.
-		// Similarly we send up to 4 keep alive packets per timeout window.
-		ticker := time.NewTicker(time.Duration(c.timeoutMs/KEEP_ALIVE_EXPIRY_RESOLUTION) * time.Millisecond)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 
+		// Send keep alive packets.
+		// Enforce expiry.
+		// Resend reliable data.
 		for {
 			select {
 			case <-ticker.C:
@@ -160,10 +166,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 					return
 				}
 				ts := nowMs()
-				// Check if we need to send a keep alive to client.
-				if c.connected && c.lastSend <= ts-c.timeoutMs {
-					c.sendKeepAlive()
-				}
+
 				// Check if we've not seen a message from client in too long.
 				// Expiry is checked regardless of c.connected to handle clients that request connection but never
 				// respond to challenge to complete handshake.
@@ -174,6 +177,54 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 					c.Close(sendDisconnect)
 					return
 				}
+
+				// Check if we need to send a keep alive to client.
+				// Keep alive packets will be sent up to KEEP_ALIVE_RESOLUTION times during the timeout window, if needed.
+				if c.connected && c.lastSend <= ts-(c.timeoutMs/KEEP_ALIVE_RESOLUTION) {
+					c.sendKeepAlive()
+				}
+
+				// If we're connected resend any reliable messages that have not been acked yet.
+				if c.connected {
+					for seq := c.reliableOldestUnacked; SequenceLessThan(seq, c.reliableSequence); seq++ {
+						// Never send messages with sequence >= oldest unacked + buffer size.
+						if seq >= c.reliableOldestUnacked+256 {
+							break
+						}
+						p := c.reliableSendBuffer.Find(seq)
+						if p != nil && !p.writeLock {
+							// Do not resend the same packet more than once per 100ms.
+							if ts-p.time < 100 {
+								continue
+							}
+
+							packetFits := false
+							if p.length < c.reliableController.fragmentThreshold {
+								packetFits = c.reliablePackerLength+p.length <= c.reliableController.fragmentThreshold-MAX_PACKET_HEADER_BYTES
+							} else {
+								packetFits = c.reliablePackerLength+p.length <= c.reliableController.maxPacketSize-FRAGMENT_HEADER_BYTES-MAX_PACKET_HEADER_BYTES
+							}
+
+							if !packetFits {
+								c.flushReliablePacker(ts)
+							}
+
+							p.time = ts
+							if c.reliablePacker == nil {
+								c.reliablePacker = make([]byte, p.length)
+								c.reliablePackerLength = p.length
+								copy(c.reliablePacker, p.buffer[:p.length])
+							} else {
+								c.reliablePacker = append(c.reliablePacker[:c.reliablePackerLength], p.buffer[:p.length]...)
+								c.reliablePackerLength += p.length
+							}
+							c.reliablePackerSeq = append(c.reliablePackerSeq, seq)
+						}
+					}
+
+					c.flushReliablePacker(ts)
+				}
+
 				c.Unlock()
 			case <-c.shutdownCh:
 				return
@@ -242,7 +293,7 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 
 				// Process through the correct channel.
 				channelID := p.PayloadData[1]
-				if channelID == 0 {
+				if channelID == RELIABLE_CHANNEL_ID {
 					// Reliable.
 					// Sequence unused here, the controller will drop anything with an unexpected sequence.
 					_, data, length, ackSequences, err := c.reliableController.ReceivePacket(ts, p.PayloadData, len(p.PayloadData))
@@ -307,15 +358,7 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 							messageLength := int(messageLengthUint16)
 							if !c.reliableReceiveBuffer.Exists(messageID) {
 								receivedMessage := c.reliableReceiveBuffer.Insert(messageID)
-								if receivedMessage.buffer == nil {
-									receivedMessage.buffer = make([]byte, messageLength)
-									receivedMessage.length = messageLength
-								} else if len(receivedMessage.buffer) < messageLength {
-									buf := make([]byte, messageLength)
-									copy(buf, receivedMessage.buffer)
-									receivedMessage.buffer = buf
-									receivedMessage.length = messageLength
-								}
+								receivedMessage.Resize(messageLength)
 								err := rw.ReadBuffer(receivedMessage.buffer, messageLength)
 								if err != nil {
 									c.Unlock()
@@ -340,7 +383,7 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 
 					c.Unlock()
 					continue
-				} else if channelID == 1 {
+				} else if channelID == UNRELIABLE_CHANNEL_ID {
 					// Unreliable.
 					// Unreliable packets are not expected to generate ack sequences, so ignore that return value.
 					sequence, data, length, _, err := c.unreliableController.ReceivePacket(ts, p.PayloadData, len(p.PayloadData))
@@ -398,8 +441,42 @@ func (c *ClientInstance) Send(payloadData []byte, reliable bool) error {
 	var err error
 	if reliable {
 		// Reliable.
-		// TODO
+		sendBufferSize := uint16(0)
+		for seq := c.reliableOldestUnacked; SequenceLessThan(seq, c.reliableSequence); seq++ {
+			if c.reliableSendBuffer.Exists(seq) {
+				sendBufferSize++
+			}
+		}
+		if sendBufferSize == c.reliableSendBuffer.numEntries {
+			// TODO alternatively schedule packets to be sent later?
+			c.Unlock()
+			return ErrClientInstanceSendBufferFull
+		}
 
+		sequence = c.reliableSequence
+		c.reliableSequence++
+
+		p := c.reliableSendBuffer.Insert(sequence)
+		p.time = -1
+		// Allow space for header.
+		payloadLength := len(payloadData)
+		varLength, err := GetVariableLengthBytes(uint16(payloadLength))
+		if err != nil {
+			c.Unlock()
+			return err
+		}
+		p.Resize(payloadLength + 2 + varLength)
+		rw := NewByteArrayReaderWriter(p.buffer)
+		rw.WriteUint16(sequence)
+		err = WriteVariableLengthUint16(uint16(payloadLength), rw)
+		if err != nil {
+			c.Unlock()
+			return err
+		}
+		rw.WriteBuffer(payloadData, payloadLength)
+		p.writeLock = false
+
+		// TODO send immediately.
 	} else {
 		// Unreliable.
 		sequence, fragments, fragmentLengths, err = c.unreliableController.SendPacket(nowMs(), payloadData, len(payloadData), byte(1))
@@ -407,11 +484,6 @@ func (c *ClientInstance) Send(payloadData []byte, reliable bool) error {
 	if err != nil {
 		c.Unlock()
 		return err
-	}
-
-	// TODO placeholder to stop variable warning
-	if sequence < uint16(1) {
-		sequence = 1
 	}
 
 	// Per spec all packets sent to unconfirmed clients are preceded by keep alive packets.
@@ -455,9 +527,10 @@ func (c *ClientInstance) close(sendDisconnect bool) {
 	c.connected = false
 	c.Unlock()
 
-	// Do not close this, to avoid excessive locking we don't check the status of this channel before writing.
+	// Do not close this, to avoid excessive locking we don't check the status of some channels before writing.
 	// Leave it for GC to clean up.
 	// close(c.incomingPacketCh)
+	// close(c.reliableCh)
 	close(c.shutdownCh)
 }
 
@@ -506,4 +579,39 @@ func (c *ClientInstance) sendPacket(packet netcode.Packet) error {
 
 func nowMs() int64 {
 	return int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
+}
+
+func (c *ClientInstance) flushReliablePacker(ts int64) {
+	// Expects to be called inside a lock.
+	if c.reliablePackerLength > 0 {
+		seq, fragments, fragmentLengths, err := c.reliableController.SendPacket(ts, c.reliablePacker, c.reliablePackerLength, RELIABLE_CHANNEL_ID)
+		if err != nil {
+			c.logger.Debug("error flushing reliable packer")
+			return
+		}
+
+		p := c.reliableAckBuffer.Insert(seq)
+		p.messageIDs = c.reliablePackerSeq
+		c.reliablePackerSeq = make([]uint16, 0)
+
+		c.reliablePackerLength = 0
+
+		for i := 0; i < len(fragments); i++ {
+			packet := netcode.NewPayloadPacket(fragments[i][:fragmentLengths[i]])
+			err := c.sendPacket(packet)
+			if err != nil {
+				c.logger.Debug("error flushing reliable packer data to network")
+				return
+			}
+		}
+	} else {
+		// If no outgoing packets, ensure at least an empty ack message is sent.
+		data, length := c.reliableController.SendAck(RELIABLE_CHANNEL_ID)
+		packet := netcode.NewPayloadPacket(data[:length])
+		err := c.sendPacket(packet)
+		if err != nil {
+			c.logger.Debug("error flushing reliable packer ack to network")
+			return
+		}
+	}
 }

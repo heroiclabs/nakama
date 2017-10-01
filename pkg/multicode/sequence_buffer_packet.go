@@ -21,6 +21,20 @@ type BufferedPacket struct {
 	length    int
 }
 
+func (b *BufferedPacket) Resize(size int) {
+	if b.buffer == nil {
+		b.buffer = make([]byte, size)
+		b.length = size
+	} else if len(b.buffer) < size {
+		buf := make([]byte, size)
+		copy(buf, b.buffer)
+		b.buffer = buf
+		b.length = size
+	} else if len(b.buffer) > size {
+		b.length = size
+	}
+}
+
 type SequenceBufferPacket struct {
 	sequence      uint16
 	numEntries    uint16
