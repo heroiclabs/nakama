@@ -7,6 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Changed
 - Script runtime RPC and HTTP hook errors now return more detail when verbose logging is enabled.
 
+### Fixed
+- Haystack leaderboard record listings now return correct results around both sides of the pivot record.
+- Haystack leaderboard record listings now return a complete page even when the pivot record is at the end of the leaderboard.
+
 ## [1.0.2] - 2017-09-29
 ### Added
 - New code runtime function to list leaderboard records for a given set of users.

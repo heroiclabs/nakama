@@ -283,16 +283,16 @@ func leaderboardRecordsList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, li
 
 func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.UUID, list *TLeaderboardRecordsList, leaderboardId, findOwnerId []byte, currentExpiresAt, limit, sortOrder int64, query string, params []interface{}) ([]*LeaderboardRecord, []byte, Error_Code, error) {
 	// Find the owner's record.
-	var id []byte
-	var score int64
-	var updatedAt int64
+	var pivotID []byte
+	var pivotScore int64
+	var pivotUpdatedAt int64
 	findQuery := `SELECT id, score, updated_at
 		FROM leaderboard_record
 		WHERE leaderboard_id = $1
 		AND expires_at = $2
 		AND owner_id = $3`
 	logger.Debug("Leaderboard record find", zap.String("query", findQuery))
-	err := db.QueryRow(findQuery, leaderboardId, currentExpiresAt, findOwnerId).Scan(&id, &score, &updatedAt)
+	err := db.QueryRow(findQuery, leaderboardId, currentExpiresAt, findOwnerId).Scan(&pivotID, &pivotScore, &pivotUpdatedAt)
 	if err == sql.ErrNoRows {
 		return []*LeaderboardRecord{}, nil, 0, nil
 	} else if err != nil {
@@ -303,22 +303,22 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 	// First half.
 	count := len(params)
 	firstQuery := query
-	firstParams := make([]interface{}, len(params))
+	firstParams := make([]interface{}, count)
 	copy(firstParams, params)
 	if sortOrder == 0 {
 		// Lower score is better, but get in reverse order from current user to get those immediately above.
 		firstQuery += " AND (score, updated_at_inverse, id) <= ($" + strconv.Itoa(count+1) +
 			", $" + strconv.Itoa(count+2) +
 			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at_inverse DESC"
-		firstParams = append(firstParams, score, invertMs(updatedAt), id)
+		firstParams = append(firstParams, pivotScore, invertMs(pivotUpdatedAt), pivotID)
 	} else {
 		// Higher score is better.
 		firstQuery += " AND (score, updated_at, id) >= ($" + strconv.Itoa(count+1) +
 			", $" + strconv.Itoa(count+2) +
 			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
-		firstParams = append(firstParams, score, updatedAt, id)
+		firstParams = append(firstParams, pivotScore, pivotUpdatedAt, pivotID)
 	}
-	firstParams = append(firstParams, int64(limit/2))
+	firstParams = append(firstParams, limit)
 	firstQuery += " LIMIT $" + strconv.Itoa(len(firstParams))
 
 	logger.Debug("Leaderboard records list", zap.String("query", firstQuery))
@@ -331,15 +331,18 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 
 	leaderboardRecords := []*LeaderboardRecord{}
 
+	var id []byte
 	var ownerId []byte
 	var handle string
 	var lang string
 	var location sql.NullString
 	var timezone sql.NullString
 	var rankValue int64
+	var score int64
 	var numScore int64
 	var metadata []byte
 	var rankedAt int64
+	var updatedAt int64
 	var expiresAt int64
 	var bannedAt int64
 	for firstRows.Next() {
@@ -378,22 +381,26 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 
 	// Second half.
 	secondQuery := query
-	secondParams := make([]interface{}, len(params))
+	secondParams := make([]interface{}, count)
 	copy(secondParams, params)
 	if sortOrder == 0 {
 		// Lower score is better.
 		secondQuery += " AND (score, updated_at, id) > ($" + strconv.Itoa(count+1) +
 			", $" + strconv.Itoa(count+2) +
 			", $" + strconv.Itoa(count+3) + ") ORDER BY score ASC, updated_at ASC"
-		secondParams = append(secondParams, score, updatedAt, id)
+		secondParams = append(secondParams, pivotScore, pivotUpdatedAt, pivotID)
 	} else {
 		// Higher score is better.
 		secondQuery += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count+1) +
 			", $" + strconv.Itoa(count+2) +
 			", $" + strconv.Itoa(count+3) + ") ORDER BY score DESC, updated_at DESC"
-		secondParams = append(secondParams, score, invertMs(updatedAt), id)
+		secondParams = append(secondParams, pivotScore, invertMs(pivotUpdatedAt), pivotID)
 	}
-	secondParams = append(secondParams, limit-int64(len(leaderboardRecords))+2)
+	secondLimit := limit/2 + 2
+	if l := int64(len(leaderboardRecords)); l < limit/2 {
+		secondLimit = limit - l + 2
+	}
+	secondParams = append(secondParams, secondLimit)
 	secondQuery += " LIMIT $" + strconv.Itoa(len(secondParams))
 
 	logger.Debug("Leaderboard records list", zap.String("query", secondQuery))
@@ -406,8 +413,12 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 
 	var outgoingCursor []byte
 
+	need := limit / 2
+	if l := int64(len(leaderboardRecords)); l < limit/2 {
+		need += limit/2 - l
+	}
 	for secondRows.Next() {
-		if int64(len(leaderboardRecords)) >= limit {
+		if need <= 0 {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &leaderboardRecordListCursor{
 				Score:     score,
@@ -444,13 +455,18 @@ func loadLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, caller uuid.
 			UpdatedAt:     updatedAt,
 			ExpiresAt:     expiresAt,
 		})
+		need--
 	}
 	if err = secondRows.Err(); err != nil {
 		logger.Error("Could not process leaderboard records list query results", zap.Error(err))
 		return nil, nil, RUNTIME_EXCEPTION, errors.New("Error loading leaderboard records")
 	}
 
-	return normalizeLeaderboardRecords(leaderboardRecords), outgoingCursor, 0, nil
+	start := int64(len(leaderboardRecords)) - limit
+	if start < 0 {
+		start = 0
+	}
+	return normalizeLeaderboardRecords(leaderboardRecords[start:]), outgoingCursor, 0, nil
 }
 
 func normalizeLeaderboardRecords(records []*LeaderboardRecord) []*LeaderboardRecord {

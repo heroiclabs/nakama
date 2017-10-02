@@ -183,7 +183,7 @@ func (s *session) cleanupClosedConnection() {
 	s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	s.unregister(s)
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	s.conn.Close()
 	s.logger.Info("Closed client connection")
 }
@@ -198,7 +198,7 @@ func (s *session) close() {
 	s.Unlock()
 
 	s.pingTicker.Stop()
-	s.pingTickerStopCh <- true
+	close(s.pingTickerStopCh)
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs)*time.Millisecond))
 	if err != nil {
 		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
