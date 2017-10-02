@@ -49,7 +49,7 @@ const (
 
 var ErrClientInstanceClosed = errors.New("client instance closed")
 var ErrClientInstanceNotConnected = errors.New("client instance not connected")
-var ErrClientInstanceSendBufferFull = errors.New("client instance send buffer full")
+var ErrClientInstanceSendBufferFull = errors.New("client instance reliable send buffer full")
 
 //var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
 
