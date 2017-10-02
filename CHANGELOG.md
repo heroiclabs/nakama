@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ### [Unreleased]
+### Changed
+- Script runtime RPC and HTTP hook errors now return more detail when verbose logging is enabled.
 
 ## [1.0.2] - 2017-09-29
 ### Added

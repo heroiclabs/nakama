@@ -231,7 +231,7 @@ func (a *authenticationService) configure() {
 		responseData, funError := a.runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
 		if funError != nil {
 			a.logger.Error("Runtime function caused an error", zap.String("path", path), zap.Error(funError))
-			if apiErr, ok := funError.(*lua.ApiError); ok {
+			if apiErr, ok := funError.(*lua.ApiError); ok && !a.config.GetLog().Verbose {
 				msg := apiErr.Object.String()
 				if strings.HasPrefix(msg, fn.Proto.SourceName) {
 					msg = msg[len(fn.Proto.SourceName):]
