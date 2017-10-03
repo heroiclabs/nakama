@@ -42,6 +42,7 @@ function print_r(arr, indentLevel)
 end
 
 -- qwertyuiopasdfghjklzxcvbnm
+charset = {}
 for i = 97, 122 do table.insert(charset, string.char(i)) end
 
 function string.random(length)
