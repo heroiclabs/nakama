@@ -431,7 +431,7 @@ func (n *NakamaModule) cronNext(l *lua.LState) int {
 		l.ArgError(1, "expects a valid cron string")
 		return 0
 	}
-	t := time.Unix(ts, 0)
+	t := time.Unix(ts, 0).UTC()
 	next := expr.Next(t)
 	nextTs := next.UTC().Unix()
 	l.Push(lua.LNumber(nextTs))
