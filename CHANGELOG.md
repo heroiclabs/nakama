@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Haystack leaderboard record listings now return correct results around both sides of the pivot record.
 - Haystack leaderboard record listings now return a complete page even when the pivot record is at the end of the leaderboard.
 - CRON expression runtime function now correctly uses UTC as the timezone for input timestamps.
+- Ensure all runtime 'os' module time functions default to UTC timezone.
 
 ## [1.0.2] - 2017-09-29
 ### Added

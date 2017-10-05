@@ -74,7 +74,7 @@ func osDiffTime(L *lua.LState) int {
 }
 
 func osDate(L *lua.LState) int {
-	t := time.Now()
+	t := time.Now().UTC()
 	cfmt := "%c"
 	if L.GetTop() >= 1 {
 		cfmt = L.CheckString(1)
@@ -107,7 +107,7 @@ func osDate(L *lua.LState) int {
 
 func osTime(L *lua.LState) int {
 	if L.GetTop() == 0 {
-		L.Push(lua.LNumber(time.Now().Unix()))
+		L.Push(lua.LNumber(time.Now().UTC().Unix()))
 	} else {
 		tbl := L.CheckTable(1)
 		sec := getIntField(L, tbl, "sec", 0)
@@ -117,12 +117,12 @@ func osTime(L *lua.LState) int {
 		month := getIntField(L, tbl, "month", -1)
 		year := getIntField(L, tbl, "year", -1)
 		isdst := getBoolField(L, tbl, "isdst", false)
-		t := time.Date(year, time.Month(month), day, hour, min, sec, 0, time.Local)
+		t := time.Date(year, time.Month(month), day, hour, min, sec, 0, time.UTC)
 		// TODO dst
 		if false {
 			print(isdst)
 		}
-		L.Push(lua.LNumber(t.Unix()))
+		L.Push(lua.LNumber(t.UTC().Unix()))
 	}
 	return 1
 }
