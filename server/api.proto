@@ -888,13 +888,58 @@ message TopicPresence {
 }
 
 /**
+ * PropertyPair is a core domain type respresenting a single user property
+ */
+message PropertyPair {
+  /// Set of string user property
+  message StringSet {
+    repeated string values = 1;
+  }
+
+  string key = 1;
+  oneof value {
+    StringSet stringSet = 2;
+    bool boolValue = 3;
+    int64 intValue = 4;
+  }
+}
+
+/**
+ * MatchmakeFilter is a core domain type respresenting a filter to use for matchmaking.
+ */
+message MatchmakeFilter {
+  /// String term filters
+  message TermFilter {
+    repeated string terms = 1;
+    bool matchAllTerms = 2;
+  }
+
+  /// Numeric range filter
+  message RangeFilter {
+    int64 lower_bound = 1; // inclusive lower_bound
+    int64 upper_bound = 2; // inclusive upper_bound
+  }
+
+  string name = 1;
+  oneof value {
+    TermFilter term = 2;
+    RangeFilter range = 3;
+    bool check = 4;
+  }
+}
+
+/**
  * TMatchmakeAdd is used to add the current user to the matchmaking pool.
  *
  * @returns TMatchmakeTicket
  */
 message TMatchmakeAdd {
   /// Match user with other users looking for a match with the the following number of users.
-  int64 requiredCount = 1;
+  int64 required_count = 1;
+  /// List of filters that need to match.
+  repeated MatchmakeFilter filters = 2; // "AND"
+  /// List of properties for the current user.
+  repeated PropertyPair properties = 3;
 }
 
 /**
@@ -915,12 +960,20 @@ message TMatchmakeRemove {
  * MatchmakeMatched is the core domain type representing a found match via matchmaking.
  */
 message MatchmakeMatched {
+  /// Matched user presence and properties
+  message UserProperty {
+    bytes user_id = 1;
+    repeated PropertyPair properties = 2;
+    repeated MatchmakeFilter filters = 3;
+  }
+
   /// Matchmaking ticket. Use this to invalidate ticket cache on the client.
   bytes ticket = 1;
-  /// Matchmaking token. Use this to accept the match. This is a onetime token which is only valid for 15seconds.
+  /// Matchmaking token. Use this to accept the match. This is a onetime token which is only valid for a limited time.
   bytes token = 2;
   repeated UserPresence presences = 3;
   UserPresence self = 4;
+  repeated UserProperty properties = 5;
 }
 
 /**
