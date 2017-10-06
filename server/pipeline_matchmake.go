@@ -38,7 +38,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 		case *PropertyPair_IntValue:
 			properties[pair.Key] = v.IntValue
 		case *PropertyPair_StringSet_:
-			properties[pair.Key] = v.StringSet.Values
+			properties[pair.Key] = uniqueList(v.StringSet.Values)
 		}
 	}
 
@@ -50,7 +50,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 		case *MatchmakeFilter_Range:
 			filters[filter.Name] = &MatchmakerRangeFilter{v.Range.LowerBound, v.Range.UpperBound}
 		case *MatchmakeFilter_Term:
-			filters[filter.Name] = &MatchmakerTermFilter{v.Term.Terms, v.Term.MatchAllTerms}
+			filters[filter.Name] = &MatchmakerTermFilter{uniqueList(v.Term.Terms), v.Term.MatchAllTerms}
 		}
 	}
 
