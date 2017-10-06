@@ -38,7 +38,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 		case *PropertyPair_IntValue:
 			properties[pair.Key] = v.IntValue
 		case *PropertyPair_StringSet_:
-			properties[pair.Key] = uniqueList(v.StringSet.Values)
+			properties[pair.Key] = v.StringSet.Values
 		}
 	}
 

@@ -30,10 +30,14 @@ func newMatchmaker() {
 }
 
 func add(props map[string]interface{}, filters map[string]server.MatchmakerFilter) (uuid.UUID, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
+	return addRequest(2, props, filters)
+}
+
+func addRequest(count int, props map[string]interface{}, filters map[string]server.MatchmakerFilter) (uuid.UUID, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
 	userID := uuid.NewV4()
 	profile := &server.MatchmakerProfile{
 		Meta:          server.PresenceMeta{userID.String()},
-		RequiredCount: 2,
+		RequiredCount: count,
 		Properties:    props,
 		Filters:       filters,
 	}
@@ -493,5 +497,57 @@ func TestMatchmakeMultiFilter(t *testing.T) {
 	p = matchedCriteria[1].Properties
 	if p["rank"].(int64) != int64(10) {
 		t.Fatal("Profile 2 rank does not match")
+	}
+}
+
+func TestMatchmakeMultiFilterMultiuser(t *testing.T) {
+	newMatchmaker()
+	addRequest(3, map[string]interface{}{
+		"rank":      int64(12),
+		"modes":     []string{"tdm", "ffa"},
+		"divisions": []string{"silver1"},
+	}, map[string]server.MatchmakerFilter{
+		"rank":      &server.MatchmakerRangeFilter{10, 15},
+		"modes":     &server.MatchmakerTermFilter{[]string{"tdm", "ffa"}, false},
+		"divisions": &server.MatchmakerTermFilter{[]string{"bronze3", "silver1", "silver2"}, false},
+	})
+
+	addRequest(3, map[string]interface{}{
+		"rank":      int64(11),
+		"modes":     []string{"tdm", "ffa"},
+		"divisions": []string{"bronze3"},
+	}, map[string]server.MatchmakerFilter{
+		"rank":      &server.MatchmakerRangeFilter{8, 12},
+		"modes":     &server.MatchmakerTermFilter{[]string{"tdm", "ffa"}, false},
+		"divisions": &server.MatchmakerTermFilter{[]string{"bronze2", "bronze3", "silver1"}, false},
+	})
+
+	//unmatching profile
+	addRequest(2, map[string]interface{}{
+		"rank":      int64(50),
+		"modes":     []string{"ffa"},
+		"divisions": []string{"gold1"},
+	}, map[string]server.MatchmakerFilter{
+		"rank":      &server.MatchmakerRangeFilter{8, 12},
+		"modes":     &server.MatchmakerTermFilter{[]string{"tdm", "ffa"}, false},
+		"divisions": &server.MatchmakerTermFilter{[]string{"bronze3", "silver1", "silver2"}, false},
+	})
+
+	_, matched, matchedCriteria := addRequest(3, map[string]interface{}{
+		"rank":      int64(10),
+		"modes":     []string{"tdm"},
+		"divisions": []string{"silver1"},
+	}, map[string]server.MatchmakerFilter{
+		"rank":      &server.MatchmakerRangeFilter{8, 12},
+		"modes":     &server.MatchmakerTermFilter{[]string{"tdm", "ffa"}, false},
+		"divisions": &server.MatchmakerTermFilter{[]string{"bronze2", "bronze3", "silver1"}, false},
+	})
+
+	if matched == nil || matchedCriteria == nil {
+		t.Fatal("Matchmaking failed with nil result")
+	}
+
+	if len(matched) != 3 {
+		t.Fatal("Matchmaking did not matched expected result")
 	}
 }
