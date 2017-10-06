@@ -888,17 +888,17 @@ message TopicPresence {
 }
 
 /**
- * PropertyMap is a core domain type respresenting a single user property
+ * PropertyPair is a core domain type respresenting a single user property
  */
 message PropertyPair {
-  /// List of string user property
-  message StringList {
+  /// Set of string user property
+  message StringSet {
     repeated string values = 1;
   }
 
   string key = 1;
   oneof value {
-    StringList stringList = 2;
+    StringSet stringSet = 2;
     bool boolValue = 3;
     int64 intValue = 4;
   }

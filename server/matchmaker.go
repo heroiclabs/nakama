@@ -247,6 +247,7 @@ func (m *MatchmakerService) intersection(a, b []string) []string {
 		for j := range b {
 			if a[i] == b[j] {
 				o = append(o, a[i])
+				break
 			}
 		}
 	}

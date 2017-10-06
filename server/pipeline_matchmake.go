@@ -37,8 +37,8 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 			properties[pair.Key] = v.BoolValue
 		case *PropertyPair_IntValue:
 			properties[pair.Key] = v.IntValue
-		case *PropertyPair_StringList_:
-			properties[pair.Key] = v.StringList.Values
+		case *PropertyPair_StringSet_:
+			properties[pair.Key] = uniqueList(v.StringSet.Values)
 		}
 	}
 
@@ -106,7 +106,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 			case bool:
 				pair.Value = &PropertyPair_BoolValue{v}
 			case []string:
-				pair.Value = &PropertyPair_StringList_{&PropertyPair_StringList{v}}
+				pair.Value = &PropertyPair_StringSet_{&PropertyPair_StringSet{v}}
 			}
 		}
 
@@ -125,11 +125,6 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 				filter.Value = &MatchmakeFilter_Check{f.Value}
 			}
 		}
-
-		logger.Info("propProp", zap.Any("pp", protoProp))
-		logger.Info("propProp-Prop", zap.Any("pp", len(protoProp.Properties)))
-		logger.Info("propProp-Filter", zap.Any("pp", len(protoProp.Filters)))
-		logger.Info("propProps-length", zap.Any("length", len(protoProps)))
 	}
 
 	outgoing := &Envelope{Payload: &Envelope_MatchmakeMatched{MatchmakeMatched: &MatchmakeMatched{
@@ -174,4 +169,18 @@ func (p *pipeline) matchmakeRemove(logger *zap.Logger, session *session, envelop
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId})
+}
+
+func uniqueList(values []string) []string {
+	m := make(map[string]struct{})
+	set := make([]string, 0)
+
+	for _, v := range values {
+		if _, ok := m[v]; !ok {
+			m[v] = struct{}{}
+			set = append(set, v)
+		}
+	}
+
+	return set
 }
