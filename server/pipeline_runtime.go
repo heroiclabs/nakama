@@ -27,13 +27,16 @@ func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope)
 		return
 	}
 
-	lf := p.runtime.GetRuntimeCallback(RPC, rpcMessage.Id)
+	runtime := p.runtimePool.Get()
+	lf := runtime.GetRuntimeCallback(RPC, rpcMessage.Id)
 	if lf == nil {
+		p.runtimePool.Put(runtime)
 		session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_NOT_FOUND, "RPC function not found"))
 		return
 	}
 
-	result, fnErr := p.runtime.InvokeFunctionRPC(lf, session.userID, session.handle.Load(), session.expiry, rpcMessage.Payload)
+	result, fnErr := runtime.InvokeFunctionRPC(lf, session.userID, session.handle.Load(), session.expiry, rpcMessage.Payload)
+	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !p.config.GetLog().Verbose {

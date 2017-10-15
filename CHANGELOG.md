@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - Script runtime RPC and HTTP hook errors now return more detail when verbose logging is enabled.
+- Script runtime invocations now use separate underlying states to improve concurrency.
 
 ### Fixed
 - Haystack leaderboard record listings now return correct results around both sides of the pivot record.

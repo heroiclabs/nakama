@@ -31,11 +31,146 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	"sync"
 )
 
 const (
 	__nakamaReturnValue = "__nakama_return_flag__"
 )
+
+type RuntimeModule struct {
+	name    string
+	path    string
+	content []byte
+}
+
+type RuntimePool struct {
+	pool *sync.Pool
+}
+
+func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, notificationService *NotificationService) (*RuntimePool, error) {
+	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
+		return nil, err
+	}
+
+	// override before Package library is invoked.
+	lua.LuaLDir = config.Path
+	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
+	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
+
+	stdLibs := map[string]lua.LGFunction{
+		lua.LoadLibName:   lua.OpenPackage,
+		lua.BaseLibName:   lua.OpenBase,
+		lua.TabLibName:    lua.OpenTable,
+		lua.OsLibName:     OpenOs,
+		lua.StringLibName: lua.OpenString,
+		lua.MathLibName:   lua.OpenMath,
+	}
+
+	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
+	modules := make([]*RuntimeModule, 0)
+	err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			logger.Error("Could not read module", zap.Error(err))
+			return err
+		} else if !f.IsDir() {
+			if strings.ToLower(filepath.Ext(path)) == ".lua" {
+				var content []byte
+				if content, err = ioutil.ReadFile(path); err != nil {
+					logger.Error("Could not read module", zap.String("path", path), zap.Error(err))
+					return err
+				}
+				relPath, _ := filepath.Rel(lua.LuaLDir, path)
+				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+				name = strings.Replace(name, "/", ".", -1) //make paths Lua friendly
+				modules = append(modules, &RuntimeModule{
+					name:    name,
+					path:    path,
+					content: content,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("Failed to list modules", zap.Error(err))
+		return nil, err
+	}
+
+	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
+	vm := lua.NewState(lua.Options{
+		CallStackSize:       1024,
+		RegistrySize:        1024,
+		SkipOpenLibs:        true,
+		IncludeGoStackTrace: true,
+	})
+	for name, lib := range stdLibs {
+		vm.Push(vm.NewFunction(lib))
+		vm.Push(lua.LString(name))
+		vm.Call(1, 0)
+	}
+	nakamaModule := NewNakamaModule(logger, db, vm, notificationService, true)
+	vm.PreloadModule("nakama", nakamaModule.Loader)
+	r := &Runtime{
+		logger: logger,
+		vm:     vm,
+		luaEnv: ConvertMap(vm, config.Environment),
+	}
+	moduleStrings := make([]string, len(modules))
+	for i, module := range modules {
+		moduleStrings[i] = module.path
+	}
+	multiLogger.Info("Evaluating modules", zap.Int("count", len(moduleStrings)), zap.Strings("modules", moduleStrings))
+	if err = r.loadModules(modules); err != nil {
+		return nil, err
+	}
+	multiLogger.Info("Modules loaded")
+	r.Stop()
+
+	return &RuntimePool{
+		pool: &sync.Pool{
+			New: func() interface{} {
+				vm := lua.NewState(lua.Options{
+					CallStackSize:       1024,
+					RegistrySize:        1024,
+					SkipOpenLibs:        true,
+					IncludeGoStackTrace: true,
+				})
+
+				for name, lib := range stdLibs {
+					vm.Push(vm.NewFunction(lib))
+					vm.Push(lua.LString(name))
+					vm.Call(1, 0)
+				}
+
+				nakamaModule := NewNakamaModule(logger, db, vm, notificationService, false)
+				vm.PreloadModule("nakama", nakamaModule.Loader)
+
+				r := &Runtime{
+					logger: logger,
+					vm:     vm,
+					luaEnv: ConvertMap(vm, config.Environment),
+				}
+
+				if err = r.loadModules(modules); err != nil {
+					multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
+				}
+				return r
+
+				// TODO find a way to run r.Stop() when the pool discards this runtime.
+			},
+		},
+	}, nil
+}
+
+func (rp *RuntimePool) Get() *Runtime {
+	return rp.pool.Get().(*Runtime)
+}
+
+func (rp *RuntimePool) Put(r *Runtime) {
+	rp.pool.Put(r)
+}
 
 type BuiltinModule interface {
 	Loader(l *lua.LState) int
@@ -47,74 +182,7 @@ type Runtime struct {
 	luaEnv *lua.LTable
 }
 
-func NewRuntime(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, notificationService *NotificationService) (*Runtime, error) {
-	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
-		return nil, err
-	}
-
-	// override before Package library is invoked.
-	lua.LuaLDir = config.Path
-	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
-	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
-
-	vm := lua.NewState(lua.Options{
-		CallStackSize:       1024,
-		RegistrySize:        1024,
-		SkipOpenLibs:        true,
-		IncludeGoStackTrace: true,
-	})
-
-	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:   lua.OpenPackage,
-		lua.BaseLibName:   lua.OpenBase,
-		lua.TabLibName:    lua.OpenTable,
-		lua.OsLibName:     OpenOs,
-		lua.StringLibName: lua.OpenString,
-		lua.MathLibName:   lua.OpenMath,
-	}
-	for name, lib := range stdLibs {
-		vm.Push(vm.NewFunction(lib))
-		vm.Push(lua.LString(name))
-		vm.Call(1, 0)
-	}
-
-	nakamaModule := NewNakamaModule(logger, db, vm, notificationService)
-	vm.PreloadModule("nakama", nakamaModule.Loader)
-
-	r := &Runtime{
-		logger: logger,
-		vm:     vm,
-		luaEnv: ConvertMap(vm, config.Environment),
-	}
-
-	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
-	modules := make([]string, 0)
-	err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			logger.Error("Could not read module", zap.Error(err))
-			return err
-		} else if !f.IsDir() {
-			if strings.ToLower(filepath.Ext(path)) == ".lua" {
-				modules = append(modules, path)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		logger.Error("Failed to list modules", zap.Error(err))
-		return nil, err
-	}
-
-	multiLogger.Info("Evaluating modules", zap.Int("count", len(modules)), zap.Strings("modules", modules))
-	if err = r.loadModules(lua.LuaLDir, modules); err != nil {
-		return nil, err
-	}
-	multiLogger.Info("Modules loaded")
-
-	return r, nil
-}
-
-func (r *Runtime) loadModules(luaPath string, modules []string) error {
+func (r *Runtime) loadModules(modules []*RuntimeModule) error {
 	// `DoFile(..)` only parses and evaluates modules. Calling it multiple times, will load and eval the file multiple times.
 	// So to make sure that we only load and evaluate modules once, regardless of whether there is dependency between files, we load them all into `preload`.
 	// This is to make sure that modules are only loaded and evaluated once as `doFile()` does not (always) update _LOADED table.
@@ -148,17 +216,14 @@ func (r *Runtime) loadModules(luaPath string, modules []string) error {
 
 	preload := r.vm.GetField(r.vm.GetField(r.vm.Get(lua.EnvironIndex), "package"), "preload")
 	fns := make(map[string]*lua.LFunction)
-	for _, path := range modules {
-		f, err := r.vm.LoadFile(path)
+	for _, module := range modules {
+		f, err := r.vm.Load(bytes.NewReader(module.content), module.path)
 		if err != nil {
-			r.logger.Error("Could not load module", zap.String("name", path), zap.Error(err))
+			r.logger.Error("Could not load module", zap.String("name", module.path), zap.Error(err))
 			return err
 		} else {
-			relPath, _ := filepath.Rel(luaPath, path)
-			moduleName := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-			moduleName = strings.Replace(moduleName, "/", ".", -1) //make paths Lua friendly
-			r.vm.SetField(preload, moduleName, f)
-			fns[moduleName] = f
+			r.vm.SetField(preload, module.name, f)
+			fns[module.name] = f
 		}
 	}
 

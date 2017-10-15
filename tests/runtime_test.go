@@ -32,14 +32,14 @@ import (
 
 const DATA_PATH = "/tmp/nakama/data/"
 
-func newRuntime() (*server.Runtime, error) {
+func newRuntimePool() (*server.RuntimePool, error) {
 	db, err := setupDB()
 	if err != nil {
 		return nil, err
 	}
 	c := server.NewRuntimeConfig()
 	c.Path = filepath.Join(DATA_PATH, "modules")
-	return server.NewRuntime(logger, logger, db, c, nil)
+	return server.NewRuntimePool(logger, logger, db, c, nil)
 }
 
 func writeStatsModule() {
@@ -84,11 +84,12 @@ func writeLuaModule(name, content string) {
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	l, _ := r.NewStateThread()
 	defer l.Close()
@@ -104,11 +105,12 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	l, _ := r.NewStateThread()
 	defer l.Close()
@@ -138,8 +140,7 @@ local test = require("test")
 test.printWorld()
 `)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,8 +155,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
 `)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -170,8 +170,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
 `)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -185,11 +184,12 @@ var.count = 1
 return var
 	`)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	l, _ := r.NewStateThread()
 	defer l.Close()
@@ -230,11 +230,12 @@ local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	m, err := r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
@@ -266,11 +267,12 @@ local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	_, err = r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
@@ -299,11 +301,12 @@ local test = require("test")
 nakama.register_http(test.printWorld, "test/helloworld")
 	`)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
 	payload := make(map[string]interface{})
@@ -340,11 +343,12 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.RPC, "helloworld")
 	payload := []byte("Hello World")
@@ -389,11 +393,12 @@ nakama.register_before(test.printWorld, "tselffetch")
 		AllowUnknownFields: false,
 	}
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.BEFORE, "tselffetch")
 	envelope := &server.Envelope{
@@ -445,11 +450,12 @@ nakama.register_before(test.printWorld, "tgroupsjoin")
 		AllowUnknownFields: false,
 	}
 
-	r, err := newRuntime()
-	defer r.Stop()
+	rp, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
+	r := rp.Get()
+	defer r.Stop()
 
 	gid := uuid.NewV4().Bytes()
 
@@ -495,8 +501,7 @@ local users = nk.users_fetch_id(user_ids)
 	`)
 
 	setupDB()
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -519,8 +524,7 @@ assert(status == true)
 	`)
 
 	setupDB()
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -540,8 +544,7 @@ nk.leaderboard_create(leaderboard_id, "desc", "0 0 * * 1", metadata, false)
 	`)
 
 	setupDB()
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -562,8 +565,7 @@ nk.storage_write(new_records)
 `)
 
 	setupDB()
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}
@@ -586,8 +588,7 @@ end
 `)
 
 	setupDB()
-	r, err := newRuntime()
-	defer r.Stop()
+	_, err := newRuntimePool()
 	if err != nil {
 		t.Error(err)
 	}

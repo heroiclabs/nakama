@@ -25,9 +25,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func RuntimeBeforeHook(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *Envelope, session *session) (*Envelope, error) {
+func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *Envelope, session *session) (*Envelope, error) {
+	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
+		runtimePool.Put(runtime)
 		return envelope, nil
 	}
 
@@ -40,12 +42,16 @@ func RuntimeBeforeHook(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, json
 		expiry = session.expiry
 	}
 
-	return runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
+	env, err := runtime.InvokeFunctionBefore(fn, userId, handle, expiry, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
+	runtimePool.Put(runtime)
+	return env, err
 }
 
-func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session *session) {
+func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session *session) {
+	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
+		runtimePool.Put(runtime)
 		return
 	}
 
@@ -73,22 +79,27 @@ func RuntimeAfterHook(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jso
 	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {
 		logger.Error("Runtime after function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 	}
+	runtimePool.Put(runtime)
 }
 
-func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
+func RuntimeBeforeHookAuthentication(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
 	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
+	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
+		runtimePool.Put(runtime)
 		return envelope, nil
 	}
 
 	strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
+		runtimePool.Put(runtime)
 		return nil, err
 	}
 
 	var jsonEnvelope map[string]interface{}
 	if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
+		runtimePool.Put(runtime)
 		return nil, err
 	}
 
@@ -97,6 +108,7 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 	expiry := int64(0)
 
 	result, fnErr := runtime.InvokeFunctionBeforeAuthentication(fn, userId, handle, expiry, jsonEnvelope)
+	runtimePool.Put(runtime)
 	if fnErr != nil {
 		return nil, fnErr
 	}
@@ -114,21 +126,25 @@ func RuntimeBeforeHookAuthentication(runtime *Runtime, jsonpbMarshaler *jsonpb.M
 	return authenticationResult, nil
 }
 
-func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId uuid.UUID, handle string, expiry int64) {
+func RuntimeAfterHookAuthentication(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId uuid.UUID, handle string, expiry int64) {
 	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
+	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
+		runtimePool.Put(runtime)
 		return
 	}
 
 	strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Failed to convert proto message to protoJSON in After invocation", zap.String("message", messageType), zap.Error(err))
 		return
 	}
 
 	var jsonEnvelope map[string]interface{}
 	if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Failed to convert protoJSON message to Map in After invocation", zap.String("message", messageType), zap.Error(err))
 		return
 	}
@@ -136,4 +152,5 @@ func RuntimeAfterHookAuthentication(logger *zap.Logger, runtime *Runtime, jsonpb
 	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {
 		logger.Error("Runtime after function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 	}
+	runtimePool.Put(runtime)
 }

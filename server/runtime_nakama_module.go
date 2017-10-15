@@ -52,13 +52,14 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
+	logRegistrations    bool
 	logger              *zap.Logger
 	db                  *sql.DB
 	notificationService *NotificationService
 	client              *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, logRegistrations bool) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -66,6 +67,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 		HTTP:   make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
+		logRegistrations:    logRegistrations,
 		logger:              logger,
 		db:                  db,
 		notificationService: notificationService,
@@ -484,7 +486,9 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.RPC[id] = fn
-	n.logger.Info("Registered RPC function invocation", zap.String("id", id))
+	if n.logRegistrations {
+		n.logger.Info("Registered RPC function invocation", zap.String("id", id))
+	}
 	return 0
 }
 
@@ -514,7 +518,9 @@ func (n *NakamaModule) registerBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.Before[messageName] = fn
-	n.logger.Info("Registered Before function invocation", zap.String("message", messageName))
+	if n.logRegistrations {
+		n.logger.Info("Registered Before function invocation", zap.String("message", messageName))
+	}
 	return 0
 }
 
@@ -544,7 +550,9 @@ func (n *NakamaModule) registerAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.After[messageName] = fn
-	n.logger.Info("Registered After function invocation", zap.String("message", messageName))
+	if n.logRegistrations {
+		n.logger.Info("Registered After function invocation", zap.String("message", messageName))
+	}
 	return 0
 }
 
@@ -566,7 +574,9 @@ func (n *NakamaModule) registerHTTP(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.HTTP[path] = fn
-	n.logger.Info("Registered HTTP function invocation", zap.String("path", path))
+	if n.logRegistrations {
+		n.logger.Info("Registered HTTP function invocation", zap.String("path", path))
+	}
 	return 0
 }
 
