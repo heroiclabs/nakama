@@ -66,7 +66,7 @@ type authenticationService struct {
 	statsService      StatsService
 	registry          *SessionRegistry
 	pipeline          *pipeline
-	runtime           *Runtime
+	runtimePool       *RuntimePool
 	mux               *mux.Router
 	hmacSecretByte    []byte
 	upgrader          *websocket.Upgrader
@@ -77,7 +77,7 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtime *Runtime) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtimePool *RuntimePool) *authenticationService {
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
@@ -85,7 +85,7 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		statsService:   statService,
 		registry:       registry,
 		pipeline:       pipeline,
-		runtime:        runtime,
+		runtimePool:    runtimePool,
 		socialClient:   socialClient,
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
@@ -209,8 +209,10 @@ func (a *authenticationService) configure() {
 		}
 
 		path := strings.ToLower(mux.Vars(r)["path"])
-		fn := a.runtime.GetRuntimeCallback(HTTP, path)
+		runtime := a.runtimePool.Get()
+		fn := runtime.GetRuntimeCallback(HTTP, path)
 		if fn == nil {
+			a.runtimePool.Put(runtime)
 			a.logger.Warn("HTTP invocation failed as path was not found", zap.String("path", path))
 			http.Error(w, fmt.Sprintf("Runtime function could not be invoked. Path: \"%s\", was not found.", path), 404)
 			return
@@ -223,12 +225,14 @@ func (a *authenticationService) configure() {
 		case err == io.EOF:
 			payload = nil
 		case err != nil:
+			a.runtimePool.Put(runtime)
 			a.logger.Error("Could not decode request data", zap.Error(err))
 			http.Error(w, "Bad request data", 400)
 			return
 		}
 
-		responseData, funError := a.runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
+		responseData, funError := runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
+		a.runtimePool.Put(runtime)
 		if funError != nil {
 			a.logger.Error("Runtime function caused an error", zap.String("path", path), zap.Error(funError))
 			if apiErr, ok := funError.(*lua.ApiError); ok && !a.config.GetLog().Verbose {
@@ -324,7 +328,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 
 	messageType := fmt.Sprintf("%T", authReq.Id)
 	a.logger.Debug("Received message", zap.String("type", messageType))
-	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtime, a.jsonpbMarshaler, a.jsonpbUnmarshaler, authReq)
+	authReq, fnErr := RuntimeBeforeHookAuthentication(a.runtimePool, a.jsonpbMarshaler, a.jsonpbUnmarshaler, authReq)
 	if fnErr != nil {
 		a.logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 		a.sendAuthError(w, r, "Runtime before function caused an error", RUNTIME_FUNCTION_EXCEPTION, authReq)
@@ -351,7 +355,7 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
-	RuntimeAfterHookAuthentication(a.logger, a.runtime, a.jsonpbMarshaler, authReq, uid, handle, exp)
+	RuntimeAfterHookAuthentication(a.logger, a.runtimePool, a.jsonpbMarshaler, authReq, uid, handle, exp)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode Error_Code, authRequest *AuthenticateRequest) {

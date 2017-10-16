@@ -92,15 +92,15 @@ func main() {
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
 	notificationService := server.NewNotificationService(jsonLogger, db, trackerService, messageRouter, config.GetSocial().Notification)
 
-	runtime, err := server.NewRuntime(jsonLogger, multiLogger, db, config.GetRuntime(), notificationService)
+	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config.GetRuntime(), notificationService)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules.", zap.Error(err))
 	}
 
 	socialClient := social.NewClient(5 * time.Second)
 	purchaseService := server.NewPurchaseService(jsonLogger, multiLogger, db, config.GetPurchase())
-	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtime, purchaseService, notificationService)
-	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtime)
+	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtimePool, purchaseService, notificationService)
+	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtimePool)
 	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
@@ -121,7 +121,6 @@ func main() {
 		authService.Stop()
 		dashboardService.Stop()
 		trackerService.Stop()
-		runtime.Stop()
 
 		if gaenabled {
 			ga.SendSessionStop(http.DefaultClient, gacode, cookie)

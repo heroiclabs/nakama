@@ -33,7 +33,7 @@ type pipeline struct {
 	messageRouter       MessageRouter
 	sessionRegistry     *SessionRegistry
 	socialClient        *social.Client
-	runtime             *Runtime
+	runtimePool         *RuntimePool
 	purchaseService     *PurchaseService
 	notificationService *NotificationService
 	jsonpbMarshaler     *jsonpb.Marshaler
@@ -48,7 +48,7 @@ func NewPipeline(config Config,
 	messageRouter MessageRouter,
 	registry *SessionRegistry,
 	socialClient *social.Client,
-	runtime *Runtime,
+	runtimePool *RuntimePool,
 	purchaseService *PurchaseService,
 	notificationService *NotificationService) *pipeline {
 	return &pipeline{
@@ -60,7 +60,7 @@ func NewPipeline(config Config,
 		messageRouter:       messageRouter,
 		sessionRegistry:     registry,
 		socialClient:        socialClient,
-		runtime:             runtime,
+		runtimePool:         runtimePool,
 		purchaseService:     purchaseService,
 		notificationService: notificationService,
 		jsonpbMarshaler: &jsonpb.Marshaler{
@@ -85,7 +85,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	logger.Debug("Received message", zap.String("type", messageType))
 
 	messageType = RUNTIME_MESSAGES[messageType]
-	envelope, fnErr := RuntimeBeforeHook(p.runtime, p.jsonpbMarshaler, p.jsonpbUnmarshaler, messageType, originalEnvelope, session)
+	envelope, fnErr := RuntimeBeforeHook(p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, messageType, originalEnvelope, session)
 	if fnErr != nil {
 		logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 		session.Send(ErrorMessage(originalEnvelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime before function caused an error: %s", fnErr.Error())))
@@ -203,7 +203,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		return
 	}
 
-	RuntimeAfterHook(logger, p.runtime, p.jsonpbMarshaler, messageType, envelope, session)
+	RuntimeAfterHook(logger, p.runtimePool, p.jsonpbMarshaler, messageType, envelope, session)
 }
 
 func ErrorMessageRuntimeException(collationID string, message string) *Envelope {
