@@ -52,14 +52,15 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logRegistrations    bool
 	logger              *zap.Logger
 	db                  *sql.DB
 	notificationService *NotificationService
+	cbufferPool         *CbufferPool
+	logRegistrations    bool
 	client              *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, logRegistrations bool) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, cbufferPool *CbufferPool, logRegistrations bool) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -67,10 +68,11 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 		HTTP:   make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logRegistrations:    logRegistrations,
 		logger:              logger,
 		db:                  db,
 		notificationService: notificationService,
+		cbufferPool:         cbufferPool,
+		logRegistrations:    logRegistrations,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -79,6 +81,9 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
+		"cbuffer_create":                 n.cbufferPool.create,
+		"cbuffer_push":                   n.cbufferPool.push,
+		"cbuffer_peek_random":            n.cbufferPool.peekRandom,
 		"sql_exec":                       n.sqlExec,
 		"sql_query":                      n.sqlQuery,
 		"uuid_v4":                        n.uuidV4,

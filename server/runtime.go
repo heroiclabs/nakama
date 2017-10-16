@@ -98,6 +98,8 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		return nil, err
 	}
 
+	cbufferPool := NewCbufferPool()
+
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -110,7 +112,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, vm, notificationService, true)
+	nakamaModule := NewNakamaModule(logger, db, vm, notificationService, cbufferPool, true)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,
@@ -144,7 +146,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 					vm.Call(1, 0)
 				}
 
-				nakamaModule := NewNakamaModule(logger, db, vm, notificationService, false)
+				nakamaModule := NewNakamaModule(logger, db, vm, notificationService, cbufferPool, false)
 				vm.PreloadModule("nakama", nakamaModule.Loader)
 
 				r := &Runtime{
