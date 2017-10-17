@@ -92,7 +92,7 @@ relupload: proto dashboard migration $(PLATFORMS)
 
 .PHONY: vet
 vet:
-	go vet ${GOFLAGS} ${LDFLAGS}
+	go vet
 
 .PHONY: suite
 suite: dbstart dbreset dbsetup test dbstop

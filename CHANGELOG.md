@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Script runtime invocations now use separate underlying states to improve concurrency.
 
 ### Fixed
+- Build system no longer passes flags to Go vet command.
 - Haystack leaderboard record listings now return correct results around both sides of the pivot record.
 - Haystack leaderboard record listings now return a complete page even when the pivot record is at the end of the leaderboard.
 - CRON expression runtime function now correctly uses UTC as the timezone for input timestamps.
