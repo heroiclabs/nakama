@@ -100,7 +100,7 @@ type ClientInstance struct {
 	reliableNextReceive   uint16
 }
 
-func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte) *ClientInstance {
+func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *NetcodeConn, closeClientFn func(*ClientInstance, bool), expiry uint64, protocolId uint64, timeoutMs int64, sendKey []byte, recvKey []byte, maxPacketSize int, maxPacketFragments int) *ClientInstance {
 	c := &ClientInstance{
 		logger:        logger,
 		Address:       addr,
@@ -131,11 +131,11 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		incomingPacketCh:   make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
 		outgoingPacketData: make([]byte, netcode.MAX_PACKET_BYTES),
 
-		unreliableController:    NewReliablePacketController(),
+		unreliableController:    NewReliablePacketController(maxPacketSize, maxPacketFragments),
 		unreliableReceiveBuffer: NewSequenceBufferReceived(256),
 
 		reliableCh:            make(chan []byte, netcode.PACKET_QUEUE_SIZE),
-		reliableController:    NewReliablePacketController(),
+		reliableController:    NewReliablePacketController(maxPacketSize, maxPacketFragments),
 		reliablePacker:        nil,
 		reliablePackerLength:  0,
 		reliablePackerSeq:     make([]uint16, 0),

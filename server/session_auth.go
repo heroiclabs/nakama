@@ -39,11 +39,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"github.com/wirepair/netcode"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"nakama/pkg/httputil"
-	"github.com/wirepair/netcode"
 	"net"
 )
 
@@ -139,7 +139,7 @@ func (a *authenticationService) configure() {
 		a.registry.addUDP(uid, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
 	}
 	var err error
-	a.udpServer, err = multicode.NewServer(a.logger, &a.udpListenAddr, &a.udpPublicAddr, a.udpKeyByte, a.udpProtocolId, udpOnConnectFn, udpTimeoutMs)
+	a.udpServer, err = multicode.NewServer(a.logger, &a.udpListenAddr, &a.udpPublicAddr, a.udpKeyByte, a.udpProtocolId, a.config.GetSocket().MaxMessageSizeBytes, udpOnConnectFn, udpTimeoutMs)
 	if err != nil {
 		a.logger.Fatal("UDP client listener init failed", zap.Error(err))
 	}

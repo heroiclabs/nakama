@@ -45,11 +45,13 @@ const MAX_CLIENTS = 1024
 
 type Server struct {
 	sync.Mutex
-	logger     *zap.Logger
-	listenAddr *net.UDPAddr
-	publicAddr *net.UDPAddr
-	protocolId uint64
-	privateKey []byte
+	logger             *zap.Logger
+	listenAddr         *net.UDPAddr
+	publicAddr         *net.UDPAddr
+	protocolId         uint64
+	privateKey         []byte
+	maxPacketSize      int
+	maxPacketFragments int
 
 	// Will be handed off to a new goroutine.
 	onConnect func(*ClientInstance)
@@ -69,13 +71,15 @@ type Server struct {
 	packetCh chan *NetcodeData
 }
 
-func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateKey []byte, protocolId uint64, onConnect func(*ClientInstance), timeoutMs int64) (*Server, error) {
+func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateKey []byte, protocolId uint64, maxPacketSizeBytes int64, onConnect func(*ClientInstance), timeoutMs int64) (*Server, error) {
 	s := &Server{
 		logger:     logger,
 		listenAddr: listenAddr,
 		publicAddr: publicAddr,
 		protocolId: protocolId,
 		privateKey: privateKey,
+		// maxPacketSize set below.
+		// maxPacketFragments set below.
 
 		onConnect: onConnect,
 
@@ -105,6 +109,10 @@ func NewServer(logger *zap.Logger, listenAddr, publicAddr *net.UDPAddr, privateK
 	s.allowedPackets[netcode.ConnectionDisconnect] = 1
 
 	var err error
+	s.maxPacketSize, s.maxPacketFragments, err = PacketMaxValues(maxPacketSizeBytes)
+	if err != nil {
+		return nil, err
+	}
 	s.challengeKey, err = netcode.GenerateKey()
 	if err != nil {
 		return nil, err
@@ -257,7 +265,7 @@ func (s *Server) processConnectionRequest(packet netcode.Packet, addr *net.UDPAd
 	addrStr := addr.String()
 	s.Lock()
 	if clientInstance, ok := s.clients[addrStr]; !ok {
-		s.clients[addrStr] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, requestPacket.ConnectTokenExpireTimestamp, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey)
+		s.clients[addrStr] = NewClientInstance(s.logger, addr, s.serverConn, s.closeClient, requestPacket.ConnectTokenExpireTimestamp, s.protocolId, s.timeoutMs, requestPacket.Token.ServerKey, requestPacket.Token.ClientKey, s.maxPacketSize, s.maxPacketFragments)
 	} else if clientInstance.IsConnected() {
 		s.Unlock()
 		s.logger.Debug("server ignored connection request. a client with this address is already connected", zap.String("addr", addr.String()))

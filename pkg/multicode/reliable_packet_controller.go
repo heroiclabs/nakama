@@ -21,18 +21,26 @@ import (
 
 var ErrReliablePacketControllerPacketDataTooLarge = errors.New("reliable packet controller packet data too large")
 
+const FRAGMENT_SIZE = 1024
+
+func PacketMaxValues(maxPacketSizeBytes int64) (int, int, error) {
+	if maxPacketSizeBytes < 1024 {
+		return 0, 0, errors.New("max packet size bytes must be >= 1024")
+	}
+	return int(maxPacketSizeBytes), int(math.Ceil(float64(maxPacketSizeBytes) / FRAGMENT_SIZE)), nil
+}
+
 type ReliablePacketController struct {
-	maxPacketSize                int
-	fragmentThreshold            int
-	maxFragments                 int
-	fragmentSize                 int
-	sentPacketBufferSize         uint16
-	receivedPacketBufferSize     uint16
-	fragmentReassemblyBufferSize int
-	rttSmoothFactor              float64
-	packetLossSmoothingFactor    float64
-	bandwidthSmoothingFactor     float64
-	packetHeaderSize             int
+	maxPacketSize             int
+	fragmentThreshold         int
+	maxFragments              int
+	fragmentSize              int
+	sentPacketBufferSize      uint16
+	receivedPacketBufferSize  uint16
+	rttSmoothFactor           float64
+	packetLossSmoothingFactor float64
+	bandwidthSmoothingFactor  float64
+	packetHeaderSize          int
 
 	rtt                   float64
 	packetLoss            float64
@@ -45,24 +53,22 @@ type ReliablePacketController struct {
 	fragmentReassembly    *SequenceBufferReassembly
 }
 
-// TODO make max packet size configurable.
-func NewReliablePacketController() *ReliablePacketController {
+func NewReliablePacketController(maxPacketSize int, maxPacketFragments int) *ReliablePacketController {
 	return &ReliablePacketController{
-		maxPacketSize:                16 * 1024,
-		fragmentThreshold:            1024,
-		maxFragments:                 16,
-		fragmentSize:                 1024,
-		sentPacketBufferSize:         256,
-		receivedPacketBufferSize:     256,
-		fragmentReassemblyBufferSize: 64,
-		rttSmoothFactor:              0.25,
-		packetLossSmoothingFactor:    0.1,
-		bandwidthSmoothingFactor:     0.1,
-		packetHeaderSize:             28,
+		maxPacketSize:             maxPacketSize,      // Default 16 * 1024.
+		fragmentThreshold:         FRAGMENT_SIZE,      // Default 1024.
+		maxFragments:              maxPacketFragments, // Default 16.
+		fragmentSize:              FRAGMENT_SIZE,      // Default 1024.
+		sentPacketBufferSize:      256,
+		receivedPacketBufferSize:  256,
+		rttSmoothFactor:           0.25,
+		packetLossSmoothingFactor: 0.1,
+		bandwidthSmoothingFactor:  0.1,
+		packetHeaderSize:          28,
 
 		sentPackets:        NewSequenceBufferSent(256),
 		receivedPackets:    NewSequenceBufferReceived(256),
-		fragmentReassembly: NewSequenceBufferReassembly(64),
+		fragmentReassembly: NewSequenceBufferReassembly(maxPacketFragments), // Default was 64.
 	}
 }
 
