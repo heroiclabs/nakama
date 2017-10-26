@@ -20,6 +20,7 @@ import (
 
 	"encoding/json"
 	"fmt"
+
 	"github.com/lib/pq"
 	"go.uber.org/zap"
 )

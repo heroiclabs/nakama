@@ -32,9 +32,10 @@
 package multicode
 
 import (
+	"net"
+
 	"github.com/wirepair/netcode"
 	"go.uber.org/zap"
-	"net"
 )
 
 type NetcodeData struct {

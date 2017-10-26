@@ -29,10 +29,13 @@ import (
 	"strings"
 	"time"
 
+	"nakama/pkg/httputil"
 	"nakama/pkg/multicode"
 	"nakama/pkg/social"
 
 	"encoding/base64"
+	"net"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -44,8 +47,6 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"nakama/pkg/httputil"
-	"net"
 )
 
 const (
@@ -183,6 +184,12 @@ func (a *authenticationService) configure() {
 			lang = "en"
 		}
 
+		sformat := sessionProtobuf
+		format := r.URL.Query().Get("format")
+		if format == "json" {
+			sformat = sessionJson
+		}
+
 		conn, err := a.upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			// http.Error is invoked automatically from within the Upgrade func
@@ -190,7 +197,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		a.registry.addWS(uid, handle, lang, exp, conn, a.pipeline.processRequest)
+		a.registry.addWS(uid, handle, lang, sformat, exp, conn, a.jsonpbMarshaler, a.jsonpbUnmarshaler, a.pipeline.processRequest)
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {

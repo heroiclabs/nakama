@@ -32,11 +32,12 @@ import (
 
 	"nakama/pkg/social"
 
+	"runtime"
+
 	"github.com/armon/go-metrics"
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"runtime"
 )
 
 const (

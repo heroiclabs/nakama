@@ -22,9 +22,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
+	"nakama/pkg/multicode"
+
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"nakama/pkg/multicode"
 )
 
 type udpSession struct {
@@ -160,18 +161,21 @@ func (s *udpSession) pingNow() bool {
 
 func (s *udpSession) Send(envelope *Envelope, reliable bool) error {
 	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
+	return s.SendMessage(envelope, reliable)
+}
 
-	payload, err := proto.Marshal(envelope)
+func (s *udpSession) SendMessage(msg proto.Message, reliable bool) error {
+	payload, err := proto.Marshal(msg)
 
 	if err != nil {
 		s.logger.Warn("Could not marshall Response to byte[]", zap.Error(err))
 		return err
 	}
 
-	return s.SendBytes(payload, reliable)
+	return s.sendBytes(payload, reliable)
 }
 
-func (s *udpSession) SendBytes(payload []byte, reliable bool) error {
+func (s *udpSession) sendBytes(payload []byte, reliable bool) error {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -183,7 +187,6 @@ func (s *udpSession) SendBytes(payload []byte, reliable bool) error {
 	err := s.clientInstance.Send(payload, reliable)
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
-		// TODO investigate whether we need to cleanupClosedConnection if write fails
 	}
 
 	return err

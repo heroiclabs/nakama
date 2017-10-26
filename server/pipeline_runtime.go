@@ -15,9 +15,10 @@
 package server
 
 import (
+	"strings"
+
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"strings"
 )
 
 func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *Envelope) {

@@ -39,16 +39,10 @@ func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto
 		return
 	}
 
-	payload, err := proto.Marshal(msg)
-	if err != nil {
-		logger.Error("Could not marshall message to byte[]", zap.Error(err))
-		return
-	}
-
 	for _, p := range ps {
 		session := m.registry.Get(p.ID.SessionID)
 		if session != nil {
-			err := session.SendBytes(payload, reliable)
+			err := session.SendMessage(msg, reliable)
 			if err != nil {
 				logger.Error("Failed to route to", zap.Any("p", p), zap.Error(err))
 			}
