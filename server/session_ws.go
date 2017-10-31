@@ -136,7 +136,7 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 
 		if err != nil {
 			if s.format == sessionJson {
-				s.logger.Warn("Received malformed payload", zap.Any("data", string(data)))
+				s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
 			} else {
 				s.logger.Warn("Received malformed payload", zap.Any("data", data))
 			}
