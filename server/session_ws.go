@@ -135,7 +135,12 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 		}
 
 		if err != nil {
-			s.logger.Warn("Received malformed payload", zap.Any("data", data))
+			if s.format == sessionJson {
+				s.logger.Warn("Received malformed payload", zap.Any("data", string(data)))
+			} else {
+				s.logger.Warn("Received malformed payload", zap.Any("data", data))
+			}
+
 			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), true)
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
