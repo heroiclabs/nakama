@@ -153,6 +153,8 @@ message AuthenticateResponse {
   message Session {
     /// Authentication Token.
     string token = 1;
+    /// UDP token.
+    bytes udp_token = 2;
   }
 
   /**

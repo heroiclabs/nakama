@@ -22,11 +22,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *Envelope) {
 	matchmakeAdd := envelope.GetMatchmakeAdd()
 	requiredCount := matchmakeAdd.RequiredCount
 	if requiredCount < 2 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Required count must be >= 2"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Required count must be >= 2"), true)
 		return
 	}
 
@@ -55,16 +55,16 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 	}
 
 	matchmakerProfile := &MatchmakerProfile{
-		Meta:          PresenceMeta{Handle: session.handle.Load()},
+		Meta:          PresenceMeta{Handle: session.Handle()},
 		RequiredCount: int(requiredCount),
 		Properties:    properties,
 		Filters:       filters,
 	}
-	ticket, selected, props := p.matchmaker.Add(session.id, session.userID, matchmakerProfile)
+	ticket, selected, props := p.matchmaker.Add(session.ID(), session.UserID(), matchmakerProfile)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchmakeTicket{MatchmakeTicket: &TMatchmakeTicket{
 		Ticket: ticket.Bytes(),
-	}}})
+	}}}, true)
 
 	if selected == nil {
 		return
@@ -150,25 +150,25 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session *session, envelope *
 			Handle:    mp.Meta.Handle,
 		}
 
-		p.messageRouter.Send(logger, to, outgoing)
+		p.messageRouter.Send(logger, to, outgoing, true)
 	}
 }
 
-func (p *pipeline) matchmakeRemove(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchmakeRemove(logger *zap.Logger, session session, envelope *Envelope) {
 	ticketBytes := envelope.GetMatchmakeRemove().Ticket
 	ticket, err := uuid.FromBytes(ticketBytes)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid ticket"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid ticket"), true)
 		return
 	}
 
-	err = p.matchmaker.Remove(session.id, session.userID, ticket)
+	err = p.matchmaker.Remove(session.ID(), session.UserID(), ticket)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Ticket not found, matchmaking may already be done"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Ticket not found, matchmaking may already be done"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
 func uniqueList(values []string) []string {

@@ -279,11 +279,11 @@ FROM users, user_edge ` + filterQuery
 	return friends, nil
 }
 
-func (p *pipeline) friendAdd(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendAdd(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetFriendsAdd()
 
 	if len(e.Friends) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one friend must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one friend must be present"), true)
 		return
 	} else if len(e.Friends) > 1 {
 		l.Warn("There are more than one friend passed to the request - only processing the first item of the list.")
@@ -298,57 +298,57 @@ func (p *pipeline) friendAdd(l *zap.Logger, session *session, envelope *Envelope
 	}
 }
 
-func (p *pipeline) friendAddById(l *zap.Logger, session *session, envelope *Envelope, friendIdBytes []byte) {
+func (p *pipeline) friendAddById(l *zap.Logger, session session, envelope *Envelope, friendIdBytes []byte) {
 	if len(friendIdBytes) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
 	friendID, err := uuid.FromBytes(friendIdBytes)
 	if err != nil {
 		l.Warn("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
 		return
 	}
 
 	logger := l.With(zap.String("friend_id", friendID.String()))
-	if friendID == session.userID {
+	if friendID == session.UserID() {
 		logger.Warn("Cannot add self", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot add self"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot add self"), true)
 		return
 	}
 
-	if err := friendAdd(logger, p.db, p.notificationService, session.userID.Bytes(), session.handle.Load(), friendID.Bytes()); err != nil {
+	if err := friendAdd(logger, p.db, p.notificationService, session.UserID().Bytes(), session.Handle(), friendID.Bytes()); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"), true)
 		return
 	}
 
 	logger.Debug("Added friend")
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
-func (p *pipeline) friendAddByHandle(l *zap.Logger, session *session, envelope *Envelope, friendHandle string) {
-	if friendHandle == "" || friendHandle == session.handle.Load() {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User handle must be present and not equal to user's handle"))
+func (p *pipeline) friendAddByHandle(l *zap.Logger, session session, envelope *Envelope, friendHandle string) {
+	if friendHandle == "" || friendHandle == session.Handle() {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User handle must be present and not equal to user's handle"), true)
 		return
 	}
 
 	logger := l.With(zap.String("friend_handle", friendHandle))
-	if err := friendAddHandle(logger, p.db, p.notificationService, session.userID.Bytes(), session.handle.Load(), friendHandle); err != nil {
+	if err := friendAddHandle(logger, p.db, p.notificationService, session.UserID().Bytes(), session.Handle(), friendHandle); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"), true)
 		return
 	}
 
 	logger.Debug("Added friend")
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
-func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendRemove(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetFriendsRemove()
 
 	if len(e.UserIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"), true)
 		return
 	} else if len(e.UserIds) > 1 {
 		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
@@ -356,29 +356,29 @@ func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envel
 
 	removeFriendRequest := e.UserIds[0]
 	if len(removeFriendRequest) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
 
 	friendID, err := uuid.FromBytes(removeFriendRequest)
 	if err != nil {
 		l.Warn("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
 		return
 	}
 	logger := l.With(zap.String("friend_id", friendID.String()))
 	friendIDBytes := friendID.Bytes()
 
-	if friendID == session.userID {
+	if friendID == session.UserID() {
 		logger.Warn("Cannot remove self", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot remove self"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot remove self"), true)
 		return
 	}
 
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not remove friend", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"), true)
 		return
 	}
 	defer func() {
@@ -389,43 +389,43 @@ func (p *pipeline) friendRemove(l *zap.Logger, session *session, envelope *Envel
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to remove friend"), true)
 			} else {
 				logger.Info("Removed friend")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 			}
 		}
 	}()
 
 	updatedAt := nowMs()
 
-	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.userID.Bytes(), friendIDBytes)
+	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.UserID().Bytes(), friendIDBytes)
 	rowsAffected, _ := res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", session.userID.Bytes(), updatedAt)
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", session.UserID().Bytes(), updatedAt)
 	}
 
 	if err != nil {
 		return
 	}
 
-	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendIDBytes, session.userID.Bytes())
+	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendIDBytes, session.UserID().Bytes())
 	rowsAffected, _ = res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
 		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", friendIDBytes, updatedAt)
 	}
 }
 
-func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetFriendsBlock()
 
 	if len(e.UserIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one user ID must be present"), true)
 		return
 	} else if len(e.UserIds) > 1 {
 		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
@@ -433,29 +433,29 @@ func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelo
 
 	blockUserRequest := e.UserIds[0]
 	if len(blockUserRequest) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
 
 	userID, err := uuid.FromBytes(blockUserRequest)
 	if err != nil {
 		l.Warn("Could not block user", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
 		return
 	}
 	logger := l.With(zap.String("user_id", userID.String()))
 	userIDBytes := userID.Bytes()
 
-	if userID == session.userID {
+	if userID == session.UserID() {
 		logger.Warn("Cannot block self", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot block self"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot block self"), true)
 		return
 	}
 
 	tx, err := p.db.Begin()
 	if err != nil {
 		logger.Error("Could not block user", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to block friend"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to block friend"), true)
 		return
 	}
 	defer func() {
@@ -470,21 +470,21 @@ func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelo
 				logger.Error("Could not rollback transaction", zap.Error(err))
 			}
 
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not block user"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not block user"), true)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				logger.Error("Could not commit transaction", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not block user"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not block user"), true)
 			} else {
 				logger.Info("User blocked")
-				session.Send(&Envelope{CollationId: envelope.CollationId})
+				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 			}
 		}
 	}()
 
 	res, err := tx.Exec("UPDATE user_edge SET state = 3, updated_at = $3 WHERE source_id = $1 AND destination_id = $2",
-		session.userID.Bytes(), userIDBytes, nowMs())
+		session.UserID().Bytes(), userIDBytes, nowMs())
 
 	if err != nil {
 		return
@@ -497,7 +497,7 @@ func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelo
 
 	// Delete opposite relationship if user hasn't blocked you already
 	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state != 3",
-		userIDBytes, session.userID.Bytes())
+		userIDBytes, session.UserID().Bytes())
 
 	if err != nil {
 		return
@@ -508,13 +508,13 @@ func (p *pipeline) friendBlock(l *zap.Logger, session *session, envelope *Envelo
 	}
 }
 
-func (p *pipeline) friendsList(logger *zap.Logger, session *session, envelope *Envelope) {
-	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.userID.Bytes())
+func (p *pipeline) friendsList(logger *zap.Logger, session session, envelope *Envelope) {
+	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.UserID().Bytes())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get friends"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get friends"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Friends{Friends: &TFriends{Friends: friends}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Friends{Friends: &TFriends{Friends: friends}}}, true)
 }

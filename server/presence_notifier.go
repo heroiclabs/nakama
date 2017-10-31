@@ -197,7 +197,7 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 	pn.logger.Debug("Routing match diff", zap.Any("to", to), zap.Any("msg", msg))
 
 	// Send the presence notification.
-	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_MatchPresence{MatchPresence: msg}})
+	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_MatchPresence{MatchPresence: msg}}, true)
 }
 
 func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []Presence) {
@@ -229,5 +229,5 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 	pn.logger.Debug("Routing topic diff", zap.Any("to", to), zap.Any("msg", msg))
 
 	// Send the presence notification.
-	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_TopicPresence{TopicPresence: msg}})
+	pn.messageRouter.Send(pn.logger, to, &Envelope{Payload: &Envelope_TopicPresence{TopicPresence: msg}}, true)
 }

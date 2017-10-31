@@ -35,11 +35,11 @@ type messageCursor struct {
 
 var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
-func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicJoin(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetTopicsJoin()
 
 	if len(e.Joins) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.Joins) > 1 {
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -56,34 +56,34 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		otherUserIDBytes := t.GetUserId()
 		otherUserID, err := uuid.FromBytes(otherUserIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
 			return
 		}
 
 		// Don't allow chat to self.
-		if session.userID == otherUserID {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
+		if session.UserID() == otherUserID {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"), true)
 			return
 		}
 
 		// Check the user exists and does not block the requester.
-		existsAndDoesNotBlock, err := p.userExistsAndDoesNotBlock(otherUserIDBytes, session.userID.Bytes())
+		existsAndDoesNotBlock, err := p.userExistsAndDoesNotBlock(otherUserIDBytes, session.UserID().Bytes())
 		if err != nil {
 			logger.Error("Could not check if user exists", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up user ID"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up user ID"), true)
 			return
 		} else if !existsAndDoesNotBlock {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID not found"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID not found"), true)
 			return
 		}
 
-		userIDString := session.userID.String()
+		userIDString := session.UserID().String()
 		otherUserIDString := otherUserID.String()
 		if userIDString < otherUserIDString {
-			topic = &TopicId{Id: &TopicId_Dm{Dm: append(session.userID.Bytes(), otherUserIDBytes...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(session.UserID().Bytes(), otherUserIDBytes...)}}
 			trackerTopic = "dm:" + userIDString + ":" + otherUserIDString
 		} else {
-			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.userID.Bytes()...)}}
+			topic = &TopicId{Id: &TopicId_Dm{Dm: append(otherUserIDBytes, session.UserID().Bytes()...)}}
 			trackerTopic = "dm:" + otherUserIDString + ":" + userIDString
 		}
 		dmOtherUserID = otherUserID
@@ -91,15 +91,15 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		// Check input is valid room name.
 		room := t.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"), true)
 			return
 		}
 		if controlCharsRegex.Match(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"), true)
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"), true)
 			return
 		}
 
@@ -110,35 +110,35 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 		groupIDBytes := t.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"), true)
 			return
 		}
 
 		// Check if group exists and user is a member.
-		member, err := p.isGroupMember(session.userID, groupIDBytes)
+		member, err := p.isGroupMember(session.UserID(), groupIDBytes)
 		if err != nil {
 			logger.Error("Could not check if user is group member", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"), true)
 			return
 		} else if !member {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group not found, or not a member"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group not found, or not a member"), true)
 			return
 		}
 
 		trackerTopic = "group:" + groupID.String()
 		topic = &TopicId{Id: &TopicId_GroupId{GroupId: groupIDBytes}}
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"), true)
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"), true)
 		return
 	}
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
 	// Track the presence, and gather current member list.
-	isNewPresence := p.tracker.Track(session.id, trackerTopic, session.userID, PresenceMeta{
+	isNewPresence := p.tracker.Track(session.ID(), trackerTopic, session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 	presences := p.tracker.ListByTopic(trackerTopic)
@@ -166,7 +166,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 						Subject:    fmt.Sprintf("%v wants to chat", handle),
 						Content:    content,
 						Code:       NOTIFICATION_DM_REQUEST,
-						SenderID:   session.userID.Bytes(),
+						SenderID:   session.UserID().Bytes(),
 						CreatedAt:  ts,
 						ExpiresAt:  ts + p.notificationService.expiryMs,
 						Persistent: true,
@@ -193,20 +193,20 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session *session, envelope *Env
 				Topic:     topic,
 				Presences: userPresences,
 				Self: &UserPresence{
-					UserId:    session.userID.Bytes(),
-					SessionId: session.id.Bytes(),
+					UserId:    session.UserID().Bytes(),
+					SessionId: session.ID().Bytes(),
 					Handle:    handle,
 				},
 			},
 		},
-	}}})
+	}}}, true)
 }
 
-func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicLeave(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetTopicsLeave()
 
 	if len(e.Topics) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.Topics) > 1 {
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -219,7 +219,7 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		// Check input is valid DM topic.
 		bothUserIDBytes := t.GetDm()
 		if bothUserIDBytes == nil || len(bothUserIDBytes) != 32 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
@@ -228,12 +228,12 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		userID2Bytes := bothUserIDBytes[16:]
 		userID1, err := uuid.FromBytes(userID1Bytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 		userID2, err := uuid.FromBytes(userID2Bytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
@@ -241,19 +241,19 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		userID1String := userID1.String()
 		userID2String := userID2.String()
 		if userID1String > userID2String {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
 		// Check one of the users in this DM topic is the current one.
-		if userID1 != session.userID && userID2 != session.userID {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+		if userID1 != session.UserID() && userID2 != session.UserID() {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
 		// Check the DM topic is between two different users.
 		if userID1 == userID2 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"), true)
 			return
 		}
 
@@ -262,15 +262,15 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		// Check input is valid room name.
 		room := t.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"), true)
 			return
 		}
 		if controlCharsRegex.Match(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"), true)
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"), true)
 			return
 		}
 
@@ -280,40 +280,40 @@ func (p *pipeline) topicLeave(logger *zap.Logger, session *session, envelope *En
 		groupIDBytes := t.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"), true)
 			return
 		}
 
 		trackerTopic = "group:" + groupID.String()
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"), true)
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"), true)
 		return
 	}
 
 	// Drop the session's presence from this topic, if any.
-	p.tracker.Untrack(session.id, trackerTopic, session.userID)
+	p.tracker.Untrack(session.ID(), trackerTopic, session.UserID())
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
-func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessageSend(logger *zap.Logger, session session, envelope *Envelope) {
 	topic := envelope.GetTopicMessageSend().Topic
 	if topic == nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"), true)
 		return
 	}
 	data := envelope.GetTopicMessageSend().Data
 	if data == nil || len(data) == 0 || len(data) > 1000 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Data is required and must be 1-1000 JSON bytes"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Data is required and must be 1-1000 JSON bytes"), true)
 		return
 	}
 	// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 	var maybeJSON map[string]interface{}
 	if json.Unmarshal(data, &maybeJSON) != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Data must be a valid JSON object"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Data must be a valid JSON object"), true)
 		return
 	}
 
@@ -323,7 +323,7 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		// Check input is valid DM topic.
 		bothUserIDBytes := topic.GetDm()
 		if bothUserIDBytes == nil || len(bothUserIDBytes) != 32 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
@@ -332,12 +332,12 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		userID2Bytes := bothUserIDBytes[16:]
 		userID1, err := uuid.FromBytes(userID1Bytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 		userID2, err := uuid.FromBytes(userID2Bytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
@@ -345,19 +345,19 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		userID1String := userID1.String()
 		userID2String := userID2.String()
 		if userID1String > userID2String {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
 		// Check one of the users in this DM topic is the current one.
-		if userID1 != session.userID && userID2 != session.userID {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"))
+		if userID1 != session.UserID() && userID2 != session.UserID() {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic not valid"), true)
 			return
 		}
 
 		// Check the DM topic is between two different users.
 		if userID1 == userID2 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"), true)
 			return
 		}
 
@@ -366,15 +366,15 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		// Check input is valid room name.
 		room := topic.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"), true)
 			return
 		}
 		if controlCharsRegex.Match(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"), true)
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"), true)
 			return
 		}
 
@@ -384,28 +384,28 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		groupIDBytes := topic.GetGroupId()
 		groupID, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"), true)
 			return
 		}
 
 		trackerTopic = "group:" + groupID.String()
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"), true)
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"), true)
 		return
 	}
 
-	if !p.tracker.CheckLocalByIDTopicUser(session.id, trackerTopic, session.userID) {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Must join topic before sending messages"))
+	if !p.tracker.CheckLocalByIDTopicUser(session.ID(), trackerTopic, session.UserID()) {
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Must join topic before sending messages"), true)
 		return
 	}
 
 	// Store message to history.
 	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, 0, data)
 	if err != nil {
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not store message"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not store message"), true)
 		return
 	}
 
@@ -416,16 +416,16 @@ func (p *pipeline) topicMessageSend(logger *zap.Logger, session *session, envelo
 		ExpiresAt: expiresAt,
 		Handle:    handle,
 	}
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_TopicMessageAck{TopicMessageAck: ack}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_TopicMessageAck{TopicMessageAck: ack}}, true)
 
 	// Deliver message to topic.
 	p.deliverMessage(logger, session, topic, 0, data, messageID, handle, createdAt, expiresAt)
 }
 
-func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) topicMessagesList(logger *zap.Logger, session session, envelope *Envelope) {
 	input := envelope.GetTopicMessagesList()
 	if input.Id == nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Topic ID is required"), true)
 		return
 	}
 	limit := input.Limit
@@ -433,7 +433,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		limit = 10
 	}
 	if limit < 10 || limit > 100 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be 10-100"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Limit must be 10-100"), true)
 		return
 	}
 
@@ -446,22 +446,22 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		otherUserIDBytes := input.GetUserId()
 		otherUserID, err := uuid.FromBytes(otherUserIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
 			return
 		}
 
 		// Don't allow chat to self.
-		if session.userID == otherUserID {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"))
+		if session.UserID() == otherUserID {
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot chat to self"), true)
 			return
 		}
 
-		userIDString := session.userID.String()
+		userIDString := session.UserID().String()
 		otherUserIDString := otherUserID.String()
 		if userIDString < otherUserIDString {
-			topicBytes = append(session.userID.Bytes(), otherUserIDBytes...)
+			topicBytes = append(session.UserID().Bytes(), otherUserIDBytes...)
 		} else {
-			topicBytes = append(otherUserIDBytes, session.userID.Bytes()...)
+			topicBytes = append(otherUserIDBytes, session.UserID().Bytes()...)
 		}
 		topic = &TopicId{Id: &TopicId_Dm{Dm: topicBytes}}
 		topicType = 0
@@ -469,15 +469,15 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		// Check input is valid room name.
 		room := input.GetRoom()
 		if room == nil || len(room) < 1 || len(room) > 64 {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name is required and must be 1-64 chars"), true)
 			return
 		}
 		if controlCharsRegex.Match(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must not contain control chars"), true)
 			return
 		}
 		if !utf8.Valid(room) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Room name must only contain valid UTF-8 bytes"), true)
 			return
 		}
 
@@ -489,18 +489,18 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		groupIDBytes := input.GetGroupId()
 		_, err := uuid.FromBytes(groupIDBytes)
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID not valid"), true)
 			return
 		}
 
 		// Check if group exists and user is a member.
-		member, err := p.isGroupMember(session.userID, groupIDBytes)
+		member, err := p.isGroupMember(session.UserID(), groupIDBytes)
 		if err != nil {
 			logger.Error("Could not check if user is group member", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to look up group membership"), true)
 			return
 		} else if !member {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group not found, or not a member"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Group not found, or not a member"), true)
 			return
 		}
 
@@ -508,10 +508,10 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		topicBytes = groupIDBytes
 		topicType = 2
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No topic ID found"), true)
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized topic ID"), true)
 		return
 	}
 
@@ -522,7 +522,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 	if input.Cursor != nil {
 		var c messageCursor
 		if err := gob.NewDecoder(bytes.NewReader(input.Cursor)).Decode(&c); err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
 			return
 		}
 		op := "<"
@@ -543,7 +543,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 	rows, err := p.db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not get topic messages list", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get topic messages list"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get topic messages list"), true)
 		return
 	}
 	defer rows.Close()
@@ -562,7 +562,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 			cursorBuf := new(bytes.Buffer)
 			if gob.NewEncoder(cursorBuf).Encode(&messageCursor{MessageID: messageID, UserID: userID, CreatedAt: createdAt}); err != nil {
 				logger.Error("Error creating topic messages list cursor", zap.Error(err))
-				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create topic messages list cursor"))
+				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not create topic messages list cursor"), true)
 			}
 			cursor = cursorBuf.Bytes()
 			break
@@ -570,7 +570,7 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 		err = rows.Scan(&messageID, &userID, &createdAt, &expiresAt, &handle, &msgType, &data)
 		if err != nil {
 			logger.Error("Error scanning topic messages list", zap.Error(err))
-			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error scanning topic messages list"))
+			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error scanning topic messages list"), true)
 			return
 		}
 
@@ -588,11 +588,11 @@ func (p *pipeline) topicMessagesList(logger *zap.Logger, session *session, envel
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Error reading topic history", zap.Error(err))
-		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not read topic history"))
+		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not read topic history"), true)
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_TopicMessages{TopicMessages: &TTopicMessages{Messages: messages, Cursor: cursor}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_TopicMessages{TopicMessages: &TTopicMessages{Messages: messages, Cursor: cursor}}}, true)
 }
 
 func (p *pipeline) isGroupMember(userID uuid.UUID, groupID []byte) (bool, error) {
@@ -622,7 +622,7 @@ WHERE id = $1 AND NOT EXISTS (
 }
 
 // Assumes `topic` has already been validated, or was constructed internally.
-func (p *pipeline) storeMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
+func (p *pipeline) storeMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte) ([]byte, string, int64, int64, error) {
 	var topicBytes []byte
 	var topicType int64
 	switch topic.Id.(type) {
@@ -639,11 +639,11 @@ func (p *pipeline) storeMessage(logger *zap.Logger, session *session, topic *Top
 	createdAt := nowMs()
 	messageID := uuid.NewV4().Bytes()
 	expiresAt := int64(0)
-	handle := session.handle.Load()
+	handle := session.Handle()
 	_, err := p.db.Exec(`
 INSERT INTO message (topic, topic_type, message_id, user_id, created_at, expires_at, handle, type, data)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		topicBytes, topicType, messageID, session.userID.Bytes(), createdAt, expiresAt, handle, msgType, data)
+		topicBytes, topicType, messageID, session.UserID().Bytes(), createdAt, expiresAt, handle, msgType, data)
 	if err != nil {
 		logger.Error("Failed to insert new message", zap.Error(err))
 		return nil, "", 0, 0, err
@@ -652,7 +652,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 	return messageID, handle, createdAt, expiresAt, nil
 }
 
-func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
+func (p *pipeline) deliverMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte, messageID []byte, handle string, createdAt int64, expiresAt int64) {
 	var trackerTopic string
 	switch topic.Id.(type) {
 	case *TopicId_Dm:
@@ -671,7 +671,7 @@ func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *T
 		Payload: &Envelope_TopicMessage{
 			TopicMessage: &TopicMessage{
 				Topic:     topic,
-				UserId:    session.userID.Bytes(),
+				UserId:    session.UserID().Bytes(),
 				MessageId: messageID,
 				CreatedAt: createdAt,
 				ExpiresAt: expiresAt,
@@ -683,10 +683,10 @@ func (p *pipeline) deliverMessage(logger *zap.Logger, session *session, topic *T
 	}
 
 	presences := p.tracker.ListByTopic(trackerTopic)
-	p.messageRouter.Send(logger, presences, outgoing)
+	p.messageRouter.Send(logger, presences, outgoing, true)
 }
 
-func (p *pipeline) storeAndDeliverMessage(logger *zap.Logger, session *session, topic *TopicId, msgType int64, data []byte) error {
+func (p *pipeline) storeAndDeliverMessage(logger *zap.Logger, session session, topic *TopicId, msgType int64, data []byte) error {
 	messageID, handle, createdAt, expiresAt, err := p.storeMessage(logger, session, topic, msgType, data)
 	if err != nil {
 		return err

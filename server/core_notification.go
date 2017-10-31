@@ -104,7 +104,7 @@ func (n *NotificationService) NotificationSend(notifications []*NNotification) e
 					LiveNotifications: convertNotifications(ns),
 				},
 			}
-			n.messageRouter.Send(n.logger, presences, envelope)
+			n.messageRouter.Send(n.logger, presences, envelope, true)
 		}
 	}
 

@@ -28,18 +28,18 @@ type matchDataFilter struct {
 	sessionID uuid.UUID
 }
 
-func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *Envelope) {
 	matchID := uuid.NewV4()
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
-	p.tracker.Track(session.id, "match:"+matchID.String(), session.userID, PresenceMeta{
+	p.tracker.Track(session.ID(), "match:"+matchID.String(), session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 
 	self := &UserPresence{
-		UserId:    session.userID.Bytes(),
-		SessionId: session.id.Bytes(),
+		UserId:    session.UserID().Bytes(),
+		SessionId: session.ID().Bytes(),
 		Handle:    handle,
 	}
 
@@ -47,14 +47,14 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session *session, envelope *E
 		MatchId:   matchID.Bytes(),
 		Presences: []*UserPresence{self},
 		Self:      self,
-	}}}})
+	}}}}, true)
 }
 
-func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetMatchesJoin()
 
 	if len(e.Matches) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.Matches) > 1 {
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -70,17 +70,17 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 	case *TMatchesJoin_MatchJoin_MatchId:
 		matchID, err = uuid.FromBytes(m.GetMatchId())
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"), true)
 			return
 		}
 	case *TMatchesJoin_MatchJoin_Token:
 		tokenBytes := m.GetToken()
 		if controlCharsRegex.Match(tokenBytes) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token cannot contain control chars"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token cannot contain control chars"), true)
 			return
 		}
 		if !utf8.Valid(tokenBytes) {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token must only contain valid UTF-8 bytes"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token must only contain valid UTF-8 bytes"), true)
 			return
 		}
 		token, err := jwt.Parse(string(tokenBytes), func(token *jwt.Token) (interface{}, error) {
@@ -90,25 +90,25 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 			return p.hmacSecretByte, nil
 		})
 		if err != nil {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"), true)
 			return
 		}
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			matchID, err = uuid.FromString(claims["mid"].(string))
 			if err != nil {
-				session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"), true)
 				return
 			}
 		} else {
-			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"))
+			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"), true)
 			return
 		}
 		allowEmpty = true
 	case nil:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "No match ID or token found"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "No match ID or token found"), true)
 		return
 	default:
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized match ID or token"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Unrecognized match ID or token"), true)
 		return
 	}
 
@@ -116,13 +116,13 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 
 	ps := p.tracker.ListByTopic(topic)
 	if !allowEmpty && len(ps) == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"), true)
 		return
 	}
 
-	handle := session.handle.Load()
+	handle := session.Handle()
 
-	p.tracker.Track(session.id, topic, session.userID, PresenceMeta{
+	p.tracker.Track(session.ID(), topic, session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 
@@ -136,8 +136,8 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 		}
 	}
 	self := &UserPresence{
-		UserId:    session.userID.Bytes(),
-		SessionId: session.id.Bytes(),
+		UserId:    session.UserID().Bytes(),
+		SessionId: session.ID().Bytes(),
 		Handle:    handle,
 	}
 	userPresences[len(ps)] = self
@@ -150,14 +150,14 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session *session, envelope *Env
 				Self:      self,
 			},
 		},
-	}}})
+	}}}, true)
 }
 
-func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *Envelope) {
 	e := envelope.GetMatchesLeave()
 
 	if len(e.MatchIds) == 0 {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "At least one item must be present"), true)
 		return
 	} else if len(e.MatchIds) > 1 {
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
@@ -166,20 +166,20 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *En
 	m := e.MatchIds[0]
 	matchID, err := uuid.FromBytes(m)
 	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"), true)
 		return
 	}
 	topic := "match:" + matchID.String()
 
 	ps := p.tracker.ListByTopic(topic)
 	if len(ps) == 0 {
-		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"), true)
 		return
 	}
 
 	found := false
 	for _, p := range ps {
-		if p.ID.SessionID == session.id && p.UserID == session.userID {
+		if p.ID.SessionID == session.ID() && p.UserID == session.UserID() {
 			found = true
 			break
 		}
@@ -187,16 +187,16 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session *session, envelope *En
 
 	// If sender wasn't part of the match.
 	if !found {
-		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"))
+		session.Send(ErrorMessage(envelope.CollationId, MATCH_NOT_FOUND, "Match not found"), true)
 		return
 	}
 
-	p.tracker.Untrack(session.id, topic, session.userID)
+	p.tracker.Untrack(session.ID(), topic, session.UserID())
 
-	session.Send(&Envelope{CollationId: envelope.CollationId})
+	session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 }
 
-func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *Envelope, reliable bool) {
 	incoming := envelope.GetMatchDataSend()
 	matchIDBytes := incoming.MatchId
 	matchID, err := uuid.FromBytes(matchIDBytes)
@@ -232,7 +232,7 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 	senderFound := false
 	for i := 0; i < len(ps); i++ {
 		p := ps[i]
-		if p.ID.SessionID == session.id && p.UserID == session.userID {
+		if p.ID.SessionID == session.ID() && p.UserID == session.UserID() {
 			// Don't echo back to sender.
 			ps[i] = ps[len(ps)-1]
 			ps = ps[:len(ps)-1]
@@ -278,9 +278,9 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 			MatchData: &MatchData{
 				MatchId: matchIDBytes,
 				Presence: &UserPresence{
-					UserId:    session.userID.Bytes(),
-					SessionId: session.id.Bytes(),
-					Handle:    session.handle.Load(),
+					UserId:    session.UserID().Bytes(),
+					SessionId: session.ID().Bytes(),
+					Handle:    session.Handle(),
 				},
 				OpCode: incoming.OpCode,
 				Data:   incoming.Data,
@@ -288,5 +288,5 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session *session, envelope 
 		},
 	}
 
-	p.messageRouter.Send(logger, ps, outgoing)
+	p.messageRouter.Send(logger, ps, outgoing, reliable)
 }

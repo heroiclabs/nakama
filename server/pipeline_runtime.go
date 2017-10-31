@@ -20,10 +20,10 @@ import (
 	"strings"
 )
 
-func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope) {
+func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "RPC ID must be set"))
+		session.Send(ErrorMessageBadInput(envelope.CollationId, "RPC ID must be set"), true)
 		return
 	}
 
@@ -31,11 +31,11 @@ func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope)
 	lf := runtime.GetRuntimeCallback(RPC, rpcMessage.Id)
 	if lf == nil {
 		p.runtimePool.Put(runtime)
-		session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_NOT_FOUND, "RPC function not found"))
+		session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_NOT_FOUND, "RPC function not found"), true)
 		return
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, session.userID, session.handle.Load(), session.expiry, rpcMessage.Payload)
+	result, fnErr := runtime.InvokeFunctionRPC(lf, session.UserID(), session.Handle(), session.Expiry(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
@@ -50,12 +50,12 @@ func (p *pipeline) rpc(logger *zap.Logger, session *session, envelope *Envelope)
 					msg = msgParts[0]
 				}
 			}
-			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, msg))
+			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, msg), true)
 		} else {
-			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fnErr.Error()))
+			session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fnErr.Error()), true)
 		}
 		return
 	}
 
-	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Rpc{Rpc: &TRpc{Id: rpcMessage.Id, Payload: result}}})
+	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Rpc{Rpc: &TRpc{Id: rpcMessage.Id, Payload: result}}}, true)
 }

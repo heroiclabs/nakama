@@ -110,6 +110,7 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
 	consoleLogger := NewJSONLogger(os.Stdout, config.GetLog().Verbose)
 	jsonLogger := NewLogger(config)
+	zap.RedirectStdLog(jsonLogger)
 	multiLogger := consoleLogger
 	if !config.GetLog().Stdout {
 		// if we aren't printing only to stdout, then we want to multiplex entries

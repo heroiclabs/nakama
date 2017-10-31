@@ -34,7 +34,7 @@
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
-  version = "~1.0.0"
+  version = "~1.2.0"
 
 [[constraint]]
   name = "github.com/lib/pq"
@@ -65,3 +65,6 @@
 
 [[constraint]]
   name = "golang.org/x/net"
+
+[[constraint]]
+  name = "github.com/wirepair/netcode"

@@ -26,6 +26,7 @@ import (
 	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"net"
 )
 
 // Config interface is the Nakama Core configuration
@@ -91,12 +92,26 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
+	// Enforce rules for parameters with strict requirements.
+	if len(mainConfig.GetSession().UdpKey) != 32 {
+		logger.Fatal("session.udp_key must be exactly 32 characters")
+	}
+	if net.ParseIP(mainConfig.GetSocket().ListenAddress) == nil {
+		logger.Fatal("socket.listen_address must be a valid IP address")
+	}
+	if net.ParseIP(mainConfig.GetSocket().PublicAddress) == nil {
+		logger.Fatal("socket.public_address must be a valid IP address")
+	}
+
 	// Log warnings for insecure default parameter values.
 	if mainConfig.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 	}
 	if mainConfig.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
+	}
+	if mainConfig.GetSession().UdpKey == "1234567890abcdef1234567890abcdef" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.udp_key"))
 	}
 	if mainConfig.GetRuntime().HTTPKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
@@ -212,6 +227,7 @@ func NewLogConfig() *LogConfig {
 // SessionConfig is configuration relevant to the session
 type SessionConfig struct {
 	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
+	UdpKey        string `yaml:"udp_key" json:"udp_key" usage:"The UDP key used to produce the raw UDP connection token."`
 	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" usage:"Token expiry in milliseconds."`
 }
 
@@ -219,6 +235,7 @@ type SessionConfig struct {
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
 		EncryptionKey: "defaultencryptionkey",
+		UdpKey:        "1234567890abcdef1234567890abcdef",
 		TokenExpiryMs: 60000,
 	}
 }
@@ -226,6 +243,8 @@ func NewSessionConfig() *SessionConfig {
 // SocketConfig is configuration relevant to the transport socket and protocol
 type SocketConfig struct {
 	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
+	ListenAddress       string `yaml:"listen_address" json:"listen_address" usage:"IP address to listen for traffic on."`
+	PublicAddress       string `yaml:"public_address" json:"public_address" usage:"IP address to advertise to clients."`
 	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
@@ -237,6 +256,8 @@ type SocketConfig struct {
 func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:           "defaultkey",
+		ListenAddress:       "0.0.0.0",
+		PublicAddress:       "127.0.0.1",
 		Port:                7350,
 		MaxMessageSizeBytes: 1024,
 		WriteWaitMs:         5000,

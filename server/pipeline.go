@@ -75,9 +75,11 @@ func NewPipeline(config Config,
 	}
 }
 
-func (p *pipeline) processRequest(logger *zap.Logger, session *session, originalEnvelope *Envelope) {
+func (p *pipeline) processRequest(logger *zap.Logger, session session, originalEnvelope *Envelope, reliable bool) {
+	// NOTE: pipeline ignores reliability flag on most messages, especially collated ones.
+
 	if originalEnvelope.Payload == nil {
-		session.Send(ErrorMessage(originalEnvelope.CollationId, MISSING_PAYLOAD, "No payload found"))
+		session.Send(ErrorMessage(originalEnvelope.CollationId, MISSING_PAYLOAD, "No payload found"), reliable)
 		return
 	}
 
@@ -88,7 +90,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	envelope, fnErr := RuntimeBeforeHook(p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, messageType, originalEnvelope, session)
 	if fnErr != nil {
 		logger.Error("Runtime before function caused an error", zap.String("message", messageType), zap.Error(fnErr))
-		session.Send(ErrorMessage(originalEnvelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime before function caused an error: %s", fnErr.Error())))
+		session.Send(ErrorMessage(originalEnvelope.CollationId, RUNTIME_FUNCTION_EXCEPTION, fmt.Sprintf("Runtime before function caused an error: %s", fnErr.Error())), reliable)
 		return
 	}
 
@@ -96,7 +98,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_Logout:
 		// TODO Store JWT into a blacklist until remaining JWT expiry.
 		p.sessionRegistry.remove(session)
-		session.close()
+		session.Close()
 
 	case *Envelope_Link:
 		p.linkID(logger, session, envelope)
@@ -160,7 +162,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 	case *Envelope_MatchesLeave:
 		p.matchLeave(logger, session, envelope)
 	case *Envelope_MatchDataSend:
-		p.matchDataSend(logger, session, envelope)
+		p.matchDataSend(logger, session, envelope, reliable)
 
 	case *Envelope_MatchmakeAdd:
 		p.matchmakeAdd(logger, session, envelope)
@@ -199,7 +201,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session *session, original
 		p.notificationsRemove(logger, session, envelope)
 
 	default:
-		session.Send(ErrorMessage(envelope.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"))
+		session.Send(ErrorMessage(envelope.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), reliable)
 		return
 	}
 

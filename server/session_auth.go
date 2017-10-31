@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"nakama/pkg/multicode"
 	"nakama/pkg/social"
 
 	"github.com/dgrijalva/jwt-go"
@@ -38,10 +39,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"github.com/wirepair/netcode"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"nakama/pkg/httputil"
+	"net"
 )
 
 const (
@@ -67,8 +70,13 @@ type authenticationService struct {
 	registry          *SessionRegistry
 	pipeline          *pipeline
 	runtimePool       *RuntimePool
+	udpServer         *multicode.Server
 	mux               *mux.Router
 	hmacSecretByte    []byte
+	udpProtocolId     uint64
+	udpListenAddr     net.UDPAddr
+	udpPublicAddr     net.UDPAddr
+	udpKeyByte        []byte
 	upgrader          *websocket.Upgrader
 	socialClient      *social.Client
 	random            *rand.Rand
@@ -89,6 +97,10 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 		socialClient:   socialClient,
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		hmacSecretByte: []byte(config.GetSession().EncryptionKey),
+		udpProtocolId:  uint64(1),
+		udpListenAddr:  net.UDPAddr{IP: net.ParseIP(config.GetSocket().ListenAddress), Port: config.GetSocket().Port},
+		udpPublicAddr:  net.UDPAddr{IP: net.ParseIP(config.GetSocket().PublicAddress), Port: config.GetSocket().Port},
+		udpKeyByte:     []byte(config.GetSession().UdpKey),
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -110,6 +122,28 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 }
 
 func (a *authenticationService) configure() {
+	udpTimeoutMs := int64(a.config.GetSocket().PingPeriodMs + a.config.GetSocket().PongWaitMs)
+	udpOnConnectFn := func(clientInstance *multicode.ClientInstance) {
+		// Expects to be called on a separate goroutine.
+
+		uid, err := uuid.FromBytes(clientInstance.UserData[:16])
+		if err != nil {
+			a.logger.Warn("Invalid user ID in new UDP client connection, rejecting client")
+			clientInstance.Close(false)
+			return
+		}
+		handleLen := int(clientInstance.UserData[16])
+		handle := string(clientInstance.UserData[17 : 17+handleLen])
+
+		// TODO pass lang through token user data or other medium.
+		a.registry.addUDP(uid, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
+	}
+	var err error
+	a.udpServer, err = multicode.NewServer(a.logger, &a.udpListenAddr, &a.udpPublicAddr, a.udpKeyByte, a.udpProtocolId, a.config.GetSocket().MaxMessageSizeBytes, udpOnConnectFn, udpTimeoutMs)
+	if err != nil {
+		a.logger.Fatal("UDP client listener init failed", zap.Error(err))
+	}
+
 	a.mux = mux.NewRouter()
 
 	a.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +195,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		a.registry.add(uid, handle, lang, exp, conn, a.pipeline.processRequest)
+		a.registry.addWS(uid, handle, lang, exp, conn, a.pipeline.processRequest)
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
@@ -268,16 +302,23 @@ func (a *authenticationService) configure() {
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
+	// Start UDP client listener first.
+	// Avoids the race condition where we issue tokens via login/register but UDP connections aren't available yet.
+	if err := a.udpServer.Listen(); err != nil {
+		logger.Fatal("UDP client listener failed", zap.Error(err))
+	}
+
+	// Start HTTP and WebSocket client listener.
 	go func() {
 		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 
 		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS)
-		if err != nil {
-			logger.Fatal("Client listener failed", zap.Error(err))
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS); err != nil {
+			logger.Fatal("WebSocket client listener failed", zap.Error(err))
 		}
 	}()
+
 	logger.Info("Client", zap.Int("port", a.config.GetSocket().Port))
 }
 
@@ -352,7 +393,29 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	})
 	signedToken, _ := token.SignedString(a.hmacSecretByte)
 
-	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{Token: signedToken}}}
+	udpToken := netcode.NewConnectToken()
+	// User data is always a fixed length.
+	userData := make([]byte, netcode.USER_DATA_BYTES)
+	copy(userData, uid.Bytes())
+	handleBytes := []byte(handle)
+	userData[16] = byte(len(handleBytes))
+	copy(userData[17:], handleBytes)
+	if err := udpToken.Generate(1, []net.UDPAddr{a.udpPublicAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
+		a.logger.Error("UDP token generate error", zap.Error(fnErr))
+		a.sendAuthError(w, r, "UDP token generate error", AUTH_ERROR, authReq)
+		return
+	}
+	udpTokenBytes, err := udpToken.Write()
+	if err != nil {
+		a.logger.Error("UDP token write error", zap.Error(fnErr))
+		a.sendAuthError(w, r, "UDP token write error", AUTH_ERROR, authReq)
+		return
+	}
+
+	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{
+		Token:    signedToken,
+		UdpToken: udpTokenBytes,
+	}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
 	RuntimeAfterHookAuthentication(a.logger, a.runtimePool, a.jsonpbMarshaler, authReq, uid, handle, exp)
@@ -1129,7 +1192,8 @@ func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID
 }
 
 func (a *authenticationService) Stop() {
-	// TODO stop incoming net connections
+	a.udpServer.Stop()
+	// TODO stop incoming HTTP and WebSocket connections
 	a.registry.stop()
 }
 
