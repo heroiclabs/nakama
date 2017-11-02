@@ -98,8 +98,8 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
 SELECT source_id, destination_id, state, position, updated_at
 FROM (VALUES
-  ($1, $2, 2, $3::BIGINT, $3::BIGINT),
-  ($2, $1, 1, $3::BIGINT, $3::BIGINT)
+  ($1::BYTEA, $2::BYTEA, 2, $3::BIGINT, $3::BIGINT),
+  ($2::BYTEA, $1::BYTEA, 1, $3::BIGINT, $3::BIGINT)
 ) AS ue(source_id, destination_id, state, position, updated_at)
 WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
 	`, userID, friendID, updatedAt)
