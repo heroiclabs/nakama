@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -41,7 +40,7 @@ FROM users ` + filterQuery
 	}
 	defer rows.Close()
 
-	var id []byte
+	var id sql.NullString
 	var handle sql.NullString
 	var fullname sql.NullString
 	var avatarURL sql.NullString
@@ -61,14 +60,14 @@ FROM users ` + filterQuery
 		}
 
 		users = append(users, &User{
-			Id:           id,
+			Id:           id.String,
 			Handle:       handle.String,
 			Fullname:     fullname.String,
 			AvatarUrl:    avatarURL.String,
 			Lang:         lang.String,
 			Location:     location.String,
 			Timezone:     timezone.String,
-			Metadata:     metadata,
+			Metadata:     string(metadata),
 			CreatedAt:    createdAt.Int64,
 			UpdatedAt:    updatedAt.Int64,
 			LastOnlineAt: lastOnlineAt.Int64,
@@ -82,7 +81,7 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, handle string, fbid string, accessToken string) {
+func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID string, handle string, fbid string, accessToken string) {
 	var tx *sql.Tx
 	var err error
 
@@ -117,9 +116,9 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, handle 
 
 						notifications := make([]*NNotification, len(friendUserIDs))
 						for i, friendUserID := range friendUserIDs {
-							fid := friendUserID.([]byte)
+							fid := friendUserID.(string)
 							notifications[i] = &NNotification{
-								Id:         uuid.NewV4().Bytes(),
+								Id:         generateNewId(),
 								UserID:     fid,
 								Subject:    subject,
 								Content:    content,
@@ -224,7 +223,7 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID []byte, handle 
 	friendUserIDs = paramsEdge[2:]
 }
 
-func (p *pipeline) getFriends(filterQuery string, userID []byte) ([]*Friend, error) {
+func (p *pipeline) getFriends(filterQuery string, userID string) ([]*Friend, error) {
 	query := `
 SELECT id, handle, fullname, avatar_url,
 	lang, location, timezone, metadata,
@@ -240,7 +239,7 @@ FROM users, user_edge ` + filterQuery
 	friends := make([]*Friend, 0)
 
 	for rows.Next() {
-		var id []byte
+		var id sql.NullString
 		var handle sql.NullString
 		var fullname sql.NullString
 		var avatarURL sql.NullString
@@ -260,14 +259,14 @@ FROM users, user_edge ` + filterQuery
 
 		friends = append(friends, &Friend{
 			User: &User{
-				Id:           id,
+				Id:           id.String,
 				Handle:       handle.String,
 				Fullname:     fullname.String,
 				AvatarUrl:    avatarURL.String,
 				Lang:         lang.String,
 				Location:     location.String,
 				Timezone:     timezone.String,
-				Metadata:     metadata,
+				Metadata:     string(metadata),
 				CreatedAt:    createdAt.Int64,
 				UpdatedAt:    updatedAt.Int64,
 				LastOnlineAt: lastOnlineAt.Int64,
@@ -298,26 +297,20 @@ func (p *pipeline) friendAdd(l *zap.Logger, session session, envelope *Envelope)
 	}
 }
 
-func (p *pipeline) friendAddById(l *zap.Logger, session session, envelope *Envelope, friendIdBytes []byte) {
-	if len(friendIdBytes) == 0 {
+func (p *pipeline) friendAddById(l *zap.Logger, session session, envelope *Envelope, friendID string) {
+	if len(friendID) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
-	friendID, err := uuid.FromBytes(friendIdBytes)
-	if err != nil {
-		l.Warn("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
-		return
-	}
 
-	logger := l.With(zap.String("friend_id", friendID.String()))
+	logger := l.With(zap.String("friend_id", friendID))
 	if friendID == session.UserID() {
-		logger.Warn("Cannot add self", zap.Error(err))
+		logger.Warn("Cannot add self")
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot add self"), true)
 		return
 	}
 
-	if err := friendAdd(logger, p.db, p.notificationService, session.UserID().Bytes(), session.Handle(), friendID.Bytes()); err != nil {
+	if err := friendAdd(logger, p.db, p.notificationService, session.UserID(), session.Handle(), friendID); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"), true)
 		return
@@ -334,7 +327,7 @@ func (p *pipeline) friendAddByHandle(l *zap.Logger, session session, envelope *E
 	}
 
 	logger := l.With(zap.String("friend_handle", friendHandle))
-	if err := friendAddHandle(logger, p.db, p.notificationService, session.UserID().Bytes(), session.Handle(), friendHandle); err != nil {
+	if err := friendAddHandle(logger, p.db, p.notificationService, session.UserID(), session.Handle(), friendHandle); err != nil {
 		logger.Error("Could not add friend", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"), true)
 		return
@@ -354,23 +347,15 @@ func (p *pipeline) friendRemove(l *zap.Logger, session session, envelope *Envelo
 		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
 	}
 
-	removeFriendRequest := e.UserIds[0]
-	if len(removeFriendRequest) == 0 {
+	friendID := e.UserIds[0]
+	if len(friendID) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
-
-	friendID, err := uuid.FromBytes(removeFriendRequest)
-	if err != nil {
-		l.Warn("Could not add friend", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
-		return
-	}
-	logger := l.With(zap.String("friend_id", friendID.String()))
-	friendIDBytes := friendID.Bytes()
+	logger := l.With(zap.String("friend_id", friendID))
 
 	if friendID == session.UserID() {
-		logger.Warn("Cannot remove self", zap.Error(err))
+		logger.Warn("Cannot remove self")
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot remove self"), true)
 		return
 	}
@@ -404,20 +389,20 @@ func (p *pipeline) friendRemove(l *zap.Logger, session session, envelope *Envelo
 
 	updatedAt := nowMs()
 
-	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.UserID().Bytes(), friendIDBytes)
+	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", session.UserID(), friendID)
 	rowsAffected, _ := res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", session.UserID().Bytes(), updatedAt)
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", session.UserID(), updatedAt)
 	}
 
 	if err != nil {
 		return
 	}
 
-	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendIDBytes, session.UserID().Bytes())
+	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2", friendID, session.UserID())
 	rowsAffected, _ = res.RowsAffected()
 	if err == nil && rowsAffected > 0 {
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", friendIDBytes, updatedAt)
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", friendID, updatedAt)
 	}
 }
 
@@ -431,23 +416,16 @@ func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelop
 		l.Warn("There are more than one user ID passed to the request - only processing the first item of the list.")
 	}
 
-	blockUserRequest := e.UserIds[0]
-	if len(blockUserRequest) == 0 {
+	userID := e.UserIds[0]
+	if len(userID) == 0 {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID must be present"), true)
 		return
 	}
 
-	userID, err := uuid.FromBytes(blockUserRequest)
-	if err != nil {
-		l.Warn("Could not block user", zap.Error(err))
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid User ID"), true)
-		return
-	}
-	logger := l.With(zap.String("user_id", userID.String()))
-	userIDBytes := userID.Bytes()
+	logger := l.With(zap.String("user_id", userID))
 
 	if userID == session.UserID() {
-		logger.Warn("Cannot block self", zap.Error(err))
+		logger.Warn("Cannot block self")
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Cannot block self"), true)
 		return
 	}
@@ -484,7 +462,7 @@ func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelop
 	}()
 
 	res, err := tx.Exec("UPDATE user_edge SET state = 3, updated_at = $3 WHERE source_id = $1 AND destination_id = $2",
-		session.UserID().Bytes(), userIDBytes, nowMs())
+		session.UserID(), userID, nowMs())
 
 	if err != nil {
 		return
@@ -497,19 +475,19 @@ func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelop
 
 	// Delete opposite relationship if user hasn't blocked you already
 	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state != 3",
-		userIDBytes, session.UserID().Bytes())
+		userID, session.UserID())
 
 	if err != nil {
 		return
 	}
 
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 1 {
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", userIDBytes, nowMs())
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", userID, nowMs())
 	}
 }
 
 func (p *pipeline) friendsList(logger *zap.Logger, session session, envelope *Envelope) {
-	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.UserID().Bytes())
+	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.UserID())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get friends"), true)

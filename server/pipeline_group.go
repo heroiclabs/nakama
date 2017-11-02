@@ -17,6 +17,7 @@ package server
 import (
 	"bytes"
 	"database/sql"
+	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -25,7 +26,6 @@ import (
 
 	"fmt"
 	"github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +36,7 @@ type scanner interface {
 type groupCursor struct {
 	Primary   interface{}
 	Secondary int64
-	GroupID   []byte
+	GroupID   string
 }
 
 func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *Envelope) {
@@ -101,8 +101,8 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 
 	updatedAt := nowMs()
 
-	values[0] = uuid.NewV4().Bytes()
-	values[1] = session.UserID().Bytes()
+	values[0] = generateNewId()
+	values[1] = session.UserID()
 	values[2] = g.Name
 	values[3] = state
 	values[4] = updatedAt
@@ -125,10 +125,10 @@ func (p *pipeline) groupCreate(logger *zap.Logger, session session, envelope *En
 		values = append(values, g.Lang)
 	}
 
-	if g.Metadata != nil {
+	if g.Metadata != "" {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
-		if json.Unmarshal(g.Metadata, &maybeJSON) != nil {
+		if json.Unmarshal([]byte(g.Metadata), &maybeJSON) != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 			return
 		}
@@ -152,7 +152,7 @@ RETURNING id, creator_id, name, description, avatar_url, lang, utc_offset_ms, me
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
-		group.Id, updatedAt, session.UserID().Bytes())
+		group.Id, updatedAt, session.UserID())
 
 	if err != nil {
 		return
@@ -181,16 +181,9 @@ func (p *pipeline) groupUpdate(l *zap.Logger, session session, envelope *Envelop
 	// Extract the first update.
 	g := e.Groups[0]
 
-	// Validate input.
-	_, err := uuid.FromBytes(g.GroupId)
-	if err != nil {
-		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
-		return
-	}
-
 	// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 	var maybeJSON map[string]interface{}
-	if len(g.Metadata) != 0 && json.Unmarshal(g.Metadata, &maybeJSON) != nil {
+	if len(g.Metadata) != 0 && json.Unmarshal([]byte(g.Metadata), &maybeJSON) != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 		return
 	}
@@ -214,15 +207,14 @@ func (p *pipeline) groupRemove(l *zap.Logger, session session, envelope *Envelop
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
 	}
 
-	g := e.GroupIds[0]
+	groupID := e.GroupIds[0]
 	//TODO kick all users out
-	groupID, err := uuid.FromBytes(g)
-	if err != nil {
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()))
+	logger := l.With(zap.String("group_id", groupID))
 	failureReason := "Failed to remove group"
 
 	tx, err := p.db.Begin()
@@ -257,7 +249,7 @@ WHERE
 	id = $1
 AND
 	EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $2 AND state = 0)
-	`, groupID.Bytes(), session.UserID().Bytes())
+	`, groupID, session.UserID())
 
 	if err != nil {
 		return
@@ -273,7 +265,7 @@ AND
 		return
 	}
 
-	_, err = tx.Exec("DELETE FROM group_edge WHERE source_id = $1 OR destination_id = $1", groupID.Bytes())
+	_, err = tx.Exec("DELETE FROM group_edge WHERE source_id = $1 OR destination_id = $1", groupID)
 }
 
 func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *Envelope) {
@@ -290,9 +282,9 @@ func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *En
 	for _, g := range e.Groups {
 		switch g.Id.(type) {
 		case *TGroupsFetch_GroupFetch_GroupId:
-			groupID, err := uuid.FromBytes(g.GetGroupId())
-			if err == nil {
-				params = append(params, groupID.Bytes())
+			groupID := g.GetGroupId()
+			if groupID != "" {
+				params = append(params, groupID)
 				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
 			} else {
 				session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is invalid"), true)
@@ -354,18 +346,24 @@ func (p *pipeline) groupsList(logger *zap.Logger, session session, envelope *Env
 
 	foundCursor := false
 	paramNumber := 1
-	if incoming.Cursor != nil {
-		var c groupCursor
-		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(&c); err != nil {
+	if incoming.Cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(incoming.Cursor); err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
 			return
+		} else {
+			var c groupCursor
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&c); err != nil {
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
+				return
+			}
+
+			foundCursor = true
+			params = append(params, c.Primary)
+			params = append(params, c.Secondary)
+			params = append(params, c.GroupID)
+			paramNumber = len(params)
 		}
 
-		foundCursor = true
-		params = append(params, c.Primary)
-		params = append(params, c.Secondary)
-		params = append(params, c.GroupID)
-		paramNumber = len(params)
 	}
 
 	orderBy := "DESC"
@@ -413,7 +411,7 @@ LIMIT $` + strconv.Itoa(len(params))
 	defer rows.Close()
 
 	groups := make([]*Group, 0)
-	var cursor []byte
+	var cursor string
 	var lastGroup *Group
 	for rows.Next() {
 		if int64(len(groups)) >= limit {
@@ -434,7 +432,7 @@ LIMIT $` + strconv.Itoa(len(params))
 				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list groups"), true)
 				return
 			}
-			cursor = cursorBuf.Bytes()
+			cursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 		lastGroup, err = extractGroup(rows)
@@ -465,8 +463,8 @@ func (p *pipeline) groupsSelfList(logger *zap.Logger, session session, envelope 
 func (p *pipeline) groupUsersList(logger *zap.Logger, session session, envelope *Envelope) {
 	g := envelope.GetGroupUsersList()
 
-	groupID, err := uuid.FromBytes(g.GroupId)
-	if err != nil {
+	groupID := g.GroupId
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
@@ -490,21 +488,20 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
 	}
 
-	g := e.GroupIds[0]
-	groupID, err := uuid.FromBytes(g)
-	if err != nil {
+	groupID := e.GroupIds[0]
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid."), true)
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()))
+	logger := l.With(zap.String("group_id", groupID))
 
 	ts := nowMs()
 
 	// Group admin user IDs to notify there's a new user join request, if the group is private.
 	var groupName sql.NullString
 	privateGroup := false
-	adminUserIDs := make([][]byte, 0)
+	adminUserIDs := make([]string, 0)
 
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -532,7 +529,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 
 				if !privateGroup {
 					// If the user was added directly.
-					err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 1, []byte("{}"))
+					err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID}}, 1, []byte("{}"))
 					if err != nil {
 						logger.Error("Error handling group user join notification topic message", zap.Error(err))
 					}
@@ -546,13 +543,13 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 						return
 					}
 					subject := fmt.Sprintf("%v wants to join your group %v", handle, name)
-					userID := session.UserID().Bytes()
+					userID := session.UserID()
 					expiresAt := ts + p.notificationService.expiryMs
 
 					notifications := make([]*NNotification, len(adminUserIDs))
 					for i, adminUserID := range adminUserIDs {
 						notifications[i] = &NNotification{
-							Id:         uuid.NewV4().Bytes(),
+							Id:         generateNewId(),
 							UserID:     adminUserID,
 							Subject:    subject,
 							Content:    content,
@@ -574,7 +571,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 	}()
 
 	var groupState sql.NullInt64
-	err = tx.QueryRow("SELECT state, name FROM groups WHERE id = $1 AND disabled_at = 0", groupID.Bytes()).Scan(&groupState, &groupName)
+	err = tx.QueryRow("SELECT state, name FROM groups WHERE id = $1 AND disabled_at = 0", groupID).Scan(&groupState, &groupName)
 	if err != nil {
 		return
 	}
@@ -587,8 +584,8 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
-VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
-		groupID.Bytes(), ts, session.UserID().Bytes(), userState)
+VALUES ($1::BYTEA, $2, $2, $3::BYTEA, $4), ($3::BYTEA, $2, $2, $1::BYTEA, $4)`,
+		groupID, ts, session.UserID(), userState)
 
 	if err != nil {
 		return
@@ -601,7 +598,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 
 	// If the group is not private and the user joined directly, increase the group count.
 	if !privateGroup {
-		_, err = tx.Exec("UPDATE groups SET count = count + 1, updated_at = $2 WHERE id = $1", groupID.Bytes(), ts)
+		_, err = tx.Exec("UPDATE groups SET count = count + 1, updated_at = $2 WHERE id = $1", groupID, ts)
 	}
 	if err != nil {
 		return
@@ -609,7 +606,7 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 
 	// If group is private, look up admin user IDs to notify about a new user requesting to join.
 	if privateGroup {
-		rows, e := tx.Query("SELECT destination_id FROM group_edge WHERE source_id = $1 AND state = 0", groupID.Bytes())
+		rows, e := tx.Query("SELECT destination_id FROM group_edge WHERE source_id = $1 AND state = 0", groupID)
 		if e != nil {
 			logger.Warn("Failed to send group join request notification", zap.Error(e))
 			return
@@ -617,13 +614,13 @@ VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
 		defer rows.Close()
 
 		for rows.Next() {
-			var adminUserID []byte
+			var adminUserID sql.NullString
 			e = rows.Scan(&adminUserID)
 			if e != nil {
 				logger.Warn("Failed to send group join request notification", zap.Error(e))
 				return
 			}
-			adminUserIDs = append(adminUserIDs, adminUserID)
+			adminUserIDs = append(adminUserIDs, adminUserID.String)
 		}
 	}
 }
@@ -638,14 +635,13 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 		l.Warn("There are more than one item passed to the request - only processing the first item.")
 	}
 
-	g := e.GroupIds[0]
-	groupID, err := uuid.FromBytes(g)
-	if err != nil {
+	groupID := e.GroupIds[0]
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()))
+	logger := l.With(zap.String("group_id", groupID))
 
 	code := RUNTIME_EXCEPTION
 	failureReason := "Could not leave group"
@@ -673,7 +669,7 @@ func (p *pipeline) groupLeave(l *zap.Logger, session session, envelope *Envelope
 				logger.Info("User left group")
 				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
-				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 3, []byte("{}"))
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID}}, 3, []byte("{}"))
 				if err != nil {
 					logger.Error("Error handling group user leave notification topic message", zap.Error(err))
 				}
@@ -691,7 +687,7 @@ WHERE
 	(source_id = $1 AND destination_id = $2 AND state = 2)
 OR
 	(source_id = $2 AND destination_id = $1 AND state = 2)`,
-		groupID.Bytes(), session.UserID().Bytes())
+		groupID, session.UserID())
 
 	if err != nil {
 		return
@@ -711,7 +707,7 @@ AND
 	EXISTS (SELECT id FROM groups WHERE id = $1 AND disabled_at = 0)
 AND
 	EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $2 AND state = 0)`,
-		groupID.Bytes(), session.UserID().Bytes()).Scan(&adminCount)
+		groupID, session.UserID()).Scan(&adminCount)
 
 	if err != nil {
 		return
@@ -730,7 +726,7 @@ WHERE
 	(source_id = $1 AND destination_id = $2)
 OR
 	(source_id = $2 AND destination_id = $1)`,
-		groupID.Bytes(), session.UserID().Bytes())
+		groupID, session.UserID())
 
 	if err != nil {
 		return
@@ -742,7 +738,7 @@ OR
 		return
 	}
 
-	_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID.Bytes())
+	_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID)
 	if err != nil {
 		return
 	}
@@ -759,19 +755,19 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 	}
 
 	g := e.GroupUsers[0]
-	groupID, err := uuid.FromBytes(g.GroupId)
-	if err != nil {
+	groupID := g.GroupId
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
-	userID, err := uuid.FromBytes(g.UserId)
-	if err != nil {
+	userID := g.UserId
+	if userID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	logger := l.With(zap.String("group_id", groupID), zap.String("user_id", userID))
 	ts := nowMs()
 	var handle string
 	var name string
@@ -804,8 +800,8 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 				logger.Info("Added user to the group")
 				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
-				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 2, data)
+				data, _ := json.Marshal(map[string]string{"user_id": userID, "handle": handle})
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID}}, 2, data)
 				if err != nil {
 					logger.Error("Error handling group user added notification topic message", zap.Error(err))
 					return
@@ -819,12 +815,12 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 				}
 				err = p.notificationService.NotificationSend([]*NNotification{
 					&NNotification{
-						Id:         uuid.NewV4().Bytes(),
-						UserID:     userID.Bytes(),
+						Id:         generateNewId(),
+						UserID:     userID,
 						Subject:    fmt.Sprintf("%v has added you to group %v", adminHandle, name),
 						Content:    content,
 						Code:       NOTIFICATION_GROUP_ADD,
-						SenderID:   session.UserID().Bytes(),
+						SenderID:   session.UserID(),
 						CreatedAt:  ts,
 						ExpiresAt:  ts + p.notificationService.expiryMs,
 						Persistent: true,
@@ -838,13 +834,13 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 	}()
 
 	// Look up the user being added.
-	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1 AND disabled_at = 0", userID.Bytes()).Scan(&handle)
+	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1 AND disabled_at = 0", userID).Scan(&handle)
 	if err != nil {
 		return
 	}
 
 	// Look up the name of the group.
-	err = tx.QueryRow("SELECT name FROM groups WHERE id = $1", groupID.Bytes()).Scan(&name)
+	err = tx.QueryRow("SELECT name FROM groups WHERE id = $1", groupID).Scan(&name)
 	if err != nil {
 		return
 	}
@@ -853,17 +849,17 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 SELECT data.id, data.position, data.updated_at, data.destination, data.state
 FROM (
-  SELECT $1::BYTEA AS id, $2::INT AS position, $2::INT AS updated_at, $3::BYTEA AS destination, 1 AS state
+  SELECT $1 AS id, $2::INT AS position, $2::INT AS updated_at, $3 AS destination, 1 AS state
   UNION ALL
-  SELECT $3::BYTEA AS id, $2::INT AS position, $2::INT AS updated_at, $1::BYTEA AS destination, 1 AS state
+  SELECT $3 AS id, $2::INT AS position, $2::INT AS updated_at, $1 AS destination, 1 AS state
 ) AS data
 WHERE
-  EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1::BYTEA AND destination_id = $4::BYTEA AND state = 0)
+  EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $4 AND state = 0)
 AND
-  EXISTS (SELECT id FROM groups WHERE id = $1::BYTEA AND disabled_at = 0)
+  EXISTS (SELECT id FROM groups WHERE id = $1 AND disabled_at = 0)
 ON CONFLICT (source_id, destination_id)
 DO UPDATE SET state = 1, updated_at = $2::INT`,
-		groupID.Bytes(), ts, userID.Bytes(), session.UserID().Bytes())
+		groupID, ts, userID, session.UserID())
 
 	if err != nil {
 		return
@@ -874,7 +870,7 @@ DO UPDATE SET state = 1, updated_at = $2::INT`,
 		return
 	}
 
-	_, err = tx.Exec(`UPDATE groups SET count = count + 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID.Bytes())
+	_, err = tx.Exec(`UPDATE groups SET count = count + 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID)
 	if err != nil {
 		return
 	}
@@ -893,14 +889,14 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 
 	g := e.GroupUsers[0]
 
-	groupID, err := uuid.FromBytes(g.GroupId)
-	if err != nil {
+	groupID := g.GroupId
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
-	userID, err := uuid.FromBytes(g.UserId)
-	if err != nil {
+	userID := g.UserId
+	if userID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
@@ -910,7 +906,7 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	logger := l.With(zap.String("group_id", groupID), zap.String("user_id", userID))
 	var handle string
 
 	failureReason := "Could not kick user from group"
@@ -942,8 +938,8 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 				logger.Info("Kicked user from group")
 				session.Send(&Envelope{CollationId: envelope.CollationId}, true)
 
-				data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 4, data)
+				data, _ := json.Marshal(map[string]string{"user_id": userID, "handle": handle})
+				err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID}}, 4, data)
 				if err != nil {
 					logger.Error("Error handling group user kicked notification topic message", zap.Error(err))
 				}
@@ -953,7 +949,7 @@ func (p *pipeline) groupUserKick(l *zap.Logger, session session, envelope *Envel
 
 	// Check the user's group_edge state. If it's a pending join request being rejected then no need to decrement the group count.
 	var userState int64
-	err = tx.QueryRow("SELECT state FROM group_edge WHERE source_id = $1 AND destination_id = $2", groupID.Bytes(), userID.Bytes()).Scan(&userState)
+	err = tx.QueryRow("SELECT state FROM group_edge WHERE source_id = $1 AND destination_id = $2", groupID, userID).Scan(&userState)
 
 	res, err := tx.Exec(`
 DELETE FROM group_edge
@@ -966,7 +962,7 @@ AND
 		(source_id = $1 AND destination_id = $2)
 	OR
 		(source_id = $2 AND destination_id = $1)
-	)`, groupID.Bytes(), userID.Bytes(), session.UserID().Bytes())
+	)`, groupID, userID, session.UserID())
 
 	if err != nil {
 		return
@@ -980,14 +976,14 @@ AND
 
 	// Join requests aren't reflected in group count.
 	if userState != 2 {
-		_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID.Bytes())
+		_, err = tx.Exec(`UPDATE groups SET count = count - 1, updated_at = $1 WHERE id = $2`, nowMs(), groupID)
 		if err != nil {
 			return
 		}
 	}
 
 	// Look up the user being kicked. Allow kicking disabled users.
-	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1", userID.Bytes()).Scan(&handle)
+	err = tx.QueryRow("SELECT handle FROM users WHERE id = $1", userID).Scan(&handle)
 	if err != nil {
 		return
 	}
@@ -1004,14 +1000,14 @@ func (p *pipeline) groupUserPromote(l *zap.Logger, session session, envelope *En
 	}
 
 	g := e.GroupUsers[0]
-	groupID, err := uuid.FromBytes(g.GroupId)
-	if err != nil {
+	groupID := g.GroupId
+	if groupID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Group ID is not valid"), true)
 		return
 	}
 
-	userID, err := uuid.FromBytes(g.UserId)
-	if err != nil {
+	userID := g.UserId
+	if userID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "User ID is not valid"), true)
 		return
 	}
@@ -1021,7 +1017,7 @@ func (p *pipeline) groupUserPromote(l *zap.Logger, session session, envelope *En
 		return
 	}
 
-	logger := l.With(zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+	logger := l.With(zap.String("group_id", groupID), zap.String("user_id", userID))
 
 	res, err := p.db.Exec(`
 UPDATE group_edge SET state = 0, updated_at = $4
@@ -1034,7 +1030,7 @@ AND
 		(source_id = $1 AND destination_id = $2)
 	OR
 		(source_id = $2 AND destination_id = $1)
-	)`, groupID.Bytes(), userID.Bytes(), session.UserID().Bytes(), nowMs())
+	)`, groupID, userID, session.UserID(), nowMs())
 
 	if err != nil {
 		logger.Warn("Could not promote user", zap.Error(err))
@@ -1050,13 +1046,13 @@ AND
 
 	// Look up the user being promoted. Allow promoting disabled users as long as they're still part of the group.
 	var handle string
-	err = p.db.QueryRow("SELECT handle FROM users WHERE id = $1", userID.Bytes()).Scan(&handle)
+	err = p.db.QueryRow("SELECT handle FROM users WHERE id = $1", userID).Scan(&handle)
 	if err != nil {
 		return
 	}
 
-	data, _ := json.Marshal(map[string]string{"user_id": userID.String(), "handle": handle})
-	err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID.Bytes()}}, 5, data)
+	data, _ := json.Marshal(map[string]string{"user_id": userID, "handle": handle})
+	err = p.storeAndDeliverMessage(logger, session, &TopicId{Id: &TopicId_GroupId{GroupId: groupID}}, 5, data)
 	if err != nil {
 		logger.Error("Error handling group user promoted notification topic message", zap.Error(err))
 	}

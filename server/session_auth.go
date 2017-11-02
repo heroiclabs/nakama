@@ -32,6 +32,7 @@ import (
 	"nakama/pkg/multicode"
 	"nakama/pkg/social"
 
+	"encoding/base64"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -126,17 +127,11 @@ func (a *authenticationService) configure() {
 	udpOnConnectFn := func(clientInstance *multicode.ClientInstance) {
 		// Expects to be called on a separate goroutine.
 
-		uid, err := uuid.FromBytes(clientInstance.UserData[:16])
-		if err != nil {
-			a.logger.Warn("Invalid user ID in new UDP client connection, rejecting client")
-			clientInstance.Close(false)
-			return
-		}
-		handleLen := int(clientInstance.UserData[16])
-		handle := string(clientInstance.UserData[17 : 17+handleLen])
+		userID := string(bytes.Trim(clientInstance.UserData[:128], "\x00"))
+		handle := string(bytes.Trim(clientInstance.UserData[128:], "\x00"))
 
 		// TODO pass lang through token user data or other medium.
-		a.registry.addUDP(uid, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
+		a.registry.addUDP(userID, handle, "en", clientInstance.ExpiresAt, clientInstance, a.pipeline.processRequest)
 	}
 	var err error
 	a.udpServer, err = multicode.NewServer(a.logger, &a.udpListenAddr, &a.udpPublicAddr, a.udpKeyByte, a.udpProtocolId, a.config.GetSocket().MaxMessageSizeBytes, udpOnConnectFn, udpTimeoutMs)
@@ -243,6 +238,12 @@ func (a *authenticationService) configure() {
 		}
 
 		path := strings.ToLower(mux.Vars(r)["path"])
+		if !a.runtimePool.HasHTTP(path) {
+			a.logger.Warn("HTTP invocation failed as path was not found", zap.String("path", path))
+			http.Error(w, fmt.Sprintf("Runtime function could not be invoked. Path: \"%s\", was not found.", path), 404)
+			return
+		}
+
 		runtime := a.runtimePool.Get()
 		fn := runtime.GetRuntimeCallback(HTTP, path)
 		if fn == nil {
@@ -265,7 +266,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		responseData, funError := runtime.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
+		responseData, funError := runtime.InvokeFunctionHTTP(fn, "", "", 0, payload)
 		a.runtimePool.Put(runtime)
 		if funError != nil {
 			a.logger.Error("Runtime function caused an error", zap.String("path", path), zap.Error(funError))
@@ -323,7 +324,7 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 }
 
 func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Request,
-	retrieveUserID func(authReq *AuthenticateRequest) ([]byte, string, string, Error_Code)) {
+	retrieveUserID func(authReq *AuthenticateRequest) (string, string, string, Error_Code)) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 
@@ -383,11 +384,10 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	uid, _ := uuid.FromBytes(userID)
 	exp := time.Now().UTC().Add(time.Duration(a.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uid": uid.String(),
+		"uid": userID,
 		"exp": exp,
 		"han": handle,
 	})
@@ -396,10 +396,8 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 	udpToken := netcode.NewConnectToken()
 	// User data is always a fixed length.
 	userData := make([]byte, netcode.USER_DATA_BYTES)
-	copy(userData, uid.Bytes())
-	handleBytes := []byte(handle)
-	userData[16] = byte(len(handleBytes))
-	copy(userData[17:], handleBytes)
+	copy(userData, []byte(userID))
+	copy(userData[128:], []byte(handle))
 	if err := udpToken.Generate(1, []net.UDPAddr{a.udpPublicAddr}, netcode.VERSION_INFO, a.udpProtocolId, uint64(a.config.GetSession().TokenExpiryMs/1000), int32(a.config.GetSocket().WriteWaitMs/1000), 0, userData, a.udpKeyByte); err != nil {
 		a.logger.Error("UDP token generate error", zap.Error(fnErr))
 		a.sendAuthError(w, r, "UDP token generate error", AUTH_ERROR, authReq)
@@ -414,11 +412,11 @@ func (a *authenticationService) handleAuth(w http.ResponseWriter, r *http.Reques
 
 	authResponse := &AuthenticateResponse{CollationId: authReq.CollationId, Id: &AuthenticateResponse_Session_{&AuthenticateResponse_Session{
 		Token:    signedToken,
-		UdpToken: udpTokenBytes,
+		UdpToken: base64.StdEncoding.EncodeToString(udpTokenBytes),
 	}}}
 	a.sendAuthResponse(w, r, 200, authResponse)
 
-	RuntimeAfterHookAuthentication(a.logger, a.runtimePool, a.jsonpbMarshaler, authReq, uid, handle, exp)
+	RuntimeAfterHookAuthentication(a.logger, a.runtimePool, a.jsonpbMarshaler, authReq, userID, handle, exp)
 }
 
 func (a *authenticationService) sendAuthError(w http.ResponseWriter, r *http.Request, error string, errorCode Error_Code, authRequest *AuthenticateRequest) {
@@ -483,9 +481,9 @@ func (a *authenticationService) sendAuthResponse(w http.ResponseWriter, r *http.
 	w.Write(payload)
 }
 
-func (a *authenticationService) login(authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) login(authReq *AuthenticateRequest) (string, string, string, Error_Code) {
 	// Route to correct login handler
-	var loginFunc func(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code)
+	var loginFunc func(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code)
 	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		loginFunc = a.loginDevice
@@ -502,29 +500,29 @@ func (a *authenticationService) login(authReq *AuthenticateRequest) ([]byte, str
 	case *AuthenticateRequest_Custom:
 		loginFunc = a.loginCustom
 	default:
-		return nil, "", errorInvalidPayload, BAD_INPUT
+		return "", "", errorInvalidPayload, BAD_INPUT
 	}
 
 	userID, handle, disabledAt, message, errorCode := loginFunc(authReq)
 
 	if disabledAt != 0 {
-		return nil, "", "ID disabled", AUTH_ERROR
+		return "", "", "ID disabled", AUTH_ERROR
 	}
 
 	return userID, handle, message, errorCode
 }
 
-func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	deviceID := authReq.GetDevice()
 	if deviceID == "" {
-		return nil, "", 0, "Device ID is required", BAD_INPUT
+		return "", "", 0, "Device ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		return nil, "", 0, "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(deviceID) < 10 || len(deviceID) > 128 {
-		return nil, "", 0, "Invalid device ID, must be 10-128 bytes", BAD_INPUT
+		return "", "", 0, "Invalid device ID, must be 10-128 bytes", BAD_INPUT
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err := a.db.QueryRow("SELECT u.id, u.handle, u.disabled_at FROM users u, user_device ud WHERE ud.id = $1 AND u.id = ud.user_id",
@@ -532,31 +530,31 @@ func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) ([]byt
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "device"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginFacebook(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginFacebook(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	accessToken := authReq.GetFacebook()
 	if accessToken == "" {
-		return nil, "", 0, errorAccessTokenIsRequired, BAD_INPUT
+		return "", "", 0, errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", 0, "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	fbProfile, err := a.socialClient.GetFacebookProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Facebook profile", zap.Error(err))
-		return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+		return "", "", 0, errorCouldNotLogin, AUTH_ERROR
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err = a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE facebook_id = $1",
@@ -564,31 +562,31 @@ func (a *authenticationService) loginFacebook(authReq *AuthenticateRequest) ([]b
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "facebook"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	accessToken := authReq.GetGoogle()
 	if accessToken == "" {
-		return nil, "", 0, errorAccessTokenIsRequired, BAD_INPUT
+		return "", "", 0, errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", 0, "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	googleProfile, err := a.socialClient.GetGoogleProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Google profile", zap.Error(err))
-		return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+		return "", "", 0, errorCouldNotLogin, AUTH_ERROR
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err = a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE google_id = $1",
@@ -596,29 +594,29 @@ func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) ([]byt
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "google"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginGameCenter(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginGameCenter(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	gc := authReq.GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
-		return nil, "", 0, errorInvalidPayload, BAD_INPUT
+		return "", "", 0, errorInvalidPayload, BAD_INPUT
 	}
 
 	_, err := a.socialClient.CheckGameCenterID(gc.PlayerId, gc.BundleId, gc.Timestamp, gc.Salt, gc.Signature, gc.PublicKeyUrl)
 	if err != nil {
 		a.logger.Warn("Could not check Game Center profile", zap.Error(err))
-		return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+		return "", "", 0, errorCouldNotLogin, AUTH_ERROR
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err = a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE gamecenter_id = $1",
@@ -626,35 +624,35 @@ func (a *authenticationService) loginGameCenter(authReq *AuthenticateRequest) ([
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "game center"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginSteam(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginSteam(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	if a.config.GetSocial().Steam.PublisherKey == "" || a.config.GetSocial().Steam.AppID == 0 {
-		return nil, "", 0, "Steam login not available", AUTH_ERROR
+		return "", "", 0, "Steam login not available", AUTH_ERROR
 	}
 
 	ticket := authReq.GetSteam()
 	if ticket == "" {
-		return nil, "", 0, "Steam ticket is required", BAD_INPUT
+		return "", "", 0, "Steam ticket is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(ticket) {
-		return nil, "", 0, "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	steamProfile, err := a.socialClient.GetSteamProfile(a.config.GetSocial().Steam.PublisherKey, a.config.GetSocial().Steam.AppID, ticket)
 	if err != nil {
 		a.logger.Warn("Could not check Steam profile", zap.Error(err))
-		return nil, "", 0, errorCouldNotLogin, AUTH_ERROR
+		return "", "", 0, errorCouldNotLogin, AUTH_ERROR
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err = a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE steam_id = $1",
@@ -662,31 +660,31 @@ func (a *authenticationService) loginSteam(authReq *AuthenticateRequest) ([]byte
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "steam"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginEmail(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginEmail(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	email := authReq.GetEmail()
 	if email == nil {
-		return nil, "", 0, errorInvalidPayload, BAD_INPUT
+		return "", "", 0, errorInvalidPayload, BAD_INPUT
 	} else if email.Email == "" {
-		return nil, "", 0, "Email address is required", BAD_INPUT
+		return "", "", 0, "Email address is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(email.Email) {
-		return nil, "", 0, "Invalid email address, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid email address, no spaces or control characters allowed", BAD_INPUT
 	} else if !emailRegex.MatchString(email.Email) {
-		return nil, "", 0, "Invalid email address format", BAD_INPUT
+		return "", "", 0, "Invalid email address format", BAD_INPUT
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
-		return nil, "", 0, "Invalid email address, must be 10-255 bytes", BAD_INPUT
+		return "", "", 0, "Invalid email address, must be 10-255 bytes", BAD_INPUT
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var hashedPassword []byte
 	var disabledAt int64
@@ -695,32 +693,32 @@ func (a *authenticationService) loginEmail(authReq *AuthenticateRequest) ([]byte
 		Scan(&userID, &handle, &hashedPassword, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "email"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(email.Password))
 	if err != nil {
-		return nil, "", 0, "Invalid credentials", AUTH_ERROR
+		return "", "", 0, "Invalid credentials", AUTH_ERROR
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byte, string, int64, string, Error_Code) {
+func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) (string, string, int64, string, Error_Code) {
 	customID := authReq.GetCustom()
 	if customID == "" {
-		return nil, "", 0, "Custom ID is required", BAD_INPUT
+		return "", "", 0, "Custom ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(customID) {
-		return nil, "", 0, "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
+		return "", "", 0, "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(customID) < 10 || len(customID) > 128 {
-		return nil, "", 0, "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
+		return "", "", 0, "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
 	}
 
-	var userID []byte
+	var userID string
 	var handle string
 	var disabledAt int64
 	err := a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE custom_id = $1",
@@ -728,28 +726,28 @@ func (a *authenticationService) loginCustom(authReq *AuthenticateRequest) ([]byt
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, "", 0, errorIDNotFound, USER_NOT_FOUND
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
 			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "custom"), zap.Error(err))
-			return nil, "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}
 
 	return userID, handle, disabledAt, "", 0
 }
 
-func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, string, string, Error_Code) {
+func (a *authenticationService) register(authReq *AuthenticateRequest) (string, string, string, Error_Code) {
 	// Route to correct register handler
-	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code)
-	var registerHook func(authReq *AuthenticateRequest, userID []byte, handle string, identifier string)
+	var registerFunc func(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code)
+	var registerHook func(authReq *AuthenticateRequest, userID string, handle string, identifier string)
 
 	switch authReq.Id.(type) {
 	case *AuthenticateRequest_Device:
 		registerFunc = a.registerDevice
 	case *AuthenticateRequest_Facebook:
 		registerFunc = a.registerFacebook
-		registerHook = func(authReq *AuthenticateRequest, userID []byte, handle string, identifier string) {
-			l := a.logger.With(zap.String("user_id", uuid.FromBytesOrNil(userID).String()))
+		registerHook = func(authReq *AuthenticateRequest, userID string, handle string, identifier string) {
+			l := a.logger.With(zap.String("user_id", userID))
 			a.pipeline.addFacebookFriends(l, userID, handle, identifier, authReq.GetFacebook())
 		}
 	case *AuthenticateRequest_Google:
@@ -763,13 +761,13 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	case *AuthenticateRequest_Custom:
 		registerFunc = a.registerCustom
 	default:
-		return nil, "", errorInvalidPayload, BAD_INPUT
+		return "", "", errorInvalidPayload, BAD_INPUT
 	}
 
 	tx, err := a.db.Begin()
 	if err != nil {
 		a.logger.Warn("Could not register, transaction begin error", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	// The userID and handle that have been assigned to the user.
@@ -789,7 +787,7 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 	err = tx.Commit()
 	if err != nil {
 		a.logger.Error("Could not commit transaction", zap.Error(err))
-		return nil, "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	// Run any post-registration steps outside the main registration transaction.
@@ -798,27 +796,27 @@ func (a *authenticationService) register(authReq *AuthenticateRequest) ([]byte, 
 		registerHook(authReq, userID, handle, identifier)
 	}
 
-	a.logger.Info("Registration complete", zap.String("uid", uuid.FromBytesOrNil(userID).String()))
+	a.logger.Info("Registration complete", zap.String("uid", userID))
 	return userID, handle, errorMessage, errorCode
 }
 
-func (a *authenticationService) addUserEdgeMetadata(tx *sql.Tx, userID []byte, updatedAt int64) error {
+func (a *authenticationService) addUserEdgeMetadata(tx *sql.Tx, userID string, updatedAt int64) error {
 	_, err := tx.Exec("INSERT INTO user_edge_metadata (source_id, count, state, updated_at) VALUES ($1, 0, 0, $2)", userID, updatedAt)
 	return err
 }
 
-func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerDevice(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	deviceID := authReq.GetDevice()
 	if deviceID == "" {
-		return nil, "", "", "Device ID is required", BAD_INPUT
+		return "", "", "", "Device ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		return nil, "", "", "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid device ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(deviceID) < 10 || len(deviceID) > 128 {
-		return nil, "", "", "Invalid device ID, must be 10-128 bytes", BAD_INPUT
+		return "", "", "", "Invalid device ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, created_at, updated_at)
@@ -834,45 +832,45 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new device profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	res, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 	if err != nil {
 		a.logger.Warn("Could not register, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, deviceID, "", 0
 }
 
-func (a *authenticationService) registerFacebook(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerFacebook(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	accessToken := authReq.GetFacebook()
 	if accessToken == "" {
-		return nil, "", "", errorAccessTokenIsRequired, BAD_INPUT
+		return "", "", "", errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", "", "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid Facebook access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	fbProfile, err := a.socialClient.GetFacebookProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Facebook profile", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
+		return "", "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, facebook_id, created_at, updated_at)
@@ -889,36 +887,36 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Facebook profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, fbProfile.ID, "", 0
 }
 
-func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	accessToken := authReq.GetGoogle()
 	if accessToken == "" {
-		return nil, "", "", errorAccessTokenIsRequired, BAD_INPUT
+		return "", "", "", errorAccessTokenIsRequired, BAD_INPUT
 	} else if invalidCharsRegex.MatchString(accessToken) {
-		return nil, "", "", "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	googleProfile, err := a.socialClient.GetGoogleProfile(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Google profile", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
+		return "", "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, google_id, created_at, updated_at)
@@ -938,34 +936,34 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Google profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, googleProfile.ID, "", 0
 }
 
-func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	gc := authReq.GetGameCenter()
 	if gc == nil || gc.PlayerId == "" || gc.BundleId == "" || gc.Timestamp == 0 || gc.Salt == "" || gc.Signature == "" || gc.PublicKeyUrl == "" {
-		return nil, "", "", errorInvalidPayload, BAD_INPUT
+		return "", "", "", errorInvalidPayload, BAD_INPUT
 	}
 
 	_, err := a.socialClient.CheckGameCenterID(gc.PlayerId, gc.BundleId, gc.Timestamp, gc.Salt, gc.Signature, gc.PublicKeyUrl)
 	if err != nil {
 		a.logger.Warn("Could not get Game Center profile", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
+		return "", "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, gamecenter_id, created_at, updated_at)
@@ -985,40 +983,40 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Game Center profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, gc.PlayerId, "", 0
 }
 
-func (a *authenticationService) registerSteam(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerSteam(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	if a.config.GetSocial().Steam.PublisherKey == "" || a.config.GetSocial().Steam.AppID == 0 {
-		return nil, "", "", "Steam registration not available", AUTH_ERROR
+		return "", "", "", "Steam registration not available", AUTH_ERROR
 	}
 
 	ticket := authReq.GetSteam()
 	if ticket == "" {
-		return nil, "", "", "Steam ticket is required", BAD_INPUT
+		return "", "", "", "Steam ticket is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(ticket) {
-		return nil, "", "", "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid Steam ticket, no spaces or control characters allowed", BAD_INPUT
 	}
 
 	steamProfile, err := a.socialClient.GetSteamProfile(a.config.GetSocial().Steam.PublisherKey, a.config.GetSocial().Steam.AppID, ticket)
 	if err != nil {
 		a.logger.Warn("Could not get Steam profile", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, AUTH_ERROR
+		return "", "", "", errorCouldNotRegister, AUTH_ERROR
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
 	res, err := tx.Exec(`
@@ -1039,40 +1037,40 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new Steam profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, steamID, "", 0
 }
 
-func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerEmail(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	email := authReq.GetEmail()
 	if email == nil {
-		return nil, "", "", errorInvalidPayload, BAD_INPUT
+		return "", "", "", errorInvalidPayload, BAD_INPUT
 	} else if email.Email == "" {
-		return nil, "", "", "Email address is required", BAD_INPUT
+		return "", "", "", "Email address is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(email.Email) {
-		return nil, "", "", "Invalid email address, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid email address, no spaces or control characters allowed", BAD_INPUT
 	} else if len(email.Password) < 8 {
-		return nil, "", "", "Password must be longer than 8 characters", BAD_INPUT
+		return "", "", "", "Password must be longer than 8 characters", BAD_INPUT
 	} else if !emailRegex.MatchString(email.Email) {
-		return nil, "", "", "Invalid email address format", BAD_INPUT
+		return "", "", "", "Invalid email address format", BAD_INPUT
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
-		return nil, "", "", "Invalid email address, must be 10-255 bytes", BAD_INPUT
+		return "", "", "", "Invalid email address, must be 10-255 bytes", BAD_INPUT
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(email.Password), bcrypt.DefaultCost)
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	cleanEmail := strings.ToLower(email.Email)
 	res, err := tx.Exec(`
@@ -1095,32 +1093,32 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new email profile, query error", zap.Error(err))
-		return nil, "", "", "Email already in use", RUNTIME_EXCEPTION
+		return "", "", "", "Email already in use", RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
-		return nil, "", "", "Email already in use", RUNTIME_EXCEPTION
+		return "", "", "", "Email already in use", RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, cleanEmail, "", 0
 }
 
-func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *AuthenticateRequest) ([]byte, string, string, string, Error_Code) {
+func (a *authenticationService) registerCustom(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
 	customID := authReq.GetCustom()
 	if customID == "" {
-		return nil, "", "", "Custom ID is required", BAD_INPUT
+		return "", "", "", "Custom ID is required", BAD_INPUT
 	} else if invalidCharsRegex.MatchString(customID) {
-		return nil, "", "", "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
+		return "", "", "", "Invalid custom ID, no spaces or control characters allowed", BAD_INPUT
 	} else if len(customID) < 10 || len(customID) > 128 {
-		return nil, "", "", "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
+		return "", "", "", "Invalid custom ID, must be 10-128 bytes", BAD_INPUT
 	}
 
 	updatedAt := nowMs()
-	userID := uuid.NewV4().Bytes()
+	userID := generateNewId()
 	handle := a.generateHandle()
 	res, err := tx.Exec(`
 INSERT INTO users (id, handle, custom_id, created_at, updated_at)
@@ -1140,16 +1138,16 @@ WHERE NOT EXISTS
 
 	if err != nil {
 		a.logger.Warn("Could not register new custom profile, query error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		return nil, "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
+		return "", "", "", errorIDAlreadyInUse, USER_REGISTER_INUSE
 	}
 
 	err = a.addUserEdgeMetadata(tx, userID, updatedAt)
 	if err != nil {
 		a.logger.Error("Could not register new custom profile, user edge metadata error", zap.Error(err))
-		return nil, "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
+		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
 	return userID, handle, customID, "", 0
@@ -1163,10 +1161,10 @@ func (a *authenticationService) generateHandle() string {
 	return string(b)
 }
 
-func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID, string, int64, bool) {
+func (a *authenticationService) authenticateToken(tokenString string) (string, string, int64, bool) {
 	if tokenString == "" {
 		a.logger.Warn("Token missing")
-		return uuid.Nil, "", 0, false
+		return "", "", 0, false
 	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -1178,17 +1176,17 @@ func (a *authenticationService) authenticateToken(tokenString string) (uuid.UUID
 
 	if err == nil {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			uid, uerr := uuid.FromString(claims["uid"].(string))
-			if uerr != nil {
-				a.logger.Warn("Invalid user ID in token", zap.String("token", tokenString), zap.Error(uerr))
-				return uuid.Nil, "", 0, false
+			uid, ok := claims["uid"].(string)
+			if !ok {
+				a.logger.Warn("Invalid user ID in token", zap.String("token", tokenString))
+				return "", "", 0, false
 			}
 			return uid, claims["han"].(string), int64(claims["exp"].(float64)), true
 		}
 	}
 
 	a.logger.Warn("Token invalid", zap.String("token", tokenString), zap.Error(err))
-	return uuid.Nil, "", 0, false
+	return "", "", 0, false
 }
 
 func (a *authenticationService) Stop() {
@@ -1207,4 +1205,8 @@ func nowMs() int64 {
 
 func timeToMs(t time.Time) int64 {
 	return int64(time.Nanosecond) * t.UnixNano() / int64(time.Millisecond)
+}
+
+func generateNewId() string {
+	return base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes())
 }

@@ -18,7 +18,6 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"nakama/pkg/multicode"
 )
@@ -30,7 +29,7 @@ type SessionRegistry struct {
 	config     Config
 	tracker    Tracker
 	matchmaker Matchmaker
-	sessions   map[uuid.UUID]session
+	sessions   map[string]session
 }
 
 // NewSessionRegistry creates a new SessionRegistry
@@ -40,7 +39,7 @@ func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker, matc
 		config:     config,
 		tracker:    tracker,
 		matchmaker: matchmaker,
-		sessions:   make(map[uuid.UUID]session),
+		sessions:   make(map[string]session),
 	}
 }
 
@@ -60,7 +59,7 @@ func (a *SessionRegistry) stop() {
 }
 
 // Get returns a session matching the sessionID
-func (a *SessionRegistry) Get(sessionID uuid.UUID) session {
+func (a *SessionRegistry) Get(sessionID string) session {
 	var s session
 	a.RLock()
 	s = a.sessions[sessionID]
@@ -68,27 +67,27 @@ func (a *SessionRegistry) Get(sessionID uuid.UUID) session {
 	return s
 }
 
-func (a *SessionRegistry) addWS(userID uuid.UUID, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
+func (a *SessionRegistry) addWS(userID string, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	s := NewWSSession(a.logger, a.config, userID, handle, lang, expiry, conn, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s
 	a.Unlock()
 
 	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications", s.UserID(), PresenceMeta{Handle: handle})
+	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle})
 
 	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)
 }
 
-func (a *SessionRegistry) addUDP(userID uuid.UUID, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
+func (a *SessionRegistry) addUDP(userID string, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
 	s := NewUDPSession(a.logger, a.config, userID, handle, lang, expiry, clientInstance, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s
 	a.Unlock()
 
 	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications", s.UserID(), PresenceMeta{Handle: handle})
+	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle})
 
 	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)

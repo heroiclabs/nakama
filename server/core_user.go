@@ -40,7 +40,7 @@ FROM users ` + filterQuery
 	}
 	defer rows.Close()
 
-	var id []byte
+	var id sql.NullString
 	var handle sql.NullString
 	var fullname sql.NullString
 	var avatarURL sql.NullString
@@ -60,14 +60,14 @@ FROM users ` + filterQuery
 		}
 
 		users = append(users, &User{
-			Id:           id,
+			Id:           id.String,
 			Handle:       handle.String,
 			Fullname:     fullname.String,
 			AvatarUrl:    avatarURL.String,
 			Lang:         lang.String,
 			Location:     location.String,
 			Timezone:     timezone.String,
-			Metadata:     metadata,
+			Metadata:     string(metadata),
 			CreatedAt:    createdAt.Int64,
 			UpdatedAt:    updatedAt.Int64,
 			LastOnlineAt: lastOnlineAt.Int64,
@@ -81,7 +81,7 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds [][]byte) ([]*User, error) {
+func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds []string) ([]*User, error) {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 
@@ -127,7 +127,7 @@ func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User
 	return users, nil
 }
 
-func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, handles []string) ([]*User, error) {
+func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds []string, handles []string) ([]*User, error) {
 	idStatements := make([]string, 0)
 	handleStatements := make([]string, 0)
 	params := make([]interface{}, 0)
@@ -166,7 +166,7 @@ func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds [][]byte, hand
 	return users, nil
 }
 
-func UsersBan(logger *zap.Logger, db *sql.DB, userIds [][]byte, handles []string) error {
+func UsersBan(logger *zap.Logger, db *sql.DB, userIds []string, handles []string) error {
 	idStatements := make([]string, 0)
 	handleStatements := make([]string, 0)
 	params := []interface{}{nowMs()} // $1

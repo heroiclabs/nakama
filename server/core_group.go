@@ -21,13 +21,12 @@ import (
 	"strings"
 
 	"fmt"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 type GroupCreateParam struct {
-	Name        string    // mandatory
-	Creator     uuid.UUID // mandatory
+	Name        string // mandatory
+	Creator     string // mandatory
 	Description string
 	AvatarURL   string
 	Lang        string
@@ -36,8 +35,8 @@ type GroupCreateParam struct {
 }
 
 func extractGroup(r scanner) (*Group, error) {
-	var id []byte
-	var creatorID []byte
+	var id sql.NullString
+	var creatorID sql.NullString
 	var name sql.NullString
 	var description sql.NullString
 	var avatarURL sql.NullString
@@ -71,14 +70,14 @@ func extractGroup(r scanner) (*Group, error) {
 	private := state.Int64 == 1
 
 	return &Group{
-		Id:          id,
-		CreatorId:   creatorID,
+		Id:          id.String,
+		CreatorId:   creatorID.String,
 		Name:        name.String,
 		Description: desc,
 		AvatarUrl:   avatar,
 		Lang:        lang.String,
 		UtcOffsetMs: utcOffsetMs.Int64,
-		Metadata:    metadata,
+		Metadata:    string(metadata),
 		Private:     private,
 		Count:       count.Int64,
 		CreatedAt:   createdAt.Int64,
@@ -138,7 +137,7 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 	if g.Name == "" {
 		return nil, errors.New("Group name must not be empty")
 	}
-	if uuid.Equal(uuid.Nil, g.Creator) {
+	if g.Creator == "" {
 		return nil, errors.New("Group creator must be set")
 	}
 
@@ -151,8 +150,8 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 	params := make([]string, 0)
 	updatedAt := nowMs()
 	values := []interface{}{
-		uuid.NewV4().Bytes(),
-		g.Creator.Bytes(),
+		generateNewId(),
+		g.Creator,
 		g.Name,
 		state,
 		updatedAt,
@@ -202,7 +201,7 @@ func groupCreate(tx *sql.Tx, g *GroupCreateParam) (*Group, error) {
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
-		group.Id, updatedAt, g.Creator.Bytes())
+		group.Id, updatedAt, g.Creator)
 
 	if err != nil {
 		return nil, err
@@ -220,7 +219,7 @@ VALUES ($1, $2, $2, $3, 0), ($3, $2, $2, $1, 0)`,
 	return group, nil
 }
 
-func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*TGroupsUpdate_GroupUpdate) (Error_Code, error) {
+func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller string, updates []*TGroupsUpdate_GroupUpdate) (Error_Code, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		logger.Error("Could not update groups, begin error", zap.Error(err))
@@ -246,19 +245,18 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 
 	for _, g := range updates {
 		// TODO notify members that group has been updated.
-		groupID, err := uuid.FromBytes(g.GroupId)
-		if err != nil {
+		if g.GroupId == "" {
 			code = BAD_INPUT
 			err = errors.New("Group ID is not valid.")
 			return code, err
 		}
 
-		groupLogger := logger.With(zap.String("group_id", groupID.String()))
+		groupLogger := logger.With(zap.String("group_id", g.GroupId))
 
 		statements := make([]string, 5)
 		params := make([]interface{}, 6)
 
-		params[0] = groupID.Bytes()
+		params[0] = g.GroupId
 
 		statements[0] = "updated_at = $2"
 		params[1] = nowMs()
@@ -280,7 +278,7 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 
 		if len(g.Metadata) != 0 {
 			statements = append(statements, fmt.Sprintf("metadata = $%v", len(params)+1))
-			params = append(params, g.Metadata)
+			params = append(params, []byte(g.Metadata))
 		}
 
 		if g.Name != "" {
@@ -291,8 +289,8 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 		query := "UPDATE groups SET " + strings.Join(statements, ", ") + " WHERE id = $1"
 
 		// If the caller is not the script runtime, apply group membership and admin role checks.
-		if caller != uuid.Nil {
-			params = append(params, caller.Bytes())
+		if caller != "" {
+			params = append(params, caller)
 			query += fmt.Sprintf(" AND EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1 AND destination_id = $%v AND state = 0)", len(params))
 		}
 
@@ -319,9 +317,9 @@ func GroupsUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*T
 	return code, err
 }
 
-func GroupsSelfList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID uuid.UUID) ([]*TGroupsSelf_GroupSelf, Error_Code, error) {
+func GroupsSelfList(logger *zap.Logger, db *sql.DB, caller string, userID string) ([]*TGroupsSelf_GroupSelf, Error_Code, error) {
 	// Pipeline callers can only list their own groups.
-	if caller != uuid.Nil && caller != userID {
+	if caller != "" && caller != userID {
 		return nil, BAD_INPUT, errors.New("Users can only list their own joined groups")
 	}
 
@@ -330,7 +328,7 @@ SELECT id, creator_id, name, description, avatar_url, lang, utc_offset_ms, metad
 FROM groups
 JOIN group_edge ON (group_edge.source_id = id)
 WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state = 1 OR group_edge.state = 0)
-`, userID.Bytes())
+`, userID)
 
 	if err != nil {
 		logger.Error("Could not list joined groups, query error", zap.Error(err))
@@ -340,8 +338,8 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 
 	groups := make([]*TGroupsSelf_GroupSelf, 0)
 	for rows.Next() {
-		var id []byte
-		var creatorID []byte
+		var id sql.NullString
+		var creatorID sql.NullString
 		var name sql.NullString
 		var description sql.NullString
 		var avatarURL sql.NullString
@@ -378,14 +376,14 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 
 		groups = append(groups, &TGroupsSelf_GroupSelf{
 			Group: &Group{
-				Id:          id,
-				CreatorId:   creatorID,
+				Id:          id.String,
+				CreatorId:   creatorID.String,
 				Name:        name.String,
 				Description: desc,
 				AvatarUrl:   avatar,
 				Lang:        lang.String,
 				UtcOffsetMs: utcOffsetMs.Int64,
-				Metadata:    metadata,
+				Metadata:    string(metadata),
 				Private:     private,
 				Count:       count.Int64,
 				CreatedAt:   createdAt.Int64,
@@ -398,8 +396,8 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 	return groups, 0, nil
 }
 
-func GroupUsersList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID) ([]*GroupUser, Error_Code, error) {
-	groupLogger := logger.With(zap.String("group_id", groupID.String()))
+func GroupUsersList(logger *zap.Logger, db *sql.DB, caller string, groupID string) ([]*GroupUser, Error_Code, error) {
+	groupLogger := logger.With(zap.String("group_id", groupID))
 
 	query := `
 SELECT u.id, u.handle, u.fullname, u.avatar_url,
@@ -408,7 +406,7 @@ SELECT u.id, u.handle, u.fullname, u.avatar_url,
 FROM users u, group_edge ge
 WHERE u.id = ge.source_id AND ge.destination_id = $1`
 
-	rows, err := db.Query(query, groupID.Bytes())
+	rows, err := db.Query(query, groupID)
 	if err != nil {
 		groupLogger.Error("Could not get group users, query error", zap.Error(err))
 		return nil, RUNTIME_EXCEPTION, errors.New("Could not get group users")
@@ -418,7 +416,7 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 	users := make([]*GroupUser, 0)
 
 	for rows.Next() {
-		var id []byte
+		var id sql.NullString
 		var handle sql.NullString
 		var fullname sql.NullString
 		var avatarURL sql.NullString
@@ -439,14 +437,14 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 
 		users = append(users, &GroupUser{
 			User: &User{
-				Id:           id,
+				Id:           id.String,
 				Handle:       handle.String,
 				Fullname:     fullname.String,
 				AvatarUrl:    avatarURL.String,
 				Lang:         lang.String,
 				Location:     location.String,
 				Timezone:     timezone.String,
-				Metadata:     metadata,
+				Metadata:     string(metadata),
 				CreatedAt:    createdAt.Int64,
 				UpdatedAt:    updatedAt.Int64,
 				LastOnlineAt: lastOnlineAt.Int64,

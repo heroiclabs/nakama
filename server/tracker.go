@@ -17,13 +17,11 @@ package server
 import (
 	"errors"
 	"sync"
-
-	"github.com/satori/go.uuid"
 )
 
 type PresenceID struct {
 	Node      string
-	SessionID uuid.UUID
+	SessionID string
 }
 
 type PresenceMeta struct {
@@ -33,7 +31,7 @@ type PresenceMeta struct {
 type Presence struct {
 	ID     PresenceID
 	Topic  string
-	UserID uuid.UUID
+	UserID string
 	Meta   PresenceMeta
 }
 
@@ -42,28 +40,28 @@ type Tracker interface {
 	Stop()
 
 	// Track a presence. Returns `true` if it was a new presence, `false` otherwise.
-	Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) bool
-	Untrack(sessionID uuid.UUID, topic string, userID uuid.UUID)
-	UntrackAll(sessionID uuid.UUID)
-	Update(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) error
-	UpdateAll(sessionID uuid.UUID, meta PresenceMeta)
+	Track(sessionID string, topic string, userID string, meta PresenceMeta) bool
+	Untrack(sessionID string, topic string, userID string)
+	UntrackAll(sessionID string)
+	Update(sessionID string, topic string, userID string, meta PresenceMeta) error
+	UpdateAll(sessionID string, meta PresenceMeta)
 
 	// Get current total number of presences.
 	Count() int
 	// Check if a single presence on the current node exists.
-	CheckLocalByIDTopicUser(sessionID uuid.UUID, topic string, userID uuid.UUID) bool
+	CheckLocalByIDTopicUser(sessionID string, topic string, userID string) bool
 	// List presences by topic.
 	ListByTopic(topic string) []Presence
 	// List presences on the current node by topic.
 	ListLocalByTopic(topic string) []Presence
 	// List presences by topic and user ID.
-	ListByTopicUser(topic string, userID uuid.UUID) []Presence
+	ListByTopicUser(topic string, userID string) []Presence
 }
 
 type presenceCompact struct {
 	ID     PresenceID
-	Topic  string    // The presence topic.
-	UserID uuid.UUID // The user ID.
+	Topic  string // The presence topic.
+	UserID string // The user ID.
 }
 
 type TrackerService struct {
@@ -91,7 +89,7 @@ func (t *TrackerService) Stop() {
 	// TODO cleanup after service shutdown.
 }
 
-func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) bool {
+func (t *TrackerService) Track(sessionID string, topic string, userID string, meta PresenceMeta) bool {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
 	t.Lock()
 	_, alreadyTracked := t.values[pc]
@@ -108,7 +106,7 @@ func (t *TrackerService) Track(sessionID uuid.UUID, topic string, userID uuid.UU
 	return !alreadyTracked
 }
 
-func (t *TrackerService) Untrack(sessionID uuid.UUID, topic string, userID uuid.UUID) {
+func (t *TrackerService) Untrack(sessionID string, topic string, userID string) {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
 	t.Lock()
 	meta, ok := t.values[pc]
@@ -124,7 +122,7 @@ func (t *TrackerService) Untrack(sessionID uuid.UUID, topic string, userID uuid.
 	t.Unlock()
 }
 
-func (t *TrackerService) UntrackAll(sessionID uuid.UUID) {
+func (t *TrackerService) UntrackAll(sessionID string) {
 	ps := make([]Presence, 0)
 	t.Lock()
 	for pc, m := range t.values {
@@ -144,7 +142,7 @@ func (t *TrackerService) UntrackAll(sessionID uuid.UUID) {
 	t.Unlock()
 }
 
-func (t *TrackerService) Update(sessionID uuid.UUID, topic string, userID uuid.UUID, meta PresenceMeta) error {
+func (t *TrackerService) Update(sessionID string, topic string, userID string, meta PresenceMeta) error {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
 	var e error
 	t.Lock()
@@ -166,7 +164,7 @@ func (t *TrackerService) Update(sessionID uuid.UUID, topic string, userID uuid.U
 	return e
 }
 
-func (t *TrackerService) UpdateAll(sessionID uuid.UUID, meta PresenceMeta) {
+func (t *TrackerService) UpdateAll(sessionID string, meta PresenceMeta) {
 	joins := make([]Presence, 0)
 	leaves := make([]Presence, 0)
 	t.Lock()
@@ -196,7 +194,7 @@ func (t *TrackerService) Count() int {
 	return count
 }
 
-func (t *TrackerService) CheckLocalByIDTopicUser(sessionID uuid.UUID, topic string, userID uuid.UUID) bool {
+func (t *TrackerService) CheckLocalByIDTopicUser(sessionID string, topic string, userID string) bool {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
 	t.RLock()
 	_, ok := t.values[pc]
@@ -228,7 +226,7 @@ func (t *TrackerService) ListLocalByTopic(topic string) []Presence {
 	return ps
 }
 
-func (t *TrackerService) ListByTopicUser(topic string, userID uuid.UUID) []Presence {
+func (t *TrackerService) ListByTopicUser(topic string, userID string) []Presence {
 	ps := make([]Presence, 0)
 	t.RLock()
 	for pc, m := range t.values {

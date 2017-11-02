@@ -30,8 +30,8 @@ import (
 
 var (
 	purchaseService   *server.PurchaseService
-	purchaseUserID    = uuid.NewV4()
-	purchaseBadUserID = uuid.NewV4()
+	purchaseUserID    = uuid.NewV4().String()
+	purchaseBadUserID = uuid.NewV4().String()
 	purchaseProductID = "com.heroiclabs.iap"
 )
 

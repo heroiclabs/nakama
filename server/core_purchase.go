@@ -22,7 +22,6 @@ import (
 
 	"encoding/json"
 
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -59,7 +58,7 @@ func NewPurchaseService(jsonLogger *zap.Logger, multiLogger *zap.Logger, db *sql
 	}
 }
 
-func (p *PurchaseService) ValidateApplePurchase(userID uuid.UUID, purchase *iap.ApplePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateApplePurchase(userID string, purchase *iap.ApplePurchase) *iap.PurchaseVerifyResponse {
 	r, appleReceipt := p.AppleClient.Verify(purchase)
 	if !r.Success {
 		return r
@@ -70,7 +69,7 @@ func (p *PurchaseService) ValidateApplePurchase(userID uuid.UUID, purchase *iap.
 	p.checkUser(userID, r, 1, inAppReceipt.TransactionID)
 
 	if r.Success && !r.SeenBefore {
-		err := p.savePurchase(userID.Bytes(), 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
+		err := p.savePurchase(userID, 1, inAppReceipt.ProductID, inAppReceipt.TransactionID, purchase.ReceiptData, r.Data)
 		if err != nil {
 			r.Success = false
 			r.Message = errors.New("Failed to validate purchase against ledger.")
@@ -81,7 +80,7 @@ func (p *PurchaseService) ValidateApplePurchase(userID uuid.UUID, purchase *iap.
 	return r
 }
 
-func (p *PurchaseService) ValidateGooglePurchaseProduct(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateGooglePurchaseProduct(userID string, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
 	r, _ := p.GoogleClient.VerifyProduct(purchase)
 	if !r.Success {
 		return r
@@ -90,7 +89,7 @@ func (p *PurchaseService) ValidateGooglePurchaseProduct(userID uuid.UUID, purcha
 	p.checkUser(userID, r, 0, purchase.PurchaseToken)
 	if r.Success && !r.SeenBefore {
 		jsonPurchase, _ := json.Marshal(purchase)
-		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		err := p.savePurchase(userID, 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
 		if err != nil {
 			r.Success = false
 			r.Message = errors.New("Failed to validate purchase against ledger.")
@@ -100,7 +99,7 @@ func (p *PurchaseService) ValidateGooglePurchaseProduct(userID uuid.UUID, purcha
 	return r
 }
 
-func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID uuid.UUID, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
+func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID string, purchase *iap.GooglePurchase) *iap.PurchaseVerifyResponse {
 	r, _ := p.GoogleClient.VerifySubscription(purchase)
 	if !r.Success {
 		return r
@@ -109,7 +108,7 @@ func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID uuid.UUID, p
 	p.checkUser(userID, r, 0, purchase.PurchaseToken)
 	if r.Success && !r.SeenBefore {
 		jsonPurchase, _ := json.Marshal(purchase)
-		err := p.savePurchase(userID.Bytes(), 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
+		err := p.savePurchase(userID, 0, purchase.ProductId, purchase.PurchaseToken, string(jsonPurchase), r.Data)
 		if err != nil {
 			r.Success = false
 			r.Message = errors.New("Failed to validate purchase against ledger.")
@@ -119,8 +118,8 @@ func (p *PurchaseService) ValidateGooglePurchaseSubscription(userID uuid.UUID, p
 	return r
 }
 
-func (p *PurchaseService) checkUser(userID uuid.UUID, r *iap.PurchaseVerifyResponse, provider int, receiptID string) {
-	var purchaseUserID []byte
+func (p *PurchaseService) checkUser(userID string, r *iap.PurchaseVerifyResponse, provider int, receiptID string) {
+	var purchaseUserID string
 	err := p.db.QueryRow("SELECT user_id FROM purchase WHERE provider = $1 AND receipt_id = $2", provider, receiptID).Scan(&purchaseUserID)
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -136,7 +135,7 @@ func (p *PurchaseService) checkUser(userID uuid.UUID, r *iap.PurchaseVerifyRespo
 		r.SeenBefore = false
 		r.Message = nil
 	} else { // We've seen this transaction
-		if uuid.Equal(userID, uuid.FromBytesOrNil(purchaseUserID)) {
+		if userID == purchaseUserID {
 			r.Success = true
 			r.SeenBefore = true
 			r.Message = nil
@@ -148,7 +147,7 @@ func (p *PurchaseService) checkUser(userID uuid.UUID, r *iap.PurchaseVerifyRespo
 	}
 }
 
-func (p *PurchaseService) savePurchase(userID []byte, provider int, productID string, receiptID string, rawPurchase string, rawReceipt string) error {
+func (p *PurchaseService) savePurchase(userID string, provider int, productID string, receiptID string, rawPurchase string, rawReceipt string) error {
 	createdAt := nowMs()
 	_, err := p.db.Exec(`
 INSERT INTO purchase (user_id, provider, product_id, receipt_id, receipt, provider_resp, created_at)

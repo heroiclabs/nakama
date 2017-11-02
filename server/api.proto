@@ -154,7 +154,7 @@ message AuthenticateResponse {
     /// Authentication Token.
     string token = 1;
     /// UDP token.
-    bytes udp_token = 2;
+    string udp_token = 2;
   }
 
   /**
@@ -338,7 +338,7 @@ message TUnlink {
  */
 message User {
   /// User ID.
-  bytes id = 1;
+  string id = 1;
   /// User Handle (username).
   string handle = 2;
   /// User's fullname.
@@ -352,7 +352,7 @@ message User {
   /// User's timezone.
   string timezone = 7;
   /// Custom user metadata.
-  bytes metadata = 8;
+  string metadata = 8;
   /// Unix timestamp when this user registered.
   int64 created_at = 9;
   /// Unix timestamp when user profile was last changed.
@@ -411,7 +411,7 @@ message TSelfUpdate {
   /// Language tag corresponding to the BCP 47 spec
   string lang = 5;
   /// Set or remove User's metadata
-  bytes metadata = 6;
+  string metadata = 6;
   string avatar_url = 7;
 }
 
@@ -423,7 +423,7 @@ message TSelfUpdate {
 message TUsersFetch {
   message UsersFetch {
     oneof id {
-      bytes user_id = 1;
+      string user_id = 1;
       string handle = 2;
     }
   }
@@ -460,7 +460,7 @@ message Friend {
 message TFriendsAdd {
   message FriendsAdd {
     oneof id {
-      bytes user_id = 1;
+      string user_id = 1;
       string handle = 2;
     }
   }
@@ -473,7 +473,7 @@ message TFriendsAdd {
  * This could be unfriending a friend, or removing a friend request.
  */
 message TFriendsRemove {
-  repeated bytes user_ids = 1;
+  repeated string user_ids = 1;
 }
 
 /**
@@ -481,7 +481,7 @@ message TFriendsRemove {
  * If the current user is a friend, relationship is removed bidirectionaly from both users and a new Block status is formed.
  */
 message TFriendsBlock {
-  repeated bytes user_ids = 1;
+  repeated string user_ids = 1;
 }
 
 /**
@@ -503,11 +503,11 @@ message TFriends {
  */
 message Group {
   /// Group ID
-  bytes id = 1;
+  string id = 1;
   /// Whether the group is private or public. If private, group admins will accept user join requests.
   bool private = 2;
   /// User ID of the group creator.
-  bytes creator_id = 3;
+  string creator_id = 3;
   string name = 4;
   string description = 5;
   string avatar_url = 6;
@@ -516,7 +516,7 @@ message Group {
   /// Offset time in millisecond from UTC.
   int64 utc_offset_ms = 8;
   /// Group metadata information.
-  bytes metadata = 9;
+  string metadata = 9;
   /// Current number of users in this group.
   int64 count = 10;
   int64 created_at = 11;
@@ -539,7 +539,7 @@ message TGroupsCreate {
     /// Language tag corresponding to the BCP 47 spec. This is important and used for Group search.
     string lang = 4;
     /// Group metadata information.
-    bytes metadata = 5;
+    string metadata = 5;
     /// Whether the group is private or public. If private, group admins will accept user join requests.
     bool private = 6;
   }
@@ -554,7 +554,7 @@ message TGroupsCreate {
  */
 message TGroupsUpdate {
   message GroupUpdate {
-    bytes group_id = 1;
+    string group_id = 1;
     /// Whether the group is private or public. If private, group admins will accept user join requests.
     bool private = 2;
     /// Group name must be unique.
@@ -564,7 +564,7 @@ message TGroupsUpdate {
     /// Language tag corresponding to the BCP 47 spec. This is important and used for Group search.
     string lang = 6;
     /// Set or remove metadata information.
-    bytes metadata = 7;
+    string metadata = 7;
   }
 
   repeated GroupUpdate groups = 1;
@@ -577,7 +577,7 @@ message TGroupsUpdate {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TGroupsRemove {
-  repeated bytes group_ids = 1;
+  repeated string group_ids = 1;
 }
 
 /**
@@ -595,7 +595,7 @@ message TGroupsSelfList {}
 message TGroupsFetch {
   message GroupFetch {
     oneof id {
-      bytes group_id = 1;
+      string group_id = 1;
       string name = 2;
     }
   }
@@ -624,7 +624,7 @@ message TGroupsList {
   }
   /// Binary cursor value used to paginate results.
   /// The value of this comes from TGroups.cursor.
-  bytes cursor = 7; // gob(%{struct(int64/string, int64, bytes)})
+  string cursor = 7; // gob(%{struct(int64/string, int64, bytes)})
 }
 
 /**
@@ -633,7 +633,7 @@ message TGroupsList {
 message TGroups {
   repeated Group groups = 1;
   /// Use cursor to paginate results.
-  bytes cursor = 2;
+  string cursor = 2;
 }
 
 /**
@@ -671,7 +671,7 @@ message GroupUser {
  * @returns TGroupUsers
  */
 message TGroupUsersList {
-  bytes group_id = 1;
+  string group_id = 1;
 }
 
 /**
@@ -689,7 +689,7 @@ message TGroupUsers {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TGroupsJoin {
-  repeated bytes group_ids = 1;
+  repeated string group_ids = 1;
 }
 
 /**
@@ -699,7 +699,7 @@ message TGroupsJoin {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TGroupsLeave {
-  repeated bytes group_ids = 1;
+  repeated string group_ids = 1;
 }
 
 /**
@@ -711,8 +711,8 @@ message TGroupsLeave {
  */
 message TGroupUsersAdd {
   message GroupUserAdd {
-    bytes group_id = 1;
-    bytes user_id = 2;
+    string group_id = 1;
+    string user_id = 2;
   }
 
   repeated GroupUserAdd group_users = 1;
@@ -727,8 +727,8 @@ message TGroupUsersAdd {
  */
 message TGroupUsersKick {
   message GroupUserKick {
-    bytes group_id = 1;
-    bytes user_id = 2;
+    string group_id = 1;
+    string user_id = 2;
   }
   repeated GroupUserKick group_users = 1;
 }
@@ -741,8 +741,8 @@ message TGroupUsersKick {
  */
 message TGroupUsersPromote {
   message GroupUserPromote {
-    bytes group_id = 1;
-    bytes user_id = 2;
+    string group_id = 1;
+    string user_id = 2;
   }
   repeated GroupUserPromote group_users = 1;
 }
@@ -752,9 +752,9 @@ message TGroupUsersPromote {
  */
 message TopicId {
   oneof id {
-    bytes dm = 1;
-    bytes room = 2;
-    bytes group_id = 3;
+    string dm = 1;
+    string room = 2;
+    string group_id = 3;
   }
 }
 
@@ -764,9 +764,9 @@ message TopicId {
  */
 message UserPresence {
   /// User ID
-  bytes user_id = 1;
+  string user_id = 1;
   /// Session ID
-  bytes session_id = 2;
+  string session_id = 2;
   /// User handle
   string handle = 3;
 }
@@ -781,9 +781,9 @@ message UserPresence {
 message TTopicsJoin {
   message TopicJoin {
     oneof id {
-      bytes user_id = 1;
-      bytes room = 2;
-      bytes group_id = 3;
+      string user_id = 1;
+      string room = 2;
+      string group_id = 3;
     }
   }
 
@@ -820,14 +820,14 @@ message TTopicsLeave {
  */
 message TTopicMessageSend {
   TopicId topic = 1;
-  bytes data = 2;
+  string data = 2;
 }
 
 /**
  * TTopicMessageAck sends an ack message to the topic
  */
 message TTopicMessageAck {
-  bytes message_id = 1;
+  string message_id = 1;
   int64 created_at = 2;
   int64 expires_at = 3;
   string handle = 4;
@@ -838,8 +838,8 @@ message TTopicMessageAck {
  */
 message TopicMessage {
   TopicId topic = 1;
-  bytes user_id = 2;
-  bytes message_id = 3;
+  string user_id = 2;
+  string message_id = 3;
   int64 created_at = 4;
   int64 expires_at = 5;
   string handle = 6;
@@ -851,7 +851,7 @@ message TopicMessage {
   /// Group Kick (4) - Notification - a user was kicked from the group - send by the system
   /// Group Promoted (5) - Notification - a user was promoted to group admin - send by the system
   int64 type = 7;
-  bytes data = 8;
+  string data = 8;
 }
 
 /**
@@ -861,13 +861,13 @@ message TopicMessage {
  */
 message TTopicMessagesList {
   oneof id {
-    bytes user_id = 1;
-    bytes room = 2;
-    bytes group_id = 3;
+    string user_id = 1;
+    string room = 2;
+    string group_id = 3;
   }
   /// Use the cursor to paginate through more message.
   /// The value of this comes from TTopicMessages.cursor.
-  bytes cursor = 4;
+  string cursor = 4;
   bool forward = 5;
   int64 limit = 6;
 }
@@ -877,7 +877,7 @@ message TTopicMessagesList {
  */
 message TTopicMessages {
   repeated TopicMessage messages = 1;
-  bytes cursor = 2;
+  string cursor = 2;
 }
 
 /**
@@ -948,14 +948,14 @@ message TMatchmakeAdd {
  * TMatchmakeTicket represents a matchmake ticket. Use the ticket to cancel matchmaking search.
  */
 message TMatchmakeTicket {
-  bytes ticket = 1;
+  string ticket = 1;
 }
 
 /**
  * TMatchmakeRemove is used to cancel a matchmake search.
  */
 message TMatchmakeRemove {
-  bytes ticket = 1;
+  string ticket = 1;
 }
 
 /**
@@ -964,15 +964,15 @@ message TMatchmakeRemove {
 message MatchmakeMatched {
   /// Matched user presence and properties
   message UserProperty {
-    bytes user_id = 1;
+    string user_id = 1;
     repeated PropertyPair properties = 2;
     repeated MatchmakeFilter filters = 3;
   }
 
   /// Matchmaking ticket. Use this to invalidate ticket cache on the client.
-  bytes ticket = 1;
+  string ticket = 1;
   /// Matchmaking token. Use this to accept the match. This is a onetime token which is only valid for a limited time.
-  bytes token = 2;
+  string token = 2;
   repeated UserPresence presences = 3;
   UserPresence self = 4;
   repeated UserProperty properties = 5;
@@ -982,7 +982,7 @@ message MatchmakeMatched {
  * Match is the core domain type representing an on-going match.
  */
 message Match {
-  bytes match_id = 1;
+  string match_id = 1;
   repeated UserPresence presences = 2;
   UserPresence self = 3;
 }
@@ -991,7 +991,7 @@ message Match {
  * MatchPresence is the core domain type representing the users participating and leaving a match.
  */
 message MatchPresence {
-  bytes match_id = 1;
+  string match_id = 1;
   repeated UserPresence joins = 2;
   repeated UserPresence leaves = 3;
 }
@@ -1020,8 +1020,8 @@ message TMatch {
 message TMatchesJoin {
   message MatchJoin {
     oneof id {
-      bytes match_id = 1;
-      bytes token = 2;
+      string match_id = 1;
+      string token = 2;
     }
   }
 
@@ -1039,7 +1039,7 @@ message TMatches {
  * MatchDataSend is used to send match data to the server.
  */
 message MatchDataSend {
-  bytes match_id = 1;
+  string match_id = 1;
   /// Custom Op code to make disguishing different message types easier.
   int64 op_code = 2;
   bytes data = 3;
@@ -1050,7 +1050,7 @@ message MatchDataSend {
  * MatchData is the core domain type representing a match data.
  */
 message MatchData {
-  bytes match_id = 1;
+  string match_id = 1;
   UserPresence presence = 2;
   int64 op_code = 3;
   bytes data = 4;
@@ -1062,7 +1062,7 @@ message MatchData {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TMatchesLeave {
-  repeated bytes match_ids = 1;
+  repeated string match_ids = 1;
 }
 
 /**
@@ -1093,11 +1093,11 @@ enum StoragePermissionWrite {
  * @returns TStorageData
  */
 message TStorageList {
-  bytes user_id = 1;
+  string user_id = 1;
   string bucket = 2;
   string collection = 3;
   int64 limit = 4;
-  bytes cursor = 5;
+  string cursor = 5;
 }
 
 /**
@@ -1110,7 +1110,7 @@ message TStorageFetch {
     string bucket = 1;
     string collection = 2;
     string record = 3;
-    bytes user_id = 4;
+    string user_id = 4;
   }
   repeated StorageKey keys = 1;
 }
@@ -1123,9 +1123,9 @@ message TStorageData {
     string bucket = 1;
     string collection = 2;
     string record = 3;
-    bytes user_id = 4;
-    bytes value = 5;
-    bytes version = 6;
+    string user_id = 4;
+    string value = 5;
+    string version = 6;
     int32 permission_read = 7;
     int32 permission_write = 8;
     int64 created_at = 9;
@@ -1134,7 +1134,7 @@ message TStorageData {
   }
 
   repeated StorageData data = 1;
-  bytes cursor = 2;
+  string cursor = 2;
 }
 
 /**
@@ -1150,8 +1150,8 @@ message TStorageWrite {
     string bucket = 1;
     string collection = 2;
     string record = 3;
-    bytes value = 4;
-    bytes version = 5; // if-match and if-none-match
+    string value = 4;
+    string version = 5; // if-match and if-none-match
     int32 permission_read = 6;
     int32 permission_write = 7;
   }
@@ -1201,7 +1201,7 @@ message TStorageUpdate {
       /// Update op code - must be one of the UpdateOpCode enums above.
       int32 op = 1;
       string path = 2;
-      bytes value = 3;
+      string value = 3;
       string from = 4;
       bool conditional = 5;
       int64 assert = 6;
@@ -1212,7 +1212,7 @@ message TStorageUpdate {
       string bucket = 1;
       string collection = 2;
       string record = 3;
-      bytes version = 4; // if-match and if-none-match
+      string version = 4; // if-match and if-none-match
     }
 
     StorageKey key = 1;
@@ -1232,7 +1232,7 @@ message TStorageKeys {
     string bucket = 1;
     string collection = 2;
     string record = 3;
-    bytes version = 4;
+    string version = 4;
   }
 
   repeated StorageKey keys = 1;
@@ -1249,7 +1249,7 @@ message TStorageRemove {
     string bucket = 1;
     string collection = 2;
     string record = 3;
-    bytes version = 4;
+    string version = 4;
   }
   repeated StorageKey keys = 1;
 }
@@ -1258,23 +1258,23 @@ message TStorageRemove {
  * Leaderboard is the core domain type representing a Leaderboard setup in the server.
  */
 message Leaderboard {
-  bytes id = 1;
+  string id = 1;
   /// Whether the user can submit records directly via the client or not
   bool authoritative = 2;
   int64 sort = 3;
   int64 count = 4;
   string reset_schedule = 5;
-  bytes metadata = 6;
-  bytes next_id = 7;
-  bytes prev_id = 8;
+  string metadata = 6;
+  string next_id = 7;
+  string prev_id = 8;
 }
 
 /**
  * LeaderboardRecord is the core domain type representing a Leaderboard entry.
  */
 message LeaderboardRecord {
-  bytes leaderboard_id = 1;
-  bytes owner_id = 2;
+  string leaderboard_id = 1;
+  string owner_id = 2;
   string handle = 3;
   /// Language tag corresponding to the BCP 47 spec.
   string lang = 4;
@@ -1283,7 +1283,7 @@ message LeaderboardRecord {
   int64 rank = 7;
   int64 score = 8;
   int64 num_score = 9;
-  bytes metadata = 10;
+  string metadata = 10;
   int64 ranked_at = 11;
   int64 updated_at = 12;
   int64 expires_at = 13;
@@ -1299,8 +1299,8 @@ message LeaderboardRecord {
 message TLeaderboardsList {
   int64 limit = 1;
   /// Use TLeaderboards.cursor to paginate through results.
-  bytes cursor = 2;
-  repeated bytes filter_leaderboard_id = 3;
+  string cursor = 2;
+  repeated string filter_leaderboard_id = 3;
 }
 
 /**
@@ -1308,7 +1308,7 @@ message TLeaderboardsList {
  */
 message TLeaderboards {
   repeated Leaderboard leaderboards = 1;
-  bytes cursor = 2;
+  string cursor = 2;
 }
 
 /**
@@ -1320,7 +1320,7 @@ message TLeaderboards {
  */
 message TLeaderboardRecordsWrite {
   message LeaderboardRecordWrite {
-    bytes leaderboard_id = 1;
+    string leaderboard_id = 1;
     oneof op {
       int64 incr = 2;
       int64 decr = 3;
@@ -1329,7 +1329,7 @@ message TLeaderboardRecordsWrite {
     }
     string location = 6;
     string timezone = 7;
-    bytes metadata = 8;
+    string metadata = 8;
   }
 
   repeated LeaderboardRecordWrite records = 1;
@@ -1343,10 +1343,10 @@ message TLeaderboardRecordsWrite {
  * NOTE: The server only processes the first item of the list, and will ignore and logs a warning message for other items.
  */
 message TLeaderboardRecordsFetch {
-  repeated bytes leaderboard_ids = 1;
+  repeated string leaderboard_ids = 1;
   int64 limit = 2;
   /// Use TLeaderboardRecords.cursor to paginate through results.
-  bytes cursor = 3;
+  string cursor = 3;
 }
 
 /**
@@ -1356,13 +1356,13 @@ message TLeaderboardRecordsFetch {
  */
 message TLeaderboardRecordsList {
   message Owners {
-    repeated bytes owner_ids = 1;
+    repeated string owner_ids = 1;
   }
 
-  bytes leaderboard_id = 1;
+  string leaderboard_id = 1;
   oneof filter {
     /// Filter records by one user ID. This is the same as a "heystack" lookup
-    bytes owner_id = 2; // "haystack" lookup
+    string owner_id = 2; // "haystack" lookup
     /// Filter records by user IDs
     Owners owner_ids = 3;
     string lang = 4;
@@ -1370,7 +1370,7 @@ message TLeaderboardRecordsList {
     string timezone = 6;
   }
   int64 limit = 7;
-  bytes cursor = 8;
+  string cursor = 8;
 }
 
 /**
@@ -1378,7 +1378,7 @@ message TLeaderboardRecordsList {
  */
 message TLeaderboardRecords {
   repeated LeaderboardRecord records = 1;
-  bytes cursor = 2;
+  string cursor = 2;
 }
 
 /**
@@ -1389,7 +1389,7 @@ message TLeaderboardRecords {
  */
 message TRpc {
   string id = 1;
-  bytes payload = 2;
+  string payload = 2;
 }
 
 /**
@@ -1447,11 +1447,11 @@ message TPurchaseRecord {
  * Notification is the core domain type representing an in-app notification.
  */
 message Notification {
-  bytes id = 1;
+  string id = 1;
   string subject = 2;
-  bytes content = 3;
+  string content = 3;
   int64 code = 4;
-  bytes sender_id = 5;
+  string sender_id = 5;
   int64 created_at = 6;
   int64 expires_at = 7;
   bool persistent = 8;
@@ -1473,7 +1473,7 @@ message TNotificationsList {
   /// Use this cursor to paginate notifications.
   /// Cache this to catch up to new notifications.
   /// The value of this comes from TNotifications.resumable_cursor.
-  bytes resumable_cursor = 2;
+  string resumable_cursor = 2;
 }
 
 /**
@@ -1483,12 +1483,12 @@ message TNotifications {
   repeated Notification notifications = 1;
   /// Use this cursor to paginate notifications.
   /// Cache this to catch up to new notifications.
-  bytes resumable_cursor = 2;
+  string resumable_cursor = 2;
 }
 
 /**
  * TNotificationsRemove is used to delete notifications.
  */
 message TNotificationsRemove {
-  repeated bytes notification_ids = 1;
+  repeated string notification_ids = 1;
 }

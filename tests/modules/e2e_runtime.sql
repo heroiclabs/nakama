@@ -21,5 +21,5 @@ UPSERT INTO leaderboard (id, authoritative, sort_order, reset_schedule, metadata
 VALUES (b'ce042d38-c3db-4ebd-bc99-3aaa0adbdef7', true, 1, '0 0 * * 1', b'{}');
 
 UPSERT INTO users (id, handle, created_at, updated_at)
-VALUES (to_uuid('4c2ae592-b2a7-445e-98ec-697694478b1c'), b'02ebb2c8', now()::INT, now()::INT);
+VALUES (b'4c2ae592-b2a7-445e-98ec-697694478b1c', b'02ebb2c8', now()::INT, now()::INT);
 COMMIT;

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +26,6 @@ import (
 	"encoding/gob"
 	"nakama/pkg/jsonpatch"
 
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -33,7 +33,7 @@ type storageListCursor struct {
 	Bucket     string
 	Collection string
 	Record     string
-	UserID     []byte
+	UserID     string
 	Read       int64
 }
 
@@ -41,18 +41,18 @@ type StorageKey struct {
 	Bucket     string
 	Collection string
 	Record     string
-	UserId     []byte // this must be UserId not UserID
+	UserId     string // this must be UserId not UserID
 	// Version is used when returning results from write ops, does not apply to fetch ops.
-	Version []byte
+	Version string
 }
 
 type StorageData struct {
 	Bucket          string
 	Collection      string
 	Record          string
-	UserId          []byte // this must be UserId not UserID
+	UserId          string // this must be UserId not UserID
 	Value           []byte
-	Version         []byte
+	Version         string
 	PermissionRead  int64
 	PermissionWrite int64
 	CreatedAt       int64
@@ -67,44 +67,38 @@ type StorageKeyUpdate struct {
 	Patch           jsonpatch.ExtendedPatch
 }
 
-func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte, bucket string, collection string, limit int64, cursor []byte) ([]*StorageData, []byte, Error_Code, error) {
+func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, bucket string, collection string, limit int64, cursor string) ([]*StorageData, string, Error_Code, error) {
 	// We list by at least User ID, or bucket as a list criteria.
-	if len(userID) == 0 && bucket == "" {
-		return nil, nil, BAD_INPUT, errors.New("Either a User ID or a bucket is required as an initial list criteria")
+	if userID == "" && bucket == "" {
+		return nil, "", BAD_INPUT, errors.New("Either a User ID or a bucket is required as an initial list criteria")
 	}
 	if bucket == "" && collection != "" {
-		return nil, nil, BAD_INPUT, errors.New("Cannot list by collection without listing by bucket first")
-	}
-
-	// If a user ID is provided, validate the format.
-	owner := uuid.Nil
-	if len(userID) != 0 {
-		if uid, err := uuid.FromBytes(userID); err != nil {
-			return nil, nil, BAD_INPUT, errors.New("Invalid user ID")
-		} else {
-			owner = uid
-		}
+		return nil, "", BAD_INPUT, errors.New("Cannot list by collection without listing by bucket first")
 	}
 
 	// Validate the limit.
 	if limit == 0 {
 		limit = 10
 	} else if limit < 10 || limit > 100 {
-		return nil, nil, BAD_INPUT, errors.New("Limit must be between 10 and 100")
+		return nil, "", BAD_INPUT, errors.New("Limit must be between 10 and 100")
 	}
 
 	// Process the incoming cursor if one is provided.
 	var incomingCursor *storageListCursor
 	if len(cursor) != 0 {
-		incomingCursor = &storageListCursor{}
-		if err := gob.NewDecoder(bytes.NewReader(cursor)).Decode(incomingCursor); err != nil {
-			return nil, nil, BAD_INPUT, errors.New("Invalid cursor data")
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, "", BAD_INPUT, errors.New("Invalid cursor data")
+		} else {
+			incomingCursor = &storageListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+				return nil, "", BAD_INPUT, errors.New("Invalid cursor data")
+			}
 		}
 	}
 
 	// Select the correct index. NOTE: should be removed when DB index selection is smarter.
 	index := ""
-	if len(userID) == 0 {
+	if userID == "" {
 		if collection == "" {
 			index = "deleted_at_bucket_read_collection_record_user_id_idx"
 		} else {
@@ -126,7 +120,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 
 	// If cursor is present, give keyset clause priority over other parameters.
 	if incomingCursor != nil {
-		if len(userID) == 0 {
+		if userID == "" {
 			if collection == "" {
 				i := len(params)
 				query += fmt.Sprintf(" WHERE (deleted_at, bucket, read, collection, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND bucket = $%v", i+1, i+2, i+3, i+4, i+5, i+6)
@@ -155,8 +149,8 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 		// If no keyset, start all ranges with live records.
 		query += " WHERE deleted_at = 0"
 		// Apply filtering parameters as needed.
-		if len(userID) != 0 {
-			params = append(params, owner.Bytes())
+		if userID != "" {
+			params = append(params, userID)
 			query += fmt.Sprintf(" AND user_id = $%v", len(params))
 		}
 		if bucket != "" {
@@ -170,10 +164,10 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 	}
 
 	// Apply permissions as needed.
-	if caller == uuid.Nil {
+	if caller == "" {
 		// Script runtime can list all data regardless of read permission.
 		query += " AND read >= 0"
-	} else if len(userID) != 0 && caller == owner {
+	} else if userID != "" && caller == userID {
 		// If listing by user first, and the caller is the user listing their own data.
 		query += " AND read >= 1"
 	} else {
@@ -187,20 +181,20 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 	rows, err := db.Query(query, params...)
 	if err != nil {
 		logger.Error("Error in storage list", zap.Error(err))
-		return nil, nil, RUNTIME_EXCEPTION, err
+		return nil, "", RUNTIME_EXCEPTION, err
 	}
 	defer rows.Close()
 
 	storageData := make([]*StorageData, 0)
-	var outgoingCursor []byte
+	var outgoingCursor string
 
 	// Parse the results.
-	var dataUserID []byte
+	var dataUserID sql.NullString
 	var dataBucket sql.NullString
 	var dataCollection sql.NullString
 	var dataRecord sql.NullString
 	var dataValue []byte
-	var dataVersion []byte
+	var dataVersion sql.NullString
 	var dataRead sql.NullInt64
 	var dataWrite sql.NullInt64
 	var dataCreatedAt sql.NullInt64
@@ -213,14 +207,14 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 				Bucket:     dataBucket.String,
 				Collection: dataCollection.String,
 				Record:     dataRecord.String,
-				UserID:     dataUserID,
+				UserID:     dataUserID.String,
 				Read:       dataRead.Int64,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating storage list cursor", zap.Error(err))
-				return nil, nil, RUNTIME_EXCEPTION, errors.New("Error listing storage data")
+				return nil, "", RUNTIME_EXCEPTION, errors.New("Error listing storage data")
 			}
-			outgoingCursor = cursorBuf.Bytes()
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -228,12 +222,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 			&dataRead, &dataWrite, &dataCreatedAt, &dataUpdatedAt, &dataExpiresAt)
 		if err != nil {
 			logger.Error("Could not execute storage list query", zap.Error(err))
-			return nil, nil, RUNTIME_EXCEPTION, err
-		}
-
-		// Potentially coerce zero-length global owner field.
-		if len(dataUserID) == 0 {
-			dataUserID = nil
+			return nil, "", RUNTIME_EXCEPTION, err
 		}
 
 		// Accumulate the response.
@@ -241,9 +230,9 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 			Bucket:          dataBucket.String,
 			Collection:      dataCollection.String,
 			Record:          dataRecord.String,
-			UserId:          dataUserID,
+			UserId:          dataUserID.String,
 			Value:           dataValue,
-			Version:         dataVersion,
+			Version:         dataVersion.String,
 			PermissionRead:  dataRead.Int64,
 			PermissionWrite: dataWrite.Int64,
 			CreatedAt:       dataCreatedAt.Int64,
@@ -253,13 +242,13 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, userID []byte
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not execute storage list query", zap.Error(err))
-		return nil, nil, RUNTIME_EXCEPTION, err
+		return nil, "", RUNTIME_EXCEPTION, err
 	}
 
 	return storageData, outgoingCursor, 0, nil
 }
 
-func StorageFetch(logger *zap.Logger, db *sql.DB, caller uuid.UUID, keys []*StorageKey) ([]*StorageData, Error_Code, error) {
+func StorageFetch(logger *zap.Logger, db *sql.DB, caller string, keys []*StorageKey) ([]*StorageData, Error_Code, error) {
 	// Ensure there is at least one key requested.
 	if len(keys) == 0 {
 		return nil, BAD_INPUT, errors.New("At least one fetch key is required")
@@ -278,25 +267,15 @@ WHERE `
 			return nil, BAD_INPUT, errors.New("Invalid values for bucket, collection, or record")
 		}
 
-		// If a user ID is provided, validate the format.
-		owner := []byte{}
-		if len(key.UserId) != 0 {
-			if uid, err := uuid.FromBytes(key.UserId); err != nil {
-				return nil, BAD_INPUT, errors.New("Invalid user ID")
-			} else {
-				owner = uid.Bytes()
-			}
-		}
-
 		if i != 0 {
 			query += " OR "
 		}
 		l := len(params)
 		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
-		params = append(params, key.Bucket, key.Collection, owner, key.Record)
-		if caller != uuid.Nil {
+		params = append(params, key.Bucket, key.Collection, key.UserId, key.Record)
+		if caller != "" {
 			query += fmt.Sprintf(" AND (read = 2 OR (read = 1 AND user_id = $%v))", len(params)+1)
-			params = append(params, caller.Bytes())
+			params = append(params, caller)
 		}
 		query += ")"
 	}
@@ -313,12 +292,12 @@ WHERE `
 
 	// Parse the results.
 	for rows.Next() {
-		var userID []byte
+		var userID sql.NullString
 		var bucket sql.NullString
 		var collection sql.NullString
 		var record sql.NullString
 		var value []byte
-		var version []byte
+		var version sql.NullString
 		var read sql.NullInt64
 		var write sql.NullInt64
 		var createdAt sql.NullInt64
@@ -332,19 +311,14 @@ WHERE `
 			return nil, RUNTIME_EXCEPTION, err
 		}
 
-		// Potentially coerce zero-length global owner field.
-		if len(userID) == 0 {
-			userID = nil
-		}
-
 		// Accumulate the response.
 		storageData = append(storageData, &StorageData{
 			Bucket:          bucket.String,
 			Collection:      collection.String,
 			Record:          record.String,
-			UserId:          userID,
+			UserId:          userID.String,
 			Value:           value,
-			Version:         version,
+			Version:         version.String,
 			PermissionRead:  read.Int64,
 			PermissionWrite: write.Int64,
 			CreatedAt:       createdAt.Int64,
@@ -360,7 +334,7 @@ WHERE `
 	return storageData, 0, nil
 }
 
-func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*StorageData) ([]*StorageKey, Error_Code, error) {
+func StorageWrite(logger *zap.Logger, db *sql.DB, caller string, data []*StorageData) ([]*StorageKey, Error_Code, error) {
 	// Ensure there is at least one value requested.
 	if len(data) == 0 {
 		return nil, BAD_INPUT, errors.New("At least one write value is required")
@@ -383,15 +357,12 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 			return nil, BAD_INPUT, errors.New("Invalid write permission value")
 		}
 
-		// If a user ID is provided, validate the format.
-		if len(d.UserId) != 0 {
-			if uid, err := uuid.FromBytes(d.UserId); err != nil {
-				return nil, BAD_INPUT, errors.New("Invalid user ID")
-			} else if caller != uuid.Nil && caller != uid {
+		if d.UserId != "" {
+			if caller != "" && caller != d.UserId {
 				// If the caller is a client, only allow them to write their own data.
 				return nil, BAD_INPUT, errors.New("A client can only write their own records")
 			}
-		} else if caller != uuid.Nil {
+		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return nil, BAD_INPUT, errors.New("A client cannot write global records")
 		}
@@ -418,31 +389,24 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller uuid.UUID, data []*Stor
 
 	// Execute each storage write.
 	for i, d := range data {
-		id := uuid.NewV4().Bytes()
-		//sha := fmt.Sprintf("%x", sha256.Sum256(d.Value))
-		version := []byte(fmt.Sprintf("%x", sha256.Sum256(d.Value)))
-
-		// Check if it's global or user-owned data.
-		owner := []byte{}
-		if len(d.UserId) != 0 {
-			owner = d.UserId
-		}
+		id := generateNewId()
+		version := fmt.Sprintf("%x", sha256.Sum256(d.Value))
 
 		query := `
 INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
 SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
-		params := []interface{}{id, owner, d.Bucket, d.Collection, d.Record, d.Value, version, d.PermissionRead, d.PermissionWrite, ts}
+		params := []interface{}{id, d.UserId, d.Bucket, d.Collection, d.Record, d.Value, version, d.PermissionRead, d.PermissionWrite, ts}
 
 		if len(d.Version) == 0 {
 			// Simple write.
 			// If needed use an additional clause to enforce permissions.
-			if caller != uuid.Nil {
+			if caller != "" {
 				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND write = 0)"
 			}
 			query += `
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at = $10`
-		} else if bytes.Equal(d.Version, []byte("*")) {
+		} else if d.Version == "*" {
 			// if-none-match
 			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
 			// No additional clause needed to enforce permissions.
@@ -451,7 +415,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 			// if-match
 			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND version = $11"
 			// If needed use an additional clause to enforce permissions.
-			if caller != uuid.Nil {
+			if caller != "" {
 				query += " AND write = 1"
 			}
 			query += `)
@@ -484,7 +448,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 			Collection: d.Collection,
 			Record:     d.Record,
 			UserId:     d.UserId,
-			Version:    version[:],
+			Version:    version,
 		}
 	}
 
@@ -497,7 +461,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 	return keys, 0, nil
 }
 
-func StorageUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*StorageKeyUpdate) ([]*StorageKey, Error_Code, error) {
+func StorageUpdate(logger *zap.Logger, db *sql.DB, caller string, updates []*StorageKeyUpdate) ([]*StorageKey, Error_Code, error) {
 	// Ensure there is at least one update requested.
 	if len(updates) == 0 {
 		return nil, BAD_INPUT, errors.New("At least one update is required")
@@ -532,17 +496,12 @@ func StorageUpdate(logger *zap.Logger, db *sql.DB, caller uuid.UUID, updates []*
 		}
 
 		// If a user ID is provided, validate the format.
-		owner := []byte{}
-		if len(update.Key.UserId) != 0 {
-			if uid, err := uuid.FromBytes(update.Key.UserId); err != nil {
-				return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: Invalid user ID", i))
-			} else if caller != uuid.Nil && caller != uid {
+		if update.Key.UserId != "" {
+			if caller != "" && caller != update.Key.UserId {
 				// If the caller is a client, only allow them to write their own data.
 				return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: A client can only write their own records", i))
-			} else {
-				owner = uid.Bytes()
 			}
-		} else if caller != uuid.Nil {
+		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: A client cannot write global records", i))
 		}
@@ -553,14 +512,14 @@ FROM storage
 WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND deleted_at = 0`
 
 		// Query and decode the row.
-		var userID []byte
+		var userID string
 		var bucket sql.NullString
 		var collection sql.NullString
 		var record sql.NullString
 		var value []byte
-		var version []byte
+		var version string
 		var write sql.NullInt64
-		err = tx.QueryRow(query, update.Key.Bucket, update.Key.Collection, owner, update.Key.Record).
+		err = tx.QueryRow(query, update.Key.Bucket, update.Key.Collection, update.Key.UserId, update.Key.Record).
 			Scan(&userID, &bucket, &collection, &record, &value, &version, &write)
 		if err != nil && err != sql.ErrNoRows {
 			// Only fail on critical database or row scan errors.
@@ -574,7 +533,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 
 		// Check if we need an immediate version compare.
 		// If-None-Match and there's an existing version OR If-Match and the existing version doesn't match.
-		if len(update.Key.Version) != 0 && ((bytes.Equal(update.Key.Version, []byte("*")) && len(version) != 0) || (!bytes.Equal(update.Key.Version, []byte("*")) && !bytes.Equal(update.Key.Version, version))) {
+		if update.Key.Version != "" && ((update.Key.Version == "*" && version != "") || (update.Key.Version != "*" && update.Key.Version != version)) {
 			if e := tx.Rollback(); e != nil {
 				logger.Error("Could not update storage, rollback error", zap.Error(e))
 			}
@@ -582,7 +541,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 		}
 
 		// Check write permission if caller is not script runtime.
-		if caller != uuid.Nil && write.Valid && write.Int64 != 1 {
+		if caller != "" && write.Valid && write.Int64 != 1 {
 			return nil, STORAGE_REJECTED, errors.New(fmt.Sprintf("Storage update index %v rejected: not found, version check failed, or permission denied", i))
 		}
 
@@ -599,20 +558,20 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 			}
 			return nil, STORAGE_REJECTED, errors.New(fmt.Sprintf("Storage update index %v rejected: %v", i, err.Error()))
 		}
-		newVersion := []byte(fmt.Sprintf("%x", sha256.Sum256(newValue)))
+		newVersion := fmt.Sprintf("%x", sha256.Sum256(newValue))
 
 		query = `
 INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
 SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
-		params := []interface{}{uuid.NewV4().Bytes(), owner, update.Key.Bucket, update.Key.Collection, update.Key.Record, newValue, newVersion, update.PermissionRead, update.PermissionWrite, ts}
-		if len(version) == 0 {
+		params := []interface{}{generateNewId(), update.Key.UserId, update.Key.Bucket, update.Key.Collection, update.Key.Record, newValue, newVersion, update.PermissionRead, update.PermissionWrite, ts}
+		if version == "" {
 			// Treat this as an if-none-match.
 			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
 		} else {
 			// if-match
 			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND version = $11"
 			// If needed use an additional clause to enforce permissions.
-			if caller != uuid.Nil {
+			if caller != "" {
 				query += " AND write = 1"
 			}
 			query += `)
@@ -645,7 +604,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 			Collection: update.Key.Collection,
 			Record:     update.Key.Record,
 			UserId:     update.Key.UserId,
-			Version:    newVersion[:],
+			Version:    newVersion,
 		}
 	}
 
@@ -659,7 +618,7 @@ DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at
 	return keys, 0, nil
 }
 
-func StorageRemove(logger *zap.Logger, db *sql.DB, caller uuid.UUID, keys []*StorageKey) (Error_Code, error) {
+func StorageRemove(logger *zap.Logger, db *sql.DB, caller string, keys []*StorageKey) (Error_Code, error) {
 	// Ensure there is at least one key requested.
 	if len(keys) == 0 {
 		return BAD_INPUT, errors.New("At least one remove key is required")
@@ -678,17 +637,12 @@ WHERE `
 		}
 
 		// If a user ID is provided, validate the format.
-		owner := []byte{}
-		if len(key.UserId) != 0 {
-			if uid, err := uuid.FromBytes(key.UserId); err != nil {
-				return BAD_INPUT, errors.New("Invalid user ID")
-			} else if caller != uuid.Nil && caller != uid {
+		if key.UserId != "" {
+			if caller != "" && caller != key.UserId {
 				// If the caller is a client, only allow them to write their own data.
 				return BAD_INPUT, errors.New("A client can only remove their own records")
-			} else {
-				owner = uid.Bytes()
 			}
-		} else if caller != uuid.Nil {
+		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return BAD_INPUT, errors.New("A client cannot remove global records")
 		}
@@ -698,14 +652,14 @@ WHERE `
 		}
 		l := len(params)
 		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
-		params = append(params, key.Bucket, key.Collection, owner, key.Record)
+		params = append(params, key.Bucket, key.Collection, key.UserId, key.Record)
 		// Permission.
-		if caller != uuid.Nil {
+		if caller != "" {
 			query += fmt.Sprintf(" AND write = 1 AND user_id = $%v", len(params)+1)
-			params = append(params, caller.Bytes())
+			params = append(params, caller)
 		}
 		// Version.
-		if len(key.Version) != 0 {
+		if key.Version != "" {
 			query += fmt.Sprintf(" AND version = $%v", len(params)+1)
 			params = append(params, key.Version)
 		}

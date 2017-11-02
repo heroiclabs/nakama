@@ -17,7 +17,6 @@ package server
 import (
 	"strings"
 
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -47,8 +46,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 
 	// Group joins and leaves by topic.
 	for _, p := range joins {
-		// The "notifications" topic is a special case that does not generate presence notifications.
-		if p.Topic == "notifications" {
+		// The "notifications:..." topics are a special case that does not generate presence notifications.
+		if strings.HasPrefix(p.Topic, "notifications") {
 			continue
 		}
 
@@ -60,8 +59,8 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		}
 	}
 	for _, p := range leaves {
-		// The "notifications" topic is a special case that does not generate presence notifications.
-		if p.Topic == "notifications" {
+		// The "notifications:..." topics are a special case that does not generate presence notifications.
+		if strings.HasPrefix(p.Topic, "notifications") {
 			continue
 		}
 
@@ -89,7 +88,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		splitTopic := strings.SplitN(topic, ":", 2)
 		switch splitTopic[0] {
 		case "match":
-			matchID := uuid.FromStringOrNil(splitTopic[1]).Bytes()
+			matchID := splitTopic[1]
 			if tls, ok := topicLeaves[topic]; ok {
 				// Make sure leaves aren't also processed separately if we were able to pair them here.
 				delete(topicLeaves, topic)
@@ -98,10 +97,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 				pn.handleDiffMatch(matchID, to, tjs, nil)
 			}
 		case "dm":
-			users := strings.SplitN(splitTopic[1], ":", 2)
-			userID1 := uuid.FromStringOrNil(users[0]).Bytes()
-			userID2 := uuid.FromStringOrNil(users[1]).Bytes()
-			t := &TopicId{Id: &TopicId_Dm{Dm: append(userID1, userID2...)}}
+			t := &TopicId{Id: &TopicId_Dm{Dm: splitTopic[1]}}
 			if tls, ok := topicLeaves[topic]; ok {
 				// Make sure leaves aren't also processed separately if we were able to pair them here.
 				delete(topicLeaves, topic)
@@ -110,7 +106,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 				pn.handleDiffTopic(t, to, tjs, nil)
 			}
 		case "room":
-			t := &TopicId{Id: &TopicId_Room{Room: []byte(splitTopic[1])}}
+			t := &TopicId{Id: &TopicId_Room{Room: splitTopic[1]}}
 			if tls, ok := topicLeaves[topic]; ok {
 				// Make sure leaves aren't also processed separately if we were able to pair them here.
 				delete(topicLeaves, topic)
@@ -119,7 +115,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 				pn.handleDiffTopic(t, to, tjs, nil)
 			}
 		case "group":
-			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
+			t := &TopicId{Id: &TopicId_GroupId{GroupId: splitTopic[1]}}
 			if tls, ok := topicLeaves[topic]; ok {
 				// Make sure leaves aren't also processed separately if we were able to pair them here.
 				delete(topicLeaves, topic)
@@ -147,19 +143,15 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 		splitTopic := strings.SplitN(topic, ":", 2)
 		switch splitTopic[0] {
 		case "match":
-			matchID := uuid.FromStringOrNil(splitTopic[1]).Bytes()
-			pn.handleDiffMatch(matchID, to, nil, tls)
+			pn.handleDiffMatch(splitTopic[1], to, nil, tls)
 		case "dm":
-			users := strings.SplitN(splitTopic[1], ":", 2)
-			userID1 := uuid.FromStringOrNil(users[0]).Bytes()
-			userID2 := uuid.FromStringOrNil(users[1]).Bytes()
-			t := &TopicId{Id: &TopicId_Dm{Dm: append(userID1, userID2...)}}
+			t := &TopicId{Id: &TopicId_Dm{Dm: splitTopic[1]}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		case "room":
-			t := &TopicId{Id: &TopicId_Room{Room: []byte(splitTopic[1])}}
+			t := &TopicId{Id: &TopicId_Room{Room: splitTopic[1]}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		case "group":
-			t := &TopicId{Id: &TopicId_GroupId{GroupId: uuid.FromStringOrNil(splitTopic[1]).Bytes()}}
+			t := &TopicId{Id: &TopicId_GroupId{GroupId: splitTopic[1]}}
 			pn.handleDiffTopic(t, to, nil, tls)
 		default:
 			pn.logger.Warn("Skipping presence notifications for unknown topic", zap.Any("topic", topic))
@@ -167,7 +159,7 @@ func (pn *presenceNotifier) HandleDiff(joins, leaves []Presence) {
 	}
 }
 
-func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []Presence) {
+func (pn *presenceNotifier) handleDiffMatch(matchID string, to, joins, leaves []Presence) {
 	// Tie together the joins and leaves for the same topic.
 	msg := &MatchPresence{
 		MatchId: matchID,
@@ -176,8 +168,8 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		muJoins := make([]*UserPresence, len(joins))
 		for i := 0; i < len(joins); i++ {
 			muJoins[i] = &UserPresence{
-				UserId:    joins[i].UserID.Bytes(),
-				SessionId: joins[i].ID.SessionID.Bytes(),
+				UserId:    joins[i].UserID,
+				SessionId: joins[i].ID.SessionID,
 				Handle:    joins[i].Meta.Handle,
 			}
 		}
@@ -187,8 +179,8 @@ func (pn *presenceNotifier) handleDiffMatch(matchID []byte, to, joins, leaves []
 		muLeaves := make([]*UserPresence, len(leaves))
 		for i := 0; i < len(leaves); i++ {
 			muLeaves[i] = &UserPresence{
-				UserId:    leaves[i].UserID.Bytes(),
-				SessionId: leaves[i].ID.SessionID.Bytes(),
+				UserId:    leaves[i].UserID,
+				SessionId: leaves[i].ID.SessionID,
 				Handle:    leaves[i].Meta.Handle,
 			}
 		}
@@ -208,8 +200,8 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 		tuJoins := make([]*UserPresence, len(joins))
 		for i := 0; i < len(joins); i++ {
 			tuJoins[i] = &UserPresence{
-				UserId:    joins[i].UserID.Bytes(),
-				SessionId: joins[i].ID.SessionID.Bytes(),
+				UserId:    joins[i].UserID,
+				SessionId: joins[i].ID.SessionID,
 				Handle:    joins[i].Meta.Handle,
 			}
 		}
@@ -219,8 +211,8 @@ func (pn *presenceNotifier) handleDiffTopic(topic *TopicId, to, joins, leaves []
 		tuLeaves := make([]*UserPresence, len(leaves))
 		for i := 0; i < len(leaves); i++ {
 			tuLeaves[i] = &UserPresence{
-				UserId:    leaves[i].UserID.Bytes(),
-				SessionId: leaves[i].ID.SessionID.Bytes(),
+				UserId:    leaves[i].UserID,
+				SessionId: leaves[i].ID.SessionID,
 				Handle:    leaves[i].Meta.Handle,
 			}
 		}

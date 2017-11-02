@@ -27,6 +27,11 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *Envelope) 
 		return
 	}
 
+	if !p.runtimePool.HasRPC(rpcMessage.Id) {
+		session.Send(ErrorMessage(envelope.CollationId, RUNTIME_FUNCTION_NOT_FOUND, "RPC function not found"), true)
+		return
+	}
+
 	runtime := p.runtimePool.Get()
 	lf := runtime.GetRuntimeCallback(RPC, rpcMessage.Id)
 	if lf == nil {

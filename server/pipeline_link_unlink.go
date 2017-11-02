@@ -66,7 +66,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
-	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.UserID().Bytes())
+	res, err := txn.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, session.UserID())
 	if err != nil {
 		// In any error case the link has failed, so we can rollback before checking what went wrong.
 		if e := txn.Rollback(); e != nil {
@@ -89,7 +89,7 @@ func (p *pipeline) linkDevice(logger *zap.Logger, session session, envelope *Env
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not link"), true)
 		return
 	}
-	res, err = txn.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", nowMs(), session.UserID().Bytes())
+	res, err = txn.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", nowMs(), session.UserID())
 	if err != nil {
 		logger.Warn("Could not link, query error", zap.Error(err))
 		err = txn.Rollback()
@@ -134,7 +134,7 @@ func (p *pipeline) linkFacebook(logger *zap.Logger, session session, envelope *E
 		return
 	}
 
-	userID := session.UserID().Bytes()
+	userID := session.UserID()
 
 	res, err := p.db.Exec(`
 UPDATE users
@@ -185,7 +185,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE google_id = $2)`,
-		session.UserID().Bytes(),
+		session.UserID(),
 		googleProfile.ID,
 		nowMs())
 
@@ -223,7 +223,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE gamecenter_id = $2)`,
-		session.UserID().Bytes(),
+		session.UserID(),
 		gc.PlayerId,
 		nowMs())
 
@@ -269,7 +269,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE steam_id = $2)`,
-		session.UserID().Bytes(),
+		session.UserID(),
 		strconv.FormatUint(steamProfile.SteamID, 10),
 		nowMs())
 
@@ -317,7 +317,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE email = $2)`,
-		session.UserID().Bytes(),
+		session.UserID(),
 		strings.ToLower(email.Email),
 		hashedPassword,
 		nowMs())
@@ -355,7 +355,7 @@ AND NOT EXISTS
     (SELECT id
      FROM users
      WHERE custom_id = $2)`,
-		session.UserID().Bytes(),
+		session.UserID(),
 		customID,
 		nowMs())
 
@@ -393,7 +393,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
        OR email IS NOT NULL
        OR custom_id IS NOT NULL))
      OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2))`,
-			session.UserID().Bytes(),
+			session.UserID(),
 			envelope.GetUnlink().GetDevice())
 		if err != nil {
 			logger.Warn("Could not unlink, query error", zap.Error(err))
@@ -412,7 +412,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			session.Send(ErrorMessage(envelope.CollationId, USER_UNLINK_DISALLOWED, "Check profile exists and is not last link"), true)
 			return
 		}
-		res, err = txn.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", session.UserID().Bytes(), nowMs())
+		res, err = txn.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", session.UserID(), nowMs())
 		if err != nil {
 			logger.Warn("Could not unlink, query error", zap.Error(err))
 			err = txn.Rollback()
@@ -517,7 +517,7 @@ AND ((facebook_id IS NOT NULL
 		return
 	}
 
-	res, err := p.db.Exec(query, session.UserID().Bytes(), param, nowMs())
+	res, err := p.db.Exec(query, session.UserID(), param, nowMs())
 
 	if err != nil {
 		logger.Warn("Could not unlink", zap.Error(err))

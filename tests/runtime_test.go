@@ -25,7 +25,6 @@ import (
 
 	"reflect"
 
-	"bytes"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/satori/go.uuid"
 )
@@ -238,7 +237,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
-	m, err := r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
+	m, err := r.InvokeFunctionHTTP(fn, "", "", 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,7 +274,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.HTTP, "test/helloworld")
-	_, err = r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, nil)
+	_, err = r.InvokeFunctionHTTP(fn, "", "", 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -312,7 +311,7 @@ nakama.register_http(test.printWorld, "test/helloworld")
 	payload := make(map[string]interface{})
 	payload["message"] = "Hello World"
 
-	m, err := r.InvokeFunctionHTTP(fn, uuid.Nil, "", 0, payload)
+	m, err := r.InvokeFunctionHTTP(fn, "", "", 0, payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -351,9 +350,9 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.RPC, "helloworld")
-	payload := []byte("Hello World")
+	payload := "Hello World"
 
-	m, err := r.InvokeFunctionRPC(fn, uuid.Nil, "", 0, payload)
+	m, err := r.InvokeFunctionRPC(fn, "", "", 0, payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -407,7 +406,7 @@ nakama.register_before(test.printWorld, "tselffetch")
 			SelfFetch: &server.TSelfFetch{},
 		}}
 
-	result, err := r.InvokeFunctionBefore(fn, uuid.Nil, "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
+	result, err := r.InvokeFunctionBefore(fn, "", "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
 	if err != nil {
 		t.Error(err)
 	}
@@ -457,18 +456,18 @@ nakama.register_before(test.printWorld, "tgroupsjoin")
 	r := rp.Get()
 	defer r.Stop()
 
-	gid := uuid.NewV4().Bytes()
+	gid := uuid.NewV4().String()
 
 	fn := r.GetRuntimeCallback(server.BEFORE, "tgroupsjoin")
 	envelope := &server.Envelope{
 		CollationId: "1234",
 		Payload: &server.Envelope_GroupsJoin{
 			GroupsJoin: &server.TGroupsJoin{
-				GroupIds: [][]byte{gid},
+				GroupIds: []string{gid},
 			},
 		}}
 
-	result, err := r.InvokeFunctionBefore(fn, uuid.Nil, "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
+	result, err := r.InvokeFunctionBefore(fn, "", "", 0, jsonpbMarshaler, jsonpbUnmarshaler, envelope)
 	if err != nil {
 		t.Error(err)
 	}
@@ -482,7 +481,7 @@ nakama.register_before(test.printWorld, "tgroupsjoin")
 	if len(result.GetGroupsJoin().GroupIds) != 1 {
 		t.Error("Input Proto GroupIds length is not the same as Output proto.")
 	}
-	if !bytes.Equal(result.GetGroupsJoin().GroupIds[0], gid) {
+	if result.GetGroupsJoin().GroupIds[0] != gid {
 		t.Error("Input Proto GroupIds value is not the same as Output proto.")
 	}
 }

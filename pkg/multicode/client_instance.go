@@ -48,10 +48,9 @@ const (
 )
 
 var ErrClientInstanceClosed = errors.New("client instance closed")
+var ErrClientInstanceUnreliableDataTooLarge = errors.New("client instance unreliable data too large")
 var ErrClientInstanceNotConnected = errors.New("client instance not connected")
 var ErrClientInstanceSendBufferFull = errors.New("client instance reliable send buffer full")
-
-//var ErrClientInstancePacketDataTooLarge = errors.New("client instance packet data too large")
 
 type ClientInstance struct {
 	sync.Mutex
@@ -131,7 +130,7 @@ func NewClientInstance(logger *zap.Logger, addr *net.UDPAddr, serverConn *Netcod
 		incomingPacketCh:   make(chan netcode.Packet, netcode.PACKET_QUEUE_SIZE),
 		outgoingPacketData: make([]byte, netcode.MAX_PACKET_BYTES),
 
-		unreliableController:    NewReliablePacketController(maxPacketSize, maxPacketFragments),
+		unreliableController:    NewReliablePacketController(1024, 1),
 		unreliableReceiveBuffer: NewSequenceBufferReceived(256),
 
 		reliableCh:            make(chan []byte, netcode.PACKET_QUEUE_SIZE),
@@ -244,6 +243,7 @@ func (c *ClientInstance) IsConnected() bool {
 // An external routine is expected to continuously call this, otherwise
 // no input attributed to this client instance will be processed.
 func (c *ClientInstance) Read() ([]byte, bool, error) {
+readLoop:
 	for {
 		select {
 		case reliableData := <-c.reliableCh:
@@ -342,17 +342,17 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 							if err != nil {
 								c.Unlock()
 								c.logger.Debug("error processing reliable packet message ID", zap.Error(err))
-								continue
+								continue readLoop
 							}
 							messageLengthUint16, err := ReadVariableLengthUint16(rw)
 							if err != nil {
 								c.Unlock()
 								c.logger.Debug("error processing reliable packet message length", zap.Error(err))
-								continue
+								continue readLoop
 							}
 							if messageLengthUint16 == 0 {
 								c.Unlock()
-								continue
+								continue readLoop
 							}
 
 							messageLength := int(messageLengthUint16)
@@ -363,7 +363,7 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 								if err != nil {
 									c.Unlock()
 									c.logger.Debug("error processing reliable packet read buffer", zap.Error(err))
-									continue
+									continue readLoop
 								}
 							} else {
 								rw.SeekRead(rw.readPosition + messageLength)
@@ -424,10 +424,10 @@ func (c *ClientInstance) Read() ([]byte, bool, error) {
 
 // NOTE: Only for payload data packets, other protocol-level messages MUST be sent through other functions.
 func (c *ClientInstance) Send(payloadData []byte, reliable bool) error {
-	//if len(payloadData) > netcode.MAX_PACKET_BYTES {
-	//	c.logger.Warn("server attempting to send packet data exceeding max length, dropping packet")
-	//	return ErrClientInstancePacketDataTooLarge
-	//}
+	if !reliable && len(payloadData) > FRAGMENT_SIZE {
+		c.logger.Warn("server attempting to send unreliable packet data exceeding unreliable max length, dropping packet")
+		return ErrClientInstanceUnreliableDataTooLarge
+	}
 
 	c.Lock()
 	if c.stopped || !c.connected {
