@@ -20,11 +20,10 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
-func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID []byte, handle string, friendID []byte) error {
+func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID string, handle string, friendID string) error {
 	tx, txErr := db.Begin()
 	if txErr != nil {
 		return txErr
@@ -63,7 +62,7 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID [
 
 			if e := ns.NotificationSend([]*NNotification{
 				&NNotification{
-					Id:         uuid.NewV4().Bytes(),
+					Id:         generateNewId(),
 					UserID:     friendID,
 					Subject:    subject,
 					Content:    content,
@@ -99,8 +98,8 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
 SELECT source_id, destination_id, state, position, updated_at
 FROM (VALUES
-  ($1::BYTEA, $2::BYTEA, 2, $3::BIGINT, $3::BIGINT),
-  ($2::BYTEA, $1::BYTEA, 1, $3::BIGINT, $3::BIGINT)
+  ($1, $2, 2, $3::BIGINT, $3::BIGINT),
+  ($2, $1, 1, $3::BIGINT, $3::BIGINT)
 ) AS ue(source_id, destination_id, state, position, updated_at)
 WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
 	`, userID, friendID, updatedAt)
@@ -133,12 +132,12 @@ OR source_id = $3`,
 	return nil
 }
 
-func friendAddHandle(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID []byte, handle string, friendHandle string) error {
-	var friendIdBytes []byte
-	err := db.QueryRow("SELECT id FROM users WHERE handle = $1", friendHandle).Scan(&friendIdBytes)
+func friendAddHandle(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID string, handle string, friendHandle string) error {
+	var friendID string
+	err := db.QueryRow("SELECT id FROM users WHERE handle = $1", friendHandle).Scan(&friendID)
 	if err != nil {
 		return err
 	}
 
-	return friendAdd(logger, db, ns, userID, handle, friendIdBytes)
+	return friendAdd(logger, db, ns, userID, handle, friendID)
 }

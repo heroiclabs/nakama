@@ -17,7 +17,6 @@ package server
 import (
 	"fmt"
 
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 )
 
@@ -59,13 +58,13 @@ const (
 	__CTX_USER_SESSION_EXP = "UserSessionExp"
 )
 
-func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid uuid.UUID, handle string, sessionExpiry int64) *lua.LTable {
+func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid string, handle string, sessionExpiry int64) *lua.LTable {
 	lt := l.NewTable()
 	lt.RawSetString(__CTX_ENV, env)
 	lt.RawSetString(__CTX_MODE, lua.LString(mode.String()))
 
-	if uid != uuid.Nil {
-		lt.RawSetString(__CTX_USER_ID, lua.LString(uid.String()))
+	if uid != "" {
+		lt.RawSetString(__CTX_USER_ID, lua.LString(uid))
 		lt.RawSetString(__CTX_USER_HANDLE, lua.LString(handle))
 		lt.RawSetString(__CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
 	}

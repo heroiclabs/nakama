@@ -17,15 +17,13 @@ package server
 import (
 	"errors"
 	"sync"
-
-	"github.com/satori/go.uuid"
 )
 
 type Matchmaker interface {
-	Add(sessionID uuid.UUID, userID uuid.UUID, requestProfile *MatchmakerProfile) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile, []*MatchmakerAcceptedProperty)
-	Remove(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error
-	RemoveAll(sessionID uuid.UUID)
-	UpdateAll(sessionID uuid.UUID, meta PresenceMeta)
+	Add(sessionID string, userID string, requestProfile *MatchmakerProfile) (string, map[MatchmakerKey]*MatchmakerProfile, []*MatchmakerAcceptedProperty)
+	Remove(sessionID string, userID string, ticket string) error
+	RemoveAll(sessionID string)
+	UpdateAll(sessionID string, meta PresenceMeta)
 }
 
 type Filter int
@@ -67,15 +65,15 @@ func (*MatchmakerBoolFilter) Type() Filter {
 }
 
 type MatchmakerAcceptedProperty struct {
-	UserID     uuid.UUID
+	UserID     string
 	Properties map[string]interface{}
 	Filters    map[string]MatchmakerFilter
 }
 
 type MatchmakerKey struct {
 	ID     PresenceID
-	UserID uuid.UUID
-	Ticket uuid.UUID
+	UserID string
+	Ticket string
 }
 
 type MatchmakerProfile struct {
@@ -98,8 +96,8 @@ func NewMatchmakerService(name string) *MatchmakerService {
 	}
 }
 
-func (m *MatchmakerService) Add(sessionID uuid.UUID, userID uuid.UUID, incomingProfile *MatchmakerProfile) (uuid.UUID, map[MatchmakerKey]*MatchmakerProfile, []*MatchmakerAcceptedProperty) {
-	ticket := uuid.NewV4()
+func (m *MatchmakerService) Add(sessionID string, userID string, incomingProfile *MatchmakerProfile) (string, map[MatchmakerKey]*MatchmakerProfile, []*MatchmakerAcceptedProperty) {
+	ticket := generateNewId()
 	candidates := make(map[MatchmakerKey]*MatchmakerProfile, incomingProfile.RequiredCount-1)
 	requestKey := MatchmakerKey{ID: PresenceID{SessionID: sessionID, Node: m.name}, UserID: userID, Ticket: ticket}
 
@@ -254,7 +252,7 @@ func (m *MatchmakerService) intersection(a, b []string) []string {
 	return o
 }
 
-func (m *MatchmakerService) Remove(sessionID uuid.UUID, userID uuid.UUID, ticket uuid.UUID) error {
+func (m *MatchmakerService) Remove(sessionID string, userID string, ticket string) error {
 	mk := MatchmakerKey{ID: PresenceID{SessionID: sessionID, Node: m.name}, UserID: userID, Ticket: ticket}
 	var e error
 
@@ -270,7 +268,7 @@ func (m *MatchmakerService) Remove(sessionID uuid.UUID, userID uuid.UUID, ticket
 	return e
 }
 
-func (m *MatchmakerService) RemoveAll(sessionID uuid.UUID) {
+func (m *MatchmakerService) RemoveAll(sessionID string) {
 	m.Lock()
 	for mk, _ := range m.values {
 		if mk.ID.SessionID == sessionID {
@@ -280,7 +278,7 @@ func (m *MatchmakerService) RemoveAll(sessionID uuid.UUID) {
 	m.Unlock()
 }
 
-func (m *MatchmakerService) UpdateAll(sessionID uuid.UUID, meta PresenceMeta) {
+func (m *MatchmakerService) UpdateAll(sessionID string, meta PresenceMeta) {
 	m.Lock()
 	for mk, mp := range m.values {
 		if mk.ID.SessionID == sessionID {

@@ -21,11 +21,14 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, messageType string, envelope *Envelope, session session) (*Envelope, error) {
+	if !runtimePool.HasBefore(messageType) {
+		return envelope, nil
+	}
+
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
@@ -33,7 +36,7 @@ func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshal
 		return envelope, nil
 	}
 
-	userId := uuid.Nil
+	userId := ""
 	handle := ""
 	expiry := int64(0)
 	if session != nil {
@@ -48,6 +51,10 @@ func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshal
 }
 
 func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session session) {
+	if !runtimePool.HasAfter(messageType) {
+		return
+	}
+
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {
@@ -67,7 +74,7 @@ func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarsha
 		return
 	}
 
-	userId := uuid.Nil
+	userId := ""
 	handle := ""
 	expiry := int64(0)
 	if session != nil {
@@ -84,6 +91,10 @@ func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarsha
 
 func RuntimeBeforeHookAuthentication(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, envelope *AuthenticateRequest) (*AuthenticateRequest, error) {
 	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
+	if !runtimePool.HasBefore(messageType) {
+		return envelope, nil
+	}
+
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(BEFORE, messageType)
 	if fn == nil {
@@ -103,7 +114,7 @@ func RuntimeBeforeHookAuthentication(runtimePool *RuntimePool, jsonpbMarshaler *
 		return nil, err
 	}
 
-	userId := uuid.Nil
+	userId := ""
 	handle := ""
 	expiry := int64(0)
 
@@ -126,8 +137,12 @@ func RuntimeBeforeHookAuthentication(runtimePool *RuntimePool, jsonpbMarshaler *
 	return authenticationResult, nil
 }
 
-func RuntimeAfterHookAuthentication(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId uuid.UUID, handle string, expiry int64) {
+func RuntimeAfterHookAuthentication(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, envelope *AuthenticateRequest, userId string, handle string, expiry int64) {
 	messageType := RUNTIME_MESSAGES[fmt.Sprintf("%T", envelope.Id)]
+	if !runtimePool.HasAfter(messageType) {
+		return
+	}
+
 	runtime := runtimePool.Get()
 	fn := runtime.GetRuntimeCallback(AFTER, messageType)
 	if fn == nil {

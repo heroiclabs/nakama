@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/satori/go.uuid"
+	"encoding/base64"
 	"go.uber.org/zap"
 )
 
@@ -39,16 +39,16 @@ const (
 
 type notificationResumableCursor struct {
 	Expiry         int64
-	NotificationID []byte
+	NotificationID string
 }
 
 type NNotification struct {
-	Id         []byte
-	UserID     []byte
+	Id         string
+	UserID     string
 	Subject    string
 	Content    []byte
 	Code       int64
-	SenderID   []byte
+	SenderID   string
 	CreatedAt  int64
 	ExpiresAt  int64
 	Persistent bool
@@ -74,7 +74,7 @@ func NewNotificationService(logger *zap.Logger, db *sql.DB, tracker Tracker, mes
 
 func (n *NotificationService) NotificationSend(notifications []*NNotification) error {
 	persistentNotifications := make([]*NNotification, 0)
-	notificationsByUser := make(map[uuid.UUID][]*NNotification)
+	notificationsByUser := make(map[string][]*NNotification)
 	for _, n := range notifications {
 		// Select persistent notifications for storage.
 		if n.Persistent {
@@ -82,11 +82,10 @@ func (n *NotificationService) NotificationSend(notifications []*NNotification) e
 		}
 
 		// Split all notifications by user for grouped delivery later.
-		userID := uuid.FromBytesOrNil(n.UserID)
-		if ns, ok := notificationsByUser[userID]; ok {
-			notificationsByUser[userID] = append(ns, n)
+		if ns, ok := notificationsByUser[n.UserID]; ok {
+			notificationsByUser[n.UserID] = append(ns, n)
 		} else {
-			notificationsByUser[userID] = []*NNotification{n}
+			notificationsByUser[n.UserID] = []*NNotification{n}
 		}
 	}
 
@@ -97,7 +96,7 @@ func (n *NotificationService) NotificationSend(notifications []*NNotification) e
 	}
 
 	for userID, ns := range notificationsByUser {
-		presences := n.tracker.ListByTopicUser("notifications", userID)
+		presences := n.tracker.ListByTopic("notifications:" + userID)
 		if len(presences) != 0 {
 			envelope := &Envelope{
 				Payload: &Envelope_LiveNotifications{
@@ -111,20 +110,25 @@ func (n *NotificationService) NotificationSend(notifications []*NNotification) e
 	return nil
 }
 
-func (n *NotificationService) NotificationsList(userID uuid.UUID, limit int64, cursor []byte) ([]*NNotification, []byte, error) {
+func (n *NotificationService) NotificationsList(userID string, limit int64, cursor string) ([]*NNotification, string, error) {
 	expiryNow := nowMs()
 	nc := &notificationResumableCursor{}
-	if cursor != nil {
-		if err := gob.NewDecoder(bytes.NewReader(cursor)).Decode(nc); err != nil {
-			n.logger.Error("Could not decode notification cursor")
-			return nil, nil, errors.New("Malformed cursor was used")
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			n.logger.Error("Could not base64 decode notification cursor")
+			return nil, "", errors.New("Malformed cursor was used")
+		} else {
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
+				n.logger.Error("Could not decode notification cursor")
+				return nil, "", errors.New("Malformed cursor was used")
+			}
 		}
 	}
 
 	// if no cursor, or cursor expiry is old, then ignore
 	if nc.Expiry < expiryNow {
 		nc.Expiry = expiryNow
-		nc.NotificationID = uuid.Nil.Bytes()
+		nc.NotificationID = ""
 	}
 
 	rows, err := n.db.Query(`
@@ -132,11 +136,11 @@ SELECT id, user_id, subject, content, code, sender_id, created_at, expires_at
 FROM notification
 WHERE user_id = $1 AND deleted_at = 0 AND (expires_at, id) > ($2, $3)
 LIMIT $4
-`, userID.Bytes(), nc.Expiry, nc.NotificationID, limit)
+`, userID, nc.Expiry, nc.NotificationID, limit)
 
 	if err != nil {
 		n.logger.Error("Could not retrieve notifications", zap.Error(err))
-		return nil, nil, errors.New("Could not retrieve notifications")
+		return nil, "", errors.New("Could not retrieve notifications")
 	}
 
 	notifications := make([]*NNotification, 0)
@@ -145,7 +149,7 @@ LIMIT $4
 		err := rows.Scan(&no.Id, &no.UserID, &no.Subject, &no.Content, &no.Code, &no.SenderID, &no.CreatedAt, &no.ExpiresAt)
 		if err != nil {
 			n.logger.Error("Could not scan notification from database", zap.Error(err))
-			return nil, nil, errors.New("Could not retrieve notifications")
+			return nil, "", errors.New("Could not retrieve notifications")
 		}
 		notifications = append(notifications, no)
 	}
@@ -161,7 +165,7 @@ LIMIT $4
 			n.logger.Error("Could not create new cursor.", zap.Error(err))
 		}
 
-		return notifications, cursorBuf.Bytes(), nil
+		return notifications, base64.StdEncoding.EncodeToString(cursorBuf.Bytes()), nil
 	} else {
 		if len(cursor) != 0 {
 			return notifications, cursor, nil
@@ -170,20 +174,20 @@ LIMIT $4
 
 	newCursor := &notificationResumableCursor{
 		Expiry:         expiryNow,
-		NotificationID: make([]byte, 0),
+		NotificationID: "",
 	}
 	if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 		n.logger.Error("Could not create new cursor.", zap.Error(err))
 	}
 
-	return notifications, cursorBuf.Bytes(), nil
+	return notifications, base64.StdEncoding.EncodeToString(cursorBuf.Bytes()), nil
 }
 
-func (n *NotificationService) NotificationsRemove(userID uuid.UUID, notificationIDs [][]byte) error {
+func (n *NotificationService) NotificationsRemove(userID string, notificationIDs []string) error {
 	statements := make([]string, 0)
 	params := []interface{}{
 		nowMs(),
-		userID.Bytes(),
+		userID,
 	}
 
 	for _, id := range notificationIDs {
@@ -221,7 +225,7 @@ func (n *NotificationService) notificationsSave(notifications []*NNotification) 
 
 		statements = append(statements, "("+statement+")")
 
-		params = append(params, uuid.NewV4().Bytes())
+		params = append(params, generateNewId())
 		params = append(params, no.UserID)
 		params = append(params, no.Subject)
 		params = append(params, no.Content)
@@ -244,13 +248,13 @@ func (n *NotificationService) notificationsSave(notifications []*NNotification) 
 	return nil
 }
 
-func convertTNotifications(nots []*NNotification, cursor []byte) *TNotifications {
+func convertTNotifications(nots []*NNotification, cursor string) *TNotifications {
 	notifications := &TNotifications{Notifications: make([]*Notification, 0), ResumableCursor: cursor}
 	for _, not := range nots {
 		n := &Notification{
 			Id:        not.Id,
 			Subject:   not.Subject,
-			Content:   not.Content,
+			Content:   string(not.Content),
 			Code:      not.Code,
 			SenderId:  not.SenderID,
 			CreatedAt: not.CreatedAt,
@@ -267,7 +271,7 @@ func convertNotifications(nots []*NNotification) *Notifications {
 		n := &Notification{
 			Id:        not.Id,
 			Subject:   not.Subject,
-			Content:   not.Content,
+			Content:   string(not.Content),
 			Code:      not.Code,
 			SenderId:  not.SenderID,
 			CreatedAt: not.CreatedAt,

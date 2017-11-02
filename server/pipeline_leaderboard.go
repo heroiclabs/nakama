@@ -17,6 +17,7 @@ package server
 import (
 	"bytes"
 	"database/sql"
+	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"strconv"
@@ -26,18 +27,18 @@ import (
 )
 
 type leaderboardCursor struct {
-	Id []byte
+	Id string
 }
 
 type leaderboardRecordFetchCursor struct {
-	OwnerId       []byte
-	LeaderboardId []byte
+	OwnerId       string
+	LeaderboardId string
 }
 
 type leaderboardRecordListCursor struct {
 	Score     int64
 	UpdatedAt int64
-	Id        []byte
+	Id        string
 }
 
 func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelope *Envelope) {
@@ -55,13 +56,18 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 	params := []interface{}{}
 
 	if len(incoming.Cursor) != 0 {
-		var incomingCursor leaderboardCursor
-		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(&incomingCursor); err != nil {
+		if cb, err := base64.StdEncoding.DecodeString(incoming.Cursor); err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
 			return
+		} else {
+			var incomingCursor leaderboardCursor
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&incomingCursor); err != nil {
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
+				return
+			}
+			query += " WHERE id > $1"
+			params = append(params, incomingCursor.Id)
 		}
-		query += " WHERE id > $1"
-		params = append(params, incomingCursor.Id)
 	}
 
 	if len(incoming.GetFilterLeaderboardId()) != 0 {
@@ -92,28 +98,28 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 	defer rows.Close()
 
 	leaderboards := []*Leaderboard{}
-	var outgoingCursor []byte
+	var outgoingCursor string
 
-	var id []byte
+	var id sql.NullString
 	var authoritative bool
 	var sortOrder int64
 	var count int64
 	var resetSchedule sql.NullString
 	var metadata []byte
-	var nextId []byte
-	var prevId []byte
+	var nextId sql.NullString
+	var prevId sql.NullString
 	for rows.Next() {
 		if int64(len(leaderboards)) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			newCursor := &leaderboardCursor{
-				Id: id,
+				Id: id.String,
 			}
 			if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Error creating leaderboards list cursor", zap.Error(err))
 				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"), true)
 				return
 			}
-			outgoingCursor = cursorBuf.Bytes()
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -125,14 +131,14 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 		}
 
 		leaderboards = append(leaderboards, &Leaderboard{
-			Id:            id,
+			Id:            id.String,
 			Authoritative: authoritative,
 			Sort:          sortOrder,
 			Count:         count,
 			ResetSchedule: resetSchedule.String,
-			Metadata:      metadata,
-			NextId:        nextId,
-			PrevId:        prevId,
+			Metadata:      string(metadata),
+			NextId:        nextId.String,
+			PrevId:        prevId.String,
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -167,7 +173,7 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session session, e
 	if len(incoming.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
-		if json.Unmarshal(incoming.Metadata, &maybeJSON) != nil {
+		if json.Unmarshal([]byte(incoming.Metadata), &maybeJSON) != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 			return
 		}
@@ -196,7 +202,7 @@ func (p *pipeline) leaderboardRecordWrite(logger *zap.Logger, session session, e
 		return
 	}
 
-	record, code, err := leaderboardSubmit(logger, p.db, session.UserID(), incoming.LeaderboardId, session.UserID(), session.Handle(), session.Lang(), op, value, incoming.Location, incoming.Timezone, incoming.Metadata)
+	record, code, err := leaderboardSubmit(logger, p.db, session.UserID(), incoming.LeaderboardId, session.UserID(), session.Handle(), session.Lang(), op, value, incoming.Location, incoming.Timezone, []byte(incoming.Metadata))
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return
@@ -230,10 +236,15 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, 
 
 	var incomingCursor *leaderboardRecordFetchCursor
 	if len(incoming.Cursor) != 0 {
-		incomingCursor = &leaderboardRecordFetchCursor{}
-		if err := gob.NewDecoder(bytes.NewReader(incoming.Cursor)).Decode(incomingCursor); err != nil {
+		if cb, err := base64.StdEncoding.DecodeString(incoming.Cursor); err != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
 			return
+		} else {
+			incomingCursor = &leaderboardRecordFetchCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+				session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid cursor data"), true)
+				return
+			}
 		}
 	}
 
@@ -241,7 +252,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, 
 	// TODO special handling of banned records?
 
 	statements := []string{}
-	params := []interface{}{session.UserID().Bytes()}
+	params := []interface{}{session.UserID()}
 	for _, leaderboardId := range leaderboardIds {
 		params = append(params, leaderboardId)
 		statements = append(statements, "$"+strconv.Itoa(len(params)))
@@ -271,10 +282,10 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, 
 	defer rows.Close()
 
 	leaderboardRecords := []*LeaderboardRecord{}
-	var outgoingCursor []byte
+	var outgoingCursor string
 
-	var leaderboardId []byte
-	var ownerId []byte
+	var leaderboardId string
+	var ownerId string
 	var handle string
 	var lang string
 	var location sql.NullString
@@ -299,7 +310,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, 
 				session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error loading leaderboard records"), true)
 				return
 			}
-			outgoingCursor = cursorBuf.Bytes()
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -321,7 +332,7 @@ func (p *pipeline) leaderboardRecordsFetch(logger *zap.Logger, session session, 
 			Rank:          rankValue,
 			Score:         score,
 			NumScore:      numScore,
-			Metadata:      metadata,
+			Metadata:      string(metadata),
 			RankedAt:      rankedAt,
 			UpdatedAt:     updatedAt,
 			ExpiresAt:     expiresAt,

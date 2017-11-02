@@ -19,32 +19,31 @@ import (
 	"unicode/utf8"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 type matchDataFilter struct {
-	userID    uuid.UUID
-	sessionID uuid.UUID
+	userID    string
+	sessionID string
 }
 
 func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *Envelope) {
-	matchID := uuid.NewV4()
+	matchID := generateNewId()
 
 	handle := session.Handle()
 
-	p.tracker.Track(session.ID(), "match:"+matchID.String(), session.UserID(), PresenceMeta{
+	p.tracker.Track(session.ID(), "match:"+matchID, session.UserID(), PresenceMeta{
 		Handle: handle,
 	})
 
 	self := &UserPresence{
-		UserId:    session.UserID().Bytes(),
-		SessionId: session.ID().Bytes(),
+		UserId:    session.UserID(),
+		SessionId: session.ID(),
 		Handle:    handle,
 	}
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Match{Match: &TMatch{Match: &Match{
-		MatchId:   matchID.Bytes(),
+		MatchId:   matchID,
 		Presences: []*UserPresence{self},
 		Self:      self,
 	}}}}, true)
@@ -62,28 +61,28 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 
 	m := e.Matches[0]
 
-	var matchID uuid.UUID
-	var err error
+	var matchID string
+	//var err error
 	allowEmpty := false
 
 	switch m.Id.(type) {
 	case *TMatchesJoin_MatchJoin_MatchId:
-		matchID, err = uuid.FromBytes(m.GetMatchId())
-		if err != nil {
+		matchID = m.GetMatchId()
+		if matchID == "" {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"), true)
 			return
 		}
 	case *TMatchesJoin_MatchJoin_Token:
-		tokenBytes := m.GetToken()
-		if controlCharsRegex.Match(tokenBytes) {
+		tokenString := m.GetToken()
+		if controlCharsRegex.MatchString(tokenString) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token cannot contain control chars"), true)
 			return
 		}
-		if !utf8.Valid(tokenBytes) {
+		if !utf8.ValidString(tokenString) {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token must only contain valid UTF-8 bytes"), true)
 			return
 		}
-		token, err := jwt.Parse(string(tokenBytes), func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
@@ -94,8 +93,8 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 			return
 		}
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			matchID, err = uuid.FromString(claims["mid"].(string))
-			if err != nil {
+			matchID = claims["mid"].(string)
+			if matchID == "" {
 				session.Send(ErrorMessageBadInput(envelope.CollationId, "Match token is invalid"), true)
 				return
 			}
@@ -112,7 +111,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 		return
 	}
 
-	topic := "match:" + matchID.String()
+	topic := "match:" + matchID
 
 	ps := p.tracker.ListByTopic(topic)
 	if !allowEmpty && len(ps) == 0 {
@@ -130,14 +129,14 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 	for i := 0; i < len(ps); i++ {
 		p := ps[i]
 		userPresences[i] = &UserPresence{
-			UserId:    p.UserID.Bytes(),
-			SessionId: p.ID.SessionID.Bytes(),
+			UserId:    p.UserID,
+			SessionId: p.ID.SessionID,
 			Handle:    p.Meta.Handle,
 		}
 	}
 	self := &UserPresence{
-		UserId:    session.UserID().Bytes(),
-		SessionId: session.ID().Bytes(),
+		UserId:    session.UserID(),
+		SessionId: session.ID(),
 		Handle:    handle,
 	}
 	userPresences[len(ps)] = self
@@ -145,7 +144,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_Matches{Matches: &TMatches{
 		Matches: []*Match{
 			&Match{
-				MatchId:   matchID.Bytes(),
+				MatchId:   matchID,
 				Presences: userPresences,
 				Self:      self,
 			},
@@ -163,13 +162,12 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *Env
 		logger.Warn("There are more than one item passed to the request - only processing the first item.")
 	}
 
-	m := e.MatchIds[0]
-	matchID, err := uuid.FromBytes(m)
-	if err != nil {
+	matchID := e.MatchIds[0]
+	if matchID == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid match ID"), true)
 		return
 	}
-	topic := "match:" + matchID.String()
+	topic := "match:" + matchID
 
 	ps := p.tracker.ListByTopic(topic)
 	if len(ps) == 0 {
@@ -198,24 +196,24 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *Env
 
 func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *Envelope, reliable bool) {
 	incoming := envelope.GetMatchDataSend()
-	matchIDBytes := incoming.MatchId
-	matchID, err := uuid.FromBytes(matchIDBytes)
-	if err != nil {
+	matchID := incoming.MatchId
+	//matchID, err := uuid.FromBytes(matchIDBytes)
+	if matchID == "" {
 		return
 	}
-	topic := "match:" + matchID.String()
+	topic := "match:" + matchID
 	filterPresences := false
 	var filters []*matchDataFilter
 	if len(incoming.Presences) != 0 {
 		filterPresences = true
 		filters = make([]*matchDataFilter, len(incoming.Presences))
 		for i := 0; i < len(incoming.Presences); i++ {
-			userID, err := uuid.FromBytes(incoming.Presences[i].UserId)
-			if err != nil {
+			userID := incoming.Presences[i].UserId
+			if userID == "" {
 				return
 			}
-			sessionID, err := uuid.FromBytes(incoming.Presences[i].SessionId)
-			if err != nil {
+			sessionID := incoming.Presences[i].SessionId
+			if sessionID == "" {
 				return
 			}
 			filters[i] = &matchDataFilter{userID: userID, sessionID: sessionID}
@@ -276,10 +274,10 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 	outgoing := &Envelope{
 		Payload: &Envelope_MatchData{
 			MatchData: &MatchData{
-				MatchId: matchIDBytes,
+				MatchId: matchID,
 				Presence: &UserPresence{
-					UserId:    session.UserID().Bytes(),
-					SessionId: session.ID().Bytes(),
+					UserId:    session.UserID(),
+					SessionId: session.ID(),
 					Handle:    session.Handle(),
 				},
 				OpCode: incoming.OpCode,

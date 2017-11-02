@@ -40,7 +40,7 @@ func (p *pipeline) storageList(logger *zap.Logger, session session, envelope *En
 			Collection:      d.Collection,
 			Record:          d.Record,
 			UserId:          d.UserId,
-			Value:           d.Value,
+			Value:           string(d.Value),
 			Version:         d.Version,
 			PermissionRead:  int32(d.PermissionRead),
 			PermissionWrite: int32(d.PermissionWrite),
@@ -83,7 +83,7 @@ func (p *pipeline) storageFetch(logger *zap.Logger, session session, envelope *E
 			Collection:      d.Collection,
 			Record:          d.Record,
 			UserId:          d.UserId,
-			Value:           d.Value,
+			Value:           string(d.Value),
 			Version:         d.Version,
 			PermissionRead:  int32(d.PermissionRead),
 			PermissionWrite: int32(d.PermissionWrite),
@@ -109,8 +109,8 @@ func (p *pipeline) storageWrite(logger *zap.Logger, session session, envelope *E
 			Bucket:          d.Bucket,
 			Collection:      d.Collection,
 			Record:          d.Record,
-			UserId:          session.UserID().Bytes(),
-			Value:           d.Value,
+			UserId:          session.UserID(),
+			Value:           []byte(d.Value),
 			Version:         d.Version,
 			PermissionRead:  int64(d.PermissionRead),
 			PermissionWrite: int64(d.PermissionWrite),
@@ -149,7 +149,7 @@ func (p *pipeline) storageRemove(logger *zap.Logger, session session, envelope *
 			Bucket:     key.Bucket,
 			Collection: key.Collection,
 			Record:     key.Record,
-			UserId:     session.UserID().Bytes(),
+			UserId:     session.UserID(),
 			Version:    key.Version,
 		}
 	}
@@ -180,7 +180,7 @@ func (p *pipeline) storageUpdate(logger *zap.Logger, session session, envelope *
 				Collection: update.Key.Collection,
 				Record:     update.Key.Record,
 				Version:    update.Key.Version,
-				UserId:     session.UserID().Bytes(),
+				UserId:     session.UserID(),
 			},
 		}
 

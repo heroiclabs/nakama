@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -63,16 +62,16 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 	ticket, selected, props := p.matchmaker.Add(session.ID(), session.UserID(), matchmakerProfile)
 
 	session.Send(&Envelope{CollationId: envelope.CollationId, Payload: &Envelope_MatchmakeTicket{MatchmakeTicket: &TMatchmakeTicket{
-		Ticket: ticket.Bytes(),
+		Ticket: ticket,
 	}}}, true)
 
 	if selected == nil {
 		return
 	}
 
-	matchID := uuid.NewV4()
+	matchID := generateNewId()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"mid": matchID.String(),
+		"mid": matchID,
 		"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
 	})
 	signedToken, _ := token.SignedString(p.hmacSecretByte)
@@ -81,8 +80,8 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 	ps := make([]*UserPresence, len(selected))
 	for mk, mp := range selected {
 		ps[idx] = &UserPresence{
-			UserId:    mk.UserID.Bytes(),
-			SessionId: mk.ID.SessionID.Bytes(),
+			UserId:    mk.UserID,
+			SessionId: mk.ID.SessionID,
 			Handle:    mp.Meta.Handle,
 		}
 		idx++
@@ -91,7 +90,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 	protoProps := make([]*MatchmakeMatched_UserProperty, 0)
 	for _, prop := range props {
 		protoProp := &MatchmakeMatched_UserProperty{
-			UserId:     prop.UserID.Bytes(),
+			UserId:     prop.UserID,
 			Properties: make([]*PropertyPair, 0),
 			Filters:    make([]*MatchmakeFilter, 0),
 		}
@@ -129,7 +128,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 
 	outgoing := &Envelope{Payload: &Envelope_MatchmakeMatched{MatchmakeMatched: &MatchmakeMatched{
 		// Ticket: ..., // Set individually below for each recipient.
-		Token:      []byte(signedToken),
+		Token:      signedToken,
 		Presences:  ps,
 		Properties: protoProps,
 		// Self:   ..., // Set individually below for each recipient.
@@ -143,10 +142,10 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 				Meta:   mp.Meta,   // Not strictly needed here.
 			},
 		}
-		outgoing.GetMatchmakeMatched().Ticket = mk.Ticket.Bytes()
+		outgoing.GetMatchmakeMatched().Ticket = mk.Ticket
 		outgoing.GetMatchmakeMatched().Self = &UserPresence{
-			UserId:    mk.UserID.Bytes(),
-			SessionId: mk.ID.SessionID.Bytes(),
+			UserId:    mk.UserID,
+			SessionId: mk.ID.SessionID,
 			Handle:    mp.Meta.Handle,
 		}
 
@@ -155,14 +154,13 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 }
 
 func (p *pipeline) matchmakeRemove(logger *zap.Logger, session session, envelope *Envelope) {
-	ticketBytes := envelope.GetMatchmakeRemove().Ticket
-	ticket, err := uuid.FromBytes(ticketBytes)
-	if err != nil {
+	ticket := envelope.GetMatchmakeRemove().Ticket
+	if ticket == "" {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Invalid ticket"), true)
 		return
 	}
 
-	err = p.matchmaker.Remove(session.ID(), session.UserID(), ticket)
+	err := p.matchmaker.Remove(session.ID(), session.UserID(), ticket)
 	if err != nil {
 		session.Send(ErrorMessageBadInput(envelope.CollationId, "Ticket not found, matchmaking may already be done"), true)
 		return

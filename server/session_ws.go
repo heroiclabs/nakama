@@ -22,7 +22,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
-	"github.com/satori/go.uuid"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -32,8 +31,8 @@ type wsSession struct {
 	sync.Mutex
 	logger           *zap.Logger
 	config           Config
-	id               uuid.UUID
-	userID           uuid.UUID
+	id               string
+	userID           string
 	handle           *atomic.String
 	lang             string
 	expiry           int64
@@ -45,9 +44,9 @@ type wsSession struct {
 }
 
 // NewWSSession creates a new session which encapsulates a WebSocket connection.
-func NewWSSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, expiry int64, websocketConn *websocket.Conn, unregister func(s session)) session {
-	sessionID := uuid.NewV4()
-	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
+func NewWSSession(logger *zap.Logger, config Config, userID string, handle string, lang string, expiry int64, websocketConn *websocket.Conn, unregister func(s session)) session {
+	sessionID := generateNewId()
+	sessionLogger := logger.With(zap.String("uid", userID), zap.String("sid", sessionID))
 
 	sessionLogger.Debug("New WS session connected")
 
@@ -71,11 +70,11 @@ func (s *wsSession) Logger() *zap.Logger {
 	return s.logger
 }
 
-func (s *wsSession) ID() uuid.UUID {
+func (s *wsSession) ID() string {
 	return s.id
 }
 
-func (s *wsSession) UserID() uuid.UUID {
+func (s *wsSession) UserID() string {
 	return s.userID
 }
 

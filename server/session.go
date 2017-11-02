@@ -14,16 +14,12 @@
 
 package server
 
-import (
-	"github.com/satori/go.uuid"
-
-	"go.uber.org/zap"
-)
+import "go.uber.org/zap"
 
 type session interface {
 	Logger() *zap.Logger
-	ID() uuid.UUID
-	UserID() uuid.UUID
+	ID() string
+	UserID() string
 
 	Handle() string
 	SetHandle(string)

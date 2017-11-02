@@ -24,7 +24,7 @@ import (
 )
 
 type SelfUpdateOp struct {
-	UserId    []byte
+	UserId    string
 	Handle    string
 	Fullname  string
 	Timezone  string
@@ -95,7 +95,7 @@ func SelfUpdate(logger *zap.Logger, db *sql.DB, updates []*SelfUpdateOp) (Error_
 			params = append(params, update.Lang)
 			index++
 		}
-		if update.Metadata != nil {
+		if len(update.Metadata) != 0 {
 			// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 			var maybeJSON map[string]interface{}
 			if json.Unmarshal(update.Metadata, &maybeJSON) != nil {

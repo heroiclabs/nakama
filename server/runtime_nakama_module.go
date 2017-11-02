@@ -56,11 +56,14 @@ type NakamaModule struct {
 	db                  *sql.DB
 	notificationService *NotificationService
 	cbufferPool         *CbufferPool
-	logRegistrations    bool
+	announceHTTP        func(string)
+	announceRPC         func(string)
+	announceBefore      func(string)
+	announceAfter       func(string)
 	client              *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, cbufferPool *CbufferPool, logRegistrations bool) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, cbufferPool *CbufferPool, announceHTTP func(string), announceRPC func(string), announceBefore func(string), announceAfter func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -72,7 +75,10 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 		db:                  db,
 		notificationService: notificationService,
 		cbufferPool:         cbufferPool,
-		logRegistrations:    logRegistrations,
+		announceHTTP:        announceHTTP,
+		announceRPC:         announceRPC,
+		announceBefore:      announceBefore,
+		announceAfter:       announceAfter,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -491,8 +497,8 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.RPC[id] = fn
-	if n.logRegistrations {
-		n.logger.Info("Registered RPC function invocation", zap.String("id", id))
+	if n.announceRPC != nil {
+		n.announceRPC(id)
 	}
 	return 0
 }
@@ -523,8 +529,8 @@ func (n *NakamaModule) registerBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.Before[messageName] = fn
-	if n.logRegistrations {
-		n.logger.Info("Registered Before function invocation", zap.String("message", messageName))
+	if n.announceBefore != nil {
+		n.announceBefore(messageName)
 	}
 	return 0
 }
@@ -555,8 +561,8 @@ func (n *NakamaModule) registerAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.After[messageName] = fn
-	if n.logRegistrations {
-		n.logger.Info("Registered After function invocation", zap.String("message", messageName))
+	if n.announceAfter != nil {
+		n.announceAfter(messageName)
 	}
 	return 0
 }
@@ -579,8 +585,8 @@ func (n *NakamaModule) registerHTTP(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.HTTP[path] = fn
-	if n.logRegistrations {
-		n.logger.Info("Registered HTTP function invocation", zap.String("path", path))
+	if n.announceHTTP != nil {
+		n.announceHTTP(path)
 	}
 	return 0
 }
@@ -593,22 +599,17 @@ func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 		return 0
 	}
 
-	userIdBytes := make([][]byte, 0)
+	userIdStrings := make([]string, 0)
 	for _, id := range userIds {
-		if ids, ok := id.(string); !ok {
+		if ids, ok := id.(string); !ok || ids == "" {
 			l.ArgError(1, "each user id must be a string")
 			return 0
 		} else {
-			if uid, err := uuid.FromString(ids); err != nil {
-				l.ArgError(1, "invalid user id")
-				return 0
-			} else {
-				userIdBytes = append(userIdBytes, uid.Bytes())
-			}
+			userIdStrings = append(userIdStrings, ids)
 		}
 	}
 
-	users, err := UsersFetchIds(n.logger, n.db, userIdBytes)
+	users, err := UsersFetchIds(n.logger, n.db, userIdStrings)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
 		return 0
@@ -617,13 +618,10 @@ func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
-		// Convert UUIDs to string representation.
-		uid, _ := uuid.FromBytes(u.Id)
-		u.Id = []byte(uid.String())
 		um := structs.Map(u)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(u.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -665,13 +663,10 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
-		// Convert UUIDs to string representation.
-		uid, _ := uuid.FromBytes(u.Id)
-		u.Id = []byte(uid.String())
 		um := structs.Map(u)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(u.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -711,11 +706,11 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 					conversionError = "expects valid user IDs in each update"
 					return
 				}
-				if uid, err := uuid.FromString(v.String()); err != nil {
+				if uid := v.String(); uid == "" {
 					conversionError = "expects valid user IDs in each update"
 					return
 				} else {
-					update.UserId = uid.Bytes()
+					update.UserId = uid
 				}
 			case "Handle":
 				if v.Type() != lua.LTString {
@@ -809,19 +804,16 @@ func (n *NakamaModule) usersBan(l *lua.LState) int {
 		return 0
 	}
 
-	ids := make([][]byte, 0)
+	ids := make([]string, 0)
 	handles := make([]string, 0)
 	for _, d := range usersRaw {
 		if m, ok := d.(string); !ok {
 			l.ArgError(1, "expects a valid set of user IDs or handles")
 			return 0
 		} else {
-			uid, err := uuid.FromString(m)
-			if err == nil {
-				ids = append(ids, uid.Bytes())
-			} else {
-				handles = append(handles, m) // assume that they've passed in a handle
-			}
+			// Ban as both ID and handle.
+			ids = append(ids, m)
+			handles = append(handles, m)
 		}
 	}
 
@@ -833,29 +825,13 @@ func (n *NakamaModule) usersBan(l *lua.LState) int {
 }
 
 func (n *NakamaModule) storageList(l *lua.LState) int {
-	var userID []byte
-	if us := l.OptString(1, ""); us != "" {
-		if uid, err := uuid.FromString(us); err != nil {
-			l.ArgError(1, "expects a valid user ID or nil")
-			return 0
-		} else {
-			userID = uid.Bytes()
-		}
-	}
+	userID := l.OptString(1, "")
 	bucket := l.OptString(2, "")
 	collection := l.OptString(3, "")
 	limit := l.CheckInt64(4)
-	var cursor []byte
-	if cs := l.OptString(5, ""); cs != "" {
-		cb, err := base64.StdEncoding.DecodeString(cs)
-		if err != nil {
-			l.ArgError(5, "cursor is invalid")
-			return 0
-		}
-		cursor = cb
-	}
+	cursor := l.OptString(5, "")
 
-	values, newCursor, _, err := StorageList(n.logger, n.db, uuid.Nil, userID, bucket, collection, limit, cursor)
+	values, newCursor, _, err := StorageList(n.logger, n.db, "", userID, bucket, collection, limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list storage: %s", err.Error()))
 		return 0
@@ -864,11 +840,6 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, v := range values {
-		// Convert UUIDs to string representation if needed.
-		if len(v.UserId) != 0 {
-			uid, _ := uuid.FromBytes(v.UserId)
-			v.UserId = []byte(uid.String())
-		}
 		vm := structs.Map(v)
 
 		valueMap := make(map[string]interface{})
@@ -885,9 +856,8 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 	l.Push(lv)
 
 	// Convert and push the new cursor, if any.
-	if len(newCursor) != 0 {
-		newCursorString := base64.StdEncoding.EncodeToString(newCursor)
-		l.Push(lua.LString(newCursorString))
+	if newCursor != "" {
+		l.Push(lua.LString(newCursor))
 	} else {
 		l.Push(lua.LNil)
 	}
@@ -955,18 +925,13 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 				record = rs
 			}
 		}
-		var userID []byte
+		var userID string
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "expects valid user IDs in each key, when provided")
 				return 0
 			} else {
-				if uid, err := uuid.FromString(us); err != nil {
-					l.ArgError(1, "expects valid user IDs in each key, when provided")
-					return 0
-				} else {
-					userID = uid.Bytes()
-				}
+				userID = us
 			}
 		}
 
@@ -979,7 +944,7 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 		idx++
 	}
 
-	values, _, err := StorageFetch(n.logger, n.db, uuid.Nil, keys)
+	values, _, err := StorageFetch(n.logger, n.db, "", keys)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to fetch storage: %s", err.Error()))
 		return 0
@@ -987,11 +952,6 @@ func (n *NakamaModule) storageFetch(l *lua.LState) int {
 
 	lv := l.NewTable()
 	for i, v := range values {
-		// Convert UUIDs to string representation if needed.
-		if len(v.UserId) != 0 {
-			uid, _ := uuid.FromBytes(v.UserId)
-			v.UserId = []byte(uid.String())
-		}
 		vm := structs.Map(v)
 
 		valueMap := make(map[string]interface{})
@@ -1087,27 +1047,22 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 				value = dataJson
 			}
 		}
-		var userID []byte
+		var userID string
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "expects valid user IDs in each value, when provided")
 				return 0
 			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(1, "expects valid user IDs in each value, when provided")
-					return 0
-				}
-				userID = uid.Bytes()
+				userID = us
 			}
 		}
-		var version []byte
+		var version string
 		if v, ok := k["Version"]; ok {
 			if vs, ok := v.(string); !ok {
 				l.ArgError(1, "version must be a string")
 				return 0
 			} else {
-				version = []byte(vs)
+				version = vs
 			}
 		}
 		readPermission := int64(1)
@@ -1142,7 +1097,7 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		idx++
 	}
 
-	keys, _, err := StorageWrite(n.logger, n.db, uuid.Nil, data)
+	keys, _, err := StorageWrite(n.logger, n.db, "", data)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage: %s", err.Error()))
 		return 0
@@ -1207,18 +1162,13 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					conversionError = "expects valid user IDs in each update"
 					return
 				}
-				if uid, err := uuid.FromString(v.String()); err != nil {
-					conversionError = "expects valid user IDs in each update"
-					return
-				} else {
-					update.Key.UserId = uid.Bytes()
-				}
+				update.Key.UserId = v.String()
 			case "Version":
 				if v.Type() != lua.LTString {
 					conversionError = "expects valid versions in each update"
 					return
 				}
-				update.Key.Version = []byte(v.String())
+				update.Key.Version = v.String()
 			case "PermissionRead":
 				if v.Type() != lua.LTNumber {
 					conversionError = "expects valid read permissions in each update"
@@ -1296,7 +1246,7 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	keys, _, err := StorageUpdate(n.logger, n.db, uuid.Nil, updates)
+	keys, _, err := StorageUpdate(n.logger, n.db, "", updates)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update storage: %s", err.Error()))
 		return 0
@@ -1372,27 +1322,22 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 				record = rs
 			}
 		}
-		var userID []byte
+		var userID string
 		if u, ok := k["UserId"]; ok {
 			if us, ok := u.(string); !ok {
 				l.ArgError(1, "expects valid user IDs in each key, when provided")
 				return 0
 			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(1, "expects valid user IDs in each key, when provided")
-					return 0
-				}
-				userID = uid.Bytes()
+				userID = us
 			}
 		}
-		var version []byte
+		var version string
 		if v, ok := k["Version"]; ok {
 			if vs, ok := v.(string); !ok {
 				l.ArgError(1, "version must be a string")
 				return 0
 			} else {
-				version = []byte(vs)
+				version = vs
 			}
 		}
 		keys[idx] = &StorageKey{
@@ -1405,7 +1350,7 @@ func (n *NakamaModule) storageRemove(l *lua.LState) int {
 		idx++
 	}
 
-	if _, err := StorageRemove(n.logger, n.db, uuid.Nil, keys); err != nil {
+	if _, err := StorageRemove(n.logger, n.db, "", keys); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 	return 0
@@ -1430,7 +1375,7 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 		return 0
 	}
 
-	_, err = leaderboardCreate(n.logger, n.db, []byte(id), sort, reset, string(metadataBytes), authoritative)
+	_, err = leaderboardCreate(n.logger, n.db, id, sort, reset, string(metadataBytes), authoritative)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to create leaderboard: %s", err.Error()))
 	}
@@ -1454,18 +1399,16 @@ func (n *NakamaModule) leaderboardSubmitBest(l *lua.LState) int {
 func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 	leaderboardID := l.CheckString(1)
 	value := l.CheckInt64(2)
-	oId := l.CheckString(3)
+	ownerID := l.CheckString(3)
+	if ownerID == "" {
+		l.ArgError(3, "invalid owner id")
+		return 0
+	}
 	handle := l.OptString(4, "")
 	lang := l.OptString(5, "")
 	location := l.OptString(6, "")
 	timezone := l.OptString(7, "")
 	metadata := l.OptTable(8, l.NewTable())
-
-	ownerID, err := uuid.FromString(oId)
-	if err != nil {
-		l.ArgError(1, "invalid owner id")
-		return 0
-	}
 
 	metadataMap := ConvertLuaTable(metadata)
 	metadataBytes, err := json.Marshal(metadataMap)
@@ -1474,18 +1417,16 @@ func (n *NakamaModule) leaderboardSubmit(l *lua.LState, op string) int {
 		return 0
 	}
 
-	record, _, err := leaderboardSubmit(n.logger, n.db, uuid.Nil, []byte(leaderboardID), ownerID, handle, lang, op, value, location, timezone, metadataBytes)
+	record, _, err := leaderboardSubmit(n.logger, n.db, "", leaderboardID, ownerID, handle, lang, op, value, location, timezone, metadataBytes)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to submit leaderboard record: %s", err.Error()))
 		return 0
 	}
 
-	oid, _ := uuid.FromBytes(record.OwnerId)
-	record.OwnerId = []byte(oid.String())
 	rm := structs.Map(record)
 
 	outgoingMetadataMap := make(map[string]interface{})
-	err = json.Unmarshal(record.Metadata, &outgoingMetadataMap)
+	err = json.Unmarshal([]byte(record.Metadata), &outgoingMetadataMap)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to convert leaderboard record metadata to json: %s", err.Error()))
 		return 0
@@ -1504,32 +1445,27 @@ func (n *NakamaModule) leaderboardRecordsListUser(l *lua.LState) int {
 		l.ArgError(1, "expects a valid leaderboard id")
 		return 0
 	}
-	user := l.CheckString(2)
-	if user == "" {
-		l.ArgError(1, "expects a valid user ID")
-		return 0
-	}
-	userID, err := uuid.FromString(user)
-	if err != nil {
-		l.ArgError(1, "expects a valid user ID")
+	userID := l.CheckString(2)
+	if userID == "" {
+		l.ArgError(2, "expects a valid user ID")
 		return 0
 	}
 	limit := l.CheckInt64(3)
 	if limit == 0 {
-		l.ArgError(2, "expects a valid limit 10-100")
+		l.ArgError(3, "expects a valid limit 10-100")
 		return 0
 	}
 
 	// Construct the operation.
 	list := &TLeaderboardRecordsList{
-		LeaderboardId: []byte(leaderboardID),
+		LeaderboardId: leaderboardID,
 		Filter: &TLeaderboardRecordsList_OwnerId{
-			OwnerId: userID.Bytes(),
+			OwnerId: userID,
 		},
 		Limit: limit,
 	}
 
-	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, uuid.Nil, list)
+	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, "", list)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list leadeboard records: %s", err.Error()))
 		return 0
@@ -1538,13 +1474,10 @@ func (n *NakamaModule) leaderboardRecordsListUser(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, r := range records {
-		// Convert UUIDs to string representation.
-		uid, _ := uuid.FromBytes(r.OwnerId)
-		r.OwnerId = []byte(uid.String())
 		rm := structs.Map(r)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(r.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(r.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -1556,10 +1489,10 @@ func (n *NakamaModule) leaderboardRecordsListUser(l *lua.LState) int {
 	}
 	l.Push(lv)
 
-	if newCursor == nil {
-		l.Push(lua.LNil)
-	} else {
+	if newCursor != "" {
 		l.Push(lua.LString(newCursor))
+	} else {
+		l.Push(lua.LNil)
 	}
 
 	return 2
@@ -1585,16 +1518,16 @@ func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
 
 	// Construct the operation.
 	list := &TLeaderboardRecordsList{
-		LeaderboardId: []byte(leaderboardID),
+		LeaderboardId: leaderboardID,
 		Filter: &TLeaderboardRecordsList_OwnerIds{
 			OwnerIds: &TLeaderboardRecordsList_Owners{
-				OwnerIds: make([][]byte, 0),
+				OwnerIds: make([]string, 0),
 			},
 		},
 		Limit: limit,
 	}
 	if cursor != "" {
-		list.Cursor = []byte(cursor)
+		list.Cursor = cursor
 	}
 
 	conversionError := ""
@@ -1603,13 +1536,12 @@ func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
 			conversionError = "expects user ids to be strings"
 			return
 		}
-
-		u, err := uuid.FromString(v.String())
-		if err != nil {
+		u := v.String()
+		if u == "" {
 			conversionError = "expects user ids to be valid"
 			return
 		}
-		list.GetOwnerIds().OwnerIds = append(list.GetOwnerIds().OwnerIds, u.Bytes())
+		list.GetOwnerIds().OwnerIds = append(list.GetOwnerIds().OwnerIds, u)
 	})
 
 	if conversionError != "" {
@@ -1617,7 +1549,7 @@ func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
 		return 0
 	}
 
-	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, uuid.Nil, list)
+	records, newCursor, _, err := leaderboardRecordsList(n.logger, n.db, "", list)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list leadeboard records: %s", err.Error()))
 		return 0
@@ -1626,13 +1558,10 @@ func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, r := range records {
-		// Convert UUIDs to string representation.
-		uid, _ := uuid.FromBytes(r.OwnerId)
-		r.OwnerId = []byte(uid.String())
 		rm := structs.Map(r)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(r.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(r.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -1644,10 +1573,10 @@ func (n *NakamaModule) leaderboardRecordsListUsers(l *lua.LState) int {
 	}
 	l.Push(lv)
 
-	if newCursor == nil {
-		l.Push(lua.LNil)
-	} else {
+	if newCursor != "" {
 		l.Push(lua.LString(newCursor))
+	} else {
+		l.Push(lua.LNil)
 	}
 
 	return 2
@@ -1732,8 +1661,8 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 					return
 				}
 
-				u, err := uuid.FromString(v.String())
-				if err != nil {
+				u := v.String()
+				if u == "" {
 					conversionError = true
 					l.ArgError(1, "invalid CreatorId")
 					return
@@ -1774,13 +1703,10 @@ func (n *NakamaModule) groupsCreate(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
-		// Convert UUIDs to string representation.
-		gid, _ := uuid.FromBytes(g.Id)
-		g.Id = []byte(gid.String())
 		gm := structs.Map(g)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(g.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -1820,12 +1746,12 @@ func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
 					conversionError = "expects GroupId to be a string"
 					return
 				}
-				gid, err := uuid.FromString(v.String())
-				if err != nil {
+				gid := v.String()
+				if gid == "" {
 					conversionError = "expects GroupId to be a valid ID"
 					return
 				}
-				p.GroupId = gid.Bytes()
+				p.GroupId = gid
 			case "Name":
 				if v.Type() != lua.LTString {
 					conversionError = "expects Name to be a string"
@@ -1869,7 +1795,7 @@ func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
 					return
 				}
 
-				p.Metadata = metadataBytes
+				p.Metadata = string(metadataBytes)
 			default:
 				conversionError = fmt.Sprintf("unknown group field: %v", k.String())
 				return
@@ -1894,7 +1820,7 @@ func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	_, err := GroupsUpdate(n.logger, n.db, uuid.Nil, groupUpdates)
+	_, err := GroupsUpdate(n.logger, n.db, "", groupUpdates)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update groups: %s", err.Error()))
 	}
@@ -1903,18 +1829,13 @@ func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
 }
 
 func (n *NakamaModule) groupUsersList(l *lua.LState) int {
-	group := l.CheckString(1)
-	if group == "" {
-		l.ArgError(1, "expects a valid group ID")
-		return 0
-	}
-	groupID, err := uuid.FromString(group)
-	if err != nil {
+	groupID := l.CheckString(1)
+	if groupID == "" {
 		l.ArgError(1, "expects a valid group ID")
 		return 0
 	}
 
-	users, _, err := GroupUsersList(n.logger, n.db, uuid.Nil, groupID)
+	users, _, err := GroupUsersList(n.logger, n.db, "", groupID)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list group users: %s", err.Error()))
 		return 0
@@ -1923,13 +1844,10 @@ func (n *NakamaModule) groupUsersList(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, u := range users {
-		// Convert UUIDs to string representation.
-		uid, _ := uuid.FromBytes(u.User.Id)
-		u.User.Id = []byte(uid.String())
 		um := structs.Map(u)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(u.User.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(u.User.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -1946,18 +1864,13 @@ func (n *NakamaModule) groupUsersList(l *lua.LState) int {
 }
 
 func (n *NakamaModule) groupsUserList(l *lua.LState) int {
-	user := l.CheckString(1)
-	if user == "" {
-		l.ArgError(1, "expects a valid user ID")
-		return 0
-	}
-	userID, err := uuid.FromString(user)
-	if err != nil {
+	userID := l.CheckString(1)
+	if userID == "" {
 		l.ArgError(1, "expects a valid user ID")
 		return 0
 	}
 
-	groups, _, err := GroupsSelfList(n.logger, n.db, uuid.Nil, userID)
+	groups, _, err := GroupsSelfList(n.logger, n.db, "", userID)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list user groups: %s", err.Error()))
 		return 0
@@ -1966,13 +1879,10 @@ func (n *NakamaModule) groupsUserList(l *lua.LState) int {
 	// Convert and push the values.
 	lv := l.NewTable()
 	for i, g := range groups {
-		// Convert UUIDs to string representation.
-		gid, _ := uuid.FromBytes(g.Group.Id)
-		g.Group.Id = []byte(gid.String())
 		gm := structs.Map(g)
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal(g.Group.Metadata, &metadataMap)
+		err = json.Unmarshal([]byte(g.Group.Metadata), &metadataMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
 			return 0
@@ -2056,12 +1966,12 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 					l.ArgError(1, "expects UserId to be string")
 					return
 				}
-				u, err := uuid.FromString(v.String())
-				if err != nil {
+				u := v.String()
+				if u == "" {
 					l.ArgError(1, "expects UserId to be a valid UUID")
 					return
 				}
-				notification.UserID = u.Bytes()
+				notification.UserID = u
 			case "SenderId":
 				if v.Type() == lua.LTNil {
 					return
@@ -2071,12 +1981,12 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 					l.ArgError(1, "expects SenderId to be string")
 					return
 				}
-				u, err := uuid.FromString(v.String())
-				if err != nil {
+				u := v.String()
+				if u == "" {
 					l.ArgError(1, "expects SenderId to be a valid UUID")
 					return
 				}
-				notification.SenderID = u.Bytes()
+				notification.SenderID = u
 			}
 		})
 

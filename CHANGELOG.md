@@ -7,6 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - RUDP transport option for client connections.
 
+### Changed
+- Consistently Use strings for all ID types.
+- Improve runtime hook lookup behaviour.
+
 ### [1.1.0] - 2017-10-17
 ### Added
 - Advanced Matchmaking with custom filters and user properties.

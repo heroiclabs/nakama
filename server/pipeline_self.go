@@ -50,7 +50,7 @@ SELECT u.handle, u.fullname, u.avatar_url, u.lang, u.location, u.timezone, u.met
 FROM users u
 LEFT JOIN user_device ud ON u.id = ud.user_id
 WHERE u.id = $1`,
-		session.UserID().Bytes())
+		session.UserID())
 	if err != nil {
 		logger.Error("Could not lookup user profile", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not lookup user profile"), true)
@@ -80,14 +80,14 @@ WHERE u.id = $1`,
 
 	s := &Self{
 		User: &User{
-			Id:           session.UserID().Bytes(),
+			Id:           session.UserID(),
 			Handle:       handle.String,
 			Fullname:     fullname.String,
 			AvatarUrl:    avatarURL.String,
 			Lang:         lang.String,
 			Location:     location.String,
 			Timezone:     timezone.String,
-			Metadata:     metadata,
+			Metadata:     string(metadata),
 			CreatedAt:    createdAt.Int64,
 			UpdatedAt:    updatedAt.Int64,
 			LastOnlineAt: lastOnlineAt.Int64,
@@ -116,7 +116,7 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Env
 	if len(update.Metadata) != 0 {
 		// Make this `var js interface{}` if we want to allow top-level JSON arrays.
 		var maybeJSON map[string]interface{}
-		if json.Unmarshal(update.Metadata, &maybeJSON) != nil {
+		if json.Unmarshal([]byte(update.Metadata), &maybeJSON) != nil {
 			session.Send(ErrorMessageBadInput(envelope.CollationId, "Metadata must be a valid JSON object"), true)
 			return
 		}
@@ -124,13 +124,13 @@ func (p *pipeline) selfUpdate(logger *zap.Logger, session session, envelope *Env
 
 	// Run the update.
 	code, err := SelfUpdate(logger, p.db, []*SelfUpdateOp{&SelfUpdateOp{
-		UserId:    session.UserID().Bytes(),
+		UserId:    session.UserID(),
 		Handle:    update.Handle,
 		Fullname:  update.Fullname,
 		Timezone:  update.Timezone,
 		Location:  update.Location,
 		Lang:      update.Lang,
-		Metadata:  update.Metadata,
+		Metadata:  []byte(update.Metadata),
 		AvatarUrl: update.AvatarUrl,
 	}})
 	if err != nil {

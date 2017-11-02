@@ -24,7 +24,7 @@ func (p *pipeline) usersFetch(logger *zap.Logger, session session, envelope *Env
 		return
 	}
 
-	userIds := make([][]byte, 0)
+	userIds := make([]string, 0)
 	handles := make([]string, 0)
 
 	for _, u := range e.Users {

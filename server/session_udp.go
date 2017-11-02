@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/satori/go.uuid"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -32,8 +31,8 @@ type udpSession struct {
 	sync.Mutex
 	logger           *zap.Logger
 	config           Config
-	id               uuid.UUID
-	userID           uuid.UUID
+	id               string
+	userID           string
 	handle           *atomic.String
 	lang             string
 	expiry           int64
@@ -45,9 +44,9 @@ type udpSession struct {
 }
 
 // NewUDPSession creates a new session which encapsulates a UDP client instance.
-func NewUDPSession(logger *zap.Logger, config Config, userID uuid.UUID, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, unregister func(s session)) session {
-	sessionID := uuid.NewV4()
-	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
+func NewUDPSession(logger *zap.Logger, config Config, userID string, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, unregister func(s session)) session {
+	sessionID := generateNewId()
+	sessionLogger := logger.With(zap.String("uid", userID), zap.String("sid", sessionID))
 
 	sessionLogger.Debug("New UDP session connected")
 
@@ -71,11 +70,11 @@ func (s *udpSession) Logger() *zap.Logger {
 	return s.logger
 }
 
-func (s *udpSession) ID() uuid.UUID {
+func (s *udpSession) ID() string {
 	return s.id
 }
 
-func (s *udpSession) UserID() uuid.UUID {
+func (s *udpSession) UserID() string {
 	return s.userID
 }
 
