@@ -41,7 +41,7 @@ func TestGroupCreateMissingName(t *testing.T) {
 	defer db.Close()
 
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{{
-		Creator:     uuid.NewV4(),
+		Creator:     uuid.NewV4().String(),
 		Private:     true,
 		Lang:        "en",
 		Description: "desc",
@@ -78,7 +78,7 @@ func TestGroupCreate(t *testing.T) {
 
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{{
 		Name:        generateString(),
-		Creator:     uuid.NewV4(),
+		Creator:     uuid.NewV4().String(),
 		Private:     true,
 		Lang:        "en",
 		Description: "desc",
@@ -101,14 +101,14 @@ func TestGroupCreateMultipleSameName(t *testing.T) {
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{
 		{
 			Name:        name,
-			Creator:     uuid.NewV4(),
+			Creator:     uuid.NewV4().String(),
 			Private:     true,
 			Lang:        "en",
 			Description: "desc",
 		},
 		{
 			Name:        name,
-			Creator:     uuid.NewV4(),
+			Creator:     uuid.NewV4().String(),
 			Private:     true,
 			Lang:        "en",
 			Description: "desc",
@@ -129,7 +129,7 @@ func TestGroupCreateMultiple(t *testing.T) {
 	_, err = server.GroupsCreate(logger, db, []*server.GroupCreateParam{
 		{
 			Name:        generateString(),
-			Creator:     uuid.NewV4(),
+			Creator:     uuid.NewV4().String(),
 			Private:     true,
 			Lang:        "en",
 			Description: "desc",
@@ -137,7 +137,7 @@ func TestGroupCreateMultiple(t *testing.T) {
 		},
 		{
 			Name:        generateString(),
-			Creator:     uuid.NewV4(),
+			Creator:     uuid.NewV4().String(),
 			Private:     true,
 			Lang:        "en",
 			Description: "desc",

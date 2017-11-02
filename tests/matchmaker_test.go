@@ -29,19 +29,19 @@ func newMatchmaker() {
 	matchmaker = server.NewMatchmakerService("test_node")
 }
 
-func add(props map[string]interface{}, filters map[string]server.MatchmakerFilter) (uuid.UUID, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
+func add(props map[string]interface{}, filters map[string]server.MatchmakerFilter) (string, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
 	return addRequest(2, props, filters)
 }
 
-func addRequest(count int, props map[string]interface{}, filters map[string]server.MatchmakerFilter) (uuid.UUID, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
-	userID := uuid.NewV4()
+func addRequest(count int, props map[string]interface{}, filters map[string]server.MatchmakerFilter) (string, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
+	userID := uuid.NewV4().String()
 	profile := &server.MatchmakerProfile{
-		Meta:          server.PresenceMeta{userID.String()},
+		Meta:          server.PresenceMeta{userID},
 		RequiredCount: count,
 		Properties:    props,
 		Filters:       filters,
 	}
-	_, m, p := matchmaker.Add(uuid.NewV4(), userID, profile)
+	_, m, p := matchmaker.Add(uuid.NewV4().String(), userID, profile)
 	return userID, m, p
 }
 
@@ -98,7 +98,7 @@ func TestMatchmakeRange(t *testing.T) {
 	}
 
 	// make sure data is sorted
-	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID.String() == profile1id.String() })
+	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID == profile1id })
 
 	p := matchedCriteria[0].Properties
 	if p["rank"] != int64(10) {
@@ -139,7 +139,7 @@ func TestMatchmakeAnyTerms(t *testing.T) {
 	}
 
 	// make sure data is sorted
-	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID.String() == profile1id.String() })
+	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID == profile1id })
 
 	p := matchedCriteria[0].Properties
 	pt := p["modes"].([]string)
@@ -207,7 +207,7 @@ func TestMatchmakeAllTerms2(t *testing.T) {
 	}
 
 	// make sure data is sorted
-	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID.String() == profile1id.String() })
+	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID == profile1id })
 
 	p := matchedCriteria[0].Properties
 	pt := p["modes"].([]string)
@@ -425,9 +425,9 @@ func TestMatchmakeMultipleProfile(t *testing.T) {
 	}
 
 	// make sure data is sorted
-	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID.String() == profile1.String() })
+	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID == profile1 })
 
-	if matchedCriteria[1].UserID.String() == profile1.String() || matchedCriteria[0].UserID.String() == profile3.String() {
+	if matchedCriteria[1].UserID == profile1 || matchedCriteria[0].UserID == profile3 {
 		t.Fatal("Matchmaking did not matched expected result - wrong matches")
 	}
 
@@ -483,9 +483,9 @@ func TestMatchmakeMultiFilter(t *testing.T) {
 	}
 
 	// make sure data is sorted
-	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID.String() == profile1.String() })
+	sort.Slice(matchedCriteria, func(i, j int) bool { return matchedCriteria[i].UserID == profile1 })
 
-	if matchedCriteria[1].UserID.String() == profile1.String() || matchedCriteria[0].UserID.String() == profile2.String() {
+	if matchedCriteria[1].UserID == profile1 || matchedCriteria[0].UserID == profile2 {
 		t.Fatal("Matchmaking did not matched expected result - wrong matches")
 	}
 

@@ -18,22 +18,20 @@ import (
 	"nakama/server"
 	"testing"
 
-	"bytes"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 var (
-	notificationUserID  = uuid.NewV4()
-	notificationId      []byte
+	notificationUserID  = uuid.NewV4().String()
+	notificationId      string
 	notificationService *server.NotificationService
 )
 
 type fakeMessageRouter struct{}
 
-func (f *fakeMessageRouter) Send(logger *zap.Logger, ps []server.Presence, msg proto.Message) {
+func (f *fakeMessageRouter) Send(logger *zap.Logger, ps []server.Presence, msg proto.Message, reliable bool) {
 
 }
 
@@ -64,7 +62,7 @@ func TestNotificationService(t *testing.T) {
 func testNotificationServiceSend(t *testing.T) {
 	err := notificationService.NotificationSend([]*server.NNotification{
 		{
-			UserID:     notificationUserID.Bytes(),
+			UserID:     notificationUserID,
 			Persistent: true,
 			Content:    []byte("{\"key\":\"value\"}"),
 			Code:       101,
@@ -79,7 +77,7 @@ func testNotificationServiceSend(t *testing.T) {
 }
 
 func testNotificationServiceList(t *testing.T) {
-	notifications, cursor, err := notificationService.NotificationsList(notificationUserID, 10, nil)
+	notifications, cursor, err := notificationService.NotificationsList(notificationUserID, 10, "")
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -97,7 +95,7 @@ func testNotificationServiceList(t *testing.T) {
 
 	n := notifications[0]
 
-	if bytes.Compare(n.UserID, notificationUserID.Bytes()) != 0 {
+	if n.UserID != notificationUserID {
 		t.Error("notification user Id was not the same")
 		t.FailNow()
 	}
@@ -110,7 +108,7 @@ func testNotificationServiceList(t *testing.T) {
 }
 
 func testNotificationServiceRemove(t *testing.T) {
-	err := notificationService.NotificationsRemove(notificationUserID, [][]byte{notificationId})
+	err := notificationService.NotificationsRemove(notificationUserID, []string{notificationId})
 
 	if err != nil {
 		t.Error(err)
