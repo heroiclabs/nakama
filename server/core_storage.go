@@ -69,7 +69,7 @@ type StorageKeyUpdate struct {
 
 func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, bucket string, collection string, limit int64, cursor string) ([]*StorageData, string, Error_Code, error) {
 	// We list by at least User ID, or bucket as a list criteria.
-	if len(userID) == 0 && bucket == "" {
+	if userID == "" && bucket == "" {
 		return nil, "", BAD_INPUT, errors.New("Either a User ID or a bucket is required as an initial list criteria")
 	}
 	if bucket == "" && collection != "" {
@@ -98,7 +98,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, b
 
 	// Select the correct index. NOTE: should be removed when DB index selection is smarter.
 	index := ""
-	if len(userID) == 0 {
+	if userID == "" {
 		if collection == "" {
 			index = "deleted_at_bucket_read_collection_record_user_id_idx"
 		} else {
@@ -120,7 +120,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, b
 
 	// If cursor is present, give keyset clause priority over other parameters.
 	if incomingCursor != nil {
-		if len(userID) == 0 {
+		if userID == "" {
 			if collection == "" {
 				i := len(params)
 				query += fmt.Sprintf(" WHERE (deleted_at, bucket, read, collection, record, user_id) > (0, $%v, $%v, $%v, $%v, $%v) AND deleted_at+deleted_at = 0 AND bucket = $%v", i+1, i+2, i+3, i+4, i+5, i+6)
@@ -149,7 +149,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, b
 		// If no keyset, start all ranges with live records.
 		query += " WHERE deleted_at = 0"
 		// Apply filtering parameters as needed.
-		if len(userID) != 0 {
+		if userID != "" {
 			params = append(params, userID)
 			query += fmt.Sprintf(" AND user_id = $%v", len(params))
 		}
@@ -167,7 +167,7 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, b
 	if caller == "" {
 		// Script runtime can list all data regardless of read permission.
 		query += " AND read >= 0"
-	} else if len(userID) != 0 && caller == userID {
+	} else if userID != "" && caller == userID {
 		// If listing by user first, and the caller is the user listing their own data.
 		query += " AND read >= 1"
 	} else {
@@ -357,9 +357,11 @@ func StorageWrite(logger *zap.Logger, db *sql.DB, caller string, data []*Storage
 			return nil, BAD_INPUT, errors.New("Invalid write permission value")
 		}
 
-		if len(d.UserId) != 0 && caller != "" && caller != d.UserId {
-			// If the caller is a client, only allow them to write their own data.
-			return nil, BAD_INPUT, errors.New("A client can only write their own records")
+		if d.UserId != "" {
+			if caller != "" && caller != d.UserId {
+				// If the caller is a client, only allow them to write their own data.
+				return nil, BAD_INPUT, errors.New("A client can only write their own records")
+			}
 		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return nil, BAD_INPUT, errors.New("A client cannot write global records")
@@ -494,9 +496,11 @@ func StorageUpdate(logger *zap.Logger, db *sql.DB, caller string, updates []*Sto
 		}
 
 		// If a user ID is provided, validate the format.
-		if len(update.Key.UserId) != 0 && caller != "" && caller != update.Key.UserId {
-			// If the caller is a client, only allow them to write their own data.
-			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: A client can only write their own records", i))
+		if update.Key.UserId != "" {
+			if caller != "" && caller != update.Key.UserId {
+				// If the caller is a client, only allow them to write their own data.
+				return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: A client can only write their own records", i))
+			}
 		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return nil, BAD_INPUT, errors.New(fmt.Sprintf("Invalid update index %v: A client cannot write global records", i))
@@ -529,7 +533,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 
 		// Check if we need an immediate version compare.
 		// If-None-Match and there's an existing version OR If-Match and the existing version doesn't match.
-		if len(update.Key.Version) != 0 && (update.Key.Version == "*" && len(version) != 0) || (update.Key.Version != "*" && update.Key.Version != version) {
+		if update.Key.Version != "" && ((update.Key.Version == "*" && version != "") || (update.Key.Version != "*" && update.Key.Version != version)) {
 			if e := tx.Rollback(); e != nil {
 				logger.Error("Could not update storage, rollback error", zap.Error(e))
 			}
@@ -560,7 +564,7 @@ WHERE bucket = $1 AND collection = $2 AND user_id = $3 AND record = $4 AND delet
 INSERT INTO storage (id, user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, deleted_at)
 SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
 		params := []interface{}{generateNewId(), update.Key.UserId, update.Key.Bucket, update.Key.Collection, update.Key.Record, newValue, newVersion, update.PermissionRead, update.PermissionWrite, ts}
-		if len(version) == 0 {
+		if version == "" {
 			// Treat this as an if-none-match.
 			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
 		} else {
@@ -633,9 +637,11 @@ WHERE `
 		}
 
 		// If a user ID is provided, validate the format.
-		if len(key.UserId) != 0 && caller != "" && caller != key.UserId {
-			// If the caller is a client, only allow them to write their own data.
-			return BAD_INPUT, errors.New("A client can only remove their own records")
+		if key.UserId != "" {
+			if caller != "" && caller != key.UserId {
+				// If the caller is a client, only allow them to write their own data.
+				return BAD_INPUT, errors.New("A client can only remove their own records")
+			}
 		} else if caller != "" {
 			// If the caller is a client, do not allow them to write global data.
 			return BAD_INPUT, errors.New("A client cannot remove global records")
@@ -653,7 +659,7 @@ WHERE `
 			params = append(params, caller)
 		}
 		// Version.
-		if len(key.Version) != 0 {
+		if key.Version != "" {
 			query += fmt.Sprintf(" AND version = $%v", len(params)+1)
 			params = append(params, key.Version)
 		}

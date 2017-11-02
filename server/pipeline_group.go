@@ -283,7 +283,7 @@ func (p *pipeline) groupsFetch(logger *zap.Logger, session session, envelope *En
 		switch g.Id.(type) {
 		case *TGroupsFetch_GroupFetch_GroupId:
 			groupID := g.GetGroupId()
-			if groupID == "" {
+			if groupID != "" {
 				params = append(params, groupID)
 				statements = append(statements, "id = $"+strconv.Itoa(len(params)))
 			} else {
@@ -584,7 +584,7 @@ func (p *pipeline) groupJoin(l *zap.Logger, session session, envelope *Envelope)
 
 	res, err := tx.Exec(`
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
-VALUES ($1, $2, $2, $3, $4), ($3, $2, $2, $1, $4)`,
+VALUES ($1::BYTEA, $2, $2, $3::BYTEA, $4), ($3::BYTEA, $2, $2, $1::BYTEA, $4)`,
 		groupID, ts, session.UserID(), userState)
 
 	if err != nil {
