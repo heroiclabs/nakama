@@ -26,6 +26,7 @@ type PresenceID struct {
 
 type PresenceMeta struct {
 	Handle string
+	Format SessionFormat
 }
 
 type Presence struct {

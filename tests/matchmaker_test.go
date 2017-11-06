@@ -36,7 +36,7 @@ func add(props map[string]interface{}, filters map[string]server.MatchmakerFilte
 func addRequest(count int, props map[string]interface{}, filters map[string]server.MatchmakerFilter) (string, map[server.MatchmakerKey]*server.MatchmakerProfile, []*server.MatchmakerAcceptedProperty) {
 	userID := uuid.NewV4().String()
 	profile := &server.MatchmakerProfile{
-		Meta:          server.PresenceMeta{userID},
+		Meta:          server.PresenceMeta{Handle: userID, Format: server.SessionFormatProtobuf},
 		RequiredCount: count,
 		Properties:    props,
 		Filters:       filters,

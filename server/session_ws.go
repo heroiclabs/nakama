@@ -32,25 +32,25 @@ import (
 
 type wsSession struct {
 	sync.Mutex
-	logger           *zap.Logger
-	config           Config
-	id               string
-	userID           string
-	handle           *atomic.String
-	lang             string
-	format            sessionFormat
-	expiry           int64
-	stopped          bool
-	conn             *websocket.Conn
+	logger            *zap.Logger
+	config            Config
+	id                string
+	userID            string
+	handle            *atomic.String
+	lang              string
+	format            SessionFormat
+	expiry            int64
+	stopped           bool
+	conn              *websocket.Conn
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
-	pingTicker       *time.Ticker
-	pingTickerStopCh chan bool
-	unregister       func(s session)
+	pingTicker        *time.Ticker
+	pingTickerStopCh  chan bool
+	unregister        func(s session)
 }
 
 // NewWSSession creates a new session which encapsulates a WebSocket connection.
-func NewWSSession(logger *zap.Logger, config Config, userID string, handle string, lang string, format sessionFormat, expiry int64, websocketConn *websocket.Conn, jsonpbMarshaler *jsonpb.Marshaler,
+func NewWSSession(logger *zap.Logger, config Config, userID string, handle string, lang string, format SessionFormat, expiry int64, websocketConn *websocket.Conn, jsonpbMarshaler *jsonpb.Marshaler,
 	jsonpbUnmarshaler *jsonpb.Unmarshaler, unregister func(s session)) session {
 	sessionID := generateNewId()
 	sessionLogger := logger.With(zap.String("uid", userID), zap.String("sid", sessionID))
@@ -128,14 +128,14 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 
 		request := &Envelope{}
 		switch s.format {
-		case sessionJson:
+		case SessionFormatJson:
 			err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request)
 		default:
 			err = proto.Unmarshal(data, request)
 		}
 
 		if err != nil {
-			if s.format == sessionJson {
+			if s.format == SessionFormatJson {
 				s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
 			} else {
 				s.logger.Warn("Received malformed payload", zap.Any("data", data))
@@ -192,58 +192,50 @@ func (s *wsSession) pingNow() bool {
 	return true
 }
 
-func (s *wsSession) Send(envelope *Envelope, reliable bool) error {
-	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
-	return s.SendMessage(envelope, reliable)
+func (s *wsSession) Format() SessionFormat {
+	return s.format
 }
 
-func (s *wsSession) SendMessage(msg proto.Message, reliable bool) error {
+func (s *wsSession) Send(envelope *Envelope, reliable bool) error {
 	// NOTE: WebSocket sessions ignore the reliable flag and will always deliver messages reliably.
+	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
+
 	switch s.format {
-	case sessionJson:
-		payload, err := s.jsonpbMarshaler.MarshalToString(msg)
+	case SessionFormatJson:
+		payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
 		if err != nil {
 			s.logger.Warn("Could not marshall Response to json", zap.Error(err))
 			return err
 		}
-		return s.sendText(payload)
+		return s.SendBytes([]byte(payload), reliable)
 	default:
-		payload, err := proto.Marshal(msg)
+		payload, err := proto.Marshal(envelope)
 		if err != nil {
 			s.logger.Warn("Could not marshall Response to byte[]", zap.Error(err))
 			return err
 		}
-		return s.sendBytes(payload)
+		return s.SendBytes(payload, reliable)
 	}
 }
 
-func (s *wsSession) sendBytes(payload []byte) error {
+func (s *wsSession) SendBytes(payload []byte, reliable bool) error {
+	// NOTE: WebSocket sessions ignore the reliable flag and will always deliver messages reliably.
 	s.Lock()
 	defer s.Unlock()
 	if s.stopped {
 		return nil
 	}
 
+	var err error
 	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
-	err := s.conn.WriteMessage(websocket.BinaryMessage, payload)
+	switch s.format {
+	case SessionFormatJson:
+		err = s.conn.WriteMessage(websocket.TextMessage, payload)
+	default:
+		err = s.conn.WriteMessage(websocket.BinaryMessage, payload)
+	}
 	if err != nil {
 		s.logger.Warn("Could not write message", zap.Error(err))
-	}
-
-	return err
-}
-
-func (s *wsSession) sendText(payload string) error {
-	s.Lock()
-	defer s.Unlock()
-	if s.stopped {
-		return nil
-	}
-
-	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
-	err := s.conn.WriteMessage(websocket.TextMessage, []byte(payload))
-	if err != nil {
-		s.logger.Warn("Could not write text message", zap.Error(err))
 	}
 
 	return err

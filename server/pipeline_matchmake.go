@@ -54,7 +54,7 @@ func (p *pipeline) matchmakeAdd(logger *zap.Logger, session session, envelope *E
 	}
 
 	matchmakerProfile := &MatchmakerProfile{
-		Meta:          PresenceMeta{Handle: session.Handle()},
+		Meta:          PresenceMeta{Handle: session.Handle(), Format: session.Format()},
 		RequiredCount: int(requiredCount),
 		Properties:    properties,
 		Filters:       filters,

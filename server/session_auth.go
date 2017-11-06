@@ -87,7 +87,7 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtimePool *RuntimePool) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtimePool *RuntimePool) *authenticationService {
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
@@ -108,15 +108,8 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 			WriteBufferSize: 1024,
 			CheckOrigin:     func(r *http.Request) bool { return true },
 		},
-		jsonpbMarshaler: &jsonpb.Marshaler{
-			EnumsAsInts:  true,
-			EmitDefaults: false,
-			Indent:       "",
-			OrigName:     false,
-		},
-		jsonpbUnmarshaler: &jsonpb.Unmarshaler{
-			AllowUnknownFields: false,
-		},
+		jsonpbMarshaler:   jsonpbMarshaler,
+		jsonpbUnmarshaler: jsonpbUnmarshaler,
 	}
 
 	a.configure()
@@ -184,10 +177,10 @@ func (a *authenticationService) configure() {
 			lang = "en"
 		}
 
-		sformat := sessionProtobuf
+		sformat := SessionFormatProtobuf
 		format := r.URL.Query().Get("format")
 		if format == "json" {
-			sformat = sessionJson
+			sformat = SessionFormatJson
 		}
 
 		conn, err := a.upgrader.Upgrade(w, r, nil)

@@ -35,6 +35,7 @@ import (
 	"runtime"
 
 	"github.com/armon/go-metrics"
+	"github.com/gogo/protobuf/jsonpb"
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -85,11 +86,21 @@ func main() {
 	// Check migration status and log if the schema has diverged.
 	cmd.MigrationStartupCheck(multiLogger, db)
 
+	jsonpbMarshaler := &jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+		Indent:       "",
+		OrigName:     false,
+	}
+	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
+
 	trackerService := server.NewTrackerService(config.GetName())
 	statsService := server.NewStatsService(jsonLogger, config, semver, trackerService, startedAt)
 	matchmakerService := server.NewMatchmakerService(config.GetName())
 	sessionRegistry := server.NewSessionRegistry(jsonLogger, config, trackerService, matchmakerService)
-	messageRouter := server.NewMessageRouterService(sessionRegistry)
+	messageRouter := server.NewMessageRouterService(jsonpbMarshaler, sessionRegistry)
 	presenceNotifier := server.NewPresenceNotifier(jsonLogger, config.GetName(), trackerService, messageRouter)
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
 	notificationService := server.NewNotificationService(jsonLogger, db, trackerService, messageRouter, config.GetSocial().Notification)
@@ -102,7 +113,7 @@ func main() {
 	socialClient := social.NewClient(5 * time.Second)
 	purchaseService := server.NewPurchaseService(jsonLogger, multiLogger, db, config.GetPurchase())
 	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtimePool, purchaseService, notificationService)
-	authService := server.NewAuthenticationService(jsonLogger, config, db, statsService, sessionRegistry, socialClient, pipeline, runtimePool)
+	authService := server.NewAuthenticationService(jsonLogger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, statsService, sessionRegistry, socialClient, pipeline, runtimePool)
 	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1

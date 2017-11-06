@@ -15,6 +15,7 @@
 package server
 
 import (
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
 )
@@ -25,12 +26,14 @@ type MessageRouter interface {
 }
 
 type messageRouterService struct {
-	registry *SessionRegistry
+	jsonpbMarshaler *jsonpb.Marshaler
+	registry        *SessionRegistry
 }
 
-func NewMessageRouterService(registry *SessionRegistry) *messageRouterService {
+func NewMessageRouterService(jsonpbMarshaler *jsonpb.Marshaler, registry *SessionRegistry) *messageRouterService {
 	return &messageRouterService{
-		registry: registry,
+		jsonpbMarshaler: jsonpbMarshaler,
+		registry:        registry,
 	}
 }
 
@@ -39,15 +42,56 @@ func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto
 		return
 	}
 
+	// Group together target sessions by format.
+	jsonSessionIDs := make([]string, 0)
+	protobufSessionIDs := make([]string, 0)
 	for _, p := range ps {
-		session := m.registry.Get(p.ID.SessionID)
-		if session != nil {
-			err := session.SendMessage(msg, reliable)
-			if err != nil {
-				logger.Error("Failed to route to", zap.Any("p", p), zap.Error(err))
+		switch p.Meta.Format {
+		case SessionFormatJson:
+			jsonSessionIDs = append(jsonSessionIDs, p.ID.SessionID)
+		default:
+			protobufSessionIDs = append(protobufSessionIDs, p.ID.SessionID)
+		}
+	}
+
+	// Encode and route together for Protobuf format.
+	if len(protobufSessionIDs) != 0 {
+		payload, err := proto.Marshal(msg)
+		if err != nil {
+			logger.Error("Could not marshall message to byte[]", zap.Error(err))
+			return
+		}
+		for _, sessionID := range protobufSessionIDs {
+			session := m.registry.Get(sessionID)
+			if session == nil {
+				logger.Warn("No session to route to", zap.Any("sid", sessionID))
+				continue
 			}
-		} else {
-			logger.Warn("No session to route to", zap.Any("p", p))
+			err := session.SendBytes(payload, reliable)
+			if err != nil {
+				logger.Error("Failed to route to", zap.Any("sid", sessionID), zap.Error(err))
+			}
+		}
+	}
+
+	// Encode and route together for JSON format.
+	if len(jsonSessionIDs) != 0 {
+		payload, err := m.jsonpbMarshaler.MarshalToString(msg)
+		if err != nil {
+			logger.Error("Could not marshall message to json", zap.Error(err))
+			return
+		}
+		payloadBytes := []byte(payload)
+		for _, sessionID := range jsonSessionIDs {
+			session := m.registry.Get(sessionID)
+			if session == nil {
+				logger.Warn("No session to route to", zap.Any("sid", sessionID))
+				continue
+			}
+			err := session.SendBytes(payloadBytes, reliable)
+			if err != nil {
+				logger.Error("Failed to route to", zap.Any("sid", sessionID), zap.Error(err))
+			}
 		}
 	}
 }

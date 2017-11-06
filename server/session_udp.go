@@ -159,23 +159,23 @@ func (s *udpSession) pingNow() bool {
 	return true
 }
 
-func (s *udpSession) Send(envelope *Envelope, reliable bool) error {
-	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
-	return s.SendMessage(envelope, reliable)
+func (s *udpSession) Format() SessionFormat {
+	return SessionFormatProtobuf
 }
 
-func (s *udpSession) SendMessage(msg proto.Message, reliable bool) error {
-	payload, err := proto.Marshal(msg)
+func (s *udpSession) Send(envelope *Envelope, reliable bool) error {
+	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
 
+	payload, err := proto.Marshal(envelope)
 	if err != nil {
 		s.logger.Warn("Could not marshall Response to byte[]", zap.Error(err))
 		return err
 	}
 
-	return s.sendBytes(payload, reliable)
+	return s.SendBytes(payload, reliable)
 }
 
-func (s *udpSession) sendBytes(payload []byte, reliable bool) error {
+func (s *udpSession) SendBytes(payload []byte, reliable bool) error {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()

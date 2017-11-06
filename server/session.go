@@ -14,16 +14,13 @@
 
 package server
 
-import (
-	"github.com/gogo/protobuf/proto"
-	"go.uber.org/zap"
-)
+import "go.uber.org/zap"
 
-type sessionFormat int
+type SessionFormat int
 
 const (
-	sessionProtobuf sessionFormat = 0
-	sessionJson                   = 1
+	SessionFormatProtobuf SessionFormat = 0
+	SessionFormatJson                   = 1
 )
 
 type session interface {
@@ -38,8 +35,10 @@ type session interface {
 	Expiry() int64
 	Consume(func(logger *zap.Logger, session session, envelope *Envelope, reliable bool))
 	Unregister()
+
+	Format() SessionFormat
 	Send(envelope *Envelope, reliable bool) error
-	SendMessage(msg proto.Message, reliable bool) error
+	SendBytes(payload []byte, reliable bool) error
 
 	Close()
 }
