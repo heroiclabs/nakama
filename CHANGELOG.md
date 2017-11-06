@@ -3,13 +3,13 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2017-11-06
 ### Added
-- RUDP transport option for client connections.
-- Accept JSON payload over WebSocket connections.
+- New experimental rUDP socket protocol option for client connections.
+- Accept JSON payloads over WebSocket connections.
 
 ### Changed
-- Consistently use strings for all ID types.
+- Use string identifiers instead of byte arrays for compatibility across Lua, JSON, and client representations.
 - Improve runtime hook lookup behaviour.
 
 ### [1.1.0] - 2017-10-17
