@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [1.2.0] - 2017-11-06
 ### Added
 - New experimental rUDP socket protocol option for client connections.
