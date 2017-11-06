@@ -34,6 +34,7 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *En
 
 	p.tracker.Track(session.ID(), "match:"+matchID, session.UserID(), PresenceMeta{
 		Handle: handle,
+		Format: session.Format(),
 	})
 
 	self := &UserPresence{
@@ -123,6 +124,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *Enve
 
 	p.tracker.Track(session.ID(), topic, session.UserID(), PresenceMeta{
 		Handle: handle,
+		Format: session.Format(),
 	})
 
 	userPresences := make([]*UserPresence, len(ps)+1)

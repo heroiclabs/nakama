@@ -23,10 +23,11 @@ import (
 	"io/ioutil"
 	"nakama/pkg/flags"
 
+	"net"
+
 	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"net"
 )
 
 // Config interface is the Nakama Core configuration

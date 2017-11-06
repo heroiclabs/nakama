@@ -17,9 +17,11 @@ package server
 import (
 	"sync"
 
+	"nakama/pkg/multicode"
+
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"nakama/pkg/multicode"
 )
 
 // SessionRegistry maintains a list of sessions to their IDs. This is thread-safe.
@@ -67,14 +69,14 @@ func (a *SessionRegistry) Get(sessionID string) session {
 	return s
 }
 
-func (a *SessionRegistry) addWS(userID string, handle string, lang string, expiry int64, conn *websocket.Conn, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
-	s := NewWSSession(a.logger, a.config, userID, handle, lang, expiry, conn, a.remove)
+func (a *SessionRegistry) addWS(userID string, handle string, lang string, format SessionFormat, expiry int64, conn *websocket.Conn, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
+	s := NewWSSession(a.logger, a.config, userID, handle, lang, format, expiry, conn, jsonpbMarshaler, jsonpbUnmarshaler, a.remove)
 	a.Lock()
 	a.sessions[s.ID()] = s
 	a.Unlock()
 
 	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle})
+	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle, Format: s.Format()})
 
 	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)
@@ -87,7 +89,7 @@ func (a *SessionRegistry) addUDP(userID string, handle string, lang string, expi
 	a.Unlock()
 
 	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle})
+	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle, Format: s.Format()})
 
 	// Allow the server to begin processing incoming messages from this session.
 	s.Consume(processRequest)

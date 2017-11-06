@@ -137,6 +137,7 @@ func (p *pipeline) topicJoin(logger *zap.Logger, session session, envelope *Enve
 	// Track the presence, and gather current member list.
 	isNewPresence := p.tracker.Track(session.ID(), trackerTopic, session.UserID(), PresenceMeta{
 		Handle: handle,
+		Format: session.Format(),
 	})
 	presences := p.tracker.ListByTopic(trackerTopic)
 

@@ -16,6 +16,13 @@ package server
 
 import "go.uber.org/zap"
 
+type SessionFormat int
+
+const (
+	SessionFormatProtobuf SessionFormat = 0
+	SessionFormatJson                   = 1
+)
+
 type session interface {
 	Logger() *zap.Logger
 	ID() string
@@ -26,10 +33,10 @@ type session interface {
 
 	Lang() string
 	Expiry() int64
-
 	Consume(func(logger *zap.Logger, session session, envelope *Envelope, reliable bool))
 	Unregister()
 
+	Format() SessionFormat
 	Send(envelope *Envelope, reliable bool) error
 	SendBytes(payload []byte, reliable bool) error
 

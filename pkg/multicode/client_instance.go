@@ -34,11 +34,12 @@ package multicode
 import (
 	"errors"
 	"fmt"
-	"github.com/wirepair/netcode"
-	"go.uber.org/zap"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/wirepair/netcode"
+	"go.uber.org/zap"
 )
 
 const (

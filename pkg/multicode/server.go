@@ -32,12 +32,13 @@
 package multicode
 
 import (
-	"github.com/wirepair/netcode"
-	"go.uber.org/zap"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/wirepair/netcode"
+	"go.uber.org/zap"
 )
 
 // Not a true connection limit, only used to initialise/allocate various buffer and data structure sizes.

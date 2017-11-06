@@ -6,9 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 ### Added
 - RUDP transport option for client connections.
+- Accept JSON payload over WebSocket connections.
 
 ### Changed
-- Consistently Use strings for all ID types.
+- Consistently use strings for all ID types.
 - Improve runtime hook lookup behaviour.
 
 ### [1.1.0] - 2017-10-17

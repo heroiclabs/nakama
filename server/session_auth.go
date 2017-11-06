@@ -29,10 +29,13 @@ import (
 	"strings"
 	"time"
 
+	"nakama/pkg/httputil"
 	"nakama/pkg/multicode"
 	"nakama/pkg/social"
 
 	"encoding/base64"
+	"net"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -44,8 +47,6 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"nakama/pkg/httputil"
-	"net"
 )
 
 const (
@@ -86,7 +87,7 @@ type authenticationService struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService
-func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtimePool *RuntimePool) *authenticationService {
+func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, statService StatsService, registry *SessionRegistry, socialClient *social.Client, pipeline *pipeline, runtimePool *RuntimePool) *authenticationService {
 	a := &authenticationService{
 		logger:         logger,
 		config:         config,
@@ -107,15 +108,8 @@ func NewAuthenticationService(logger *zap.Logger, config Config, db *sql.DB, sta
 			WriteBufferSize: 1024,
 			CheckOrigin:     func(r *http.Request) bool { return true },
 		},
-		jsonpbMarshaler: &jsonpb.Marshaler{
-			EnumsAsInts:  true,
-			EmitDefaults: false,
-			Indent:       "",
-			OrigName:     false,
-		},
-		jsonpbUnmarshaler: &jsonpb.Unmarshaler{
-			AllowUnknownFields: false,
-		},
+		jsonpbMarshaler:   jsonpbMarshaler,
+		jsonpbUnmarshaler: jsonpbUnmarshaler,
 	}
 
 	a.configure()
@@ -183,6 +177,12 @@ func (a *authenticationService) configure() {
 			lang = "en"
 		}
 
+		sformat := SessionFormatProtobuf
+		format := r.URL.Query().Get("format")
+		if format == "json" {
+			sformat = SessionFormatJson
+		}
+
 		conn, err := a.upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			// http.Error is invoked automatically from within the Upgrade func
@@ -190,7 +190,7 @@ func (a *authenticationService) configure() {
 			return
 		}
 
-		a.registry.addWS(uid, handle, lang, exp, conn, a.pipeline.processRequest)
+		a.registry.addWS(uid, handle, lang, sformat, exp, conn, a.jsonpbMarshaler, a.jsonpbUnmarshaler, a.pipeline.processRequest)
 	}).Methods("GET", "OPTIONS")
 
 	a.mux.HandleFunc("/runtime/{path}", func(w http.ResponseWriter, r *http.Request) {
