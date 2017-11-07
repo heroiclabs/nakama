@@ -72,6 +72,7 @@ type authenticationService struct {
 	registry          *SessionRegistry
 	pipeline          *pipeline
 	runtimePool       *RuntimePool
+	httpServer        *http.Server
 	udpServer         *multicode.Server
 	mux               *mux.Router
 	hmacSecretByte    []byte
@@ -300,6 +301,13 @@ func (a *authenticationService) configure() {
 		w.Write(responseBytes)
 
 	}).Methods("POST", "OPTIONS")
+
+	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
+	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
+
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
+
+	a.httpServer = &http.Server{Addr: fmt.Sprintf(":%d", a.config.GetSocket().Port), Handler: handlerWithCORS}
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
@@ -311,11 +319,7 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 
 	// Start HTTP and WebSocket client listener.
 	go func() {
-		CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
-		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-
-		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", a.config.GetSocket().Port), handlerWithCORS); err != nil {
+		if err := a.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("WebSocket client listener failed", zap.Error(err))
 		}
 	}()
@@ -1190,9 +1194,20 @@ func (a *authenticationService) authenticateToken(tokenString string) (string, s
 }
 
 func (a *authenticationService) Stop() {
+	c := make(chan struct{})
 	a.udpServer.Stop()
-	// TODO stop incoming HTTP and WebSocket connections
+	go func() {
+		// Run this in parallel because it's a blocking call. It will:
+		// 1. Stop accepting new connections.
+		// 2. Wait until current connections are closed.
+		// 3. Return once registry shutdown (below) has closed current connections.
+		if err := a.httpServer.Shutdown(nil); err != nil {
+			a.logger.Error("WebSocket client listener shutdown failed", zap.Error(err))
+		}
+		close(c)
+	}()
 	a.registry.stop()
+	<-c
 }
 
 func now() time.Time {
