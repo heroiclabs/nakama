@@ -35,6 +35,7 @@ type dashboardService struct {
 	version             string
 	config              Config
 	statsService        StatsService
+	httpServer          *http.Server
 	mux                 *mux.Router
 	dashboardFilesystem http.FileSystem
 }
@@ -59,11 +60,15 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	service.mux.HandleFunc("/v0/info", service.infoHandler).Methods("GET")
 	service.mux.PathPrefix("/").Handler(http.FileServer(service.dashboardFilesystem)).Methods("GET") // Needs to be last.
 
+	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
+	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
+
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(service.mux)
+
+	service.httpServer = &http.Server{Addr: fmt.Sprintf(":%d", config.GetDashboard().Port), Handler: handlerWithCORS}
+
 	go func() {
-		bindAddr := fmt.Sprintf(":%d", config.GetDashboard().Port)
-		handlerWithCORS := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(service.mux)
-		err := http.ListenAndServe(bindAddr, handlerWithCORS)
-		if err != nil {
+		if err := service.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			multiLogger.Fatal("Dashboard listener failed", zap.Error(err))
 		}
 	}()
@@ -76,7 +81,11 @@ func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version st
 	return service
 }
 
-func (s *dashboardService) Stop() {}
+func (s *dashboardService) Stop() {
+	if err := s.httpServer.Shutdown(nil); err != nil {
+		s.logger.Error("Dashboard listener shutdown failed", zap.Error(err))
+	}
+}
 
 func (s *dashboardService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

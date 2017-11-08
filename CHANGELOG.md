@@ -7,6 +7,8 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Added
 - Improve graceful shutdown behaviour by ensuring the server stops accepting connections before halting other components.
 - Add User-Agent to the default list of accepted CORS request headers.
+- Improve how the dashboard component is stopped when server shuts down.
+- Improve dashboard CORS support by extending the list of allowed request headers.
 
 ## [1.2.0] - 2017-11-06
 ### Added
