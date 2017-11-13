@@ -9,6 +9,12 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Add User-Agent to the default list of accepted CORS request headers.
 - Improve how the dashboard component is stopped when server shuts down.
 - Improve dashboard CORS support by extending the list of allowed request headers.
+- Server startup output now contains database version string.
+- Migrate command output now contains database version string.
+- Doctor command output now contains database version string.
+
+### Changed
+- Internal operations exposed to the script runtime through function bindings now silently ignore unknown parameters.
 
 ## [1.2.0] - 2017-11-06
 ### Added

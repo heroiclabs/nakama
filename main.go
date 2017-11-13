@@ -81,7 +81,8 @@ func main() {
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 
-	db := dbConnect(multiLogger, config.GetDatabase().Addresses)
+	db, dbVersion := dbConnect(multiLogger, config.GetDatabase().Addresses)
+	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and log if the schema has diverged.
 	cmd.MigrationStartupCheck(multiLogger, db)
@@ -114,7 +115,7 @@ func main() {
 	purchaseService := server.NewPurchaseService(jsonLogger, multiLogger, db, config.GetPurchase())
 	pipeline := server.NewPipeline(config, db, trackerService, matchmakerService, messageRouter, sessionRegistry, socialClient, runtimePool, purchaseService, notificationService)
 	authService := server.NewAuthenticationService(jsonLogger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, statsService, sessionRegistry, socialClient, pipeline, runtimePool)
-	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, config, statsService)
+	dashboardService := server.NewDashboardService(jsonLogger, multiLogger, semver, dbVersion, config, statsService)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config.GetDataDir())
@@ -148,7 +149,7 @@ func main() {
 	select {}
 }
 
-func dbConnect(multiLogger *zap.Logger, dsns []string) *sql.DB {
+func dbConnect(multiLogger *zap.Logger, dsns []string) (*sql.DB, string) {
 	// TODO config database pooling
 	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", dsns[0])
 	url, err := url.Parse(rawurl)
@@ -169,7 +170,12 @@ func dbConnect(multiLogger *zap.Logger, dsns []string) *sql.DB {
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
 
-	return db
+	var dbVersion string
+	if err := db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
+		multiLogger.Fatal("Error querying database version", zap.Error(err))
+	}
+
+	return db, dbVersion
 }
 
 // Help improve Nakama by sending anonymous usage statistics.
