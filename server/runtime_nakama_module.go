@@ -762,9 +762,6 @@ func (n *NakamaModule) usersUpdate(l *lua.LState) int {
 					return
 				}
 				update.AvatarUrl = v.String()
-			default:
-				conversionError = "unrecognised update key, expects a valid set of user updates"
-				return
 			}
 		})
 
@@ -1222,9 +1219,6 @@ func (n *NakamaModule) storageUpdate(l *lua.LState) int {
 					return
 				}
 				update.Patch = patch
-			default:
-				conversionError = "unrecognised update key, expects a valid set of storage updates"
-				return
 			}
 		})
 
@@ -1796,9 +1790,6 @@ func (n *NakamaModule) groupsUpdate(l *lua.LState) int {
 				}
 
 				p.Metadata = string(metadataBytes)
-			default:
-				conversionError = fmt.Sprintf("unknown group field: %v", k.String())
-				return
 			}
 		})
 

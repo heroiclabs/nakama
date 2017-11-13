@@ -33,6 +33,7 @@ import (
 type dashboardService struct {
 	logger              *zap.Logger
 	version             string
+	dbVersion           string
 	config              Config
 	statsService        StatsService
 	httpServer          *http.Server
@@ -41,10 +42,11 @@ type dashboardService struct {
 }
 
 // NewDashboardService creates a new dashboardService
-func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version string, config Config, statsService StatsService) *dashboardService {
+func NewDashboardService(logger *zap.Logger, multiLogger *zap.Logger, version string, dbVersion string, config Config, statsService StatsService) *dashboardService {
 	service := &dashboardService{
 		logger:       logger,
 		version:      version,
+		dbVersion:    dbVersion,
 		config:       config,
 		statsService: statsService,
 		mux:          mux.NewRouter(),
@@ -106,11 +108,12 @@ func (s *dashboardService) infoHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	info := map[string]interface{}{
-		"version": s.version,
-		"go":      runtime.Version(),
-		"arch":    runtime.GOARCH,
-		"os":      runtime.GOOS,
-		"cpus":    runtime.NumCPU(),
+		"version":    s.version,
+		"db_version": s.dbVersion,
+		"go":         runtime.Version(),
+		"arch":       runtime.GOARCH,
+		"os":         runtime.GOOS,
+		"cpus":       runtime.NumCPU(),
 	}
 
 	infoBytes, _ := json.Marshal(info)

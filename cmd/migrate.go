@@ -126,6 +126,12 @@ func MigrateParse(args []string, logger *zap.Logger) {
 		logger.Fatal("Error pinging database", zap.Error(err))
 	}
 
+	var dbVersion string
+	if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
+		logger.Fatal("Error querying database version", zap.Error(err))
+	}
+	logger.Info("Database information", zap.String("version", dbVersion))
+
 	var exists bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbname).Scan(&exists)
 start:

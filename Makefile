@@ -146,8 +146,7 @@ dbsetup:
 	./${BUILDDIR}/dev/${BINNAME} migrate up
 
 .PHONY: dbreset
-dbreset:
-	./${BUILDDIR}/dev/${BINNAME} migrate down --limit 0
+dbreset: dbstop $(shell rm -rf /tmp/cockroach) dbstart
 
 .PHONY: dockerbuild
 dockerbuild:
