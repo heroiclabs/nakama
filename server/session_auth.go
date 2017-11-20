@@ -529,14 +529,42 @@ func (a *authenticationService) loginDevice(authReq *AuthenticateRequest) (strin
 	var userID string
 	var handle string
 	var disabledAt int64
-	err := a.db.QueryRow("SELECT u.id, u.handle, u.disabled_at FROM users u, user_device ud WHERE ud.id = $1 AND u.id = ud.user_id",
-		deviceID).
-		Scan(&userID, &handle, &disabledAt)
+
+	tx, err := a.db.Begin()
+	if err != nil {
+		a.logger.Error("Could not begin transaction in device login", zap.Error(err))
+		return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+	}
+	defer func() {
+		if err != nil {
+			if e := tx.Rollback(); e != nil {
+				a.logger.Error("Could not rollback transaction in device login", zap.Error(e))
+			}
+		} else {
+			if e := tx.Commit(); e != nil {
+				a.logger.Error("Could not commit transaction in device login", zap.Error(e))
+			}
+		}
+	}()
+
+	// Look up user ID by device.
+	err = tx.QueryRow("SELECT user_id FROM user_device WHERE id = $1", deviceID).Scan(&userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
 		} else {
-			a.logger.Warn(errorCouldNotLogin, zap.String("profile", "device"), zap.Error(err))
+			a.logger.Error("Could not look up user ID in device login", zap.Error(err))
+			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
+		}
+	}
+
+	// Look up user information by ID.
+	err = tx.QueryRow("SELECT handle, disabled_at FROM users WHERE id = $1", userID).Scan(&handle, &disabledAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", 0, errorIDNotFound, USER_NOT_FOUND
+		} else {
+			a.logger.Error("Could not look up user data in device login", zap.Error(err))
 			return "", "", 0, errorCouldNotLogin, RUNTIME_EXCEPTION
 		}
 	}

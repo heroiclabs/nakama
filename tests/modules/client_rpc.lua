@@ -27,3 +27,31 @@ local function fail(context, payload)
   error("fail")
 end
 nk.register_rpc(fail, "client_rpc_fail")
+
+-- Create a leaderboard and insert 15 test records.
+-- Expects as input {"leaderboard_id": "<...>"}
+local function generate_leaderboard(context, payload)
+  local leaderboard_id = nk.json_decode(payload)["leaderboard_id"]
+  nk.leaderboard_create(leaderboard_id, "desc")
+  for i = 1, 15 do
+    nk.leaderboard_submit_set(leaderboard_id, i, nk.uuid_v4())
+  end
+end
+nk.register_rpc(generate_leaderboard, "generate_leaderboard")
+
+-- Generate 15 notifications for the user calling.
+local function generate_notifications(context, payload)
+  local notifications = {}
+  for i = 1, 15 do
+    table.insert(notifications, {
+      Persistent = true,
+      UserId = context.UserId,
+      Subject = "test " .. i,
+      Content = {
+        test = i
+      }
+    })
+  end
+  nk.notifications_send_id(notifications)
+end
+nk.register_rpc(generate_notifications, "generate_notifications")

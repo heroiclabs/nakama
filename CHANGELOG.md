@@ -19,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Blocking users now works correctly when there was no prior friend relationship in place.
 - Correctly assign cursor data in paginated leaderboard records list queries.
+- Improve performance of user device login operations.
 
 ## [1.2.0] - 2017-11-06
 ### Added
