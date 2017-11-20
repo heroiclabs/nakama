@@ -16,6 +16,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 ### Changed
 - Internal operations exposed to the script runtime through function bindings now silently ignore unknown parameters.
 
+### Fixed
+- Blocking users now works correctly when there was no prior friend relationship in place.
+- Correctly assign cursor data in paginated leaderboard records list queries.
+
 ## [1.2.0] - 2017-11-06
 ### Added
 - New experimental rUDP socket protocol option for client connections.
