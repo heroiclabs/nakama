@@ -131,6 +131,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"group_users_list":               n.groupUsersList,
 		"groups_user_list":               n.groupsUserList,
 		"notifications_send_id":          n.notificationsSendId,
+		"event_publish":                  n.eventPublish,
 	})
 
 	l.Push(mod)
@@ -2004,5 +2005,9 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
+	return 0
+}
+
+func (n *NakamaModule) eventPublish(l *lua.LState) int {
 	return 0
 }

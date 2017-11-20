@@ -462,16 +462,39 @@ func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelop
 		}
 	}()
 
+	ts := nowMs()
+
+	// Try to update any previous edge between these users.
 	res, err := tx.Exec("UPDATE user_edge SET state = 3, updated_at = $3 WHERE source_id = $1 AND destination_id = $2",
-		session.UserID(), userID, nowMs())
+		session.UserID(), userID, ts)
 
 	if err != nil {
 		return
 	}
 
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		err = errors.New("Could not block user. User ID may not exist")
-		return
+		// If there was no previous edge then create one.
+		query := `INSERT INTO user_edge (source_id, destination_id, state, position, updated_at)
+SELECT source_id, destination_id, state, position, updated_at
+FROM (VALUES
+  ($1::BYTEA, $2::BYTEA, 3, $3::BIGINT, $3::BIGINT)
+) AS ue(source_id, destination_id, state, position, updated_at)
+WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)`
+		res, err = tx.Exec(query, session.UserID(), userID, ts)
+		if err != nil {
+			return
+		}
+
+		if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+			err = errors.New("Could not block user. User ID may not exist")
+			return
+		}
+
+		// Update the edge count.
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count + 1, updated_at = $2 WHERE source_id = $1", session.UserID(), ts)
+		if err != nil {
+			return
+		}
 	}
 
 	// Delete opposite relationship if user hasn't blocked you already
@@ -483,7 +506,7 @@ func (p *pipeline) friendBlock(l *zap.Logger, session session, envelope *Envelop
 	}
 
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 1 {
-		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", userID, nowMs())
+		_, err = tx.Exec("UPDATE user_edge_metadata SET count = count - 1, updated_at = $2 WHERE source_id = $1", userID, ts)
 	}
 }
 

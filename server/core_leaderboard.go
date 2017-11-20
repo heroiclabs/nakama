@@ -189,15 +189,15 @@ func leaderboardRecordsList(logger *zap.Logger, db *sql.DB, caller string, list 
 		count := len(params)
 		if sortOrder == 0 {
 			// Ascending leaderboard.
-			query += " AND (score, updated_at, id) > ($" + strconv.Itoa(count) +
-				", $" + strconv.Itoa(count+1) +
-				", $" + strconv.Itoa(count+2) + ")"
+			query += " AND (score, updated_at, id) > ($" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) +
+				", $" + strconv.Itoa(count+3) + ")"
 			params = append(params, incomingCursor.Score, incomingCursor.UpdatedAt, incomingCursor.Id)
 		} else {
 			// Descending leaderboard.
-			query += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count) +
-				", $" + strconv.Itoa(count+1) +
-				", $" + strconv.Itoa(count+2) + ")"
+			query += " AND (score, updated_at_inverse, id) < ($" + strconv.Itoa(count+1) +
+				", $" + strconv.Itoa(count+2) +
+				", $" + strconv.Itoa(count+3) + ")"
 			params = append(params, incomingCursor.Score, invertMs(incomingCursor.UpdatedAt), incomingCursor.Id)
 		}
 	}
