@@ -434,5 +434,5 @@ do
     print(result)
   end
   assert(not status)
-  assert(string.ends(result, 'sql query error: pq: table "' .. t .. '" does not exist'))
+  assert(string.ends(result, 'sql query error: pq: relation "' .. t .. '" does not exist'))
 end
