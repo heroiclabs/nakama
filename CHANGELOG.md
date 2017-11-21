@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
+
+## [1.3.0] - 2017-11-21
 ### Added
 - Improve graceful shutdown behaviour by ensuring the server stops accepting connections before halting other components.
 - Add User-Agent to the default list of accepted CORS request headers.

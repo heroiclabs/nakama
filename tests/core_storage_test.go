@@ -2624,9 +2624,9 @@ func TestStorageListRuntimeUser(t *testing.T) {
 	assert.Equal(t, 0, int(code), "code was not 0")
 	assert.NotNil(t, values, "values was nil")
 	assert.Len(t, values, 3, "values length was not 3")
-	assert.Equal(t, "c", values[0].Record, "values[0].Record was not c")
-	assert.Equal(t, "a", values[1].Record, "values[1].Record was not a")
-	assert.Equal(t, "b", values[2].Record, "values[2].Record was not b")
+	assert.Equal(t, "a", values[0].Record, "values[0].Record was not a")
+	assert.Equal(t, "b", values[1].Record, "values[1].Record was not b")
+	assert.Equal(t, "c", values[2].Record, "values[2].Record was not c")
 	assert.Equal(t, "", cursor, "cursor was not nil")
 }
 
