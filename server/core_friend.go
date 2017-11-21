@@ -109,7 +109,7 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
 
 	// An invite was successfully added if both components were inserted.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
-		err = errors.New("user ID not found or unavailable")
+		err = sql.ErrNoRows
 		return err
 	}
 

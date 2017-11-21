@@ -859,7 +859,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
     (SELECT id
      FROM user_device
-     WHERE id = $3)`,
+     WHERE id = $3::VARCHAR)`,
 		userID, handle, deviceID, updatedAt)
 
 	if err != nil {
@@ -914,7 +914,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE facebook_id = $3)`,
+ WHERE facebook_id = $3::VARCHAR)`,
 		userID, handle, fbProfile.ID, updatedAt)
 
 	if err != nil {
@@ -960,7 +960,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE google_id = $3)`,
+ WHERE google_id = $3::VARCHAR)`,
 		userID,
 		handle,
 		googleProfile.ID,
@@ -1007,7 +1007,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE gamecenter_id = $3)`,
+ WHERE gamecenter_id = $3::VARCHAR)`,
 		userID,
 		handle,
 		gc.PlayerId,
@@ -1061,7 +1061,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE steam_id = $3)`,
+ WHERE steam_id = $3::VARCHAR)`,
 		userID,
 		handle,
 		steamID,
@@ -1116,7 +1116,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE email = $3)`,
+ WHERE email = $3::VARCHAR)`,
 		userID,
 		handle,
 		cleanEmail,
@@ -1162,7 +1162,7 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
 (SELECT id
  FROM users
- WHERE custom_id = $3)`,
+ WHERE custom_id = $3::VARCHAR)`,
 		userID,
 		handle,
 		customID,

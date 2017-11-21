@@ -96,26 +96,8 @@ func StorageList(logger *zap.Logger, db *sql.DB, caller string, userID string, b
 		}
 	}
 
-	// Select the correct index. NOTE: should be removed when DB index selection is smarter.
-	index := ""
-	if userID == "" {
-		if collection == "" {
-			index = "deleted_at_bucket_read_collection_record_user_id_idx"
-		} else {
-			index = "deleted_at_bucket_collection_read_record_user_id_idx"
-		}
-	} else {
-		if bucket == "" {
-			index = "deleted_at_user_id_read_bucket_collection_record_idx"
-		} else if collection == "" {
-			index = "deleted_at_user_id_bucket_read_collection_record_idx"
-		} else {
-			index = "deleted_at_user_id_bucket_collection_read_record_idx"
-		}
-	}
-
 	// Set up the query.
-	query := "SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at FROM storage@" + index
+	query := "SELECT user_id, bucket, collection, record, value, version, read, write, created_at, updated_at, expires_at FROM storage"
 	params := make([]interface{}, 0)
 
 	// If cursor is present, give keyset clause priority over other parameters.
@@ -401,19 +383,19 @@ SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
 			// Simple write.
 			// If needed use an additional clause to enforce permissions.
 			if caller != "" {
-				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND write = 0)"
+				query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3::VARCHAR AND collection = $4::VARCHAR AND record = $5::VARCHAR AND deleted_at = 0 AND write = 0)"
 			}
 			query += `
 ON CONFLICT (bucket, collection, user_id, record, deleted_at)
 DO UPDATE SET value = $6::BYTEA, version = $7, read = $8, write = $9, updated_at = $10`
 		} else if d.Version == "*" {
 			// if-none-match
-			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
+			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3::VARCHAR AND collection = $4::VARCHAR AND record = $5::VARCHAR AND deleted_at = 0)"
 			// No additional clause needed to enforce permissions.
 			// Any existing record, no matter its write permission, will cause this operation to be rejected.
 		} else {
 			// if-match
-			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND version = $11"
+			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3::VARCHAR AND collection = $4::VARCHAR AND record = $5::VARCHAR AND deleted_at = 0 AND version = $11"
 			// If needed use an additional clause to enforce permissions.
 			if caller != "" {
 				query += " AND write = 1"
@@ -566,10 +548,10 @@ SELECT $1, $2, $3, $4, $5, $6::BYTEA, $7, $8, $9, $10, $10, 0`
 		params := []interface{}{generateNewId(), update.Key.UserId, update.Key.Bucket, update.Key.Collection, update.Key.Record, newValue, newVersion, update.PermissionRead, update.PermissionWrite, ts}
 		if version == "" {
 			// Treat this as an if-none-match.
-			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0)"
+			query += " WHERE NOT EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3::VARCHAR AND collection = $4::VARCHAR AND record = $5::VARCHAR AND deleted_at = 0)"
 		} else {
 			// if-match
-			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3 AND collection = $4 AND record = $5 AND deleted_at = 0 AND version = $11"
+			query += " WHERE EXISTS (SELECT record FROM storage WHERE user_id = $2 AND bucket = $3::VARCHAR AND collection = $4::VARCHAR AND record = $5::VARCHAR AND deleted_at = 0 AND version = $11"
 			// If needed use an additional clause to enforce permissions.
 			if caller != "" {
 				query += " AND write = 1"
