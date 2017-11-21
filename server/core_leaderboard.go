@@ -568,7 +568,7 @@ func leaderboardSubmit(logger *zap.Logger, db *sql.DB, caller string, leaderboar
 
 	query = `INSERT INTO leaderboard_record (id, leaderboard_id, owner_id, handle, lang, location, timezone,
 				rank_value, score, num_score, metadata, ranked_at, updated_at, updated_at_inverse, expires_at, banned_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'), $12, $13, $14, $15, $16)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, '{}'::BYTEA), $12, $13, $14, $15, $16)
 			ON CONFLICT (leaderboard_id, expires_at, owner_id)
 			DO UPDATE SET handle = $4, lang = $5, location = COALESCE($6, leaderboard_record.location),
 			  timezone = COALESCE($7, leaderboard_record.timezone), ` + scoreOpSql + `, num_score = leaderboard_record.num_score + 1,

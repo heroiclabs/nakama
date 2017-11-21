@@ -312,7 +312,9 @@ func (p *pipeline) friendAddById(l *zap.Logger, session session, envelope *Envel
 	}
 
 	if err := friendAdd(logger, p.db, p.notificationService, session.UserID(), session.Handle(), friendID); err != nil {
-		logger.Error("Could not add friend", zap.Error(err))
+		if err != sql.ErrNoRows {
+			logger.Error("Could not add friend", zap.Error(err))
+		}
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Failed to add friend"), true)
 		return
 	}

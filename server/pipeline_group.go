@@ -856,16 +856,16 @@ func (p *pipeline) groupUserAdd(l *zap.Logger, session session, envelope *Envelo
 INSERT INTO group_edge (source_id, position, updated_at, destination_id, state)
 SELECT data.id, data.position, data.updated_at, data.destination, data.state
 FROM (
-  SELECT $1::BYTEA AS id, $2::INT AS position, $2::INT AS updated_at, $3::BYTEA AS destination, 1 AS state
+  SELECT $1::BYTEA AS id, $2::BIGINT AS position, $2::BIGINT AS updated_at, $3::BYTEA AS destination, 1 AS state
   UNION ALL
-  SELECT $3::BYTEA AS id, $2::INT AS position, $2::INT AS updated_at, $1::BYTEA AS destination, 1 AS state
+  SELECT $3::BYTEA AS id, $2::BIGINT AS position, $2::BIGINT AS updated_at, $1::BYTEA AS destination, 1 AS state
 ) AS data
 WHERE
   EXISTS (SELECT source_id FROM group_edge WHERE source_id = $1::BYTEA AND destination_id = $4 AND state = 0)
 AND
   EXISTS (SELECT id FROM groups WHERE id = $1::BYTEA AND disabled_at = 0)
 ON CONFLICT (source_id, destination_id)
-DO UPDATE SET state = 1, updated_at = $2::INT`,
+DO UPDATE SET state = 1, updated_at = $2::BIGINT`,
 		groupID, ts, userID, session.UserID())
 
 	if err != nil {
