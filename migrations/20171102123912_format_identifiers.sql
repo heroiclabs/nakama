@@ -17,47 +17,63 @@
 -- +migrate Up
 ALTER TABLE IF EXISTS user_device DROP CONSTRAINT IF EXISTS fk_user_id_ref_users;
 
-UPDATE users SET id = from_uuid(id)::BYTEA;
-UPDATE user_device SET user_id = from_uuid(user_id)::BYTEA;
+UPDATE users SET id = from_uuid(id)::BYTEA WHERE length(id) = 16;
+UPDATE user_device SET user_id = from_uuid(user_id)::BYTEA WHERE length(user_id) = 16;
 
 ALTER TABLE IF EXISTS user_device ADD CONSTRAINT fk_user_id_ref_users FOREIGN KEY (user_id) REFERENCES users(id);
 
-UPDATE user_edge SET source_id = from_uuid(source_id)::BYTEA, destination_id = from_uuid(destination_id)::BYTEA;
-UPDATE user_edge_metadata SET source_id = from_uuid(source_id)::BYTEA;
+UPDATE user_edge SET source_id = from_uuid(source_id)::BYTEA WHERE length(source_id) = 16;
+UPDATE user_edge SET destination_id = from_uuid(destination_id)::BYTEA WHERE length(destination_id) = 16;
+UPDATE user_edge_metadata SET source_id = from_uuid(source_id)::BYTEA WHERE length(source_id) = 16;
 
-UPDATE groups SET id = from_uuid(id)::BYTEA, creator_id = from_uuid(creator_id)::BYTEA;
-UPDATE group_edge SET source_id = from_uuid(source_id)::BYTEA, destination_id = from_uuid(destination_id)::BYTEA;
+UPDATE groups SET id = from_uuid(id)::BYTEA WHERE length(id) = 16;
+UPDATE groups SET creator_id = from_uuid(creator_id)::BYTEA WHERE length(creator_id) = 16;
+UPDATE group_edge SET source_id = from_uuid(source_id)::BYTEA WHERE length(source_id) = 16;
+UPDATE group_edge SET destination_id = from_uuid(destination_id)::BYTEA WHERE length(destination_id) = 16;
 
-UPDATE message SET user_id = from_uuid(user_id)::BYTEA, message_id = from_uuid(message_id)::BYTEA;
+UPDATE message SET user_id = from_uuid(user_id)::BYTEA WHERE length(user_id) = 16;
+UPDATE message SET message_id = from_uuid(message_id)::BYTEA WHERE length(message_id) = 16;
 
-UPDATE storage SET id = from_uuid(id)::BYTEA, user_id = from_uuid(user_id)::BYTEA;
+UPDATE storage SET id = from_uuid(id)::BYTEA WHERE length(id) = 16;
+UPDATE storage SET user_id = from_uuid(user_id)::BYTEA WHERE length(user_id) = 16;
 
-UPDATE leaderboard_record SET id = from_uuid(id)::BYTEA, owner_id = from_uuid(owner_id)::BYTEA;
+UPDATE leaderboard_record SET id = from_uuid(id)::BYTEA WHERE length(id) = 16;
+UPDATE leaderboard_record SET owner_id = from_uuid(owner_id)::BYTEA WHERE length(owner_id) = 16;
 
-UPDATE purchase SET user_id = from_uuid(user_id)::BYTEA;
+UPDATE purchase SET user_id = from_uuid(user_id)::BYTEA WHERE length(user_id) = 16;
 
-UPDATE notification SET id = from_uuid(id)::BYTEA, user_id = from_uuid(user_id)::BYTEA, sender_id = from_uuid(sender_id)::BYTEA;
+UPDATE notification SET id = from_uuid(id)::BYTEA WHERE length(id) = 16;
+UPDATE notification SET user_id = from_uuid(user_id)::BYTEA WHERE length(user_id) = 16;
+UPDATE notification SET sender_id = from_uuid(sender_id)::BYTEA WHERE length(sender_id) = 16;
 
 -- +migrate Down
 ALTER TABLE IF EXISTS user_device DROP CONSTRAINT IF EXISTS fk_user_id_ref_users;
 
-UPDATE users SET id = to_uuid(id::VARCHAR)::BYTEA;
-UPDATE user_device SET user_id = to_uuid(user_id::VARCHAR)::BYTEA;
+UPDATE users SET id = to_uuid(id::VARCHAR)::BYTEA WHERE length(id) = 36;
+UPDATE user_device SET user_id = to_uuid(user_id::VARCHAR)::BYTEA WHERE length(user_id) = 36;
 
 ALTER TABLE IF EXISTS user_device ADD CONSTRAINT fk_user_id_ref_users FOREIGN KEY (user_id) REFERENCES users(id);
 
-UPDATE user_edge SET source_id = to_uuid(source_id::VARCHAR)::BYTEA, destination_id = to_uuid(destination_id::VARCHAR)::BYTEA;
-UPDATE user_edge_metadata SET source_id = to_uuid(source_id::VARCHAR)::BYTEA;
+UPDATE user_edge SET source_id = to_uuid(source_id::VARCHAR)::BYTEA WHERE length(source_id) = 36;
+UPDATE user_edge SET destination_id = to_uuid(destination_id::VARCHAR)::BYTEA WHERE length(destination_id) = 36;
+UPDATE user_edge_metadata SET source_id = to_uuid(source_id::VARCHAR)::BYTEA WHERE length(source_id) = 36;
 
-UPDATE groups SET id = to_uuid(id::VARCHAR)::BYTEA, creator_id = to_uuid(creator_id::VARCHAR)::BYTEA;
-UPDATE group_edge SET source_id = to_uuid(source_id::VARCHAR)::BYTEA, destination_id = to_uuid(destination_id::VARCHAR)::BYTEA;
+UPDATE groups SET id = to_uuid(id::VARCHAR)::BYTEA WHERE length(id) = 36;
+UPDATE groups SET creator_id = to_uuid(creator_id::VARCHAR)::BYTEA WHERE length(creator_id) = 36;
+UPDATE group_edge SET source_id = to_uuid(source_id::VARCHAR)::BYTEA WHERE length(source_id) = 36;
+UPDATE group_edge SET destination_id = to_uuid(destination_id::VARCHAR)::BYTEA WHERE length(destination_id) = 36;
 
-UPDATE message SET user_id = to_uuid(user_id::VARCHAR)::BYTEA, message_id = to_uuid(message_id::VARCHAR)::BYTEA;
+UPDATE message SET user_id = to_uuid(user_id::VARCHAR)::BYTEA WHERE length(user_id) = 36;
+UPDATE message SET message_id = to_uuid(message_id::VARCHAR)::BYTEA WHERE length(message_id) = 36;
 
-UPDATE storage SET id = to_uuid(id::VARCHAR)::BYTEA, user_id = to_uuid(user_id::VARCHAR)::BYTEA;
+UPDATE storage SET id = to_uuid(id::VARCHAR)::BYTEA WHERE length(id) = 36;
+UPDATE storage SET user_id = to_uuid(user_id::VARCHAR)::BYTEA WHERE length(user_id) = 36;
 
-UPDATE leaderboard_record SET id = to_uuid(id::VARCHAR)::BYTEA, owner_id = to_uuid(owner_id::VARCHAR)::BYTEA;
+UPDATE leaderboard_record SET id = to_uuid(id::VARCHAR)::BYTEA WHERE length(id) = 36;
+UPDATE leaderboard_record SET owner_id = to_uuid(owner_id::VARCHAR)::BYTEA WHERE length(owner_id) = 36;
 
-UPDATE purchase SET user_id = to_uuid(user_id::VARCHAR)::BYTEA;
+UPDATE purchase SET user_id = to_uuid(user_id::VARCHAR)::BYTEA WHERE length(user_id) = 36;
 
-UPDATE notification SET id = to_uuid(id::VARCHAR)::BYTEA, user_id = to_uuid(user_id::VARCHAR)::BYTEA, sender_id = to_uuid(sender_id::VARCHAR)::BYTEA;
+UPDATE notification SET id = to_uuid(id::VARCHAR)::BYTEA WHERE length(id) = 36;
+UPDATE notification SET user_id = to_uuid(user_id::VARCHAR)::BYTEA WHERE length(user_id) = 36;
+UPDATE notification SET sender_id = to_uuid(sender_id::VARCHAR)::BYTEA WHERE length(sender_id) = 36;
