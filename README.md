@@ -1,3 +1,7 @@
+[![Gitter](https://img.shields.io/gitter/room/heroiclabs/nakama.svg?style=for-the-badge)](https://gitter.io/heroiclabs/nakama)
+[![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg?style=for-the-badge)](https://heroiclabs.com/docs/nakama-download/)
+[![license](https://img.shields.io/github/license/heroiclabs/nakama.svg?style=for-the-badge)](#)
+
 ## Nakama
 
 > Distributed server for social and realtime games and apps.
