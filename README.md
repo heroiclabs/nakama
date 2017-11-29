@@ -1,4 +1,4 @@
-[![Gitter](https://img.shields.io/gitter/room/heroiclabs/nakama.svg?style=for-the-badge)](https://gitter.io/heroiclabs/nakama)
+[![Gitter](https://img.shields.io/gitter/room/heroiclabs/nakama.svg?style=for-the-badge)](https://gitter.im/heroiclabs/nakama)
 [![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg?style=for-the-badge)](https://heroiclabs.com/docs/nakama-download/)
 [![license](https://img.shields.io/github/license/heroiclabs/nakama.svg?style=for-the-badge)](#)
 
