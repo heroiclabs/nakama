@@ -3,13 +3,15 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.4.0] - 2017-12-16
 ### Changed
 - Nakama will now log an error and refuse to start if the schema is outdated.
 - Drop unused leaderboard 'next' and 'previous' fields.
 - A user's 'last online at' field now contains a current UTC milliseconds timestamp if they are currently online.
-- Storage remove operations now ignore records that don't exist.
 - Fields that expect JSON content now allow up to 32kb of data.
+
+### Fixed
+- Storage remove operations now ignore records that don't exist.
 
 ## [1.3.0] - 2017-11-21
 ### Added
