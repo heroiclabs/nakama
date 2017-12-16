@@ -396,13 +396,13 @@ WHERE group_edge.destination_id = $1 AND disabled_at = 0 AND (group_edge.state =
 	return groups, 0, nil
 }
 
-func GroupUsersList(logger *zap.Logger, db *sql.DB, caller string, groupID string) ([]*GroupUser, Error_Code, error) {
+func GroupUsersList(logger *zap.Logger, db *sql.DB, tracker Tracker, caller string, groupID string) ([]*GroupUser, Error_Code, error) {
 	groupLogger := logger.With(zap.String("group_id", groupID))
 
 	query := `
 SELECT u.id, u.handle, u.fullname, u.avatar_url,
 	u.lang, u.location, u.timezone, u.metadata,
-	u.created_at, u.updated_at, u.last_online_at, ge.state
+	u.created_at, u.updated_at, ge.state
 FROM users u, group_edge ge
 WHERE u.id = ge.source_id AND ge.destination_id = $1`
 
@@ -413,6 +413,8 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 	}
 	defer rows.Close()
 
+	// If the user is currently online this will be their 'last online at' value.
+	ts := nowMs()
 	users := make([]*GroupUser, 0)
 
 	for rows.Next() {
@@ -426,29 +428,32 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1`
 		var metadata []byte
 		var createdAt sql.NullInt64
 		var updatedAt sql.NullInt64
-		var lastOnlineAt sql.NullInt64
 		var state sql.NullInt64
 
-		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt, &state)
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &state)
 		if err != nil {
 			groupLogger.Error("Could not get group users, scan error", zap.Error(err))
 			return nil, RUNTIME_EXCEPTION, errors.New("Could not get group users")
 		}
 
+		user := &User{
+			Id:        id.String,
+			Handle:    handle.String,
+			Fullname:  fullname.String,
+			AvatarUrl: avatarURL.String,
+			Lang:      lang.String,
+			Location:  location.String,
+			Timezone:  timezone.String,
+			Metadata:  string(metadata),
+			CreatedAt: createdAt.Int64,
+			UpdatedAt: updatedAt.Int64,
+		}
+		if len(tracker.ListByTopic("notifications:"+id.String)) != 0 {
+			user.LastOnlineAt = ts
+		}
+
 		users = append(users, &GroupUser{
-			User: &User{
-				Id:           id.String,
-				Handle:       handle.String,
-				Fullname:     fullname.String,
-				AvatarUrl:    avatarURL.String,
-				Lang:         lang.String,
-				Location:     location.String,
-				Timezone:     timezone.String,
-				Metadata:     string(metadata),
-				CreatedAt:    createdAt.Int64,
-				UpdatedAt:    updatedAt.Int64,
-				LastOnlineAt: lastOnlineAt.Int64,
-			},
+			User:  user,
 			State: state.Int64,
 		})
 	}

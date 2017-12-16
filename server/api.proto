@@ -1258,6 +1258,8 @@ message TStorageRemove {
  * Leaderboard is the core domain type representing a Leaderboard setup in the server.
  */
 message Leaderboard {
+  reserved 7, 8;
+
   string id = 1;
   /// Whether the user can submit records directly via the client or not
   bool authoritative = 2;
@@ -1265,8 +1267,6 @@ message Leaderboard {
   int64 count = 4;
   string reset_schedule = 5;
   string metadata = 6;
-  string next_id = 7;
-  string prev_id = 8;
 }
 
 /**

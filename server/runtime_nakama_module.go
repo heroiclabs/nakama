@@ -54,6 +54,7 @@ type Callbacks struct {
 type NakamaModule struct {
 	logger              *zap.Logger
 	db                  *sql.DB
+	tracker             Tracker
 	notificationService *NotificationService
 	cbufferPool         *CbufferPool
 	announceHTTP        func(string)
@@ -63,7 +64,7 @@ type NakamaModule struct {
 	client              *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notificationService *NotificationService, cbufferPool *CbufferPool, announceHTTP func(string), announceRPC func(string), announceBefore func(string), announceAfter func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, tracker Tracker, notificationService *NotificationService, cbufferPool *CbufferPool, announceHTTP func(string), announceRPC func(string), announceBefore func(string), announceAfter func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -73,6 +74,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, notification
 	return &NakamaModule{
 		logger:              logger,
 		db:                  db,
+		tracker:             tracker,
 		notificationService: notificationService,
 		cbufferPool:         cbufferPool,
 		announceHTTP:        announceHTTP,
@@ -610,7 +612,7 @@ func (n *NakamaModule) usersFetchId(l *lua.LState) int {
 		}
 	}
 
-	users, err := UsersFetchIds(n.logger, n.db, userIdStrings)
+	users, err := UsersFetchIds(n.logger, n.db, n.tracker, userIdStrings)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
 		return 0
@@ -655,7 +657,7 @@ func (n *NakamaModule) usersFetchHandle(l *lua.LState) int {
 		}
 	}
 
-	users, err := UsersFetchHandle(n.logger, n.db, userHandles)
+	users, err := UsersFetchHandle(n.logger, n.db, n.tracker, userHandles)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve users: %s", err.Error()))
 		return 0
@@ -1827,7 +1829,7 @@ func (n *NakamaModule) groupUsersList(l *lua.LState) int {
 		return 0
 	}
 
-	users, _, err := GroupUsersList(n.logger, n.db, "", groupID)
+	users, _, err := GroupUsersList(n.logger, n.db, n.tracker, "", groupID)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list group users: %s", err.Error()))
 		return 0

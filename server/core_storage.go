@@ -606,10 +606,15 @@ func StorageRemove(logger *zap.Logger, db *sql.DB, caller string, keys []*Storag
 		return BAD_INPUT, errors.New("At least one remove key is required")
 	}
 
-	query := `
-UPDATE storage SET deleted_at = $1, updated_at = $1
-WHERE `
-	params := []interface{}{nowMs()}
+	query := "SELECT id, bucket, collection, record, user_id, write, version FROM storage WHERE "
+	params := []interface{}{}
+
+	ops := make(map[struct {
+		bucket     string
+		collection string
+		record     string
+		userId     string
+	}]*StorageKey)
 
 	// Accumulate the query clauses and corresponding parameters.
 	for i, key := range keys {
@@ -632,20 +637,22 @@ WHERE `
 		if i != 0 {
 			query += " OR "
 		}
+
 		l := len(params)
-		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0", l+1, l+2, l+3, l+4)
+		query += fmt.Sprintf("(bucket = $%v AND collection = $%v AND user_id = $%v AND record = $%v AND deleted_at = 0)", l+1, l+2, l+3, l+4)
 		params = append(params, key.Bucket, key.Collection, key.UserId, key.Record)
-		// Permission.
-		if caller != "" {
-			query += fmt.Sprintf(" AND write = 1 AND user_id = $%v", len(params)+1)
-			params = append(params, caller)
-		}
-		// Version.
-		if key.Version != "" {
-			query += fmt.Sprintf(" AND version = $%v", len(params)+1)
-			params = append(params, key.Version)
-		}
-		query += ")"
+
+		ops[struct {
+			bucket     string
+			collection string
+			record     string
+			userId     string
+		}{
+			bucket:     key.Bucket,
+			collection: key.Collection,
+			record:     key.Record,
+			userId:     key.UserId,
+		}] = key
 	}
 
 	// Start a transaction.
@@ -656,19 +663,93 @@ WHERE `
 	}
 
 	// Execute the query.
-	res, err := tx.Exec(query, params...)
+	queryRes, err := tx.Query(query, params...)
 	if err != nil {
-		logger.Error("Could not remove storage, exec error", zap.Error(err))
+		logger.Error("Could not remove storage, query error", zap.Error(err))
+		if e := tx.Rollback(); e != nil {
+			// Rollback to explicitly end the transaction, but will return an error because there are no updates yet.
+			logger.Debug("Could not rollback transaction in remove storage after query error", zap.Error(e))
+		}
 		return RUNTIME_EXCEPTION, errors.New("Could not remove storage")
 	}
+	defer queryRes.Close()
 
-	// If not all keys resulted in a delete, rollback and return an error an error.
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected != int64(len(keys)) {
-		err = tx.Rollback()
+	query = "UPDATE storage SET deleted_at = $1, updated_at = $1 WHERE id IN ("
+	params = []interface{}{nowMs()}
+
+	var id sql.NullString
+	var bucket sql.NullString
+	var collection sql.NullString
+	var record sql.NullString
+	var userId sql.NullString
+	var write sql.NullInt64
+	var version sql.NullString
+	for queryRes.Next() {
+		err = queryRes.Scan(&id, &bucket, &collection, &record, &userId, &write, &version)
 		if err != nil {
-			logger.Error("Could not remove storage, rollback error", zap.Error(err))
+			logger.Error("Could not remove storage, scan error", zap.Error(err))
+			if e := tx.Rollback(); e != nil {
+				// Rollback to explicitly end the transaction, but will return an error because there are no updates yet.
+				logger.Debug("Could not rollback transaction in remove storage after scan error", zap.Error(e))
+			}
+			return RUNTIME_EXCEPTION, errors.New("Could not remove storage")
 		}
-		return STORAGE_REJECTED, errors.New("Storage remove rejected: not found, version check failed, or permission denied")
+
+		key := ops[struct {
+			bucket     string
+			collection string
+			record     string
+			userId     string
+		}{
+			bucket:     bucket.String,
+			collection: collection.String,
+			record:     record.String,
+			userId:     userId.String,
+		}]
+
+		// Check permission.
+		if caller != "" && write.Int64 != 1 {
+			if e := tx.Rollback(); e != nil {
+				// Rollback to explicitly end the transaction, but will return an error because there are no updates yet.
+				logger.Debug("Could not rollback transaction in remove storage after permission rejected", zap.Error(e))
+			}
+			return STORAGE_REJECTED, errors.New("Storage remove rejected: not found, version check failed, or permission denied")
+		}
+
+		// Check version.
+		if key.Version != "" && key.Version != version.String {
+			if e := tx.Rollback(); e != nil {
+				// Rollback to explicitly end the transaction, but will return an error because there are no updates yet.
+				logger.Debug("Could not rollback transaction in remove storage after version rejected", zap.Error(e))
+			}
+			return STORAGE_REJECTED, errors.New("Storage remove rejected: not found, version check failed, or permission denied")
+		}
+
+		l := len(params)
+		if l != 1 {
+			query += ", "
+		}
+		query += fmt.Sprintf("$%v", l+1)
+		params = append(params, id.String)
+	}
+
+	// Nothing to delete.
+	if len(params) == 1 {
+		if e := tx.Rollback(); e != nil {
+			// Rollback to explicitly end the transaction, but will return an error because there are no updates yet.
+			logger.Debug("Could not rollback transaction in remove storage after no deletes needed", zap.Error(e))
+		}
+		return 0, nil
+	}
+
+	query += ")"
+	_, err = tx.Exec(query, params...)
+	if err != nil {
+		logger.Error("Could not remove storage, exec error", zap.Error(err))
+		if e := tx.Rollback(); e != nil {
+			logger.Warn("Could not rollback transaction in remove storage after exec error", zap.Error(e))
+		}
+		return RUNTIME_EXCEPTION, errors.New("Could not remove storage")
 	}
 
 	err = tx.Commit()

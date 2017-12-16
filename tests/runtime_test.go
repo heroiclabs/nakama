@@ -38,7 +38,7 @@ func newRuntimePool() (*server.RuntimePool, error) {
 	}
 	c := server.NewRuntimeConfig()
 	c.Path = filepath.Join(DATA_PATH, "modules")
-	return server.NewRuntimePool(logger, logger, db, c, nil)
+	return server.NewRuntimePool(logger, logger, db, c, nil, nil)
 }
 
 func writeStatsModule() {

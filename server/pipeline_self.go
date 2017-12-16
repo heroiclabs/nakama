@@ -38,14 +38,13 @@ func (p *pipeline) selfFetch(logger *zap.Logger, session session, envelope *Enve
 	var verifiedAt sql.NullInt64
 	var createdAt sql.NullInt64
 	var updatedAt sql.NullInt64
-	var lastOnlineAt sql.NullInt64
 
 	deviceIDs := make([]string, 0)
 
 	rows, err := p.db.Query(`
 SELECT u.handle, u.fullname, u.avatar_url, u.lang, u.location, u.timezone, u.metadata,
 	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id,
-	u.created_at, u.updated_at, u.verified_at, u.last_online_at,
+	u.created_at, u.updated_at, u.verified_at,
 	ud.id
 FROM users u
 LEFT JOIN user_device ud ON u.id = ud.user_id
@@ -62,7 +61,7 @@ WHERE u.id = $1`,
 		var deviceID sql.NullString
 		err = rows.Scan(&handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata,
 			&email, &facebook, &google, &gamecenter, &steam, &customID,
-			&createdAt, &updatedAt, &verifiedAt, &lastOnlineAt, &deviceID)
+			&createdAt, &updatedAt, &verifiedAt, &deviceID)
 		if err != nil {
 			logger.Error("Error reading user profile", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Error reading user profile"), true)
@@ -80,17 +79,18 @@ WHERE u.id = $1`,
 
 	s := &Self{
 		User: &User{
-			Id:           session.UserID(),
-			Handle:       handle.String,
-			Fullname:     fullname.String,
-			AvatarUrl:    avatarURL.String,
-			Lang:         lang.String,
-			Location:     location.String,
-			Timezone:     timezone.String,
-			Metadata:     string(metadata),
-			CreatedAt:    createdAt.Int64,
-			UpdatedAt:    updatedAt.Int64,
-			LastOnlineAt: lastOnlineAt.Int64,
+			Id:        session.UserID(),
+			Handle:    handle.String,
+			Fullname:  fullname.String,
+			AvatarUrl: avatarURL.String,
+			Lang:      lang.String,
+			Location:  location.String,
+			Timezone:  timezone.String,
+			Metadata:  string(metadata),
+			CreatedAt: createdAt.Int64,
+			UpdatedAt: updatedAt.Int64,
+			// The self user is assumed to be online.
+			LastOnlineAt: nowMs(),
 		},
 		Email:        email.String,
 		DeviceIds:    deviceIDs,

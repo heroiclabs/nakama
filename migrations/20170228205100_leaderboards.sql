@@ -17,16 +17,12 @@
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS leaderboard (
     PRIMARY KEY (id),
-    FOREIGN KEY (next_id) REFERENCES leaderboard(id),
-    FOREIGN KEY (prev_id) REFERENCES leaderboard(id),
     id             BYTEA        NOT NULL,
     authoritative  BOOLEAN      DEFAULT FALSE,
     sort_order     SMALLINT     DEFAULT 1 NOT NULL, -- asc(0), desc(1)
     count          BIGINT       DEFAULT 0 CHECK (count >= 0) NOT NULL,
     reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
-    metadata       BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL,
-    next_id        BYTEA        DEFAULT NULL::BYTEA CHECK (next_id <> id),
-    prev_id        BYTEA        DEFAULT NULL::BYTEA CHECK (prev_id <> id)
+    metadata       BYTEA        DEFAULT '{}' CHECK (length(metadata) < 16000) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_record (
