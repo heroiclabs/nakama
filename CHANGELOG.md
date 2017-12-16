@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
+## [Unreleased]
+
 ## [1.4.0] - 2017-12-16
 ### Changed
 - Nakama will now log an error and refuse to start if the schema is outdated.
