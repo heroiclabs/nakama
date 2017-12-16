@@ -205,7 +205,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session session, originalE
 		return
 	}
 
-	RuntimeAfterHook(logger, p.runtimePool, p.jsonpbMarshaler, messageType, envelope, originalEnvelope, session)
+	RuntimeAfterHook(logger, p.runtimePool, p.jsonpbMarshaler, messageType, envelope, session)
 }
 
 func ErrorMessageRuntimeException(collationID string, message string) *Envelope {

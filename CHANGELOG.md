@@ -4,9 +4,6 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
 ## [Unreleased]
-### Added
-- Runtime after hooks now include both the incoming and outgoing payloads.
-
 ### Changed
 - Nakama will now log an error and refuse to start if the schema is outdated.
 - Drop unused leaderboard 'next' and 'previous' fields.

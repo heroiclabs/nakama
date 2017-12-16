@@ -323,7 +323,7 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, handle string
 		lv = lua.LString(payload)
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv, nil)
+	retValue, err := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
 		return "", err
 	}
@@ -362,7 +362,7 @@ func (r *Runtime) InvokeFunctionBefore(fn *lua.LFunction, uid string, handle str
 		lv = lt
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv, nil)
+	retValue, err := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +396,7 @@ func (r *Runtime) InvokeFunctionBeforeAuthentication(fn *lua.LFunction, uid stri
 		lv = ConvertMap(l, payload)
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv, nil)
+	retValue, err := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
 		return nil, err
 	}
@@ -410,21 +410,17 @@ func (r *Runtime) InvokeFunctionBeforeAuthentication(fn *lua.LFunction, uid stri
 	return nil, errors.New("Runtime function returned invalid data. Only allowed one return value of type Table")
 }
 
-func (r *Runtime) InvokeFunctionAfter(fn *lua.LFunction, uid string, handle string, sessionExpiry int64, payloadOutgoing, payloadIncoming map[string]interface{}) error {
+func (r *Runtime) InvokeFunctionAfter(fn *lua.LFunction, uid string, handle string, sessionExpiry int64, payload map[string]interface{}) error {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
 	ctx := NewLuaContext(l, r.luaEnv, AFTER, uid, handle, sessionExpiry)
-	var lv1 lua.LValue
-	var lv2 lua.LValue
-	if payloadOutgoing != nil {
-		lv1 = ConvertMap(l, payloadOutgoing)
-	}
-	if payloadIncoming != nil {
-		lv2 = ConvertMap(l, payloadIncoming)
+	var lv lua.LValue
+	if payload != nil {
+		lv = ConvertMap(l, payload)
 	}
 
-	_, err := r.invokeFunction(l, fn, ctx, lv1, lv2)
+	_, err := r.invokeFunction(l, fn, ctx, lv)
 	return err
 }
 
@@ -438,7 +434,7 @@ func (r *Runtime) InvokeFunctionHTTP(fn *lua.LFunction, uid string, handle strin
 		lv = ConvertMap(l, payload)
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv, nil)
+	retValue, err := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
 		return nil, err
 	}
@@ -452,20 +448,16 @@ func (r *Runtime) InvokeFunctionHTTP(fn *lua.LFunction, uid string, handle strin
 	return nil, errors.New("Runtime function returned invalid data. Only allowed one return value of type Table")
 }
 
-func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload1, payload2 lua.LValue) (lua.LValue, error) {
+func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error) {
 	l.Push(lua.LString(__nakamaReturnValue))
 	l.Push(fn)
 
 	nargs := 1
 	l.Push(ctx)
 
-	if payload1 != nil {
-		nargs += 1
-		l.Push(payload1)
-	}
-	if payload2 != nil {
-		nargs += 1
-		l.Push(payload2)
+	if payload != nil {
+		nargs = 2
+		l.Push(payload)
 	}
 
 	err := l.PCall(nargs, lua.MultRet, nil)

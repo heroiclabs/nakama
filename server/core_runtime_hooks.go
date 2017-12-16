@@ -50,7 +50,7 @@ func RuntimeBeforeHook(runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshal
 	return env, err
 }
 
-func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, outgoingEnvelope, incomingEnvelope *Envelope, session session) {
+func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, messageType string, envelope *Envelope, session session) {
 	if !runtimePool.HasAfter(messageType) {
 		return
 	}
@@ -62,25 +62,15 @@ func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarsha
 		return
 	}
 
-	strOutgoingEnvelope, err := jsonpbMarshaler.MarshalToString(outgoingEnvelope)
+	strEnvelope, err := jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
-		logger.Error("Failed to convert outgoing proto message to protoJSON in After invocation", zap.String("message", messageType), zap.Error(err))
-		return
-	}
-	strIncomingEnvelope, err := jsonpbMarshaler.MarshalToString(incomingEnvelope)
-	if err != nil {
-		logger.Error("Failed to convert incoming proto message to protoJSON in After invocation", zap.String("message", messageType), zap.Error(err))
+		logger.Error("Failed to convert proto message to protoJSON in After invocation", zap.String("message", messageType), zap.Error(err))
 		return
 	}
 
-	var jsonOutgoingEnvelope map[string]interface{}
-	if err = json.Unmarshal([]byte(strOutgoingEnvelope), &jsonOutgoingEnvelope); err != nil {
-		logger.Error("Failed to convert outgoing protoJSON message to Map in After invocation", zap.String("message", messageType), zap.Error(err))
-		return
-	}
-	var jsonIncomingEnvelope map[string]interface{}
-	if err = json.Unmarshal([]byte(strIncomingEnvelope), &jsonIncomingEnvelope); err != nil {
-		logger.Error("Failed to convert incoming protoJSON message to Map in After invocation", zap.String("message", messageType), zap.Error(err))
+	var jsonEnvelope map[string]interface{}
+	if err = json.Unmarshal([]byte(strEnvelope), &jsonEnvelope); err != nil {
+		logger.Error("Failed to convert protoJSON message to Map in After invocation", zap.String("message", messageType), zap.Error(err))
 		return
 	}
 
@@ -93,7 +83,7 @@ func RuntimeAfterHook(logger *zap.Logger, runtimePool *RuntimePool, jsonpbMarsha
 		expiry = session.Expiry()
 	}
 
-	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonOutgoingEnvelope, jsonIncomingEnvelope); fnErr != nil {
+	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {
 		logger.Error("Runtime after function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 	}
 	runtimePool.Put(runtime)
@@ -174,7 +164,7 @@ func RuntimeAfterHookAuthentication(logger *zap.Logger, runtimePool *RuntimePool
 		return
 	}
 
-	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope, nil); fnErr != nil {
+	if fnErr := runtime.InvokeFunctionAfter(fn, userId, handle, expiry, jsonEnvelope); fnErr != nil {
 		logger.Error("Runtime after function caused an error", zap.String("message", messageType), zap.Error(fnErr))
 	}
 	runtimePool.Put(runtime)
