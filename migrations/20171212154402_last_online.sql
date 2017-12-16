@@ -27,7 +27,37 @@ ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS check_last_online_at;
 
 ALTER TABLE IF EXISTS users DROP COLUMN IF EXISTS last_online_at;
 
+ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS users ADD CONSTRAINT check_metadata CHECK (length(metadata) < 32000);
+
+ALTER TABLE IF EXISTS groups DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS groups ADD CONSTRAINT check_metadata CHECK (length(metadata) < 32000);
+
+ALTER TABLE IF EXISTS storage DROP CONSTRAINT IF EXISTS check_value;
+ALTER TABLE IF EXISTS storage ADD CONSTRAINT check_value CHECK (length(value) < 32000);
+
+ALTER TABLE IF EXISTS leaderboard_record DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS leaderboard_record ADD CONSTRAINT check_metadata CHECK (length(metadata) < 32000);
+
+ALTER TABLE IF EXISTS notification DROP CONSTRAINT IF EXISTS check_content;
+ALTER TABLE IF EXISTS notification ADD CONSTRAINT check_content CHECK (length(content) < 32000);
+
 -- +migrate Down
+ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS users ADD CONSTRAINT check_metadata CHECK (length(metadata) < 16000);
+
+ALTER TABLE IF EXISTS groups DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS groups ADD CONSTRAINT check_metadata CHECK (length(metadata) < 16000);
+
+ALTER TABLE IF EXISTS storage DROP CONSTRAINT IF EXISTS check_value;
+ALTER TABLE IF EXISTS storage ADD CONSTRAINT check_value CHECK (length(value) < 16000);
+
+ALTER TABLE IF EXISTS leaderboard_record DROP CONSTRAINT IF EXISTS check_metadata;
+ALTER TABLE IF EXISTS leaderboard_record ADD CONSTRAINT check_metadata CHECK (length(metadata) < 16000);
+
+ALTER TABLE IF EXISTS notification DROP CONSTRAINT IF EXISTS check_content;
+ALTER TABLE IF EXISTS notification ADD CONSTRAINT check_content CHECK (length(content) < 16000);
+
 ALTER TABLE IF EXISTS leaderboard ADD COLUMN IF NOT EXISTS next_id BYTEA DEFAULT NULL::BYTEA;
 ALTER TABLE IF EXISTS leaderboard ADD COLUMN IF NOT EXISTS prev_id BYTEA DEFAULT NULL::BYTEA;
 
