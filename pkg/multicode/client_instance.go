@@ -587,7 +587,7 @@ func (c *ClientInstance) flushReliablePacker(ts int64) {
 	if c.reliablePackerLength > 0 {
 		seq, fragments, fragmentLengths, err := c.reliableController.SendPacket(ts, c.reliablePacker, c.reliablePackerLength, RELIABLE_CHANNEL_ID)
 		if err != nil {
-			c.logger.Debug("error flushing reliable packer")
+			c.logger.Debug("error flushing reliable packer", zap.Error(err))
 			return
 		}
 

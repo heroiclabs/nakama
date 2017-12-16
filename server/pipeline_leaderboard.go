@@ -52,7 +52,7 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 		return
 	}
 
-	query := "SELECT id, authoritative, sort_order, count, reset_schedule, metadata, next_id, prev_id FROM leaderboard"
+	query := "SELECT id, authoritative, sort_order, count, reset_schedule, metadata FROM leaderboard"
 	params := []interface{}{}
 
 	if len(incoming.Cursor) != 0 {
@@ -106,8 +106,6 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 	var count int64
 	var resetSchedule sql.NullString
 	var metadata []byte
-	var nextId sql.NullString
-	var prevId sql.NullString
 	for rows.Next() {
 		if int64(len(leaderboards)) >= limit {
 			cursorBuf := new(bytes.Buffer)
@@ -123,7 +121,7 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 			break
 		}
 
-		err = rows.Scan(&id, &authoritative, &sortOrder, &count, &resetSchedule, &metadata, &nextId, &prevId)
+		err = rows.Scan(&id, &authoritative, &sortOrder, &count, &resetSchedule, &metadata)
 		if err != nil {
 			logger.Error("Could not scan leaderboards list query results", zap.Error(err))
 			session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not list leaderboards"), true)
@@ -137,8 +135,6 @@ func (p *pipeline) leaderboardsList(logger *zap.Logger, session session, envelop
 			Count:         count,
 			ResetSchedule: resetSchedule.String,
 			Metadata:      string(metadata),
-			NextId:        nextId.String,
-			PrevId:        prevId.String,
 		})
 	}
 	if err = rows.Err(); err != nil {

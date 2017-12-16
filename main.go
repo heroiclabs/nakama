@@ -106,7 +106,7 @@ func main() {
 	trackerService.AddDiffListener(presenceNotifier.HandleDiff)
 	notificationService := server.NewNotificationService(jsonLogger, db, trackerService, messageRouter, config.GetSocial().Notification)
 
-	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config.GetRuntime(), notificationService)
+	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config.GetRuntime(), trackerService, notificationService)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules.", zap.Error(err))
 	}

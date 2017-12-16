@@ -31,7 +31,7 @@ func (p *pipeline) querySocialGraph(logger *zap.Logger, filterQuery string, para
 	query := `
 SELECT id, handle, fullname, avatar_url,
 	lang, location, timezone, metadata,
-	created_at, users.updated_at, last_online_at
+	created_at, users.updated_at
 FROM users ` + filterQuery
 
 	rows, err := p.db.Query(query, params...)
@@ -51,27 +51,26 @@ FROM users ` + filterQuery
 	var metadata []byte
 	var createdAt sql.NullInt64
 	var updatedAt sql.NullInt64
-	var lastOnlineAt sql.NullInt64
 
 	for rows.Next() {
-		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt)
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt)
 		if err != nil {
 			logger.Error("Could not execute social graph query", zap.Error(err))
 			return nil, err
 		}
 
 		users = append(users, &User{
-			Id:           id.String,
-			Handle:       handle.String,
-			Fullname:     fullname.String,
-			AvatarUrl:    avatarURL.String,
-			Lang:         lang.String,
-			Location:     location.String,
-			Timezone:     timezone.String,
-			Metadata:     string(metadata),
-			CreatedAt:    createdAt.Int64,
-			UpdatedAt:    updatedAt.Int64,
-			LastOnlineAt: lastOnlineAt.Int64,
+			Id:        id.String,
+			Handle:    handle.String,
+			Fullname:  fullname.String,
+			AvatarUrl: avatarURL.String,
+			Lang:      lang.String,
+			Location:  location.String,
+			Timezone:  timezone.String,
+			Metadata:  string(metadata),
+			CreatedAt: createdAt.Int64,
+			UpdatedAt: updatedAt.Int64,
+			//LastOnlineAt: lastOnlineAt.Int64,
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -224,11 +223,11 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID string, handle 
 	friendUserIDs = paramsEdge[2:]
 }
 
-func (p *pipeline) getFriends(filterQuery string, userID string) ([]*Friend, error) {
+func (p *pipeline) getFriends(tracker Tracker, filterQuery string, userID string) ([]*Friend, error) {
 	query := `
 SELECT id, handle, fullname, avatar_url,
 	lang, location, timezone, metadata,
-	created_at, users.updated_at, last_online_at, state
+	created_at, users.updated_at, state
 FROM users, user_edge ` + filterQuery
 
 	rows, err := p.db.Query(query, userID)
@@ -237,6 +236,8 @@ FROM users, user_edge ` + filterQuery
 	}
 	defer rows.Close()
 
+	// If the user is currently online this will be their 'last online at' value.
+	ts := nowMs()
 	friends := make([]*Friend, 0)
 
 	for rows.Next() {
@@ -250,28 +251,31 @@ FROM users, user_edge ` + filterQuery
 		var metadata []byte
 		var createdAt sql.NullInt64
 		var updatedAt sql.NullInt64
-		var lastOnlineAt sql.NullInt64
 		var state sql.NullInt64
 
-		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt, &state)
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &state)
 		if err != nil {
 			return nil, err
 		}
 
+		user := &User{
+			Id:        id.String,
+			Handle:    handle.String,
+			Fullname:  fullname.String,
+			AvatarUrl: avatarURL.String,
+			Lang:      lang.String,
+			Location:  location.String,
+			Timezone:  timezone.String,
+			Metadata:  string(metadata),
+			CreatedAt: createdAt.Int64,
+			UpdatedAt: updatedAt.Int64,
+		}
+		if len(tracker.ListByTopic("notifications:"+id.String)) != 0 {
+			user.LastOnlineAt = ts
+		}
+
 		friends = append(friends, &Friend{
-			User: &User{
-				Id:           id.String,
-				Handle:       handle.String,
-				Fullname:     fullname.String,
-				AvatarUrl:    avatarURL.String,
-				Lang:         lang.String,
-				Location:     location.String,
-				Timezone:     timezone.String,
-				Metadata:     string(metadata),
-				CreatedAt:    createdAt.Int64,
-				UpdatedAt:    updatedAt.Int64,
-				LastOnlineAt: lastOnlineAt.Int64,
-			},
+			User:  user,
 			State: state.Int64,
 		})
 	}
@@ -513,7 +517,7 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)`
 }
 
 func (p *pipeline) friendsList(logger *zap.Logger, session session, envelope *Envelope) {
-	friends, err := p.getFriends("WHERE id = destination_id AND source_id = $1", session.UserID())
+	friends, err := p.getFriends(p.tracker, "WHERE id = destination_id AND source_id = $1", session.UserID())
 	if err != nil {
 		logger.Error("Could not get friends", zap.Error(err))
 		session.Send(ErrorMessageRuntimeException(envelope.CollationId, "Could not get friends"), true)

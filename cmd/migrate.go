@@ -62,12 +62,12 @@ func MigrationStartupCheck(logger *zap.Logger, db *sql.DB) {
 	}
 	records, err := migrate.GetMigrationRecords(db, dialect)
 	if err != nil {
-		logger.Fatal("Could not get migration records", zap.Error(err))
+		logger.Fatal("Could not get migration records, run `nakama migrate up`", zap.Error(err))
 	}
 
 	diff := len(migrations) - len(records)
 	if diff > 0 {
-		logger.Warn("DB schema outdated, run `nakama migrate up`", zap.Int("migrations", diff))
+		logger.Fatal("DB schema outdated, run `nakama migrate up`", zap.Int("migrations", diff))
 	}
 	if diff < 0 {
 		logger.Warn("DB schema newer, update Nakama", zap.Int64("migrations", int64(math.Abs(float64(diff)))))

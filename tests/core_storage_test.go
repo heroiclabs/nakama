@@ -1970,9 +1970,8 @@ func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
 	}
 	code, err := server.StorageRemove(logger, db, "", keys)
 
-	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-	assert.Equal(t, "Storage remove rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Nil(t, err, "err was nil")
+	assert.Equal(t, 0, int(code), "code did not match")
 }
 
 func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
@@ -2175,9 +2174,8 @@ func TestStorageRemoveRuntimeGlobalMultipleMixed(t *testing.T) {
 	}
 	code, err = server.StorageRemove(logger, db, "", keys)
 
-	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-	assert.Equal(t, "Storage remove rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+	assert.Nil(t, err, "err was nil")
+	assert.Equal(t, 0, int(code), "code did not match")
 }
 
 func TestStorageRemoveRuntimeGlobalMultipleMixedIfMatch(t *testing.T) {

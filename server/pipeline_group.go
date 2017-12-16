@@ -470,7 +470,7 @@ func (p *pipeline) groupUsersList(logger *zap.Logger, session session, envelope 
 		return
 	}
 
-	users, code, err := GroupUsersList(logger, p.db, session.UserID(), groupID)
+	users, code, err := GroupUsersList(logger, p.db, p.tracker, session.UserID(), groupID)
 	if err != nil {
 		session.Send(ErrorMessage(envelope.CollationId, code, err.Error()), true)
 		return

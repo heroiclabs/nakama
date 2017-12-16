@@ -24,13 +24,15 @@ import (
 	"go.uber.org/zap"
 )
 
-func querySocialGraph(logger *zap.Logger, db *sql.DB, filterQuery string, params []interface{}) ([]*User, error) {
+func querySocialGraph(logger *zap.Logger, db *sql.DB, tracker Tracker, filterQuery string, params []interface{}) ([]*User, error) {
+	// If the user is currently online this will be their 'last online at' value.
+	ts := nowMs()
 	users := []*User{}
 
 	query := `
 SELECT id, handle, fullname, avatar_url,
 	lang, location, timezone, metadata,
-	created_at, users.updated_at, last_online_at
+	created_at, users.updated_at
 FROM users ` + filterQuery
 
 	rows, err := db.Query(query, params...)
@@ -50,28 +52,31 @@ FROM users ` + filterQuery
 	var metadata []byte
 	var createdAt sql.NullInt64
 	var updatedAt sql.NullInt64
-	var lastOnlineAt sql.NullInt64
 
 	for rows.Next() {
-		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt, &lastOnlineAt)
+		err = rows.Scan(&id, &handle, &fullname, &avatarURL, &lang, &location, &timezone, &metadata, &createdAt, &updatedAt)
 		if err != nil {
 			logger.Error("Could not execute social graph query", zap.Error(err))
 			return nil, err
 		}
 
-		users = append(users, &User{
-			Id:           id.String,
-			Handle:       handle.String,
-			Fullname:     fullname.String,
-			AvatarUrl:    avatarURL.String,
-			Lang:         lang.String,
-			Location:     location.String,
-			Timezone:     timezone.String,
-			Metadata:     string(metadata),
-			CreatedAt:    createdAt.Int64,
-			UpdatedAt:    updatedAt.Int64,
-			LastOnlineAt: lastOnlineAt.Int64,
-		})
+		user := &User{
+			Id:        id.String,
+			Handle:    handle.String,
+			Fullname:  fullname.String,
+			AvatarUrl: avatarURL.String,
+			Lang:      lang.String,
+			Location:  location.String,
+			Timezone:  timezone.String,
+			Metadata:  string(metadata),
+			CreatedAt: createdAt.Int64,
+			UpdatedAt: updatedAt.Int64,
+		}
+		if len(tracker.ListByTopic("notifications:"+id.String)) != 0 {
+			user.LastOnlineAt = ts
+		}
+
+		users = append(users, user)
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Could not execute social graph query", zap.Error(err))
@@ -81,7 +86,7 @@ FROM users ` + filterQuery
 	return users, nil
 }
 
-func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds []string) ([]*User, error) {
+func UsersFetchIds(logger *zap.Logger, db *sql.DB, tracker Tracker, userIds []string) ([]*User, error) {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 
@@ -98,7 +103,7 @@ func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds []string) ([]*User, e
 	}
 
 	query := "WHERE users.id IN (" + strings.Join(statements, ", ") + ")"
-	users, err := querySocialGraph(logger, db, query, params)
+	users, err := querySocialGraph(logger, db, tracker, query, params)
 	if err != nil {
 		return nil, errors.New("Could not retrieve users")
 	}
@@ -106,7 +111,7 @@ func UsersFetchIds(logger *zap.Logger, db *sql.DB, userIds []string) ([]*User, e
 	return users, nil
 }
 
-func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User, error) {
+func UsersFetchHandle(logger *zap.Logger, db *sql.DB, tracker Tracker, handles []string) ([]*User, error) {
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
 
@@ -119,7 +124,7 @@ func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User
 	}
 
 	query := "WHERE users.handle IN (" + strings.Join(statements, ", ") + ")"
-	users, err := querySocialGraph(logger, db, query, params)
+	users, err := querySocialGraph(logger, db, tracker, query, params)
 	if err != nil {
 		return nil, errors.New("Could not retrieve users")
 	}
@@ -127,7 +132,7 @@ func UsersFetchHandle(logger *zap.Logger, db *sql.DB, handles []string) ([]*User
 	return users, nil
 }
 
-func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds []string, handles []string) ([]*User, error) {
+func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, tracker Tracker, userIds []string, handles []string) ([]*User, error) {
 	idStatements := make([]string, 0)
 	handleStatements := make([]string, 0)
 	params := make([]interface{}, 0)
@@ -158,7 +163,7 @@ func UsersFetchIdsHandles(logger *zap.Logger, db *sql.DB, userIds []string, hand
 		query += "users.handle IN (" + strings.Join(handleStatements, ", ") + ")"
 	}
 
-	users, err := querySocialGraph(logger, db, query, params)
+	users, err := querySocialGraph(logger, db, tracker, query, params)
 	if err != nil {
 		return nil, errors.New("Could not retrieve users")
 	}

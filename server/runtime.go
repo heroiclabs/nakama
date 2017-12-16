@@ -52,7 +52,7 @@ type RuntimePool struct {
 	pool      *sync.Pool
 }
 
-func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, notificationService *NotificationService) (*RuntimePool, error) {
+func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, tracker Tracker, notificationService *NotificationService) (*RuntimePool, error) {
 	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, vm, notificationService, cbufferPool,
+	nakamaModule := NewNakamaModule(logger, db, vm, tracker, notificationService, cbufferPool,
 		func(path string) {
 			regHTTP[path] = struct{}{}
 			logger.Info("Registered HTTP function invocation", zap.String("path", path))
@@ -171,7 +171,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 					vm.Call(1, 0)
 				}
 
-				nakamaModule := NewNakamaModule(logger, db, vm, notificationService, cbufferPool, nil, nil, nil, nil)
+				nakamaModule := NewNakamaModule(logger, db, vm, tracker, notificationService, cbufferPool, nil, nil, nil, nil)
 				vm.PreloadModule("nakama", nakamaModule.Loader)
 
 				r := &Runtime{
