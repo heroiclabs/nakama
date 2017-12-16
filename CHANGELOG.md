@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 - Drop unused leaderboard 'next' and 'previous' fields.
 - A user's 'last online at' field now contains a current UTC milliseconds timestamp if they are currently online.
 - Storage remove operations now ignore records that don't exist.
+- Fields that expect JSON content now allow up to 32kb of data.
 
 ## [1.3.0] - 2017-11-21
 ### Added
