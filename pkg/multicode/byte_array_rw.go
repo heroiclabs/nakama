@@ -56,7 +56,7 @@ func (s *ByteArrayReaderWriter) ReadUint16() (uint16, error) {
 	if s.read(buf, 0, 2) != 2 {
 		return 0, io.EOF
 	}
-	return uint16(uint32(buf[0]) | uint32(buf[1]<<8)), nil
+	return uint16(uint32(buf[0]) | (uint32(buf[1])<<8)), nil
 }
 
 func (s *ByteArrayReaderWriter) ReadBuffer(buf []byte, length int) error {
