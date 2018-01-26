@@ -63,7 +63,7 @@ func ReadVariableLengthUint16(rw *ByteArrayReaderWriter) (uint16, error) {
 		if err != nil {
 			return 0, err
 		}
-		val |= uint16(b2 << 7)
+		val |= (uint16(b2) << 7)
 	}
 	return val, nil
 }
@@ -151,7 +151,7 @@ func ReadPacketHeader(packetBuffer []byte, offset, bufferLength int) (int, byte,
 		if b, err = rw.ReadByte(); err != nil {
 			return 0, channelID, sequence, ack, 0, err
 		} else {
-			ackBits |= uint32(b << 8)
+			ackBits |= (uint32(b) << 8)
 		}
 	}
 	if (prefixByte & (1 << 3)) != 0 {
@@ -160,7 +160,7 @@ func ReadPacketHeader(packetBuffer []byte, offset, bufferLength int) (int, byte,
 		if b, err = rw.ReadByte(); err != nil {
 			return 0, channelID, sequence, ack, 0, err
 		} else {
-			ackBits |= uint32(b << 16)
+			ackBits |= (uint32(b) << 16)
 		}
 	}
 	if (prefixByte & (1 << 4)) != 0 {
@@ -169,7 +169,7 @@ func ReadPacketHeader(packetBuffer []byte, offset, bufferLength int) (int, byte,
 		if b, err = rw.ReadByte(); err != nil {
 			return 0, channelID, sequence, ack, 0, err
 		} else {
-			ackBits |= uint32(b << 24)
+			ackBits |= (uint32(b) << 24)
 		}
 	}
 
