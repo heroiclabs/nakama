@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,94 +15,76 @@
 package server
 
 import (
-	"sync"
-
-	"nakama/pkg/multicode"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"sync"
+	"github.com/satori/go.uuid"
+	"github.com/heroiclabs/nakama/rtapi"
 )
 
-// SessionRegistry maintains a list of sessions to their IDs. This is thread-safe.
+type SessionFormat uint8
+
+const (
+	SessionFormatProtobuf SessionFormat = iota
+	SessionFormatJson
+)
+
+type session interface {
+	Logger() *zap.Logger
+	ID() uuid.UUID
+	UserID() uuid.UUID
+
+	Username() string
+	SetUsername(string)
+
+	Expiry() int64
+	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope))
+
+	Format() SessionFormat
+	Send(envelope *rtapi.Envelope) error
+	SendBytes(payload []byte) error
+
+	Close()
+}
+
+// SessionRegistry maintains a thread-safe list of sessions to their IDs.
 type SessionRegistry struct {
 	sync.RWMutex
-	logger     *zap.Logger
-	config     Config
-	tracker    Tracker
-	matchmaker Matchmaker
-	sessions   map[string]session
+	sessions map[uuid.UUID]session
 }
 
-// NewSessionRegistry creates a new SessionRegistry
-func NewSessionRegistry(logger *zap.Logger, config Config, tracker Tracker, matchmaker Matchmaker) *SessionRegistry {
+func NewSessionRegistry() *SessionRegistry {
 	return &SessionRegistry{
-		logger:     logger,
-		config:     config,
-		tracker:    tracker,
-		matchmaker: matchmaker,
-		sessions:   make(map[string]session),
+		sessions: make(map[uuid.UUID]session),
 	}
 }
 
-func (a *SessionRegistry) stop() {
-	a.Lock()
-	for _, session := range a.sessions {
-		if a.sessions[session.ID()] != nil {
-			delete(a.sessions, session.ID())
-			go func() {
-				a.matchmaker.RemoveAll(session.ID()) // Drop all active matchmaking requests for this session.
-				a.tracker.UntrackAll(session.ID())   // Drop all tracked presences for this session.
-			}()
-		}
+func (r *SessionRegistry) Stop() {
+	r.Lock()
+	for sessionID, session := range r.sessions {
+		delete(r.sessions, sessionID)
+		// Send graceful close messages to client connections.
+		// No need to clean up presences because we only expect to be here on server shutdown.
 		session.Close()
 	}
-	a.Unlock()
+	r.Unlock()
 }
 
-// Get returns a session matching the sessionID
-func (a *SessionRegistry) Get(sessionID string) session {
+func (r *SessionRegistry) Get(sessionID uuid.UUID) session {
 	var s session
-	a.RLock()
-	s = a.sessions[sessionID]
-	a.RUnlock()
+	r.RLock()
+	s = r.sessions[sessionID]
+	r.RUnlock()
 	return s
 }
 
-func (a *SessionRegistry) addWS(userID string, handle string, lang string, format SessionFormat, expiry int64, conn *websocket.Conn, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
-	s := NewWSSession(a.logger, a.config, userID, handle, lang, format, expiry, conn, jsonpbMarshaler, jsonpbUnmarshaler, a.remove)
-	a.Lock()
-	a.sessions[s.ID()] = s
-	a.Unlock()
-
-	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle, Format: s.Format()})
-
-	// Allow the server to begin processing incoming messages from this session.
-	s.Consume(processRequest)
+func (r *SessionRegistry) add(s session) {
+	r.Lock()
+	r.sessions[s.ID()] = s
+	r.Unlock()
 }
 
-func (a *SessionRegistry) addUDP(userID string, handle string, lang string, expiry int64, clientInstance *multicode.ClientInstance, processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
-	s := NewUDPSession(a.logger, a.config, userID, handle, lang, expiry, clientInstance, a.remove)
-	a.Lock()
-	a.sessions[s.ID()] = s
-	a.Unlock()
-
-	// Register the session for notifications.
-	a.tracker.Track(s.ID(), "notifications:"+userID, userID, PresenceMeta{Handle: handle, Format: s.Format()})
-
-	// Allow the server to begin processing incoming messages from this session.
-	s.Consume(processRequest)
-}
-
-func (a *SessionRegistry) remove(c session) {
-	a.Lock()
-	if a.sessions[c.ID()] != nil {
-		delete(a.sessions, c.ID())
-		go func() {
-			a.matchmaker.RemoveAll(c.ID()) // Drop all active matchmaking requests for this session.
-			a.tracker.UntrackAll(c.ID())   // Drop all tracked presences for this session.
-		}()
-	}
-	a.Unlock()
+func (r *SessionRegistry) remove(sessionID uuid.UUID) {
+	r.Lock()
+	delete(r.sessions, sessionID)
+	r.Unlock()
 }
