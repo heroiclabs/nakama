@@ -1,0 +1,1219 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Nakama API v2",
+    "version": "2.0",
+    "contact": {
+      "name": "The Nakama Authors \u0026 Contributors",
+      "url": "https://github.com/heroiclabs/nakama",
+      "email": "hello@heroiclabs.com"
+    }
+  },
+  "schemes": [
+    "http"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/healthcheck": {
+      "get": {
+        "summary": "A healthcheck which load balancers can use to check the service.",
+        "operationId": "Healthcheck",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account": {
+      "get": {
+        "summary": "Fetch the current user's account.",
+        "operationId": "AccountFetch",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiAccount"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Update fields in the current user's account.",
+        "operationId": "AccountUpdateFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountUpdate"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/custom": {
+      "post": {
+        "summary": "Authenticate a user with a custom id against the server.",
+        "operationId": "AuthenticateCustomFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountCustom"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/device": {
+      "post": {
+        "summary": "Authenticate a user with a device id against the server.",
+        "operationId": "AuthenticateDeviceFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountDevice"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/email": {
+      "post": {
+        "summary": "Authenticate a user with an email+password against the server.",
+        "operationId": "AuthenticateEmailFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountEmail"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/facebook": {
+      "post": {
+        "summary": "Authenticate a user with a Facebook OAuth token against the server.",
+        "operationId": "AuthenticateFacebookFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/gamecenter": {
+      "post": {
+        "summary": "Authenticate a user with Apple's GameCenter against the server.",
+        "operationId": "AuthenticateGameCenterFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGameCenter"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/google": {
+      "post": {
+        "summary": "Authenticate a user with Google against the server.",
+        "operationId": "AuthenticateGoogleFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGoogle"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/authenticate/steam": {
+      "post": {
+        "summary": "Authenticate a user with Steam against the server.",
+        "operationId": "AuthenticateSteamFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountSteam"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/custom": {
+      "post": {
+        "summary": "Add a custom ID to the social profiles on the current user's account.",
+        "operationId": "LinkCustomFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountCustom"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/device": {
+      "post": {
+        "summary": "Add a device ID to the social profiles on the current user's account.",
+        "operationId": "LinkDeviceFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountDevice"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/email": {
+      "post": {
+        "summary": "Add an email+password to the social profiles on the current user's account.",
+        "operationId": "LinkEmailFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountEmail"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/facebook": {
+      "post": {
+        "summary": "Add Facebook to the social profiles on the current user's account.",
+        "operationId": "LinkFacebookFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/gamecenter": {
+      "post": {
+        "summary": "Add Apple's GameCenter to the social profiles on the current user's account.",
+        "operationId": "LinkGameCenterFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGameCenter"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/google": {
+      "post": {
+        "summary": "Add Google to the social profiles on the current user's account.",
+        "operationId": "LinkGoogleFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGoogle"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/link/steam": {
+      "post": {
+        "summary": "Add Steam to the social profiles on the current user's account.",
+        "operationId": "LinkSteamFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountSteam"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/custom": {
+      "post": {
+        "summary": "Remove the custom ID from the social profiles on the current user's account.",
+        "operationId": "UnlinkCustomFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountCustom"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/device": {
+      "post": {
+        "summary": "Remove the device ID from the social profiles on the current user's account.",
+        "operationId": "UnlinkDeviceFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountDevice"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/email": {
+      "post": {
+        "summary": "Remove the email+password from the social profiles on the current user's account.",
+        "operationId": "UnlinkEmailFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountEmail"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/facebook": {
+      "post": {
+        "summary": "Remove Facebook from the social profiles on the current user's account.",
+        "operationId": "UnlinkFacebookFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/gamecenter": {
+      "post": {
+        "summary": "Remove Apple's GameCenter from the social profiles on the current user's account.",
+        "operationId": "UnlinkGameCenterFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGameCenter"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/google": {
+      "post": {
+        "summary": "Remove Google from the social profiles on the current user's account.",
+        "operationId": "UnlinkGoogleFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountGoogle"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/steam": {
+      "post": {
+        "summary": "Remove Steam from the social profiles on the current user's account.",
+        "operationId": "UnlinkSteamFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountSteam"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/friend": {
+      "post": {
+        "summary": "Add friends by ID or handle to a user's account.",
+        "operationId": "FriendAddFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group": {
+      "post": {
+        "summary": "Create one or more new groups with the current user as the owner.",
+        "operationId": "GroupsCreateFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiGroups"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiGroupsCreate"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/rpc/{id}": {
+      "get": {
+        "summary": "Execute a Lua function on the server.",
+        "operationId": "RpcFunc2",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiRpc"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "payload",
+            "description": "The payload of the function which must be a JSON object.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "http_key",
+            "description": "The authentication key used when executed as a non-client HTTP request.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "post": {
+        "summary": "Execute a Lua function on the server.",
+        "operationId": "RpcFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiRpc"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/user": {
+      "get": {
+        "summary": "Fetch zero or more users by ID and/or username.",
+        "operationId": "UsersFetchFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiUsers"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "GroupsCreateNewGroup": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A unique name for the group."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description for the group."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "private": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Mark a group as private where only admins can accept members."
+        }
+      },
+      "description": "*\nA group to create."
+    },
+    "apiAccount": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "verified": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Whether the user has been verified. Via email or social profiles."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user."
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAccountDevice"
+          },
+          "description": "The devices which belong to the user's account."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "The custom id in the user's account."
+        }
+      },
+      "description": "*\nA user with additional account details. Always the current user."
+    },
+    "apiAccountCustom": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A custom identifier."
+        }
+      },
+      "description": "*\nSend a custom ID to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountDevice": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A device identifier. Should be obtained by a platform-specific device API."
+        }
+      },
+      "description": "*\nSend a device to the server. Used with authenticate/link/unlink and user."
+    },
+    "apiAccountEmail": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "A valid RFC-5322 email address."
+        },
+        "password": {
+          "type": "string",
+          "description": "A password for the user account."
+        }
+      },
+      "description": "*\nSend an email with password to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountFacebook": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The OAuth token received from Facebook to access their profile API."
+        }
+      },
+      "description": "*\nSend a Facebook token to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountGameCenter": {
+      "type": "object",
+      "properties": {
+        "player_id": {
+          "type": "string",
+          "description": "Player ID (generated by GameCenter)."
+        },
+        "bundle_id": {
+          "type": "string",
+          "description": "Bundle ID (generated by GameCenter)."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "int64",
+          "description": "Time since UNIX epoch when the signature was created."
+        },
+        "salt": {
+          "type": "string",
+          "description": "A random \"NSString\" used to compute the hash and keep it randomized."
+        },
+        "signature": {
+          "type": "string",
+          "description": "The verification signature data generated."
+        },
+        "public_key_url": {
+          "type": "string",
+          "description": "The URL for the public encryption key."
+        }
+      },
+      "description": "*\nSend Apple's Game Center account credentials to the server. Used with authenticate/link/unlink.\n\nhttps://developer.apple.com/documentation/gamekit/gklocalplayer/1515407-generateidentityverificationsign"
+    },
+    "apiAccountGoogle": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The OAuth token received from Google to access their profile API."
+        }
+      },
+      "description": "*\nSend a Google token to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountSteam": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The account token received from Steam to access their profile API."
+        }
+      },
+      "description": "*\nSend a Steam token to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountUpdate": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user's account."
+        },
+        "fullname": {
+          "type": "string",
+          "description": "The fullname of the user."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location set by the user."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "The timezone set by the user."
+        }
+      },
+      "description": "*\nUpdate a user's account details."
+    },
+    "apiGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of a group."
+        },
+        "creator_id": {
+          "type": "string",
+          "description": "The id of the user who created the group."
+        },
+        "name": {
+          "type": "string",
+          "description": "The unique name of the group."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description for the group."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "private": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Mark a group as private where only admins can accept members."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The current count of all members in the group."
+        },
+        "utc_offset_ms": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UTC offset in milliseconds."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the group was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the group was last updated."
+        }
+      },
+      "description": "*\nA group in the server."
+    },
+    "apiGroups": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGroup"
+          },
+          "description": "The Group objects."
+        }
+      },
+      "description": "*\nA collection of zero or more groups."
+    },
+    "apiGroupsCreate": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GroupsCreateNewGroup"
+          },
+          "description": "The Group objects to create."
+        }
+      },
+      "description": "*\nCreate one or more groups with the current user as owner."
+    },
+    "apiRpc": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The identifier of the function."
+        },
+        "payload": {
+          "type": "string",
+          "description": "The payload of the function which must be a JSON object."
+        },
+        "http_key": {
+          "type": "string",
+          "description": "The authentication key used when executed as a non-client HTTP request."
+        }
+      },
+      "description": "*\nExecute an Lua function on the server."
+    },
+    "apiSession": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Authentication credentials."
+        },
+        "udp_token": {
+          "type": "string",
+          "description": "rUDP specific authentication credentials."
+        }
+      },
+      "description": "*\nA user's session used to authenticate messages."
+    },
+    "apiUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of the user's account."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user's account."
+        },
+        "fullname": {
+          "type": "string",
+          "description": "The fullname of the user."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location set by the user."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "The timezone set by the user."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "facebook_id": {
+          "type": "string",
+          "description": "The Facebook id in the user's account."
+        },
+        "google_id": {
+          "type": "string",
+          "description": "The Google id in the user's account."
+        },
+        "gamcenter_id": {
+          "type": "string",
+          "description": "The Apple Game Center in of the user's account."
+        },
+        "steam_id": {
+          "type": "string",
+          "description": "The Steam id in the user's account."
+        },
+        "online": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Indicates whether the user is currently online."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the user was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the user was last updated."
+        }
+      },
+      "description": "*\nA user in the server."
+    },
+    "apiUsers": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiUser"
+          },
+          "description": "The User objects."
+        }
+      },
+      "description": "*\nA collection of zero or more users."
+    },
+    "protobufBoolValue": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "The bool value."
+        }
+      },
+      "description": "Wrapper message for `bool`.\n\nThe JSON representation for `BoolValue` is JSON `true` and `false`."
+    },
+    "protobufEmpty": {
+      "type": "object",
+      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
+      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufStringValue": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The string value."
+        }
+      },
+      "description": "Wrapper message for `string`.\n\nThe JSON representation for `StringValue` is JSON string."
+    }
+  },
+  "externalDocs": {
+    "description": "Nakama server documentation",
+    "url": "https://heroiclabs.com/docs"
+  }
+}

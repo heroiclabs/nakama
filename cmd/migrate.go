@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"nakama/build/generated/migration"
+	"github.com/heroiclabs/nakama/migrations"
 
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
@@ -123,7 +123,7 @@ func MigrateParse(args []string, logger *zap.Logger) {
 		dbname = parsedUrl.Path[1:]
 	}
 
-	logger.Info("Database connection", zap.String("db", ms.dbAddress))
+	logger.Info("Database connection", zap.String("dsn", ms.dbAddress))
 
 	parsedUrl.Path = ""
 	db, err := sql.Open(dialect, parsedUrl.String())
