@@ -1,0 +1,320 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Nakama console API v2",
+    "version": "2.0",
+    "contact": {
+      "name": "The Nakama Authors \u0026 Contributors",
+      "url": "https://github.com/heroiclabs/nakama",
+      "email": "hello@heroiclabs.com"
+    }
+  },
+  "schemes": [
+    "http"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v2/account/authenticate": {
+      "post": {
+        "summary": "Authenticate a user with username+password.",
+        "operationId": "Login",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAuthenticate"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/account/{id}": {
+      "delete": {
+        "summary": "Delete all information stored for a user account.",
+        "operationId": "AccountDelete",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/account/{id}/export": {
+      "get": {
+        "summary": "Export all information stored about a user account.",
+        "operationId": "AccountExportFunc",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/consoleAccountExport"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "apiAccount": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "verified": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Whether the user has been verified. Via email or social profiles."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user."
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAccountDevice"
+          },
+          "description": "The devices which belong to the user's account."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "The custom id in the user's account."
+        }
+      },
+      "description": "*\nA user with additional account details. Always the current user."
+    },
+    "apiAccountDevice": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A device identifier. Should be obtained by a platform-specific device API."
+        }
+      },
+      "description": "*\nSend a device to the server. Used with authenticate/link/unlink and user."
+    },
+    "apiGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of a group."
+        },
+        "creator_id": {
+          "type": "string",
+          "description": "The id of the user who created the group."
+        },
+        "name": {
+          "type": "string",
+          "description": "The unique name of the group."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description for the group."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "private": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Mark a group as private where only admins can accept members."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The current count of all members in the group."
+        },
+        "utc_offset_ms": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UTC offset in milliseconds."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the group was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the group was last updated."
+        }
+      },
+      "description": "*\nA group in the server."
+    },
+    "apiUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of the user's account."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user's account."
+        },
+        "fullname": {
+          "type": "string",
+          "description": "The fullname of the user."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location set by the user."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "The timezone set by the user."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "facebook_id": {
+          "type": "string",
+          "description": "The Facebook id in the user's account."
+        },
+        "google_id": {
+          "type": "string",
+          "description": "The Google id in the user's account."
+        },
+        "gamcenter_id": {
+          "type": "string",
+          "description": "The Apple Game Center in of the user's account."
+        },
+        "steam_id": {
+          "type": "string",
+          "description": "The Steam id in the user's account."
+        },
+        "online": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Indicates whether the user is currently online."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the user was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX time when the user was last updated."
+        }
+      },
+      "description": "*\nA user in the server."
+    },
+    "consoleAccountExport": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/apiAccount",
+          "description": "The user's account details."
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGroup"
+          },
+          "description": "The user's groups."
+        }
+      },
+      "description": "*\nAn export of all information stored for a user account."
+    },
+    "consoleAuthenticate": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "password": {
+          "type": "string",
+          "description": "The password of the user."
+        }
+      },
+      "description": "*\nAuthenticate against the server with username+password."
+    },
+    "nakamaconsoleSession": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Authentication credentials."
+        }
+      },
+      "description": "*\nA user's session used to authenticate messages."
+    },
+    "protobufEmpty": {
+      "type": "object",
+      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
+      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    }
+  },
+  "externalDocs": {
+    "description": "Nakama server console documentation",
+    "url": "https://heroiclabs.com/docs"
+  }
+}
