@@ -1,6 +1,8 @@
 # Created by https://www.gitignore.io/api/go,intellij,windows,linux,osx,eclipse,git
 
-*.pb.go
+nakama
+
+# *.pb.go
 build/*
 !dashboard/build
 data/*
@@ -40,7 +42,7 @@ _testmain.go
 *.out
 
 # external packages folder
-vendor/
+# vendor/
 
 
 ### Intellij ###

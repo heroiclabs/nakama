@@ -1,70 +1,39 @@
 [[constraint]]
-  name = "github.com/armon/go-metrics"
+  name = "go.uber.org/zap"
+  version = "~1.7.1"
 
 [[constraint]]
-  name = "github.com/dgrijalva/jwt-go"
-  version = "~3.0.0"
+  name = "google.golang.org/grpc"
+  version = "~1.9.0"
 
 [[constraint]]
-  name = "github.com/elazarl/go-bindata-assetfs"
-
-[[constraint]]
-  name = "github.com/fatih/structs"
-  version = "~1.0.0"
-
-[[constraint]]
-  branch = "v2"
   name = "github.com/go-yaml/yaml"
-
-[[constraint]]
-  name = "github.com/gogo/protobuf"
-  version = "0.4.0"
-
-[[constraint]]
-  name = "github.com/gorhill/cronexpr"
-  version = "~1.0.0"
-
-[[constraint]]
-  name = "github.com/gorilla/handlers"
-  version = "~1.1.0"
-
-[[constraint]]
-  name = "github.com/gorilla/mux"
-  version = "~1.1.0"
-
-[[constraint]]
-  name = "github.com/gorilla/websocket"
-  version = "~1.2.0"
-
-[[constraint]]
-  name = "github.com/lib/pq"
-
-[[constraint]]
-  name = "github.com/rubenv/sql-migrate"
+  revision = "c95af922eae69f190717a0b7148960af8c55a072"
 
 [[constraint]]
   name = "github.com/satori/go.uuid"
+  revision = "063359185d32c6b045fa171ad7033ea545864fa1"
 
 [[constraint]]
-  name = "github.com/stretchr/testify"
-  version = "~1.1.4"
+  name = "github.com/rubenv/sql-migrate"
+  revision = "6edbfbd6a369ee82463312ec67b2c92f97a1d4dc"
 
 [[constraint]]
-  name = "github.com/yuin/gopher-lua"
+  name = "github.com/lib/pq"
+  revision = "83612a56d3dd153a94a629cd64925371c9adad78"
 
 [[constraint]]
-  name = "go.uber.org/atomic"
-  version = "~1.2.0"
+  name = "github.com/gorilla/handlers"
+  version = "~1.3.0"
 
 [[constraint]]
-  name = "go.uber.org/zap"
-  version = "~1.4.0"
+  name = "github.com/gorilla/mux"
+  version = "~1.6.0"
 
 [[constraint]]
-  name = "golang.org/x/crypto"
+  name = "github.com/dgrijalva/jwt-go"
+  version = "~3.1.0"
 
 [[constraint]]
-  name = "golang.org/x/net"
-
-[[constraint]]
-  name = "github.com/wirepair/netcode"
+  name = "github.com/gorilla/websocket"
+  revision = "292fd08b2560ad524ee37396253d71570339a821"
