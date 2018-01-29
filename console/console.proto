@@ -1,0 +1,105 @@
+// Copyright 2018 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * The RPC protocol for the developer console.
+ */
+syntax = "proto3";
+
+package nakama.console;
+
+import "github.com/heroiclabs/nakama/api/api.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+
+option go_package = "console";
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    title: "Nakama console API v2";
+    version: "2.0";
+    contact: {
+      name: "The Nakama Authors & Contributors";
+      url: "https://github.com/heroiclabs/nakama";
+      email: "hello@heroiclabs.com";
+    };
+  };
+  external_docs: {
+    url: "https://heroiclabs.com/docs";
+    description: "Nakama server console documentation";
+  }
+  schemes: HTTP;
+  consumes: "application/json";
+  produces: "application/json";
+};
+
+/**
+ * The developer console RPC protocol service built with GRPC.
+ */
+service Console {
+  // Authenticate a user with username+password.
+  rpc Login (Authenticate) returns (Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate",
+      body: "*"
+    };
+  }
+
+  // Delete all information stored for a user account.
+  rpc AccountDelete (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/account/{id}";
+  }
+
+  // Export all information stored about a user account.
+  rpc AccountExportFunc (AccountId) returns (AccountExport) {
+    option (google.api.http).get = "/v2/account/{id}/export";
+  }
+}
+
+/**
+ * An export of all information stored for a user account.
+ */
+message AccountExport {
+  // The user's account details.
+  nakama.api.Account account = 1;
+  // The user's groups.
+  repeated nakama.api.Group groups = 2;
+}
+
+/**
+ * The identifier for a user account.
+ */
+message AccountId {
+  // The unique identifier of the user account.
+  string id = 1;
+}
+
+/**
+ * Authenticate against the server with username+password.
+ */
+message Authenticate {
+  // The username of the user.
+  string username = 1;
+  // The password of the user.
+  string password = 2;
+}
+
+/**
+ * A user's session used to authenticate messages.
+ */
+message Session {
+  // Authentication credentials.
+  string token = 1;
+}
