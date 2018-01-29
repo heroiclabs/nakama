@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,83 +15,61 @@
 package server
 
 import (
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb"
 )
 
-// MessageRouter is responsible for sending a message to a list of presences
+// MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
-	Send(*zap.Logger, []Presence, proto.Message, bool)
+	SendToPresences(*zap.Logger, []Presence, proto.Message)
+	SendToStream(*zap.Logger, PresenceStream, proto.Message)
 }
 
-type messageRouterService struct {
+type LocalMessageRouter struct {
 	jsonpbMarshaler *jsonpb.Marshaler
 	registry        *SessionRegistry
+	tracker         Tracker
 }
 
-func NewMessageRouterService(jsonpbMarshaler *jsonpb.Marshaler, registry *SessionRegistry) *messageRouterService {
-	return &messageRouterService{
-		jsonpbMarshaler: jsonpbMarshaler,
-		registry:        registry,
+func NewLocalMessageRouter(registry *SessionRegistry, tracker Tracker) MessageRouter {
+	return &LocalMessageRouter{
+		jsonpbMarshaler: &jsonpb.Marshaler{
+			EnumsAsInts:  true,
+			EmitDefaults: false,
+			Indent:       "",
+			OrigName:     false,
+		},
+		registry: registry,
+		tracker:  tracker,
 	}
 }
 
-func (m *messageRouterService) Send(logger *zap.Logger, ps []Presence, msg proto.Message, reliable bool) {
-	if len(ps) == 0 {
+func (r *LocalMessageRouter) SendToPresences(logger *zap.Logger, presences []Presence, msg proto.Message) {
+	if len(presences) == 0 {
 		return
 	}
 
-	// Group together target sessions by format.
-	jsonSessionIDs := make([]string, 0)
-	protobufSessionIDs := make([]string, 0)
-	for _, p := range ps {
-		switch p.Meta.Format {
-		case SessionFormatJson:
-			jsonSessionIDs = append(jsonSessionIDs, p.ID.SessionID)
-		default:
-			protobufSessionIDs = append(protobufSessionIDs, p.ID.SessionID)
-		}
+	payload, err := r.jsonpbMarshaler.MarshalToString(msg)
+	if err != nil {
+		logger.Error("Could not marshall message to json", zap.Error(err))
+		return
 	}
-
-	// Encode and route together for Protobuf format.
-	if len(protobufSessionIDs) != 0 {
-		payload, err := proto.Marshal(msg)
+	payloadBytes := []byte(payload)
+	for _, presence := range presences {
+		session := r.registry.Get(presence.ID.SessionID)
+		if session == nil {
+			logger.Warn("No session to route to", zap.Any("sid", presence.ID.SessionID))
+			continue
+		}
+		err := session.SendBytes(payloadBytes)
 		if err != nil {
-			logger.Error("Could not marshall message to byte[]", zap.Error(err))
-			return
-		}
-		for _, sessionID := range protobufSessionIDs {
-			session := m.registry.Get(sessionID)
-			if session == nil {
-				logger.Warn("No session to route to", zap.Any("sid", sessionID))
-				continue
-			}
-			err := session.SendBytes(payload, reliable)
-			if err != nil {
-				logger.Error("Failed to route to", zap.Any("sid", sessionID), zap.Error(err))
-			}
+			logger.Error("Failed to route to", zap.Any("sid", presence.ID.SessionID), zap.Error(err))
 		}
 	}
+}
 
-	// Encode and route together for JSON format.
-	if len(jsonSessionIDs) != 0 {
-		payload, err := m.jsonpbMarshaler.MarshalToString(msg)
-		if err != nil {
-			logger.Error("Could not marshall message to json", zap.Error(err))
-			return
-		}
-		payloadBytes := []byte(payload)
-		for _, sessionID := range jsonSessionIDs {
-			session := m.registry.Get(sessionID)
-			if session == nil {
-				logger.Warn("No session to route to", zap.Any("sid", sessionID))
-				continue
-			}
-			err := session.SendBytes(payloadBytes, reliable)
-			if err != nil {
-				logger.Error("Failed to route to", zap.Any("sid", sessionID), zap.Error(err))
-			}
-		}
-	}
+func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, msg proto.Message) {
+	presences := r.tracker.ListByStream(stream)
+	r.SendToPresences(logger, presences, msg)
 }
