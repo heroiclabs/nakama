@@ -32,8 +32,10 @@ func request_Console_Login_0(ctx context.Context, marshaler runtime.Marshaler, c
 	var protoReq Authenticate
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.Login(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))

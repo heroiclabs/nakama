@@ -42,8 +42,10 @@ func request_Nakama_AccountUpdateFunc_0(ctx context.Context, marshaler runtime.M
 	var protoReq AccountUpdate
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.AccountUpdateFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -59,8 +61,10 @@ func request_Nakama_AuthenticateCustomFunc_0(ctx context.Context, marshaler runt
 	var protoReq AuthenticateCustom
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateCustomFunc_0); err != nil {
@@ -80,8 +84,10 @@ func request_Nakama_AuthenticateDeviceFunc_0(ctx context.Context, marshaler runt
 	var protoReq AuthenticateDevice
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateDeviceFunc_0); err != nil {
@@ -101,8 +107,10 @@ func request_Nakama_AuthenticateEmailFunc_0(ctx context.Context, marshaler runti
 	var protoReq AuthenticateEmail
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateEmailFunc_0); err != nil {
@@ -122,8 +130,10 @@ func request_Nakama_AuthenticateFacebookFunc_0(ctx context.Context, marshaler ru
 	var protoReq AuthenticateFacebook
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateFacebookFunc_0); err != nil {
@@ -143,8 +153,10 @@ func request_Nakama_AuthenticateGameCenterFunc_0(ctx context.Context, marshaler 
 	var protoReq AuthenticateGameCenter
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateGameCenterFunc_0); err != nil {
@@ -164,8 +176,10 @@ func request_Nakama_AuthenticateGoogleFunc_0(ctx context.Context, marshaler runt
 	var protoReq AuthenticateGoogle
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateGoogleFunc_0); err != nil {
@@ -185,8 +199,10 @@ func request_Nakama_AuthenticateSteamFunc_0(ctx context.Context, marshaler runti
 	var protoReq AuthenticateSteam
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Account); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateSteamFunc_0); err != nil {
@@ -219,8 +235,10 @@ func request_Nakama_GroupsCreateFunc_0(ctx context.Context, marshaler runtime.Ma
 	var protoReq GroupsCreate
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.GroupsCreateFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -241,8 +259,10 @@ func request_Nakama_LinkCustomFunc_0(ctx context.Context, marshaler runtime.Mars
 	var protoReq AccountCustom
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkCustomFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -254,8 +274,10 @@ func request_Nakama_LinkDeviceFunc_0(ctx context.Context, marshaler runtime.Mars
 	var protoReq AccountDevice
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkDeviceFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -267,8 +289,10 @@ func request_Nakama_LinkEmailFunc_0(ctx context.Context, marshaler runtime.Marsh
 	var protoReq AccountEmail
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkEmailFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -280,8 +304,10 @@ func request_Nakama_LinkFacebookFunc_0(ctx context.Context, marshaler runtime.Ma
 	var protoReq AccountFacebook
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkFacebookFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -293,8 +319,10 @@ func request_Nakama_LinkGameCenterFunc_0(ctx context.Context, marshaler runtime.
 	var protoReq AccountGameCenter
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkGameCenterFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -306,8 +334,10 @@ func request_Nakama_LinkGoogleFunc_0(ctx context.Context, marshaler runtime.Mars
 	var protoReq AccountGoogle
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkGoogleFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -319,8 +349,10 @@ func request_Nakama_LinkSteamFunc_0(ctx context.Context, marshaler runtime.Marsh
 	var protoReq AccountSteam
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.LinkSteamFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -336,8 +368,10 @@ func request_Nakama_RpcFunc_0(ctx context.Context, marshaler runtime.Marshaler, 
 	var protoReq Rpc
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Payload); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Payload); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	var (
@@ -406,8 +440,10 @@ func request_Nakama_UnlinkCustomFunc_0(ctx context.Context, marshaler runtime.Ma
 	var protoReq AccountCustom
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkCustomFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -419,8 +455,10 @@ func request_Nakama_UnlinkDeviceFunc_0(ctx context.Context, marshaler runtime.Ma
 	var protoReq AccountDevice
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkDeviceFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -432,8 +470,10 @@ func request_Nakama_UnlinkEmailFunc_0(ctx context.Context, marshaler runtime.Mar
 	var protoReq AccountEmail
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkEmailFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -445,8 +485,10 @@ func request_Nakama_UnlinkFacebookFunc_0(ctx context.Context, marshaler runtime.
 	var protoReq AccountFacebook
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkFacebookFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -458,8 +500,10 @@ func request_Nakama_UnlinkGameCenterFunc_0(ctx context.Context, marshaler runtim
 	var protoReq AccountGameCenter
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkGameCenterFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -471,8 +515,10 @@ func request_Nakama_UnlinkGoogleFunc_0(ctx context.Context, marshaler runtime.Ma
 	var protoReq AccountGoogle
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkGoogleFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -484,8 +530,10 @@ func request_Nakama_UnlinkSteamFunc_0(ctx context.Context, marshaler runtime.Mar
 	var protoReq AccountSteam
 	var metadata runtime.ServerMetadata
 
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
 	}
 
 	msg, err := client.UnlinkSteamFunc(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
