@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# Copyright 2018 The Nakama Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This command is a helper used to generate Go code stubs for GRPC and
+# GRPC-Gateway with the protoc compiler. This is necessary until the
+# Bazel Go rules have direct support for GRPC-Gateway. The sources
+# generated should be checked into the source tree for simpler development
+# builds.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+parent_dir=$( cd "$(dirname "$0")" ; pwd -P )
+pushd "${parent_dir}" > /dev/null
+
+if ! [[ -x "$(command -v protoc)" ]];
+then
+    echo "Error: 'protoc' is not installed or executable from the system PATH." >&2
+    exit 1
+fi
+
+protoc_flags=(-I/usr/local/include -I../ -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway)
+
+api_pbfile="../api/api.proto"
+protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${api_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${api_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${api_pbfile}" || exit 1
+
+console_pbfile="../console/console.proto"
+protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${console_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${console_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${console_pbfile}" || exit 1
+
+rtapi_pbfile="../rtapi/realtime.proto"
+protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${rtapi_pbfile}" || exit 1
