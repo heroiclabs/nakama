@@ -15,30 +15,12 @@
 package server
 
 import (
-	"database/sql"
+	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama/api"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
 )
 
-type pipeline struct {
-	config   Config
-	db       *sql.DB
-	tracker  Tracker
-	router   MessageRouter
-	registry *SessionRegistry
-}
-
-func NewPipeline(config Config, db *sql.DB, tracker Tracker, router MessageRouter, registry *SessionRegistry) *pipeline {
-	return &pipeline{
-		config:   config,
-		db:       db,
-		tracker:  tracker,
-		router:   router,
-		registry: registry,
-	}
-}
-
-func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
-	// FIXME test by echoing back message.
-	session.Send(envelope)
+func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) {
+	s.logger.Info("RPC called", zap.Any("userID", ctx.Value(ctxUserIDKey{})), zap.Any("username", ctx.Value(ctxUsernameKey{})), zap.Any("expiry", ctx.Value(ctxExpiryKey{})))
+	return &api.Rpc{Id: in.Id, Payload: in.Payload, HttpKey: in.HttpKey}, nil
 }
