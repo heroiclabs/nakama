@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ func NewJSONLogger(output *os.File, verbose bool) *zap.Logger {
 }
 
 func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
-	cores := []zapcore.Core{}
+	cores := make([]zapcore.Core, 0, len(loggers))
 	for _, logger := range loggers {
 		cores = append(cores, logger.Core())
 	}
@@ -113,7 +113,7 @@ func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
 	zap.RedirectStdLog(jsonLogger)
 	multiLogger := consoleLogger
 	if !config.GetLog().Stdout {
-		// if we aren't printing only to stdout, then we want to multiplex entries
+		// Multiplex entries if we aren't printing only to stdout.
 		multiLogger = NewMultiLogger(consoleLogger, jsonLogger)
 	}
 

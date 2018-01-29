@@ -15,30 +15,15 @@
 package server
 
 import (
-	"database/sql"
-	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
+	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
-type pipeline struct {
-	config   Config
-	db       *sql.DB
-	tracker  Tracker
-	router   MessageRouter
-	registry *SessionRegistry
+func (s *ApiServer) AccountFetch(ctx context.Context, in *empty.Empty) (*api.Account, error) {
+	return &api.Account{Email: "foo@bar.com"}, nil
 }
 
-func NewPipeline(config Config, db *sql.DB, tracker Tracker, router MessageRouter, registry *SessionRegistry) *pipeline {
-	return &pipeline{
-		config:   config,
-		db:       db,
-		tracker:  tracker,
-		router:   router,
-		registry: registry,
-	}
-}
-
-func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
-	// FIXME test by echoing back message.
-	session.Send(envelope)
+func (s *ApiServer) AccountUpdateFunc(ctx context.Context, in *api.AccountUpdate) (*empty.Empty, error) {
+	return nil, nil
 }

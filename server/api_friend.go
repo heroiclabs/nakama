@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,31 +14,12 @@
 
 package server
 
-import "go.uber.org/zap"
-
-type SessionFormat int
-
-const (
-	SessionFormatProtobuf SessionFormat = 0
-	SessionFormatJson                   = 1
+import (
+	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
-type session interface {
-	Logger() *zap.Logger
-	ID() string
-	UserID() string
-
-	Handle() string
-	SetHandle(string)
-
-	Lang() string
-	Expiry() int64
-	Consume(func(logger *zap.Logger, session session, envelope *Envelope, reliable bool))
-	Unregister()
-
-	Format() SessionFormat
-	Send(envelope *Envelope, reliable bool) error
-	SendBytes(payload []byte, reliable bool) error
-
-	Close()
+func (s *ApiServer) FriendAddFunc(ctx context.Context, in *api.FriendAdd) (*empty.Empty, error) {
+	return nil, nil
 }

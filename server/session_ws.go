@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,96 +15,95 @@
 package server
 
 import (
-	"sync"
-	"time"
-
-	"fmt"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/websocket"
-
-	"bytes"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"sync"
+	"go.uber.org/atomic"
+	"github.com/gorilla/websocket"
+	"time"
+	"github.com/satori/go.uuid"
+	"bytes"
+	"github.com/golang/protobuf/jsonpb"
+	"errors"
+	"github.com/heroiclabs/nakama/rtapi"
 )
 
-type wsSession struct {
+var ErrQueueFull = errors.New("outgoing queue full")
+
+type sessionWS struct {
 	sync.Mutex
 	logger            *zap.Logger
 	config            Config
-	id                string
-	userID            string
-	handle            *atomic.String
-	lang              string
-	format            SessionFormat
+	id                uuid.UUID
+	userID            uuid.UUID
+	username          *atomic.String
 	expiry            int64
-	stopped           bool
-	conn              *websocket.Conn
+
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
+
+	tracker           Tracker
+	registry          *SessionRegistry
+
+	stopped           bool
+	conn              *websocket.Conn
 	pingTicker        *time.Ticker
-	pingTickerStopCh  chan bool
-	unregister        func(s session)
+	outgoingCh        chan []byte
+	outgoingStopCh    chan struct{}
 }
 
-// NewWSSession creates a new session which encapsulates a WebSocket connection.
-func NewWSSession(logger *zap.Logger, config Config, userID string, handle string, lang string, format SessionFormat, expiry int64, websocketConn *websocket.Conn, jsonpbMarshaler *jsonpb.Marshaler,
-	jsonpbUnmarshaler *jsonpb.Unmarshaler, unregister func(s session)) session {
-	sessionID := generateNewId()
-	sessionLogger := logger.With(zap.String("uid", userID), zap.String("sid", sessionID))
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, tracker Tracker, registry *SessionRegistry) session {
+	sessionID := uuid.NewV4()
+	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
-	sessionLogger.Debug("New WS session connected")
+	sessionLogger.Debug("New WebSocket session connected")
 
-	return &wsSession{
+	return &sessionWS{
 		logger:            sessionLogger,
 		config:            config,
 		id:                sessionID,
 		userID:            userID,
-		handle:            atomic.NewString(handle),
-		lang:              lang,
-		format:            format,
+		username:          atomic.NewString(username),
 		expiry:            expiry,
-		conn:              websocketConn,
+
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
+
+		tracker:           tracker,
+		registry:          registry,
+
 		stopped:           false,
+		conn:              conn,
 		pingTicker:        time.NewTicker(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
-		pingTickerStopCh:  make(chan bool),
-		unregister:        unregister,
+		outgoingCh:        make(chan []byte, config.GetSocket().OutgoingQueueSize),
+		outgoingStopCh:    make(chan struct{}),
 	}
 }
 
-func (s *wsSession) Logger() *zap.Logger {
+func (s *sessionWS) Logger() *zap.Logger {
 	return s.logger
 }
 
-func (s *wsSession) ID() string {
+func (s *sessionWS) ID() uuid.UUID {
 	return s.id
 }
 
-func (s *wsSession) UserID() string {
+func (s *sessionWS) UserID() uuid.UUID {
 	return s.userID
 }
 
-func (s *wsSession) Handle() string {
-	return s.handle.Load()
+func (s *sessionWS) Username() string {
+	return s.username.Load()
 }
 
-func (s *wsSession) SetHandle(handle string) {
-	s.handle.Store(handle)
+func (s *sessionWS) SetUsername(username string) {
+	s.username.Store(username)
 }
 
-func (s *wsSession) Lang() string {
-	return s.lang
-}
-
-func (s *wsSession) Expiry() int64 {
+func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session session, envelope *Envelope, reliable bool)) {
+func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope)) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
@@ -113,9 +112,14 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 		return nil
 	})
 
-	// Send an initial ping immediately, then at intervals.
-	s.pingNow()
-	go s.pingPeriodically()
+	// Send an initial ping immediately.
+	if !s.pingNow() {
+		// If the first ping fails abort the rest of the consume sequence immediately.
+		return
+	}
+
+	// Start a routine to process outbound messages.
+	go s.processOutgoing()
 
 	for {
 		_, data, err := s.conn.ReadMessage()
@@ -126,49 +130,46 @@ func (s *wsSession) Consume(processRequest func(logger *zap.Logger, session sess
 			break
 		}
 
-		request := &Envelope{}
-		switch s.format {
-		case SessionFormatJson:
-			err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request)
-		default:
-			err = proto.Unmarshal(data, request)
-		}
-
-		if err != nil {
-			if s.format == SessionFormatJson {
-				s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
-			} else {
-				s.logger.Warn("Received malformed payload", zap.Any("data", data))
-			}
-
-			s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), true)
+		request := &rtapi.Envelope{}
+		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
+			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
+			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
+			//s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), true)
+			break
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
-			requestLogger := s.logger.With(zap.String("cid", request.CollationId))
-			processRequest(requestLogger, s, request, true)
+			// FIXME
+			//requestLogger := s.logger.With(zap.String("cid", request.CollationId))
+			requestLogger := s.logger
+			processRequest(requestLogger, s, request)
 		}
 	}
 }
 
-func (s *wsSession) Unregister() {
-	s.unregister(s)
-}
-
-func (s *wsSession) pingPeriodically() {
+func (s *sessionWS) processOutgoing() {
 	for {
 		select {
+		case <-s.outgoingStopCh:
+			// Session is closing, close the outgoing process routine.
+			return
 		case <-s.pingTicker.C:
+			// Periodically send pings.
 			if !s.pingNow() {
 				// If ping fails the session will be stopped, clean up the loop.
 				return
 			}
-		case <-s.pingTickerStopCh:
-			return
+		case payload := <-s.outgoingCh:
+			// Process the outgoing message queue.
+			s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
+			if err := s.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				s.logger.Warn("Could not write message", zap.Error(err))
+				return
+			}
 		}
 	}
 }
 
-func (s *wsSession) pingNow() bool {
+func (s *sessionWS) pingNow() bool {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -178,70 +179,53 @@ func (s *wsSession) pingNow() bool {
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
 	s.Unlock()
 	if err != nil {
-		s.logger.Warn("Could not send ping. Closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
-		s.cleanupClosedConnection() // The connection has already failed
+		s.logger.Warn("Could not send ping, closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
+		// The connection has already failed.
+		s.cleanupClosedConnection()
 		return false
 	}
-
-	// Server heartbeat.
-	err = s.Send(&Envelope{Payload: &Envelope_Heartbeat{&Heartbeat{Timestamp: nowMs()}}}, true)
-	if err != nil {
-		s.logger.Warn("Could not send heartbeat", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
-	}
-
 	return true
 }
 
-func (s *wsSession) Format() SessionFormat {
-	return s.format
+func (s *sessionWS) Format() SessionFormat {
+	return SessionFormatJson
 }
 
-func (s *wsSession) Send(envelope *Envelope, reliable bool) error {
-	// NOTE: WebSocket sessions ignore the reliable flag and will always deliver messages reliably.
-	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
+func (s *sessionWS) Send(envelope *rtapi.Envelope) error {
+	// FIXME
+	//s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
 
-	switch s.format {
-	case SessionFormatJson:
-		payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
-		if err != nil {
-			s.logger.Warn("Could not marshall Response to json", zap.Error(err))
-			return err
-		}
-		return s.SendBytes([]byte(payload), reliable)
-	default:
-		payload, err := proto.Marshal(envelope)
-		if err != nil {
-			s.logger.Warn("Could not marshall Response to byte[]", zap.Error(err))
-			return err
-		}
-		return s.SendBytes(payload, reliable)
+	payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
+	if err != nil {
+		s.logger.Warn("Could not marshal to json", zap.Error(err))
+		return err
 	}
+	return s.SendBytes([]byte(payload))
 }
 
-func (s *wsSession) SendBytes(payload []byte, reliable bool) error {
-	// NOTE: WebSocket sessions ignore the reliable flag and will always deliver messages reliably.
+func (s *sessionWS) SendBytes(payload []byte) error {
 	s.Lock()
-	defer s.Unlock()
 	if s.stopped {
+		s.Unlock()
 		return nil
 	}
 
-	var err error
-	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
-	switch s.format {
-	case SessionFormatJson:
-		err = s.conn.WriteMessage(websocket.TextMessage, payload)
+	select {
+	case s.outgoingCh <-payload:
+		s.Unlock()
+		return nil
 	default:
-		err = s.conn.WriteMessage(websocket.BinaryMessage, payload)
+		// The outgoing queue is full, likely because the remote client can't keep up.
+		// Terminate the connection immediately because the only alternative that doesn't block the server is
+		// to start dropping messages, which might cause unexpected behaviour.
+		s.Unlock()
+		s.logger.Warn("Could not write message, outgoing queue full")
+		s.cleanupClosedConnection()
+		return ErrQueueFull
 	}
-	if err != nil {
-		s.logger.Warn("Could not write message", zap.Error(err))
-	}
-
-	return err
 }
 
-func (s *wsSession) cleanupClosedConnection() {
+func (s *sessionWS) cleanupClosedConnection() {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -251,14 +235,22 @@ func (s *wsSession) cleanupClosedConnection() {
 	s.Unlock()
 
 	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
-	s.unregister(s)
+
+	// When connection close originates internally in the session, ensure cleanup of external resources and references.
+	s.registry.remove(s.id)
+	s.tracker.UntrackAll(s.id)
+
+	// Clean up internals.
 	s.pingTicker.Stop()
-	close(s.pingTickerStopCh)
+	close(s.outgoingStopCh)
+	close(s.outgoingCh)
+
+	// Close WebSocket.
 	s.conn.Close()
 	s.logger.Debug("Closed client connection")
 }
 
-func (s *wsSession) Close() {
+func (s *sessionWS) Close() {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -267,12 +259,20 @@ func (s *wsSession) Close() {
 	s.stopped = true
 	s.Unlock()
 
+	// Expect the caller of this session.Close() to clean up external resources (like presences) separately.
+
+	// Clean up internals.
 	s.pingTicker.Stop()
-	close(s.pingTickerStopCh)
+	close(s.outgoingStopCh)
+	close(s.outgoingCh)
+
+	// Send close message.
 	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs)*time.Millisecond))
 	if err != nil {
-		s.logger.Warn("Could not send close message. Closing prematurely.", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
+		s.logger.Warn("Could not send close message, closing prematurely", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}
+
+	// Close WebSocket.
 	s.conn.Close()
 	s.logger.Debug("Closed client connection")
 }

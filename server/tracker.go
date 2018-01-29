@@ -1,4 +1,4 @@
-// Copyright 2017 The Nakama Authors
+// Copyright 2018 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,234 +15,463 @@
 package server
 
 import (
-	"errors"
+	"github.com/satori/go.uuid"
 	"sync"
+	"go.uber.org/zap"
+)
+
+const (
+	StreamModeNotifications uint8 = iota
+	StreamModeStatus
+	StreamModeChannel
+	StreamModeGroup
+	StreamModeDM
 )
 
 type PresenceID struct {
 	Node      string
-	SessionID string
+	SessionID uuid.UUID
+}
+
+type PresenceStream struct {
+	Mode       uint8
+	Subject    uuid.UUID
+	Descriptor uuid.UUID
+	Label      string
 }
 
 type PresenceMeta struct {
-	Handle string
-	Format SessionFormat
+	Format      SessionFormat
+	Hidden      bool
+	Persistence bool
+	Username    string
+	Status      string
 }
 
 type Presence struct {
 	ID     PresenceID
-	Topic  string
-	UserID string
+	Stream PresenceStream
+	UserID uuid.UUID
 	Meta   PresenceMeta
 }
 
+type PresenceEvent struct {
+	joins  []Presence
+	leaves []Presence
+}
+
 type Tracker interface {
-	AddDiffListener(func([]Presence, []Presence))
 	Stop()
 
-	// Track a presence. Returns `true` if it was a new presence, `false` otherwise.
-	Track(sessionID string, topic string, userID string, meta PresenceMeta) bool
-	Untrack(sessionID string, topic string, userID string)
-	UntrackAll(sessionID string)
-	Update(sessionID string, topic string, userID string, meta PresenceMeta) error
-	UpdateAll(sessionID string, meta PresenceMeta)
+	// Individual presence and user operations.
+	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
+	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
+	UntrackAll(sessionID uuid.UUID)
+	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
+
+	// Remove all presences on a stream, effectively closing it.
+	UntrackLocalByStream(stream PresenceStream)
+
+	// List the nodes that have at least one presence for the given stream.
+	ListNodesForStream(stream PresenceStream) []string
 
 	// Get current total number of presences.
 	Count() int
+	// Get the number of presences in the given stream.
+	CountByStream(stream PresenceStream) int
 	// Check if a single presence on the current node exists.
-	CheckLocalByIDTopicUser(sessionID string, topic string, userID string) bool
-	// List presences by topic.
-	ListByTopic(topic string) []Presence
-	// List presences on the current node by topic.
-	ListLocalByTopic(topic string) []Presence
-	// List presences by topic and user ID.
-	ListByTopicUser(topic string, userID string) []Presence
+	GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta
+	// List presences by stream.
+	ListByStream(stream PresenceStream) []Presence
+	// List presences on the current node by stream.
+	ListLocalByStream(stream PresenceStream) []Presence
 }
 
 type presenceCompact struct {
 	ID     PresenceID
-	Topic  string // The presence topic.
-	UserID string // The user ID.
+	Stream PresenceStream
+	UserID uuid.UUID
 }
 
-type TrackerService struct {
+type LocalTracker struct {
 	sync.RWMutex
-	name          string
-	diffListeners []func([]Presence, []Presence)
-	values        map[presenceCompact]PresenceMeta
+	logger             *zap.Logger
+	registry           *SessionRegistry
+	name               string
+	eventsCh           chan *PresenceEvent
+	stopCh             chan struct{}
+	presencesByStream  map[PresenceStream]map[presenceCompact]PresenceMeta
+	presencesBySession map[uuid.UUID]map[presenceCompact]PresenceMeta
 }
 
-func NewTrackerService(name string) *TrackerService {
-	return &TrackerService{
-		name:          name,
-		diffListeners: make([]func([]Presence, []Presence), 0),
-		values:        make(map[presenceCompact]PresenceMeta),
+func StartLocalTracker(logger *zap.Logger, registry *SessionRegistry, name string) Tracker {
+	t := &LocalTracker{
+		logger:             logger,
+		registry:           registry,
+		name:               name,
+		eventsCh:           make(chan *PresenceEvent, 128),
+		stopCh:             make(chan struct{}),
+		presencesByStream:  make(map[PresenceStream]map[presenceCompact]PresenceMeta),
+		presencesBySession: make(map[uuid.UUID]map[presenceCompact]PresenceMeta),
 	}
+	go func() {
+		// Asynchronously process and dispatch presence events.
+		for {
+			select {
+			case <-t.stopCh:
+				return
+			case e := <-t.eventsCh:
+				t.processEvent(e)
+			}
+		}
+	}()
+	return t
 }
 
-func (t *TrackerService) AddDiffListener(f func([]Presence, []Presence)) {
+func (t *LocalTracker) Stop() {
+	// No need to explicitly clean up the events channel, just let the application exit.
+	close(t.stopCh)
+}
+
+func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
+	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
+	alreadyTracked := false
 	t.Lock()
-	t.diffListeners = append(t.diffListeners, f)
-	t.Unlock()
-}
 
-func (t *TrackerService) Stop() {
-	// TODO cleanup after service shutdown.
-}
+	// See if this session has any presences tracked at all.
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if anyTracked {
+		// Then see if the exact presence we need is tracked.
+		_, alreadyTracked = bySession[pc]
+	}
 
-func (t *TrackerService) Track(sessionID string, topic string, userID string, meta PresenceMeta) bool {
-	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
-	t.Lock()
-	_, alreadyTracked := t.values[pc]
+	// Maybe update tracking for session.
+	if !anyTracked {
+		// If nothing at all was tracked for the current session, begin tracking.
+		bySession = make(map[presenceCompact]PresenceMeta)
+		bySession[pc] = meta
+		t.presencesBySession[sessionID] = bySession
+	} else if !alreadyTracked {
+		// If the current session had others tracked, but not this presence.
+		bySession[pc] = meta
+	}
+
+	// Maybe update tracking for stream.
 	if !alreadyTracked {
-		t.values[pc] = meta
-		t.notifyDiffListeners(
+		if byStream, ok := t.presencesByStream[stream]; !ok {
+			byStream = make(map[presenceCompact]PresenceMeta)
+			byStream[pc] = meta
+			t.presencesByStream[stream] = byStream
+		} else {
+			byStream[pc] = meta
+		}
+	}
+
+	t.Unlock()
+	if !alreadyTracked && !meta.Hidden {
+		t.queueEvent(
 			[]Presence{
-				Presence{ID: pc.ID, Topic: topic, UserID: userID, Meta: meta},
+				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
 			},
-			[]Presence{},
+			nil,
 		)
 	}
-	t.Unlock()
 	return !alreadyTracked
 }
 
-func (t *TrackerService) Untrack(sessionID string, topic string, userID string) {
-	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
+func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {
+	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
-	meta, ok := t.values[pc]
-	if ok {
-		delete(t.values, pc)
-		t.notifyDiffListeners(
-			[]Presence{},
-			[]Presence{
-				Presence{ID: pc.ID, Topic: topic, UserID: userID, Meta: meta},
-			},
-		)
-	}
-	t.Unlock()
-}
 
-func (t *TrackerService) UntrackAll(sessionID string) {
-	ps := make([]Presence, 0)
-	t.Lock()
-	for pc, m := range t.values {
-		if pc.ID.SessionID == sessionID {
-			ps = append(ps, Presence{ID: pc.ID, Topic: pc.Topic, UserID: pc.UserID, Meta: m})
-		}
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		// Nothing tracked for the session.
+		t.Unlock()
+		return
 	}
-	if len(ps) != 0 {
-		for _, p := range ps {
-			delete(t.values, presenceCompact{ID: p.ID, Topic: p.Topic, UserID: p.UserID})
-		}
-		t.notifyDiffListeners(
-			[]Presence{},
-			ps,
-		)
+	meta, found := bySession[pc]
+	if !found {
+		// The session had other presences, but not for this stream.
+		t.Unlock()
+		return
 	}
-	t.Unlock()
-}
 
-func (t *TrackerService) Update(sessionID string, topic string, userID string, meta PresenceMeta) error {
-	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
-	var e error
-	t.Lock()
-	m, ok := t.values[pc]
-	if ok {
-		t.values[pc] = meta
-		t.notifyDiffListeners(
-			[]Presence{
-				Presence{ID: pc.ID, Topic: topic, UserID: userID, Meta: meta},
-			},
-			[]Presence{
-				Presence{ID: pc.ID, Topic: topic, UserID: userID, Meta: m},
-			},
-		)
+	// Update the tracking for session.
+	if len(bySession) == 1 {
+		// This was the only presence for the session, discard the whole list.
+		delete(t.presencesBySession, sessionID)
 	} else {
-		e = errors.New("no existing presence")
+		// There were other presences for the session, drop just this one.
+		delete(bySession, pc)
 	}
+
+	// Update the tracking for stream.
+	if byStream := t.presencesByStream[stream]; len(byStream) == 1 {
+		// This was the only presence for the stream, discard the whole list.
+		delete(t.presencesByStream, stream)
+	} else {
+		// There were other presences for the stream, drop just this one.
+		delete(byStream, pc)
+	}
+
 	t.Unlock()
-	return e
+	if !meta.Hidden {
+		t.queueEvent(
+			nil,
+			[]Presence{
+				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
+			},
+		)
+	}
 }
 
-func (t *TrackerService) UpdateAll(sessionID string, meta PresenceMeta) {
-	joins := make([]Presence, 0)
-	leaves := make([]Presence, 0)
+func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
 	t.Lock()
-	for pc, m := range t.values {
-		if pc.ID.SessionID == sessionID {
-			joins = append(joins, Presence{ID: pc.ID, Topic: pc.Topic, UserID: pc.UserID, Meta: meta})
-			leaves = append(leaves, Presence{ID: pc.ID, Topic: pc.Topic, UserID: pc.UserID, Meta: m})
+
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		// Nothing tracked for the session.
+		t.Unlock()
+		return
+	}
+
+	leaves := make([]Presence, 0, len(bySession))
+	for pc, meta := range bySession {
+		// Update the tracking for stream.
+		if byStream := t.presencesByStream[pc.Stream]; len(byStream) == 1 {
+			// This was the only presence for the stream, discard the whole list.
+			delete(t.presencesByStream, pc.Stream)
+		} else {
+			// There were other presences for the stream, drop just this one.
+			delete(byStream, pc)
+		}
+
+		// Check if there should be an event for this presence.
+		if !meta.Hidden {
+			leaves = append(leaves, Presence{ID: pc.ID, Stream: pc.Stream, UserID: pc.UserID, Meta: meta})
 		}
 	}
-	if len(joins) != 0 {
-		for _, p := range joins {
-			t.values[presenceCompact{ID: p.ID, Topic: p.Topic, UserID: p.UserID}] = p.Meta
+	// Discard the tracking for session.
+	delete(t.presencesBySession, sessionID)
+
+	t.Unlock()
+	if len(leaves) != 0 {
+		t.queueEvent(
+			nil,
+			leaves,
+		)
+	}
+}
+
+func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
+	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
+	t.Lock()
+
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		// Nothing tracked for the session.
+		t.Unlock()
+		return false
+	}
+	previousMeta, found := bySession[pc]
+	if !found {
+		// The session had other presences, but not for this stream.
+		t.Unlock()
+		return false
+	}
+
+	// Update the tracking for session.
+	bySession[pc] = meta
+	// Update the tracking for stream.
+	t.presencesByStream[stream][pc] = meta
+
+	t.Unlock()
+	if !meta.Hidden || !previousMeta.Hidden {
+		var joins []Presence
+		if !meta.Hidden {
+			joins = []Presence{
+				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
+			}
 		}
-		t.notifyDiffListeners(
+		var leaves []Presence
+		if !previousMeta.Hidden {
+			leaves = []Presence{
+				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: previousMeta},
+			}
+		}
+		t.queueEvent(
 			joins,
 			leaves,
 		)
 	}
+	return true
+}
+
+func (t *LocalTracker) UntrackLocalByStream(stream PresenceStream) {
+	// NOTE: Generates no presence notifications as everyone on the stream is going away all at once.
+	t.Lock()
+
+	byStream, anyTracked := t.presencesByStream[stream]
+	if !anyTracked {
+		// Nothing tracked for the stream.
+		t.Unlock()
+		return
+	}
+
+	// Drop the presences from tracking for each session.
+	for pc, _ := range byStream {
+		if bySession := t.presencesBySession[pc.ID.SessionID]; len(bySession) == 1 {
+			// This is the only presence for that session, discard the whole list.
+			delete(t.presencesBySession, pc.ID.SessionID)
+		} else {
+			// There were other presences for the session, drop just this one.
+			delete(bySession, pc)
+		}
+	}
+	// Discard the tracking for stream.
+	delete(t.presencesByStream, stream)
+
 	t.Unlock()
 }
 
-func (t *TrackerService) Count() int {
+func (t *LocalTracker) ListNodesForStream(stream PresenceStream) []string {
+	t.RLock()
+	_, anyTracked := t.presencesByStream[stream]
+	t.RUnlock()
+	if anyTracked {
+		// For the local tracker having any presences for this stream is enough.
+		return []string{t.name}
+	}
+	return []string{}
+}
+
+func (t *LocalTracker) Count() int {
 	var count int
 	t.RLock()
-	count = len(t.values)
+	// For each stream add together their presence count.
+	for _, byStream := range t.presencesByStream {
+		count += len(byStream)
+	}
 	t.RUnlock()
 	return count
 }
 
-func (t *TrackerService) CheckLocalByIDTopicUser(sessionID string, topic string, userID string) bool {
-	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Topic: topic, UserID: userID}
+func (t *LocalTracker) CountByStream(stream PresenceStream) int {
+	var count int
 	t.RLock()
-	_, ok := t.values[pc]
+	// If the stream exists use its presence count, otherwise 0.
+	byStream, anyTracked := t.presencesByStream[stream]
+	if anyTracked {
+		count = len(byStream)
+	}
 	t.RUnlock()
-	return ok
+	return count
 }
 
-func (t *TrackerService) ListByTopic(topic string) []Presence {
-	ps := make([]Presence, 0)
+func (t *LocalTracker) GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta {
+	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.RLock()
-	for pc, m := range t.values {
-		if pc.Topic == topic {
-			ps = append(ps, Presence{ID: pc.ID, Topic: topic, UserID: pc.UserID, Meta: m})
-		}
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		// Nothing tracked for the session.
+		t.RUnlock()
+		return nil
+	}
+	meta, found := bySession[pc]
+	t.RUnlock()
+	if !found {
+		return nil
+	}
+	return &meta
+}
+
+func (t *LocalTracker) ListByStream(stream PresenceStream) []Presence {
+	t.RLock()
+	byStream, anyTracked := t.presencesByStream[stream]
+	if !anyTracked {
+		t.RUnlock()
+		return []Presence{}
+	}
+	ps := make([]Presence, 0, len(byStream))
+	for pc, meta := range byStream {
+		ps = append(ps, Presence{ID: pc.ID, Stream: stream, UserID: pc.UserID, Meta: meta})
 	}
 	t.RUnlock()
 	return ps
 }
 
-func (t *TrackerService) ListLocalByTopic(topic string) []Presence {
-	ps := make([]Presence, 0)
+func (t *LocalTracker) ListLocalByStream(stream PresenceStream) []Presence {
 	t.RLock()
-	for pc, m := range t.values {
-		if pc.Topic == topic && pc.ID.Node == t.name {
-			ps = append(ps, Presence{ID: pc.ID, Topic: topic, UserID: pc.UserID, Meta: m})
-		}
+	byStream, anyTracked := t.presencesByStream[stream]
+	if !anyTracked {
+		t.RUnlock()
+		return []Presence{}
+	}
+	ps := make([]Presence, 0, len(byStream))
+	for pc, meta := range byStream {
+		ps = append(ps, Presence{ID: pc.ID, Stream: stream, UserID: pc.UserID, Meta: meta})
 	}
 	t.RUnlock()
 	return ps
 }
 
-func (t *TrackerService) ListByTopicUser(topic string, userID string) []Presence {
-	ps := make([]Presence, 0)
-	t.RLock()
-	for pc, m := range t.values {
-		if pc.Topic == topic && pc.UserID == userID {
-			ps = append(ps, Presence{ID: pc.ID, Topic: topic, UserID: pc.UserID, Meta: m})
+func (t *LocalTracker) queueEvent(joins, leaves []Presence) {
+	select {
+	case t.eventsCh <- &PresenceEvent{joins: joins, leaves: leaves}:
+		// Event queued for asynchronous dispatch.
+	default:
+		// Event queue is full, log an error and completely drain the queue.
+		t.logger.Error("Presence event dispatch queue is full, presence events may be lost")
+		for {
+			select {
+			case <-t.eventsCh:
+				// Discard the event.
+			default:
+				// Queue is now empty.
+				return
+			}
 		}
 	}
-	t.RUnlock()
-	return ps
 }
 
-func (t *TrackerService) notifyDiffListeners(joins, leaves []Presence) {
-	go func() {
-		for _, f := range t.diffListeners {
-			f(joins, leaves) // TODO run these in parallel? Will we have more than one?
+func (t *LocalTracker) processEvent(e *PresenceEvent) {
+	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.joins)), zap.Int("leaves", len(e.leaves)))
+
+	// Group joins/leaves by stream to allow batching.
+	streamJoins := make(map[PresenceStream][]Presence, 0)
+	streamLeaves := make(map[PresenceStream][]Presence, 0)
+	for _, p := range e.joins {
+		if j, ok := streamJoins[p.Stream]; ok {
+			streamJoins[p.Stream] = append(j, p)
+		} else {
+			streamJoins[p.Stream] = []Presence{p}
 		}
-	}()
+	}
+	for _, p := range e.leaves {
+		if j, ok := streamLeaves[p.Stream]; ok {
+			streamLeaves[p.Stream] = append(j, p)
+		} else {
+			streamLeaves[p.Stream] = []Presence{p}
+		}
+	}
+
+	// Send joins, together with any leaves for the same topic.
+	//for stream, joins := range streamJoins {
+	//	leaves, ok := streamLeaves[stream]
+	//	if ok {
+	//		delete(streamLeaves, stream)
+	//	}
+	//
+	//	// TODO construct stream presence event message
+	//
+	//    presences := h.tracker.ListLocalByStream(stream)
+	//	h.router.SendToPresences(h.logger, presences, msg)
+	//}
+	//// If there are leaves that
+	//for stream, leaves := range streamLeaves {
+	//	// TODO construct stream presence event message
+	//
+	//	presences := h.tracker.ListLocalByStream(stream)
+	//	h.router.SendToPresences(h.logger, presences, msg)
+	//}
 }

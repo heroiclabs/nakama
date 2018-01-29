@@ -15,30 +15,10 @@
 package server
 
 import (
-	"database/sql"
-	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
+	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama/api"
 )
 
-type pipeline struct {
-	config   Config
-	db       *sql.DB
-	tracker  Tracker
-	router   MessageRouter
-	registry *SessionRegistry
-}
-
-func NewPipeline(config Config, db *sql.DB, tracker Tracker, router MessageRouter, registry *SessionRegistry) *pipeline {
-	return &pipeline{
-		config:   config,
-		db:       db,
-		tracker:  tracker,
-		router:   router,
-		registry: registry,
-	}
-}
-
-func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
-	// FIXME test by echoing back message.
-	session.Send(envelope)
+func (s *ApiServer) UsersFetchFunc(ctx context.Context, in *api.UsersFetch) (*api.Users, error) {
+	return nil, nil
 }
