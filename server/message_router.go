@@ -32,16 +32,11 @@ type LocalMessageRouter struct {
 	tracker         Tracker
 }
 
-func NewLocalMessageRouter(registry *SessionRegistry, tracker Tracker) MessageRouter {
+func NewLocalMessageRouter(registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
 	return &LocalMessageRouter{
-		jsonpbMarshaler: &jsonpb.Marshaler{
-			EnumsAsInts:  true,
-			EmitDefaults: false,
-			Indent:       "",
-			OrigName:     false,
-		},
-		registry: registry,
-		tracker:  tracker,
+		jsonpbMarshaler: jsonpbMarshaler,
+		registry:        registry,
+		tracker:         tracker,
 	}
 }
 
