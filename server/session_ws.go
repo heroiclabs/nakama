@@ -25,6 +25,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"errors"
 	"github.com/heroiclabs/nakama/rtapi"
+	"fmt"
 )
 
 var ErrQueueFull = errors.New("outgoing queue full")
@@ -134,13 +135,14 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
 			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
-			//s.Send(ErrorMessage(request.CollationId, UNRECOGNIZED_PAYLOAD, "Unrecognized payload"), true)
+			s.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code: int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+				Message: "Unrecognized payload",
+			}}})
 			break
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
-			// FIXME
-			//requestLogger := s.logger.With(zap.String("cid", request.CollationId))
-			requestLogger := s.logger
+			requestLogger := s.logger.With(zap.String("cid", request.Cid))
 			processRequest(requestLogger, s, request)
 		}
 	}
@@ -192,8 +194,7 @@ func (s *sessionWS) Format() SessionFormat {
 }
 
 func (s *sessionWS) Send(envelope *rtapi.Envelope) error {
-	// FIXME
-	//s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Payload), zap.String("cid", envelope.CollationId))
+	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.String("cid", envelope.Cid))
 
 	payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {

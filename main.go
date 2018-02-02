@@ -30,6 +30,7 @@ import (
 	"net/url"
 
 	_ "github.com/lib/pq"
+	"github.com/golang/protobuf/jsonpb"
 )
 
 var (
@@ -69,12 +70,23 @@ func main() {
 	// Check migration status and log if the schema has diverged.
 	cmd.MigrationStartupCheck(multiLogger, db)
 
+	// Shared utility components.
+	jsonpbMarshaler := &jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+		Indent:       "",
+		OrigName:     false,
+	}
+	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
+
 	// Start up server components.
 	registry := server.NewSessionRegistry()
-	tracker := server.StartLocalTracker(jsonLogger, registry, config.GetName())
-	router := server.NewLocalMessageRouter(registry, tracker)
+	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
+	router := server.NewLocalMessageRouter(registry, tracker, jsonpbMarshaler)
 	pipeline := server.NewPipeline(config, db, tracker, router, registry)
-	apiServer := server.StartApiServer(jsonLogger, db, config, tracker, registry, pipeline)
+	apiServer := server.StartApiServer(jsonLogger, db, config, tracker, registry, pipeline, jsonpbMarshaler, jsonpbUnmarshaler)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)

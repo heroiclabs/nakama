@@ -35,11 +35,16 @@ option objc_class_prefix = "NKPB";
  * An envelope for a realtime message.
  */
 message Envelope {
+  string cid = 1;
   oneof message {
     // Describes an error which occurred on the server.
-    Error error = 1;
-
-    nakama.api.ChannelId channel_id = 2; // TODO(zyro): replace with real imported message.
+    Error error = 2;
+    // RPC call or response.
+    api.Rpc rpc = 3;
+    // A data message delivered over a stream.
+    StreamData stream_data = 4;
+    // Represents a presence update for a particular stream.
+    StreamPresenceEvent stream_presence_event = 5;
   }
 }
 
@@ -71,4 +76,58 @@ message Error {
   string message = 2;
   // Additional error details which may be different for each response.
   map<string, string> context = 3;
+}
+
+/**
+ * Represents identifying information for a stream.
+ */
+message Stream {
+  // Mode identifies the type of stream.
+  int32 mode = 1;
+  // Subject is the primary identifier, if any.
+  string subject = 2;
+  // Descriptor is a secondary identifier, if any.
+  string descriptor = 3;
+  // The label is an arbitrary identifying string, if the stream has one.
+  string label = 4;
+}
+
+/**
+ * A data message delivered over a stream.
+ */
+message StreamData {
+  // The stream this data message relates to.
+  Stream stream = 1;
+  // The sender, if any.
+  StreamPresence sender = 2;
+  // Arbitrary contents of the data message.
+  string data = 3;
+}
+
+/**
+ * A user session associated to a stream, usually through a list operation or a join/leave event.
+ */
+message StreamPresence {
+  // The user this presence belongs to.
+  string user_id = 1;
+  // A unique session ID identifying the particular connection, because the user may have many.
+  string session_id = 2;
+  // The username for display purposes.
+  string username = 3;
+  // Whether this presence generates persistent data/messages, if applicable for the stream type.
+  bool persistence = 4;
+  // A user-set status message for this stream, if applicable.
+  string status = 5;
+}
+
+/**
+ * A set of joins and leaves on a particular stream.
+ */
+message StreamPresenceEvent {
+  // The stream this event relates to.
+  Stream stream = 1;
+  // Presences joining the stream as part of this event, if any.
+  repeated StreamPresence joins = 2;
+  // Presences leaving the stream as part of this event, if any.
+  repeated StreamPresence leaves = 3;
 }
