@@ -18,6 +18,8 @@ import (
 	"github.com/satori/go.uuid"
 	"sync"
 	"go.uber.org/zap"
+	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/golang/protobuf/jsonpb"
 )
 
 const (
@@ -97,6 +99,7 @@ type LocalTracker struct {
 	sync.RWMutex
 	logger             *zap.Logger
 	registry           *SessionRegistry
+	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
 	eventsCh           chan *PresenceEvent
 	stopCh             chan struct{}
@@ -104,10 +107,11 @@ type LocalTracker struct {
 	presencesBySession map[uuid.UUID]map[presenceCompact]PresenceMeta
 }
 
-func StartLocalTracker(logger *zap.Logger, registry *SessionRegistry, name string) Tracker {
+func StartLocalTracker(logger *zap.Logger, registry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, name string) Tracker {
 	t := &LocalTracker{
 		logger:             logger,
 		registry:           registry,
+		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               name,
 		eventsCh:           make(chan *PresenceEvent, 128),
 		stopCh:             make(chan struct{}),
@@ -438,40 +442,120 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.joins)), zap.Int("leaves", len(e.leaves)))
 
 	// Group joins/leaves by stream to allow batching.
-	streamJoins := make(map[PresenceStream][]Presence, 0)
-	streamLeaves := make(map[PresenceStream][]Presence, 0)
+	// Convert to wire representation at the same time.
+	streamJoins := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
+	streamLeaves := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
 	for _, p := range e.joins {
+		pWire := &rtapi.StreamPresence{
+			UserId: p.UserID.String(),
+			SessionId: p.ID.SessionID.String(),
+			Username: p.Meta.Username,
+			Persistence: p.Meta.Persistence,
+			Status: p.Meta.Status,
+		}
 		if j, ok := streamJoins[p.Stream]; ok {
-			streamJoins[p.Stream] = append(j, p)
+			streamJoins[p.Stream] = append(j, pWire)
 		} else {
-			streamJoins[p.Stream] = []Presence{p}
+			streamJoins[p.Stream] = []*rtapi.StreamPresence{pWire}
 		}
 	}
 	for _, p := range e.leaves {
+		pWire := &rtapi.StreamPresence{
+			UserId: p.UserID.String(),
+			SessionId: p.ID.SessionID.String(),
+			Username: p.Meta.Username,
+			Persistence: p.Meta.Persistence,
+			Status: p.Meta.Status,
+		}
 		if j, ok := streamLeaves[p.Stream]; ok {
-			streamLeaves[p.Stream] = append(j, p)
+			streamLeaves[p.Stream] = append(j, pWire)
 		} else {
-			streamLeaves[p.Stream] = []Presence{p}
+			streamLeaves[p.Stream] = []*rtapi.StreamPresence{pWire}
 		}
 	}
 
 	// Send joins, together with any leaves for the same topic.
-	//for stream, joins := range streamJoins {
-	//	leaves, ok := streamLeaves[stream]
-	//	if ok {
-	//		delete(streamLeaves, stream)
-	//	}
-	//
-	//	// TODO construct stream presence event message
-	//
-	//    presences := h.tracker.ListLocalByStream(stream)
-	//	h.router.SendToPresences(h.logger, presences, msg)
-	//}
-	//// If there are leaves that
-	//for stream, leaves := range streamLeaves {
-	//	// TODO construct stream presence event message
-	//
-	//	presences := h.tracker.ListLocalByStream(stream)
-	//	h.router.SendToPresences(h.logger, presences, msg)
-	//}
+	for stream, joins := range streamJoins {
+		leaves, ok := streamLeaves[stream]
+		if ok {
+			delete(streamLeaves, stream)
+		}
+
+		// Construct the wire representation of the stream.
+		streamWire := &rtapi.Stream{
+			Mode: int32(stream.Mode),
+			Label: stream.Label,
+		}
+		if stream.Subject != uuid.Nil {
+			streamWire.Subject = stream.Subject.String()
+		}
+		if stream.Descriptor != uuid.Nil {
+			streamWire.Descriptor_ = stream.Descriptor.String()
+		}
+
+		// Construct the wire representation of the event.
+		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
+				Stream: streamWire,
+				Joins: joins,
+				Leaves: leaves,
+			},
+		}}
+		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
+		if err != nil {
+			t.logger.Warn("Could not marshal presence event to json", zap.Error(err))
+			continue
+		}
+		payloadByte := []byte(payload)
+
+		// Find the list of event recipients.
+		presences := t.ListLocalByStream(stream)
+		for _, p := range presences {
+			// Deliver event.
+			if s := t.registry.Get(p.ID.SessionID); s != nil {
+				s.SendBytes(payloadByte)
+			} else {
+				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))
+			}
+		}
+	}
+
+	// If there are leaves without corresponding joins.
+	for stream, leaves := range streamLeaves {
+		// Construct the wire representation of the stream.
+		streamWire := &rtapi.Stream{
+			Mode: int32(stream.Mode),
+			Label: stream.Label,
+		}
+		if stream.Subject != uuid.Nil {
+			streamWire.Subject = stream.Subject.String()
+		}
+		if stream.Descriptor != uuid.Nil {
+			streamWire.Descriptor_ = stream.Descriptor.String()
+		}
+
+		// Construct the wire representation of the event.
+		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
+				Stream: streamWire,
+				// No joins.
+				Leaves: leaves,
+			},
+		}}
+		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
+		if err != nil {
+			t.logger.Warn("Could not marshal presence event to json", zap.Error(err))
+			continue
+		}
+		payloadByte := []byte(payload)
+
+		// Find the list of event recipients.
+		presences := t.ListLocalByStream(stream)
+		for _, p := range presences {
+			// Deliver event.
+			if s := t.registry.Get(p.ID.SessionID); s != nil {
+				s.SendBytes(payloadByte)
+			} else {
+				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))
+			}
+		}
+	}
 }

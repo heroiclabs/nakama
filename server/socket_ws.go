@@ -22,20 +22,11 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 )
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, tracker Tracker, registry *SessionRegistry, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, tracker Tracker, registry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
-	jsonpbMarshaler := &jsonpb.Marshaler{
-		EnumsAsInts:  true,
-		EmitDefaults: false,
-		Indent:       "",
-		OrigName:     false,
-	}
-	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
-		AllowUnknownFields: false,
 	}
 
 	// This handler will be attached to the API Gateway server.
