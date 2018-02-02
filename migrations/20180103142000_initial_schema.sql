@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS users (
     edge_count     INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
     created_at     BIGINT        CHECK (created_at > 0) NOT NULL,
     updated_at     BIGINT        CHECK (updated_at > 0) NOT NULL,
-    verified_at    BIGINT        CHECK (verified_at >= 0) DEFAULT 0 NOT NULL,
     disabled_at    BIGINT        CHECK (disabled_at >= 0) DEFAULT 0 NOT NULL
 );
 
