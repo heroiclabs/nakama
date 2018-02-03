@@ -85,8 +85,12 @@ func main() {
 	registry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(registry, tracker, jsonpbMarshaler)
-	pipeline := server.NewPipeline(config, db, tracker, router, registry)
-	apiServer := server.StartApiServer(jsonLogger, db, config, tracker, registry, pipeline, jsonpbMarshaler, jsonpbUnmarshaler)
+	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config.GetRuntime(), registry, tracker, router)
+	if err != nil {
+		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
+	}
+	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, config, registry, tracker, pipeline, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)

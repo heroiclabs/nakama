@@ -37,3 +37,11 @@
 [[constraint]]
   name = "github.com/gorilla/websocket"
   revision = "292fd08b2560ad524ee37396253d71570339a821"
+
+[[constraint]]
+  name = "github.com/yuin/gopher-lua"
+  revision = "7d7bc8747e3f614c5c587729a341fe7d8903cdb8"
+
+[[constraint]]
+  name = "github.com/gorhill/cronexpr"
+  revision = "d520615e531a6bf3fb69406b9eba718261285ec8"

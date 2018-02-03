@@ -22,7 +22,7 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 )
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, tracker Tracker, registry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -52,7 +52,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, tracker Tracker, reg
 		}
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, tracker, registry)
+		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, registry, tracker)
 
 		// Add to the session registry.
 		registry.add(s)

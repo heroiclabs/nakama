@@ -21,24 +21,34 @@ import (
 )
 
 type pipeline struct {
-	config   Config
-	db       *sql.DB
-	tracker  Tracker
-	router   MessageRouter
-	registry *SessionRegistry
+	config      Config
+	db          *sql.DB
+	registry    *SessionRegistry
+	tracker     Tracker
+	router      MessageRouter
+	runtimePool *RuntimePool
 }
 
-func NewPipeline(config Config, db *sql.DB, tracker Tracker, router MessageRouter, registry *SessionRegistry) *pipeline {
+func NewPipeline(config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
 	return &pipeline{
-		config:   config,
-		db:       db,
-		tracker:  tracker,
-		router:   router,
-		registry: registry,
+		config:      config,
+		db:          db,
+		registry:    registry,
+		tracker:     tracker,
+		router:      router,
+		runtimePool: runtimePool,
 	}
 }
 
 func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
-	// FIXME test by echoing back message.
-	session.Send(envelope)
+	switch envelope.Message.(type) {
+	case *rtapi.Envelope_Rpc:
+		p.rpc(logger, session, envelope)
+	default:
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code: int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+			Message: "Unrecognized payload",
+		}}})
+		return
+	}
 }
