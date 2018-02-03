@@ -1995,6 +1995,8 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 			return
 		}
 
+		notification.Id = generateNewId()
+
 		notifications = append(notifications, notification)
 	})
 

@@ -225,7 +225,7 @@ func (n *NotificationService) notificationsSave(notifications []*NNotification) 
 
 		statements = append(statements, "("+statement+")")
 
-		params = append(params, generateNewId())
+		params = append(params, no.Id)
 		params = append(params, no.UserID)
 		params = append(params, no.Subject)
 		params = append(params, no.Content)
