@@ -129,22 +129,22 @@ func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Con
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
 		switch info.FullMethod {
-		case "/nakama.proto.Nakama/Healthcheck":
+		case "/nakama.api.Nakama/Healthcheck":
 			// Healthcheck has no security.
 			return handler(ctx, req)
-		case "/nakama.proto.Nakama/AuthenticateCustomFunc":
+		case "/nakama.api.Nakama/AuthenticateCustomFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateDeviceFunc":
+		case "/nakama.api.Nakama/AuthenticateDeviceFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateEmailFunc":
+		case "/nakama.api.Nakama/AuthenticateEmailFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateFacebookFunc":
+		case "/nakama.api.Nakama/AuthenticateFacebookFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateGameCenterFunc":
+		case "/nakama.api.Nakama/AuthenticateGameCenterFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateGoogleFunc":
+		case "/nakama.api.Nakama/AuthenticateGoogleFunc":
 			fallthrough
-		case "/nakama.proto.Nakama/AuthenticateSteamFunc":
+		case "/nakama.api.Nakama/AuthenticateSteamFunc":
 			// Authentication functions require Server key.
 			md, ok := metadata.FromIncomingContext(ctx)
 			if !ok {
@@ -172,7 +172,7 @@ func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Con
 				// Value of "authorization" or "grpc-authorization" username component did not match server key.
 				return nil, status.Error(codes.Unauthenticated, "Server key invalid")
 			}
-		case "/nakama.proto.Nakama/RpcFunc":
+		case "/nakama.api.Nakama/RpcFunc":
 			// RPC allows full user authentication or HTTP key authentication.
 			md, ok := metadata.FromIncomingContext(ctx)
 			if !ok {
