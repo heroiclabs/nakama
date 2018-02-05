@@ -31,11 +31,11 @@ import (
 func (s *ApiServer) LinkCustomFunc(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
 	customID := in.Id
 	if customID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Custom ID is required")
+		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(customID) {
-		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, no spaces or control characters allowed.")
 	} else if len(customID) < 10 || len(customID) > 128 {
-		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, must be 10-128 bytes")
+		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, must be 10-128 bytes.")
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
@@ -53,8 +53,8 @@ AND NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link custom ID", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Error while trying to link Custom ID")
+		s.logger.Warn("Could not link custom ID.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error while trying to link Custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Custom ID is already in use.")
 	}
@@ -65,11 +65,11 @@ AND NOT EXISTS
 func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
 	deviceID := in.Id
 	if deviceID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Device ID is required")
+		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, no spaces or control characters allowed.")
 	} else if len(deviceID) < 10 || len(deviceID) > 128 {
-		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, must be 10-128 bytes")
+		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, must be 10-128 bytes.")
 	}
 
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
@@ -81,13 +81,13 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 				return status.Error(codes.AlreadyExists, "Device ID already in use.")
 			}
 			s.logger.Error("Cannot link device ID, query error", zap.Error(err))
-			return status.Error(codes.Internal, "Error linking Device ID")
+			return status.Error(codes.Internal, "Error linking Device ID.")
 		}
 
 		_, err = tx.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", ts, userID)
 		if err != nil {
-			s.logger.Error("Cannot update users table while linking, query error", zap.Error(err))
-			return status.Error(codes.Internal, "Error linking Device ID")
+			s.logger.Error("Cannot update users table while linking.", zap.Error(err))
+			return status.Error(codes.Internal, "Error linking Device ID.")
 		}
 		return nil
 	})
@@ -101,15 +101,15 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 
 func (s *ApiServer) LinkEmailFunc(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
 	if in.Email == "" || in.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "Email address and password is required")
+		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
 	} else if invalidCharsRegex.MatchString(in.Email) {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
 	} else if len(in.Password) < 8 {
-		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters")
+		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters.")
 	} else if !emailRegex.MatchString(in.Email) {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address format")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
 	} else if len(in.Email) < 10 || len(in.Email) > 255 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
 	}
 
 	cleanEmail := strings.ToLower(in.Email)
@@ -131,8 +131,8 @@ AND NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link email", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Error while trying to link email")
+		s.logger.Warn("Could not link email.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error while trying to link email.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Email is already in use.")
 	}

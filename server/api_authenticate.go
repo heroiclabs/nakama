@@ -38,11 +38,11 @@ var (
 
 func (s *ApiServer) AuthenticateCustomFunc(ctx context.Context, in *api.AuthenticateCustom) (*api.Session, error) {
 	if in.Account == nil || in.Account.Id == "" {
-		return nil, status.Error(codes.InvalidArgument, "Custom ID is required")
+		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
-		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, no spaces or control characters allowed.")
 	} else if len(in.Account.Id) < 10 || len(in.Account.Id) > 128 {
-		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, must be 10-128 bytes")
+		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, must be 10-128 bytes.")
 	}
 
 	if in.Create == nil || in.Create.Value {
@@ -51,9 +51,9 @@ func (s *ApiServer) AuthenticateCustomFunc(ctx context.Context, in *api.Authenti
 		if username == "" {
 			username = generateUsername(s.random)
 		} else if invalidCharsRegex.MatchString(username) {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 		} else if len(username) > 128 {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 		}
 
 		userID := uuid.NewV4().String()
@@ -76,14 +76,14 @@ RETURNING id, username, custom_id, disabled_at`
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
 				// Username is already in use by a different account.
-				return nil, status.Error(codes.AlreadyExists, "Username is already in use")
+				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
-			s.logger.Error("Cannot find or create user with custom ID, query error", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Error finding or creating user account")
+			s.logger.Error("Cannot find or create user with custom ID.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled")
+			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -103,15 +103,15 @@ WHERE custom_id = $1`
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// No user account found.
-				return nil, status.Error(codes.NotFound, "User account not found")
+				return nil, status.Error(codes.NotFound, "User account not found.")
 			} else {
-				s.logger.Error("Cannot find user with custom ID, query error", zap.Error(err))
-				return nil, status.Error(codes.Internal, "Error finding user account")
+				s.logger.Error("Cannot find user with custom ID.", zap.Error(err))
+				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled")
+			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -121,11 +121,11 @@ WHERE custom_id = $1`
 
 func (s *ApiServer) AuthenticateDeviceFunc(ctx context.Context, in *api.AuthenticateDevice) (*api.Session, error) {
 	if in.Account == nil || in.Account.Id == "" {
-		return nil, status.Error(codes.InvalidArgument, "Device ID is required")
+		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
-		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, no spaces or control characters allowed.")
 	} else if len(in.Account.Id) < 10 || len(in.Account.Id) > 128 {
-		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes")
+		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
 	}
 
 	if in.Create == nil || in.Create.Value {
@@ -134,9 +134,9 @@ func (s *ApiServer) AuthenticateDeviceFunc(ctx context.Context, in *api.Authenti
 		if username == "" {
 			username = generateUsername(s.random)
 		} else if invalidCharsRegex.MatchString(username) {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 		} else if len(username) > 128 {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 		}
 
 		var dbUserID string
@@ -161,22 +161,22 @@ RETURNING id, username, disabled_at`
 			err := tx.QueryRow(query, params...).Scan(&dbUserID, &dbUsername, &dbDisabledAt)
 			if err != nil {
 				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
-					return status.Error(codes.AlreadyExists, "Username is already in use")
+					return status.Error(codes.AlreadyExists, "Username is already in use.")
 				}
-				s.logger.Error("Cannot find or create user with device ID, query error", zap.Error(err))
-				return status.Error(codes.Internal, "Error finding or creating user account")
+				s.logger.Error("Cannot find or create user with device ID.", zap.Error(err))
+				return status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 
 			if dbDisabledAt != 0 {
-				return status.Error(codes.PermissionDenied, "User account is disabled")
+				return status.Error(codes.PermissionDenied, "User account is disabled.")
 			}
 
 			query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
 			params = []interface{}{userID, in.Account.Id}
 			_, err = s.db.Exec(query, params...)
 			if err != nil {
-				s.logger.Error("Cannot add device ID, query error", zap.Error(err))
-				return status.Error(codes.Internal, "Error finding or creating user account")
+				s.logger.Error("Cannot add device ID.", zap.Error(err))
+				return status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 
 			return nil
@@ -197,10 +197,10 @@ RETURNING id, username, disabled_at`
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// No user account found.
-				return nil, status.Error(codes.NotFound, "Device ID not found")
+				return nil, status.Error(codes.NotFound, "Device ID not found.")
 			} else {
-				s.logger.Error("Cannot find user with device ID, query error", zap.Error(err))
-				return nil, status.Error(codes.Internal, "Error finding user account")
+				s.logger.Error("Cannot find user with device ID.", zap.Error(err))
+				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
 
@@ -211,12 +211,12 @@ RETURNING id, username, disabled_at`
 
 		err = s.db.QueryRow(query, params...).Scan(&dbUsername, &dbDisabledAt)
 		if err != nil {
-			s.logger.Error("Cannot find user with device ID, query error", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Error finding user account")
+			s.logger.Error("Cannot find user with device ID.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error finding user account.")
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled")
+			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -227,15 +227,15 @@ RETURNING id, username, disabled_at`
 func (s *ApiServer) AuthenticateEmailFunc(ctx context.Context, in *api.AuthenticateEmail) (*api.Session, error) {
 	email := in.Account
 	if email == nil || email.Email == "" || email.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "Email address and password is required")
+		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
 	} else if invalidCharsRegex.MatchString(email.Email) {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
 	} else if len(email.Password) < 8 {
-		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters")
+		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters.")
 	} else if !emailRegex.MatchString(email.Email) {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address format")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes")
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
 	}
 
 	cleanEmail := strings.ToLower(email.Email)
@@ -247,9 +247,9 @@ func (s *ApiServer) AuthenticateEmailFunc(ctx context.Context, in *api.Authentic
 		if username == "" {
 			username = generateUsername(s.random)
 		} else if invalidCharsRegex.MatchString(username) {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid , no spaces or control characters allowed")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid , no spaces or control characters allowed.")
 		} else if len(username) > 128 {
-			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes")
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 		}
 
 		userID := uuid.NewV4().String()
@@ -271,10 +271,10 @@ RETURNING id, username, email, disabled_at`
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
 				// Username is already in use by a different account.
-				return nil, status.Error(codes.AlreadyExists, "Username is already in use")
+				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
-			s.logger.Error("Cannot find or create user with email, query error", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Error finding or creating user account")
+			s.logger.Error("Cannot find or create user with email.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
 		if dbDisabledAt != 0 {
@@ -299,20 +299,20 @@ WHERE email = $1`
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// No user account found.
-				return nil, status.Error(codes.NotFound, "User account not found")
+				return nil, status.Error(codes.NotFound, "User account not found.")
 			} else {
-				s.logger.Error("Cannot find user with email, query error", zap.Error(err))
-				return nil, status.Error(codes.Internal, "Error finding user account")
+				s.logger.Error("Cannot find user with email.", zap.Error(err))
+				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled")
+			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
 		}
 
 		err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(email.Password))
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "Invalid credentials")
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)

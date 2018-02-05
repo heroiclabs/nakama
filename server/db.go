@@ -17,6 +17,8 @@ package server
 import (
 	"database/sql"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -26,7 +28,7 @@ const (
 func Transact(logger *zap.Logger, db *sql.DB, txFunc func(*sql.Tx) error) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
-		logger.Error("Could not begin database transaction", zap.Error(err))
+		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return
 	}
 
@@ -34,15 +36,16 @@ func Transact(logger *zap.Logger, db *sql.DB, txFunc func(*sql.Tx) error) (err e
 
 	if p := recover(); p != nil {
 		if err = tx.Rollback(); err != nil {
-			logger.Error("Could not rollback database transaction", zap.Error(err))
+			logger.Error("Could not rollback database transaction.", zap.Error(err))
 		}
 	} else if fnErr != nil {
 		if err = tx.Rollback(); err != nil {
-			logger.Error("Could not rollback database transaction", zap.Error(err))
+			logger.Error("Could not rollback database transaction.", zap.Error(err))
 		}
 	} else {
 		if err = tx.Commit(); err != nil {
-			logger.Error("Could not commit database transaction", zap.Error(err))
+			logger.Error("Could not commit database transaction.", zap.Error(err))
+			return status.Error(codes.Internal, "Could not complete operation.")
 		}
 	}
 	return fnErr
