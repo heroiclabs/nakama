@@ -74,7 +74,7 @@ RETURNING id, username, custom_id, disabled_at`
 		var dbDisabledAt int64
 		err := s.db.QueryRow(query, params...).Scan(&dbUserID, &dbUsername, &dbCustomId, &dbDisabledAt)
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
+			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
@@ -160,7 +160,7 @@ RETURNING id, username, disabled_at`
 			var dbDisabledAt int64
 			err := tx.QueryRow(query, params...).Scan(&dbUserID, &dbUsername, &dbDisabledAt)
 			if err != nil {
-				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
+				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 					return status.Error(codes.AlreadyExists, "Username is already in use.")
 				}
 				s.logger.Error("Cannot find or create user with device ID.", zap.Error(err))
@@ -172,8 +172,8 @@ RETURNING id, username, disabled_at`
 			}
 
 			query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
-			params = []interface{}{userID, in.Account.Id}
-			_, err = s.db.Exec(query, params...)
+			params = []interface{}{in.Account.Id, userID}
+			_, err = tx.Exec(query, params...)
 			if err != nil {
 				s.logger.Error("Cannot add device ID.", zap.Error(err))
 				return status.Error(codes.Internal, "Error finding or creating user account.")
@@ -254,14 +254,11 @@ func (s *ApiServer) AuthenticateEmailFunc(ctx context.Context, in *api.Authentic
 
 		userID := uuid.NewV4().String()
 		ts := time.Now().UTC().Unix()
-		// NOTE: This query relies on the `custom_id` conflict triggering before the `users_username_key`
-		// constraint violation to ensure we fall to the RETURNING case and ignore the new username for
-		// existing user accounts. The DO UPDATE SET is to trick the DB into having the data we need to return.
 		query := `
 INSERT INTO users (id, username, email, password, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $5)
 ON CONFLICT (email) DO UPDATE SET email = $3, password = $4
-RETURNING id, username, email, disabled_at`
+RETURNING id, username, disabled_at`
 		params := []interface{}{userID, username, cleanEmail, hashedPassword, ts}
 
 		var dbUserID string
@@ -269,7 +266,7 @@ RETURNING id, username, email, disabled_at`
 		var dbDisabledAt int64
 		err := s.db.QueryRow(query, params...).Scan(&dbUserID, &dbUsername, &dbDisabledAt)
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && e.Column == "username" {
+			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}

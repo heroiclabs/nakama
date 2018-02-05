@@ -75,7 +75,7 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
-		_, err := s.db.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID, ts)
+		_, err := s.db.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				return status.Error(codes.AlreadyExists, "Device ID already in use.")
