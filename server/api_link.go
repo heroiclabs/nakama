@@ -43,11 +43,11 @@ func (s *ApiServer) LinkCustomFunc(ctx context.Context, in *api.AccountCustom) (
 	res, err := s.db.Exec(`
 UPDATE users
 SET custom_id = $2, updated_at = $3
-WHERE id = $1
-AND NOT EXISTS
+WHERE (id = $1)
+AND (NOT EXISTS
     (SELECT id
      FROM users
-     WHERE custom_id = $2)`,
+     WHERE custom_id = $2 AND NOT id = $1))`,
 		userID,
 		customID,
 		ts)
@@ -75,7 +75,7 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
-		_, err := s.db.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
+		_, err := s.db.Exec("INSERT INTO user_device (id, user_id) SELECT $1 as id, $2 as user_id WHERE user_id ", deviceID, userID)
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				return status.Error(codes.AlreadyExists, "Device ID already in use.")
@@ -120,11 +120,11 @@ func (s *ApiServer) LinkEmailFunc(ctx context.Context, in *api.AccountEmail) (*e
 	res, err := s.db.Exec(`
 UPDATE users
 SET email = $2, password = $3, updated_at = $4
-WHERE id = $1
-AND NOT EXISTS
+WHERE (id = $1)
+AND (NOT EXISTS
     (SELECT id
      FROM users
-     WHERE email = $2)`,
+     WHERE email = $2 AND NOT id = $1))`,
 		userID,
 		cleanEmail,
 		hashedPassword,
