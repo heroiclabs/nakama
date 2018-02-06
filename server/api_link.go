@@ -75,13 +75,23 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
-		_, err := s.db.Exec("INSERT INTO user_device (id, user_id) SELECT $1 as id, $2 as user_id WHERE user_id ", deviceID, userID)
+		
+		var dbDeviceIdLinkedUser int64
+		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
-				return status.Error(codes.AlreadyExists, "Device ID already in use.")
-			}
-			s.logger.Error("Cannot link device ID, query error", zap.Error(err), zap.Any("input", in))
+			s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Error linking Device ID.")
+		}
+
+		if dbDeviceIdLinkedUser == 0 {
+			_, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
+			if err != nil {
+				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+					return status.Error(codes.AlreadyExists, "Device ID already in use.")
+				}
+				s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
+				return status.Error(codes.Internal, "Error linking Device ID.")
+			}
 		}
 
 		_, err = tx.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", ts, userID)

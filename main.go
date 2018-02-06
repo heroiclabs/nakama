@@ -71,13 +71,13 @@ func main() {
 	cmd.MigrationStartupCheck(multiLogger, db)
 
 	// Shared utility components.
-	jsonpbMarshaler := &jsonpb.Marshaler{
+	jsonpbMarshaller := &jsonpb.Marshaler{
 		EnumsAsInts:  true,
 		EmitDefaults: false,
 		Indent:       "",
 		OrigName:     false,
 	}
-	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
+	jsonpbUnmarshaller := &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
 
