@@ -98,7 +98,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"aes128_decrypt":       n.aes128decrypt,
 		"bcrypt_hash":          n.bcryptHash,
 		"bcrypt_compare":       n.bcryptCompare,
-		"generate_auth_token":  n.generateAuthToken,
+		"auth_token_generate":  n.authTokenGenerate,
 		"cron_next":            n.cronNext,
 		"logger_info":          n.loggerInfo,
 		"logger_warn":          n.loggerWarn,
@@ -110,7 +110,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_close":         n.streamClose,
 		"stream_send":          n.streamSend,
 		"register_rpc":         n.registerRPC,
-		"run_once":             n.runOnce,
+		// "run_once":             n.runOnce,
 	})
 
 	l.Push(mod)
@@ -522,7 +522,7 @@ func (n *NakamaModule) bcryptCompare(l *lua.LState) int {
 	return 0
 }
 
-func (n *NakamaModule) generateAuthToken(l *lua.LState) int {
+func (n *NakamaModule) authTokenGenerate(l *lua.LState) int {
 	// Parse input User ID.
 	userIDString := l.CheckString(1)
 	if userIDString == "" {
@@ -542,7 +542,7 @@ func (n *NakamaModule) generateAuthToken(l *lua.LState) int {
 		return 0
 	}
 
-	exp := l.CheckInt64(3)
+	exp := l.OptInt64(3, 0)
 	if exp == 0 {
 		// If expiry is 0 or not set, use standard configured expiry.
 		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
