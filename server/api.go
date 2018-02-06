@@ -49,12 +49,13 @@ type ApiServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config
+	runtimePool       *RuntimePool
 	random            *rand.Rand
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, tracker Tracker, registry *SessionRegistry, pipeline *pipeline, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) *ApiServer {
+func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, pipeline *pipeline, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
@@ -63,6 +64,7 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, tracker Track
 		logger:         logger,
 		db:             db,
 		config:         config,
+		runtimePool:    runtimePool,
 		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		grpcServer:     grpcServer,
 	}
@@ -94,7 +96,7 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, tracker Track
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 
 	grpcGatewayRouter := mux.NewRouter()
-	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, tracker, registry, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
+	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
 
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(grpcGatewayRouter)

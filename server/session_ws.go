@@ -42,8 +42,8 @@ type sessionWS struct {
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 
-	tracker           Tracker
 	registry          *SessionRegistry
+	tracker           Tracker
 
 	stopped           bool
 	conn              *websocket.Conn
@@ -52,7 +52,7 @@ type sessionWS struct {
 	outgoingStopCh    chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, tracker Tracker, registry *SessionRegistry) session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, registry *SessionRegistry, tracker Tracker) session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -69,8 +69,8 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 
-		tracker:           tracker,
 		registry:          registry,
+		tracker:           tracker,
 
 		stopped:           false,
 		conn:              conn,
