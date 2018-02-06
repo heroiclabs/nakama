@@ -47,13 +47,14 @@ type RuntimePool struct {
 	pool      *sync.Pool
 }
 
-func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config *RuntimeConfig, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
-	if err := os.MkdirAll(config.Path, os.ModePerm); err != nil {
+func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
+	runtimeConfig := config.GetRuntime()
+	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	// Override before Package library is invoked.
-	lua.LuaLDir = config.Path
+	lua.LuaLDir = runtimeConfig.Path
 	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
@@ -111,7 +112,11 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, vm, registry, tracker, router,
+
+	// Used to govern once-per-server-start executions.
+	once := &sync.Once{}
+
+	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, once,
 		func(id string) {
 			regRPC[id] = struct{}{}
 			logger.Info("Registered RPC function invocation", zap.String("id", id))
@@ -120,7 +125,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 	r := &Runtime{
 		logger: logger,
 		vm:     vm,
-		luaEnv: ConvertMap(vm, config.Environment),
+		luaEnv: ConvertMap(vm, runtimeConfig.Environment),
 	}
 	moduleStrings := make([]string, len(modules))
 	for i, module := range modules {
@@ -150,13 +155,13 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 					vm.Call(1, 0)
 				}
 
-				nakamaModule := NewNakamaModule(logger, db, vm, registry, tracker, router, nil)
+				nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, once, nil)
 				vm.PreloadModule("nakama", nakamaModule.Loader)
 
 				r := &Runtime{
 					logger: logger,
 					vm:     vm,
-					luaEnv: ConvertMap(vm, config.Environment),
+					luaEnv: ConvertMap(vm, runtimeConfig.Environment),
 				}
 
 				if err = r.loadModules(modules); err != nil {
@@ -321,5 +326,6 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 }
 
 func (r *Runtime) Stop() {
+	// Not necessarily required as it only does OS temp files cleanup, which we don't expose in the runtime.
 	r.vm.Close()
 }

@@ -36,6 +36,11 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"github.com/heroiclabs/nakama/rtapi"
+	"golang.org/x/crypto/bcrypt"
+	"sync"
+	"crypto/aes"
+	"crypto/rand"
+	"crypto/cipher"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -47,23 +52,27 @@ type Callbacks struct {
 type NakamaModule struct {
 	logger              *zap.Logger
 	db                  *sql.DB
+	config              Config
 	registry            *SessionRegistry
 	tracker             Tracker
 	router              MessageRouter
+	once                *sync.Once
 	announceRPC         func(string)
 	client              *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
 		logger:      logger,
 		db:          db,
+		config:      config,
 		registry:    registry,
 		tracker:     tracker,
 		router:      router,
+		once:        once,
 		announceRPC: announceRPC,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -85,6 +94,11 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"base64_decode":        n.base64Decode,
 		"base16_encode":        n.base16Encode,
 		"base16_decode":        n.base16decode,
+		"aes128_encrypt":       n.aes128encrypt,
+		"aes128_decrypt":       n.aes128decrypt,
+		"bcrypt_hash":          n.bcryptHash,
+		"bcrypt_compare":       n.bcryptCompare,
+		"generate_auth_token":  n.generateAuthToken,
 		"cron_next":            n.cronNext,
 		"logger_info":          n.loggerInfo,
 		"logger_warn":          n.loggerWarn,
@@ -96,6 +110,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_close":         n.streamClose,
 		"stream_send":          n.streamSend,
 		"register_rpc":         n.registerRPC,
+		"run_once":             n.runOnce,
 	})
 
 	l.Push(mod)
@@ -210,12 +225,12 @@ func (n *NakamaModule) uuidV4(l *lua.LState) int {
 func (n *NakamaModule) uuidBytesToString(l *lua.LState) int {
 	uuidBytes := l.CheckString(1)
 	if uuidBytes == "" {
-		l.ArgError(1, "Expects a UUID byte string")
+		l.ArgError(1, "expects a UUID byte string")
 		return 0
 	}
 	u, err := uuid.FromBytes([]byte(uuidBytes))
 	if err != nil {
-		l.ArgError(1, "Not a valid UUID byte string")
+		l.ArgError(1, "not a valid UUID byte string")
 		return 0
 	}
 	l.Push(lua.LString(u.String()))
@@ -225,12 +240,12 @@ func (n *NakamaModule) uuidBytesToString(l *lua.LState) int {
 func (n *NakamaModule) uuidStringToBytes(l *lua.LState) int {
 	uuidString := l.CheckString(1)
 	if uuidString == "" {
-		l.ArgError(1, "Expects a UUID string")
+		l.ArgError(1, "expects a UUID string")
 		return 0
 	}
 	u, err := uuid.FromString(uuidString)
 	if err != nil {
-		l.ArgError(1, "Not a valid UUID string")
+		l.ArgError(1, "not a valid UUID string")
 		return 0
 	}
 	l.Push(lua.LString(u.Bytes()))
@@ -243,11 +258,11 @@ func (n *NakamaModule) httpRequest(l *lua.LState) int {
 	headers := l.CheckTable(3)
 	body := l.OptString(4, "")
 	if url == "" {
-		l.ArgError(1, "Expects URL string")
+		l.ArgError(1, "expects URL string")
 		return 0
 	}
 	if method == "" {
-		l.ArgError(2, "Expects method string")
+		l.ArgError(2, "expects method string")
 		return 0
 	}
 
@@ -304,14 +319,14 @@ func (n *NakamaModule) httpRequest(l *lua.LState) int {
 func (n *NakamaModule) jsonEncode(l *lua.LState) int {
 	jsonTable := l.Get(1)
 	if jsonTable == nil {
-		l.ArgError(1, "Expects a non-nil value to encode")
+		l.ArgError(1, "expects a non-nil value to encode")
 		return 0
 	}
 
 	jsonData := convertLuaValue(jsonTable)
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
-		l.RaiseError("Error encoding to JSON: %v", err.Error())
+		l.RaiseError("error encoding to JSON: %v", err.Error())
 		return 0
 	}
 
@@ -322,13 +337,13 @@ func (n *NakamaModule) jsonEncode(l *lua.LState) int {
 func (n *NakamaModule) jsonDecode(l *lua.LState) int {
 	jsonString := l.CheckString(1)
 	if jsonString == "" {
-		l.ArgError(1, "Expects JSON string")
+		l.ArgError(1, "expects JSON string")
 		return 0
 	}
 
 	var jsonData interface{}
 	if err := json.Unmarshal([]byte(jsonString), &jsonData); err != nil {
-		l.RaiseError("Not a valid JSON string: %v", err.Error())
+		l.RaiseError("not a valid JSON string: %v", err.Error())
 		return 0
 	}
 
@@ -339,7 +354,7 @@ func (n *NakamaModule) jsonDecode(l *lua.LState) int {
 func (n *NakamaModule) base64Encode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
-		l.ArgError(1, "Expects string")
+		l.ArgError(1, "expects string")
 		return 0
 	}
 
@@ -347,26 +362,28 @@ func (n *NakamaModule) base64Encode(l *lua.LState) int {
 	l.Push(lua.LString(output))
 	return 1
 }
+
 func (n *NakamaModule) base64Decode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
-		l.ArgError(1, "Expects string")
+		l.ArgError(1, "expects string")
 		return 0
 	}
 
 	output, err := base64.RawStdEncoding.DecodeString(input)
 	if err != nil {
-		l.RaiseError("Not a valid base64 string: %v", err.Error())
+		l.RaiseError("not a valid base64 string: %v", err.Error())
 		return 0
 	}
 
 	l.Push(lua.LString(output))
 	return 1
 }
+
 func (n *NakamaModule) base16Encode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
-		l.ArgError(1, "Expects string")
+		l.ArgError(1, "expects string")
 		return 0
 	}
 
@@ -374,20 +391,166 @@ func (n *NakamaModule) base16Encode(l *lua.LState) int {
 	l.Push(lua.LString(output))
 	return 1
 }
+
 func (n *NakamaModule) base16decode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
-		l.ArgError(1, "Expects string")
+		l.ArgError(1, "expects string")
 		return 0
 	}
 
 	output, err := hex.DecodeString(input)
 	if err != nil {
-		l.RaiseError("Not a valid base16 string: %v", err.Error())
+		l.RaiseError("not a valid base16 string: %v", err.Error())
 		return 0
 	}
 
 	l.Push(lua.LString(output))
+	return 1
+}
+
+func (n *NakamaModule) aes128encrypt(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+	key := l.CheckString(2)
+	if len(key) != 16 {
+		l.ArgError(2, "expects key 16 bytes long")
+		return 0
+	}
+
+	// Pad string up to length multiple of 4 if needed.
+	if maybePad := len(input) % 4; maybePad != 0 {
+		input += strings.Repeat(" ", 4-maybePad)
+	}
+
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		l.RaiseError("error creating cipher block: %v", err.Error())
+		return 0
+	}
+
+	cipherText := make([]byte, aes.BlockSize+len(input))
+	iv := cipherText[:aes.BlockSize]
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		l.RaiseError("error getting iv: %v", err.Error())
+		return 0
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(input))
+
+	l.Push(lua.LString(cipherText))
+	return 1
+}
+
+func (n *NakamaModule) aes128decrypt(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+	key := l.CheckString(2)
+	if len(key) != 16 {
+		l.ArgError(2, "expects key 16 bytes long")
+		return 0
+	}
+
+	if len(input) < aes.BlockSize {
+		l.RaiseError("input too short")
+		return 0
+	}
+
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		l.RaiseError("error creating cipher block: %v", err.Error())
+		return 0
+	}
+
+	cipherText := []byte(input)
+	iv := cipherText[:aes.BlockSize]
+	cipherText = cipherText[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(cipherText, cipherText)
+
+	l.Push(lua.LString(cipherText))
+	return 1
+}
+
+func (n *NakamaModule) bcryptHash(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(input), bcrypt.DefaultCost)
+	if err != nil {
+		l.RaiseError("error hashing input: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(hash))
+	return 1
+}
+
+func (n *NakamaModule) bcryptCompare(l *lua.LState) int {
+	hash := l.CheckString(1)
+	if hash == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+	plaintext := l.CheckString(2)
+	if plaintext == "" {
+		l.ArgError(2, "expects string")
+		return 0
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(plaintext))
+	if err == nil {
+		l.Push(lua.LBool(true))
+		return 1
+	} else if err == bcrypt.ErrHashTooShort || err == bcrypt.ErrMismatchedHashAndPassword {
+		l.Push(lua.LBool(false))
+		return 1
+	}
+
+	l.RaiseError("error comparing hash and plaintext: %v", err.Error())
+	return 0
+}
+
+func (n *NakamaModule) generateAuthToken(l *lua.LState) int {
+	// Parse input User ID.
+	userIDString := l.CheckString(1)
+	if userIDString == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	_, err := uuid.FromString(userIDString)
+	if err != nil {
+		l.ArgError(1, "expects valid user id")
+		return 0
+	}
+
+	// Input username.
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username")
+		return 0
+	}
+
+	exp := l.CheckInt64(3)
+	if exp == 0 {
+		// If expiry is 0 or not set, use standard configured expiry.
+		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
+	}
+
+	token := generateTokenWithExpiry(n.config, userIDString, username, exp)
+
+	l.Push(lua.LString(token))
 	return 1
 }
 
@@ -924,5 +1087,22 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 	if n.announceRPC != nil {
 		n.announceRPC(id)
 	}
+	return 0
+}
+
+func (n *NakamaModule) runOnce(l *lua.LState) int {
+	n.once.Do(func() {
+		fn := l.CheckFunction(1)
+		if fn == nil {
+			l.ArgError(1, "expects a function")
+			return
+		}
+
+		l.Push(fn)
+		if err := l.PCall(0, lua.MultRet, nil); err != nil {
+			l.RaiseError("error in run_once function: %v", err.Error())
+		}
+	})
+
 	return 0
 }

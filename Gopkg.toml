@@ -45,3 +45,6 @@
 [[constraint]]
   name = "github.com/gorhill/cronexpr"
   revision = "d520615e531a6bf3fb69406b9eba718261285ec8"
+
+[[constraint]]
+  name = "golang.org/x/crypto"
