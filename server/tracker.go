@@ -72,6 +72,8 @@ type Tracker interface {
 	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
 
 	// Remove all presences on a stream, effectively closing it.
+	UntrackByStream(stream PresenceStream)
+	// Remove all presences on a stream from the local node.
 	UntrackLocalByStream(stream PresenceStream)
 
 	// List the nodes that have at least one presence for the given stream.
@@ -312,6 +314,33 @@ func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID
 }
 
 func (t *LocalTracker) UntrackLocalByStream(stream PresenceStream) {
+	// NOTE: Generates no presence notifications as everyone on the stream is going away all at once.
+	t.Lock()
+
+	byStream, anyTracked := t.presencesByStream[stream]
+	if !anyTracked {
+		// Nothing tracked for the stream.
+		t.Unlock()
+		return
+	}
+
+	// Drop the presences from tracking for each session.
+	for pc, _ := range byStream {
+		if bySession := t.presencesBySession[pc.ID.SessionID]; len(bySession) == 1 {
+			// This is the only presence for that session, discard the whole list.
+			delete(t.presencesBySession, pc.ID.SessionID)
+		} else {
+			// There were other presences for the session, drop just this one.
+			delete(bySession, pc)
+		}
+	}
+	// Discard the tracking for stream.
+	delete(t.presencesByStream, stream)
+
+	t.Unlock()
+}
+
+func (t *LocalTracker) UntrackByStream(stream PresenceStream) {
 	// NOTE: Generates no presence notifications as everyone on the stream is going away all at once.
 	t.Lock()
 

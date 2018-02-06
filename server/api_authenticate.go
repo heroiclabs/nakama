@@ -142,6 +142,10 @@ func (s *ApiServer) AuthenticateSteamFunc(ctx context.Context, in *api.Authentic
 
 func generateToken(config Config, userID, username string) string {
 	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
+	return generateTokenWithExpiry(config, userID, username, exp)
+}
+
+func generateTokenWithExpiry(config Config, userID, username string, exp int64) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid": userID,
 		"exp": exp,
