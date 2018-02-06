@@ -83,6 +83,7 @@ RETURNING id, username, custom_id, disabled_at`
 		}
 
 		if dbDisabledAt != 0 {
+			s.logger.Debug("User account is disabled.", zap.Any("input", in))
 			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -111,6 +112,7 @@ WHERE custom_id = $1`
 		}
 
 		if dbDisabledAt != 0 {
+			s.logger.Debug("User account is disabled.", zap.Any("input", in))
 			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -168,6 +170,7 @@ RETURNING id, username, disabled_at`
 			}
 
 			if dbDisabledAt != 0 {
+				s.logger.Debug("User account is disabled.", zap.Any("input", in))
 				return status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 			}
 
@@ -216,6 +219,7 @@ RETURNING id, username, disabled_at`
 		}
 
 		if dbDisabledAt != 0 {
+			s.logger.Debug("User account is disabled.", zap.Any("input", in))
 			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -275,6 +279,7 @@ RETURNING id, username, disabled_at`
 		}
 
 		if dbDisabledAt != 0 {
+			s.logger.Debug("User account is disabled.", zap.Any("input", in))
 			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -304,6 +309,7 @@ WHERE email = $1`
 		}
 
 		if dbDisabledAt != 0 {
+			s.logger.Debug("User account is disabled.", zap.Any("input", in))
 			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
