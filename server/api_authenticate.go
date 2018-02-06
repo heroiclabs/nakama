@@ -78,12 +78,12 @@ RETURNING id, username, custom_id, disabled_at`
 				// Username is already in use by a different account.
 				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
-			s.logger.Error("Cannot find or create user with custom ID.", zap.Error(err))
+			s.logger.Error("Cannot find or create user with custom ID.", zap.Error(err), zap.Any("input", in))
 			return nil, status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
+			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -105,13 +105,13 @@ WHERE custom_id = $1`
 				// No user account found.
 				return nil, status.Error(codes.NotFound, "User account not found.")
 			} else {
-				s.logger.Error("Cannot find user with custom ID.", zap.Error(err))
+				s.logger.Error("Cannot find user with custom ID.", zap.Error(err), zap.Any("input", in))
 				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
+			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -163,19 +163,19 @@ RETURNING id, username, disabled_at`
 				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 					return status.Error(codes.AlreadyExists, "Username is already in use.")
 				}
-				s.logger.Error("Cannot find or create user with device ID.", zap.Error(err))
+				s.logger.Error("Cannot find or create user with device ID.", zap.Error(err), zap.Any("input", in))
 				return status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 
 			if dbDisabledAt != 0 {
-				return status.Error(codes.PermissionDenied, "User account is disabled.")
+				return status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 			}
 
 			query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
 			params = []interface{}{in.Account.Id, userID}
 			_, err = tx.Exec(query, params...)
 			if err != nil {
-				s.logger.Error("Cannot add device ID.", zap.Error(err))
+				s.logger.Error("Cannot add device ID.", zap.Error(err), zap.Any("input", in))
 				return status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 
@@ -199,7 +199,7 @@ RETURNING id, username, disabled_at`
 				// No user account found.
 				return nil, status.Error(codes.NotFound, "Device ID not found.")
 			} else {
-				s.logger.Error("Cannot find user with device ID.", zap.Error(err))
+				s.logger.Error("Cannot find user with device ID.", zap.Error(err), zap.Any("input", in))
 				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
@@ -211,12 +211,12 @@ RETURNING id, username, disabled_at`
 
 		err = s.db.QueryRow(query, params...).Scan(&dbUsername, &dbDisabledAt)
 		if err != nil {
-			s.logger.Error("Cannot find user with device ID.", zap.Error(err))
+			s.logger.Error("Cannot find user with device ID.", zap.Error(err), zap.Any("input", in))
 			return nil, status.Error(codes.Internal, "Error finding user account.")
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
+			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -270,12 +270,12 @@ RETURNING id, username, disabled_at`
 				// Username is already in use by a different account.
 				return nil, status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
-			s.logger.Error("Cannot find or create user with email.", zap.Error(err))
+			s.logger.Error("Cannot find or create user with email.", zap.Error(err), zap.Any("input", in))
 			return nil, status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled")
+			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		token := generateToken(s.config, dbUserID, dbUsername)
@@ -298,13 +298,13 @@ WHERE email = $1`
 				// No user account found.
 				return nil, status.Error(codes.NotFound, "User account not found.")
 			} else {
-				s.logger.Error("Cannot find user with email.", zap.Error(err))
+				s.logger.Error("Cannot find user with email.", zap.Error(err), zap.Any("input", in))
 				return nil, status.Error(codes.Internal, "Error finding user account.")
 			}
 		}
 
 		if dbDisabledAt != 0 {
-			return nil, status.Error(codes.PermissionDenied, "User account is disabled.")
+			return nil, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(email.Password))

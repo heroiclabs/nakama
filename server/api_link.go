@@ -53,7 +53,7 @@ AND NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link custom ID.", zap.Error(err))
+		s.logger.Warn("Could not link custom ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to link Custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Custom ID is already in use.")
@@ -80,13 +80,13 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				return status.Error(codes.AlreadyExists, "Device ID already in use.")
 			}
-			s.logger.Error("Cannot link device ID, query error", zap.Error(err))
+			s.logger.Error("Cannot link device ID, query error", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Error linking Device ID.")
 		}
 
 		_, err = tx.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", ts, userID)
 		if err != nil {
-			s.logger.Error("Cannot update users table while linking.", zap.Error(err))
+			s.logger.Error("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Error linking Device ID.")
 		}
 		return nil
@@ -131,7 +131,7 @@ AND NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link email.", zap.Error(err))
+		s.logger.Warn("Could not link email.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to link email.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Email is already in use.")
