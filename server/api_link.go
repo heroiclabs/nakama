@@ -75,7 +75,7 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
-		
+
 		var dbDeviceIdLinkedUser int64
 		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
