@@ -41,6 +41,8 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"crypto/cipher"
+
+	mathRand "math/rand"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -50,18 +52,19 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger              *zap.Logger
-	db                  *sql.DB
-	config              Config
-	registry            *SessionRegistry
-	tracker             Tracker
-	router              MessageRouter
-	once                *sync.Once
-	announceRPC         func(string)
-	client              *http.Client
+	logger      *zap.Logger
+	db          *sql.DB
+	config      Config
+	registry    *SessionRegistry
+	tracker     Tracker
+	router      MessageRouter
+	random      *mathRand.Rand
+	once        *sync.Once
+	announceRPC func(string)
+	client      *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, random *mathRand.Rand, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 	}))
@@ -72,6 +75,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LStat
 		registry:    registry,
 		tracker:     tracker,
 		router:      router,
+		random:      random,
 		once:        once,
 		announceRPC: announceRPC,
 		client: &http.Client{
@@ -98,6 +102,9 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"aes128_decrypt":       n.aes128decrypt,
 		"bcrypt_hash":          n.bcryptHash,
 		"bcrypt_compare":       n.bcryptCompare,
+		"auth_custom":          n.authCustom,
+		"auth_device":          n.authDevice,
+		"auth_email":           n.authEmail,
 		"auth_token_generate":  n.authTokenGenerate,
 		"cron_next":            n.cronNext,
 		"logger_info":          n.loggerInfo,
@@ -520,6 +527,141 @@ func (n *NakamaModule) bcryptCompare(l *lua.LState) int {
 
 	l.RaiseError("error comparing hash and plaintext: %v", err.Error())
 	return 0
+}
+
+func (n *NakamaModule) authCustom(l *lua.LState) int {
+	// Parse ID.
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects id string")
+		return 0
+	} else if invalidCharsRegex.MatchString(id) {
+		l.ArgError(1, "expects id to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(id) < 10 || len(id) > 128 {
+		l.ArgError(1, "expects id to be valid, must be 10-128 bytes")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(2, "")
+	if username == "" {
+		username = generateUsername(n.random)
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(3, true)
+
+	dbUserID, dbUsername, err := AuthenticateCustom(n.logger, n.db, id, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authDevice(l *lua.LState) int {
+	// Parse ID.
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects id string")
+		return 0
+	} else if invalidCharsRegex.MatchString(id) {
+		l.ArgError(1, "expects id to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(id) < 10 || len(id) > 128 {
+		l.ArgError(1, "expects id to be valid, must be 10-128 bytes")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(2, "")
+	if username == "" {
+		username = generateUsername(n.random)
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(3, true)
+
+	dbUserID, dbUsername, err := AuthenticateDevice(n.logger, n.db, id, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authEmail(l *lua.LState) int {
+	// Parse email.
+	email := l.CheckString(1)
+	if email == "" {
+		l.ArgError(1, "expects email string")
+		return 0
+	} else if invalidCharsRegex.MatchString(email) {
+		l.ArgError(1, "expects email to be valid, no spaces or control characters allowed")
+		return 0
+	} else if !emailRegex.MatchString(email) {
+		l.ArgError(1, "expects email to be valid, invalid email address format")
+		return 0
+	} else if len(email) < 10 || len(email) > 255 {
+		l.ArgError(1, "expects email to be valid, must be 10-255 bytes")
+		return 0
+	}
+
+	// Parse password.
+	password := l.CheckString(2)
+	if password == "" {
+		l.ArgError(2, "expects password string")
+		return 0
+	} else if len(password) < 8 {
+		l.ArgError(1, "expects password to be valid, must be longer than 8 characters")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(2, "")
+	if username == "" {
+		username = generateUsername(n.random)
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(3, true)
+
+	cleanEmail := strings.ToLower(email)
+
+	dbUserID, dbUsername, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
 }
 
 func (n *NakamaModule) authTokenGenerate(l *lua.LState) int {
