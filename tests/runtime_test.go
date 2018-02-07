@@ -3,7 +3,6 @@ package tests
 import (
 	"github.com/heroiclabs/nakama/server"
 	"os"
-	"database/sql"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"path/filepath"
@@ -19,12 +18,11 @@ var (
 	luaPath = filepath.Join(tempDir, "modules")
 	config = server.NewConfig()
 	logger = server.NewConsoleLogger(os.Stdout, true)
-	db *sql.DB = nil
 )
 
 func vm(t *testing.T) *server.RuntimePool {
 	config.Runtime.Path = luaPath
-	runtimePool, err := server.NewRuntimePool(logger, logger, db, config, nil, nil, nil)
+	runtimePool, err := server.NewRuntimePool(logger, logger, nil, config, nil, nil, nil)
 	if err != nil {
 		t.Error("Failed initializing runtime modules", zap.Error(err))
 	}
@@ -206,8 +204,8 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	r := rp.Get()
 	defer r.Stop()
 
-	pipeline := server.NewPipeline(config, db, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, db, config, nil, nil, pipeline, rp, nil, nil)
+	pipeline := server.NewPipeline(config, nil, nil, nil, nil, rp)
+	apiServer := server.StartApiServer(logger, nil, config, nil, nil, pipeline, rp, nil, nil)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
