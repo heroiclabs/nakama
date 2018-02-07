@@ -30,6 +30,8 @@ import (
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"sync"
+	"math/rand"
+	"time"
 )
 
 const (
@@ -113,10 +115,12 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		vm.Call(1, 0)
 	}
 
+	// Used to generate usernames in auth functions.
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	// Used to govern once-per-server-start executions.
 	once := &sync.Once{}
 
-	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, once,
+	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, random, once,
 		func(id string) {
 			regRPC[id] = struct{}{}
 			logger.Info("Registered RPC function invocation", zap.String("id", id))
@@ -155,7 +159,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 					vm.Call(1, 0)
 				}
 
-				nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, once, nil)
+				nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, random, once, nil)
 				vm.PreloadModule("nakama", nakamaModule.Loader)
 
 				r := &Runtime{
