@@ -31,16 +31,17 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"sync"
+
 	"github.com/gorhill/cronexpr"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
 	"golang.org/x/crypto/bcrypt"
-	"sync"
-	"crypto/aes"
-	"crypto/rand"
-	"crypto/cipher"
 
 	mathRand "math/rand"
 )
@@ -48,7 +49,7 @@ import (
 const CALLBACKS = "runtime_callbacks"
 
 type Callbacks struct {
-	RPC    map[string]*lua.LFunction
+	RPC map[string]*lua.LFunction
 }
 
 type NakamaModule struct {
@@ -66,7 +67,7 @@ type NakamaModule struct {
 
 func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, random *mathRand.Rand, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
-		RPC:    make(map[string]*lua.LFunction),
+		RPC: make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
 		logger:      logger,
@@ -86,37 +87,37 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LStat
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"sql_exec":             n.sqlExec,
-		"sql_query":            n.sqlQuery,
-		"uuid_v4":              n.uuidV4,
-		"uuid_bytes_to_string": n.uuidBytesToString,
-		"uuid_string_to_bytes": n.uuidStringToBytes,
-		"http_request":         n.httpRequest,
-		"json_encode":          n.jsonEncode,
-		"json_decode":          n.jsonDecode,
-		"base64_encode":        n.base64Encode,
-		"base64_decode":        n.base64Decode,
-		"base16_encode":        n.base16Encode,
-		"base16_decode":        n.base16decode,
-		"aes128_encrypt":       n.aes128encrypt,
-		"aes128_decrypt":       n.aes128decrypt,
-		"bcrypt_hash":          n.bcryptHash,
-		"bcrypt_compare":       n.bcryptCompare,
-		"auth_custom":          n.authCustom,
-		"auth_device":          n.authDevice,
-		"auth_email":           n.authEmail,
-		"auth_token_generate":  n.authTokenGenerate,
-		"cron_next":            n.cronNext,
-		"logger_info":          n.loggerInfo,
-		"logger_warn":          n.loggerWarn,
-		"logger_error":         n.loggerError,
-		"stream_user_get":      n.streamUserGet,
-		"stream_user_join":     n.streamUserJoin,
-		"stream_user_leave":    n.streamUserLeave,
-		"stream_count":         n.streamCount,
-		"stream_close":         n.streamClose,
-		"stream_send":          n.streamSend,
-		"register_rpc":         n.registerRPC,
+		"sql_exec":                    n.sqlExec,
+		"sql_query":                   n.sqlQuery,
+		"uuid_v4":                     n.uuidV4,
+		"uuid_bytes_to_string":        n.uuidBytesToString,
+		"uuid_string_to_bytes":        n.uuidStringToBytes,
+		"http_request":                n.httpRequest,
+		"json_encode":                 n.jsonEncode,
+		"json_decode":                 n.jsonDecode,
+		"base64_encode":               n.base64Encode,
+		"base64_decode":               n.base64Decode,
+		"base16_encode":               n.base16Encode,
+		"base16_decode":               n.base16decode,
+		"aes128_encrypt":              n.aes128encrypt,
+		"aes128_decrypt":              n.aes128decrypt,
+		"bcrypt_hash":                 n.bcryptHash,
+		"bcrypt_compare":              n.bcryptCompare,
+		"authenticate_custom":         n.authenticateCustom,
+		"authenticate_device":         n.authenticateDevice,
+		"authenticate_email":          n.authenticateEmail,
+		"authenticate_token_generate": n.authenticateTokenGenerate,
+		"cron_next":                   n.cronNext,
+		"logger_info":                 n.loggerInfo,
+		"logger_warn":                 n.loggerWarn,
+		"logger_error":                n.loggerError,
+		"stream_user_get":             n.streamUserGet,
+		"stream_user_join":            n.streamUserJoin,
+		"stream_user_leave":           n.streamUserLeave,
+		"stream_count":                n.streamCount,
+		"stream_close":                n.streamClose,
+		"stream_send":                 n.streamSend,
+		"register_rpc":                n.registerRPC,
 		// "run_once":             n.runOnce,
 	})
 
@@ -529,7 +530,7 @@ func (n *NakamaModule) bcryptCompare(l *lua.LState) int {
 	return 0
 }
 
-func (n *NakamaModule) authCustom(l *lua.LState) int {
+func (n *NakamaModule) authenticateCustom(l *lua.LState) int {
 	// Parse ID.
 	id := l.CheckString(1)
 	if id == "" {
@@ -569,7 +570,7 @@ func (n *NakamaModule) authCustom(l *lua.LState) int {
 	return 2
 }
 
-func (n *NakamaModule) authDevice(l *lua.LState) int {
+func (n *NakamaModule) authenticateDevice(l *lua.LState) int {
 	// Parse ID.
 	id := l.CheckString(1)
 	if id == "" {
@@ -609,7 +610,7 @@ func (n *NakamaModule) authDevice(l *lua.LState) int {
 	return 2
 }
 
-func (n *NakamaModule) authEmail(l *lua.LState) int {
+func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 	// Parse email.
 	email := l.CheckString(1)
 	if email == "" {
@@ -664,7 +665,7 @@ func (n *NakamaModule) authEmail(l *lua.LState) int {
 	return 2
 }
 
-func (n *NakamaModule) authTokenGenerate(l *lua.LState) int {
+func (n *NakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	// Parse input User ID.
 	userIDString := l.CheckString(1)
 	if userIDString == "" {
@@ -1194,7 +1195,7 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 	data := l.CheckString(2)
 
 	streamWire := &rtapi.Stream{
-		Mode: int32(stream.Mode),
+		Mode:  int32(stream.Mode),
 		Label: stream.Label,
 	}
 	if stream.Subject != uuid.Nil {
@@ -1206,7 +1207,7 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
 		// No sender.
-		Data:   data,
+		Data: data,
 	}}}
 	n.router.SendToStream(n.logger, stream, msg)
 
