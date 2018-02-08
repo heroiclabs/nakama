@@ -102,8 +102,8 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *Ses
 
 	grpcGatewayRouter := mux.NewRouter()
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
-	grpcGatewayRouter.HandleFunc("/rpcz", zpages.RpczHandler)
-	grpcGatewayRouter.HandleFunc("/tracez", zpages.TracezHandler)
+	grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
+	grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
 
 	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
