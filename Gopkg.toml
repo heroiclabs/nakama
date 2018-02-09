@@ -48,3 +48,7 @@
 
 [[constraint]]
   name = "golang.org/x/crypto"
+
+[[constraint]]
+  name = "go.opencensus.io"
+  version = "0.2.0"

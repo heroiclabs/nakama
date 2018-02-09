@@ -15,29 +15,32 @@
 package server
 
 import (
+	"crypto"
 	"database/sql"
-	"github.com/golang/protobuf/ptypes/empty"
-	"go.uber.org/zap"
-	"golang.org/x/net/context"
+	"encoding/base64"
 	"fmt"
-	"google.golang.org/grpc"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"math/rand"
+	"net"
 	"net/http"
+	"strings"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"net"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"strings"
-	"encoding/base64"
-	"github.com/dgrijalva/jwt-go"
-	"crypto"
-	"math/rand"
-	"time"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
-	"github.com/golang/protobuf/jsonpb"
+	ocgrpc "go.opencensus.io/plugin/grpc"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	_ "google.golang.org/grpc/encoding/gzip" // this enabled gzip compression on server for grpc
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
@@ -57,16 +60,17 @@ type ApiServer struct {
 
 func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, pipeline *pipeline, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) *ApiServer {
 	grpcServer := grpc.NewServer(
+		grpc.StatsHandler(ocgrpc.NewServerStatsHandler()),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
 
 	s := &ApiServer{
-		logger:         logger,
-		db:             db,
-		config:         config,
-		runtimePool:    runtimePool,
-		random:         rand.New(rand.NewSource(time.Now().UnixNano())),
-		grpcServer:     grpcServer,
+		logger:      logger,
+		db:          db,
+		config:      config,
+		runtimePool: runtimePool,
+		random:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		grpcServer:  grpcServer,
 	}
 
 	// Register and start GRPC server.
@@ -97,10 +101,13 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *Ses
 
 	grpcGatewayRouter := mux.NewRouter()
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
+	// TODO restore when admin endpoints are available.
+	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
+	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
 
-	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(grpcGatewayRouter)
-
+	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(handlerWithGzip)
 	s.grpcGatewayServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.GetSocket().Port+1),
 		Handler: handlerWithCORS,
