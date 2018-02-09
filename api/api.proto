@@ -17,7 +17,7 @@
  */
 syntax = "proto3";
 
-package nakama.api;
+package nakama.api.v2;
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
@@ -28,7 +28,7 @@ option go_package = "api";
 
 option java_multiple_files = true;
 option java_outer_classname = "NakamaApi";
-option java_package = "com.heroiclabs.nakama";
+option java_package = "com.heroiclabs.nakama.api.v2";
 
 option csharp_namespace = "Nakama";
 
@@ -90,7 +90,7 @@ service Nakama {
   }
 
   // Update fields in the current user's account.
-  rpc AccountUpdateFunc (AccountUpdate) returns (google.protobuf.Empty) {
+  rpc AccountUpdate (AccountUpdateRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/account",
       body: "*"
@@ -98,7 +98,7 @@ service Nakama {
   }
 
   // Authenticate a user with a custom id against the server.
-  rpc AuthenticateCustomFunc (AuthenticateCustom) returns (Session) {
+  rpc AuthenticateCustom (AuthenticateCustomRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/custom",
       body: "account"
@@ -106,7 +106,7 @@ service Nakama {
   }
 
   // Authenticate a user with a device id against the server.
-  rpc AuthenticateDeviceFunc (AuthenticateDevice) returns (Session) {
+  rpc AuthenticateDevice (AuthenticateDeviceRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/device",
       body: "account"
@@ -114,7 +114,7 @@ service Nakama {
   }
 
   // Authenticate a user with an email+password against the server.
-  rpc AuthenticateEmailFunc (AuthenticateEmail) returns (Session) {
+  rpc AuthenticateEmail (AuthenticateEmailRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/email",
       body: "account"
@@ -122,7 +122,7 @@ service Nakama {
   }
 
   // Authenticate a user with a Facebook OAuth token against the server.
-  rpc AuthenticateFacebookFunc (AuthenticateFacebook) returns (Session) {
+  rpc AuthenticateFacebook (AuthenticateFacebookRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/facebook",
       body: "account"
@@ -130,7 +130,7 @@ service Nakama {
   }
 
   // Authenticate a user with Apple's GameCenter against the server.
-  rpc AuthenticateGameCenterFunc (AuthenticateGameCenter) returns (Session) {
+  rpc AuthenticateGameCenter (AuthenticateGameCenterRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/gamecenter",
       body: "account"
@@ -138,7 +138,7 @@ service Nakama {
   }
 
   // Authenticate a user with Google against the server.
-  rpc AuthenticateGoogleFunc (AuthenticateGoogle) returns (Session) {
+  rpc AuthenticateGoogle (AuthenticateGoogleRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/google",
       body: "account"
@@ -146,7 +146,7 @@ service Nakama {
   }
 
   // Authenticate a user with Steam against the server.
-  rpc AuthenticateSteamFunc (AuthenticateSteam) returns (Session) {
+  rpc AuthenticateSteam (AuthenticateSteamRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/account/authenticate/steam",
       body: "account"
@@ -154,12 +154,12 @@ service Nakama {
   }
 
   // Add friends by ID or handle to a user's account.
-  rpc FriendAddFunc (FriendAdd) returns (google.protobuf.Empty) {
+  rpc FriendAdd (FriendAddRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/friend";
   }
 
   // Create one or more new groups with the current user as the owner.
-  rpc GroupsCreateFunc (GroupsCreate) returns (Groups) {
+  rpc GroupsCreate (GroupsCreateRequest) returns (Groups) {
     option (google.api.http) = {
       post: "/v2/group",
       body: "*"
@@ -172,7 +172,7 @@ service Nakama {
   }
 
   // Add a custom ID to the social profiles on the current user's account.
-  rpc LinkCustomFunc (AccountCustom) returns (google.protobuf.Empty) {
+  rpc LinkCustom (AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/custom",
       body: "*"
@@ -180,7 +180,7 @@ service Nakama {
   }
 
   // Add a device ID to the social profiles on the current user's account.
-  rpc LinkDeviceFunc (AccountDevice) returns (google.protobuf.Empty) {
+  rpc LinkDevice (AccountDevice) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/device",
       body: "*"
@@ -188,7 +188,7 @@ service Nakama {
   }
 
   // Add an email+password to the social profiles on the current user's account.
-  rpc LinkEmailFunc (AccountEmail) returns (google.protobuf.Empty) {
+  rpc LinkEmail (AccountEmail) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/email",
       body: "*"
@@ -196,7 +196,7 @@ service Nakama {
   }
 
   // Add Facebook to the social profiles on the current user's account.
-  rpc LinkFacebookFunc (AccountFacebook) returns (google.protobuf.Empty) {
+  rpc LinkFacebook (AccountFacebook) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/facebook",
       body: "*"
@@ -204,7 +204,7 @@ service Nakama {
   }
 
   // Add Apple's GameCenter to the social profiles on the current user's account.
-  rpc LinkGameCenterFunc (AccountGameCenter) returns (google.protobuf.Empty) {
+  rpc LinkGameCenter (AccountGameCenter) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/gamecenter",
       body: "*"
@@ -212,7 +212,7 @@ service Nakama {
   }
 
   // Add Google to the social profiles on the current user's account.
-  rpc LinkGoogleFunc (AccountGoogle) returns (google.protobuf.Empty) {
+  rpc LinkGoogle (AccountGoogle) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/google",
       body: "*"
@@ -220,7 +220,7 @@ service Nakama {
   }
 
   // Add Steam to the social profiles on the current user's account.
-  rpc LinkSteamFunc (AccountSteam) returns (google.protobuf.Empty) {
+  rpc LinkSteam (AccountSteam) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/steam",
       body: "*"
@@ -239,7 +239,7 @@ service Nakama {
   }
 
   // Remove the custom ID from the social profiles on the current user's account.
-  rpc UnlinkCustomFunc (AccountCustom) returns (google.protobuf.Empty) {
+  rpc UnlinkCustom (AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/custom",
       body: "*"
@@ -247,7 +247,7 @@ service Nakama {
   }
 
   // Remove the device ID from the social profiles on the current user's account.
-  rpc UnlinkDeviceFunc (AccountDevice) returns (google.protobuf.Empty) {
+  rpc UnlinkDevice (AccountDevice) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/device",
       body: "*"
@@ -255,7 +255,7 @@ service Nakama {
   }
 
   // Remove the email+password from the social profiles on the current user's account.
-  rpc UnlinkEmailFunc (AccountEmail) returns (google.protobuf.Empty) {
+  rpc UnlinkEmail (AccountEmail) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/email",
       body: "*"
@@ -263,7 +263,7 @@ service Nakama {
   }
 
   // Remove Facebook from the social profiles on the current user's account.
-  rpc UnlinkFacebookFunc (AccountFacebook) returns (google.protobuf.Empty) {
+  rpc UnlinkFacebook (AccountFacebook) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/facebook",
       body: "*"
@@ -271,7 +271,7 @@ service Nakama {
   }
 
   // Remove Apple's GameCenter from the social profiles on the current user's account.
-  rpc UnlinkGameCenterFunc (AccountGameCenter) returns (google.protobuf.Empty) {
+  rpc UnlinkGameCenter (AccountGameCenter) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/gamecenter",
       body: "*"
@@ -279,7 +279,7 @@ service Nakama {
   }
 
   // Remove Google from the social profiles on the current user's account.
-  rpc UnlinkGoogleFunc (AccountGoogle) returns (google.protobuf.Empty) {
+  rpc UnlinkGoogle (AccountGoogle) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/google",
       body: "*"
@@ -287,7 +287,7 @@ service Nakama {
   }
 
   // Remove Steam from the social profiles on the current user's account.
-  rpc UnlinkSteamFunc (AccountSteam) returns (google.protobuf.Empty) {
+  rpc UnlinkSteam (AccountSteam) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/steam",
       body: "*"
@@ -295,7 +295,7 @@ service Nakama {
   }
 
   // Fetch zero or more users by ID and/or username.
-  rpc UsersFetchFunc (UsersFetch) returns (Users) {
+  rpc UsersFetch (UsersFetchRequest) returns (Users) {
     option (google.api.http).get = "/v2/user";
   }
 }
@@ -391,7 +391,7 @@ message AccountSteam {
 /**
  * Update a user's account details.
  */
-message AccountUpdate {
+message AccountUpdateRequest {
   // The username of the user's account.
   google.protobuf.StringValue username = 1;
   // The fullname of the user.
@@ -409,7 +409,7 @@ message AccountUpdate {
 /**
  * Authenticate against the server with a custom ID.
  */
-message AuthenticateCustom {
+message AuthenticateCustomRequest {
   // The custom account details.
   AccountCustom account = 1;
   // Register the account if the user does not already exist.
@@ -421,7 +421,7 @@ message AuthenticateCustom {
 /**
  * Authenticate against the server with a device ID.
  */
-message AuthenticateDevice {
+message AuthenticateDeviceRequest {
   // The device account details.
   AccountDevice account = 1;
   // Register the account if the user does not already exist.
@@ -433,7 +433,7 @@ message AuthenticateDevice {
 /**
  * Authenticate against the server with email+password.
  */
-message AuthenticateEmail {
+message AuthenticateEmailRequest {
   // The email account details.
   AccountEmail account = 1;
   // Register the account if the user does not already exist.
@@ -445,7 +445,7 @@ message AuthenticateEmail {
 /**
  * Authenticate against the server with Facebook.
  */
-message AuthenticateFacebook {
+message AuthenticateFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Register the account if the user does not already exist.
@@ -457,7 +457,7 @@ message AuthenticateFacebook {
 /**
  * Authenticate against the server with Apple's Game Center.
  */
-message AuthenticateGameCenter {
+message AuthenticateGameCenterRequest {
   // The Game Center account details.
   AccountGameCenter account = 1;
   // Register the account if the user does not already exist.
@@ -469,7 +469,7 @@ message AuthenticateGameCenter {
 /**
  * Authenticate against the server with Google.
  */
-message AuthenticateGoogle {
+message AuthenticateGoogleRequest {
   // The Google account details.
   AccountGoogle account = 1;
   // Register the account if the user does not already exist.
@@ -481,7 +481,7 @@ message AuthenticateGoogle {
 /**
  * Authenticate against the server with Steam.
  */
-message AuthenticateSteam {
+message AuthenticateSteamRequest {
   // The Steam account details.
   AccountSteam account = 1;
   // Register the account if the user does not already exist.
@@ -496,12 +496,14 @@ message AuthenticateSteam {
 message ChannelId {
   // The type of chat channel.
   enum Type {
+    // Default case. Assumed as ROOM type.
+    CHANNEL_ID_UNSPECIFIED = 0;
     // A room which anyone can join to chat.
-    ROOM = 0;
+    ROOM = 1;
     // A private channel for 1-on-1 chat.
-    DIRECT_MESSAGE = 1;
+    DIRECT_MESSAGE = 2;
     // A channel for group chat.
-    GROUP = 2;
+    GROUP = 3;
   }
 
   // The identifier for the realtime channel.
@@ -533,7 +535,7 @@ message Friend {
 /**
  * Add one or more friends to the current user.
  */
-message FriendAdd {
+message FriendAddRequest {
   // The account id of a user.
   repeated string ids = 1;
   // The account username of a user.
@@ -673,7 +675,7 @@ message Users {
 /**
  * Fetch a batch of zero or more users from the server.
  */
-message UsersFetch {
+message UsersFetchRequest {
   // The account id of a user.
   repeated string ids = 1;
   // The account username of a user.
