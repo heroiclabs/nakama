@@ -34,7 +34,6 @@ import (
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
 	ocgrpc "go.opencensus.io/plugin/grpc"
-	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -102,8 +101,9 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *Ses
 
 	grpcGatewayRouter := mux.NewRouter()
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
-	grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
-	grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
+	// TODO restore when admin endpoints are available.
+	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
+	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
 
 	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
