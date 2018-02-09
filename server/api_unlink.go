@@ -65,7 +65,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
      OR steam_id IS NOT NULL
      OR email IS NOT NULL
      OR custom_id IS NOT NULL))
-   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2))`
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
 
     res, err := tx.Exec(query, userID, in.Id)
 		if err != nil {
