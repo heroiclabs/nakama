@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package testdata;
+
+message FooRequest {
+  bool fail = 1;
+}
+
+message FooResponse {
+}
+
+service Foo {
+  rpc Single(FooRequest) returns (FooResponse);
+  rpc Multiple(stream FooRequest) returns (stream FooResponse);
+}

@@ -100,6 +100,22 @@
   revision = "7d7bc8747e3f614c5c587729a341fe7d8903cdb8"
 
 [[projects]]
+  name = "go.opencensus.io"
+  packages = [
+    "internal/tagencoding",
+    "plugin/grpc",
+    "plugin/grpc/grpcstats",
+    "plugin/grpc/grpctrace",
+    "stats",
+    "tag",
+    "trace",
+    "trace/propagation",
+    "zpages"
+  ]
+  revision = "7e6c5d736280267bc85cfd63b23507c4889ef82e"
+  version = "v0.2.0"
+
+[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "8474b86a5a6f79c443ce4b2992817ff32cf208b8"
@@ -188,6 +204,7 @@
     "connectivity",
     "credentials",
     "encoding",
+    "encoding/gzip",
     "grpclb/grpc_lb_v1/messages",
     "grpclog",
     "internal",
@@ -215,6 +232,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bd27c78031b478645517c097fe42bdb946de0a2a3fdbecf6c56718b8e2ba9492"
+  inputs-digest = "3dca4cdde39b8789a533da94987c9dac078157b93a881077b085310068091603"
   solver-name = "gps-cdcl"
   solver-version = 1
