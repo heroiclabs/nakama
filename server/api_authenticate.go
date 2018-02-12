@@ -42,13 +42,14 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 	username := in.Username
 	if username == "" {
-		username = generateUsername(s.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
+	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateCustom(s.logger, s.db, in.Account.Id, username, create)
@@ -71,13 +72,14 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 	username := in.Username
 	if username == "" {
-		username = generateUsername(s.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
+	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateDevice(s.logger, s.db, in.Account.Id, username, create)
@@ -107,13 +109,14 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 	username := in.Username
 	if username == "" {
-		username = generateUsername(s.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid , no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
+	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateEmail(s.logger, s.db, cleanEmail, email.Password, username, create)
@@ -156,11 +159,11 @@ func generateTokenWithExpiry(config Config, userID, username string, exp int64) 
 	return signedToken
 }
 
-func generateUsername(random *rand.Rand) string {
+func generateUsername() string {
 	const usernameAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, 10)
 	for i := range b {
-		b[i] = usernameAlphabet[random.Intn(len(usernameAlphabet))]
+		b[i] = usernameAlphabet[rand.Intn(len(usernameAlphabet))]
 	}
 	return string(b)
 }
