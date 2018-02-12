@@ -31,6 +31,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/golang/protobuf/jsonpb"
+	"math/rand"
 )
 
 var (
@@ -43,6 +44,8 @@ func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	// Always set default timeout on HTTP client.
 	http.DefaultClient.Timeout = 1500 * time.Millisecond
+	// Initialize the global random obj with customs seed.
+	rand.Seed(time.Now().UnixNano())
 
 	cmdLogger := server.NewJSONLogger(os.Stdout, true)
 

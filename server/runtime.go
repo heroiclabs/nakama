@@ -25,13 +25,12 @@ import (
 	"database/sql"
 
 	"bytes"
-	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"sync"
-	"math/rand"
-	"time"
+
+	"github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
+	"context"
 )
 
 const (
@@ -45,8 +44,11 @@ type RuntimeModule struct {
 }
 
 type RuntimePool struct {
-	regRPC    map[string]struct{}
-	pool      *sync.Pool
+	once    *sync.Once // Used to govern once-per-server-start executions.
+	regRPC  map[string]struct{}
+	stdLibs map[string]lua.LGFunction
+	modules *sync.Map
+	pool    *sync.Pool
 }
 
 func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
@@ -55,23 +57,28 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 		return nil, err
 	}
 
+	rp := &RuntimePool{
+		once:    &sync.Once{},
+		regRPC:  make(map[string]struct{}),
+		modules: new(sync.Map),
+		stdLibs: map[string]lua.LGFunction{
+			lua.LoadLibName:   lua.OpenPackage,
+			lua.BaseLibName:   lua.OpenBase,
+			lua.TabLibName:    lua.OpenTable,
+			lua.OsLibName:     OpenOs,
+			lua.StringLibName: lua.OpenString,
+			lua.MathLibName:   lua.OpenMath,
+		},
+	}
+
 	// Override before Package library is invoked.
 	lua.LuaLDir = runtimeConfig.Path
 	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
-	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:   lua.OpenPackage,
-		lua.BaseLibName:   lua.OpenBase,
-		lua.TabLibName:    lua.OpenTable,
-		lua.OsLibName:     OpenOs,
-		lua.StringLibName: lua.OpenString,
-		lua.MathLibName:   lua.OpenMath,
-	}
-
 	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
-	modules := make([]*RuntimeModule, 0)
-	err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
+	modulePaths := make([]string, 0)
+	if err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			logger.Error("Could not read module", zap.Error(err))
 			return err
@@ -86,97 +93,43 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 				// Make paths Lua friendly.
 				name = strings.Replace(name, "/", ".", -1)
-				modules = append(modules, &RuntimeModule{
+				rp.modules.Store(path, &RuntimeModule{
 					name:    name,
 					path:    path,
 					content: content,
 				})
+				modulePaths = append(modulePaths, relPath)
 			}
 		}
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		logger.Error("Failed to list modules", zap.Error(err))
 		return nil, err
 	}
 
-	regRPC := make(map[string]struct{})
-
-	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
-	vm := lua.NewState(lua.Options{
-		CallStackSize:       1024,
-		RegistrySize:        1024,
-		SkipOpenLibs:        true,
-		IncludeGoStackTrace: true,
+	multiLogger.Info("Evaluating modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
+	r, err := rp.newVM(logger, db, config, registry, tracker, router, func(id string) {
+		rp.regRPC[id] = struct{}{}
+		logger.Info("Registered RPC function invocation", zap.String("id", id))
 	})
-	for name, lib := range stdLibs {
-		vm.Push(vm.NewFunction(lib))
-		vm.Push(lua.LString(name))
-		vm.Call(1, 0)
-	}
-
-	// Used to generate usernames in auth functions.
-	random := rand.New(rand.NewSource(time.Now().UnixNano()))
-	// Used to govern once-per-server-start executions.
-	once := &sync.Once{}
-
-	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, random, once,
-		func(id string) {
-			regRPC[id] = struct{}{}
-			logger.Info("Registered RPC function invocation", zap.String("id", id))
-		})
-	vm.PreloadModule("nakama", nakamaModule.Loader)
-	r := &Runtime{
-		logger: logger,
-		vm:     vm,
-		luaEnv: ConvertMap(vm, runtimeConfig.Environment),
-	}
-	moduleStrings := make([]string, len(modules))
-	for i, module := range modules {
-		moduleStrings[i] = module.path
-	}
-	multiLogger.Info("Evaluating modules", zap.Int("count", len(moduleStrings)), zap.Strings("modules", moduleStrings))
-	if err = r.loadModules(modules); err != nil {
+	if err != nil {
 		return nil, err
 	}
 	multiLogger.Info("Modules loaded")
 	r.Stop()
 
-	return &RuntimePool{
-		regRPC:    regRPC,
-		pool: &sync.Pool{
-			New: func() interface{} {
-				vm := lua.NewState(lua.Options{
-					CallStackSize:       1024,
-					RegistrySize:        1024,
-					SkipOpenLibs:        true,
-					IncludeGoStackTrace: true,
-				})
-
-				for name, lib := range stdLibs {
-					vm.Push(vm.NewFunction(lib))
-					vm.Push(lua.LString(name))
-					vm.Call(1, 0)
-				}
-
-				nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, random, once, nil)
-				vm.PreloadModule("nakama", nakamaModule.Loader)
-
-				r := &Runtime{
-					logger: logger,
-					vm:     vm,
-					luaEnv: ConvertMap(vm, runtimeConfig.Environment),
-				}
-
-				if err = r.loadModules(modules); err != nil {
-					multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
-				}
-				return r
-
-				// TODO find a way to run r.Stop() when the pool discards this runtime.
-			},
+	rp.pool = &sync.Pool{
+		New: func() interface{} {
+			r, err := rp.newVM(logger, db, config, registry, tracker, router, nil)
+			if err != nil {
+				multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
+			}
+			// TODO find a way to run r.Stop() when the pool discards this runtime.
+			return r
 		},
-	}, nil
+	}
+
+	return rp, nil
 }
 
 func (rp *RuntimePool) HasRPC(id string) bool {
@@ -192,8 +145,34 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-type BuiltinModule interface {
-	Loader(l *lua.LState) int
+func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) (*Runtime, error) {
+	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
+	vm := lua.NewState(lua.Options{
+		CallStackSize:       1024,
+		RegistrySize:        1024,
+		SkipOpenLibs:        true,
+		IncludeGoStackTrace: true,
+	})
+	for name, lib := range rp.stdLibs {
+		vm.Push(vm.NewFunction(lib))
+		vm.Push(lua.LString(name))
+		vm.Call(1, 0)
+	}
+	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, rp.once, announceRPC)
+	vm.PreloadModule("nakama", nakamaModule.Loader)
+	r := &Runtime{
+		logger: logger,
+		vm:     vm,
+		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
+	}
+
+	modules := make([]*RuntimeModule, 0)
+	rp.modules.Range(func(key interface{}, value interface{}) bool {
+		modules = append(modules, value.(*RuntimeModule))
+		return true
+	})
+
+	return r, r.loadModules(modules)
 }
 
 type Runtime struct {

@@ -42,8 +42,6 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-
-	mathRand "math/rand"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -59,13 +57,12 @@ type NakamaModule struct {
 	registry    *SessionRegistry
 	tracker     Tracker
 	router      MessageRouter
-	random      *mathRand.Rand
 	once        *sync.Once
 	announceRPC func(string)
 	client      *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, random *mathRand.Rand, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC: make(map[string]*lua.LFunction),
 	}))
@@ -76,7 +73,6 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LStat
 		registry:    registry,
 		tracker:     tracker,
 		router:      router,
-		random:      random,
 		once:        once,
 		announceRPC: announceRPC,
 		client: &http.Client{
@@ -547,7 +543,7 @@ func (n *NakamaModule) authenticateCustom(l *lua.LState) int {
 	// Parse username, if any.
 	username := l.OptString(2, "")
 	if username == "" {
-		username = generateUsername(n.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
@@ -587,7 +583,7 @@ func (n *NakamaModule) authenticateDevice(l *lua.LState) int {
 	// Parse username, if any.
 	username := l.OptString(2, "")
 	if username == "" {
-		username = generateUsername(n.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
@@ -640,7 +636,7 @@ func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 	// Parse username, if any.
 	username := l.OptString(2, "")
 	if username == "" {
-		username = generateUsername(n.random)
+		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
