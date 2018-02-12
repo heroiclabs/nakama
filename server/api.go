@@ -19,11 +19,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
@@ -53,7 +51,6 @@ type ApiServer struct {
 	db                *sql.DB
 	config            Config
 	runtimePool       *RuntimePool
-	random            *rand.Rand
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
@@ -69,7 +66,6 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *Ses
 		db:          db,
 		config:      config,
 		runtimePool: runtimePool,
-		random:      rand.New(rand.NewSource(time.Now().UnixNano())),
 		grpcServer:  grpcServer,
 	}
 

@@ -37,13 +37,6 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	runtime := s.runtimePool.Get()
-	lf := runtime.GetRuntimeCallback(RPC, id)
-	if lf == nil {
-		s.runtimePool.Put(runtime)
-		return nil, status.Error(codes.NotFound, "RPC function not found")
-	}
-
 	uid := ""
 	username := ""
 	expiry := int64(0)
@@ -55,6 +48,13 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	}
 	if e := ctx.Value(ctxExpiryKey{}); e != nil {
 		expiry = e.(int64)
+	}
+
+	runtime := s.runtimePool.Get()
+	lf := runtime.GetRuntimeCallback(RPC, id)
+	if lf == nil {
+		s.runtimePool.Put(runtime)
+		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
 	result, fnErr := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload.Value)
