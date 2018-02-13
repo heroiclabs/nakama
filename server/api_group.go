@@ -19,6 +19,6 @@ import (
 	"github.com/heroiclabs/nakama/api"
 )
 
-func (s *ApiServer) GroupsCreateFunc(ctx context.Context, in *api.GroupsCreate) (*api.Groups, error) {
+func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupsRequest) (*api.Groups, error) {
 	return nil, nil
 }

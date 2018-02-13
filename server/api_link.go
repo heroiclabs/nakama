@@ -28,7 +28,7 @@ import (
 	"strings"
 )
 
-func (s *ApiServer) LinkCustomFunc(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
+func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
 	customID := in.Id
 	if customID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
@@ -62,7 +62,7 @@ AND (NOT EXISTS
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
+func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
 	deviceID := in.Id
 	if deviceID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
@@ -109,7 +109,7 @@ func (s *ApiServer) LinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) LinkEmailFunc(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
+func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
 	if in.Email == "" || in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
 	} else if invalidCharsRegex.MatchString(in.Email) {
@@ -150,18 +150,18 @@ AND (NOT EXISTS
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) LinkFacebookFunc(ctx context.Context, in *api.AccountFacebook) (*empty.Empty, error) {
+func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) LinkGameCenterFunc(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
+func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) LinkGoogleFunc(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
+func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) LinkSteamFunc(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
+func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
 	return nil, nil
 }
