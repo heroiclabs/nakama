@@ -15,15 +15,192 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
+	"database/sql"
+
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/lib/pq"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
-	return &api.Account{Email: "foo@bar.com"}, nil
+	userID := ctx.Value(ctxUserIDKey{})
+
+	var displayName sql.NullString
+	var username sql.NullString
+	var avatarURL sql.NullString
+	var langTag sql.NullString
+	var locat sql.NullString
+	var timezone sql.NullString
+	var metadata []byte
+	var email sql.NullString
+	var facebook sql.NullString
+	var google sql.NullString
+	var gamecenter sql.NullString
+	var steam sql.NullString
+	var customID sql.NullString
+	var createTime sql.NullInt64
+	var updateTime sql.NullInt64
+	var verifyTime sql.NullInt64
+
+	query := `
+SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata,
+	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id,
+	create_time, update_time, verify_time
+FROM users
+WHERE id = $1`
+
+	if err := s.db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata,
+		&email, &facebook, &google, &gamecenter, &steam, &customID, &createTime, &updateTime, &verifyTime); err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+
+	rows, err := s.db.Query(`SELECT id FROM user_device WHERE user_id = $1`, userID)
+	if err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+	defer rows.Close()
+
+	deviceIDs := make([]*api.AccountDevice, 0)
+	for rows.Next() {
+		var deviceID sql.NullString
+		err = rows.Scan(&deviceID)
+		if err != nil {
+			s.logger.Error("Error retrieving user account.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error retrieving user account.")
+		}
+		if deviceID.Valid {
+			deviceIDs = append(deviceIDs, &api.AccountDevice{Id: deviceID.String})
+		}
+	}
+	if err = rows.Err(); err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+
+	var verifyTimestamp *timestamp.Timestamp = nil
+	if verifyTime.Valid && verifyTime.Int64 != 0 {
+		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Int64}
+	}
+
+	return &api.Account{
+		User: &api.User{
+			Id:           userID.(uuid.UUID).String(),
+			Username:     username.String,
+			DisplayName:  displayName.String,
+			AvatarUrl:    avatarURL.String,
+			LangTag:      langTag.String,
+			Location:     locat.String,
+			Timezone:     timezone.String,
+			Metadata:     string(metadata),
+			FacebookId:   facebook.String,
+			GoogleId:     google.String,
+			GamecenterId: gamecenter.String,
+			SteamId:      steam.String,
+			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
+			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
+			Online:       false, // TODO(zyro): Must enrich the field from the presence map.
+		},
+		Email:      email.String,
+		Devices:    deviceIDs,
+		CustomId:   customID.String,
+		VerifyTime: verifyTimestamp,
+	}, nil
 }
 
 func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest) (*empty.Empty, error) {
-	return nil, nil
+	index := 1
+	statements := make([]string, 0)
+	params := make([]interface{}, 0)
+
+	username := in.GetUsername().GetValue()
+	if username != "" {
+		if len(username) > 128 {
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+		}
+		statements = append(statements, "username = $"+strconv.Itoa(index))
+		params = append(params, strings.ToLower(username))
+		index++
+	}
+
+	if in.GetDisplayName() != nil {
+		if in.GetDisplayName().GetValue() == "" {
+			statements = append(statements, "display_name = NULL")
+		} else {
+			statements = append(statements, "display_name = $"+strconv.Itoa(index))
+			params = append(params, in.GetDisplayName().GetValue())
+			index++
+		}
+	}
+
+	if in.GetTimezone() != nil {
+		if in.GetTimezone().GetValue() == "" {
+			statements = append(statements, "timezone = NULL")
+		} else {
+			statements = append(statements, "timezone = $"+strconv.Itoa(index))
+			params = append(params, in.GetTimezone().GetValue())
+			index++
+		}
+	}
+
+	if in.GetLocation() != nil {
+		if in.GetLocation().GetValue() == "" {
+			statements = append(statements, "location = NULL")
+		} else {
+			statements = append(statements, "location = $"+strconv.Itoa(index))
+			params = append(params, in.GetLocation().GetValue())
+			index++
+		}
+	}
+
+	if in.GetLangTag() != nil {
+		if in.GetLangTag().GetValue() == "" {
+			statements = append(statements, "lang_tag = NULL")
+		} else {
+			statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
+			params = append(params, in.GetLangTag().GetValue())
+			index++
+		}
+	}
+
+	if in.GetLangTag() != nil {
+		if in.GetAvatarUrl().GetValue() == "" {
+			statements = append(statements, "avatar_url = NULL")
+		} else {
+			statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
+			params = append(params, in.GetAvatarUrl().GetValue())
+			index++
+		}
+	}
+
+	if len(statements) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "No fields to update.")
+	}
+
+	ts := time.Now().UTC().Unix()
+	userID := ctx.Value(ctxUserIDKey{})
+	params = append(params, ts, userID)
+
+	query := "UPDATE users SET update_time = $" + strconv.Itoa(index) + ", " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index+1)
+
+	if _, err := s.db.Exec(query, params...); err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			return nil, status.Error(codes.InvalidArgument, "Username is already in use.")
+		}
+
+		s.logger.Error("Could not update user account.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to update account.")
+	}
+
+	return &empty.Empty{}, nil
 }
