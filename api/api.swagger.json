@@ -905,7 +905,7 @@
           "type": "string",
           "description": "A description for the group."
         },
-        "lang": {
+        "lang_tag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },
@@ -1130,7 +1130,7 @@
           "type": "string",
           "description": "A description for the group."
         },
-        "lang": {
+        "lang_tag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },
@@ -1230,7 +1230,7 @@
           "type": "string",
           "description": "A URL for an avatar image."
         },
-        "lang": {
+        "lang_tag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },
@@ -1264,7 +1264,7 @@
           "type": "string",
           "description": "A URL for an avatar image."
         },
-        "lang": {
+        "lang_tag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },

@@ -34,7 +34,7 @@ import (
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
 	userID := ctx.Value(ctxUserIDKey{})
 	rows, err := s.db.Query(`
-SELECT u.username, u.display_name, u.avatar_url, u.lang, u.location, u.timezone, u.metadata,
+SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata,
 	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id,
 	u.create_time, u.update_time, u.verify_time,
 	ud.id
@@ -50,7 +50,7 @@ WHERE u.id = $1`, userID)
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
-	var lang sql.NullString
+	var langTag sql.NullString
 	var location sql.NullString
 	var timezone sql.NullString
 	var metadata []byte
@@ -68,7 +68,7 @@ WHERE u.id = $1`, userID)
 
 	for rows.Next() {
 		var deviceID sql.NullString
-		err = rows.Scan(&username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata,
+		err = rows.Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
 			&email, &facebook, &google, &gamecenter, &steam, &customID,
 			&createTime, &updateTime, &verifyTime, &deviceID)
 		if err != nil {
@@ -84,13 +84,18 @@ WHERE u.id = $1`, userID)
 		return nil, status.Error(codes.Internal, "Error retrieving user account.")
 	}
 
+	var verifyTimestamp *timestamp.Timestamp = nil
+	if verifyTime.Valid && verifyTime.Int64 != 0 {
+		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Int64}
+	}
+
 	return &api.Account{
 		User: &api.User{
 			Id:           userID.(uuid.UUID).String(),
 			Username:     username.String,
 			DisplayName:  displayName.String,
 			AvatarUrl:    avatarURL.String,
-			Lang:         lang.String,
+			LangTag:      langTag.String,
 			Location:     location.String,
 			Timezone:     timezone.String,
 			Metadata:     string(metadata),
@@ -105,7 +110,7 @@ WHERE u.id = $1`, userID)
 		Email:    email.String,
 		Devices:  deviceIDs,
 		CustomId: customID.String,
-		VerifyTime: &timestamp.Timestamp{Seconds: verifyTime.Int64},
+		VerifyTime: verifyTimestamp,
 	}, nil
 }
 
@@ -124,44 +129,54 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		index++
 	}
 
-	if in.GetDisplayName() == nil || in.GetDisplayName().GetValue() == "" {
-		statements = append(statements, "display_name = NULL")
-	} else {
-		statements = append(statements, "display_name = $"+strconv.Itoa(index))
-		params = append(params, in.GetDisplayName().GetValue())
-		index++
+	if in.GetDisplayName() != nil {
+		if in.GetDisplayName().GetValue() == "" {
+			statements = append(statements, "display_name = NULL")
+		} else {
+			statements = append(statements, "display_name = $"+strconv.Itoa(index))
+			params = append(params, in.GetDisplayName().GetValue())
+			index++
+		}
 	}
 
-	if in.GetTimezone() == nil || in.GetTimezone().GetValue() == "" {
-		statements = append(statements, "timezone = NULL")
-	} else {
-		statements = append(statements, "timezone = $"+strconv.Itoa(index))
-		params = append(params, in.GetTimezone().GetValue())
-		index++
+	if in.GetTimezone() != nil {
+		if in.GetTimezone().GetValue() == "" {
+			statements = append(statements, "timezone = NULL")
+		} else {
+			statements = append(statements, "timezone = $"+strconv.Itoa(index))
+			params = append(params, in.GetTimezone().GetValue())
+			index++
+		}
 	}
 
-	if in.GetLocation() == nil || in.GetLocation().GetValue() == "" {
-		statements = append(statements, "location = NULL")
-	} else {
-		statements = append(statements, "location = $"+strconv.Itoa(index))
-		params = append(params, in.GetLocation().GetValue())
-		index++
+	if in.GetLocation() != nil {
+		if in.GetLocation().GetValue() == "" {
+			statements = append(statements, "location = NULL")
+		} else {
+			statements = append(statements, "location = $"+strconv.Itoa(index))
+			params = append(params, in.GetLocation().GetValue())
+			index++
+		}
 	}
 
-	if in.GetLang() == nil || in.GetLang().GetValue() == "" {
-		statements = append(statements, "lang = NULL")
-	} else {
-		statements = append(statements, "lang = $"+strconv.Itoa(index))
-		params = append(params, in.GetLang().GetValue())
-		index++
+	if in.GetLangTag() != nil {
+		if in.GetLangTag().GetValue() == "" {
+			statements = append(statements, "lang_tag = NULL")
+		} else {
+			statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
+			params = append(params, in.GetLangTag().GetValue())
+			index++
+		}
 	}
 
-	if in.GetAvatarUrl() == nil || in.GetAvatarUrl().GetValue() == "" {
-		statements = append(statements, "avatar_url = NULL")
-	} else {
-		statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
-		params = append(params, in.GetAvatarUrl().GetValue())
-		index++
+	if in.GetLangTag() != nil {
+		if in.GetAvatarUrl().GetValue() == "" {
+			statements = append(statements, "avatar_url = NULL")
+		} else {
+			statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
+			params = append(params, in.GetAvatarUrl().GetValue())
+			index++
+		}
 	}
 
 	if len(statements) == 0 {
@@ -172,10 +187,9 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	userID := ctx.Value(ctxUserIDKey{})
 	params = append(params, ts, userID)
 
-	if _, err := s.db.Exec(
-		"UPDATE users SET update_time = $"+strconv.Itoa(index)+", "+strings.Join(statements, ", ")+" WHERE id = $"+strconv.Itoa(index+1),
-		params...); err != nil {
+	query := "UPDATE users SET update_time = $"+strconv.Itoa(index)+", "+strings.Join(statements, ", ")+" WHERE id = $"+strconv.Itoa(index+1)
 
+	if _, err := s.db.Exec(query, params...); err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 			return nil, status.Error(codes.InvalidArgument, "Username is already in use.")
 		}
@@ -183,7 +197,6 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		s.logger.Error("Could not update user account.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to update account.")
 	}
-
 
 	return &empty.Empty{}, nil
 }

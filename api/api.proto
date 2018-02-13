@@ -516,7 +516,7 @@ message CreateGroupsRequest {
     // A description for the group.
     string description = 2;
     // The language expected to be a tag which follows the BCP-47 spec.
-    string lang = 3;
+    string lang_tag = 3;
     // Additional information stored as a JSON object.
     string metadata = 4;
     // A URL for an avatar image.
@@ -580,7 +580,7 @@ message Group {
   // A description for the group.
   string description = 4;
   // The language expected to be a tag which follows the BCP-47 spec.
-  string lang = 5;
+  string lang_tag = 5;
   // Additional information stored as a JSON object.
   string metadata = 6;
   // A URL for an avatar image.
@@ -652,7 +652,7 @@ message UpdateAccountRequest {
   // A URL for an avatar image.
   google.protobuf.StringValue avatar_url = 3;
   // The language expected to be a tag which follows the BCP-47 spec.
-  google.protobuf.StringValue lang = 4;
+  google.protobuf.StringValue lang_tag = 4;
   // The location set by the user.
   google.protobuf.StringValue location = 5;
   // The timezone set by the user.
@@ -670,7 +670,7 @@ message User {
   // A URL for an avatar image.
   string avatar_url = 4;
   // The language expected to be a tag which follows the BCP-47 spec.
-  string lang = 5;
+  string lang_tag = 5;
   // The location set by the user.
   string location = 6;
   // The timezone set by the user.

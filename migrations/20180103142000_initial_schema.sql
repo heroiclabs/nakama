@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
     display_name   VARCHAR(255),
     avatar_url     VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
-    lang           VARCHAR(18)   DEFAULT 'en' NOT NULL,
+    lang_tag       VARCHAR(18)   DEFAULT 'en',
     location       VARCHAR(255), -- e.g. "San Francisco, CA"
     timezone       VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
     metadata       BYTEA         DEFAULT '{}' CHECK (length(metadata) < 32000) NOT NULL,
