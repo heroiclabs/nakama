@@ -20,10 +20,10 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
-func (s *ApiServer) AccountFetch(ctx context.Context, in *empty.Empty) (*api.Account, error) {
+func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
 	return &api.Account{Email: "foo@bar.com"}, nil
 }
 
-func (s *ApiServer) AccountUpdateFunc(ctx context.Context, in *api.AccountUpdate) (*empty.Empty, error) {
+func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest) (*empty.Empty, error) {
 	return nil, nil
 }
