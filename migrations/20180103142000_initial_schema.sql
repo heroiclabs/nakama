@@ -34,10 +34,10 @@ CREATE TABLE IF NOT EXISTS users (
     steam_id       VARCHAR(128)  UNIQUE,
     custom_id      VARCHAR(128)  UNIQUE,
     edge_count     INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
-    create_time   BIGINT        CHECK (create_time > 0) NOT NULL,
-    update_time   BIGINT        CHECK (update_time > 0) NOT NULL,
-    verify_time   BIGINT        CHECK (verify_time >= 0) DEFAULT 0 NOT NULL,
-    disable_time  BIGINT        CHECK (disable_time >= 0) DEFAULT 0 NOT NULL
+    create_time   BIGINT         CHECK (create_time > 0) NOT NULL,
+    update_time   BIGINT         CHECK (update_time > 0) NOT NULL,
+    verify_time   BIGINT         CHECK (verify_time >= 0) DEFAULT 0 NOT NULL,
+    disable_time  BIGINT         CHECK (disable_time >= 0) DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_device (
