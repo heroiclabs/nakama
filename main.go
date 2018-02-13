@@ -35,7 +35,7 @@ import (
 
 var (
 	version  string = "2.0.0"
-	commitID string = "test"
+	commitID string = "dev"
 )
 
 func main() {

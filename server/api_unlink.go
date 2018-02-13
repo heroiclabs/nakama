@@ -27,7 +27,7 @@ import (
 )
 
 func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
-	query := `UPDATE users SET custom_id = NULL, updated_at = $3
+	query := `UPDATE users SET custom_id = NULL, update_time = $3
 WHERE id = $1
 AND custom_id = $2
 AND ((facebook_id IS NOT NULL
@@ -43,7 +43,7 @@ AND ((facebook_id IS NOT NULL
 	res, err := s.db.Exec(query, userID, in.Id, ts)
 
 	if err != nil {
-		s.logger.Warn("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
+		s.logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
@@ -69,16 +69,16 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
     res, err := tx.Exec(query, userID, in.Id)
 		if err != nil {
-			s.logger.Warn("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Could not unlink Device ID.")
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
 			return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
 		}
 
-		res, err = tx.Exec("UPDATE users SET updated_at = $2 WHERE id = $1", userID, ts)
+		res, err = tx.Exec("UPDATE users SET update_time = $2 WHERE id = $1", userID, ts)
 		if err != nil {
-			s.logger.Warn("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Could not unlink Device ID.")
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -96,7 +96,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 }
 
 func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
-	query := `UPDATE users SET email = NULL, password = NULL, updated_at = $3
+	query := `UPDATE users SET email = NULL, password = NULL, update_time = $3
 WHERE id = $1
 AND email = $2
 AND ((facebook_id IS NOT NULL
@@ -113,7 +113,7 @@ AND ((facebook_id IS NOT NULL
 	res, err := s.db.Exec(query, userID, cleanEmail, ts)
 
 	if err != nil {
-		s.logger.Warn("Could not unlink email.", zap.Error(err), zap.Any("input", in))
+		s.logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink email.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
