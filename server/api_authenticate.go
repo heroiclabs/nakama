@@ -41,6 +41,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	}
 
 	username := in.Username
+	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -49,7 +50,6 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
-	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateCustom(s.logger, s.db, in.Account.Id, username, create)
@@ -71,6 +71,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	}
 
 	username := in.Username
+	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -79,7 +80,6 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
-	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateDevice(s.logger, s.db, in.Account.Id, username, create)
@@ -108,6 +108,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	cleanEmail := strings.ToLower(email.Email)
 
 	username := in.Username
+	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -116,7 +117,6 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
-	username = strings.ToLower(username)
 	create := in.Create == nil || in.Create.Value
 
 	dbUserID, dbUsername, err := AuthenticateEmail(s.logger, s.db, cleanEmail, email.Password, username, create)
