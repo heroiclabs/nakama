@@ -26,7 +26,7 @@ import (
 	"strings"
 )
 
-func (s *ApiServer) UnlinkCustomFunc(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
 	query := `UPDATE users SET custom_id = NULL, updated_at = $3
 WHERE id = $1
 AND custom_id = $2
@@ -52,7 +52,7 @@ AND ((facebook_id IS NOT NULL
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) UnlinkDeviceFunc(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
 	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
@@ -95,7 +95,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) UnlinkEmailFunc(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
 	query := `UPDATE users SET email = NULL, password = NULL, updated_at = $3
 WHERE id = $1
 AND email = $2
@@ -122,18 +122,18 @@ AND ((facebook_id IS NOT NULL
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) UnlinkFacebookFunc(ctx context.Context, in *api.AccountFacebook) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) UnlinkGameCenterFunc(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) UnlinkGoogleFunc(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) UnlinkSteamFunc(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
+func (s *ApiServer) UnlinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
 	return nil, nil
 }

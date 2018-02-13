@@ -37,7 +37,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleAuthenticate"
+              "$ref": "#/definitions/consoleAuthenticateRequest"
             }
           }
         ],
@@ -49,7 +49,7 @@
     "/v2/account/{id}": {
       "delete": {
         "summary": "Delete all information stored for a user account.",
-        "operationId": "AccountDelete",
+        "operationId": "DeleteAccount",
         "responses": {
           "200": {
             "description": "",
@@ -74,7 +74,7 @@
     "/v2/account/{id}/export": {
       "get": {
         "summary": "Export all information stored about a user account.",
-        "operationId": "AccountExportFunc",
+        "operationId": "ExportAccount",
         "responses": {
           "200": {
             "description": "",
@@ -105,11 +105,6 @@
           "$ref": "#/definitions/apiUser",
           "description": "The user object."
         },
-        "verified": {
-          "type": "boolean",
-          "format": "boolean",
-          "description": "Whether the user has been verified. Via email or social profiles."
-        },
         "email": {
           "type": "string",
           "description": "The email address of the user."
@@ -126,7 +121,7 @@
           "description": "The custom id in the user's account."
         }
       },
-      "description": "*\nA user with additional account details. Always the current user."
+      "description": "A user with additional account details. Always the current user."
     },
     "apiAccountDevice": {
       "type": "object",
@@ -136,7 +131,7 @@
           "description": "A device identifier. Should be obtained by a platform-specific device API."
         }
       },
-      "description": "*\nSend a device to the server. Used with authenticate/link/unlink and user."
+      "description": "Send a device to the server. Used with authenticate/link/unlink and user."
     },
     "apiGroup": {
       "type": "object",
@@ -184,18 +179,18 @@
           "format": "int64",
           "description": "The UTC offset in milliseconds."
         },
-        "created_at": {
+        "create_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the group was created."
         },
-        "updated_at": {
+        "update_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the group was last updated."
         }
       },
-      "description": "*\nA group in the server."
+      "description": "A group in the server."
     },
     "apiUser": {
       "type": "object",
@@ -253,18 +248,18 @@
           "format": "boolean",
           "description": "Indicates whether the user is currently online."
         },
-        "created_at": {
+        "create_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the user was created."
         },
-        "updated_at": {
+        "update_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the user was last updated."
         }
       },
-      "description": "*\nA user in the server."
+      "description": "A user in the server."
     },
     "consoleAccountExport": {
       "type": "object",
@@ -283,7 +278,7 @@
       },
       "description": "*\nAn export of all information stored for a user account."
     },
-    "consoleAuthenticate": {
+    "consoleAuthenticateRequest": {
       "type": "object",
       "properties": {
         "username": {

@@ -31,7 +31,7 @@ var (
 	emailRegex        = regexp.MustCompile("^.+@.+\\..+$")
 )
 
-func (s *ApiServer) AuthenticateCustomFunc(ctx context.Context, in *api.AuthenticateCustom) (*api.Session, error) {
+func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.AuthenticateCustomRequest) (*api.Session, error) {
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
@@ -60,7 +60,7 @@ func (s *ApiServer) AuthenticateCustomFunc(ctx context.Context, in *api.Authenti
 	return &api.Session{Token: token}, nil
 }
 
-func (s *ApiServer) AuthenticateDeviceFunc(ctx context.Context, in *api.AuthenticateDevice) (*api.Session, error) {
+func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.AuthenticateDeviceRequest) (*api.Session, error) {
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
@@ -89,7 +89,7 @@ func (s *ApiServer) AuthenticateDeviceFunc(ctx context.Context, in *api.Authenti
 	return &api.Session{Token: token}, nil
 }
 
-func (s *ApiServer) AuthenticateEmailFunc(ctx context.Context, in *api.AuthenticateEmail) (*api.Session, error) {
+func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateEmailRequest) (*api.Session, error) {
 	email := in.Account
 	if email == nil || email.Email == "" || email.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
@@ -125,19 +125,19 @@ func (s *ApiServer) AuthenticateEmailFunc(ctx context.Context, in *api.Authentic
 	return &api.Session{Token: token}, nil
 }
 
-func (s *ApiServer) AuthenticateFacebookFunc(ctx context.Context, in *api.AuthenticateFacebook) (*api.Session, error) {
+func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) AuthenticateGameCenterFunc(ctx context.Context, in *api.AuthenticateGameCenter) (*api.Session, error) {
+func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) AuthenticateGoogleFunc(ctx context.Context, in *api.AuthenticateGoogle) (*api.Session, error) {
+func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) AuthenticateSteamFunc(ctx context.Context, in *api.AuthenticateSteam) (*api.Session, error) {
+func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
 	return nil, nil
 }
 

@@ -16,25 +16,30 @@ It has these top-level messages:
 	AccountGameCenter
 	AccountGoogle
 	AccountSteam
-	AccountUpdate
-	AuthenticateCustom
-	AuthenticateDevice
-	AuthenticateEmail
-	AuthenticateFacebook
-	AuthenticateGameCenter
-	AuthenticateGoogle
-	AuthenticateSteam
+	AddFriendsRequest
+	AuthenticateCustomRequest
+	AuthenticateDeviceRequest
+	AuthenticateEmailRequest
+	AuthenticateFacebookRequest
+	AuthenticateGameCenterRequest
+	AuthenticateGoogleRequest
+	AuthenticateSteamRequest
+	BlockFriendsRequest
 	ChannelId
+	CreateGroupsRequest
+	DeleteFriendsRequest
 	Friend
-	FriendAdd
+	GetUsersRequest
 	Group
 	Groups
-	GroupsCreate
+	ImportFacebookFriendsRequest
+	LinkFacebookRequest
+	Friends
 	Rpc
 	Session
+	UpdateAccountRequest
 	User
 	Users
-	UsersFetch
 */
 package api
 
@@ -43,7 +48,8 @@ import fmt "fmt"
 import math "math"
 import _ "google.golang.org/genproto/googleapis/api/annotations"
 import google_protobuf1 "github.com/golang/protobuf/ptypes/empty"
-import google_protobuf2 "github.com/golang/protobuf/ptypes/wrappers"
+import google_protobuf2 "github.com/golang/protobuf/ptypes/timestamp"
+import google_protobuf3 "github.com/golang/protobuf/ptypes/wrappers"
 import _ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
 
 import (
@@ -66,69 +72,74 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 type ChannelId_Type int32
 
 const (
+	// Default case. Assumed as ROOM type.
+	ChannelId_TYPE_UNSPECIFIED ChannelId_Type = 0
 	// A room which anyone can join to chat.
-	ChannelId_ROOM ChannelId_Type = 0
+	ChannelId_ROOM ChannelId_Type = 1
 	// A private channel for 1-on-1 chat.
-	ChannelId_DIRECT_MESSAGE ChannelId_Type = 1
+	ChannelId_DIRECT_MESSAGE ChannelId_Type = 2
 	// A channel for group chat.
-	ChannelId_GROUP ChannelId_Type = 2
+	ChannelId_GROUP ChannelId_Type = 3
 )
 
 var ChannelId_Type_name = map[int32]string{
-	0: "ROOM",
-	1: "DIRECT_MESSAGE",
-	2: "GROUP",
+	0: "TYPE_UNSPECIFIED",
+	1: "ROOM",
+	2: "DIRECT_MESSAGE",
+	3: "GROUP",
 }
 var ChannelId_Type_value = map[string]int32{
-	"ROOM":           0,
-	"DIRECT_MESSAGE": 1,
-	"GROUP":          2,
+	"TYPE_UNSPECIFIED": 0,
+	"ROOM":             1,
+	"DIRECT_MESSAGE":   2,
+	"GROUP":            3,
 }
 
 func (x ChannelId_Type) String() string {
 	return proto.EnumName(ChannelId_Type_name, int32(x))
 }
-func (ChannelId_Type) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{16, 0} }
+func (ChannelId_Type) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{17, 0} }
 
 // The friendship status.
 type Friend_State int32
 
 const (
+	// Default case. Assumed as FRIEND state.
+	Friend_STATE_UNSPECIFIED Friend_State = 0
 	// The user is a friend of the current user.
-	Friend_FRIEND Friend_State = 0
+	Friend_FRIEND Friend_State = 1
 	// The user has sent an invite to the current user.
-	Friend_INVITE_SENT Friend_State = 1
+	Friend_INVITE_SENT Friend_State = 2
 	// The current user has sent an invite to this user.
-	Friend_INVITE_RECEIVED Friend_State = 2
+	Friend_INVITE_RECEIVED Friend_State = 3
 	// The current user has blocked this user.
-	Friend_BLOCKED Friend_State = 3
+	Friend_BLOCKED Friend_State = 4
 )
 
 var Friend_State_name = map[int32]string{
-	0: "FRIEND",
-	1: "INVITE_SENT",
-	2: "INVITE_RECEIVED",
-	3: "BLOCKED",
+	0: "STATE_UNSPECIFIED",
+	1: "FRIEND",
+	2: "INVITE_SENT",
+	3: "INVITE_RECEIVED",
+	4: "BLOCKED",
 }
 var Friend_State_value = map[string]int32{
-	"FRIEND":          0,
-	"INVITE_SENT":     1,
-	"INVITE_RECEIVED": 2,
-	"BLOCKED":         3,
+	"STATE_UNSPECIFIED": 0,
+	"FRIEND":            1,
+	"INVITE_SENT":       2,
+	"INVITE_RECEIVED":   3,
+	"BLOCKED":           4,
 }
 
 func (x Friend_State) String() string {
 	return proto.EnumName(Friend_State_name, int32(x))
 }
-func (Friend_State) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{17, 0} }
+func (Friend_State) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{20, 0} }
 
-// *
 // A user with additional account details. Always the current user.
 type Account struct {
 	// The user object.
 	User *User `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`
-	// Whether the user has been verified. Via email or social profiles.
-	Verified bool `protobuf:"varint,2,opt,name=verified" json:"verified,omitempty"`
 	// The email address of the user.
 	Email string `protobuf:"bytes,3,opt,name=email" json:"email,omitempty"`
 	// The devices which belong to the user's account.
@@ -147,13 +158,6 @@ func (m *Account) GetUser() *User {
 		return m.User
 	}
 	return nil
-}
-
-func (m *Account) GetVerified() bool {
-	if m != nil {
-		return m.Verified
-	}
-	return false
 }
 
 func (m *Account) GetEmail() string {
@@ -177,7 +181,6 @@ func (m *Account) GetCustomId() string {
 	return ""
 }
 
-// *
 // Send a custom ID to the server. Used with authenticate/link/unlink.
 type AccountCustom struct {
 	// A custom identifier.
@@ -196,7 +199,6 @@ func (m *AccountCustom) GetId() string {
 	return ""
 }
 
-// *
 // Send a device to the server. Used with authenticate/link/unlink and user.
 type AccountDevice struct {
 	// A device identifier. Should be obtained by a platform-specific device API.
@@ -215,7 +217,6 @@ func (m *AccountDevice) GetId() string {
 	return ""
 }
 
-// *
 // Send an email with password to the server. Used with authenticate/link/unlink.
 type AccountEmail struct {
 	// A valid RFC-5322 email address.
@@ -243,7 +244,6 @@ func (m *AccountEmail) GetPassword() string {
 	return ""
 }
 
-// *
 // Send a Facebook token to the server. Used with authenticate/link/unlink.
 type AccountFacebook struct {
 	// The OAuth token received from Facebook to access their profile API.
@@ -262,17 +262,14 @@ func (m *AccountFacebook) GetToken() string {
 	return ""
 }
 
-// *
 // Send Apple's Game Center account credentials to the server. Used with authenticate/link/unlink.
-//
-// https://developer.apple.com/documentation/gamekit/gklocalplayer/1515407-generateidentityverificationsign
 type AccountGameCenter struct {
 	// Player ID (generated by GameCenter).
 	PlayerId string `protobuf:"bytes,1,opt,name=player_id,json=playerId" json:"player_id,omitempty"`
 	// Bundle ID (generated by GameCenter).
 	BundleId string `protobuf:"bytes,2,opt,name=bundle_id,json=bundleId" json:"bundle_id,omitempty"`
 	// Time since UNIX epoch when the signature was created.
-	Timestamp int64 `protobuf:"varint,3,opt,name=timestamp" json:"timestamp,omitempty"`
+	TimestampSeconds int64 `protobuf:"varint,3,opt,name=timestamp_seconds,json=timestampSeconds" json:"timestamp_seconds,omitempty"`
 	// A random "NSString" used to compute the hash and keep it randomized.
 	Salt string `protobuf:"bytes,4,opt,name=salt" json:"salt,omitempty"`
 	// The verification signature data generated.
@@ -300,9 +297,9 @@ func (m *AccountGameCenter) GetBundleId() string {
 	return ""
 }
 
-func (m *AccountGameCenter) GetTimestamp() int64 {
+func (m *AccountGameCenter) GetTimestampSeconds() int64 {
 	if m != nil {
-		return m.Timestamp
+		return m.TimestampSeconds
 	}
 	return 0
 }
@@ -328,7 +325,6 @@ func (m *AccountGameCenter) GetPublicKeyUrl() string {
 	return ""
 }
 
-// *
 // Send a Google token to the server. Used with authenticate/link/unlink.
 type AccountGoogle struct {
 	// The OAuth token received from Google to access their profile API.
@@ -347,7 +343,6 @@ func (m *AccountGoogle) GetToken() string {
 	return ""
 }
 
-// *
 // Send a Steam token to the server. Used with authenticate/link/unlink.
 type AccountSteam struct {
 	// The account token received from Steam to access their profile API.
@@ -366,341 +361,333 @@ func (m *AccountSteam) GetToken() string {
 	return ""
 }
 
-// *
-// Update a user's account details.
-type AccountUpdate struct {
-	// The username of the user's account.
-	Username *google_protobuf2.StringValue `protobuf:"bytes,1,opt,name=username" json:"username,omitempty"`
-	// The fullname of the user.
-	Fullname *google_protobuf2.StringValue `protobuf:"bytes,2,opt,name=fullname" json:"fullname,omitempty"`
-	// A URL for an avatar image.
-	AvatarUrl *google_protobuf2.StringValue `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl" json:"avatar_url,omitempty"`
-	// The language expected to be a tag which follows the BCP-47 spec.
-	Lang *google_protobuf2.StringValue `protobuf:"bytes,4,opt,name=lang" json:"lang,omitempty"`
-	// The location set by the user.
-	Location *google_protobuf2.StringValue `protobuf:"bytes,5,opt,name=location" json:"location,omitempty"`
-	// The timezone set by the user.
-	Timezone *google_protobuf2.StringValue `protobuf:"bytes,6,opt,name=timezone" json:"timezone,omitempty"`
+// Add one or more friends to the current user.
+type AddFriendsRequest struct {
+	// The account id of a user.
+	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
+	// The account username of a user.
+	Usernames []string `protobuf:"bytes,2,rep,name=usernames" json:"usernames,omitempty"`
 }
 
-func (m *AccountUpdate) Reset()                    { *m = AccountUpdate{} }
-func (m *AccountUpdate) String() string            { return proto.CompactTextString(m) }
-func (*AccountUpdate) ProtoMessage()               {}
-func (*AccountUpdate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (m *AddFriendsRequest) Reset()                    { *m = AddFriendsRequest{} }
+func (m *AddFriendsRequest) String() string            { return proto.CompactTextString(m) }
+func (*AddFriendsRequest) ProtoMessage()               {}
+func (*AddFriendsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
-func (m *AccountUpdate) GetUsername() *google_protobuf2.StringValue {
+func (m *AddFriendsRequest) GetIds() []string {
 	if m != nil {
-		return m.Username
+		return m.Ids
 	}
 	return nil
 }
 
-func (m *AccountUpdate) GetFullname() *google_protobuf2.StringValue {
+func (m *AddFriendsRequest) GetUsernames() []string {
 	if m != nil {
-		return m.Fullname
+		return m.Usernames
 	}
 	return nil
 }
 
-func (m *AccountUpdate) GetAvatarUrl() *google_protobuf2.StringValue {
-	if m != nil {
-		return m.AvatarUrl
-	}
-	return nil
-}
-
-func (m *AccountUpdate) GetLang() *google_protobuf2.StringValue {
-	if m != nil {
-		return m.Lang
-	}
-	return nil
-}
-
-func (m *AccountUpdate) GetLocation() *google_protobuf2.StringValue {
-	if m != nil {
-		return m.Location
-	}
-	return nil
-}
-
-func (m *AccountUpdate) GetTimezone() *google_protobuf2.StringValue {
-	if m != nil {
-		return m.Timezone
-	}
-	return nil
-}
-
-// *
 // Authenticate against the server with a custom ID.
-type AuthenticateCustom struct {
+type AuthenticateCustomRequest struct {
 	// The custom account details.
 	Account *AccountCustom `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateCustom) Reset()                    { *m = AuthenticateCustom{} }
-func (m *AuthenticateCustom) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateCustom) ProtoMessage()               {}
-func (*AuthenticateCustom) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (m *AuthenticateCustomRequest) Reset()                    { *m = AuthenticateCustomRequest{} }
+func (m *AuthenticateCustomRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateCustomRequest) ProtoMessage()               {}
+func (*AuthenticateCustomRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
-func (m *AuthenticateCustom) GetAccount() *AccountCustom {
+func (m *AuthenticateCustomRequest) GetAccount() *AccountCustom {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateCustom) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateCustomRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateCustom) GetUsername() string {
+func (m *AuthenticateCustomRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
 // Authenticate against the server with a device ID.
-type AuthenticateDevice struct {
+type AuthenticateDeviceRequest struct {
 	// The device account details.
 	Account *AccountDevice `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateDevice) Reset()                    { *m = AuthenticateDevice{} }
-func (m *AuthenticateDevice) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateDevice) ProtoMessage()               {}
-func (*AuthenticateDevice) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (m *AuthenticateDeviceRequest) Reset()                    { *m = AuthenticateDeviceRequest{} }
+func (m *AuthenticateDeviceRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateDeviceRequest) ProtoMessage()               {}
+func (*AuthenticateDeviceRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
-func (m *AuthenticateDevice) GetAccount() *AccountDevice {
+func (m *AuthenticateDeviceRequest) GetAccount() *AccountDevice {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateDevice) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateDeviceRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateDevice) GetUsername() string {
+func (m *AuthenticateDeviceRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
 // Authenticate against the server with email+password.
-type AuthenticateEmail struct {
+type AuthenticateEmailRequest struct {
 	// The email account details.
 	Account *AccountEmail `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateEmail) Reset()                    { *m = AuthenticateEmail{} }
-func (m *AuthenticateEmail) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateEmail) ProtoMessage()               {}
-func (*AuthenticateEmail) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (m *AuthenticateEmailRequest) Reset()                    { *m = AuthenticateEmailRequest{} }
+func (m *AuthenticateEmailRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateEmailRequest) ProtoMessage()               {}
+func (*AuthenticateEmailRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
-func (m *AuthenticateEmail) GetAccount() *AccountEmail {
+func (m *AuthenticateEmailRequest) GetAccount() *AccountEmail {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateEmail) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateEmailRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateEmail) GetUsername() string {
+func (m *AuthenticateEmailRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
 // Authenticate against the server with Facebook.
-type AuthenticateFacebook struct {
+type AuthenticateFacebookRequest struct {
 	// The Facebook account details.
 	Account *AccountFacebook `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
+	// Import Facebook friends for the user.
+	Import *google_protobuf3.BoolValue `protobuf:"bytes,4,opt,name=import" json:"import,omitempty"`
 }
 
-func (m *AuthenticateFacebook) Reset()                    { *m = AuthenticateFacebook{} }
-func (m *AuthenticateFacebook) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateFacebook) ProtoMessage()               {}
-func (*AuthenticateFacebook) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+func (m *AuthenticateFacebookRequest) Reset()                    { *m = AuthenticateFacebookRequest{} }
+func (m *AuthenticateFacebookRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateFacebookRequest) ProtoMessage()               {}
+func (*AuthenticateFacebookRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
-func (m *AuthenticateFacebook) GetAccount() *AccountFacebook {
+func (m *AuthenticateFacebookRequest) GetAccount() *AccountFacebook {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateFacebook) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateFacebookRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateFacebook) GetUsername() string {
+func (m *AuthenticateFacebookRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
+func (m *AuthenticateFacebookRequest) GetImport() *google_protobuf3.BoolValue {
+	if m != nil {
+		return m.Import
+	}
+	return nil
+}
+
 // Authenticate against the server with Apple's Game Center.
-type AuthenticateGameCenter struct {
+type AuthenticateGameCenterRequest struct {
 	// The Game Center account details.
 	Account *AccountGameCenter `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateGameCenter) Reset()                    { *m = AuthenticateGameCenter{} }
-func (m *AuthenticateGameCenter) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateGameCenter) ProtoMessage()               {}
-func (*AuthenticateGameCenter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+func (m *AuthenticateGameCenterRequest) Reset()                    { *m = AuthenticateGameCenterRequest{} }
+func (m *AuthenticateGameCenterRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateGameCenterRequest) ProtoMessage()               {}
+func (*AuthenticateGameCenterRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
-func (m *AuthenticateGameCenter) GetAccount() *AccountGameCenter {
+func (m *AuthenticateGameCenterRequest) GetAccount() *AccountGameCenter {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateGameCenter) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateGameCenterRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateGameCenter) GetUsername() string {
+func (m *AuthenticateGameCenterRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
 // Authenticate against the server with Google.
-type AuthenticateGoogle struct {
+type AuthenticateGoogleRequest struct {
 	// The Google account details.
 	Account *AccountGoogle `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateGoogle) Reset()                    { *m = AuthenticateGoogle{} }
-func (m *AuthenticateGoogle) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateGoogle) ProtoMessage()               {}
-func (*AuthenticateGoogle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+func (m *AuthenticateGoogleRequest) Reset()                    { *m = AuthenticateGoogleRequest{} }
+func (m *AuthenticateGoogleRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateGoogleRequest) ProtoMessage()               {}
+func (*AuthenticateGoogleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
-func (m *AuthenticateGoogle) GetAccount() *AccountGoogle {
+func (m *AuthenticateGoogleRequest) GetAccount() *AccountGoogle {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateGoogle) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateGoogleRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateGoogle) GetUsername() string {
+func (m *AuthenticateGoogleRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
 // Authenticate against the server with Steam.
-type AuthenticateSteam struct {
+type AuthenticateSteamRequest struct {
 	// The Steam account details.
 	Account *AccountSteam `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
 	// Register the account if the user does not already exist.
-	Create *google_protobuf2.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
+	Create *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=create" json:"create,omitempty"`
 	// Set the username on the account at register. Must be unique.
 	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
 }
 
-func (m *AuthenticateSteam) Reset()                    { *m = AuthenticateSteam{} }
-func (m *AuthenticateSteam) String() string            { return proto.CompactTextString(m) }
-func (*AuthenticateSteam) ProtoMessage()               {}
-func (*AuthenticateSteam) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+func (m *AuthenticateSteamRequest) Reset()                    { *m = AuthenticateSteamRequest{} }
+func (m *AuthenticateSteamRequest) String() string            { return proto.CompactTextString(m) }
+func (*AuthenticateSteamRequest) ProtoMessage()               {}
+func (*AuthenticateSteamRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
-func (m *AuthenticateSteam) GetAccount() *AccountSteam {
+func (m *AuthenticateSteamRequest) GetAccount() *AccountSteam {
 	if m != nil {
 		return m.Account
 	}
 	return nil
 }
 
-func (m *AuthenticateSteam) GetCreate() *google_protobuf2.BoolValue {
+func (m *AuthenticateSteamRequest) GetCreate() *google_protobuf3.BoolValue {
 	if m != nil {
 		return m.Create
 	}
 	return nil
 }
 
-func (m *AuthenticateSteam) GetUsername() string {
+func (m *AuthenticateSteamRequest) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-// *
+// Block one or more friends for the current user.
+type BlockFriendsRequest struct {
+	// The account id of a user.
+	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
+	// The account username of a user.
+	Usernames []string `protobuf:"bytes,2,rep,name=usernames" json:"usernames,omitempty"`
+}
+
+func (m *BlockFriendsRequest) Reset()                    { *m = BlockFriendsRequest{} }
+func (m *BlockFriendsRequest) String() string            { return proto.CompactTextString(m) }
+func (*BlockFriendsRequest) ProtoMessage()               {}
+func (*BlockFriendsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+
+func (m *BlockFriendsRequest) GetIds() []string {
+	if m != nil {
+		return m.Ids
+	}
+	return nil
+}
+
+func (m *BlockFriendsRequest) GetUsernames() []string {
+	if m != nil {
+		return m.Usernames
+	}
+	return nil
+}
+
 // An identifier for a realtime chat channel.
 type ChannelId struct {
 	// The identifier for the realtime channel.
-	Id   string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
-	Type int32  `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// The type of the chat channel.
+	Type int32 `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
 }
 
 func (m *ChannelId) Reset()                    { *m = ChannelId{} }
 func (m *ChannelId) String() string            { return proto.CompactTextString(m) }
 func (*ChannelId) ProtoMessage()               {}
-func (*ChannelId) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+func (*ChannelId) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *ChannelId) GetId() string {
 	if m != nil {
@@ -716,18 +703,128 @@ func (m *ChannelId) GetType() int32 {
 	return 0
 }
 
-// *
+// Create one or more groups with the current user as owner.
+type CreateGroupsRequest struct {
+	// The Group objects to create.
+	Groups []*CreateGroupsRequest_NewGroup `protobuf:"bytes,1,rep,name=groups" json:"groups,omitempty"`
+}
+
+func (m *CreateGroupsRequest) Reset()                    { *m = CreateGroupsRequest{} }
+func (m *CreateGroupsRequest) String() string            { return proto.CompactTextString(m) }
+func (*CreateGroupsRequest) ProtoMessage()               {}
+func (*CreateGroupsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
+
+func (m *CreateGroupsRequest) GetGroups() []*CreateGroupsRequest_NewGroup {
+	if m != nil {
+		return m.Groups
+	}
+	return nil
+}
+
+// A group to create.
+type CreateGroupsRequest_NewGroup struct {
+	// A unique name for the group.
+	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	// A description for the group.
+	Description string `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
+	// The language expected to be a tag which follows the BCP-47 spec.
+	Lang string `protobuf:"bytes,3,opt,name=lang" json:"lang,omitempty"`
+	// Additional information stored as a JSON object.
+	Metadata string `protobuf:"bytes,4,opt,name=metadata" json:"metadata,omitempty"`
+	// A URL for an avatar image.
+	AvatarUrl string `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl" json:"avatar_url,omitempty"`
+	// Mark a group as private where only admins can accept members.
+	Private bool `protobuf:"varint,6,opt,name=private" json:"private,omitempty"`
+}
+
+func (m *CreateGroupsRequest_NewGroup) Reset()         { *m = CreateGroupsRequest_NewGroup{} }
+func (m *CreateGroupsRequest_NewGroup) String() string { return proto.CompactTextString(m) }
+func (*CreateGroupsRequest_NewGroup) ProtoMessage()    {}
+func (*CreateGroupsRequest_NewGroup) Descriptor() ([]byte, []int) {
+	return fileDescriptor0, []int{18, 0}
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetDescription() string {
+	if m != nil {
+		return m.Description
+	}
+	return ""
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetLang() string {
+	if m != nil {
+		return m.Lang
+	}
+	return ""
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetMetadata() string {
+	if m != nil {
+		return m.Metadata
+	}
+	return ""
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetAvatarUrl() string {
+	if m != nil {
+		return m.AvatarUrl
+	}
+	return ""
+}
+
+func (m *CreateGroupsRequest_NewGroup) GetPrivate() bool {
+	if m != nil {
+		return m.Private
+	}
+	return false
+}
+
+// Delete one or more friends for the current user.
+type DeleteFriendsRequest struct {
+	// The account id of a user.
+	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
+	// The account username of a user.
+	Usernames []string `protobuf:"bytes,2,rep,name=usernames" json:"usernames,omitempty"`
+}
+
+func (m *DeleteFriendsRequest) Reset()                    { *m = DeleteFriendsRequest{} }
+func (m *DeleteFriendsRequest) String() string            { return proto.CompactTextString(m) }
+func (*DeleteFriendsRequest) ProtoMessage()               {}
+func (*DeleteFriendsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+
+func (m *DeleteFriendsRequest) GetIds() []string {
+	if m != nil {
+		return m.Ids
+	}
+	return nil
+}
+
+func (m *DeleteFriendsRequest) GetUsernames() []string {
+	if m != nil {
+		return m.Usernames
+	}
+	return nil
+}
+
 // A friend of a user.
 type Friend struct {
 	// The user object.
-	User  *User `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`
+	User *User `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`
+	// The friend status.
 	State int32 `protobuf:"varint,2,opt,name=state" json:"state,omitempty"`
 }
 
 func (m *Friend) Reset()                    { *m = Friend{} }
 func (m *Friend) String() string            { return proto.CompactTextString(m) }
 func (*Friend) ProtoMessage()               {}
-func (*Friend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
+func (*Friend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
 
 func (m *Friend) GetUser() *User {
 	if m != nil {
@@ -743,35 +840,42 @@ func (m *Friend) GetState() int32 {
 	return 0
 }
 
-// *
-// Add one or more friends to the current user.
-type FriendAdd struct {
+// Fetch a batch of zero or more users from the server.
+type GetUsersRequest struct {
 	// The account id of a user.
 	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
 	// The account username of a user.
 	Usernames []string `protobuf:"bytes,2,rep,name=usernames" json:"usernames,omitempty"`
+	// The Facebook ID of a user.
+	FacebookIds []string `protobuf:"bytes,3,rep,name=facebook_ids,json=facebookIds" json:"facebook_ids,omitempty"`
 }
 
-func (m *FriendAdd) Reset()                    { *m = FriendAdd{} }
-func (m *FriendAdd) String() string            { return proto.CompactTextString(m) }
-func (*FriendAdd) ProtoMessage()               {}
-func (*FriendAdd) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
+func (m *GetUsersRequest) Reset()                    { *m = GetUsersRequest{} }
+func (m *GetUsersRequest) String() string            { return proto.CompactTextString(m) }
+func (*GetUsersRequest) ProtoMessage()               {}
+func (*GetUsersRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
 
-func (m *FriendAdd) GetIds() []string {
+func (m *GetUsersRequest) GetIds() []string {
 	if m != nil {
 		return m.Ids
 	}
 	return nil
 }
 
-func (m *FriendAdd) GetUsernames() []string {
+func (m *GetUsersRequest) GetUsernames() []string {
 	if m != nil {
 		return m.Usernames
 	}
 	return nil
 }
 
-// *
+func (m *GetUsersRequest) GetFacebookIds() []string {
+	if m != nil {
+		return m.FacebookIds
+	}
+	return nil
+}
+
 // A group in the server.
 type Group struct {
 	// The id of a group.
@@ -795,15 +899,15 @@ type Group struct {
 	// The UTC offset in milliseconds.
 	UtcOffsetMs int64 `protobuf:"varint,10,opt,name=utc_offset_ms,json=utcOffsetMs" json:"utc_offset_ms,omitempty"`
 	// The UNIX time when the group was created.
-	CreatedAt int64 `protobuf:"varint,11,opt,name=created_at,json=createdAt" json:"created_at,omitempty"`
+	CreateTime *google_protobuf2.Timestamp `protobuf:"bytes,11,opt,name=create_time,json=createTime" json:"create_time,omitempty"`
 	// The UNIX time when the group was last updated.
-	UpdatedAt int64 `protobuf:"varint,12,opt,name=updated_at,json=updatedAt" json:"updated_at,omitempty"`
+	UpdateTime *google_protobuf2.Timestamp `protobuf:"bytes,12,opt,name=update_time,json=updateTime" json:"update_time,omitempty"`
 }
 
 func (m *Group) Reset()                    { *m = Group{} }
 func (m *Group) String() string            { return proto.CompactTextString(m) }
 func (*Group) ProtoMessage()               {}
-func (*Group) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+func (*Group) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
 
 func (m *Group) GetId() string {
 	if m != nil {
@@ -875,21 +979,20 @@ func (m *Group) GetUtcOffsetMs() int64 {
 	return 0
 }
 
-func (m *Group) GetCreatedAt() int64 {
+func (m *Group) GetCreateTime() *google_protobuf2.Timestamp {
 	if m != nil {
-		return m.CreatedAt
+		return m.CreateTime
 	}
-	return 0
+	return nil
 }
 
-func (m *Group) GetUpdatedAt() int64 {
+func (m *Group) GetUpdateTime() *google_protobuf2.Timestamp {
 	if m != nil {
-		return m.UpdatedAt
+		return m.UpdateTime
 	}
-	return 0
+	return nil
 }
 
-// *
 // A collection of zero or more groups.
 type Groups struct {
 	// The Group objects.
@@ -899,7 +1002,7 @@ type Groups struct {
 func (m *Groups) Reset()                    { *m = Groups{} }
 func (m *Groups) String() string            { return proto.CompactTextString(m) }
 func (*Groups) ProtoMessage()               {}
-func (*Groups) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
+func (*Groups) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
 
 func (m *Groups) GetGroups() []*Group {
 	if m != nil {
@@ -908,104 +1011,92 @@ func (m *Groups) GetGroups() []*Group {
 	return nil
 }
 
-// *
-// Create one or more groups with the current user as owner.
-type GroupsCreate struct {
-	// The Group objects to create.
-	Groups []*GroupsCreate_NewGroup `protobuf:"bytes,1,rep,name=groups" json:"groups,omitempty"`
+// Import Facebook friends into the current user's account.
+type ImportFacebookFriendsRequest struct {
+	// The Facebook account details.
+	Account *AccountFacebook `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
+	// Reset the current user's friends list.
+	Reset_ *google_protobuf3.BoolValue `protobuf:"bytes,2,opt,name=reset" json:"reset,omitempty"`
 }
 
-func (m *GroupsCreate) Reset()                    { *m = GroupsCreate{} }
-func (m *GroupsCreate) String() string            { return proto.CompactTextString(m) }
-func (*GroupsCreate) ProtoMessage()               {}
-func (*GroupsCreate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
+func (m *ImportFacebookFriendsRequest) Reset()                    { *m = ImportFacebookFriendsRequest{} }
+func (m *ImportFacebookFriendsRequest) String() string            { return proto.CompactTextString(m) }
+func (*ImportFacebookFriendsRequest) ProtoMessage()               {}
+func (*ImportFacebookFriendsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
 
-func (m *GroupsCreate) GetGroups() []*GroupsCreate_NewGroup {
+func (m *ImportFacebookFriendsRequest) GetAccount() *AccountFacebook {
 	if m != nil {
-		return m.Groups
+		return m.Account
 	}
 	return nil
 }
 
-// *
-// A group to create.
-type GroupsCreate_NewGroup struct {
-	// A unique name for the group.
-	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	// A description for the group.
-	Description string `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
-	// The language expected to be a tag which follows the BCP-47 spec.
-	Lang string `protobuf:"bytes,3,opt,name=lang" json:"lang,omitempty"`
-	// Additional information stored as a JSON object.
-	Metadata string `protobuf:"bytes,4,opt,name=metadata" json:"metadata,omitempty"`
-	// A URL for an avatar image.
-	AvatarUrl string `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl" json:"avatar_url,omitempty"`
-	// Mark a group as private where only admins can accept members.
-	Private bool `protobuf:"varint,6,opt,name=private" json:"private,omitempty"`
-}
-
-func (m *GroupsCreate_NewGroup) Reset()                    { *m = GroupsCreate_NewGroup{} }
-func (m *GroupsCreate_NewGroup) String() string            { return proto.CompactTextString(m) }
-func (*GroupsCreate_NewGroup) ProtoMessage()               {}
-func (*GroupsCreate_NewGroup) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21, 0} }
-
-func (m *GroupsCreate_NewGroup) GetName() string {
+func (m *ImportFacebookFriendsRequest) GetReset_() *google_protobuf3.BoolValue {
 	if m != nil {
-		return m.Name
+		return m.Reset_
 	}
-	return ""
+	return nil
 }
 
-func (m *GroupsCreate_NewGroup) GetDescription() string {
+// Link Facebook to the current user's account.
+type LinkFacebookRequest struct {
+	// The Facebook account details.
+	Account *AccountFacebook `protobuf:"bytes,1,opt,name=account" json:"account,omitempty"`
+	// Import Facebook friends for the user.
+	Import *google_protobuf3.BoolValue `protobuf:"bytes,4,opt,name=import" json:"import,omitempty"`
+}
+
+func (m *LinkFacebookRequest) Reset()                    { *m = LinkFacebookRequest{} }
+func (m *LinkFacebookRequest) String() string            { return proto.CompactTextString(m) }
+func (*LinkFacebookRequest) ProtoMessage()               {}
+func (*LinkFacebookRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
+
+func (m *LinkFacebookRequest) GetAccount() *AccountFacebook {
 	if m != nil {
-		return m.Description
+		return m.Account
 	}
-	return ""
+	return nil
 }
 
-func (m *GroupsCreate_NewGroup) GetLang() string {
+func (m *LinkFacebookRequest) GetImport() *google_protobuf3.BoolValue {
 	if m != nil {
-		return m.Lang
+		return m.Import
 	}
-	return ""
+	return nil
 }
 
-func (m *GroupsCreate_NewGroup) GetMetadata() string {
+// A collection of zero or more friends of the user.
+type Friends struct {
+	// The Friend objects.
+	Friends []*Friend `protobuf:"bytes,1,rep,name=friends" json:"friends,omitempty"`
+}
+
+func (m *Friends) Reset()                    { *m = Friends{} }
+func (m *Friends) String() string            { return proto.CompactTextString(m) }
+func (*Friends) ProtoMessage()               {}
+func (*Friends) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{26} }
+
+func (m *Friends) GetFriends() []*Friend {
 	if m != nil {
-		return m.Metadata
+		return m.Friends
 	}
-	return ""
+	return nil
 }
 
-func (m *GroupsCreate_NewGroup) GetAvatarUrl() string {
-	if m != nil {
-		return m.AvatarUrl
-	}
-	return ""
-}
-
-func (m *GroupsCreate_NewGroup) GetPrivate() bool {
-	if m != nil {
-		return m.Private
-	}
-	return false
-}
-
-// *
 // Execute an Lua function on the server.
 type Rpc struct {
 	// The identifier of the function.
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 	// The payload of the function which must be a JSON object.
-	Payload *google_protobuf2.StringValue `protobuf:"bytes,2,opt,name=payload" json:"payload,omitempty"`
+	Payload *google_protobuf3.StringValue `protobuf:"bytes,2,opt,name=payload" json:"payload,omitempty"`
 	// The authentication key used when executed as a non-client HTTP request.
-	HttpKey *google_protobuf2.StringValue `protobuf:"bytes,3,opt,name=http_key,json=httpKey" json:"http_key,omitempty"`
+	HttpKey *google_protobuf3.StringValue `protobuf:"bytes,3,opt,name=http_key,json=httpKey" json:"http_key,omitempty"`
 }
 
 func (m *Rpc) Reset()                    { *m = Rpc{} }
 func (m *Rpc) String() string            { return proto.CompactTextString(m) }
 func (*Rpc) ProtoMessage()               {}
-func (*Rpc) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
+func (*Rpc) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
 
 func (m *Rpc) GetId() string {
 	if m != nil {
@@ -1014,21 +1105,20 @@ func (m *Rpc) GetId() string {
 	return ""
 }
 
-func (m *Rpc) GetPayload() *google_protobuf2.StringValue {
+func (m *Rpc) GetPayload() *google_protobuf3.StringValue {
 	if m != nil {
 		return m.Payload
 	}
 	return nil
 }
 
-func (m *Rpc) GetHttpKey() *google_protobuf2.StringValue {
+func (m *Rpc) GetHttpKey() *google_protobuf3.StringValue {
 	if m != nil {
 		return m.HttpKey
 	}
 	return nil
 }
 
-// *
 // A user's session used to authenticate messages.
 type Session struct {
 	// Authentication credentials.
@@ -1040,7 +1130,7 @@ type Session struct {
 func (m *Session) Reset()                    { *m = Session{} }
 func (m *Session) String() string            { return proto.CompactTextString(m) }
 func (*Session) ProtoMessage()               {}
-func (*Session) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
+func (*Session) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{28} }
 
 func (m *Session) GetToken() string {
 	if m != nil {
@@ -1056,7 +1146,69 @@ func (m *Session) GetUdpToken() string {
 	return ""
 }
 
-// *
+// Update a user's account details.
+type UpdateAccountRequest struct {
+	// The username of the user's account.
+	Username *google_protobuf3.StringValue `protobuf:"bytes,1,opt,name=username" json:"username,omitempty"`
+	// The fullname of the user.
+	Fullname *google_protobuf3.StringValue `protobuf:"bytes,2,opt,name=fullname" json:"fullname,omitempty"`
+	// A URL for an avatar image.
+	AvatarUrl *google_protobuf3.StringValue `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl" json:"avatar_url,omitempty"`
+	// The language expected to be a tag which follows the BCP-47 spec.
+	Lang *google_protobuf3.StringValue `protobuf:"bytes,4,opt,name=lang" json:"lang,omitempty"`
+	// The location set by the user.
+	Location *google_protobuf3.StringValue `protobuf:"bytes,5,opt,name=location" json:"location,omitempty"`
+	// The timezone set by the user.
+	Timezone *google_protobuf3.StringValue `protobuf:"bytes,6,opt,name=timezone" json:"timezone,omitempty"`
+}
+
+func (m *UpdateAccountRequest) Reset()                    { *m = UpdateAccountRequest{} }
+func (m *UpdateAccountRequest) String() string            { return proto.CompactTextString(m) }
+func (*UpdateAccountRequest) ProtoMessage()               {}
+func (*UpdateAccountRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
+
+func (m *UpdateAccountRequest) GetUsername() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.Username
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetFullname() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.Fullname
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetAvatarUrl() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.AvatarUrl
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetLang() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.Lang
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetLocation() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.Location
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetTimezone() *google_protobuf3.StringValue {
+	if m != nil {
+		return m.Timezone
+	}
+	return nil
+}
+
 // A user in the server.
 type User struct {
 	// The id of the user's account.
@@ -1086,15 +1238,15 @@ type User struct {
 	// Indicates whether the user is currently online.
 	Online bool `protobuf:"varint,13,opt,name=online" json:"online,omitempty"`
 	// The UNIX time when the user was created.
-	CreatedAt int64 `protobuf:"varint,14,opt,name=created_at,json=createdAt" json:"created_at,omitempty"`
+	CreateTime *google_protobuf2.Timestamp `protobuf:"bytes,14,opt,name=create_time,json=createTime" json:"create_time,omitempty"`
 	// The UNIX time when the user was last updated.
-	UpdatedAt int64 `protobuf:"varint,15,opt,name=updated_at,json=updatedAt" json:"updated_at,omitempty"`
+	UpdateTime *google_protobuf2.Timestamp `protobuf:"bytes,15,opt,name=update_time,json=updateTime" json:"update_time,omitempty"`
 }
 
 func (m *User) Reset()                    { *m = User{} }
 func (m *User) String() string            { return proto.CompactTextString(m) }
 func (*User) ProtoMessage()               {}
-func (*User) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
+func (*User) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{30} }
 
 func (m *User) GetId() string {
 	if m != nil {
@@ -1187,21 +1339,20 @@ func (m *User) GetOnline() bool {
 	return false
 }
 
-func (m *User) GetCreatedAt() int64 {
+func (m *User) GetCreateTime() *google_protobuf2.Timestamp {
 	if m != nil {
-		return m.CreatedAt
+		return m.CreateTime
 	}
-	return 0
+	return nil
 }
 
-func (m *User) GetUpdatedAt() int64 {
+func (m *User) GetUpdateTime() *google_protobuf2.Timestamp {
 	if m != nil {
-		return m.UpdatedAt
+		return m.UpdateTime
 	}
-	return 0
+	return nil
 }
 
-// *
 // A collection of zero or more users.
 type Users struct {
 	// The User objects.
@@ -1211,39 +1362,11 @@ type Users struct {
 func (m *Users) Reset()                    { *m = Users{} }
 func (m *Users) String() string            { return proto.CompactTextString(m) }
 func (*Users) ProtoMessage()               {}
-func (*Users) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
+func (*Users) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
 
 func (m *Users) GetUsers() []*User {
 	if m != nil {
 		return m.Users
-	}
-	return nil
-}
-
-// *
-// Fetch a batch of zero or more users from the server.
-type UsersFetch struct {
-	// The account id of a user.
-	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
-	// The account username of a user.
-	Usernames []string `protobuf:"bytes,2,rep,name=usernames" json:"usernames,omitempty"`
-}
-
-func (m *UsersFetch) Reset()                    { *m = UsersFetch{} }
-func (m *UsersFetch) String() string            { return proto.CompactTextString(m) }
-func (*UsersFetch) ProtoMessage()               {}
-func (*UsersFetch) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{26} }
-
-func (m *UsersFetch) GetIds() []string {
-	if m != nil {
-		return m.Ids
-	}
-	return nil
-}
-
-func (m *UsersFetch) GetUsernames() []string {
-	if m != nil {
-		return m.Usernames
 	}
 	return nil
 }
@@ -1257,26 +1380,31 @@ func init() {
 	proto.RegisterType((*AccountGameCenter)(nil), "nakama.api.AccountGameCenter")
 	proto.RegisterType((*AccountGoogle)(nil), "nakama.api.AccountGoogle")
 	proto.RegisterType((*AccountSteam)(nil), "nakama.api.AccountSteam")
-	proto.RegisterType((*AccountUpdate)(nil), "nakama.api.AccountUpdate")
-	proto.RegisterType((*AuthenticateCustom)(nil), "nakama.api.AuthenticateCustom")
-	proto.RegisterType((*AuthenticateDevice)(nil), "nakama.api.AuthenticateDevice")
-	proto.RegisterType((*AuthenticateEmail)(nil), "nakama.api.AuthenticateEmail")
-	proto.RegisterType((*AuthenticateFacebook)(nil), "nakama.api.AuthenticateFacebook")
-	proto.RegisterType((*AuthenticateGameCenter)(nil), "nakama.api.AuthenticateGameCenter")
-	proto.RegisterType((*AuthenticateGoogle)(nil), "nakama.api.AuthenticateGoogle")
-	proto.RegisterType((*AuthenticateSteam)(nil), "nakama.api.AuthenticateSteam")
+	proto.RegisterType((*AddFriendsRequest)(nil), "nakama.api.AddFriendsRequest")
+	proto.RegisterType((*AuthenticateCustomRequest)(nil), "nakama.api.AuthenticateCustomRequest")
+	proto.RegisterType((*AuthenticateDeviceRequest)(nil), "nakama.api.AuthenticateDeviceRequest")
+	proto.RegisterType((*AuthenticateEmailRequest)(nil), "nakama.api.AuthenticateEmailRequest")
+	proto.RegisterType((*AuthenticateFacebookRequest)(nil), "nakama.api.AuthenticateFacebookRequest")
+	proto.RegisterType((*AuthenticateGameCenterRequest)(nil), "nakama.api.AuthenticateGameCenterRequest")
+	proto.RegisterType((*AuthenticateGoogleRequest)(nil), "nakama.api.AuthenticateGoogleRequest")
+	proto.RegisterType((*AuthenticateSteamRequest)(nil), "nakama.api.AuthenticateSteamRequest")
+	proto.RegisterType((*BlockFriendsRequest)(nil), "nakama.api.BlockFriendsRequest")
 	proto.RegisterType((*ChannelId)(nil), "nakama.api.ChannelId")
+	proto.RegisterType((*CreateGroupsRequest)(nil), "nakama.api.CreateGroupsRequest")
+	proto.RegisterType((*CreateGroupsRequest_NewGroup)(nil), "nakama.api.CreateGroupsRequest.NewGroup")
+	proto.RegisterType((*DeleteFriendsRequest)(nil), "nakama.api.DeleteFriendsRequest")
 	proto.RegisterType((*Friend)(nil), "nakama.api.Friend")
-	proto.RegisterType((*FriendAdd)(nil), "nakama.api.FriendAdd")
+	proto.RegisterType((*GetUsersRequest)(nil), "nakama.api.GetUsersRequest")
 	proto.RegisterType((*Group)(nil), "nakama.api.Group")
 	proto.RegisterType((*Groups)(nil), "nakama.api.Groups")
-	proto.RegisterType((*GroupsCreate)(nil), "nakama.api.GroupsCreate")
-	proto.RegisterType((*GroupsCreate_NewGroup)(nil), "nakama.api.GroupsCreate.NewGroup")
+	proto.RegisterType((*ImportFacebookFriendsRequest)(nil), "nakama.api.ImportFacebookFriendsRequest")
+	proto.RegisterType((*LinkFacebookRequest)(nil), "nakama.api.LinkFacebookRequest")
+	proto.RegisterType((*Friends)(nil), "nakama.api.Friends")
 	proto.RegisterType((*Rpc)(nil), "nakama.api.Rpc")
 	proto.RegisterType((*Session)(nil), "nakama.api.Session")
+	proto.RegisterType((*UpdateAccountRequest)(nil), "nakama.api.UpdateAccountRequest")
 	proto.RegisterType((*User)(nil), "nakama.api.User")
 	proto.RegisterType((*Users)(nil), "nakama.api.Users")
-	proto.RegisterType((*UsersFetch)(nil), "nakama.api.UsersFetch")
 	proto.RegisterEnum("nakama.api.ChannelId_Type", ChannelId_Type_name, ChannelId_Type_value)
 	proto.RegisterEnum("nakama.api.Friend_State", Friend_State_name, Friend_State_value)
 }
@@ -1292,62 +1420,70 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Nakama service
 
 type NakamaClient interface {
-	// Fetch the current user's account.
-	AccountFetch(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Account, error)
-	// Update fields in the current user's account.
-	AccountUpdateFunc(ctx context.Context, in *AccountUpdate, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	// Add friends by ID or username to a user's account.
+	AddFriends(ctx context.Context, in *AddFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Authenticate a user with a custom id against the server.
-	AuthenticateCustomFunc(ctx context.Context, in *AuthenticateCustom, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateCustom(ctx context.Context, in *AuthenticateCustomRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with a device id against the server.
-	AuthenticateDeviceFunc(ctx context.Context, in *AuthenticateDevice, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateDevice(ctx context.Context, in *AuthenticateDeviceRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with an email+password against the server.
-	AuthenticateEmailFunc(ctx context.Context, in *AuthenticateEmail, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateEmail(ctx context.Context, in *AuthenticateEmailRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with a Facebook OAuth token against the server.
-	AuthenticateFacebookFunc(ctx context.Context, in *AuthenticateFacebook, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateFacebook(ctx context.Context, in *AuthenticateFacebookRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with Apple's GameCenter against the server.
-	AuthenticateGameCenterFunc(ctx context.Context, in *AuthenticateGameCenter, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateGameCenter(ctx context.Context, in *AuthenticateGameCenterRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with Google against the server.
-	AuthenticateGoogleFunc(ctx context.Context, in *AuthenticateGoogle, opts ...grpc.CallOption) (*Session, error)
+	AuthenticateGoogle(ctx context.Context, in *AuthenticateGoogleRequest, opts ...grpc.CallOption) (*Session, error)
 	// Authenticate a user with Steam against the server.
-	AuthenticateSteamFunc(ctx context.Context, in *AuthenticateSteam, opts ...grpc.CallOption) (*Session, error)
-	// Add friends by ID or handle to a user's account.
-	FriendAddFunc(ctx context.Context, in *FriendAdd, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	AuthenticateSteam(ctx context.Context, in *AuthenticateSteamRequest, opts ...grpc.CallOption) (*Session, error)
+	// Block one or more users by ID or username.
+	BlockFriends(ctx context.Context, in *BlockFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Create one or more new groups with the current user as the owner.
-	GroupsCreateFunc(ctx context.Context, in *GroupsCreate, opts ...grpc.CallOption) (*Groups, error)
+	CreateGroup(ctx context.Context, in *CreateGroupsRequest, opts ...grpc.CallOption) (*Groups, error)
+	// Delete one or more users by ID or username.
+	DeleteFriends(ctx context.Context, in *DeleteFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	// Fetch the current user's account.
+	GetAccount(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Account, error)
+	// Fetch zero or more users by ID and/or username.
+	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*Users, error)
 	// A healthcheck which load balancers can use to check the service.
 	Healthcheck(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	// Import Facebook friends and add them to a user's account.
+	ImportFacebookFriends(ctx context.Context, in *ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
-	LinkCustomFunc(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkCustom(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
-	LinkDeviceFunc(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkDevice(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
-	LinkEmailFunc(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkEmail(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add Facebook to the social profiles on the current user's account.
-	LinkFacebookFunc(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkFacebook(ctx context.Context, in *LinkFacebookRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add Apple's GameCenter to the social profiles on the current user's account.
-	LinkGameCenterFunc(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkGameCenter(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogleFunc(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkGoogle(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteamFunc(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	LinkSteam(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	// List all friends for the current user.
+	ListFriends(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Friends, error)
 	// Execute a Lua function on the server.
 	RpcFunc(ctx context.Context, in *Rpc, opts ...grpc.CallOption) (*Rpc, error)
 	// Remove the custom ID from the social profiles on the current user's account.
-	UnlinkCustomFunc(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkCustom(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
-	UnlinkDeviceFunc(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkDevice(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
-	UnlinkEmailFunc(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkEmail(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove Facebook from the social profiles on the current user's account.
-	UnlinkFacebookFunc(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkFacebook(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove Apple's GameCenter from the social profiles on the current user's account.
-	UnlinkGameCenterFunc(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkGameCenter(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove Google from the social profiles on the current user's account.
-	UnlinkGoogleFunc(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	UnlinkGoogle(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 	// Remove Steam from the social profiles on the current user's account.
-	UnlinkSteamFunc(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
-	// Fetch zero or more users by ID and/or username.
-	UsersFetchFunc(ctx context.Context, in *UsersFetch, opts ...grpc.CallOption) (*Users, error)
+	UnlinkSteam(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	// Update fields in the current user's account.
+	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
 }
 
 type nakamaClient struct {
@@ -1358,99 +1494,117 @@ func NewNakamaClient(cc *grpc.ClientConn) NakamaClient {
 	return &nakamaClient{cc}
 }
 
-func (c *nakamaClient) AccountFetch(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Account, error) {
-	out := new(Account)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AccountFetch", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nakamaClient) AccountUpdateFunc(ctx context.Context, in *AccountUpdate, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) AddFriends(ctx context.Context, in *AddFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AccountUpdateFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AddFriends", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateCustomFunc(ctx context.Context, in *AuthenticateCustom, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateCustom(ctx context.Context, in *AuthenticateCustomRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateCustomFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateCustom", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateDeviceFunc(ctx context.Context, in *AuthenticateDevice, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateDevice(ctx context.Context, in *AuthenticateDeviceRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateDeviceFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateDevice", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateEmailFunc(ctx context.Context, in *AuthenticateEmail, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateEmail(ctx context.Context, in *AuthenticateEmailRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateEmailFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateEmail", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateFacebookFunc(ctx context.Context, in *AuthenticateFacebook, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateFacebook(ctx context.Context, in *AuthenticateFacebookRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateFacebookFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateFacebook", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateGameCenterFunc(ctx context.Context, in *AuthenticateGameCenter, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateGameCenter(ctx context.Context, in *AuthenticateGameCenterRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateGameCenterFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateGameCenter", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateGoogleFunc(ctx context.Context, in *AuthenticateGoogle, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateGoogle(ctx context.Context, in *AuthenticateGoogleRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateGoogleFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateGoogle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) AuthenticateSteamFunc(ctx context.Context, in *AuthenticateSteam, opts ...grpc.CallOption) (*Session, error) {
+func (c *nakamaClient) AuthenticateSteam(ctx context.Context, in *AuthenticateSteamRequest, opts ...grpc.CallOption) (*Session, error) {
 	out := new(Session)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateSteamFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateSteam", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) FriendAddFunc(ctx context.Context, in *FriendAdd, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) BlockFriends(ctx context.Context, in *BlockFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/FriendAddFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/BlockFriends", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) GroupsCreateFunc(ctx context.Context, in *GroupsCreate, opts ...grpc.CallOption) (*Groups, error) {
+func (c *nakamaClient) CreateGroup(ctx context.Context, in *CreateGroupsRequest, opts ...grpc.CallOption) (*Groups, error) {
 	out := new(Groups)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/GroupsCreateFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/CreateGroup", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) DeleteFriends(ctx context.Context, in *DeleteFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+	out := new(google_protobuf1.Empty)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/DeleteFriends", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) GetAccount(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Account, error) {
+	out := new(Account)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/GetAccount", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*Users, error) {
+	out := new(Users)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/GetUsers", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1466,63 +1620,81 @@ func (c *nakamaClient) Healthcheck(ctx context.Context, in *google_protobuf1.Emp
 	return out, nil
 }
 
-func (c *nakamaClient) LinkCustomFunc(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) ImportFacebookFriends(ctx context.Context, in *ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkCustomFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/ImportFacebookFriends", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkDeviceFunc(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkCustom(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkDeviceFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkCustom", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkEmailFunc(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkDevice(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkEmailFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkDevice", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkFacebookFunc(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkEmail(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkFacebookFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkEmail", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkGameCenterFunc(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkFacebook(ctx context.Context, in *LinkFacebookRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkGameCenterFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkFacebook", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkGoogleFunc(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkGameCenter(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkGoogleFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkGameCenter", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) LinkSteamFunc(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) LinkGoogle(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkSteamFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkGoogle", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) LinkSteam(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+	out := new(google_protobuf1.Empty)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/LinkSteam", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) ListFriends(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*Friends, error) {
+	out := new(Friends)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/ListFriends", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1538,72 +1710,72 @@ func (c *nakamaClient) RpcFunc(ctx context.Context, in *Rpc, opts ...grpc.CallOp
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkCustomFunc(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkCustom(ctx context.Context, in *AccountCustom, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkCustomFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkCustom", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkDeviceFunc(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkDevice(ctx context.Context, in *AccountDevice, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkDeviceFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkDevice", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkEmailFunc(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkEmail(ctx context.Context, in *AccountEmail, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkEmailFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkEmail", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkFacebookFunc(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkFacebook(ctx context.Context, in *AccountFacebook, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkFacebookFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkFacebook", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkGameCenterFunc(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkGameCenter(ctx context.Context, in *AccountGameCenter, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGameCenterFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGameCenter", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkGoogleFunc(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkGoogle(ctx context.Context, in *AccountGoogle, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGoogleFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGoogle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkSteamFunc(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+func (c *nakamaClient) UnlinkSteam(ctx context.Context, in *AccountSteam, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
 	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkSteamFunc", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UnlinkSteam", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nakamaClient) UsersFetchFunc(ctx context.Context, in *UsersFetch, opts ...grpc.CallOption) (*Users, error) {
-	out := new(Users)
-	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UsersFetchFunc", in, out, c.cc, opts...)
+func (c *nakamaClient) UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
+	out := new(google_protobuf1.Empty)
+	err := grpc.Invoke(ctx, "/nakama.api.Nakama/UpdateAccount", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1613,262 +1785,306 @@ func (c *nakamaClient) UsersFetchFunc(ctx context.Context, in *UsersFetch, opts 
 // Server API for Nakama service
 
 type NakamaServer interface {
-	// Fetch the current user's account.
-	AccountFetch(context.Context, *google_protobuf1.Empty) (*Account, error)
-	// Update fields in the current user's account.
-	AccountUpdateFunc(context.Context, *AccountUpdate) (*google_protobuf1.Empty, error)
+	// Add friends by ID or username to a user's account.
+	AddFriends(context.Context, *AddFriendsRequest) (*google_protobuf1.Empty, error)
 	// Authenticate a user with a custom id against the server.
-	AuthenticateCustomFunc(context.Context, *AuthenticateCustom) (*Session, error)
+	AuthenticateCustom(context.Context, *AuthenticateCustomRequest) (*Session, error)
 	// Authenticate a user with a device id against the server.
-	AuthenticateDeviceFunc(context.Context, *AuthenticateDevice) (*Session, error)
+	AuthenticateDevice(context.Context, *AuthenticateDeviceRequest) (*Session, error)
 	// Authenticate a user with an email+password against the server.
-	AuthenticateEmailFunc(context.Context, *AuthenticateEmail) (*Session, error)
+	AuthenticateEmail(context.Context, *AuthenticateEmailRequest) (*Session, error)
 	// Authenticate a user with a Facebook OAuth token against the server.
-	AuthenticateFacebookFunc(context.Context, *AuthenticateFacebook) (*Session, error)
+	AuthenticateFacebook(context.Context, *AuthenticateFacebookRequest) (*Session, error)
 	// Authenticate a user with Apple's GameCenter against the server.
-	AuthenticateGameCenterFunc(context.Context, *AuthenticateGameCenter) (*Session, error)
+	AuthenticateGameCenter(context.Context, *AuthenticateGameCenterRequest) (*Session, error)
 	// Authenticate a user with Google against the server.
-	AuthenticateGoogleFunc(context.Context, *AuthenticateGoogle) (*Session, error)
+	AuthenticateGoogle(context.Context, *AuthenticateGoogleRequest) (*Session, error)
 	// Authenticate a user with Steam against the server.
-	AuthenticateSteamFunc(context.Context, *AuthenticateSteam) (*Session, error)
-	// Add friends by ID or handle to a user's account.
-	FriendAddFunc(context.Context, *FriendAdd) (*google_protobuf1.Empty, error)
+	AuthenticateSteam(context.Context, *AuthenticateSteamRequest) (*Session, error)
+	// Block one or more users by ID or username.
+	BlockFriends(context.Context, *BlockFriendsRequest) (*google_protobuf1.Empty, error)
 	// Create one or more new groups with the current user as the owner.
-	GroupsCreateFunc(context.Context, *GroupsCreate) (*Groups, error)
+	CreateGroup(context.Context, *CreateGroupsRequest) (*Groups, error)
+	// Delete one or more users by ID or username.
+	DeleteFriends(context.Context, *DeleteFriendsRequest) (*google_protobuf1.Empty, error)
+	// Fetch the current user's account.
+	GetAccount(context.Context, *google_protobuf1.Empty) (*Account, error)
+	// Fetch zero or more users by ID and/or username.
+	GetUsers(context.Context, *GetUsersRequest) (*Users, error)
 	// A healthcheck which load balancers can use to check the service.
 	Healthcheck(context.Context, *google_protobuf1.Empty) (*google_protobuf1.Empty, error)
+	// Import Facebook friends and add them to a user's account.
+	ImportFacebookFriends(context.Context, *ImportFacebookFriendsRequest) (*google_protobuf1.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
-	LinkCustomFunc(context.Context, *AccountCustom) (*google_protobuf1.Empty, error)
+	LinkCustom(context.Context, *AccountCustom) (*google_protobuf1.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
-	LinkDeviceFunc(context.Context, *AccountDevice) (*google_protobuf1.Empty, error)
+	LinkDevice(context.Context, *AccountDevice) (*google_protobuf1.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
-	LinkEmailFunc(context.Context, *AccountEmail) (*google_protobuf1.Empty, error)
+	LinkEmail(context.Context, *AccountEmail) (*google_protobuf1.Empty, error)
 	// Add Facebook to the social profiles on the current user's account.
-	LinkFacebookFunc(context.Context, *AccountFacebook) (*google_protobuf1.Empty, error)
+	LinkFacebook(context.Context, *LinkFacebookRequest) (*google_protobuf1.Empty, error)
 	// Add Apple's GameCenter to the social profiles on the current user's account.
-	LinkGameCenterFunc(context.Context, *AccountGameCenter) (*google_protobuf1.Empty, error)
+	LinkGameCenter(context.Context, *AccountGameCenter) (*google_protobuf1.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogleFunc(context.Context, *AccountGoogle) (*google_protobuf1.Empty, error)
+	LinkGoogle(context.Context, *AccountGoogle) (*google_protobuf1.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteamFunc(context.Context, *AccountSteam) (*google_protobuf1.Empty, error)
+	LinkSteam(context.Context, *AccountSteam) (*google_protobuf1.Empty, error)
+	// List all friends for the current user.
+	ListFriends(context.Context, *google_protobuf1.Empty) (*Friends, error)
 	// Execute a Lua function on the server.
 	RpcFunc(context.Context, *Rpc) (*Rpc, error)
 	// Remove the custom ID from the social profiles on the current user's account.
-	UnlinkCustomFunc(context.Context, *AccountCustom) (*google_protobuf1.Empty, error)
+	UnlinkCustom(context.Context, *AccountCustom) (*google_protobuf1.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
-	UnlinkDeviceFunc(context.Context, *AccountDevice) (*google_protobuf1.Empty, error)
+	UnlinkDevice(context.Context, *AccountDevice) (*google_protobuf1.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
-	UnlinkEmailFunc(context.Context, *AccountEmail) (*google_protobuf1.Empty, error)
+	UnlinkEmail(context.Context, *AccountEmail) (*google_protobuf1.Empty, error)
 	// Remove Facebook from the social profiles on the current user's account.
-	UnlinkFacebookFunc(context.Context, *AccountFacebook) (*google_protobuf1.Empty, error)
+	UnlinkFacebook(context.Context, *AccountFacebook) (*google_protobuf1.Empty, error)
 	// Remove Apple's GameCenter from the social profiles on the current user's account.
-	UnlinkGameCenterFunc(context.Context, *AccountGameCenter) (*google_protobuf1.Empty, error)
+	UnlinkGameCenter(context.Context, *AccountGameCenter) (*google_protobuf1.Empty, error)
 	// Remove Google from the social profiles on the current user's account.
-	UnlinkGoogleFunc(context.Context, *AccountGoogle) (*google_protobuf1.Empty, error)
+	UnlinkGoogle(context.Context, *AccountGoogle) (*google_protobuf1.Empty, error)
 	// Remove Steam from the social profiles on the current user's account.
-	UnlinkSteamFunc(context.Context, *AccountSteam) (*google_protobuf1.Empty, error)
-	// Fetch zero or more users by ID and/or username.
-	UsersFetchFunc(context.Context, *UsersFetch) (*Users, error)
+	UnlinkSteam(context.Context, *AccountSteam) (*google_protobuf1.Empty, error)
+	// Update fields in the current user's account.
+	UpdateAccount(context.Context, *UpdateAccountRequest) (*google_protobuf1.Empty, error)
 }
 
 func RegisterNakamaServer(s *grpc.Server, srv NakamaServer) {
 	s.RegisterService(&_Nakama_serviceDesc, srv)
 }
 
-func _Nakama_AccountFetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_AddFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AddFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AddFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AddFriends(ctx, req.(*AddFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateCustom_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateCustomRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateCustom(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateCustom",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateCustom(ctx, req.(*AuthenticateCustomRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateDevice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateDevice(ctx, req.(*AuthenticateDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateEmailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateEmail",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateEmail(ctx, req.(*AuthenticateEmailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateFacebook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateFacebookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateFacebook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateFacebook",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateFacebook(ctx, req.(*AuthenticateFacebookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateGameCenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateGameCenterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateGameCenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateGameCenter",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateGameCenter(ctx, req.(*AuthenticateGameCenterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateGoogle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateGoogleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateGoogle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateGoogle",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateGoogle(ctx, req.(*AuthenticateGoogleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateSteam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateSteamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateSteam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/AuthenticateSteam",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateSteam(ctx, req.(*AuthenticateSteamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_BlockFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).BlockFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/BlockFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).BlockFriends(ctx, req.(*BlockFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_CreateGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).CreateGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/CreateGroup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).CreateGroup(ctx, req.(*CreateGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_DeleteFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).DeleteFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/DeleteFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).DeleteFriends(ctx, req.(*DeleteFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(google_protobuf1.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).AccountFetch(ctx, in)
+		return srv.(NakamaServer).GetAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AccountFetch",
+		FullMethod: "/nakama.api.Nakama/GetAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AccountFetch(ctx, req.(*google_protobuf1.Empty))
+		return srv.(NakamaServer).GetAccount(ctx, req.(*google_protobuf1.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_AccountUpdateFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountUpdate)
+func _Nakama_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).AccountUpdateFunc(ctx, in)
+		return srv.(NakamaServer).GetUsers(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AccountUpdateFunc",
+		FullMethod: "/nakama.api.Nakama/GetUsers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AccountUpdateFunc(ctx, req.(*AccountUpdate))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateCustomFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateCustom)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateCustomFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateCustomFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateCustomFunc(ctx, req.(*AuthenticateCustom))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateDeviceFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateDevice)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateDeviceFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateDeviceFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateDeviceFunc(ctx, req.(*AuthenticateDevice))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateEmailFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateEmail)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateEmailFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateEmailFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateEmailFunc(ctx, req.(*AuthenticateEmail))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateFacebookFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateFacebook)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateFacebookFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateFacebookFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateFacebookFunc(ctx, req.(*AuthenticateFacebook))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateGameCenterFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateGameCenter)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateGameCenterFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateGameCenterFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateGameCenterFunc(ctx, req.(*AuthenticateGameCenter))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateGoogleFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateGoogle)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateGoogleFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateGoogleFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateGoogleFunc(ctx, req.(*AuthenticateGoogle))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateSteamFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateSteam)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateSteamFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateSteamFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateSteamFunc(ctx, req.(*AuthenticateSteam))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_FriendAddFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FriendAdd)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).FriendAddFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/FriendAddFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).FriendAddFunc(ctx, req.(*FriendAdd))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_GroupsCreateFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GroupsCreate)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).GroupsCreateFunc(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/GroupsCreateFunc",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).GroupsCreateFunc(ctx, req.(*GroupsCreate))
+		return srv.(NakamaServer).GetUsers(ctx, req.(*GetUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1891,128 +2107,164 @@ func _Nakama_Healthcheck_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkCustomFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_ImportFacebookFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportFacebookFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ImportFacebookFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/ImportFacebookFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ImportFacebookFriends(ctx, req.(*ImportFacebookFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_LinkCustom_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountCustom)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkCustomFunc(ctx, in)
+		return srv.(NakamaServer).LinkCustom(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkCustomFunc",
+		FullMethod: "/nakama.api.Nakama/LinkCustom",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkCustomFunc(ctx, req.(*AccountCustom))
+		return srv.(NakamaServer).LinkCustom(ctx, req.(*AccountCustom))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkDeviceFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_LinkDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountDevice)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkDeviceFunc(ctx, in)
+		return srv.(NakamaServer).LinkDevice(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkDeviceFunc",
+		FullMethod: "/nakama.api.Nakama/LinkDevice",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkDeviceFunc(ctx, req.(*AccountDevice))
+		return srv.(NakamaServer).LinkDevice(ctx, req.(*AccountDevice))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkEmailFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_LinkEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountEmail)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkEmailFunc(ctx, in)
+		return srv.(NakamaServer).LinkEmail(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkEmailFunc",
+		FullMethod: "/nakama.api.Nakama/LinkEmail",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkEmailFunc(ctx, req.(*AccountEmail))
+		return srv.(NakamaServer).LinkEmail(ctx, req.(*AccountEmail))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkFacebookFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountFacebook)
+func _Nakama_LinkFacebook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkFacebookRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkFacebookFunc(ctx, in)
+		return srv.(NakamaServer).LinkFacebook(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkFacebookFunc",
+		FullMethod: "/nakama.api.Nakama/LinkFacebook",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkFacebookFunc(ctx, req.(*AccountFacebook))
+		return srv.(NakamaServer).LinkFacebook(ctx, req.(*LinkFacebookRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkGameCenterFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_LinkGameCenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountGameCenter)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkGameCenterFunc(ctx, in)
+		return srv.(NakamaServer).LinkGameCenter(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkGameCenterFunc",
+		FullMethod: "/nakama.api.Nakama/LinkGameCenter",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkGameCenterFunc(ctx, req.(*AccountGameCenter))
+		return srv.(NakamaServer).LinkGameCenter(ctx, req.(*AccountGameCenter))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkGoogleFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_LinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountGoogle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkGoogleFunc(ctx, in)
+		return srv.(NakamaServer).LinkGoogle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkGoogleFunc",
+		FullMethod: "/nakama.api.Nakama/LinkGoogle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkGoogleFunc(ctx, req.(*AccountGoogle))
+		return srv.(NakamaServer).LinkGoogle(ctx, req.(*AccountGoogle))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_LinkSteamFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_LinkSteam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountSteam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).LinkSteamFunc(ctx, in)
+		return srv.(NakamaServer).LinkSteam(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/LinkSteamFunc",
+		FullMethod: "/nakama.api.Nakama/LinkSteam",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkSteamFunc(ctx, req.(*AccountSteam))
+		return srv.(NakamaServer).LinkSteam(ctx, req.(*AccountSteam))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_ListFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(google_protobuf1.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ListFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/ListFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ListFriends(ctx, req.(*google_protobuf1.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2035,146 +2287,146 @@ func _Nakama_RpcFunc_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkCustomFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkCustom_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountCustom)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkCustomFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkCustom(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkCustomFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkCustom",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkCustomFunc(ctx, req.(*AccountCustom))
+		return srv.(NakamaServer).UnlinkCustom(ctx, req.(*AccountCustom))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkDeviceFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountDevice)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkDeviceFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkDevice(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkDeviceFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkDevice",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkDeviceFunc(ctx, req.(*AccountDevice))
+		return srv.(NakamaServer).UnlinkDevice(ctx, req.(*AccountDevice))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkEmailFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountEmail)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkEmailFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkEmail(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkEmailFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkEmail",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkEmailFunc(ctx, req.(*AccountEmail))
+		return srv.(NakamaServer).UnlinkEmail(ctx, req.(*AccountEmail))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkFacebookFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkFacebook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountFacebook)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkFacebookFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkFacebook(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkFacebookFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkFacebook",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkFacebookFunc(ctx, req.(*AccountFacebook))
+		return srv.(NakamaServer).UnlinkFacebook(ctx, req.(*AccountFacebook))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkGameCenterFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkGameCenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountGameCenter)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkGameCenterFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkGameCenter(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkGameCenterFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkGameCenter",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkGameCenterFunc(ctx, req.(*AccountGameCenter))
+		return srv.(NakamaServer).UnlinkGameCenter(ctx, req.(*AccountGameCenter))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkGoogleFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountGoogle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkGoogleFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkGoogle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkGoogleFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkGoogle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkGoogleFunc(ctx, req.(*AccountGoogle))
+		return srv.(NakamaServer).UnlinkGoogle(ctx, req.(*AccountGoogle))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UnlinkSteamFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Nakama_UnlinkSteam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountSteam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UnlinkSteamFunc(ctx, in)
+		return srv.(NakamaServer).UnlinkSteam(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UnlinkSteamFunc",
+		FullMethod: "/nakama.api.Nakama/UnlinkSteam",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UnlinkSteamFunc(ctx, req.(*AccountSteam))
+		return srv.(NakamaServer).UnlinkSteam(ctx, req.(*AccountSteam))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Nakama_UsersFetchFunc_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UsersFetch)
+func _Nakama_UpdateAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccountRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NakamaServer).UsersFetchFunc(ctx, in)
+		return srv.(NakamaServer).UpdateAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/UsersFetchFunc",
+		FullMethod: "/nakama.api.Nakama/UpdateAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).UsersFetchFunc(ctx, req.(*UsersFetch))
+		return srv.(NakamaServer).UpdateAccount(ctx, req.(*UpdateAccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2184,116 +2436,132 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*NakamaServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AccountFetch",
-			Handler:    _Nakama_AccountFetch_Handler,
+			MethodName: "AddFriends",
+			Handler:    _Nakama_AddFriends_Handler,
 		},
 		{
-			MethodName: "AccountUpdateFunc",
-			Handler:    _Nakama_AccountUpdateFunc_Handler,
+			MethodName: "AuthenticateCustom",
+			Handler:    _Nakama_AuthenticateCustom_Handler,
 		},
 		{
-			MethodName: "AuthenticateCustomFunc",
-			Handler:    _Nakama_AuthenticateCustomFunc_Handler,
+			MethodName: "AuthenticateDevice",
+			Handler:    _Nakama_AuthenticateDevice_Handler,
 		},
 		{
-			MethodName: "AuthenticateDeviceFunc",
-			Handler:    _Nakama_AuthenticateDeviceFunc_Handler,
+			MethodName: "AuthenticateEmail",
+			Handler:    _Nakama_AuthenticateEmail_Handler,
 		},
 		{
-			MethodName: "AuthenticateEmailFunc",
-			Handler:    _Nakama_AuthenticateEmailFunc_Handler,
+			MethodName: "AuthenticateFacebook",
+			Handler:    _Nakama_AuthenticateFacebook_Handler,
 		},
 		{
-			MethodName: "AuthenticateFacebookFunc",
-			Handler:    _Nakama_AuthenticateFacebookFunc_Handler,
+			MethodName: "AuthenticateGameCenter",
+			Handler:    _Nakama_AuthenticateGameCenter_Handler,
 		},
 		{
-			MethodName: "AuthenticateGameCenterFunc",
-			Handler:    _Nakama_AuthenticateGameCenterFunc_Handler,
+			MethodName: "AuthenticateGoogle",
+			Handler:    _Nakama_AuthenticateGoogle_Handler,
 		},
 		{
-			MethodName: "AuthenticateGoogleFunc",
-			Handler:    _Nakama_AuthenticateGoogleFunc_Handler,
+			MethodName: "AuthenticateSteam",
+			Handler:    _Nakama_AuthenticateSteam_Handler,
 		},
 		{
-			MethodName: "AuthenticateSteamFunc",
-			Handler:    _Nakama_AuthenticateSteamFunc_Handler,
+			MethodName: "BlockFriends",
+			Handler:    _Nakama_BlockFriends_Handler,
 		},
 		{
-			MethodName: "FriendAddFunc",
-			Handler:    _Nakama_FriendAddFunc_Handler,
+			MethodName: "CreateGroup",
+			Handler:    _Nakama_CreateGroup_Handler,
 		},
 		{
-			MethodName: "GroupsCreateFunc",
-			Handler:    _Nakama_GroupsCreateFunc_Handler,
+			MethodName: "DeleteFriends",
+			Handler:    _Nakama_DeleteFriends_Handler,
+		},
+		{
+			MethodName: "GetAccount",
+			Handler:    _Nakama_GetAccount_Handler,
+		},
+		{
+			MethodName: "GetUsers",
+			Handler:    _Nakama_GetUsers_Handler,
 		},
 		{
 			MethodName: "Healthcheck",
 			Handler:    _Nakama_Healthcheck_Handler,
 		},
 		{
-			MethodName: "LinkCustomFunc",
-			Handler:    _Nakama_LinkCustomFunc_Handler,
+			MethodName: "ImportFacebookFriends",
+			Handler:    _Nakama_ImportFacebookFriends_Handler,
 		},
 		{
-			MethodName: "LinkDeviceFunc",
-			Handler:    _Nakama_LinkDeviceFunc_Handler,
+			MethodName: "LinkCustom",
+			Handler:    _Nakama_LinkCustom_Handler,
 		},
 		{
-			MethodName: "LinkEmailFunc",
-			Handler:    _Nakama_LinkEmailFunc_Handler,
+			MethodName: "LinkDevice",
+			Handler:    _Nakama_LinkDevice_Handler,
 		},
 		{
-			MethodName: "LinkFacebookFunc",
-			Handler:    _Nakama_LinkFacebookFunc_Handler,
+			MethodName: "LinkEmail",
+			Handler:    _Nakama_LinkEmail_Handler,
 		},
 		{
-			MethodName: "LinkGameCenterFunc",
-			Handler:    _Nakama_LinkGameCenterFunc_Handler,
+			MethodName: "LinkFacebook",
+			Handler:    _Nakama_LinkFacebook_Handler,
 		},
 		{
-			MethodName: "LinkGoogleFunc",
-			Handler:    _Nakama_LinkGoogleFunc_Handler,
+			MethodName: "LinkGameCenter",
+			Handler:    _Nakama_LinkGameCenter_Handler,
 		},
 		{
-			MethodName: "LinkSteamFunc",
-			Handler:    _Nakama_LinkSteamFunc_Handler,
+			MethodName: "LinkGoogle",
+			Handler:    _Nakama_LinkGoogle_Handler,
+		},
+		{
+			MethodName: "LinkSteam",
+			Handler:    _Nakama_LinkSteam_Handler,
+		},
+		{
+			MethodName: "ListFriends",
+			Handler:    _Nakama_ListFriends_Handler,
 		},
 		{
 			MethodName: "RpcFunc",
 			Handler:    _Nakama_RpcFunc_Handler,
 		},
 		{
-			MethodName: "UnlinkCustomFunc",
-			Handler:    _Nakama_UnlinkCustomFunc_Handler,
+			MethodName: "UnlinkCustom",
+			Handler:    _Nakama_UnlinkCustom_Handler,
 		},
 		{
-			MethodName: "UnlinkDeviceFunc",
-			Handler:    _Nakama_UnlinkDeviceFunc_Handler,
+			MethodName: "UnlinkDevice",
+			Handler:    _Nakama_UnlinkDevice_Handler,
 		},
 		{
-			MethodName: "UnlinkEmailFunc",
-			Handler:    _Nakama_UnlinkEmailFunc_Handler,
+			MethodName: "UnlinkEmail",
+			Handler:    _Nakama_UnlinkEmail_Handler,
 		},
 		{
-			MethodName: "UnlinkFacebookFunc",
-			Handler:    _Nakama_UnlinkFacebookFunc_Handler,
+			MethodName: "UnlinkFacebook",
+			Handler:    _Nakama_UnlinkFacebook_Handler,
 		},
 		{
-			MethodName: "UnlinkGameCenterFunc",
-			Handler:    _Nakama_UnlinkGameCenterFunc_Handler,
+			MethodName: "UnlinkGameCenter",
+			Handler:    _Nakama_UnlinkGameCenter_Handler,
 		},
 		{
-			MethodName: "UnlinkGoogleFunc",
-			Handler:    _Nakama_UnlinkGoogleFunc_Handler,
+			MethodName: "UnlinkGoogle",
+			Handler:    _Nakama_UnlinkGoogle_Handler,
 		},
 		{
-			MethodName: "UnlinkSteamFunc",
-			Handler:    _Nakama_UnlinkSteamFunc_Handler,
+			MethodName: "UnlinkSteam",
+			Handler:    _Nakama_UnlinkSteam_Handler,
 		},
 		{
-			MethodName: "UsersFetchFunc",
-			Handler:    _Nakama_UsersFetchFunc_Handler,
+			MethodName: "UpdateAccount",
+			Handler:    _Nakama_UpdateAccount_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -2303,139 +2571,156 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("api/api.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 2132 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x59, 0xcb, 0x73, 0x1b, 0x49,
-	0x19, 0xdf, 0xd1, 0xc3, 0x92, 0x3e, 0xf9, 0xa1, 0x74, 0x1c, 0xaf, 0x22, 0xe7, 0xa1, 0xf4, 0x86,
-	0xac, 0xd7, 0xb5, 0x91, 0x52, 0x0a, 0xb0, 0xe0, 0xdd, 0xc3, 0x3a, 0x8e, 0x1c, 0x54, 0xd9, 0x38,
-	0xa9, 0xb1, 0x9d, 0x43, 0x0e, 0x88, 0xf6, 0x4c, 0x5b, 0x1a, 0x3c, 0x9a, 0x19, 0xe6, 0x61, 0x97,
-	0x79, 0x14, 0x55, 0x54, 0xc1, 0x05, 0x4e, 0x70, 0xd8, 0xe2, 0xc0, 0x01, 0x2e, 0x14, 0x5c, 0xf9,
-	0x13, 0x38, 0x73, 0xe2, 0xc6, 0x99, 0xe2, 0xc6, 0x91, 0x3b, 0xd5, 0x5f, 0xcf, 0x4b, 0x8f, 0x51,
-	0x8c, 0x4d, 0xf6, 0x14, 0xf5, 0xf7, 0x7d, 0xfd, 0xfd, 0x7e, 0xd3, 0xdf, 0xa3, 0xbf, 0x8e, 0x61,
-	0x89, 0x39, 0x46, 0x9b, 0x39, 0x46, 0xcb, 0x71, 0x6d, 0xdf, 0x26, 0x60, 0xb1, 0x13, 0x36, 0x62,
-	0x2d, 0xe6, 0x18, 0x8d, 0x5b, 0x03, 0xdb, 0x1e, 0x98, 0xbc, 0x8d, 0x16, 0x96, 0x65, 0xfb, 0xcc,
-	0x37, 0x6c, 0xcb, 0x93, 0x96, 0x8d, 0xf5, 0x50, 0x8b, 0xab, 0xa3, 0xe0, 0xb8, 0xcd, 0x47, 0x8e,
-	0x7f, 0x1e, 0x2a, 0xef, 0x4c, 0x2a, 0xcf, 0x5c, 0xe6, 0x38, 0xdc, 0x8d, 0x36, 0x7f, 0x8c, 0xff,
-	0x68, 0x0f, 0x07, 0xdc, 0x7a, 0xe8, 0x9d, 0xb1, 0xc1, 0x80, 0xbb, 0x6d, 0xdb, 0x41, 0xf7, 0xd3,
-	0x50, 0xf4, 0x2f, 0x0a, 0x94, 0xb6, 0x35, 0xcd, 0x0e, 0x2c, 0x9f, 0xdc, 0x87, 0x42, 0xe0, 0x71,
-	0xb7, 0xae, 0x34, 0x95, 0x8d, 0x6a, 0xa7, 0xd6, 0x4a, 0xf8, 0xb6, 0x0e, 0x3d, 0xee, 0xaa, 0xa8,
-	0x25, 0x0d, 0x28, 0x9f, 0x72, 0xd7, 0x38, 0x36, 0xb8, 0x5e, 0xcf, 0x35, 0x95, 0x8d, 0xb2, 0x1a,
-	0xaf, 0xc9, 0x2a, 0x14, 0xf9, 0x88, 0x19, 0x66, 0x3d, 0xdf, 0x54, 0x36, 0x2a, 0xaa, 0x5c, 0x90,
-	0xc7, 0x50, 0xd2, 0xf9, 0xa9, 0xa1, 0x71, 0xaf, 0x5e, 0x68, 0xe6, 0x37, 0xaa, 0x9d, 0x9b, 0x69,
-	0xd7, 0x21, 0xfa, 0x53, 0xb4, 0x50, 0x23, 0x4b, 0xb2, 0x0e, 0x15, 0x2d, 0xf0, 0x7c, 0x7b, 0xd4,
-	0x37, 0xf4, 0x7a, 0x11, 0xdd, 0x95, 0xa5, 0xa0, 0xa7, 0xd3, 0xbb, 0xb0, 0x14, 0x6e, 0xdb, 0x41,
-	0x11, 0x59, 0x86, 0x9c, 0xa1, 0x23, 0xf1, 0x8a, 0x9a, 0x33, 0xd2, 0x06, 0xd2, 0xef, 0x94, 0xc1,
-	0xe7, 0xb0, 0x18, 0x1a, 0x74, 0x91, 0x63, 0xcc, 0x5c, 0x49, 0x33, 0x6f, 0x40, 0xd9, 0x61, 0x9e,
-	0x77, 0x66, 0xbb, 0xf2, 0x5b, 0x2b, 0x6a, 0xbc, 0xa6, 0x1f, 0xc2, 0x4a, 0xe8, 0x61, 0x97, 0x69,
-	0xfc, 0xc8, 0xb6, 0x4f, 0x84, 0x13, 0xdf, 0x3e, 0xe1, 0x56, 0xe4, 0x04, 0x17, 0xf4, 0xaf, 0x0a,
-	0x5c, 0x0b, 0x2d, 0x9f, 0xb1, 0x11, 0xdf, 0xe1, 0x96, 0xcf, 0x5d, 0xf1, 0x7d, 0x8e, 0xc9, 0xce,
-	0xb9, 0xdb, 0x8f, 0x79, 0x95, 0xa5, 0xa0, 0xa7, 0x0b, 0xe5, 0x51, 0x60, 0xe9, 0x26, 0x17, 0xca,
-	0x10, 0x58, 0x0a, 0x7a, 0x3a, 0xb9, 0x05, 0x15, 0xdf, 0x18, 0x71, 0xcf, 0x67, 0x23, 0x07, 0x0f,
-	0x3a, 0xaf, 0x26, 0x02, 0x42, 0xa0, 0xe0, 0x31, 0xd3, 0xaf, 0x17, 0x70, 0x17, 0xfe, 0x16, 0x3b,
-	0x3c, 0x63, 0x60, 0x31, 0x3f, 0x70, 0x79, 0x78, 0x96, 0x89, 0x80, 0xdc, 0x87, 0x65, 0x27, 0x38,
-	0x32, 0x0d, 0xad, 0x7f, 0xc2, 0xcf, 0xfb, 0x81, 0x6b, 0xd6, 0x17, 0xd0, 0x64, 0x51, 0x4a, 0x9f,
-	0xf3, 0xf3, 0x43, 0xd7, 0xa4, 0x5f, 0x8b, 0x4f, 0xf4, 0x19, 0xe6, 0x5f, 0xc6, 0xc7, 0xde, 0x8f,
-	0xcf, 0x75, 0xdf, 0xe7, 0x6c, 0x94, 0x61, 0xf5, 0xaf, 0x5c, 0xec, 0xed, 0xd0, 0xd1, 0x99, 0xcf,
-	0xc9, 0xb7, 0xa0, 0x2c, 0xb2, 0xcb, 0x62, 0x23, 0x1e, 0xe6, 0xdf, 0xad, 0x96, 0x4c, 0xf4, 0x56,
-	0x94, 0xe8, 0xad, 0x7d, 0xdf, 0x35, 0xac, 0xc1, 0x6b, 0x66, 0x06, 0x5c, 0x8d, 0xad, 0xc5, 0xce,
-	0xe3, 0xc0, 0x34, 0x71, 0x67, 0xee, 0x22, 0x3b, 0x23, 0x6b, 0xf2, 0x29, 0x00, 0x3b, 0x65, 0x3e,
-	0x73, 0xf1, 0xa3, 0xf3, 0x17, 0xd8, 0x5b, 0x91, 0xf6, 0x87, 0xae, 0x49, 0x1e, 0x41, 0xc1, 0x64,
-	0xd6, 0x00, 0xcf, 0xf9, 0x6d, 0xdb, 0xd0, 0x52, 0x10, 0x35, 0x6d, 0x0d, 0xab, 0x0f, 0x83, 0xf0,
-	0x56, 0xa2, 0x91, 0xb5, 0xd8, 0x29, 0x02, 0xfc, 0x43, 0xdb, 0xe2, 0x18, 0x9b, 0xb7, 0xee, 0x8c,
-	0xac, 0xe9, 0x6f, 0x15, 0x20, 0xdb, 0x81, 0x3f, 0xe4, 0x96, 0x6f, 0x68, 0xcc, 0xe7, 0x61, 0xb9,
-	0x3c, 0x86, 0x12, 0x93, 0xc7, 0x1f, 0x1e, 0xf6, 0xac, 0x8a, 0x94, 0xb6, 0x6a, 0x64, 0x49, 0x3a,
-	0xb0, 0xa0, 0xb9, 0x9c, 0xf9, 0xd1, 0x31, 0x37, 0xa6, 0x38, 0x3c, 0xb1, 0x6d, 0x53, 0x32, 0x08,
-	0x2d, 0x45, 0x01, 0xc5, 0x61, 0x95, 0x3d, 0x21, 0x5e, 0x4f, 0x71, 0x0b, 0x2b, 0xf5, 0x42, 0xdc,
-	0xa2, 0x6e, 0xf1, 0xae, 0xb8, 0x7d, 0x29, 0x6a, 0x36, 0xc5, 0x4d, 0x36, 0x89, 0xce, 0x24, 0xb5,
-	0xfa, 0x0c, 0x6a, 0x68, 0xfa, 0xee, 0x98, 0xfd, 0x4e, 0x81, 0xd5, 0x34, 0xb3, 0xb8, 0xf9, 0x7c,
-	0x63, 0x92, 0xdc, 0xfa, 0x0c, 0x72, 0x91, 0xf5, 0xbb, 0xe3, 0xf7, 0x7b, 0x05, 0xd6, 0xd2, 0xfc,
-	0x52, 0x2d, 0xef, 0x93, 0x49, 0x86, 0xb7, 0x67, 0x30, 0x4c, 0xec, 0xbf, 0xba, 0xcc, 0x0b, 0x3b,
-	0xda, 0x85, 0x32, 0x4f, 0xda, 0x7e, 0x75, 0x99, 0x27, 0xdb, 0xe8, 0x85, 0x32, 0x0f, 0x4d, 0xdf,
-	0x1d, 0xb3, 0xef, 0x41, 0x65, 0x67, 0xc8, 0x2c, 0x8b, 0x9b, 0x3d, 0x7d, 0xf2, 0x3e, 0x15, 0xd7,
-	0x8e, 0x7f, 0xee, 0x48, 0xa8, 0xa2, 0x8a, 0xbf, 0x69, 0x1b, 0x0a, 0x07, 0xe7, 0x0e, 0x27, 0x65,
-	0x28, 0xa8, 0x2f, 0x5f, 0xbe, 0xa8, 0xbd, 0x47, 0x08, 0x2c, 0x3f, 0xed, 0xa9, 0xdd, 0x9d, 0x83,
-	0xfe, 0x8b, 0xee, 0xfe, 0xfe, 0xf6, 0xb3, 0x6e, 0x4d, 0x21, 0x15, 0x28, 0x3e, 0x53, 0x5f, 0x1e,
-	0xbe, 0xaa, 0xe5, 0xe8, 0xaf, 0x14, 0x58, 0xd8, 0x75, 0x0d, 0x6e, 0xe9, 0x17, 0x9c, 0x45, 0x56,
-	0xa1, 0xe8, 0xf9, 0xd1, 0x17, 0x16, 0x55, 0xb9, 0xa0, 0xbb, 0x50, 0xdc, 0x17, 0x3f, 0x08, 0xc0,
-	0xc2, 0xae, 0xda, 0xeb, 0xee, 0x3d, 0xad, 0xbd, 0x47, 0x56, 0xa0, 0xda, 0xdb, 0x7b, 0xdd, 0x3b,
-	0xe8, 0xf6, 0xf7, 0xbb, 0x7b, 0x07, 0x35, 0x85, 0x5c, 0x87, 0x95, 0x50, 0xa0, 0x76, 0x77, 0xba,
-	0xbd, 0xd7, 0xdd, 0xa7, 0xb5, 0x1c, 0xa9, 0x42, 0xe9, 0xc9, 0x17, 0x2f, 0x77, 0x9e, 0x77, 0x9f,
-	0xd6, 0xf2, 0xf4, 0x53, 0xa8, 0x48, 0x36, 0xdb, 0xba, 0x4e, 0x6a, 0x90, 0x37, 0x74, 0xaf, 0xae,
-	0x34, 0xf3, 0x1b, 0x15, 0x55, 0xfc, 0x14, 0xb7, 0x6a, 0x74, 0x36, 0x5e, 0x3d, 0x87, 0xf2, 0x44,
-	0x40, 0xff, 0x96, 0x83, 0xe2, 0x33, 0xd7, 0x0e, 0x9c, 0xa9, 0xa3, 0xba, 0x0d, 0x80, 0xa7, 0x6d,
-	0xbb, 0xc9, 0xed, 0x5e, 0x09, 0x25, 0x3d, 0x3c, 0xc9, 0xd4, 0xf1, 0xe3, 0x6f, 0xd2, 0x84, 0xaa,
-	0xce, 0x3d, 0xcd, 0x35, 0x70, 0x8e, 0x0b, 0xef, 0xf6, 0xb4, 0x48, 0xec, 0xc2, 0xeb, 0x48, 0xde,
-	0xee, 0xf2, 0xc2, 0x69, 0x40, 0x79, 0xc4, 0x7d, 0xa6, 0x33, 0x9f, 0x85, 0x57, 0x7a, 0xbc, 0x16,
-	0x24, 0x52, 0x77, 0x5f, 0x49, 0x92, 0x48, 0x6e, 0xb7, 0x3a, 0x94, 0x1c, 0xd7, 0x38, 0x15, 0x47,
-	0x5b, 0xc6, 0x19, 0x2f, 0x5a, 0x8a, 0x23, 0x97, 0x79, 0x58, 0xc1, 0xc9, 0x43, 0x2e, 0x08, 0x85,
-	0xa5, 0xc0, 0xd7, 0xfa, 0xf6, 0xf1, 0xb1, 0xc7, 0xfd, 0xfe, 0xc8, 0xab, 0x03, 0x6a, 0xab, 0x81,
-	0xaf, 0xbd, 0x44, 0xd9, 0x0b, 0x2f, 0xfe, 0x6e, 0xae, 0xf7, 0x99, 0x5f, 0xaf, 0xca, 0xc1, 0x25,
-	0x94, 0x6c, 0xfb, 0x42, 0x1d, 0xe0, 0x2c, 0x80, 0xea, 0x45, 0xa9, 0x0e, 0x25, 0xdb, 0x3e, 0x7d,
-	0x0c, 0x0b, 0x78, 0x9c, 0x1e, 0xf9, 0x08, 0x16, 0x06, 0xf8, 0x0b, 0x83, 0x51, 0xed, 0x5c, 0x4b,
-	0x27, 0x07, 0xda, 0xa8, 0xa1, 0x01, 0xfd, 0x8f, 0x02, 0x8b, 0x72, 0xd7, 0x8e, 0xcc, 0xef, 0x6f,
-	0x4f, 0xec, 0xbd, 0x37, 0xb5, 0x37, 0xb4, 0x6c, 0xed, 0xf1, 0xb3, 0x31, 0x5f, 0x8d, 0x3f, 0x29,
-	0x50, 0x8e, 0x84, 0x71, 0x90, 0x94, 0xec, 0x20, 0xe5, 0xb2, 0x83, 0x94, 0xcf, 0x08, 0x52, 0x61,
-	0x6e, 0x90, 0x8a, 0x73, 0x82, 0xb4, 0x30, 0x16, 0x24, 0xfa, 0x0b, 0x05, 0xf2, 0xaa, 0xa3, 0x4d,
-	0xa5, 0xde, 0x37, 0xa1, 0xe4, 0xb0, 0x73, 0xd3, 0x66, 0xfa, 0x85, 0x46, 0xa5, 0xc8, 0x98, 0x7c,
-	0x02, 0xe5, 0xa1, 0xef, 0x3b, 0x62, 0x40, 0xbc, 0xd0, 0x9c, 0x54, 0x12, 0xd6, 0xcf, 0xf9, 0x39,
-	0xfd, 0x0c, 0x4a, 0xfb, 0xdc, 0xf3, 0xc4, 0xc7, 0xcf, 0x9c, 0x04, 0xc5, 0xa4, 0x1b, 0xe8, 0x4e,
-	0x5f, 0x6a, 0xc2, 0x49, 0x37, 0xd0, 0x9d, 0x03, 0x1c, 0x13, 0xff, 0x98, 0x87, 0x82, 0xa8, 0xf6,
-	0xa9, 0xef, 0x48, 0xb7, 0xa9, 0xdc, 0x78, 0x9b, 0x12, 0xba, 0x78, 0x1e, 0x0c, 0x5b, 0x58, 0x3c,
-	0xf1, 0x8d, 0x1f, 0x68, 0x61, 0xf2, 0x40, 0x33, 0x8a, 0x28, 0x9e, 0xda, 0xc2, 0x22, 0x8a, 0xe7,
-	0xb2, 0x46, 0x6a, 0x2e, 0x93, 0x25, 0x14, 0xaf, 0xc7, 0xe2, 0x5a, 0x9e, 0x88, 0xeb, 0x5d, 0xa8,
-	0x1e, 0x87, 0x17, 0xb1, 0x68, 0x01, 0x15, 0x54, 0x43, 0x24, 0x92, 0xf3, 0xbf, 0x3c, 0x5e, 0xa1,
-	0x06, 0xb9, 0x5b, 0x0a, 0x7a, 0x3a, 0xb9, 0x07, 0x8b, 0x03, 0x36, 0xd2, 0xf0, 0x8e, 0x14, 0xfa,
-	0xaa, 0x4c, 0xb4, 0x58, 0xd6, 0xd3, 0xc9, 0x4d, 0x28, 0x7b, 0xe2, 0x32, 0x10, 0xea, 0x45, 0x54,
-	0x97, 0x70, 0xdd, 0xd3, 0xc9, 0x1a, 0x2c, 0xd8, 0x96, 0x69, 0x58, 0xbc, 0xbe, 0x84, 0x39, 0x13,
-	0xae, 0x26, 0xaa, 0x73, 0x79, 0x7e, 0x75, 0xae, 0x4c, 0x56, 0x67, 0x1b, 0x8a, 0x22, 0x50, 0x1e,
-	0x79, 0x00, 0x45, 0x11, 0x89, 0xa8, 0xbe, 0xa6, 0x1b, 0xb7, 0x54, 0xd3, 0xcf, 0x00, 0x70, 0xc3,
-	0x2e, 0xf7, 0xb5, 0xe1, 0xff, 0xda, 0x5c, 0x3b, 0xff, 0x7e, 0x1f, 0x16, 0xf6, 0xd0, 0x31, 0x79,
-	0x15, 0x3f, 0x38, 0xa4, 0xab, 0xb5, 0xa9, 0xc4, 0xec, 0x8a, 0xc7, 0x73, 0xe3, 0xfa, 0x8c, 0x0b,
-	0x93, 0x5e, 0xff, 0xd9, 0xdf, 0xff, 0xf9, 0x9b, 0xdc, 0x12, 0xa9, 0xb6, 0x4f, 0x3b, 0xed, 0xe8,
-	0xde, 0xfc, 0x6e, 0xfc, 0x5c, 0x93, 0x6f, 0x93, 0xdd, 0xc0, 0xd2, 0xc8, 0xac, 0x51, 0x40, 0xaa,
-	0x1b, 0x19, 0x88, 0x74, 0x0d, 0x9d, 0xd7, 0x1a, 0x69, 0xe7, 0x5b, 0xca, 0x26, 0xf9, 0xe9, 0xf8,
-	0x80, 0x24, 0xc7, 0x6c, 0x04, 0xb9, 0x33, 0x06, 0x32, 0x65, 0x33, 0xfe, 0x0d, 0x61, 0x5d, 0xd1,
-	0x47, 0x08, 0xb3, 0x49, 0xef, 0xa6, 0x60, 0xda, 0x2c, 0xb5, 0xb9, 0x2d, 0x9f, 0xcd, 0x5b, 0xf1,
-	0x60, 0x30, 0x41, 0x40, 0xce, 0xd2, 0xf3, 0x09, 0x48, 0x9b, 0xcb, 0x12, 0x90, 0x6f, 0xfa, 0x84,
-	0xc0, 0x8f, 0xe1, 0xc6, 0xd4, 0x70, 0x8d, 0xf8, 0xb7, 0xb3, 0xf0, 0xd1, 0x64, 0x36, 0x7c, 0x1b,
-	0xe1, 0x3f, 0xa2, 0x77, 0x32, 0xe1, 0xf1, 0x2d, 0x9f, 0xa0, 0xff, 0x5c, 0x81, 0xfa, 0xac, 0x09,
-	0x1a, 0x19, 0x34, 0xb3, 0x18, 0x44, 0x56, 0xb3, 0x49, 0x74, 0x90, 0xc4, 0xc7, 0xf4, 0x5e, 0x26,
-	0x89, 0xa8, 0xba, 0x13, 0x1e, 0xbf, 0x54, 0xa0, 0x31, 0x7b, 0x52, 0x46, 0x26, 0x34, 0x8b, 0x49,
-	0x62, 0x37, 0x9b, 0xcb, 0xd7, 0x91, 0x4b, 0x8b, 0x7e, 0x90, 0xc9, 0x65, 0xc0, 0x46, 0x5c, 0xf6,
-	0x8a, 0xcc, 0xa4, 0x90, 0x63, 0xee, 0xfc, 0xa4, 0x90, 0x36, 0x97, 0x4d, 0x0a, 0x59, 0x34, 0x99,
-	0x49, 0x81, 0xc3, 0xec, 0xfc, 0xa4, 0x40, 0x93, 0xcb, 0x26, 0x05, 0xf6, 0xc3, 0x04, 0x5d, 0x85,
-	0xa5, 0x78, 0xd6, 0x43, 0xd4, 0x1b, 0x69, 0xb7, 0xb1, 0x2a, 0xb3, 0xd8, 0x09, 0x02, 0x2e, 0x52,
-	0x10, 0x80, 0xc7, 0x72, 0x86, 0x7d, 0x0d, 0xb5, 0xf4, 0x48, 0x81, 0x6e, 0xeb, 0x59, 0x03, 0x47,
-	0x83, 0x4c, 0x6b, 0xe8, 0x2a, 0x7a, 0x5d, 0xa6, 0x15, 0xe1, 0x15, 0xe7, 0x10, 0xd1, 0x40, 0xf6,
-	0xa1, 0xfa, 0x1d, 0xce, 0x4c, 0x7f, 0xa8, 0x0d, 0xb9, 0x76, 0x92, 0xd9, 0xf1, 0xb2, 0xa8, 0x86,
-	0x4e, 0xc9, 0x62, 0x7b, 0x98, 0xf2, 0x32, 0x80, 0xe5, 0x2f, 0x0c, 0xeb, 0x24, 0xd5, 0x8d, 0xb2,
-	0xff, 0x4f, 0x20, 0xd3, 0x35, 0x45, 0xd7, 0xb7, 0xe8, 0xfb, 0xe9, 0x63, 0x37, 0x0d, 0xeb, 0x24,
-	0xea, 0x41, 0xca, 0x66, 0x04, 0x94, 0xea, 0x3a, 0xd9, 0x0f, 0xfc, 0x4b, 0x00, 0x85, 0xbd, 0x46,
-	0xd9, 0x24, 0x3a, 0x2c, 0x09, 0xa0, 0xa4, 0xbb, 0x64, 0xbe, 0xd6, 0x33, 0x61, 0xee, 0x21, 0xcc,
-	0x3a, 0x5d, 0x9b, 0x82, 0x91, 0x3d, 0x45, 0xd9, 0x24, 0x23, 0xa8, 0x09, 0x94, 0xb1, 0x26, 0x32,
-	0xef, 0xe5, 0x9d, 0x89, 0x75, 0x1f, 0xb1, 0xee, 0xd0, 0x9b, 0x53, 0x58, 0x71, 0xeb, 0x50, 0x36,
-	0x89, 0x07, 0x44, 0xc0, 0x4d, 0xf4, 0x8a, 0xf9, 0x0f, 0xe9, 0x4c, 0xc8, 0x07, 0x08, 0xd9, 0xa4,
-	0xeb, 0x53, 0x90, 0xa9, 0x0e, 0x91, 0x84, 0x2c, 0xd5, 0x13, 0xb2, 0x5f, 0xc6, 0x97, 0x08, 0x59,
-	0xd8, 0x09, 0x92, 0x90, 0x25, 0xb5, 0x9f, 0xf9, 0xcc, 0xbd, 0x44, 0xc8, 0x64, 0xc5, 0x2b, 0x9b,
-	0xe4, 0x0d, 0x94, 0x54, 0x47, 0x43, 0xff, 0x2b, 0x69, 0xff, 0xaa, 0xa3, 0x35, 0x26, 0x05, 0xf4,
-	0x21, 0xfa, 0xfb, 0x90, 0x2e, 0x0a, 0x7f, 0xae, 0xa3, 0xb5, 0x7f, 0x64, 0xe8, 0x3f, 0xd9, 0x8a,
-	0x26, 0xe3, 0x37, 0xa2, 0x8c, 0x52, 0x0a, 0x72, 0x02, 0xb5, 0x43, 0x31, 0x50, 0x5d, 0xb1, 0x90,
-	0x66, 0x26, 0x43, 0x60, 0x4d, 0x94, 0x52, 0x0c, 0x76, 0xb5, 0x62, 0x9a, 0x07, 0x96, 0x94, 0xd3,
-	0x10, 0x56, 0x24, 0xd8, 0x55, 0x0a, 0xea, 0x03, 0x84, 0xba, 0x4d, 0xeb, 0x33, 0xa0, 0xe2, 0x92,
-	0xfa, 0x01, 0x10, 0x89, 0x74, 0xf5, 0xa2, 0x9a, 0x99, 0xe1, 0x21, 0x5e, 0xba, 0xac, 0xce, 0x60,
-	0x55, 0x42, 0xfe, 0x7f, 0x0a, 0x6b, 0x03, 0x61, 0x29, 0xbd, 0x3d, 0x03, 0x76, 0xbc, 0xb4, 0xe2,
-	0x10, 0x5e, 0xad, 0xb8, 0xe6, 0x85, 0x30, 0x29, 0xaf, 0x38, 0x84, 0x57, 0x29, 0xb0, 0x79, 0x21,
-	0x8c, 0x4b, 0xec, 0x05, 0x2c, 0x27, 0xe3, 0x3d, 0x02, 0xad, 0x4d, 0xbe, 0x04, 0xa4, 0xae, 0x71,
-	0x6d, 0x4a, 0x4e, 0x6b, 0x88, 0x00, 0xa4, 0x2c, 0x10, 0xc4, 0xd0, 0xff, 0xe4, 0xcb, 0xdc, 0xaf,
-	0xb7, 0xff, 0xa1, 0x90, 0x00, 0x96, 0xe4, 0xd4, 0xdf, 0xdc, 0x7e, 0xd5, 0x6b, 0x9e, 0x76, 0x68,
-	0x1f, 0xee, 0x1d, 0x0c, 0x79, 0x33, 0x12, 0x06, 0xfe, 0xd0, 0x76, 0xbd, 0xe6, 0x83, 0xe6, 0x8e,
-	0x6d, 0xf9, 0xae, 0x71, 0x14, 0xf8, 0xb6, 0xeb, 0x91, 0xfb, 0xe2, 0x31, 0xea, 0x6d, 0xb5, 0xdb,
-	0x03, 0xc3, 0x1f, 0x06, 0x47, 0x2d, 0xcd, 0x1e, 0xb5, 0x87, 0xdc, 0xb5, 0x0d, 0xcd, 0x64, 0x47,
-	0x5e, 0x5b, 0xc2, 0x37, 0x56, 0x87, 0xdc, 0x34, 0xed, 0xcf, 0x13, 0x85, 0xb0, 0xeb, 0xe4, 0x3b,
-	0xad, 0x47, 0x9b, 0x8a, 0xd2, 0xa9, 0x31, 0xc7, 0x31, 0x0d, 0xf9, 0xec, 0x6b, 0x7f, 0xdf, 0xb3,
-	0xad, 0xad, 0x29, 0x89, 0xbb, 0x05, 0xeb, 0x21, 0x11, 0x8f, 0xbb, 0xa7, 0xdc, 0x6d, 0xea, 0xb6,
-	0x16, 0x8c, 0xb8, 0x25, 0xff, 0xe0, 0x46, 0xd6, 0x23, 0x1a, 0xe3, 0x10, 0x6d, 0xdd, 0xd6, 0x3c,
-	0xb8, 0xa1, 0xd9, 0xa3, 0x56, 0x4a, 0x21, 0x49, 0x3d, 0xa9, 0x48, 0x87, 0xdb, 0x8e, 0xf1, 0x4a,
-	0x79, 0x93, 0x67, 0x8e, 0xf1, 0x87, 0x5c, 0x61, 0xef, 0xf9, 0xab, 0x27, 0x7f, 0xce, 0x85, 0xcf,
-	0x9f, 0xa3, 0x05, 0x8c, 0xce, 0xe3, 0xff, 0x06, 0x00, 0x00, 0xff, 0xff, 0x88, 0x3f, 0xea, 0x87,
-	0x6c, 0x1c, 0x00, 0x00,
+	// 2403 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x5a, 0x4b, 0x73, 0x1b, 0x4b,
+	0xf5, 0xff, 0x8f, 0x1e, 0x96, 0x74, 0x24, 0xdb, 0x72, 0xdb, 0x37, 0x7f, 0x45, 0x8e, 0x13, 0xa5,
+	0xaf, 0x6f, 0xe2, 0x98, 0x44, 0x4a, 0x29, 0x40, 0x52, 0xbe, 0x2c, 0xe2, 0x87, 0x6c, 0x54, 0x49,
+	0x1c, 0xd7, 0xc8, 0x0e, 0x90, 0xaa, 0x5b, 0x62, 0x3c, 0xd3, 0x96, 0x06, 0x8f, 0x66, 0x86, 0x79,
+	0x38, 0x65, 0x28, 0xea, 0x52, 0x97, 0x2a, 0x1e, 0x1b, 0x16, 0xb0, 0x60, 0x41, 0x15, 0x45, 0xc1,
+	0x06, 0xf8, 0x38, 0xb0, 0xa1, 0xd8, 0xc2, 0x96, 0x1d, 0x1f, 0x80, 0xea, 0xc7, 0x8c, 0x46, 0x23,
+	0x8d, 0x1f, 0x0a, 0xb9, 0x2b, 0x6b, 0x4e, 0x9f, 0xd3, 0xe7, 0xd7, 0xdd, 0xe7, 0xfc, 0xfa, 0x9c,
+	0x2e, 0xc3, 0xac, 0x62, 0xeb, 0x0d, 0xc5, 0xd6, 0xeb, 0xb6, 0x63, 0x79, 0x16, 0x02, 0x53, 0x39,
+	0x55, 0x06, 0x4a, 0x5d, 0xb1, 0xf5, 0xea, 0xad, 0x9e, 0x65, 0xf5, 0x0c, 0xd2, 0x60, 0x1a, 0xa6,
+	0x69, 0x79, 0x8a, 0xa7, 0x5b, 0xa6, 0xcb, 0x35, 0xab, 0xcb, 0x62, 0x94, 0x7d, 0x1d, 0xfb, 0x27,
+	0x0d, 0x32, 0xb0, 0xbd, 0x73, 0x31, 0x78, 0x27, 0x3e, 0xe8, 0xe9, 0x03, 0xe2, 0x7a, 0xca, 0xc0,
+	0x16, 0x0a, 0xb7, 0xe3, 0x0a, 0xef, 0x1c, 0xc5, 0xb6, 0x89, 0x13, 0xcc, 0xfe, 0x90, 0xfd, 0x51,
+	0x1f, 0xf5, 0x88, 0xf9, 0xc8, 0x7d, 0xa7, 0xf4, 0x7a, 0xc4, 0x69, 0x58, 0x36, 0xf3, 0x3f, 0x8e,
+	0x05, 0xff, 0x46, 0x82, 0xdc, 0xa6, 0xaa, 0x5a, 0xbe, 0xe9, 0xa1, 0x55, 0xc8, 0xf8, 0x2e, 0x71,
+	0x2a, 0x52, 0x4d, 0x5a, 0x2b, 0x36, 0xcb, 0xf5, 0xe1, 0x82, 0xea, 0x47, 0x2e, 0x71, 0x64, 0x36,
+	0x8a, 0x96, 0x20, 0x4b, 0x06, 0x8a, 0x6e, 0x54, 0xd2, 0x35, 0x69, 0xad, 0x20, 0xf3, 0x0f, 0xf4,
+	0x04, 0x72, 0x1a, 0x39, 0xd3, 0x55, 0xe2, 0x56, 0x32, 0xb5, 0xf4, 0x5a, 0xb1, 0x79, 0x33, 0x6a,
+	0x2e, 0x3c, 0xec, 0x30, 0x0d, 0x39, 0xd0, 0x44, 0xcb, 0x50, 0x50, 0x7d, 0xd7, 0xb3, 0x06, 0x5d,
+	0x5d, 0xab, 0x64, 0xd9, 0x74, 0x79, 0x2e, 0x68, 0x6b, 0xf8, 0x0e, 0xcc, 0x0a, 0xb3, 0x6d, 0x26,
+	0x42, 0x73, 0x90, 0xd2, 0x35, 0x06, 0xae, 0x20, 0xa7, 0xf4, 0xa8, 0x02, 0x9f, 0x77, 0x4c, 0xe1,
+	0x39, 0x94, 0x84, 0x42, 0x8b, 0x61, 0x0c, 0x91, 0x4b, 0x51, 0xe4, 0x55, 0xc8, 0xdb, 0x8a, 0xeb,
+	0xbe, 0xb3, 0x1c, 0xad, 0x92, 0xe2, 0x18, 0x82, 0x6f, 0x7c, 0x1f, 0xe6, 0xc5, 0x0c, 0xbb, 0x8a,
+	0x4a, 0x8e, 0x2d, 0xeb, 0x94, 0x4e, 0xe2, 0x59, 0xa7, 0xc4, 0x0c, 0x26, 0x61, 0x1f, 0xf8, 0xaf,
+	0x12, 0x2c, 0x08, 0xcd, 0x3d, 0x65, 0x40, 0xb6, 0x89, 0xe9, 0x11, 0x87, 0xae, 0xcf, 0x36, 0x94,
+	0x73, 0xe2, 0x74, 0x43, 0x5c, 0x79, 0x2e, 0x68, 0x6b, 0x74, 0xf0, 0xd8, 0x37, 0x35, 0x83, 0xd0,
+	0x41, 0xe1, 0x98, 0x0b, 0xda, 0x1a, 0xfa, 0x0a, 0x2c, 0x84, 0xe7, 0xde, 0x75, 0x89, 0x6a, 0x99,
+	0x9a, 0xcb, 0x36, 0x3c, 0x2d, 0x97, 0xc3, 0x81, 0x0e, 0x97, 0x23, 0x04, 0x19, 0x57, 0x31, 0xbc,
+	0x4a, 0x86, 0x4d, 0xc2, 0x7e, 0xa3, 0x5b, 0x50, 0x70, 0xf5, 0x9e, 0xa9, 0x78, 0xbe, 0x43, 0xc4,
+	0xd6, 0x0e, 0x05, 0x68, 0x15, 0xe6, 0x6c, 0xff, 0xd8, 0xd0, 0xd5, 0xee, 0x29, 0x39, 0xef, 0xfa,
+	0x8e, 0x51, 0x99, 0x61, 0x2a, 0x25, 0x2e, 0x7d, 0x41, 0xce, 0x8f, 0x1c, 0x03, 0x7f, 0x12, 0x6e,
+	0xf0, 0x1e, 0x0b, 0xb9, 0x84, 0xb5, 0xaf, 0x86, 0xdb, 0xdc, 0xf1, 0x88, 0x32, 0x48, 0xd0, 0xda,
+	0x86, 0x85, 0x4d, 0x4d, 0xdb, 0x75, 0x74, 0x62, 0x6a, 0xae, 0x4c, 0xbe, 0xef, 0x13, 0xd7, 0x43,
+	0x65, 0x48, 0xeb, 0x9a, 0x5b, 0x91, 0x6a, 0xe9, 0xb5, 0x82, 0x4c, 0x7f, 0x52, 0xdc, 0x34, 0xca,
+	0x4c, 0x65, 0x40, 0xdc, 0x4a, 0x8a, 0xc9, 0x87, 0x02, 0xfc, 0x7b, 0x09, 0x6e, 0x6e, 0xfa, 0x5e,
+	0x9f, 0x98, 0x9e, 0xae, 0x2a, 0x1e, 0xe1, 0x91, 0x11, 0xcc, 0xf6, 0x04, 0x72, 0x0a, 0x07, 0x22,
+	0x42, 0x78, 0x52, 0x0c, 0x0a, 0x93, 0x40, 0x13, 0x35, 0x61, 0x46, 0x75, 0x88, 0xe2, 0x11, 0x76,
+	0x06, 0xc5, 0x66, 0xb5, 0xce, 0xf3, 0xab, 0x1e, 0xe4, 0x57, 0x7d, 0xcb, 0xb2, 0x8c, 0x37, 0x8a,
+	0xe1, 0x13, 0x59, 0x68, 0xd2, 0x90, 0x09, 0x30, 0x89, 0x2c, 0x08, 0xbf, 0xc7, 0x20, 0x8a, 0x98,
+	0xbf, 0x0e, 0xc4, 0x20, 0x4d, 0x3e, 0x14, 0xc4, 0xdf, 0x49, 0x50, 0x89, 0x42, 0x64, 0xd9, 0x11,
+	0x20, 0x6c, 0xc6, 0x11, 0x56, 0x26, 0x20, 0xe4, 0x16, 0x1f, 0x0c, 0xe0, 0xdf, 0x25, 0x58, 0x8e,
+	0x02, 0x0c, 0x92, 0x2f, 0xc0, 0xf8, 0xb5, 0x38, 0xc6, 0xe5, 0x09, 0x18, 0x43, 0xa3, 0x0f, 0x05,
+	0x93, 0xce, 0xa7, 0x0f, 0x6c, 0xcb, 0xe1, 0x99, 0x77, 0xc9, 0x7c, 0x5c, 0x13, 0xff, 0x49, 0x82,
+	0x95, 0xe8, 0xd2, 0x86, 0x6c, 0x11, 0x2c, 0xee, 0x69, 0x7c, 0x71, 0x2b, 0x13, 0x16, 0x17, 0x31,
+	0xfb, 0xd2, 0x22, 0x99, 0x93, 0xc0, 0xb5, 0x22, 0x59, 0x98, 0x7c, 0x69, 0x91, 0xcc, 0x08, 0xe8,
+	0x5a, 0x91, 0xcc, 0x2d, 0x3e, 0x18, 0xc0, 0x16, 0x2c, 0x6e, 0x19, 0x96, 0x7a, 0xfa, 0x9e, 0xbc,
+	0x77, 0x06, 0x85, 0xed, 0xbe, 0x62, 0x9a, 0xc4, 0x68, 0x6b, 0xf1, 0x6b, 0x8e, 0xd2, 0xbf, 0x77,
+	0x6e, 0x73, 0xc4, 0x59, 0x99, 0xfd, 0xc6, 0x2d, 0xc8, 0x1c, 0x9e, 0xdb, 0x94, 0xb1, 0xcb, 0x87,
+	0xdf, 0x39, 0x68, 0x75, 0x8f, 0xf6, 0x3b, 0x07, 0xad, 0xed, 0xf6, 0x6e, 0xbb, 0xb5, 0x53, 0xfe,
+	0x3f, 0x94, 0x87, 0x8c, 0xfc, 0xfa, 0xf5, 0xab, 0xb2, 0x84, 0x10, 0xcc, 0xed, 0xb4, 0xe5, 0xd6,
+	0xf6, 0x61, 0xf7, 0x55, 0xab, 0xd3, 0xd9, 0xdc, 0x6b, 0x95, 0x53, 0xa8, 0x00, 0xd9, 0x3d, 0xf9,
+	0xf5, 0xd1, 0x41, 0x39, 0x8d, 0x7f, 0x92, 0x82, 0xc5, 0x6d, 0xb6, 0xca, 0x3d, 0xc7, 0xf2, 0xed,
+	0x10, 0xff, 0x73, 0x98, 0xe9, 0x31, 0x01, 0x5b, 0x42, 0xb1, 0xb9, 0x16, 0xdd, 0xd9, 0x09, 0x06,
+	0xf5, 0x7d, 0xf2, 0x8e, 0x09, 0x64, 0x61, 0x57, 0xfd, 0xb3, 0x04, 0xf9, 0x40, 0x48, 0x57, 0xc0,
+	0x76, 0x8f, 0xaf, 0x89, 0xfd, 0x46, 0x35, 0x28, 0x6a, 0xc4, 0x55, 0x1d, 0x9d, 0x95, 0x2e, 0xe2,
+	0x82, 0x8c, 0x8a, 0xa8, 0x95, 0xa1, 0x98, 0x3d, 0xb1, 0xe7, 0xec, 0x37, 0x3d, 0x8b, 0x01, 0xf1,
+	0x14, 0x4d, 0xf1, 0x14, 0x71, 0x1d, 0x86, 0xdf, 0x68, 0x05, 0x40, 0x39, 0x53, 0x3c, 0xc5, 0x61,
+	0x17, 0x9e, 0xb8, 0x13, 0xb9, 0xe4, 0xc8, 0x31, 0x50, 0x05, 0x72, 0xb6, 0xa3, 0x9f, 0xd1, 0xb3,
+	0xa7, 0x97, 0x61, 0x5e, 0x0e, 0x3e, 0xf1, 0x2e, 0x2c, 0xed, 0x10, 0x83, 0x78, 0xe4, 0x3d, 0x4f,
+	0xf1, 0x8f, 0x12, 0xcc, 0xf0, 0x29, 0xae, 0x5e, 0x6a, 0xb9, 0x5e, 0x10, 0x8c, 0x59, 0x99, 0x7f,
+	0xe0, 0xcf, 0x20, 0xdb, 0xa1, 0x3f, 0xd0, 0x47, 0xb0, 0xd0, 0x39, 0xdc, 0x3c, 0x8c, 0x9f, 0x2e,
+	0xc0, 0xcc, 0xae, 0xdc, 0x6e, 0xed, 0xef, 0x94, 0x25, 0x34, 0x0f, 0xc5, 0xf6, 0xfe, 0x9b, 0xf6,
+	0x61, 0xab, 0xdb, 0x69, 0xed, 0x1f, 0x96, 0x53, 0x68, 0x11, 0xe6, 0x85, 0x40, 0x6e, 0x6d, 0xb7,
+	0xda, 0x6f, 0x5a, 0x3b, 0xe5, 0x34, 0x2a, 0x42, 0x6e, 0xeb, 0xe5, 0xeb, 0xed, 0x17, 0xad, 0x9d,
+	0x72, 0x06, 0x6b, 0x30, 0xbf, 0x47, 0x3c, 0x8a, 0x62, 0xda, 0x85, 0xa2, 0xbb, 0x50, 0x3a, 0x11,
+	0xec, 0xdb, 0xd5, 0x59, 0xe1, 0x42, 0x15, 0x8a, 0x81, 0xac, 0xad, 0xb9, 0xf8, 0x17, 0x69, 0xc8,
+	0xf2, 0xc3, 0x8f, 0x87, 0xf3, 0x0a, 0x00, 0x4b, 0x2c, 0xcb, 0x19, 0x16, 0x46, 0x05, 0x21, 0x69,
+	0x6b, 0x61, 0xac, 0xa4, 0x93, 0x63, 0x25, 0x93, 0x1c, 0x2b, 0xd9, 0x84, 0x58, 0x99, 0xb9, 0x30,
+	0x56, 0x72, 0x17, 0xc4, 0x4a, 0x7e, 0x24, 0x56, 0xe8, 0x91, 0x71, 0xca, 0x29, 0xb0, 0x62, 0x8d,
+	0x7f, 0x20, 0x0c, 0xb3, 0xbe, 0xa7, 0x76, 0xad, 0x93, 0x13, 0x97, 0x78, 0xdd, 0x81, 0x5b, 0x01,
+	0x36, 0x5a, 0xf4, 0x3d, 0xf5, 0x35, 0x93, 0xbd, 0x72, 0xd1, 0xa7, 0x50, 0xe4, 0x84, 0xd2, 0xa5,
+	0x05, 0x5e, 0xa5, 0x98, 0xc0, 0x3f, 0x87, 0x41, 0xf5, 0x27, 0xf3, 0x6d, 0x22, 0x54, 0x40, 0x8d,
+	0x7d, 0x5b, 0x0b, 0x8d, 0x4b, 0x97, 0x1b, 0x73, 0x75, 0x2a, 0xc0, 0x4f, 0x60, 0x86, 0x67, 0x2b,
+	0x7a, 0x10, 0xcb, 0xeb, 0x85, 0x68, 0x60, 0x8e, 0x24, 0x30, 0xfe, 0x99, 0x04, 0xb7, 0xda, 0xec,
+	0x4e, 0x0b, 0x2e, 0xda, 0x58, 0x76, 0x4c, 0x79, 0x49, 0x3f, 0x86, 0xac, 0x43, 0x5c, 0xe2, 0x5d,
+	0x81, 0x80, 0xb9, 0x22, 0xfe, 0xb1, 0x04, 0x8b, 0x2f, 0x75, 0xf3, 0xf4, 0x7f, 0x57, 0x25, 0x5c,
+	0xfb, 0x56, 0x7f, 0x0a, 0x39, 0xb1, 0x7a, 0xf4, 0x10, 0x72, 0x27, 0xfc, 0xa7, 0xd8, 0x43, 0x14,
+	0xf5, 0xca, 0xb5, 0xe4, 0x40, 0x05, 0xff, 0x54, 0x82, 0xb4, 0x6c, 0xab, 0x63, 0x49, 0xf0, 0x75,
+	0xc8, 0xd9, 0xca, 0xb9, 0x61, 0x29, 0x9a, 0xd8, 0x87, 0x5b, 0x63, 0x28, 0x3a, 0x9e, 0xa3, 0x9b,
+	0x3d, 0x8e, 0x23, 0x50, 0x46, 0x4f, 0x21, 0xdf, 0xf7, 0x3c, 0x9b, 0x96, 0xf5, 0x2c, 0x43, 0x2e,
+	0x35, 0xa4, 0xda, 0x2f, 0xc8, 0x39, 0xfe, 0x06, 0xe4, 0x3a, 0xc4, 0x75, 0x69, 0xae, 0x4c, 0xac,
+	0xdf, 0x69, 0xbb, 0xe2, 0x6b, 0x76, 0x97, 0x8f, 0x88, 0x76, 0xc5, 0xd7, 0xec, 0x43, 0x56, 0xdc,
+	0xff, 0x3b, 0x05, 0x4b, 0x47, 0x2c, 0xa0, 0xc4, 0xb6, 0x06, 0x67, 0xf0, 0x2c, 0x72, 0x37, 0x4a,
+	0x57, 0xc0, 0x33, 0x2c, 0xae, 0x9e, 0x41, 0xfe, 0xc4, 0x37, 0x0c, 0x66, 0x79, 0x95, 0x2d, 0x08,
+	0xb5, 0xd1, 0xa7, 0x23, 0xb9, 0x7b, 0x95, 0x5d, 0x88, 0x64, 0xf6, 0x63, 0x41, 0x14, 0x99, 0x2b,
+	0x98, 0x71, 0x1a, 0x79, 0x06, 0x79, 0xc3, 0x52, 0x59, 0x53, 0xcd, 0xe8, 0xe5, 0x52, 0xa0, 0x81,
+	0x36, 0xb5, 0xa4, 0xd9, 0xfa, 0x03, 0xcb, 0xe4, 0x57, 0xce, 0xa5, 0x96, 0x81, 0x36, 0xfe, 0x67,
+	0x1a, 0x32, 0x94, 0xa1, 0xc7, 0xe2, 0x26, 0x5a, 0x8b, 0xa4, 0x62, 0xe5, 0x6a, 0x35, 0xb2, 0xa3,
+	0xa2, 0x4e, 0x09, 0xf7, 0x6c, 0x94, 0xef, 0x32, 0x71, 0xbe, 0x4b, 0xa0, 0xcf, 0x70, 0xdd, 0x82,
+	0x3e, 0xc3, 0x95, 0x55, 0x23, 0x2b, 0xe3, 0xe4, 0x19, 0x7e, 0x8f, 0xd0, 0x6e, 0x3e, 0x46, 0xbb,
+	0x77, 0xa0, 0x18, 0xb9, 0x38, 0x18, 0x87, 0x16, 0x64, 0x18, 0xde, 0x1b, 0x34, 0x0a, 0xf9, 0x0e,
+	0xd1, 0x61, 0xe0, 0xd6, 0x5c, 0xd0, 0xd6, 0xe8, 0xb5, 0xd3, 0x53, 0x06, 0x2a, 0x2b, 0x8b, 0xe9,
+	0x78, 0x91, 0xdf, 0x03, 0xa1, 0xac, 0xad, 0xa1, 0x9b, 0x90, 0x77, 0x69, 0xc5, 0x47, 0x87, 0x4b,
+	0x6c, 0x38, 0xc7, 0xbe, 0xdb, 0x1a, 0xba, 0x01, 0x33, 0x96, 0x69, 0xe8, 0x26, 0xa9, 0xcc, 0x32,
+	0x4a, 0x17, 0x5f, 0x71, 0x5e, 0x9e, 0x7b, 0x1f, 0x5e, 0x9e, 0xbf, 0x16, 0x2f, 0x37, 0x20, 0xcb,
+	0xae, 0x61, 0x74, 0x0f, 0xb2, 0xf4, 0x14, 0x03, 0x46, 0x19, 0x2f, 0x17, 0xf8, 0x70, 0xf3, 0x3f,
+	0x55, 0x98, 0xd9, 0x67, 0x43, 0xe8, 0x5b, 0x00, 0xc3, 0x76, 0x1b, 0x8d, 0xb6, 0x10, 0xf1, 0x36,
+	0xbc, 0x7a, 0x63, 0x0c, 0x50, 0x6b, 0x60, 0x7b, 0xe7, 0x18, 0x7d, 0xf1, 0xb7, 0x7f, 0xfd, 0x3a,
+	0x55, 0xc2, 0xd0, 0x38, 0x6b, 0x36, 0x38, 0x65, 0xa1, 0x2f, 0x24, 0x40, 0xe3, 0x2d, 0x38, 0xfa,
+	0x64, 0xc4, 0x43, 0x52, 0x8b, 0x5e, 0x5d, 0x8c, 0xaa, 0x09, 0xc2, 0xc1, 0x8f, 0x99, 0x9b, 0x75,
+	0x7c, 0x87, 0xba, 0x11, 0x34, 0xdc, 0x50, 0x22, 0x73, 0x34, 0xf8, 0xa3, 0xd0, 0x46, 0xc8, 0xd1,
+	0x71, 0x10, 0xe2, 0x01, 0x28, 0x11, 0xc4, 0x48, 0x13, 0x3e, 0x2d, 0x08, 0xfe, 0x6a, 0x35, 0x04,
+	0xf1, 0x39, 0x2c, 0x8c, 0x75, 0xd1, 0x68, 0x35, 0x09, 0x42, 0xb4, 0xc9, 0x9e, 0x8c, 0xa0, 0xc1,
+	0x10, 0x3c, 0xc0, 0xb7, 0x13, 0x11, 0xb0, 0x07, 0xab, 0x21, 0x80, 0x9f, 0x4b, 0xb0, 0x34, 0xa9,
+	0x4d, 0x46, 0xf7, 0x93, 0x40, 0xc4, 0xae, 0xc8, 0xc9, 0x38, 0x9a, 0x0c, 0xc7, 0x43, 0x7c, 0x37,
+	0x11, 0x47, 0x90, 0x90, 0x43, 0x28, 0xbf, 0x94, 0xe0, 0xc6, 0xe4, 0xb6, 0x16, 0x3d, 0x48, 0x02,
+	0x33, 0xd6, 0xfa, 0x4e, 0x86, 0xf3, 0x55, 0x06, 0xa7, 0x8e, 0x3f, 0x4e, 0x84, 0xd3, 0x53, 0x06,
+	0x84, 0x67, 0x78, 0x72, 0x84, 0x88, 0x17, 0xac, 0xc4, 0x08, 0x19, 0x69, 0x6e, 0xa7, 0x8d, 0x10,
+	0x9e, 0x45, 0x89, 0x11, 0xc2, 0x9f, 0xc7, 0x12, 0x23, 0x24, 0xda, 0xbc, 0x4e, 0x1b, 0x21, 0x8c,
+	0xcc, 0x86, 0x00, 0x34, 0x28, 0x45, 0xdb, 0x4f, 0x74, 0x27, 0x3a, 0xeb, 0x84, 0xc6, 0x34, 0x91,
+	0x09, 0x96, 0x99, 0xe7, 0x8f, 0x70, 0x79, 0xc8, 0x04, 0x8d, 0x63, 0x6a, 0xbf, 0x21, 0xad, 0xa3,
+	0x6f, 0x43, 0x31, 0xd2, 0xf3, 0x8d, 0x3a, 0x99, 0xd0, 0x0c, 0x56, 0xd1, 0x58, 0x55, 0xe9, 0xe2,
+	0x25, 0xe6, 0x60, 0x0e, 0x17, 0xa8, 0x03, 0x56, 0x62, 0xd2, 0x99, 0x3f, 0x83, 0xd9, 0x91, 0xce,
+	0x0b, 0xd5, 0xa2, 0xa6, 0x93, 0x9a, 0xb2, 0xcb, 0xb8, 0x6c, 0x3d, 0xca, 0x65, 0xfb, 0x00, 0x7b,
+	0xc4, 0x0b, 0x9e, 0xbf, 0x13, 0x2c, 0x47, 0x8f, 0x42, 0x28, 0xe3, 0x45, 0x36, 0xdd, 0x2c, 0x2a,
+	0x46, 0x8e, 0x02, 0xbd, 0x84, 0x7c, 0xd0, 0x3a, 0xa1, 0x91, 0x62, 0x33, 0xd6, 0x50, 0x55, 0x17,
+	0xe2, 0x0c, 0xee, 0xe2, 0x32, 0x9b, 0x10, 0x50, 0x9e, 0x4e, 0xc8, 0xba, 0xbf, 0x0e, 0x14, 0xbf,
+	0x49, 0x14, 0xc3, 0xeb, 0xab, 0x7d, 0xa2, 0x9e, 0x26, 0xc2, 0x4b, 0x5a, 0xb0, 0xd8, 0x51, 0x54,
+	0x6a, 0xf4, 0x23, 0xb3, 0x7c, 0x0e, 0x1f, 0x4d, 0xac, 0xda, 0xd1, 0x48, 0x0b, 0x7f, 0x51, 0x61,
+	0x9f, 0xe8, 0x70, 0x95, 0x39, 0xbc, 0x8d, 0x17, 0x23, 0x31, 0x32, 0xce, 0x14, 0x2a, 0x00, 0x2d,
+	0xd6, 0xc5, 0xb5, 0x91, 0xfc, 0x42, 0x9b, 0xe8, 0x06, 0x33, 0x37, 0xb7, 0xf0, 0xff, 0x47, 0x93,
+	0xc0, 0xd0, 0xcd, 0xd3, 0xe0, 0x96, 0x90, 0xd6, 0x03, 0x27, 0xe2, 0x5a, 0x48, 0x7e, 0x63, 0x9d,
+	0xc2, 0x89, 0xb8, 0x05, 0xa4, 0x75, 0xf4, 0x5d, 0x28, 0x50, 0x27, 0x9c, 0xf7, 0x13, 0x5f, 0x49,
+	0x13, 0x5d, 0xdc, 0x65, 0x2e, 0x96, 0xf1, 0x8d, 0x31, 0x17, 0x9c, 0xe6, 0xa5, 0x75, 0xe4, 0x42,
+	0x29, 0xda, 0xd8, 0x8c, 0x66, 0xd6, 0x84, 0x96, 0x27, 0xd1, 0xd7, 0x3a, 0xf3, 0xb5, 0x8a, 0x6f,
+	0x8e, 0xf9, 0x1a, 0x3f, 0x20, 0x0b, 0xe6, 0xe8, 0xd4, 0x11, 0x06, 0xbf, 0xf8, 0x01, 0x32, 0xd1,
+	0xe9, 0x3d, 0xe6, 0xb4, 0x86, 0x97, 0xc7, 0x9c, 0x46, 0x08, 0x7b, 0x78, 0x58, 0x82, 0xa1, 0x93,
+	0x9f, 0x11, 0xa7, 0x38, 0x2c, 0x41, 0xc8, 0xc3, 0xc3, 0xe2, 0x14, 0x9c, 0xf8, 0x10, 0x38, 0xc5,
+	0x61, 0x71, 0xc6, 0x95, 0xd6, 0xd1, 0x3e, 0x14, 0x5f, 0xea, 0xae, 0x17, 0xe4, 0xd3, 0x95, 0xd8,
+	0x44, 0x28, 0x07, 0xe4, 0x84, 0xa2, 0xe4, 0xf4, 0x16, 0x72, 0xb2, 0xad, 0xee, 0xfa, 0xa6, 0x8a,
+	0xe6, 0xa3, 0x36, 0xb2, 0xad, 0x56, 0xe3, 0x02, 0xfc, 0x88, 0x4d, 0x70, 0x1f, 0x97, 0xe8, 0x04,
+	0x8e, 0xad, 0x36, 0x7e, 0xa8, 0x6b, 0x3f, 0xda, 0x08, 0xda, 0xc2, 0xb7, 0x94, 0x05, 0x22, 0x03,
+	0xa8, 0x07, 0xa5, 0x23, 0x5a, 0xdd, 0xbe, 0x47, 0x1a, 0x06, 0xd9, 0x3e, 0x12, 0x52, 0xbe, 0x19,
+	0x4b, 0xc4, 0xd0, 0xd1, 0xf4, 0xa9, 0x78, 0x91, 0xa3, 0x61, 0x32, 0x6a, 0x50, 0xe4, 0x8e, 0xa6,
+	0x4d, 0xc7, 0x8f, 0x99, 0x9b, 0x15, 0x5c, 0x99, 0xe0, 0x26, 0x4c, 0xc8, 0x01, 0xcc, 0x71, 0x2f,
+	0x61, 0x4a, 0x5e, 0xf4, 0xa6, 0x70, 0xbd, 0xcc, 0x10, 0xbe, 0xc2, 0x84, 0x64, 0xf9, 0x5f, 0xe6,
+	0xee, 0xde, 0x3f, 0x19, 0xd7, 0x98, 0x4b, 0x8c, 0x57, 0x26, 0xb8, 0x1c, 0x4d, 0xc7, 0xf0, 0xc8,
+	0xa6, 0x4f, 0xc8, 0x8b, 0x8e, 0x6c, 0x98, 0x92, 0xe1, 0x91, 0x4d, 0x9b, 0x94, 0x17, 0x1d, 0x59,
+	0x98, 0x96, 0x0a, 0xcc, 0x8e, 0xbc, 0x4c, 0x8c, 0x96, 0x10, 0x93, 0x1e, 0x2d, 0x12, 0xfd, 0xdd,
+	0x60, 0xfe, 0xca, 0xd5, 0xe8, 0x9d, 0xbf, 0x21, 0xad, 0x6f, 0xfd, 0x36, 0xf5, 0xab, 0xcd, 0x7f,
+	0x48, 0xc8, 0x87, 0x59, 0xde, 0x7c, 0xd5, 0x36, 0x0f, 0xda, 0xb5, 0xb3, 0x26, 0xee, 0xc2, 0xdd,
+	0xc3, 0x3e, 0xa9, 0x05, 0x42, 0xdf, 0xeb, 0x5b, 0x8e, 0x5b, 0xbb, 0x57, 0xdb, 0xb6, 0x4c, 0xcf,
+	0xd1, 0x8f, 0x7d, 0xcf, 0x72, 0x5c, 0xb4, 0xda, 0xf7, 0x3c, 0xdb, 0xdd, 0x68, 0x34, 0x7a, 0xba,
+	0xd7, 0xf7, 0x8f, 0xeb, 0xaa, 0x35, 0x68, 0xf4, 0x89, 0x63, 0xe9, 0xaa, 0xa1, 0x1c, 0xbb, 0x0d,
+	0x8e, 0xb5, 0xba, 0xd4, 0x27, 0x86, 0x61, 0x3d, 0x1f, 0x0e, 0x50, 0xbd, 0x66, 0xba, 0x59, 0x7f,
+	0xbc, 0x2e, 0x49, 0xcd, 0xb2, 0x62, 0xdb, 0x86, 0xce, 0x7b, 0xef, 0xc6, 0xf7, 0x5c, 0xcb, 0xdc,
+	0x18, 0x93, 0x38, 0x1b, 0xb0, 0x2c, 0x80, 0xb8, 0xc4, 0x39, 0x23, 0x4e, 0x4d, 0xb3, 0x54, 0x7f,
+	0x40, 0x4c, 0xfe, 0xef, 0x00, 0x68, 0x39, 0x80, 0x31, 0xea, 0xa2, 0xa1, 0x59, 0xaa, 0x0b, 0x37,
+	0x55, 0x6b, 0x50, 0x8f, 0x0c, 0x0c, 0x37, 0x70, 0xab, 0xc0, 0x27, 0xdd, 0xb4, 0xf5, 0x03, 0xe9,
+	0x6d, 0x5a, 0xb1, 0xf5, 0x3f, 0xa4, 0x32, 0xfb, 0x2f, 0x0e, 0xb6, 0xfe, 0x92, 0x12, 0x9d, 0xe8,
+	0xf1, 0x0c, 0xdb, 0xc5, 0x27, 0xff, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x46, 0x46, 0x32, 0x60, 0x2f,
+	0x21, 0x00, 0x00,
 }

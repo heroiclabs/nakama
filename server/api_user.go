@@ -19,6 +19,6 @@ import (
 	"github.com/heroiclabs/nakama/api"
 )
 
-func (s *ApiServer) UsersFetchFunc(ctx context.Context, in *api.UsersFetch) (*api.Users, error) {
+func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api.Users, error) {
 	return nil, nil
 }
