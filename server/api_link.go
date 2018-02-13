@@ -42,7 +42,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET custom_id = $2, updated_at = $3
+SET custom_id = $2, update_time = $3
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
@@ -53,7 +53,7 @@ AND (NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link custom ID.", zap.Error(err), zap.Any("input", in))
+		s.logger.Error("Could not link custom ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to link Custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Custom ID is already in use.")
@@ -94,7 +94,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 			}
 		}
 
-		_, err = tx.Exec("UPDATE users SET updated_at = $1 WHERE id = $2", ts, userID)
+		_, err = tx.Exec("UPDATE users SET update_time = $1 WHERE id = $2", ts, userID)
 		if err != nil {
 			s.logger.Error("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Error linking Device ID.")
@@ -129,7 +129,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET email = $2, password = $3, updated_at = $4
+SET email = $2, password = $3, update_time = $4
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
@@ -141,7 +141,7 @@ AND (NOT EXISTS
 		ts)
 
 	if err != nil {
-		s.logger.Warn("Could not link email.", zap.Error(err), zap.Any("input", in))
+		s.logger.Error("Could not link email.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to link email.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Email is already in use.")

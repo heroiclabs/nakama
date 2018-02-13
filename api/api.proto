@@ -337,6 +337,9 @@ message Account {
   repeated AccountDevice devices = 4;
   // The custom id in the user's account.
   string custom_id = 5;
+  // The UNIX time when the user's email was verified.
+  google.protobuf.Timestamp verify_time = 6;
+
 }
 
 // Send a custom ID to the server. Used with authenticate/link/unlink.
@@ -644,8 +647,8 @@ message Session {
 message UpdateAccountRequest {
   // The username of the user's account.
   google.protobuf.StringValue username = 1;
-  // The fullname of the user.
-  google.protobuf.StringValue fullname = 2;
+  // The display name of the user.
+  google.protobuf.StringValue display_name = 2;
   // A URL for an avatar image.
   google.protobuf.StringValue avatar_url = 3;
   // The language expected to be a tag which follows the BCP-47 spec.
@@ -662,8 +665,8 @@ message User {
   string id = 1;
   // The username of the user's account.
   string username = 2;
-  // The fullname of the user.
-  string fullname = 3;
+  // The display name of the user.
+  string display_name = 3;
   // A URL for an avatar image.
   string avatar_url = 4;
   // The language expected to be a tag which follows the BCP-47 spec.
@@ -679,7 +682,7 @@ message User {
   // The Google id in the user's account.
   string google_id = 10;
   // The Apple Game Center in of the user's account.
-  string gamcenter_id = 11;
+  string gamecenter_id = 11;
   // The Steam id in the user's account.
   string steam_id = 12;
   // Indicates whether the user is currently online.

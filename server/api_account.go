@@ -15,15 +15,175 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
+	"database/sql"
+
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strconv"
+	"strings"
+	"time"
+	"github.com/lib/pq"
 )
 
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
-	return &api.Account{Email: "foo@bar.com"}, nil
+	userID := ctx.Value(ctxUserIDKey{})
+	rows, err := s.db.Query(`
+SELECT u.username, u.display_name, u.avatar_url, u.lang, u.location, u.timezone, u.metadata,
+	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id,
+	u.create_time, u.update_time, u.verify_time,
+	ud.id
+FROM users u
+LEFT JOIN user_device ud ON u.id = ud.user_id
+WHERE u.id = $1`, userID)
+	if err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+	defer rows.Close()
+
+	var displayName sql.NullString
+	var username sql.NullString
+	var avatarURL sql.NullString
+	var lang sql.NullString
+	var location sql.NullString
+	var timezone sql.NullString
+	var metadata []byte
+	var email sql.NullString
+	var facebook sql.NullString
+	var google sql.NullString
+	var gamecenter sql.NullString
+	var steam sql.NullString
+	var customID sql.NullString
+	var createTime sql.NullInt64
+	var updateTime sql.NullInt64
+	var verifyTime sql.NullInt64
+
+	deviceIDs := make([]*api.AccountDevice, 0)
+
+	for rows.Next() {
+		var deviceID sql.NullString
+		err = rows.Scan(&username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata,
+			&email, &facebook, &google, &gamecenter, &steam, &customID,
+			&createTime, &updateTime, &verifyTime, &deviceID)
+		if err != nil {
+			s.logger.Error("Error retrieving user account.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error retrieving user account.")
+		}
+		if deviceID.Valid {
+			deviceIDs = append(deviceIDs, &api.AccountDevice{Id: deviceID.String})
+		}
+	}
+	if err = rows.Err(); err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+
+	return &api.Account{
+		User: &api.User{
+			Id:           userID.(uuid.UUID).String(),
+			Username:     username.String,
+			DisplayName:  displayName.String,
+			AvatarUrl:    avatarURL.String,
+			Lang:         lang.String,
+			Location:     location.String,
+			Timezone:     timezone.String,
+			Metadata:     string(metadata),
+			FacebookId:   facebook.String,
+			GoogleId:     google.String,
+			GamecenterId: gamecenter.String,
+			SteamId:      steam.String,
+			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
+			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
+			Online:       false, //TODO(mo/zyro): Fix this when this is wired in?
+		},
+		Email:    email.String,
+		Devices:  deviceIDs,
+		CustomId: customID.String,
+		VerifyTime: &timestamp.Timestamp{Seconds: verifyTime.Int64},
+	}, nil
 }
 
 func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest) (*empty.Empty, error) {
-	return nil, nil
+	index := 1
+	statements := make([]string, 0)
+	params := make([]interface{}, 0)
+
+	username := in.GetUsername().GetValue()
+	if username != "" {
+		if len(username) > 128 {
+			return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+		}
+		statements = append(statements, "username = $"+strconv.Itoa(index))
+		params = append(params, strings.ToLower(username))
+		index++
+	}
+
+	if in.GetDisplayName() == nil || in.GetDisplayName().GetValue() == "" {
+		statements = append(statements, "display_name = NULL")
+	} else {
+		statements = append(statements, "display_name = $"+strconv.Itoa(index))
+		params = append(params, in.GetDisplayName().GetValue())
+		index++
+	}
+
+	if in.GetTimezone() == nil || in.GetTimezone().GetValue() == "" {
+		statements = append(statements, "timezone = NULL")
+	} else {
+		statements = append(statements, "timezone = $"+strconv.Itoa(index))
+		params = append(params, in.GetTimezone().GetValue())
+		index++
+	}
+
+	if in.GetLocation() == nil || in.GetLocation().GetValue() == "" {
+		statements = append(statements, "location = NULL")
+	} else {
+		statements = append(statements, "location = $"+strconv.Itoa(index))
+		params = append(params, in.GetLocation().GetValue())
+		index++
+	}
+
+	if in.GetLang() == nil || in.GetLang().GetValue() == "" {
+		statements = append(statements, "lang = NULL")
+	} else {
+		statements = append(statements, "lang = $"+strconv.Itoa(index))
+		params = append(params, in.GetLang().GetValue())
+		index++
+	}
+
+	if in.GetAvatarUrl() == nil || in.GetAvatarUrl().GetValue() == "" {
+		statements = append(statements, "avatar_url = NULL")
+	} else {
+		statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
+		params = append(params, in.GetAvatarUrl().GetValue())
+		index++
+	}
+
+	if len(statements) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "No fields to update.")
+	}
+
+	ts := time.Now().UTC().Unix()
+	userID := ctx.Value(ctxUserIDKey{})
+	params = append(params, ts, userID)
+
+	if _, err := s.db.Exec(
+		"UPDATE users SET update_time = $"+strconv.Itoa(index)+", "+strings.Join(statements, ", ")+" WHERE id = $"+strconv.Itoa(index+1),
+		params...); err != nil {
+
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			return nil, status.Error(codes.InvalidArgument, "Username is already in use.")
+		}
+
+		s.logger.Error("Could not update user account.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to update account.")
+	}
+
+
+	return &empty.Empty{}, nil
 }

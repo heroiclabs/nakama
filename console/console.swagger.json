@@ -119,6 +119,11 @@
         "custom_id": {
           "type": "string",
           "description": "The custom id in the user's account."
+        },
+        "verify_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user's email was verified."
         }
       },
       "description": "A user with additional account details. Always the current user."
@@ -203,9 +208,9 @@
           "type": "string",
           "description": "The username of the user's account."
         },
-        "fullname": {
+        "display_name": {
           "type": "string",
-          "description": "The fullname of the user."
+          "description": "The display name of the user."
         },
         "avatar_url": {
           "type": "string",
@@ -235,7 +240,7 @@
           "type": "string",
           "description": "The Google id in the user's account."
         },
-        "gamcenter_id": {
+        "gamecenter_id": {
           "type": "string",
           "description": "The Apple Game Center in of the user's account."
         },
