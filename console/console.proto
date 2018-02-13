@@ -49,22 +49,22 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
  * The developer console RPC protocol service built with GRPC.
  */
 service Console {
-  // Authenticate a user with username+password.
-  rpc Login (Authenticate) returns (Session) {
-    option (google.api.http) = {
-      post: "/v2/account/authenticate",
-      body: "*"
-    };
-  }
-
   // Delete all information stored for a user account.
-  rpc AccountDelete (AccountId) returns (google.protobuf.Empty) {
+  rpc DeleteAccount (AccountIdRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/account/{id}";
   }
 
   // Export all information stored about a user account.
-  rpc AccountExportFunc (AccountId) returns (AccountExport) {
+  rpc ExportAccount (AccountIdRequest) returns (AccountExport) {
     option (google.api.http).get = "/v2/account/{id}/export";
+  }
+
+  // Authenticate a user with username+password.
+  rpc Login (AuthenticateRequest) returns (Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate",
+      body: "*"
+    };
   }
 }
 
@@ -81,7 +81,7 @@ message AccountExport {
 /**
  * The identifier for a user account.
  */
-message AccountId {
+message AccountIdRequest {
   // The unique identifier of the user account.
   string id = 1;
 }
@@ -89,7 +89,7 @@ message AccountId {
 /**
  * Authenticate against the server with username+password.
  */
-message Authenticate {
+message AuthenticateRequest {
   // The username of the user.
   string username = 1;
   // The password of the user.

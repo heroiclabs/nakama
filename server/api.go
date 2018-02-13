@@ -38,7 +38,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	_ "google.golang.org/grpc/encoding/gzip" // this enabled gzip compression on server for grpc
+	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -141,19 +141,19 @@ func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Con
 		case "/nakama.api.Nakama/Healthcheck":
 			// Healthcheck has no security.
 			return handler(ctx, req)
-		case "/nakama.api.Nakama/AuthenticateCustomFunc":
+		case "/nakama.api.Nakama/AuthenticateCustom":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateDeviceFunc":
+		case "/nakama.api.Nakama/AuthenticateDevice":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateEmailFunc":
+		case "/nakama.api.Nakama/AuthenticateEmail":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateFacebookFunc":
+		case "/nakama.api.Nakama/AuthenticateFacebook":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateGameCenterFunc":
+		case "/nakama.api.Nakama/AuthenticateGameCenter":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateGoogleFunc":
+		case "/nakama.api.Nakama/AuthenticateGoogle":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateSteamFunc":
+		case "/nakama.api.Nakama/AuthenticateSteam":
 			// Authentication functions require Server key.
 			md, ok := metadata.FromIncomingContext(ctx)
 			if !ok {

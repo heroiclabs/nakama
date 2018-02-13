@@ -20,6 +20,22 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
-func (s *ApiServer) FriendAddFunc(ctx context.Context, in *api.FriendAdd) (*empty.Empty, error) {
+func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
+	return nil, nil
+}
+
+func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
+	return nil, nil
+}
+
+func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*empty.Empty, error) {
+	return nil, nil
+}
+
+func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Friends, error) {
+	return nil, nil
+}
+
+func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
 	return nil, nil
 }
