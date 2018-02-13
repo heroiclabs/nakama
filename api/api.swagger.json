@@ -39,7 +39,7 @@
     "/v2/account": {
       "get": {
         "summary": "Fetch the current user's account.",
-        "operationId": "AccountFetch",
+        "operationId": "GetAccount",
         "responses": {
           "200": {
             "description": "",
@@ -54,7 +54,7 @@
       },
       "put": {
         "summary": "Update fields in the current user's account.",
-        "operationId": "AccountUpdateFunc",
+        "operationId": "UpdateAccount",
         "responses": {
           "200": {
             "description": "",
@@ -69,7 +69,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiAccountUpdate"
+              "$ref": "#/definitions/apiUpdateAccountRequest"
             }
           }
         ],
@@ -81,7 +81,7 @@
     "/v2/account/authenticate/custom": {
       "post": {
         "summary": "Authenticate a user with a custom id against the server.",
-        "operationId": "AuthenticateCustomFunc",
+        "operationId": "AuthenticateCustom",
         "responses": {
           "200": {
             "description": "",
@@ -108,7 +108,7 @@
     "/v2/account/authenticate/device": {
       "post": {
         "summary": "Authenticate a user with a device id against the server.",
-        "operationId": "AuthenticateDeviceFunc",
+        "operationId": "AuthenticateDevice",
         "responses": {
           "200": {
             "description": "",
@@ -135,7 +135,7 @@
     "/v2/account/authenticate/email": {
       "post": {
         "summary": "Authenticate a user with an email+password against the server.",
-        "operationId": "AuthenticateEmailFunc",
+        "operationId": "AuthenticateEmail",
         "responses": {
           "200": {
             "description": "",
@@ -162,7 +162,7 @@
     "/v2/account/authenticate/facebook": {
       "post": {
         "summary": "Authenticate a user with a Facebook OAuth token against the server.",
-        "operationId": "AuthenticateFacebookFunc",
+        "operationId": "AuthenticateFacebook",
         "responses": {
           "200": {
             "description": "",
@@ -189,7 +189,7 @@
     "/v2/account/authenticate/gamecenter": {
       "post": {
         "summary": "Authenticate a user with Apple's GameCenter against the server.",
-        "operationId": "AuthenticateGameCenterFunc",
+        "operationId": "AuthenticateGameCenter",
         "responses": {
           "200": {
             "description": "",
@@ -216,7 +216,7 @@
     "/v2/account/authenticate/google": {
       "post": {
         "summary": "Authenticate a user with Google against the server.",
-        "operationId": "AuthenticateGoogleFunc",
+        "operationId": "AuthenticateGoogle",
         "responses": {
           "200": {
             "description": "",
@@ -243,7 +243,7 @@
     "/v2/account/authenticate/steam": {
       "post": {
         "summary": "Authenticate a user with Steam against the server.",
-        "operationId": "AuthenticateSteamFunc",
+        "operationId": "AuthenticateSteam",
         "responses": {
           "200": {
             "description": "",
@@ -270,7 +270,7 @@
     "/v2/account/link/custom": {
       "post": {
         "summary": "Add a custom ID to the social profiles on the current user's account.",
-        "operationId": "LinkCustomFunc",
+        "operationId": "LinkCustom",
         "responses": {
           "200": {
             "description": "",
@@ -297,7 +297,7 @@
     "/v2/account/link/device": {
       "post": {
         "summary": "Add a device ID to the social profiles on the current user's account.",
-        "operationId": "LinkDeviceFunc",
+        "operationId": "LinkDevice",
         "responses": {
           "200": {
             "description": "",
@@ -324,7 +324,7 @@
     "/v2/account/link/email": {
       "post": {
         "summary": "Add an email+password to the social profiles on the current user's account.",
-        "operationId": "LinkEmailFunc",
+        "operationId": "LinkEmail",
         "responses": {
           "200": {
             "description": "",
@@ -351,7 +351,7 @@
     "/v2/account/link/facebook": {
       "post": {
         "summary": "Add Facebook to the social profiles on the current user's account.",
-        "operationId": "LinkFacebookFunc",
+        "operationId": "LinkFacebook",
         "responses": {
           "200": {
             "description": "",
@@ -378,7 +378,7 @@
     "/v2/account/link/gamecenter": {
       "post": {
         "summary": "Add Apple's GameCenter to the social profiles on the current user's account.",
-        "operationId": "LinkGameCenterFunc",
+        "operationId": "LinkGameCenter",
         "responses": {
           "200": {
             "description": "",
@@ -405,7 +405,7 @@
     "/v2/account/link/google": {
       "post": {
         "summary": "Add Google to the social profiles on the current user's account.",
-        "operationId": "LinkGoogleFunc",
+        "operationId": "LinkGoogle",
         "responses": {
           "200": {
             "description": "",
@@ -432,7 +432,7 @@
     "/v2/account/link/steam": {
       "post": {
         "summary": "Add Steam to the social profiles on the current user's account.",
-        "operationId": "LinkSteamFunc",
+        "operationId": "LinkSteam",
         "responses": {
           "200": {
             "description": "",
@@ -459,7 +459,7 @@
     "/v2/account/unlink/custom": {
       "post": {
         "summary": "Remove the custom ID from the social profiles on the current user's account.",
-        "operationId": "UnlinkCustomFunc",
+        "operationId": "UnlinkCustom",
         "responses": {
           "200": {
             "description": "",
@@ -486,7 +486,7 @@
     "/v2/account/unlink/device": {
       "post": {
         "summary": "Remove the device ID from the social profiles on the current user's account.",
-        "operationId": "UnlinkDeviceFunc",
+        "operationId": "UnlinkDevice",
         "responses": {
           "200": {
             "description": "",
@@ -513,7 +513,7 @@
     "/v2/account/unlink/email": {
       "post": {
         "summary": "Remove the email+password from the social profiles on the current user's account.",
-        "operationId": "UnlinkEmailFunc",
+        "operationId": "UnlinkEmail",
         "responses": {
           "200": {
             "description": "",
@@ -540,7 +540,7 @@
     "/v2/account/unlink/facebook": {
       "post": {
         "summary": "Remove Facebook from the social profiles on the current user's account.",
-        "operationId": "UnlinkFacebookFunc",
+        "operationId": "UnlinkFacebook",
         "responses": {
           "200": {
             "description": "",
@@ -567,7 +567,7 @@
     "/v2/account/unlink/gamecenter": {
       "post": {
         "summary": "Remove Apple's GameCenter from the social profiles on the current user's account.",
-        "operationId": "UnlinkGameCenterFunc",
+        "operationId": "UnlinkGameCenter",
         "responses": {
           "200": {
             "description": "",
@@ -594,7 +594,7 @@
     "/v2/account/unlink/google": {
       "post": {
         "summary": "Remove Google from the social profiles on the current user's account.",
-        "operationId": "UnlinkGoogleFunc",
+        "operationId": "UnlinkGoogle",
         "responses": {
           "200": {
             "description": "",
@@ -621,7 +621,7 @@
     "/v2/account/unlink/steam": {
       "post": {
         "summary": "Remove Steam from the social profiles on the current user's account.",
-        "operationId": "UnlinkSteamFunc",
+        "operationId": "UnlinkSteam",
         "responses": {
           "200": {
             "description": "",
@@ -646,9 +646,39 @@
       }
     },
     "/v2/friend": {
+      "get": {
+        "summary": "List all friends for the current user.",
+        "operationId": "ListFriends",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiFriends"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "delete": {
+        "summary": "Delete one or more users by ID or username.",
+        "operationId": "DeleteFriends",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
       "post": {
-        "summary": "Add friends by ID or handle to a user's account.",
-        "operationId": "FriendAddFunc",
+        "summary": "Add friends by ID or username to a user's account.",
+        "operationId": "AddFriends",
         "responses": {
           "200": {
             "description": "",
@@ -662,10 +692,64 @@
         ]
       }
     },
+    "/v2/friend/block": {
+      "post": {
+        "summary": "Block one or more users by ID or username.",
+        "operationId": "BlockFriends",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiBlockFriendsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/friend/facebook": {
+      "post": {
+        "summary": "Import Facebook friends and add them to a user's account.",
+        "operationId": "ImportFacebookFriends",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/group": {
       "post": {
         "summary": "Create one or more new groups with the current user as the owner.",
-        "operationId": "GroupsCreateFunc",
+        "operationId": "CreateGroup",
         "responses": {
           "200": {
             "description": "",
@@ -680,7 +764,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiGroupsCreate"
+              "$ref": "#/definitions/apiCreateGroupsRequest"
             }
           }
         ],
@@ -762,7 +846,7 @@
     "/v2/user": {
       "get": {
         "summary": "Fetch zero or more users by ID and/or username.",
-        "operationId": "UsersFetchFunc",
+        "operationId": "GetUsers",
         "responses": {
           "200": {
             "description": "",
@@ -791,6 +875,16 @@
             "items": {
               "type": "string"
             }
+          },
+          {
+            "name": "facebook_ids",
+            "description": "The Facebook ID of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -800,7 +894,7 @@
     }
   },
   "definitions": {
-    "GroupsCreateNewGroup": {
+    "CreateGroupsRequestNewGroup": {
       "type": "object",
       "properties": {
         "name": {
@@ -829,7 +923,7 @@
           "description": "Mark a group as private where only admins can accept members."
         }
       },
-      "description": "*\nA group to create."
+      "description": "A group to create."
     },
     "apiAccount": {
       "type": "object",
@@ -837,11 +931,6 @@
         "user": {
           "$ref": "#/definitions/apiUser",
           "description": "The user object."
-        },
-        "verified": {
-          "type": "boolean",
-          "format": "boolean",
-          "description": "Whether the user has been verified. Via email or social profiles."
         },
         "email": {
           "type": "string",
@@ -859,7 +948,7 @@
           "description": "The custom id in the user's account."
         }
       },
-      "description": "*\nA user with additional account details. Always the current user."
+      "description": "A user with additional account details. Always the current user."
     },
     "apiAccountCustom": {
       "type": "object",
@@ -869,7 +958,7 @@
           "description": "A custom identifier."
         }
       },
-      "description": "*\nSend a custom ID to the server. Used with authenticate/link/unlink."
+      "description": "Send a custom ID to the server. Used with authenticate/link/unlink."
     },
     "apiAccountDevice": {
       "type": "object",
@@ -879,7 +968,7 @@
           "description": "A device identifier. Should be obtained by a platform-specific device API."
         }
       },
-      "description": "*\nSend a device to the server. Used with authenticate/link/unlink and user."
+      "description": "Send a device to the server. Used with authenticate/link/unlink and user."
     },
     "apiAccountEmail": {
       "type": "object",
@@ -893,7 +982,7 @@
           "description": "A password for the user account."
         }
       },
-      "description": "*\nSend an email with password to the server. Used with authenticate/link/unlink."
+      "description": "Send an email with password to the server. Used with authenticate/link/unlink."
     },
     "apiAccountFacebook": {
       "type": "object",
@@ -903,7 +992,7 @@
           "description": "The OAuth token received from Facebook to access their profile API."
         }
       },
-      "description": "*\nSend a Facebook token to the server. Used with authenticate/link/unlink."
+      "description": "Send a Facebook token to the server. Used with authenticate/link/unlink."
     },
     "apiAccountGameCenter": {
       "type": "object",
@@ -916,7 +1005,7 @@
           "type": "string",
           "description": "Bundle ID (generated by GameCenter)."
         },
-        "timestamp": {
+        "timestamp_seconds": {
           "type": "string",
           "format": "int64",
           "description": "Time since UNIX epoch when the signature was created."
@@ -934,7 +1023,7 @@
           "description": "The URL for the public encryption key."
         }
       },
-      "description": "*\nSend Apple's Game Center account credentials to the server. Used with authenticate/link/unlink.\n\nhttps://developer.apple.com/documentation/gamekit/gklocalplayer/1515407-generateidentityverificationsign"
+      "description": "Send Apple's Game Center account credentials to the server. Used with authenticate/link/unlink."
     },
     "apiAccountGoogle": {
       "type": "object",
@@ -944,7 +1033,7 @@
           "description": "The OAuth token received from Google to access their profile API."
         }
       },
-      "description": "*\nSend a Google token to the server. Used with authenticate/link/unlink."
+      "description": "Send a Google token to the server. Used with authenticate/link/unlink."
     },
     "apiAccountSteam": {
       "type": "object",
@@ -954,37 +1043,68 @@
           "description": "The account token received from Steam to access their profile API."
         }
       },
-      "description": "*\nSend a Steam token to the server. Used with authenticate/link/unlink."
+      "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
     },
-    "apiAccountUpdate": {
+    "apiBlockFriendsRequest": {
       "type": "object",
       "properties": {
-        "username": {
-          "type": "string",
-          "description": "The username of the user's account."
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The account id of a user."
         },
-        "fullname": {
-          "type": "string",
-          "description": "The fullname of the user."
-        },
-        "avatar_url": {
-          "type": "string",
-          "description": "A URL for an avatar image."
-        },
-        "lang": {
-          "type": "string",
-          "description": "The language expected to be a tag which follows the BCP-47 spec."
-        },
-        "location": {
-          "type": "string",
-          "description": "The location set by the user."
-        },
-        "timezone": {
-          "type": "string",
-          "description": "The timezone set by the user."
+        "usernames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The account username of a user."
         }
       },
-      "description": "*\nUpdate a user's account details."
+      "description": "Block one or more friends for the current user."
+    },
+    "apiCreateGroupsRequest": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CreateGroupsRequestNewGroup"
+          },
+          "description": "The Group objects to create."
+        }
+      },
+      "description": "Create one or more groups with the current user as owner."
+    },
+    "apiFriend": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The friend status."
+        }
+      },
+      "description": "A friend of a user."
+    },
+    "apiFriends": {
+      "type": "object",
+      "properties": {
+        "friends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiFriend"
+          },
+          "description": "The Friend objects."
+        }
+      },
+      "description": "A collection of zero or more friends of the user."
     },
     "apiGroup": {
       "type": "object",
@@ -1032,18 +1152,18 @@
           "format": "int64",
           "description": "The UTC offset in milliseconds."
         },
-        "created_at": {
+        "create_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the group was created."
         },
-        "updated_at": {
+        "update_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the group was last updated."
         }
       },
-      "description": "*\nA group in the server."
+      "description": "A group in the server."
     },
     "apiGroups": {
       "type": "object",
@@ -1056,20 +1176,7 @@
           "description": "The Group objects."
         }
       },
-      "description": "*\nA collection of zero or more groups."
-    },
-    "apiGroupsCreate": {
-      "type": "object",
-      "properties": {
-        "groups": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/GroupsCreateNewGroup"
-          },
-          "description": "The Group objects to create."
-        }
-      },
-      "description": "*\nCreate one or more groups with the current user as owner."
+      "description": "A collection of zero or more groups."
     },
     "apiRpc": {
       "type": "object",
@@ -1087,7 +1194,7 @@
           "description": "The authentication key used when executed as a non-client HTTP request."
         }
       },
-      "description": "*\nExecute an Lua function on the server."
+      "description": "Execute an Lua function on the server."
     },
     "apiSession": {
       "type": "object",
@@ -1101,7 +1208,37 @@
           "description": "rUDP specific authentication credentials."
         }
       },
-      "description": "*\nA user's session used to authenticate messages."
+      "description": "A user's session used to authenticate messages."
+    },
+    "apiUpdateAccountRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user's account."
+        },
+        "fullname": {
+          "type": "string",
+          "description": "The fullname of the user."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location set by the user."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "The timezone set by the user."
+        }
+      },
+      "description": "Update a user's account details."
     },
     "apiUser": {
       "type": "object",
@@ -1159,18 +1296,18 @@
           "format": "boolean",
           "description": "Indicates whether the user is currently online."
         },
-        "created_at": {
+        "create_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the user was created."
         },
-        "updated_at": {
+        "update_time": {
           "type": "string",
-          "format": "int64",
+          "format": "date-time",
           "description": "The UNIX time when the user was last updated."
         }
       },
-      "description": "*\nA user in the server."
+      "description": "A user in the server."
     },
     "apiUsers": {
       "type": "object",
@@ -1183,7 +1320,7 @@
           "description": "The User objects."
         }
       },
-      "description": "*\nA collection of zero or more users."
+      "description": "A collection of zero or more users."
     },
     "protobufBoolValue": {
       "type": "object",
