@@ -33,25 +33,12 @@ import (
 
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
 	userID := ctx.Value(ctxUserIDKey{})
-	rows, err := s.db.Query(`
-SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata,
-	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id,
-	u.create_time, u.update_time, u.verify_time,
-	ud.id
-FROM users u
-LEFT JOIN user_device ud ON u.id = ud.user_id
-WHERE u.id = $1`, userID)
-	if err != nil {
-		s.logger.Error("Error retrieving user account.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Error retrieving user account.")
-	}
-	defer rows.Close()
 
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
 	var langTag sql.NullString
-	var location sql.NullString
+	var locat sql.NullString
 	var timezone sql.NullString
 	var metadata []byte
 	var email sql.NullString
@@ -64,13 +51,30 @@ WHERE u.id = $1`, userID)
 	var updateTime sql.NullInt64
 	var verifyTime sql.NullInt64
 
-	deviceIDs := make([]*api.AccountDevice, 0)
+	query := `
+SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata,
+	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id,
+	create_time, update_time, verify_time
+FROM users
+WHERE id = $1`
 
+	if err := s.db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata,
+		&email, &facebook, &google, &gamecenter, &steam, &customID, &createTime, &updateTime, &verifyTime); err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+
+	rows, err := s.db.Query(`SELECT id FROM user_device WHERE user_id = $1`, userID)
+	if err != nil {
+		s.logger.Error("Error retrieving user account.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error retrieving user account.")
+	}
+	defer rows.Close()
+
+	deviceIDs := make([]*api.AccountDevice, 0)
 	for rows.Next() {
 		var deviceID sql.NullString
-		err = rows.Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-			&email, &facebook, &google, &gamecenter, &steam, &customID,
-			&createTime, &updateTime, &verifyTime, &deviceID)
+		err = rows.Scan(&deviceID)
 		if err != nil {
 			s.logger.Error("Error retrieving user account.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error retrieving user account.")
@@ -96,7 +100,7 @@ WHERE u.id = $1`, userID)
 			DisplayName:  displayName.String,
 			AvatarUrl:    avatarURL.String,
 			LangTag:      langTag.String,
-			Location:     location.String,
+			Location:     locat.String,
 			Timezone:     timezone.String,
 			Metadata:     string(metadata),
 			FacebookId:   facebook.String,
