@@ -17,32 +17,34 @@
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
-    id             UUID          NOT NULL,
-    username       VARCHAR(128)  CONSTRAINT users_username_key UNIQUE NOT NULL,
-    display_name   VARCHAR(255),
-    avatar_url     VARCHAR(255),
+
+    id            UUID          NOT NULL,
+    username      VARCHAR(128)  CONSTRAINT users_username_key UNIQUE NOT NULL,
+    display_name  VARCHAR(255),
+    avatar_url    VARCHAR(255),
     -- https://tools.ietf.org/html/bcp47
-    lang_tag       VARCHAR(18)   DEFAULT 'en',
-    location       VARCHAR(255), -- e.g. "San Francisco, CA"
-    timezone       VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
-    metadata       BYTEA         DEFAULT '{}' CHECK (length(metadata) < 32000) NOT NULL,
-    email          VARCHAR(255)  UNIQUE,
-    password       BYTEA         CHECK (length(password) < 32000),
-    facebook_id    VARCHAR(128)  UNIQUE,
-    google_id      VARCHAR(128)  UNIQUE,
-    gamecenter_id  VARCHAR(128)  UNIQUE,
-    steam_id       VARCHAR(128)  UNIQUE,
-    custom_id      VARCHAR(128)  UNIQUE,
-    edge_count     INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
-    create_time   BIGINT         CHECK (create_time > 0) NOT NULL,
-    update_time   BIGINT         CHECK (update_time > 0) NOT NULL,
-    verify_time   BIGINT         CHECK (verify_time >= 0) DEFAULT 0 NOT NULL,
-    disable_time  BIGINT         CHECK (disable_time >= 0) DEFAULT 0 NOT NULL
+    lang_tag      VARCHAR(18)   DEFAULT 'en',
+    location      VARCHAR(255), -- e.g. "San Francisco, CA"
+    timezone      VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
+    metadata      BYTEA         DEFAULT '{}' CHECK (length(metadata) < 32000) NOT NULL,
+    email         VARCHAR(255)  UNIQUE,
+    password      BYTEA         CHECK (length(password) < 32000),
+    facebook_id   VARCHAR(128)  UNIQUE,
+    google_id     VARCHAR(128)  UNIQUE,
+    gamecenter_id VARCHAR(128)  UNIQUE,
+    steam_id      VARCHAR(128)  UNIQUE,
+    custom_id     VARCHAR(128)  UNIQUE,
+    edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
+    create_time   BIGINT        CHECK (create_time > 0) NOT NULL,
+    update_time   BIGINT        CHECK (update_time > 0) NOT NULL,
+    verify_time   BIGINT        CHECK (verify_time >= 0) DEFAULT 0 NOT NULL,
+    disable_time  BIGINT        CHECK (disable_time >= 0) DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
+
     id      VARCHAR(128) NOT NULL,
     user_id UUID         NOT NULL
 );
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
     PRIMARY KEY (source_id, state, position),
     FOREIGN KEY (source_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
+
     source_id      UUID     NOT NULL,
     position       BIGINT   NOT NULL, -- Used for sort order on rows
     updated_at     BIGINT   CHECK (updated_at > 0) NOT NULL,

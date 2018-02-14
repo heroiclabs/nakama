@@ -20,6 +20,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -28,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/lib/pq"
 )
 
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
@@ -105,11 +105,11 @@ WHERE u.id = $1`, userID)
 			SteamId:      steam.String,
 			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
-			Online:       false, //TODO(mo/zyro): Fix this when this is wired in?
+			Online:       false, // TODO(zyro): Must enrich the field from the presence map.
 		},
-		Email:    email.String,
-		Devices:  deviceIDs,
-		CustomId: customID.String,
+		Email:      email.String,
+		Devices:    deviceIDs,
+		CustomId:   customID.String,
 		VerifyTime: verifyTimestamp,
 	}, nil
 }
@@ -187,7 +187,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	userID := ctx.Value(ctxUserIDKey{})
 	params = append(params, ts, userID)
 
-	query := "UPDATE users SET update_time = $"+strconv.Itoa(index)+", "+strings.Join(statements, ", ")+" WHERE id = $"+strconv.Itoa(index+1)
+	query := "UPDATE users SET update_time = $" + strconv.Itoa(index) + ", " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index+1)
 
 	if _, err := s.db.Exec(query, params...); err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {

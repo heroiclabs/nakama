@@ -339,7 +339,6 @@ message Account {
   string custom_id = 5;
   // The UNIX time when the user's email was verified.
   google.protobuf.Timestamp verify_time = 6;
-
 }
 
 // Send a custom ID to the server. Used with authenticate/link/unlink.
