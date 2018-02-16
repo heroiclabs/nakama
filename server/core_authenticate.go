@@ -121,8 +121,7 @@ RETURNING id, username, disable_time`
 				return status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
 
-			// This error is not captured by pq.error :|
-			if err.Error() == "sql: no rows in result set" {
+			if err == sql.ErrNoRows {
 				// let's catch this case as it could be there could be a device ID already
 				// linked to a ID so let's attempt a vanilla login
 				dbUserID, dbUsername, err = LoginDevice(logger, db, deviceID, username, create)
