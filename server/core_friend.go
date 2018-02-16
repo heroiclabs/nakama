@@ -23,24 +23,15 @@ import (
 	"time"
 )
 
-func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string, usernames []string) error {
-	allIds := make([]string, 0)
-	allIds = append(allIds, ids...)
-	userIDs, err := fetchUserID(db, usernames)
-	if err != nil {
-		logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
-		return err
-	}
-
-	allIds = append(allIds, userIDs...)
+func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
 	ts := time.Now().UTC().Unix()
 	notificationToSend := make(map[string]bool)
-	if err = Transact(logger, db, func (tx *sql.Tx) error {
-		for _, id := range allIds {
+	if err := Transact(logger, db, func (tx *sql.Tx) error {
+		for _, id := range ids {
 			isFriendAccept, addFriendErr := addFriend(logger, tx, currentUser, id, ts)
 
 			if addFriendErr != nil {
-				// Check to see if this error isn't intentional as friend had blocked user.
+				// Check to see if friend had blocked user.
 				if addFriendErr != sql.ErrNoRows {
 					return addFriendErr
 				}

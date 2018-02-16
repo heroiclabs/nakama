@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
@@ -28,8 +29,24 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or Username.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
-	if err := AddFriends(s.logger, s.db, userID.(uuid.UUID), in.Ids, in.Usernames); err != nil {
+	userIDs, err := fetchUserID(s.db, in.GetUsernames())
+	if err != nil {
+		s.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", in.GetUsernames()))
+		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
+	}
+
+	allIds := make([]string, 0)
+	allIds = append(allIds, in.GetIds()...)
+	allIds = append(allIds, userIDs...)
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	for _, id := range allIds {
+		if userID.String() == id {
+			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
+		}
+	}
+
+	if err := AddFriends(s.logger, s.db, userID, allIds); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 
