@@ -280,7 +280,7 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username stri
 		return retValue.String(), nil
 	}
 
-	return "", errors.New("Runtime function returned invalid data. Only allowed one return value of type String/Byte")
+	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte")
 }
 
 func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error) {

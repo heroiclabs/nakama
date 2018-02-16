@@ -704,16 +704,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiBlockFriendsRequest"
-            }
-          }
-        ],
         "tags": [
           "Nakama"
         ]
@@ -1049,26 +1039,6 @@
         }
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
-    },
-    "apiBlockFriendsRequest": {
-      "type": "object",
-      "properties": {
-        "ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The account id of a user."
-        },
-        "usernames": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The account username of a user."
-        }
-      },
-      "description": "Block one or more friends for the current user."
     },
     "apiCreateGroupsRequest": {
       "type": "object",

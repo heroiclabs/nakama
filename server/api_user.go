@@ -152,3 +152,40 @@ func convertUser(rows *sql.Rows) (*api.User, error) {
 		Online:       false, //TODO(mo/zyro): Fix this when this is wired in?
 	}, nil
 }
+
+func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
+	ids := make([]string, 0)
+	if len(usernames) == 0 {
+		return ids, nil
+	}
+
+	statements := make([]string, 0, len(usernames))
+	params := make([]interface{}, 0)
+	counter := 1
+	for _, username := range usernames {
+		params = append(params, username)
+		statement := "$" + strconv.Itoa(counter)
+		statements = append(statements, statement)
+		counter++
+	}
+
+	query := "SELECT id FROM users WHERE username IN ("+ strings.Join(statements, ", ") + ")"
+	rows, err := db.Query(query, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}

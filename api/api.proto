@@ -149,8 +149,7 @@ service Nakama {
   // Block one or more users by ID or username.
   rpc BlockFriends (BlockFriendsRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v2/friend/block",
-      body: "*"
+      post: "/v2/friend/block"
     };
   }
 
