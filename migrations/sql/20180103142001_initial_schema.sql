@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 
     source_id      UUID     NOT NULL,
     position       BIGINT   NOT NULL, -- Used for sort order on rows
-    updated_at     BIGINT   CHECK (updated_at > 0) NOT NULL,
+    update_time    BIGINT   CHECK (update_time > 0) NOT NULL,
     destination_id UUID     NOT NULL,
     state          SMALLINT DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
 
