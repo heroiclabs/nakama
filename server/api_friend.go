@@ -18,10 +18,22 @@ import (
 	"golang.org/x/net/context"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/golang/protobuf/ptypes/empty"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"github.com/satori/go.uuid"
 )
 
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
-	return nil, nil
+	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or Username.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{})
+	if err := AddFriends(s.logger, s.db, userID.(uuid.UUID), in.Ids, in.Usernames); err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
