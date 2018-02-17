@@ -132,7 +132,7 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 
 func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
+		//logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
 		switch info.FullMethod {
 		case "/nakama.api.Nakama/Healthcheck":
 			// Healthcheck has no security.

@@ -18,9 +18,9 @@ import (
 	"go.uber.org/zap"
 	"database/sql"
 	"github.com/satori/go.uuid"
-	"strings"
-	"strconv"
 	"time"
+	"github.com/lib/pq"
+	"strings"
 )
 
 func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
@@ -29,14 +29,10 @@ func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []str
 	if err := Transact(logger, db, func (tx *sql.Tx) error {
 		for _, id := range ids {
 			isFriendAccept, addFriendErr := addFriend(logger, tx, currentUser, id, ts)
-
-			if addFriendErr != nil {
-				// Check to see if friend had blocked user.
-				if addFriendErr != sql.ErrNoRows {
-					return addFriendErr
-				}
-			} else {
+			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
+			} else if addFriendErr != sql.ErrNoRows { // Check to see if friend had blocked user.
+				return addFriendErr
 			}
 		}
 		return nil
@@ -46,43 +42,6 @@ func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []str
 
 	// TODO(mo, zyro): Use notificationToSend to send notification here.
 	return nil
-}
-
-func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
-	ids := make([]string, 0)
-	if len(usernames) == 0 {
-		return ids, nil
-	}
-
-	statements := make([]string, 0)
-	params := make([]interface{}, 0)
-	counter := 1
-	for _, username := range usernames {
-		params = append(params, username)
-		statement := "$" + strconv.Itoa(counter)
-		statements = append(statements, statement)
-		counter++
-	}
-
-	query := "SELECT id FROM users WHERE username IN ("+ strings.Join(usernames, ", ") + ")"
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		return nil, err
-	}
-
-	for rows.Next() {
-		var id string
-		err := rows.Scan(&id)
-		if err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return ids, nil
 }
 
 // Returns "true" if accepting an invite, otherwise false
@@ -103,11 +62,11 @@ func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 1 {
 		if _ , err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = $2 WHERE id = $1", userID, timestamp); err != nil {
 			logger.Error("Failed to update user count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-			return false, nil
+			return false, err
 		}
 
 		logger.Error("Unblocked user.", zap.String("user", userID.String()), zap.String("friend", friendID))
-		return false, nil
+		return false, sql.ErrNoRows
 	}
 
 	// Mark an invite as accepted, if one was in place.
@@ -128,33 +87,51 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 	}
 
 	// If no edge updates took place, it's either a new invite being set up, or user was blocked off by friend.
-	res, err = tx.Exec(`
+	_, err = tx.Exec(`
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
 SELECT source_id, destination_id, state, position, update_time
 FROM (VALUES
-  ($1::BYTEA, $2::BYTEA, 2, $3::BIGINT, $3::BIGINT),
-  ($2::BYTEA, $1::BYTEA, 1, $3::BIGINT, $3::BIGINT)
+  ($1::UUID, $2::UUID, 2, $3::BIGINT, $3::BIGINT),
+  ($2::UUID, $1::UUID, 1, $3::BIGINT, $3::BIGINT)
 ) AS ue(source_id, destination_id, state, position, update_time)
-WHERE EXISTS (SELECT id FROM users WHERE id = $2::BYTEA)
-ON CONFLICT DO NOTHING
-	`, userID, friendID, timestamp)
+WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)
+ON CONFLICT (source_id, destination_id) DO NOTHING
+`, userID, friendID, timestamp)
 	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "user_edge_source_id_destination_id_key") {
+			logger.Info("Did not add new friend as friend connection already exists or user is blocked.", zap.String("user", userID.String()), zap.String("friend", friendID))
+			return false, sql.ErrNoRows
+		}
 		logger.Error("Failed to insert new friend link.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+		return false, err
+	}
+
+	// Update friend count if we've just created the relationship.
+	// This check is done by comparing the the timestamp(position) to the timestamp available.
+	// i.e. only increase count when the relationship was first formed.
+	// This is caused by an existing bug in CockroachDB: https://github.com/cockroachdb/cockroach/issues/10264
+	if res, err = tx.Exec(`
+UPDATE users
+SET edge_count = edge_count +1, update_time = $3
+WHERE
+	(id = $1::UUID OR id = $2::UUID)
+AND NOT EXISTS
+	(SELECT state
+   FROM user_edge
+   WHERE
+   	(source_id = $1 AND destination_id = $2 AND position <> $3)
+   	OR
+   	(source_id = $2 AND destination_id = $1 AND position <> $3)
+  )
+`, userID, friendID, timestamp); err != nil {
+		logger.Error("Failed to update user count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
 	}
 
 	// An invite was successfully added if both components were inserted.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
-		logger.Info("Did not add new friend as friend has blocked user.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+		logger.Info("Did not add new friend as friend connection already exists or user is blocked.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, sql.ErrNoRows
-	}
-
-	if _ , err = tx.Exec(`
-UPDATE users
-SET edge_count = edge_count +1, update_time = $3
-WHERE id = $1 OR id = $2`, userID, friendID, timestamp); err != nil {
-		logger.Error("Failed to update user count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-		return false, nil
 	}
 
 	logger.Info("Added new friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
