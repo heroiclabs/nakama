@@ -98,11 +98,7 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)
 ON CONFLICT (source_id, destination_id) DO NOTHING
 `, userID, friendID, timestamp)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "user_edge_source_id_destination_id_key") {
-			logger.Info("Did not add new friend as friend connection already exists or user is blocked.", zap.String("user", userID.String()), zap.String("friend", friendID))
-			return false, sql.ErrNoRows
-		}
-		logger.Error("Failed to insert new friend link.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+		logger.Error("Failed to insert new user edge link.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
 	}
 
