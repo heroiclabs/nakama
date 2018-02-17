@@ -87,6 +87,10 @@ func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
 
 // Returns "true" if accepting an invite, otherwise false
 func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string, timestamp int64) (bool, error) {
+	//TODO(mo, zyro, novabyte):
+	// - What's the right behaviour for adding someone that you had previously blocked?
+	// - How to unblock a friend? Delete friend or unblock api call?
+	// irrespective of above, we need to check for adding a friend that was previously blocked
 
 	// Unblock user if possible
 	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
