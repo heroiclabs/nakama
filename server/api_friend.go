@@ -24,6 +24,17 @@ import (
 	"go.uber.org/zap"
 )
 
+func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Friends, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	friends, err := GetFriends(s.logger, s.db, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to list friends.")
+	}
+
+	return friends, nil
+}
+
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
@@ -67,16 +78,90 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
-	return nil, nil
-}
-
 func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*empty.Empty, error) {
-	return nil, nil
+	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	for _, id := range in.GetIds() {
+		if userID.String() == id {
+			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
+		}
+		if _, err := uuid.FromString(id); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '" + id +"'.")
+		}
+	}
+
+	username := ctx.Value(ctxUsernameKey{}).(string)
+	for _, u := range in.GetUsernames() {
+		if username == u {
+			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
+		}
+	}
+
+	userIDs, err := fetchUserID(s.db, in.GetUsernames())
+	if err != nil {
+		s.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", in.GetUsernames()))
+		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
+	}
+
+	allIDs := make([]string, 0)
+	allIDs = append(allIDs, in.GetIds()...)
+	allIDs = append(allIDs, userIDs...)
+
+	if len(allIDs) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
+	}
+
+	if err := DeleteFriends(s.logger, s.db, userID, allIDs); err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Friends, error) {
-	return nil, nil
+func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
+	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	for _, id := range in.GetIds() {
+		if userID.String() == id {
+			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
+		}
+		if _, err := uuid.FromString(id); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '" + id +"'.")
+		}
+	}
+
+	username := ctx.Value(ctxUsernameKey{}).(string)
+	for _, u := range in.GetUsernames() {
+		if username == u {
+			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
+		}
+	}
+
+	userIDs, err := fetchUserID(s.db, in.GetUsernames())
+	if err != nil {
+		s.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", in.GetUsernames()))
+		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
+	}
+
+	allIDs := make([]string, 0)
+	allIDs = append(allIDs, in.GetIds()...)
+	allIDs = append(allIDs, userIDs...)
+
+	if len(allIDs) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
+	}
+
+	if err := BlockFriends(s.logger, s.db, userID, allIDs); err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
