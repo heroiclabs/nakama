@@ -19,8 +19,6 @@ import (
 	"database/sql"
 	"github.com/satori/go.uuid"
 	"time"
-	"github.com/lib/pq"
-	"strings"
 )
 
 func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
