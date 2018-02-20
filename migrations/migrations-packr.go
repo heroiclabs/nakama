@@ -1,0 +1,13 @@
+package migrations
+
+import "github.com/gobuffalo/packr"
+
+// !!! GENERATED FILE !!!
+// Do NOT hand edit this file!!
+// It is recommended that you DO NOT check into this file into SCM.
+// We STRONGLY recommend you delete this file after you have built your
+// Go binary. You can use the "packr clean" command to clean up this,
+// and any other packr generated files.
+func init() {
+	packr.PackJSONBytes("./sql", "20180103142001_initial_schema.sql", "\"H4sIAAAAAAAA/6RWUZObNhd996+4sw9fTD7Wdpxkmsm2mSGYTZg4OAWcdJ88MroGzYJEJbGO2+l/7wiwF2yvM233aS0dnXvv0blXjJ8P4Dm4otxJlmYappMXbyDOEAJyTwoCTqUzIdUAatycJcgVUqg4RQk6Q3BKkmS437HhK0rFBIfpaAJDA7hqt66sG0OxExUUZAdcaKgUgs6Ygg3LEfB7gqUGxiERRZkzwhOELdNZHadlGRmOu5ZDrDVhHAgkotyB2HSBQHSbdKZ1+XY83m63I1InOxIyHecNTI3nvusFkXc9HU3aA0ueo1Ig8feKSaSw3gEpy5wlZJ0j5GQLQgJJJSIFLUzCW8k046kNSmz0lkg0NJQpLdm60j299ukx1QMIDoTDlROBH13BeyfyI9uQfPPjj4tlDN+cMHSC2PciWITgLoKZH/uLIILFLTjBHXzyg5kNyHSGEvB7KU0FQgIzSiKtZYsQeylsRJOSKjFhG5ZATnhakRQhFQ8oOeMplCgLpsyNKiCcGpqcFUwTXS+d1GUCjQeD62v4f8FSSTTCshy4oefEHsTO+7kH/i0Eixi83/wojowHpILhAADgS+h/dsI7+OTdwZBRyx7Uy4xC52+59GePvwxTsJzP7RppyDgpsNn76oTuRyccvpi+scBoFsWh4wdxE3O1B6/ucQfLwP916R3RUabKnOxWDeWebvr6tdXskweiiVxVMu+Ge9y/vq7Np96Ox1qIXI0Y6k3tvkwX+XidlK9+qoFG+JUm6VHeJm2YebfOch7DM+TPGtpcJLX8fXQd1oTEUTqCq4hwuJWEJ0wlwgbXuarPalbgH4LjxbNfSOOHmBUIw2UE/wOXcEKJ1ZAUqAklmjQk7+9izzlcyCHdP/96Bu5Hz/0Ewxx5qrPh/pgFP8PL6WQysY70xoKw/MDUTQ7aC2pwJVFqKyQ9F78fco98DNkwbEiCayHuV7W3+kbpRkqFSHNctQ68gCMFJsg1SoN9Gqc0kmJPdwGXVEqL4sdxkaa4SkTFtfllvA0nNzHZa9IBv/sFTtRPJBKNK+MQo6r/oUPXMnQh704ZqpL+iKELOcPwgJJtdhcZupCmjMdCT9rXTOyW7SxZD/IU28C6GfxohK0oPrAEnxxkZvV2EXr+h6BZrQ8xakHo3XqhF7heOwtrvOnFeDFbvIVFADNv7sUeuE7kOjPvaCj2vHE6DY2FehPzHxVlHHOuJCUqmZi2sEFpotGGUihmZtK5Ug/of1PsCRtFpRmvB+B/0e+Q1NGr0pdwX1Yr3sFDB5QJtDRfROYxVUJqENI8iYKDFFvVaQu6IrpP0muJevtMR/TLfSrP+hYeWz/67MznJsiZ1jAZbyRDTocTywbGH5jG4YvDv3Q4tWxY5yK5Rzp8adlAMUez/sqygcgkYw9Ih6+tRsf24exa4uiGaqd1PwhmYssHs3Dx5dF4x6a7ubDfdNoFhLoZ/B0AAP//b4aPCtcKAAA=\"")
+	}
