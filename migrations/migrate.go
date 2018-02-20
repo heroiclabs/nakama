@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package migrations
 
 import (
 	"database/sql"
@@ -23,8 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/heroiclabs/nakama/migrations"
-
+	"github.com/gobuffalo/packr"
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 	"github.com/lib/pq"
@@ -51,11 +50,15 @@ type migrationService struct {
 	db         *sql.DB
 }
 
-func MigrationStartupCheck(logger *zap.Logger, db *sql.DB) {
+func StartupCheck(logger *zap.Logger, db *sql.DB) {
 	migrate.SetTable(migrationTable)
+
+	migrationBox := packr.NewBox("./sql") // path must be string not a variable for packr to understand
 	ms := &migrate.AssetMigrationSource{
-		Asset:    migration.Asset,
-		AssetDir: migration.AssetDir,
+		Asset: migrationBox.MustBytes,
+		AssetDir: func(path string) ([]string, error) {
+			return migrationBox.List(), nil
+		},
 	}
 
 	migrations, err := ms.FindMigrations()
@@ -76,17 +79,20 @@ func MigrationStartupCheck(logger *zap.Logger, db *sql.DB) {
 	}
 }
 
-func MigrateParse(args []string, logger *zap.Logger) {
+func Parse(args []string, logger *zap.Logger) {
 	if len(args) == 0 {
 		logger.Fatal("Migrate requires a subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}
 
 	migrate.SetTable(migrationTable)
+	migrationBox := packr.NewBox("./sql") // path must be string not a variable for packr to understand
 	ms := &migrationService{
 		logger: logger,
 		migrations: &migrate.AssetMigrationSource{
-			Asset:    migration.Asset,
-			AssetDir: migration.AssetDir,
+			Asset: migrationBox.MustBytes,
+			AssetDir: func(path string) ([]string, error) {
+				return migrationBox.List(), nil
+			},
 		},
 	}
 
