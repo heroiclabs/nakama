@@ -6,6 +6,7 @@ Install toolchain:
 go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
+go get -u github.com/gobuffalo/packr/...
 ```
 
 Build:
@@ -15,7 +16,7 @@ protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecos
  
 protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:. ./api/api.proto
 
-go-bindata -pkg migration -prefix migrations -o migrations/embedded.go -ignore=embedded.go migrations/...
+packr -z
 
 go build -i
 
