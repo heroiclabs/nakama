@@ -13,6 +13,11 @@
   revision = "c95af922eae69f190717a0b7148960af8c55a072"
 
 [[projects]]
+  name = "github.com/gobuffalo/packr"
+  packages = ["."]
+  revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
+
+[[projects]]
   name = "github.com/golang/protobuf"
   packages = [
     "jsonpb",
@@ -77,6 +82,12 @@
   revision = "83612a56d3dd153a94a629cd64925371c9adad78"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
   name = "github.com/rubenv/sql-migrate"
   packages = [
     ".",
@@ -109,8 +120,7 @@
     "stats",
     "tag",
     "trace",
-    "trace/propagation",
-    "zpages"
+    "trace/propagation"
   ]
   revision = "7e6c5d736280267bc85cfd63b23507c4889ef82e"
   version = "v0.2.0"
@@ -141,7 +151,6 @@
   version = "v1.7.1"
 
 [[projects]]
-  branch = "master"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
@@ -232,6 +241,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3dca4cdde39b8789a533da94987c9dac078157b93a881077b085310068091603"
+  inputs-digest = "5d773d2802af4225a763597cd5656ef5fa212adb45f7e4cf3e46b3bc134947b7"
   solver-name = "gps-cdcl"
   solver-version = 1

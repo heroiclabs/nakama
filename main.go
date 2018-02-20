@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,14 +23,18 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	"database/sql"
-	"github.com/heroiclabs/nakama/cmd"
-	"github.com/heroiclabs/nakama/server"
 	"net/url"
 
-	_ "github.com/lib/pq"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/heroiclabs/nakama/migrations"
+	"github.com/heroiclabs/nakama/server"
+
 	"math/rand"
+
+	"github.com/golang/protobuf/jsonpb"
+	_ "github.com/lib/pq"
 )
 
 var (
@@ -55,7 +58,7 @@ func main() {
 			fmt.Println(semver)
 			return
 		case "migrate":
-			cmd.MigrateParse(os.Args[2:], cmdLogger)
+			migrations.Parse(os.Args[2:], cmdLogger)
 		}
 	}
 
@@ -71,7 +74,7 @@ func main() {
 	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and log if the schema has diverged.
-	cmd.MigrationStartupCheck(multiLogger, db)
+	migrations.StartupCheck(multiLogger, db)
 
 	// Shared utility components.
 	jsonpbMarshaler := &jsonpb.Marshaler{

@@ -48,7 +48,12 @@
 
 [[constraint]]
   name = "golang.org/x/crypto"
+  revision = "1875d0a70c90e57f11972aefd42276df65e895b9"
 
 [[constraint]]
   name = "go.opencensus.io"
   version = "0.2.0"
+
+[[constraint]]
+  name = "github.com/gobuffalo/packr"
+  revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
