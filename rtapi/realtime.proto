@@ -31,9 +31,7 @@ option csharp_namespace = "Nakama";
 
 option objc_class_prefix = "NKPB";
 
-/**
- * An envelope for a realtime message.
- */
+// An envelope for a realtime message.
 message Envelope {
   string cid = 1;
   oneof message {
@@ -45,12 +43,12 @@ message Envelope {
     StreamData stream_data = 4;
     // Represents a presence update for a particular stream.
     StreamPresenceEvent stream_presence_event = 5;
+    // Notifications send by the server.
+    Notifications notifications = 6;
   }
 }
 
-/**
- * A logical error which may occur on the server.
- */
+// A logical error which may occur on the server.
 message Error {
   // The selection of possible error codes.
   enum Code {
@@ -78,9 +76,13 @@ message Error {
   map<string, string> context = 3;
 }
 
-/**
- * Represents identifying information for a stream.
- */
+// A collection of zero or more notifications.
+message Notifications {
+  // Collection of notifications.
+  repeated api.Notification notifications = 1;
+}
+
+// Represents identifying information for a stream.
 message Stream {
   // Mode identifies the type of stream.
   int32 mode = 1;
@@ -92,9 +94,7 @@ message Stream {
   string label = 4;
 }
 
-/**
- * A data message delivered over a stream.
- */
+// A data message delivered over a stream.
 message StreamData {
   // The stream this data message relates to.
   Stream stream = 1;
@@ -104,9 +104,7 @@ message StreamData {
   string data = 3;
 }
 
-/**
- * A user session associated to a stream, usually through a list operation or a join/leave event.
- */
+// A user session associated to a stream, usually through a list operation or a join/leave event.
 message StreamPresence {
   // The user this presence belongs to.
   string user_id = 1;
@@ -120,9 +118,7 @@ message StreamPresence {
   string status = 5;
 }
 
-/**
- * A set of joins and leaves on a particular stream.
- */
+// A set of joins and leaves on a particular stream.
 message StreamPresenceEvent {
   // The stream this event relates to.
   Stream stream = 1;

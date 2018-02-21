@@ -763,6 +763,55 @@
         ]
       }
     },
+    "/v2/notification": {
+      "get": {
+        "summary": "Fetch list of notifications.",
+        "operationId": "ListNotifications",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiNotificationList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Max number of notifications to list. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "cacheable_cursor",
+            "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "delete": {
+        "summary": "Delete one or more users by ID or username.",
+        "operationId": "DeleteNotifications",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/rpc/{id}": {
       "get": {
         "summary": "Execute a Lua function on the server.",
@@ -1152,6 +1201,60 @@
         }
       },
       "description": "A collection of zero or more groups."
+    },
+    "apiNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the Notification."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the notification."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content of the notification in JSON."
+        },
+        "code": {
+          "type": "string",
+          "format": "int64",
+          "description": "Category code for this notification."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "ID of the sender, if a user. Otherwise 'null'."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the notification was created."
+        },
+        "persistent": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if this notification was persisted to the database."
+        }
+      },
+      "description": "A notification in the server."
+    },
+    "apiNotificationList": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiNotification"
+          },
+          "description": "Collection of notifications."
+        },
+        "cacheable_cursor": {
+          "type": "string",
+          "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications."
+        }
+      },
+      "description": "A collection of zero or more notifications."
     },
     "apiRpc": {
       "type": "object",
