@@ -785,8 +785,8 @@
             "format": "int64"
           },
           {
-            "name": "cachable_cursor",
-            "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cachable_cursor.",
+            "name": "cacheable_cursor",
+            "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1249,7 +1249,7 @@
           },
           "description": "Collection of notifications."
         },
-        "cachable_cursor": {
+        "cacheable_cursor": {
           "type": "string",
           "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications."
         }

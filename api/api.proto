@@ -643,8 +643,8 @@ message LinkFacebookRequest {
 message ListNotificationsRequest {
   // Max number of notifications to list. Between 1 and 100.
   int64 limit = 1;
-  // Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cachable_cursor.
-  string cachable_cursor = 2;
+  // Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.
+  string cacheable_cursor = 2;
 }
 
 // A notification in the server.
@@ -670,7 +670,7 @@ message NotificationList {
   // Collection of notifications.
   repeated Notification notifications = 1;
   // Use this cursor to paginate notifications. Cache this to catch up to new notifications.
-  string cachable_cursor = 2;
+  string cacheable_cursor = 2;
 }
 
 // Execute an Lua function on the server.
