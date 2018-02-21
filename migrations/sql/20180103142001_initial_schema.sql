@@ -63,7 +63,22 @@ CREATE TABLE IF NOT EXISTS user_edge (
     UNIQUE (source_id, destination_id)
 );
 
+CREATE TABLE IF NOT EXISTS notification (
+    PRIMARY KEY (id),
+    id              UUID            NOT NULL,
+    user_id         UUID            NOT NULL,
+    subject         VARCHAR(255)    NOT NULL,
+    content         BYTEA           DEFAULT '{}' CHECK (length(content) < 16000) NOT NULL,
+    code            SMALLINT        NOT NULL,      -- Negative values are System reserved.
+    sender_id       UUID,                          -- NULL for System messages
+    create_time     BIGINT          CHECK (create_time > 0) NOT NULL,
+);
+
+-- list notifications for a user that are not deleted or expired, starting from a given ID (cursor).
+CREATE INDEX IF NOT EXISTS notification_user_id_id_idx ON notification (user_id, id);
+
 -- +migrate Down
+DROP TABLE IF EXISTS notification;
 DROP TABLE IF EXISTS user_edge;
 DROP TABLE IF EXISTS user_device;
 DROP TABLE IF EXISTS users;
