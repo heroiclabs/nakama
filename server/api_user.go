@@ -159,7 +159,7 @@ func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
 		return ids, nil
 	}
 
-	statements := make([]string, 0)
+	statements := make([]string, 0, len(usernames))
 	params := make([]interface{}, 0)
 	counter := 1
 	for _, username := range usernames {

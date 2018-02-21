@@ -63,13 +63,13 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 
-	allIDs := make([]string, 0)
-	allIDs = append(allIDs, in.GetIds()...)
-	allIDs = append(allIDs, userIDs...)
-
-	if len(allIDs) == 0 {
+	if len(userIDs) + len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
+
+	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs = append(allIDs, in.GetIds()...)
+	allIDs = append(allIDs, userIDs...)
 
 	if err := AddFriends(s.logger, s.db, userID, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
@@ -106,13 +106,13 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
 	}
 
-	allIDs := make([]string, 0)
-	allIDs = append(allIDs, in.GetIds()...)
-	allIDs = append(allIDs, userIDs...)
-
-	if len(allIDs) == 0 {
+	if len(userIDs) + len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
+
+	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs = append(allIDs, in.GetIds()...)
+	allIDs = append(allIDs, userIDs...)
 
 	if err := DeleteFriends(s.logger, s.db, userID, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
@@ -149,13 +149,13 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
 	}
 
-	allIDs := make([]string, 0)
-	allIDs = append(allIDs, in.GetIds()...)
-	allIDs = append(allIDs, userIDs...)
-
-	if len(allIDs) == 0 {
+	if len(userIDs) + len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
+
+	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs = append(allIDs, in.GetIds()...)
+	allIDs = append(allIDs, userIDs...)
 
 	if err := BlockFriends(s.logger, s.db, userID, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
