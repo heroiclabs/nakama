@@ -15,12 +15,13 @@
 package server
 
 import (
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/satori/go.uuid"
-	"github.com/heroiclabs/nakama/api"
 	"database/sql"
 	"strconv"
 	"strings"
+
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -157,7 +158,7 @@ func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
 		counter++
 	}
 
-	query := "SELECT id FROM users WHERE username IN ("+ strings.Join(statements, ", ") + ")"
+	query := "SELECT id FROM users WHERE username IN (" + strings.Join(statements, ", ") + ")"
 	rows, err := db.Query(query, params...)
 	if err != nil {
 		return nil, err

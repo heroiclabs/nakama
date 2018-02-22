@@ -15,15 +15,16 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
-	"go.uber.org/zap"
 	"strings"
+
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
+	"github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/yuin/gopher-lua"
-	"github.com/satori/go.uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) {

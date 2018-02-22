@@ -15,17 +15,18 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
+	"database/sql"
+	"strings"
+	"time"
+
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/lib/pq"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"go.uber.org/zap"
-	"time"
-	"database/sql"
-	"github.com/lib/pq"
-	"golang.org/x/crypto/bcrypt"
-	"strings"
 )
 
 func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
@@ -33,9 +34,9 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	if customID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(customID) {
-		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, no spaces or control characters allowed.")
+		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, no spaces or control characters allowed.")
 	} else if len(customID) < 10 || len(customID) > 128 {
-		return nil, status.Error(codes.InvalidArgument,  "Invalid custom ID, must be 10-128 bytes.")
+		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, must be 10-128 bytes.")
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
@@ -67,12 +68,12 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	if deviceID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
 	} else if invalidCharsRegex.MatchString(deviceID) {
-		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, no spaces or control characters allowed.")
+		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, no spaces or control characters allowed.")
 	} else if len(deviceID) < 10 || len(deviceID) > 128 {
-		return nil, status.Error(codes.InvalidArgument,  "Device ID invalid, must be 10-128 bytes.")
+		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
 	}
 
-	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
+	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
 

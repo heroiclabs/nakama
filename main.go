@@ -15,31 +15,38 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
-
-	"database/sql"
-	"net/url"
-
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/migrations"
 	"github.com/heroiclabs/nakama/server"
-
-	"math/rand"
-
-	"github.com/golang/protobuf/jsonpb"
 	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 )
 
 var (
 	version  string = "2.0.0"
 	commitID string = "dev"
+
+	// Shared utility components.
+	jsonpbMarshaler = &jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+		Indent:       "",
+		OrigName:     false,
+	}
+	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
 )
 
 func main() {
@@ -76,17 +83,6 @@ func main() {
 	// Check migration status and log if the schema has diverged.
 	migrations.StartupCheck(multiLogger, db)
 
-	// Shared utility components.
-	jsonpbMarshaler := &jsonpb.Marshaler{
-		EnumsAsInts:  true,
-		EmitDefaults: false,
-		Indent:       "",
-		OrigName:     false,
-	}
-	jsonpbUnmarshaler := &jsonpb.Unmarshaler{
-		AllowUnknownFields: false,
-	}
-
 	// Start up server components.
 	registry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
@@ -96,7 +92,7 @@ func main() {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, config, registry, tracker, pipeline, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, registry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)

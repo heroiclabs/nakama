@@ -15,17 +15,18 @@
 package server
 
 import (
-	"github.com/satori/go.uuid"
-	"github.com/heroiclabs/nakama/api"
-	"go.uber.org/zap"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"database/sql"
-	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/lib/pq"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 func GetAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID) (*api.Account, error) {
@@ -114,7 +115,7 @@ WHERE id = $1`
 }
 
 func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username string,
-		displayName, timezone, location, langTag, avatarURL *wrappers.StringValue) error {
+	displayName, timezone, location, langTag, avatarURL *wrappers.StringValue) error {
 
 	index := 1
 	statements := make([]string, 0)
@@ -196,7 +197,7 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 			zap.Any("timezone", timezone.GetValue()),
 			zap.Any("location", location.GetValue()),
 			zap.Any("lang_tag", langTag.GetValue()),
-			zap.Any("avatar_url", avatarURL.GetValue())	)
+			zap.Any("avatar_url", avatarURL.GetValue()))
 		return err
 	}
 
