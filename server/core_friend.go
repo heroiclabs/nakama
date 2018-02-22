@@ -109,9 +109,9 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 	notifications := make(map[uuid.UUID]*api.Notification)
 	for id, isFriendAccept := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
+		content, _ := json.Marshal(map[string]interface{}{"username": username})
 		code := NOTIFICATION_FRIEND_REQUEST
 		subject := fmt.Sprintf("%v wants to add you as a friend", username)
-		content, _ := json.Marshal(map[string]interface{}{"username": username})
 		if isFriendAccept {
 			code = NOTIFICATION_FRIEND_ACCEPT
 			subject = fmt.Sprintf("%v accepted your friend request", username)
@@ -121,6 +121,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 			Subject:    subject,
 			Content:    string(content),
 			SenderId:   userID.String(),
+			Code:       code,
 			Persistent: true,
 			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
 		}
@@ -131,31 +132,18 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 
 // Returns "true" if accepting an invite, otherwise false
 func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string, timestamp int64) (bool, error) {
-	//TODO(mo, zyro, novabyte):
-	// - What's the right behaviour for adding someone that you had previously blocked?
-	// - How to unblock a friend? Delete friend or unblock api call?
-	// irrespective of above, we need to check for adding a friend that was previously blocked
-
-	// Unblock user if possible
-	res, err := tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
-	if err != nil {
-		logger.Error("Failed to delete from user edge to unblock user.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+	// Check to see if user has already blocked friend, if so ignore.
+	if _, err := tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID); err != nil {
+		if err == sql.ErrNoRows {
+			logger.Debug("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
+			return false, sql.ErrNoRows
+		}
+		logger.Error("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
 	}
 
-	// Update user count after unblocking a user
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 1 {
-		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = $2 WHERE id = $1", userID, timestamp); err != nil {
-			logger.Error("Failed to update user count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-			return false, err
-		}
-
-		logger.Debug("Unblocked user.", zap.String("user", userID.String()), zap.String("friend", friendID))
-		return false, sql.ErrNoRows
-	}
-
 	// Mark an invite as accepted, if one was in place.
-	res, err = tx.Exec(`
+	res, err := tx.Exec(`
 UPDATE user_edge SET state = 0, update_time = $3
 WHERE (source_id = $1 AND destination_id = $2 AND state = 2)
 OR (source_id = $2 AND destination_id = $1 AND state = 1)
@@ -241,25 +229,28 @@ func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []
 }
 
 func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string, timestamp int64) error {
-	res, err := tx.Exec("DELETE FROM user_edge WHERE (source_id = $1 AND destination_id = $2) OR (source_id = $2 AND destination_id = $1)", userID, friendID)
+	res, err := tx.Exec("DELETE FROM user_edge WHERE (source_id = $1 AND destination_id = $2) OR (source_id = $2 AND destination_id = $1 AND state <> 3)", userID, friendID)
 	if err != nil {
 		logger.Error("Failed to delete user edge relationships.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return err
 	}
 
-	rowsAffected, _ := res.RowsAffected()
-
-	if rowsAffected == 0 {
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 		logger.Debug("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return nil
-	} else if rowsAffected != 2 {
+	} else if rowsAffected == 1 {
+		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = $3 WHERE id = $1::UUID", userID, timestamp); err != nil {
+			logger.Error("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+			return err
+		}
+	} else if rowsAffected == 2 {
+		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = $3 WHERE id IN ($1, $2)", userID, friendID, timestamp); err != nil {
+			logger.Error("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
+			return err
+		}
+	} else {
 		logger.Error("Unexpected number of edges were deleted.", zap.String("user", userID.String()), zap.String("friend", friendID), zap.Int64("rows_affected", rowsAffected))
 		return errors.New("unexpected number of edges were deleted")
-	}
-
-	if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = $3 WHERE id IN ($1, $2)", userID, friendID, timestamp); err != nil {
-		logger.Error("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-		return err
 	}
 
 	return nil
