@@ -41,6 +41,8 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	username := ctx.Value(ctxUsernameKey{}).(string)
+
 	for _, id := range in.GetIds() {
 		if userID.String() == id {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
@@ -50,7 +52,6 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		}
 	}
 
-	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
@@ -71,7 +72,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
-	if err := AddFriends(s.logger, s.db, userID, allIDs); err != nil {
+	if err := AddFriends(s.logger, s.db, userID, username, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 

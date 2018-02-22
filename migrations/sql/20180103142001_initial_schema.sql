@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS notification (
     content         BYTEA           DEFAULT '{}' CHECK (length(content) < 16000) NOT NULL,
     code            SMALLINT        NOT NULL,      -- Negative values are System reserved.
     sender_id       UUID,                          -- NULL for System messages
-    create_time     BIGINT          CHECK (create_time > 0) NOT NULL,
+    create_time     BIGINT          CHECK (create_time > 0) NOT NULL
 );
 
 -- list notifications for a user that are not deleted or expired, starting from a given ID (cursor).

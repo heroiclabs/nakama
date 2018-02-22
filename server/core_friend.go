@@ -16,7 +16,10 @@ package server
 
 import (
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -86,12 +89,12 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.Friends{Friends: friends}, nil
 }
 
-func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, friendIDs []string) error {
 	ts := time.Now().UTC().Unix()
 	notificationToSend := make(map[string]bool)
 	if err := Transact(logger, db, func(tx *sql.Tx) error {
-		for _, id := range ids {
-			isFriendAccept, addFriendErr := addFriend(logger, tx, currentUser, id, ts)
+		for _, id := range friendIDs {
+			isFriendAccept, addFriendErr := addFriend(logger, tx, userID, id, ts)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
 			} else if addFriendErr != sql.ErrNoRows { // Check to see if friend had blocked user.
@@ -103,7 +106,26 @@ func AddFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []str
 		return err
 	}
 
-	// TODO(mo, zyro): Use notificationToSend to send notification here.
+	notifications := make(map[uuid.UUID]*api.Notification)
+	for id, isFriendAccept := range notificationToSend {
+		uid := uuid.FromStringOrNil(id)
+		code := NOTIFICATION_FRIEND_REQUEST
+		subject := fmt.Sprintf("%v wants to add you as a friend", username)
+		content, _ := json.Marshal(map[string]interface{}{"username": username})
+		if isFriendAccept {
+			code = NOTIFICATION_FRIEND_ACCEPT
+			subject = fmt.Sprintf("%v accepted your friend request", username)
+		}
+		notifications[uid] = &api.Notification{
+			Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
+			Subject:    subject,
+			Content:    string(content),
+			SenderId:   userID.String(),
+			Persistent: true,
+			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+		}
+	}
+
 	return nil
 }
 

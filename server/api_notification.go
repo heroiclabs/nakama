@@ -19,12 +19,34 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, nil
+func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificationsRequest) (*api.NotificationList, error) {
+	if in.GetLimit() < 1 || in.GetLimit() > 100 {
+		return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	notificationList, err := NotificationList(s.logger, s.db, userID, in.GetLimit(), in.GetCacheableCursor())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
+	}
+
+	return notificationList, nil
 }
 
-func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificationsRequest) (*api.NotificationList, error) {
-	return nil, nil
+func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest) (*empty.Empty, error) {
+	if len(in.GetIds()) == 1 {
+		return nil, status.Error(codes.InvalidArgument, "There must be at least one notification ID to delete.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	if err := NotificationDelete(s.logger, s.db, userID, in.GetIds()); err != nil {
+		return nil, status.Error(codes.Internal, "Error while deleting notifications.")
+	}
+
+	return &empty.Empty{}, nil
 }

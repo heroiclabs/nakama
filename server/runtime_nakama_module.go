@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -36,7 +37,9 @@ import (
 	"crypto/rand"
 	"sync"
 
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorhill/cronexpr"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
@@ -114,6 +117,8 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
 		"register_rpc":                n.registerRPC,
+		"notification_send":           n.notificationSend,
+		"notifications_send":          n.notificationsSend,
 		// "run_once":             n.runOnce,
 	})
 
@@ -1226,6 +1231,200 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 	if n.announceRPC != nil {
 		n.announceRPC(id)
 	}
+	return 0
+}
+
+func (n *NakamaModule) notificationSend(l *lua.LState) int {
+	notificationsTable := l.CheckTable(1)
+	if notificationsTable == nil {
+		l.ArgError(1, "expects a valid set of notifications")
+		return 0
+	}
+
+	u := l.CheckString(1)
+	uid, err := uuid.FromString(u)
+	if err != nil {
+		l.ArgError(1, "expects UserID to be a valid UUID")
+		return 0
+	}
+	userID := uid
+
+	subject := l.CheckString(2)
+	if subject == "" {
+		l.ArgError(2, "expects Subject to be non-empty")
+		return 0
+	}
+
+	contentMap := ConvertLuaTable(l.CheckTable(3))
+	contentBytes, err := json.Marshal(contentMap)
+	if err != nil {
+		l.ArgError(1, fmt.Sprintf("failed to convert content: %s", err.Error()))
+		return 0
+	}
+	content := string(contentBytes)
+
+	code := l.CheckInt64(4)
+	if code <= 0 {
+		l.ArgError(4, "expects Code to number above 0")
+		return 0
+	}
+
+	s := l.OptString(5, "")
+	senderID := ""
+	if s != "" {
+		suid, err := uuid.FromString(s)
+		if err != nil {
+			l.ArgError(5, "expects senderID to either be not set, empty string or a valid UUID")
+			return 0
+		}
+		senderID = suid.String()
+	}
+
+	persistent := l.OptBool(6, false)
+
+	notifications := map[uuid.UUID]*api.Notification{
+		userID: {
+			Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
+			Subject:    subject,
+			Content:    content,
+			Code:       code,
+			SenderId:   senderID,
+			Persistent: persistent,
+			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+		},
+	}
+
+	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
+	return 0
+}
+
+func (n *NakamaModule) notificationsSend(l *lua.LState) int {
+	notificationsTable := l.CheckTable(1)
+	if notificationsTable == nil {
+		l.ArgError(1, "expects a valid set of notifications")
+		return 0
+	}
+
+	conversionError := false
+	notifications := make(map[uuid.UUID]*api.Notification)
+	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		notificationTable, ok := g.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of notifications")
+			return
+		}
+
+		notification := &api.Notification{}
+		userID := uuid.Nil
+		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			switch k.String() {
+			case "Persistent":
+				if v.Type() != lua.LTBool {
+					conversionError = true
+					l.ArgError(1, "expects Persistent to be boolean")
+					return
+				}
+				notification.Persistent = lua.LVAsBool(v)
+			case "Subject":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Subject to be string")
+					return
+				}
+				notification.Subject = v.String()
+			case "Content":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(1, "expects Content to be a table")
+					return
+				}
+
+				contentMap := ConvertLuaTable(v.(*lua.LTable))
+				contentBytes, err := json.Marshal(contentMap)
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, fmt.Sprintf("failed to convert content: %s", err.Error()))
+					return
+				}
+
+				notification.Content = string(contentBytes)
+			case "Code":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects Code to be number")
+					return
+				}
+				number := int64(lua.LVAsNumber(v))
+				if number <= 0 {
+					l.ArgError(1, "expects Code to number above 0")
+					return
+				}
+				notification.Code = int64(number)
+			case "UserId":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects UserId to be string")
+					return
+				}
+				u := v.String()
+				if u == "" {
+					l.ArgError(1, "expects UserId to be a valid UUID")
+					return
+				}
+				uid, err := uuid.FromString(u)
+				if err != nil {
+					l.ArgError(1, "expects UserId to be a valid UUID")
+					return
+				}
+				userID = uid
+			case "SenderId":
+				if v.Type() == lua.LTNil {
+					return
+				}
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects SenderId to be string")
+					return
+				}
+				u := v.String()
+				if u == "" {
+					l.ArgError(1, "expects SenderId to be a valid UUID")
+					return
+				}
+				notification.SenderId = u
+			}
+		})
+
+		if notification.Subject == "" {
+			l.ArgError(1, "expects Subject to be non-empty")
+			return
+		} else if len(notification.Content) == 0 {
+			l.ArgError(1, "expects Content to be a valid JSON")
+			return
+		} else if uuid.Equal(uuid.Nil, userID) {
+			l.ArgError(1, "expects UserId to be a valid UUID")
+			return
+		} else if notification.Code == 0 {
+			l.ArgError(1, "expects Code to number above 0")
+			return
+		}
+
+		notification.Id = base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes())
+		notifications[userID] = notification
+	})
+
+	if conversionError {
+		return 0
+	}
+
+	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
 	return 0
 }
 

@@ -1,23 +1,24 @@
 package tests
 
 import (
-	"github.com/heroiclabs/nakama/server"
-	"os"
-	"go.uber.org/zap"
-	"io/ioutil"
-	"path/filepath"
-	"testing"
 	"errors"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"testing"
+
+	"github.com/heroiclabs/nakama/server"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	tempDir, _ = ioutil.TempDir("", "nakama")
-	luaPath = filepath.Join(tempDir, "modules")
-	config = server.NewConfig()
-	logger = server.NewConsoleLogger(os.Stdout, true)
+	luaPath    = filepath.Join(tempDir, "modules")
+	config     = server.NewConfig()
+	logger     = server.NewConsoleLogger(os.Stdout, true)
 )
 
 func vm(t *testing.T) *server.RuntimePool {
@@ -205,7 +206,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	defer r.Stop()
 
 	pipeline := server.NewPipeline(config, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, nil, config, nil, nil, pipeline, rp, nil, nil)
+	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
