@@ -51,11 +51,13 @@ type ApiServer struct {
 	db                *sql.DB
 	config            Config
 	runtimePool       *RuntimePool
+	tracker           Tracker
+	router            MessageRouter
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, pipeline *pipeline, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) *ApiServer {
+func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(ocgrpc.NewServerStatsHandler()),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
@@ -66,6 +68,8 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, config Config, registry *Ses
 		db:          db,
 		config:      config,
 		runtimePool: runtimePool,
+		tracker:     tracker,
+		router:      router,
 		grpcServer:  grpcServer,
 	}
 

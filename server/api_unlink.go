@@ -15,15 +15,16 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/golang/protobuf/ptypes/empty"
-	"go.uber.org/zap"
-	"time"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"database/sql"
 	"strings"
+	"time"
+
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
@@ -53,7 +54,7 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
-	fnErr := Transact(s.logger, s.db, func (tx *sql.Tx) error {
+	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
 
@@ -67,7 +68,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
      OR custom_id IS NOT NULL))
    OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
 
-    res, err := tx.Exec(query, userID, in.Id)
+		res, err := tx.Exec(query, userID, in.Id)
 		if err != nil {
 			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Could not unlink Device ID.")

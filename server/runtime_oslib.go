@@ -23,9 +23,10 @@
 package server
 
 import (
-	"github.com/yuin/gopher-lua"
 	"strings"
 	"time"
+
+	"github.com/yuin/gopher-lua"
 )
 
 var startedAt time.Time

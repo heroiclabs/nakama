@@ -15,10 +15,11 @@
 package server
 
 import (
-	"go.uber.org/zap"
 	"sync"
-	"github.com/satori/go.uuid"
+
 	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 type SessionFormat uint8
