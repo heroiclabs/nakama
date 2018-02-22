@@ -15,11 +15,12 @@
 package server
 
 import (
-	"github.com/satori/go.uuid"
 	"sync"
-	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
+
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 )
 
 const (
@@ -476,11 +477,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	streamLeaves := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
 	for _, p := range e.joins {
 		pWire := &rtapi.StreamPresence{
-			UserId: p.UserID.String(),
-			SessionId: p.ID.SessionID.String(),
-			Username: p.Meta.Username,
+			UserId:      p.UserID.String(),
+			SessionId:   p.ID.SessionID.String(),
+			Username:    p.Meta.Username,
 			Persistence: p.Meta.Persistence,
-			Status: p.Meta.Status,
+			Status:      p.Meta.Status,
 		}
 		if j, ok := streamJoins[p.Stream]; ok {
 			streamJoins[p.Stream] = append(j, pWire)
@@ -490,11 +491,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	}
 	for _, p := range e.leaves {
 		pWire := &rtapi.StreamPresence{
-			UserId: p.UserID.String(),
-			SessionId: p.ID.SessionID.String(),
-			Username: p.Meta.Username,
+			UserId:      p.UserID.String(),
+			SessionId:   p.ID.SessionID.String(),
+			Username:    p.Meta.Username,
 			Persistence: p.Meta.Persistence,
-			Status: p.Meta.Status,
+			Status:      p.Meta.Status,
 		}
 		if j, ok := streamLeaves[p.Stream]; ok {
 			streamLeaves[p.Stream] = append(j, pWire)
@@ -512,7 +513,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 		// Construct the wire representation of the stream.
 		streamWire := &rtapi.Stream{
-			Mode: int32(stream.Mode),
+			Mode:  int32(stream.Mode),
 			Label: stream.Label,
 		}
 		if stream.Subject != uuid.Nil {
@@ -524,10 +525,10 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 		// Construct the wire representation of the event.
 		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
-				Stream: streamWire,
-				Joins: joins,
-				Leaves: leaves,
-			},
+			Stream: streamWire,
+			Joins:  joins,
+			Leaves: leaves,
+		},
 		}}
 		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
 		if err != nil {
@@ -552,7 +553,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	for stream, leaves := range streamLeaves {
 		// Construct the wire representation of the stream.
 		streamWire := &rtapi.Stream{
-			Mode: int32(stream.Mode),
+			Mode:  int32(stream.Mode),
 			Label: stream.Label,
 		}
 		if stream.Subject != uuid.Nil {
@@ -564,10 +565,10 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 		// Construct the wire representation of the event.
 		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
-				Stream: streamWire,
-				// No joins.
-				Leaves: leaves,
-			},
+			Stream: streamWire,
+			// No joins.
+			Leaves: leaves,
+		},
 		}}
 		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
 		if err != nil {

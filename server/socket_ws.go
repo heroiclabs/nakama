@@ -16,10 +16,11 @@ package server
 
 import (
 	"net/http"
-	"go.uber.org/zap"
-	"github.com/gorilla/websocket"
+
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/gorilla/websocket"
 	"github.com/heroiclabs/nakama/rtapi"
+	"go.uber.org/zap"
 )
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {

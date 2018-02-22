@@ -13,18 +13,3 @@
 // limitations under the License.
 
 package server
-
-import (
-	"context"
-
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/heroiclabs/nakama/api"
-)
-
-func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, nil
-}
-
-func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificationsRequest) (*api.NotificationList, error) {
-	return nil, nil
-}

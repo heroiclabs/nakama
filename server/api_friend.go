@@ -15,13 +15,13 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
 	"github.com/golang/protobuf/ptypes/empty"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Friends, error) {
@@ -46,7 +46,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
 		}
 		if _, err := uuid.FromString(id); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '" + id +"'.")
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
@@ -63,11 +63,11 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 
-	if len(userIDs) + len(in.GetIds()) == 0 {
+	if len(userIDs)+len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
 
-	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs := make([]string, 0, len(in.GetIds())+len(userIDs))
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
@@ -89,7 +89,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
 		}
 		if _, err := uuid.FromString(id); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '" + id +"'.")
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
@@ -106,11 +106,11 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
 	}
 
-	if len(userIDs) + len(in.GetIds()) == 0 {
+	if len(userIDs)+len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
 
-	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs := make([]string, 0, len(in.GetIds())+len(userIDs))
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
@@ -132,7 +132,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
 		}
 		if _, err := uuid.FromString(id); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '" + id +"'.")
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
@@ -149,11 +149,11 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
 	}
 
-	if len(userIDs) + len(in.GetIds()) == 0 {
+	if len(userIDs)+len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
 	}
 
-	allIDs := make([]string, 0, len(in.GetIds()) + len(userIDs))
+	allIDs := make([]string, 0, len(in.GetIds())+len(userIDs))
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
