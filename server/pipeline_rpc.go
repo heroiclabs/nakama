@@ -17,18 +17,18 @@ package server
 import (
 	"strings"
 
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code: int32(rtapi.Error_BAD_INPUT),
+			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "RPC ID must be set",
 		}}})
 		return
@@ -38,7 +38,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 
 	if !p.runtimePool.HasRPC(id) {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code: int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
+			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
 			Message: "RPC function not found",
 		}}})
 		return
@@ -49,7 +49,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 	if lf == nil {
 		p.runtimePool.Put(runtime)
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code: int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
+			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
 			Message: "RPC function not found",
 		}}})
 		return
@@ -71,12 +71,12 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 				}
 			}
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code: int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
+				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 				Message: msg,
 			}}})
 		} else {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code: int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
+				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 				Message: fnErr.Error(),
 			}}})
 		}
@@ -84,7 +84,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
-		Id: rpcMessage.Id,
+		Id:      rpcMessage.Id,
 		Payload: &wrappers.StringValue{Value: result},
 	}}})
 }

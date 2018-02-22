@@ -16,8 +16,9 @@ package server
 
 import (
 	"database/sql"
-	"go.uber.org/zap"
+
 	"github.com/heroiclabs/nakama/rtapi"
+	"go.uber.org/zap"
 )
 
 type pipeline struct {
@@ -46,7 +47,7 @@ func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope 
 		p.rpc(logger, session, envelope)
 	default:
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code: int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 			Message: "Unrecognized payload",
 		}}})
 		return

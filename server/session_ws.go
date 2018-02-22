@@ -15,41 +15,42 @@
 package server
 
 import (
-	"go.uber.org/zap"
-	"sync"
-	"go.uber.org/atomic"
-	"github.com/gorilla/websocket"
-	"time"
-	"github.com/satori/go.uuid"
 	"bytes"
-	"github.com/golang/protobuf/jsonpb"
 	"errors"
-	"github.com/heroiclabs/nakama/rtapi"
 	"fmt"
+	"sync"
+	"time"
+
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/gorilla/websocket"
+	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/satori/go.uuid"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 var ErrQueueFull = errors.New("outgoing queue full")
 
 type sessionWS struct {
 	sync.Mutex
-	logger            *zap.Logger
-	config            Config
-	id                uuid.UUID
-	userID            uuid.UUID
-	username          *atomic.String
-	expiry            int64
+	logger   *zap.Logger
+	config   Config
+	id       uuid.UUID
+	userID   uuid.UUID
+	username *atomic.String
+	expiry   int64
 
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 
-	registry          *SessionRegistry
-	tracker           Tracker
+	registry *SessionRegistry
+	tracker  Tracker
 
-	stopped           bool
-	conn              *websocket.Conn
-	pingTicker        *time.Ticker
-	outgoingCh        chan []byte
-	outgoingStopCh    chan struct{}
+	stopped        bool
+	conn           *websocket.Conn
+	pingTicker     *time.Ticker
+	outgoingCh     chan []byte
+	outgoingStopCh chan struct{}
 }
 
 func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, registry *SessionRegistry, tracker Tracker) session {
@@ -59,24 +60,24 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 	sessionLogger.Debug("New WebSocket session connected")
 
 	return &sessionWS{
-		logger:            sessionLogger,
-		config:            config,
-		id:                sessionID,
-		userID:            userID,
-		username:          atomic.NewString(username),
-		expiry:            expiry,
+		logger:   sessionLogger,
+		config:   config,
+		id:       sessionID,
+		userID:   userID,
+		username: atomic.NewString(username),
+		expiry:   expiry,
 
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 
-		registry:          registry,
-		tracker:           tracker,
+		registry: registry,
+		tracker:  tracker,
 
-		stopped:           false,
-		conn:              conn,
-		pingTicker:        time.NewTicker(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
-		outgoingCh:        make(chan []byte, config.GetSocket().OutgoingQueueSize),
-		outgoingStopCh:    make(chan struct{}),
+		stopped:        false,
+		conn:           conn,
+		pingTicker:     time.NewTicker(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
+		outgoingCh:     make(chan []byte, config.GetSocket().OutgoingQueueSize),
+		outgoingStopCh: make(chan struct{}),
 	}
 }
 
@@ -136,7 +137,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
 			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
 			s.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code: int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+				Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 				Message: "Unrecognized payload",
 			}}})
 			break
@@ -212,7 +213,7 @@ func (s *sessionWS) SendBytes(payload []byte) error {
 	}
 
 	select {
-	case s.outgoingCh <-payload:
+	case s.outgoingCh <- payload:
 		s.Unlock()
 		return nil
 	default:

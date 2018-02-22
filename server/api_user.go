@@ -15,14 +15,8 @@
 package server
 
 import (
-	"database/sql"
-	"strconv"
-	"strings"
-
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,5 +56,3 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 
 	return users, nil
 }
-
-

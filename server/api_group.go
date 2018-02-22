@@ -15,8 +15,8 @@
 package server
 
 import (
-	"golang.org/x/net/context"
 	"github.com/heroiclabs/nakama/api"
+	"golang.org/x/net/context"
 )
 
 func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupsRequest) (*api.Groups, error) {

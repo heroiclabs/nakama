@@ -20,8 +20,9 @@ import (
 	"strings"
 
 	"flag"
-	"github.com/heroiclabs/nakama/flags"
 	"io/ioutil"
+
+	"github.com/heroiclabs/nakama/flags"
 
 	"github.com/go-yaml/yaml"
 	"github.com/satori/go.uuid"
