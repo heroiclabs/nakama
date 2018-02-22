@@ -15,9 +15,9 @@
 package server
 
 import (
-	"go.uber.org/zap"
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
+	"go.uber.org/zap"
 )
 
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.

@@ -15,15 +15,16 @@
 package server
 
 import (
-	"golang.org/x/net/context"
-	"github.com/heroiclabs/nakama/api"
+	"math/rand"
 	"regexp"
+	"strings"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/heroiclabs/nakama/api"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"math/rand"
-	"time"
-	"github.com/dgrijalva/jwt-go"
-	"strings"
 )
 
 var (

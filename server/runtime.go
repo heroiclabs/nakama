@@ -28,9 +28,10 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"context"
+
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"context"
 )
 
 const (
