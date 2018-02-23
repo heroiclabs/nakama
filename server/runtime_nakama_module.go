@@ -1242,12 +1242,11 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	}
 
 	u := l.CheckString(1)
-	uid, err := uuid.FromString(u)
+	userID, err := uuid.FromString(u)
 	if err != nil {
 		l.ArgError(1, "expects UserID to be a valid UUID")
 		return 0
 	}
-	userID := uid
 
 	subject := l.CheckString(2)
 	if subject == "" {
@@ -1292,7 +1291,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 		CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
 	}}
 	notifications := map[uuid.UUID][]*api.Notification{
-		uid: nots,
+		userID: nots,
 	}
 
 	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
