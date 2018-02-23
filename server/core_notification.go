@@ -42,13 +42,20 @@ type notificationCacheableCursor struct {
 	NotificationID string
 }
 
-func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID]*api.Notification) error {
+func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
 	// TODO: make this array of notifications...
-	persistentNotifications := make(map[uuid.UUID]*api.Notification)
+	persistentNotifications := make(map[uuid.UUID][]*api.Notification)
 	for userID, n := range notifications {
-		// Select persistent notifications for storage.
-		if n.Persistent {
-			persistentNotifications[userID] = n
+		for _, userNotification := range n {
+			// Select persistent notifications for storage.
+			if userNotification.Persistent {
+				pun := persistentNotifications[userID]
+				if pun == nil {
+					pun = make([]*api.Notification, 0)
+				}
+				pun = append(pun, userNotification)
+				persistentNotifications[userID] = pun
+			}
 		}
 	}
 
@@ -155,35 +162,37 @@ func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notifi
 	return nil
 }
 
-func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID]*api.Notification) error {
+func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID][]*api.Notification) error {
 	statements := make([]string, 0, len(notifications))
 	params := make([]interface{}, 0, len(notifications))
 	counter := 0
 	for userID, no := range notifications {
-		statement := "$" + strconv.Itoa(counter+1) +
-			",$" + strconv.Itoa(counter+2) +
-			",$" + strconv.Itoa(counter+3) +
-			",$" + strconv.Itoa(counter+4) +
-			",$" + strconv.Itoa(counter+5) +
-			",$" + strconv.Itoa(counter+6)
+		for _, un := range no {
+			statement := "$" + strconv.Itoa(counter+1) +
+				",$" + strconv.Itoa(counter+2) +
+				",$" + strconv.Itoa(counter+3) +
+				",$" + strconv.Itoa(counter+4) +
+				",$" + strconv.Itoa(counter+5) +
+				",$" + strconv.Itoa(counter+6)
 
-		if no.SenderId == "" {
-			statement += ",NULL"
-		} else {
-			statement += ",$" + strconv.Itoa(counter+7)
+			if un.SenderId == "" {
+				statement += ",NULL"
+			} else {
+				statement += ",$" + strconv.Itoa(counter+7)
+			}
+
+			statements = append(statements, "("+statement+")")
+
+			params = append(params, un.Id)
+			params = append(params, userID)
+			params = append(params, un.Subject)
+			params = append(params, un.Content)
+			params = append(params, un.Code)
+			params = append(params, un.CreateTime.Seconds)
+			params = append(params, un.SenderId)
+
+			counter = counter + 8
 		}
-
-		statements = append(statements, "("+statement+")")
-
-		params = append(params, no.Id)
-		params = append(params, userID)
-		params = append(params, no.Subject)
-		params = append(params, no.Content)
-		params = append(params, no.Code)
-		params = append(params, no.CreateTime.Seconds)
-		params = append(params, no.SenderId)
-
-		counter = counter + 8
 	}
 
 	query := "INSERT INTO notification (id, user_id, subject, content, code, create_time, sender_id) VALUES " + strings.Join(statements, ", ")

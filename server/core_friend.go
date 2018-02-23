@@ -89,11 +89,17 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.Friends{Friends: friends}, nil
 }
 
-func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, friendIDs []string) error {
+func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	ts := time.Now().UTC().Unix()
+
+	uniqueFriendIDs := make(map[string]struct{})
+	for _, fid := range friendIDs {
+		uniqueFriendIDs[fid] = struct{}{}
+	}
+
 	notificationToSend := make(map[string]bool)
 	if err := Transact(logger, db, func(tx *sql.Tx) error {
-		for _, id := range friendIDs {
+		for id := range uniqueFriendIDs {
 			isFriendAccept, addFriendErr := addFriend(logger, tx, userID, id, ts)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
@@ -106,7 +112,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 		return err
 	}
 
-	notifications := make(map[uuid.UUID]*api.Notification)
+	notifications := make(map[uuid.UUID][]*api.Notification)
 	for id, isFriendAccept := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
 		content, _ := json.Marshal(map[string]interface{}{"username": username})
@@ -116,7 +122,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 			code = NOTIFICATION_FRIEND_ACCEPT
 			subject = fmt.Sprintf("%v accepted your friend request", username)
 		}
-		notifications[uid] = &api.Notification{
+		nots := []*api.Notification{{
 			Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
 			Subject:    subject,
 			Content:    string(content),
@@ -124,8 +130,11 @@ func AddFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID, username strin
 			Code:       code,
 			Persistent: true,
 			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
-		}
+		}}
+		notifications[uid] = nots
 	}
+
+	NotificationSend(logger, db, tracker, messageRouter, notifications)
 
 	return nil
 }
@@ -215,9 +224,14 @@ AND EXISTS
 }
 
 func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+	uniqueFriendIDs := make(map[string]struct{})
+	for _, fid := range ids {
+		uniqueFriendIDs[fid] = struct{}{}
+	}
+
 	ts := time.Now().UTC().Unix()
 	err := Transact(logger, db, func(tx *sql.Tx) error {
-		for _, id := range ids {
+		for id := range uniqueFriendIDs {
 			if deleteFriendErr := deleteFriend(logger, tx, currentUser, id, ts); deleteFriendErr != nil {
 				return deleteFriendErr
 			}
@@ -257,9 +271,14 @@ func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID str
 }
 
 func BlockFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+	uniqueFriendIDs := make(map[string]struct{})
+	for _, fid := range ids {
+		uniqueFriendIDs[fid] = struct{}{}
+	}
+
 	ts := time.Now().UTC().Unix()
 	return Transact(logger, db, func(tx *sql.Tx) error {
-		for _, id := range ids {
+		for id := range uniqueFriendIDs {
 			if blockFriendErr := blockFriend(logger, tx, currentUser, id, ts); blockFriendErr != nil {
 				return blockFriendErr
 			}

@@ -1282,16 +1282,17 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 
 	persistent := l.OptBool(6, false)
 
-	notifications := map[uuid.UUID]*api.Notification{
-		userID: {
-			Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
-			Subject:    subject,
-			Content:    content,
-			Code:       code,
-			SenderId:   senderID,
-			Persistent: persistent,
-			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
-		},
+	nots := []*api.Notification{{
+		Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
+		Subject:    subject,
+		Content:    content,
+		Code:       code,
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+	}}
+	notifications := map[uuid.UUID][]*api.Notification{
+		uid: nots,
 	}
 
 	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
@@ -1309,7 +1310,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 	}
 
 	conversionError := false
-	notifications := make(map[uuid.UUID]*api.Notification)
+	notifications := make(map[uuid.UUID][]*api.Notification)
 	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
 		notificationTable, ok := g.(*lua.LTable)
 		if !ok {
@@ -1414,7 +1415,13 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		}
 
 		notification.Id = base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes())
-		notifications[userID] = notification
+
+		no := notifications[userID]
+		if no == nil {
+			no = make([]*api.Notification, 0)
+		}
+		no = append(no, notification)
+		notifications[userID] = no
 	})
 
 	if conversionError {

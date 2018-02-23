@@ -92,7 +92,7 @@ func main() {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, registry, tracker, pipeline, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, registry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
