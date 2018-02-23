@@ -17,11 +17,13 @@ package server
 import (
 	"database/sql"
 	"strings"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
@@ -152,17 +154,160 @@ AND (NOT EXISTS
 }
 
 func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest) (*empty.Empty, error) {
-	return nil, nil
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
+	}
+
+	facebookProfile, err := s.socialClient.GetFacebookProfile(in.Account.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(`
+UPDATE users
+SET facebook_id = $2, update_time = $3
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE facebook_id = $2 AND NOT id = $1))`,
+		userID,
+		facebookProfile.ID,
+		ts)
+
+	if err != nil {
+		s.logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to link Facebook ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.AlreadyExists, "Facebook ID is already in use.")
+	}
+
+	// Import friends if requested.
+	if in.Import == nil || in.Import.Value {
+		importFacebookFriends(s.logger, s.db, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token)
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
-	return nil, nil
+	if in.BundleId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
+	} else if in.PlayerId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter player ID is required.")
+	} else if in.PublicKeyUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter public key URL is required.")
+	} else if in.Salt == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter salt is required.")
+	} else if in.Signature == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter signature is required.")
+	} else if in.TimestampSeconds == 0 {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
+	}
+
+	valid, err := s.socialClient.CheckGameCenterID(in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
+	if !valid || err != nil {
+		s.logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(`
+UPDATE users
+SET gamecenter_id = $2, update_time = $3
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE gamecenter_id = $2 AND NOT id = $1))`,
+		userID,
+		in.PlayerId,
+		ts)
+
+	if err != nil {
+		s.logger.Error("Could not link GameCenter ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to link GameCenter ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.AlreadyExists, "GameCenter ID is already in use.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
-	return nil, nil
+	if in.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
+	}
+
+	googleProfile, err := s.socialClient.CheckGoogleToken(in.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Google profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(`
+UPDATE users
+SET google_id = $2, update_time = $3
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE google_id = $2 AND NOT id = $1))`,
+		userID,
+		googleProfile.Sub,
+		ts)
+
+	if err != nil {
+		s.logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to link Google ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.AlreadyExists, "Google ID is already in use.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
-	return nil, nil
+	if s.config.GetSocial().Steam.PublisherKey == "" || s.config.GetSocial().Steam.AppID == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
+	}
+
+	if in.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
+	}
+
+	steamProfile, err := s.socialClient.GetSteamProfile(s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(`
+UPDATE users
+SET steam_id = $2, update_time = $3
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE steam_id = $2 AND NOT id = $1))`,
+		userID,
+		strconv.FormatUint(steamProfile.SteamID, 10),
+		ts)
+
+	if err != nil {
+		s.logger.Error("Could not link Steam ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to link Steam ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.AlreadyExists, "Steam ID is already in use.")
+	}
+
+	return &empty.Empty{}, nil
 }

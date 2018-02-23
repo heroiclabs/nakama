@@ -29,6 +29,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/migrate"
 	"github.com/heroiclabs/nakama/server"
+	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 )
@@ -83,16 +84,18 @@ func main() {
 	// Check migration status and log if the schema has diverged.
 	migrate.StartupCheck(multiLogger, db)
 
+	socialClient := social.NewClient(5 * time.Second)
+
 	// Start up server components.
 	registry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(registry, tracker, jsonpbMarshaler)
-	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, registry, tracker, router)
+	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, registry, tracker, router)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, registry, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, registry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
