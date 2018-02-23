@@ -206,7 +206,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	defer r.Stop()
 
 	pipeline := server.NewPipeline(config, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, pipeline, rp)
+	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -411,4 +411,47 @@ nakama.register_rpc(test, "test")
 	if m != "true" {
 		t.Error("Return result not expected", m)
 	}
+}
+
+func TestRuntimeNotificationsSend(t *testing.T) {
+	defer os.RemoveAll(luaPath)
+	writeLuaModule("test.lua", `
+local nk = require("nakama")
+
+local subject = "You've unlocked level 100!"
+local content = {
+  reward_coins = 1000
+}
+local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
+local code = 1
+
+local new_notifications = {
+  { Subject = subject, Content = content, UserId = user_id, Code = code, Persistent = false}
+}
+nk.notifications_send(new_notifications)
+`)
+
+	rp := vm(t)
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeNotificationSend(t *testing.T) {
+	defer os.RemoveAll(luaPath)
+	writeLuaModule("test.lua", `
+local nk = require("nakama")
+
+local subject = "You've unlocked level 100!"
+local content = {
+  reward_coins = 1000
+}
+local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
+local code = 1
+
+nk.notification_send(user_id, subject, content, code, "", false)
+`)
+
+	rp := vm(t)
+	r := rp.Get()
+	defer r.Stop()
 }

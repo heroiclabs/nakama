@@ -43,7 +43,6 @@ type notificationCacheableCursor struct {
 }
 
 func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
-	// TODO: make this array of notifications...
 	persistentNotifications := make(map[uuid.UUID][]*api.Notification)
 	for userID, n := range notifications {
 		for _, userNotification := range n {
@@ -92,12 +91,19 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 		}
 	}
 
+	params := []interface{}{userID, limit}
+	cursorQuery := ""
+	if nc.NotificationID != "" {
+		cursorQuery = " AND id > $3::UUID "
+		params = append(params, nc.NotificationID)
+	}
+
 	rows, err := db.Query(`
 SELECT id, subject, content, code, sender_id, create_time
 FROM notification
-WHERE user_id = $1 AND id > $2
-LIMIT $3
-`, userID, nc.NotificationID, limit)
+WHERE user_id = $1`+cursorQuery+`
+LIMIT $2
+`, params...)
 
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
@@ -136,6 +142,7 @@ LIMIT $3
 			logger.Error("Could not create new cursor.", zap.Error(err))
 			return nil, err
 		}
+		notificationList.Notifications = notifications
 		notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
@@ -153,7 +160,7 @@ func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notifi
 		params = append(params, id)
 	}
 
-	_, err := db.Exec("DELETE notification WHERE user_id = $1 AND id IN ("+strings.Join(statements, ", ")+")", params...)
+	_, err := db.Exec("DELETE FROM notification WHERE user_id = $1 AND id IN ("+strings.Join(statements, ", ")+")", params...)
 	if err != nil {
 		logger.Error("Could not delete notifications.", zap.Error(err))
 		return err
@@ -189,7 +196,9 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 			params = append(params, un.Content)
 			params = append(params, un.Code)
 			params = append(params, un.CreateTime.Seconds)
-			params = append(params, un.SenderId)
+			if un.SenderId != "" {
+				params = append(params, un.SenderId)
+			}
 
 			counter = counter + 8
 		}

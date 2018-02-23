@@ -1235,12 +1235,6 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 }
 
 func (n *NakamaModule) notificationSend(l *lua.LState) int {
-	notificationsTable := l.CheckTable(1)
-	if notificationsTable == nil {
-		l.ArgError(1, "expects a valid set of notifications")
-		return 0
-	}
-
 	u := l.CheckString(1)
 	userID, err := uuid.FromString(u)
 	if err != nil {
@@ -1413,7 +1407,8 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 			return
 		}
 
-		notification.Id = base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes())
+		notification.Id = uuid.NewV4().String()
+		notification.CreateTime = &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()}
 
 		no := notifications[userID]
 		if no == nil {

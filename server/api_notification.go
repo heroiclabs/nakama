@@ -39,7 +39,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 }
 
 func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest) (*empty.Empty, error) {
-	if len(in.GetIds()) == 1 {
+	if len(in.GetIds()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "There must be at least one notification ID to delete.")
 	}
 

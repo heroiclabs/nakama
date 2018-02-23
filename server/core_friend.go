@@ -16,7 +16,6 @@ package server
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -123,7 +122,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter M
 			subject = fmt.Sprintf("%v accepted your friend request", username)
 		}
 		nots := []*api.Notification{{
-			Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
+			Id:         uuid.NewV4().String(),
 			Subject:    subject,
 			Content:    string(content),
 			SenderId:   userID.String(),
