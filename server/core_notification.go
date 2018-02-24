@@ -39,7 +39,8 @@ const (
 )
 
 type notificationCacheableCursor struct {
-	NotificationID string
+	NotificationID []byte
+	CreateTime     int64
 }
 
 func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
@@ -93,9 +94,11 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 
 	params := []interface{}{userID, limit}
 	cursorQuery := " "
-	if nc.NotificationID != "" {
-		cursorQuery = " AND id > $3::UUID "
-		params = append(params, nc.NotificationID)
+	limitParam := "$2"
+	if nc.NotificationID != nil {
+		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID)"
+		params = append(params, nc.CreateTime, nc.NotificationID)
+		limitParam = "$4"
 	}
 
 	rows, err := db.Query(`
@@ -103,8 +106,7 @@ SELECT id, subject, content, code, sender_id, create_time
 FROM notification
 WHERE user_id = $1`+cursorQuery+`
 ORDER BY create_time ASC
-LIMIT $2
-`, params...)
+LIMIT `+limitParam, params...)
 
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
@@ -127,7 +129,7 @@ LIMIT $2
 		if len(cursor) > 0 {
 			notificationList.CacheableCursor = cursor
 		} else {
-			newCursor := &notificationCacheableCursor{NotificationID: ""}
+			newCursor := &notificationCacheableCursor{NotificationID: nil, CreateTime: 0}
 			if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Could not create new cursor.", zap.Error(err))
 				return nil, err
@@ -137,7 +139,8 @@ LIMIT $2
 	} else {
 		lastNotification := notifications[len(notifications)-1]
 		newCursor := &notificationCacheableCursor{
-			NotificationID: lastNotification.Id,
+			NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
+			CreateTime:     lastNotification.CreateTime.Seconds,
 		}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Could not create new cursor.", zap.Error(err))

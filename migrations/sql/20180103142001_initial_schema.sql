@@ -64,13 +64,13 @@ CREATE TABLE IF NOT EXISTS user_edge (
 );
 
 CREATE TABLE IF NOT EXISTS notification (
-    PRIMARY KEY (id),
-    id              UUID            NOT NULL,
+    PRIMARY KEY (user_id, create_time ASC, id),
+    id              UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
     user_id         UUID            NOT NULL,
     subject         VARCHAR(255)    NOT NULL,
     content         BYTEA           DEFAULT '{}' CHECK (length(content) < 16000) NOT NULL,
-    code            SMALLINT        NOT NULL,      -- Negative values are System reserved.
-    sender_id       UUID,                          -- NULL for System messages
+    code            SMALLINT        NOT NULL,      -- Negative values are system reserved
+    sender_id       UUID,                          -- NULL for system messages
     create_time     BIGINT          CHECK (create_time > 0) NOT NULL
 );
 
