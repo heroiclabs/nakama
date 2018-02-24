@@ -92,7 +92,7 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 	}
 
 	params := []interface{}{userID, limit}
-	cursorQuery := ""
+	cursorQuery := " "
 	if nc.NotificationID != "" {
 		cursorQuery = " AND id > $3::UUID "
 		params = append(params, nc.NotificationID)
@@ -102,6 +102,7 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 SELECT id, subject, content, code, sender_id, create_time
 FROM notification
 WHERE user_id = $1`+cursorQuery+`
+ORDER BY create_time ASC
 LIMIT $2
 `, params...)
 
@@ -184,8 +185,10 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 
 			if un.SenderId == "" {
 				statement += ",NULL"
+				counter = counter + 6
 			} else {
 				statement += ",$" + strconv.Itoa(counter+7)
+				counter = counter + 7
 			}
 
 			statements = append(statements, "("+statement+")")
@@ -199,8 +202,6 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 			if un.SenderId != "" {
 				params = append(params, un.SenderId)
 			}
-
-			counter = counter + 8
 		}
 	}
 

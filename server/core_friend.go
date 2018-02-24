@@ -112,16 +112,16 @@ func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter M
 	}
 
 	notifications := make(map[uuid.UUID][]*api.Notification)
+	content, _ := json.Marshal(map[string]interface{}{"username": username})
 	for id, isFriendAccept := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
-		content, _ := json.Marshal(map[string]interface{}{"username": username})
 		code := NOTIFICATION_FRIEND_REQUEST
 		subject := fmt.Sprintf("%v wants to add you as a friend", username)
 		if isFriendAccept {
 			code = NOTIFICATION_FRIEND_ACCEPT
 			subject = fmt.Sprintf("%v accepted your friend request", username)
 		}
-		nots := []*api.Notification{{
+		notifications[uid] = []*api.Notification{{
 			Id:         uuid.NewV4().String(),
 			Subject:    subject,
 			Content:    string(content),
@@ -130,7 +130,6 @@ func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter M
 			Persistent: true,
 			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
 		}}
-		notifications[uid] = nots
 	}
 
 	NotificationSend(logger, db, tracker, messageRouter, notifications)
