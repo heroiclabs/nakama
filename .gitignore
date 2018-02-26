@@ -3,7 +3,6 @@
 nakama
 
 # *.pb.go
-build/*
 !dashboard/build
 data/*
 .GITHUB_TOKEN
