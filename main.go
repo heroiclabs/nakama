@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/heroiclabs/nakama/migrations"
+	"github.com/heroiclabs/nakama/migrate"
 	"github.com/heroiclabs/nakama/server"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
@@ -65,7 +65,7 @@ func main() {
 			fmt.Println(semver)
 			return
 		case "migrate":
-			migrations.Parse(os.Args[2:], cmdLogger)
+			migrate.Parse(os.Args[2:], cmdLogger)
 		}
 	}
 
@@ -81,7 +81,7 @@ func main() {
 	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and log if the schema has diverged.
-	migrations.StartupCheck(multiLogger, db)
+	migrate.StartupCheck(multiLogger, db)
 
 	// Start up server components.
 	registry := server.NewSessionRegistry()
