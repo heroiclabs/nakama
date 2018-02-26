@@ -340,6 +340,8 @@ service Nakama {
 message Account {
   // The user object.
   User user = 1;
+  // The user's wallet data.
+  string wallet = 2;
   // The email address of the user.
   string email = 3;
   // The devices which belong to the user's account.

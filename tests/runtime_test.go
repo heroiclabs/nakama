@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"database/sql"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -21,9 +22,21 @@ var (
 	logger     = server.NewConsoleLogger(os.Stdout, true)
 )
 
+func db(t *testing.T) *sql.DB {
+	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
+	if err != nil {
+		t.Fatal("Error connecting to database", zap.Error(err))
+	}
+	err = db.Ping()
+	if err != nil {
+		t.Fatal("Error pinging database", zap.Error(err))
+	}
+	return db
+}
+
 func vm(t *testing.T) *server.RuntimePool {
 	config.Runtime.Path = luaPath
-	runtimePool, err := server.NewRuntimePool(logger, logger, nil, config, nil, nil, nil)
+	runtimePool, err := server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil)
 	if err != nil {
 		t.Error("Failed initializing runtime modules", zap.Error(err))
 	}
@@ -449,6 +462,24 @@ local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
 
 nk.notification_send(user_id, subject, content, code, "", false)
+`)
+
+	rp := vm(t)
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeWalletWrite(t *testing.T) {
+	defer os.RemoveAll(luaPath)
+	writeLuaModule("test.lua", `
+local nk = require("nakama")
+
+local content = {
+  reward_coins = 1000
+}
+local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
+
+nk.wallet_write(user_id, content)
 `)
 
 	rp := vm(t)
