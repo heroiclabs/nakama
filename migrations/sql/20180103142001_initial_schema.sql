@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 );
 
 CREATE TABLE IF NOT EXISTS notification (
-    PRIMARY KEY (user_id, create_time ASC, id),
+    PRIMARY KEY (user_id, create_time ASC, id), -- Preferred sorting order should have been DESC but Cockroach's query analyser is not clever enough.
     id              UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
     user_id         UUID            NOT NULL,
     subject         VARCHAR(255)    NOT NULL,
@@ -73,9 +73,6 @@ CREATE TABLE IF NOT EXISTS notification (
     sender_id       UUID,                          -- NULL for system messages
     create_time     BIGINT          CHECK (create_time > 0) NOT NULL
 );
-
--- list notifications for a user that are not deleted or expired, starting from a given ID (cursor).
-CREATE INDEX IF NOT EXISTS notification_user_id_id_idx ON notification (user_id, id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS notification;

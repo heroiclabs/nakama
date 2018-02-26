@@ -94,11 +94,9 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 
 	params := []interface{}{userID, limit}
 	cursorQuery := " "
-	limitParam := "$2"
 	if nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID)"
 		params = append(params, nc.CreateTime, nc.NotificationID)
-		limitParam = "$4"
 	}
 
 	rows, err := db.Query(`
@@ -106,7 +104,7 @@ SELECT id, subject, content, code, sender_id, create_time
 FROM notification
 WHERE user_id = $1`+cursorQuery+`
 ORDER BY create_time ASC
-LIMIT `+limitParam, params...)
+LIMIT $2`, params...)
 
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
