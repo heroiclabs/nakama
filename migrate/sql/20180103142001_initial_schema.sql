@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     lang_tag      VARCHAR(18)   DEFAULT 'en',
     location      VARCHAR(255), -- e.g. "San Francisco, CA"
     timezone      VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
-    metadata      BYTEA         DEFAULT '{}' CHECK (length(metadata) < 32000) NOT NULL,
+    metadata      JSONB         DEFAULT '{}' NOT NULL,
+    wallet        JSONB         DEFAULT '{}' NOT NULL,
     email         VARCHAR(255)  UNIQUE,
     password      BYTEA         CHECK (length(password) < 32000),
     facebook_id   VARCHAR(128)  UNIQUE,
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS notification (
     id              UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
     user_id         UUID            NOT NULL,
     subject         VARCHAR(255)    NOT NULL,
-    content         BYTEA           DEFAULT '{}' CHECK (length(content) < 16000) NOT NULL,
+    content         JSONB           DEFAULT '{}' NOT NULL,
     code            SMALLINT        NOT NULL,      -- Negative values are system reserved
     sender_id       UUID,                          -- NULL for system messages
     create_time     BIGINT          CHECK (create_time > 0) NOT NULL
