@@ -36,7 +36,8 @@ func GetAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID) (*api.Account,
 	var langTag sql.NullString
 	var locat sql.NullString
 	var timezone sql.NullString
-	var metadata []byte
+	var metadata sql.NullString
+	var wallet sql.NullString
 	var email sql.NullString
 	var facebook sql.NullString
 	var google sql.NullString
@@ -48,14 +49,14 @@ func GetAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID) (*api.Account,
 	var verifyTime sql.NullInt64
 
 	query := `
-SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata,
+SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet,
 	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id,
 	create_time, update_time, verify_time
 FROM users
 WHERE id = $1`
 
 	if err := db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata,
-		&email, &facebook, &google, &gamecenter, &steam, &customID, &createTime, &updateTime, &verifyTime); err != nil {
+		&wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &createTime, &updateTime, &verifyTime); err != nil {
 		logger.Error("Error retrieving user account.", zap.Error(err))
 		return nil, err
 	}
@@ -98,7 +99,7 @@ WHERE id = $1`
 			LangTag:      langTag.String,
 			Location:     locat.String,
 			Timezone:     timezone.String,
-			Metadata:     string(metadata),
+			Metadata:     metadata.String,
 			FacebookId:   facebook.String,
 			GoogleId:     google.String,
 			GamecenterId: gamecenter.String,
@@ -107,6 +108,7 @@ WHERE id = $1`
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
 			Online:       false, // TODO(zyro): Must enrich the field from the presence map.
 		},
+		Wallet:     wallet.String,
 		Email:      email.String,
 		Devices:    deviceIDs,
 		CustomId:   customID.String,
@@ -202,4 +204,13 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 	}
 
 	return nil
+}
+
+func UpdateWallet(db *sql.DB, logger *zap.Logger, userID uuid.UUID, wallet string) error {
+	query := "UPDATE users SET wallet = $2 WHERE id = $1::UUID"
+	_, err := db.Exec(query, userID, wallet)
+	if err != nil {
+		logger.Error("Could not update user's wallet.", zap.Error(err), zap.String("user_id", userID.String()), zap.String("wallet", wallet))
+	}
+	return err
 }
