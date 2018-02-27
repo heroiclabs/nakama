@@ -103,12 +103,12 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 
 	grpcGatewayRouter := mux.NewRouter()
+	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
 	// TODO restore when admin endpoints are available.
 	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
 	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
-	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 
 	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(handlerWithGzip)
