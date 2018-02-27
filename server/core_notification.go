@@ -27,6 +27,7 @@ import (
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"github.com/heroiclabs/nakama/rtapi"
 )
 
 const (
@@ -45,35 +46,36 @@ type notificationCacheableCursor struct {
 
 func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
 	persistentNotifications := make(map[uuid.UUID][]*api.Notification)
-	for userID, n := range notifications {
-		for _, userNotification := range n {
+	for userID, ns := range notifications {
+		for _, userNotification := range ns {
 			// Select persistent notifications for storage.
 			if userNotification.Persistent {
-				pun := persistentNotifications[userID]
-				if pun == nil {
-					pun = make([]*api.Notification, 0)
+				if pun := persistentNotifications[userID]; pun == nil {
+					persistentNotifications[userID] = []*api.Notification{userNotification}
+				} else {
+					persistentNotifications[userID] = append(pun, userNotification)
 				}
-				pun = append(pun, userNotification)
-				persistentNotifications[userID] = pun
 			}
 		}
 	}
 
+	// Store any persistent notifications.
 	if len(persistentNotifications) > 0 {
 		if err := NotificationSave(logger, db, persistentNotifications); err != nil {
 			return err
 		}
 	}
 
-	// TODO (mo, zyro): Wire up Tracker to list presences by topic
-	//for userID, ns := range notifications {
-	//	nots := &rtapi.Notifications{Notifications: ns}
-	//	presences := tracker.ListByTopic("notifications:" + userID)
-	//	if len(presences) != 0 {
-	//		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_Notifications{Notifications: nots}}
-	//		messageRouter.SendToPresences(logger, presences, envelope)
-	//	}
-	//}
+	// Deliver live notifications to connected users.
+	for userID, ns := range notifications {
+		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+			Message: &rtapi.Envelope_Notifications{
+				Notifications: &rtapi.Notifications{
+					Notifications: ns,
+				},
+			},
+		})
+	}
 
 	return nil
 }

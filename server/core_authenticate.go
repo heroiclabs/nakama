@@ -27,6 +27,9 @@ import (
 	"google.golang.org/grpc/status"
 	"github.com/heroiclabs/nakama/social"
 	"strconv"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"encoding/json"
 )
 
 func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, error) {
@@ -638,6 +641,19 @@ AND EXISTS
 	}
 
 	if len(friendUserIDs) != 0 {
-		// TODO send out notifications
+		notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
+		content, _ := json.Marshal(map[string]interface{}{"username": username})
+		subject := "Your friend has just joined the game"
+		for _, friendUserID := range friendUserIDs {
+			notifications[friendUserID] = []*api.Notification{&api.Notification{
+				Id:         uuid.NewV4().String(),
+				Subject:    subject,
+				Content:    string(content),
+				SenderId:   userID.String(),
+				Code:       NOTIFICATION_FRIEND_JOIN_GAME,
+				Persistent: true,
+				CreateTime: &timestamp.Timestamp{Seconds: ts},
+			}}
+		}
 	}
 }
