@@ -17,6 +17,7 @@ package server
 import (
 	"database/sql"
 	"strings"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -124,17 +125,159 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook) (*empty.Empty, error) {
-	return nil, nil
+	if in.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
+	}
+
+	facebookProfile, err := s.socialClient.GetFacebookProfile(in.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+	}
+
+	query := `UPDATE users SET facebook_id = NULL, update_time = $3
+WHERE id = $1
+AND facebook_id = $2
+AND ((custom_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(query, userID, facebookProfile.ID, ts)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Facebook ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
-	return nil, nil
+	if in.BundleId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
+	} else if in.PlayerId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter player ID is required.")
+	} else if in.PublicKeyUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter public key URL is required.")
+	} else if in.Salt == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter salt is required.")
+	} else if in.Signature == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter signature is required.")
+	} else if in.TimestampSeconds == 0 {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
+	}
+
+	valid, err := s.socialClient.CheckGameCenterID(in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
+	if !valid || err != nil {
+		s.logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
+	}
+
+	query := `UPDATE users SET gamecenter_id = NULL, update_time = $3
+WHERE id = $1
+AND gamecenter_id = $2
+AND ((custom_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(query, userID, in.PlayerId, ts)
+
+	if err != nil {
+		s.logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink GameCenter ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
-	return nil, nil
+	if in.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
+	}
+
+	googleProfile, err := s.socialClient.CheckGoogleToken(in.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Google profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+	}
+
+	query := `UPDATE users SET google_id = NULL, update_time = $3
+WHERE id = $1
+AND google_id = $2
+AND ((custom_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(query, userID, googleProfile.Sub, ts)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Google ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+
+	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) UnlinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
-	return nil, nil
+	if s.config.GetSocial().Steam.PublisherKey == "" || s.config.GetSocial().Steam.AppID == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
+	}
+
+	if in.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
+	}
+
+	steamProfile, err := s.socialClient.GetSteamProfile(s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
+	if err != nil {
+		s.logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+	}
+
+	query := `UPDATE users SET steam_id = NULL, update_time = $3
+WHERE id = $1
+AND steam_id = $2
+AND ((custom_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	userID := ctx.Value(ctxUserIDKey{})
+	ts := time.Now().UTC().Unix()
+	res, err := s.db.Exec(query, userID, strconv.FormatUint(steamProfile.SteamID, 10), ts)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Steam ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+
+	return &empty.Empty{}, nil
 }

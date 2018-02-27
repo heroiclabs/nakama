@@ -39,6 +39,7 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"github.com/heroiclabs/nakama/social"
 )
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
@@ -53,24 +54,26 @@ type ApiServer struct {
 	runtimePool       *RuntimePool
 	tracker           Tracker
 	router            MessageRouter
+	socialClient      *social.Client
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(ocgrpc.NewServerStatsHandler()),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
 
 	s := &ApiServer{
-		logger:      logger,
-		db:          db,
-		config:      config,
-		runtimePool: runtimePool,
-		tracker:     tracker,
-		router:      router,
-		grpcServer:  grpcServer,
+		logger:       logger,
+		db:           db,
+		config:       config,
+		runtimePool:  runtimePool,
+		tracker:      tracker,
+		router:       router,
+		socialClient: socialClient,
+		grpcServer:   grpcServer,
 	}
 
 	// Register and start GRPC server.

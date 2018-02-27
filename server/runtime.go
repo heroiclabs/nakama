@@ -32,6 +32,7 @@ import (
 
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"github.com/heroiclabs/nakama/social"
 )
 
 const (
@@ -52,7 +53,7 @@ type RuntimePool struct {
 	pool    *sync.Pool
 }
 
-func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
+func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
 	runtimeConfig := config.GetRuntime()
 	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
 		return nil, err
@@ -109,7 +110,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 	}
 
 	multiLogger.Info("Evaluating modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
-	r, err := rp.newVM(logger, db, config, registry, tracker, router, func(id string) {
+	r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, func(id string) {
 		rp.regRPC[id] = struct{}{}
 		logger.Info("Registered RPC function invocation", zap.String("id", id))
 	})
@@ -121,7 +122,7 @@ func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, con
 
 	rp.pool = &sync.Pool{
 		New: func() interface{} {
-			r, err := rp.newVM(logger, db, config, registry, tracker, router, nil)
+			r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, nil)
 			if err != nil {
 				multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
 			}
@@ -146,7 +147,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) (*Runtime, error) {
+func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -159,7 +160,7 @@ func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, regi
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, vm, registry, tracker, router, rp.once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, registry, tracker, router, rp.once, announceRPC)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,

@@ -37,6 +37,7 @@ type Config interface {
 	GetSession() *SessionConfig
 	GetSocket() *SocketConfig
 	GetDatabase() *DatabaseConfig
+	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
 }
 
@@ -111,6 +112,7 @@ type config struct {
 	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings"`
 	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configurations"`
 	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings"`
+	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social providers"`
 	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
 }
 
@@ -126,6 +128,7 @@ func NewConfig() *config {
 		Session:  NewSessionConfig(),
 		Socket:   NewSocketConfig(),
 		Database: NewDatabaseConfig(),
+		Social:   NewSocialConfig(),
 		Runtime:  NewRuntimeConfig(),
 	}
 }
@@ -152,6 +155,10 @@ func (c *config) GetSocket() *SocketConfig {
 
 func (c *config) GetDatabase() *DatabaseConfig {
 	return c.Database
+}
+
+func (c *config) GetSocial() *SocialConfig {
+	return c.Social
 }
 
 func (c *config) GetRuntime() *RuntimeConfig {
@@ -234,6 +241,27 @@ func NewDatabaseConfig() *DatabaseConfig {
 		ConnMaxLifetimeMs: 60000,
 		MaxOpenConns:      0,
 		MaxIdleConns:      0,
+	}
+}
+
+// SocialConfig is configuration relevant to the social authentication providers.
+type SocialConfig struct {
+	Steam        *SocialConfigSteam  `yaml:"steam" json:"steam" usage:"Steam configuration"`
+}
+
+// SocialConfigSteam is configuration relevant to Steam
+type SocialConfigSteam struct {
+	PublisherKey string `yaml:"publisher_key" json:"publisher_key" usage:"Steam Publisher Key value."`
+	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
+}
+
+// NewSocialConfig creates a new SocialConfig struct.
+func NewSocialConfig() *SocialConfig {
+	return &SocialConfig{
+		Steam: &SocialConfigSteam{
+			PublisherKey: "",
+			AppID:        0,
+		},
 	}
 }
 
