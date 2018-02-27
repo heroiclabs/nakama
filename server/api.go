@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	ocgrpc "go.opencensus.io/plugin/grpc"
 	"go.uber.org/zap"
@@ -39,7 +40,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"github.com/heroiclabs/nakama/social"
 )
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
@@ -108,11 +108,12 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
 	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
+	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 
 	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(handlerWithGzip)
 	s.grpcGatewayServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.GetSocket().Port+1),
+		Addr:    fmt.Sprintf(":%d", config.GetSocket().Port-1),
 		Handler: handlerWithCORS,
 	}
 	go func() {
