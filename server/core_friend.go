@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetFriends(logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Friends, error) {
+func GetFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Friends, error) {
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
@@ -61,8 +61,9 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 			return nil, err
 		}
 
+		friendID := uuid.FromStringOrNil(id)
 		user := &api.User{
-			Id:          uuid.FromStringOrNil(id).String(),
+			Id:          friendID.String(),
 			Username:    username.String,
 			DisplayName: displayName.String,
 			AvatarUrl:   avatarURL.String,
@@ -72,7 +73,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 			Metadata:    string(metadata),
 			CreateTime:  &timestamp.Timestamp{Seconds: createTime.Int64},
 			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Int64},
-			Online:      false, //TODO(mo/zyro): Fix this when this is wired in?
+			Online:      tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: friendID}),
 		}
 
 		friends = append(friends, &api.Friend{
