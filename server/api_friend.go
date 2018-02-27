@@ -27,7 +27,7 @@ import (
 func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Friends, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
-	friends, err := GetFriends(s.logger, s.db, userID)
+	friends, err := GetFriends(s.logger, s.db, s.tracker, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to list friends.")
 	}

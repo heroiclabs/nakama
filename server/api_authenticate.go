@@ -22,6 +22,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -113,7 +114,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
-		return nil, status.Error(codes.InvalidArgument, "Username invalid , no spaces or control characters allowed.")
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
@@ -130,19 +131,128 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 }
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
-	return nil, nil
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
+	}
+
+	username := in.Username
+	username = strings.ToLower(username)
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
+	} else if len(username) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+	}
+
+	create := in.Create == nil || in.Create.Value
+
+	dbUserID, dbUsername, err := AuthenticateFacebook(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	if err != nil {
+		return nil, err
+	}
+
+	// Import friends if requested.
+	if in.Import == nil || in.Import.Value {
+		importFacebookFriends(s.logger, s.db, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token)
+	}
+
+	token := generateToken(s.config, dbUserID, dbUsername)
+	return &api.Session{Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
-	return nil, nil
+	if in.Account == nil {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter access credentials are required.")
+	} else if in.Account.BundleId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
+	} else if in.Account.PlayerId == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter player ID is required.")
+	} else if in.Account.PublicKeyUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter public key URL is required.")
+	} else if in.Account.Salt == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter salt is required.")
+	} else if in.Account.Signature == "" {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter signature is required.")
+	} else if in.Account.TimestampSeconds == 0 {
+		return nil, status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
+	}
+
+	username := in.Username
+	username = strings.ToLower(username)
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
+	} else if len(username) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+	}
+
+	create := in.Create == nil || in.Create.Value
+
+	dbUserID, dbUsername, err := AuthenticateGameCenter(s.logger, s.db, s.socialClient, in.Account.PlayerId, in.Account.BundleId, in.Account.TimestampSeconds, in.Account.Salt, in.Account.Signature, in.Account.PublicKeyUrl, username, create)
+	if err != nil {
+		return nil, err
+	}
+
+	token := generateToken(s.config, dbUserID, dbUsername)
+	return &api.Session{Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
-	return nil, nil
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
+	}
+
+	username := in.Username
+	username = strings.ToLower(username)
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
+	} else if len(username) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+	}
+
+	create := in.Create == nil || in.Create.Value
+
+	dbUserID, dbUsername, err := AuthenticateGoogle(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	if err != nil {
+		return nil, err
+	}
+
+	token := generateToken(s.config, dbUserID, dbUsername)
+	return &api.Session{Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
-	return nil, nil
+	if s.config.GetSocial().Steam.PublisherKey == "" || s.config.GetSocial().Steam.AppID == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
+	}
+
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
+	}
+
+	username := in.Username
+	username = strings.ToLower(username)
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
+	} else if len(username) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+	}
+
+	create := in.Create == nil || in.Create.Value
+
+	dbUserID, dbUsername, err := AuthenticateSteam(s.logger, s.db, s.socialClient, s.config.GetSocial().Steam.AppID, s.config.GetSocial().Steam.PublisherKey, in.Account.Token, username, create)
+	if err != nil {
+		return nil, err
+	}
+
+	token := generateToken(s.config, dbUserID, dbUsername)
+	return &api.Session{Token: token}, nil
 }
 
 func generateToken(config Config, userID, username string) string {

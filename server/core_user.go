@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetUsers(db *sql.DB, logger *zap.Logger, ids, usernames, fbIDs []string) (*api.Users, error) {
+func GetUsers(db *sql.DB, logger *zap.Logger, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
 	facebook_id, google_id, gamecenter_id, steam_id, create_time, update_time
@@ -86,7 +86,7 @@ WHERE`
 
 	users := &api.Users{Users: make([]*api.User, 0)}
 	for rows.Next() {
-		user, err := convertUser(rows)
+		user, err := convertUser(tracker, rows)
 		if err != nil {
 			logger.Error("Error retrieving user accounts.", zap.Error(err), zap.Strings("user_ids", ids), zap.Strings("usernames", usernames), zap.Strings("facebook_ids", fbIDs))
 			return nil, err
@@ -101,7 +101,7 @@ WHERE`
 	return users, nil
 }
 
-func convertUser(rows *sql.Rows) (*api.User, error) {
+func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var id string
 	var displayName sql.NullString
 	var username sql.NullString
@@ -123,8 +123,9 @@ func convertUser(rows *sql.Rows) (*api.User, error) {
 		return nil, err
 	}
 
+	userID := uuid.FromStringOrNil(id)
 	return &api.User{
-		Id:           uuid.FromStringOrNil(id).String(),
+		Id:           userID.String(),
 		Username:     username.String,
 		DisplayName:  displayName.String,
 		AvatarUrl:    avatarURL.String,
@@ -138,7 +139,7 @@ func convertUser(rows *sql.Rows) (*api.User, error) {
 		SteamId:      steam.String,
 		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
 		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
-		Online:       false, //TODO(mo/zyro): Fix this when this is wired in?
+		Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 	}, nil
 }
 
