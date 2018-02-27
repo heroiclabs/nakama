@@ -45,6 +45,7 @@ import (
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/heroiclabs/nakama/social"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -54,30 +55,32 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger      *zap.Logger
-	db          *sql.DB
-	config      Config
-	registry    *SessionRegistry
-	tracker     Tracker
-	router      MessageRouter
-	once        *sync.Once
-	announceRPC func(string)
-	client      *http.Client
+	logger       *zap.Logger
+	db           *sql.DB
+	config       Config
+	socialClient *social.Client
+	registry     *SessionRegistry
+	tracker      Tracker
+	router       MessageRouter
+	once         *sync.Once
+	announceRPC  func(string)
+	client       *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC: make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger:      logger,
-		db:          db,
-		config:      config,
-		registry:    registry,
-		tracker:     tracker,
-		router:      router,
-		once:        once,
-		announceRPC: announceRPC,
+		logger:       logger,
+		db:           db,
+		config:       config,
+		socialClient: socialClient,
+		registry:     registry,
+		tracker:      tracker,
+		router:       router,
+		once:         once,
+		announceRPC:  announceRPC,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -105,6 +108,10 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"authenticate_custom":         n.authenticateCustom,
 		"authenticate_device":         n.authenticateDevice,
 		"authenticate_email":          n.authenticateEmail,
+		"authenticate_facebook":       n.authenticateFacebook,
+		"authenticate_gamecenter":     n.authenticateGameCenter,
+		"authenticate_google":         n.authenticateGoogle,
+		"authenticate_steam":          n.authenticateSteam,
 		"authenticate_token_generate": n.authenticateTokenGenerate,
 		"cron_next":                   n.cronNext,
 		"logger_info":                 n.loggerInfo,
@@ -634,7 +641,144 @@ func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 		l.ArgError(2, "expects password string")
 		return 0
 	} else if len(password) < 8 {
-		l.ArgError(1, "expects password to be valid, must be longer than 8 characters")
+		l.ArgError(2, "expects password to be valid, must be longer than 8 characters")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(3, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(3, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(4, true)
+
+	cleanEmail := strings.ToLower(email)
+
+	dbUserID, dbUsername, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
+	// Parse access token.
+	token := l.CheckString(1)
+	if token == "" {
+		l.ArgError(1, "expects access token string")
+		return 0
+	}
+
+	// Parse import friends flag, if any.
+	importFriends := l.OptBool(2, true)
+
+	// Parse username, if any.
+	username := l.OptString(3, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(3, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(4, true)
+
+	dbUserID, dbUsername, err := AuthenticateFacebook(n.logger, n.db, n.socialClient, token, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	// Import friends if requested.
+	if importFriends {
+		importFacebookFriends(n.logger, n.db, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token)
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authenticateGameCenter(l *lua.LState) int {
+	// Parse authentication credentials.
+	playerID := l.CheckString(1)
+	if playerID == "" {
+		l.ArgError(1, "expects player ID string")
+		return 0
+	}
+	bundleID := l.CheckString(2)
+	if bundleID == "" {
+		l.ArgError(2, "expects bundle ID string")
+		return 0
+	}
+	timestamp := l.CheckInt64(3)
+	if timestamp == 0 {
+		l.ArgError(3, "expects timestamp value")
+		return 0
+	}
+	salt := l.CheckString(4)
+	if salt == "" {
+		l.ArgError(4, "expects salt string")
+		return 0
+	}
+	signature := l.CheckString(5)
+	if signature == "" {
+		l.ArgError(5, "expects signature string")
+		return 0
+	}
+	publicKeyUrl := l.CheckString(6)
+	if publicKeyUrl == "" {
+		l.ArgError(6, "expects public key URL string")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(7, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(7, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(7, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(8, true)
+
+	dbUserID, dbUsername, err := AuthenticateGameCenter(n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authenticateGoogle(l *lua.LState) int {
+	// Parse ID token.
+	token := l.CheckString(1)
+	if token == "" {
+		l.ArgError(1, "expects ID token string")
 		return 0
 	}
 
@@ -653,9 +797,46 @@ func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	cleanEmail := strings.ToLower(email)
+	dbUserID, dbUsername, err := AuthenticateGoogle(n.logger, n.db, n.socialClient, token, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
 
-	dbUserID, dbUsername, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	return 2
+}
+
+func (n *NakamaModule) authenticateSteam(l *lua.LState) int {
+	if n.config.GetSocial().Steam.PublisherKey == "" || n.config.GetSocial().Steam.AppID == 0 {
+		l.RaiseError("Steam authentication is not configured")
+		return 0
+	}
+
+	// Parse token.
+	token := l.CheckString(1)
+	if token == "" {
+		l.ArgError(1, "expects token string")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(2, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(3, true)
+
+	dbUserID, dbUsername, err := AuthenticateSteam(n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0

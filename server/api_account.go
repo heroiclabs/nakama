@@ -27,7 +27,7 @@ import (
 func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Account, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
-	user, err := GetAccount(s.db, s.logger, userID)
+	user, err := GetAccount(s.db, s.logger, s.tracker, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving user account.")
 	}

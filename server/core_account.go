@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID) (*api.Account, error) {
+func GetAccount(db *sql.DB, logger *zap.Logger, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
@@ -105,7 +105,7 @@ WHERE id = $1`
 			SteamId:      steam.String,
 			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
-			Online:       false, // TODO(zyro): Must enrich the field from the presence map.
+			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 		},
 		Email:      email.String,
 		Devices:    deviceIDs,

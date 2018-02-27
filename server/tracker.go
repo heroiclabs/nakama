@@ -80,6 +80,8 @@ type Tracker interface {
 	// List the nodes that have at least one presence for the given stream.
 	ListNodesForStream(stream PresenceStream) []string
 
+	// Check if a stream exists (has any presences) or not.
+	StreamExists(stream PresenceStream) bool
 	// Get current total number of presences.
 	Count() int
 	// Get the number of presences in the given stream.
@@ -377,6 +379,14 @@ func (t *LocalTracker) ListNodesForStream(stream PresenceStream) []string {
 		return []string{t.name}
 	}
 	return []string{}
+}
+
+func (t *LocalTracker) StreamExists(stream PresenceStream) bool {
+	var exists bool
+	t.RLock()
+	exists = t.presencesByStream[stream] != nil
+	t.RUnlock()
+	return exists
 }
 
 func (t *LocalTracker) Count() int {
