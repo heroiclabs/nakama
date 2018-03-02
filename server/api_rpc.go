@@ -17,7 +17,6 @@ package server
 import (
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
@@ -58,7 +57,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload.Value)
+	result, fnErr := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload)
 	s.runtimePool.Put(runtime)
 	if fnErr != nil {
 		s.logger.Error("Runtime RPC function caused an error", zap.String("id", in.Id), zap.Error(fnErr))
@@ -79,5 +78,5 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		}
 	}
 
-	return &api.Rpc{Payload: &wrappers.StringValue{Value: result}}, nil
+	return &api.Rpc{Payload: result}, nil
 }

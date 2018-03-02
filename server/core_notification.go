@@ -31,12 +31,12 @@ import (
 )
 
 const (
-	NOTIFICATION_DM_REQUEST         int64 = -1
-	NOTIFICATION_FRIEND_REQUEST     int64 = -2
-	NOTIFICATION_FRIEND_ACCEPT      int64 = -3
-	NOTIFICATION_GROUP_ADD          int64 = -4
-	NOTIFICATION_GROUP_JOIN_REQUEST int64 = -5
-	NOTIFICATION_FRIEND_JOIN_GAME   int64 = -6
+	NOTIFICATION_DM_REQUEST         int32 = -1
+	NOTIFICATION_FRIEND_REQUEST     int32 = -2
+	NOTIFICATION_FRIEND_ACCEPT      int32 = -3
+	NOTIFICATION_GROUP_ADD          int32 = -4
+	NOTIFICATION_GROUP_JOIN_REQUEST int32 = -5
+	NOTIFICATION_FRIEND_JOIN_GAME   int32 = -6
 )
 
 type notificationCacheableCursor struct {
@@ -80,7 +80,7 @@ func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRo
 	return nil
 }
 
-func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int64, cursor string) (*api.NotificationList, error) {
+func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string) (*api.NotificationList, error) {
 	nc := &notificationCacheableCursor{}
 	if cursor != "" {
 		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {

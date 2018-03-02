@@ -179,14 +179,9 @@
           "description": "Mark a group as private where only admins can accept members."
         },
         "count": {
-          "type": "string",
-          "format": "int64",
+          "type": "integer",
+          "format": "int32",
           "description": "The current count of all members in the group."
-        },
-        "utc_offset_ms": {
-          "type": "string",
-          "format": "int64",
-          "description": "The UTC offset in milliseconds."
         },
         "create_time": {
           "type": "string",
@@ -256,6 +251,11 @@
           "type": "boolean",
           "format": "boolean",
           "description": "Indicates whether the user is currently online."
+        },
+        "edge_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of related edges to this user."
         },
         "create_time": {
           "type": "string",
