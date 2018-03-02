@@ -29,6 +29,8 @@ const (
 	StreamModeChannel
 	StreamModeGroup
 	StreamModeDM
+	StreamModeMatchRelayed
+	StreamModeMatchAuthoritative
 )
 
 type PresenceID struct {

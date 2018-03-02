@@ -10,6 +10,13 @@ It is generated from these files:
 It has these top-level messages:
 	Envelope
 	Error
+	Match
+	MatchCreate
+	MatchData
+	MatchDataSend
+	MatchJoin
+	MatchLeave
+	MatchPresenceEvent
 	Notifications
 	Stream
 	StreamData
@@ -83,10 +90,17 @@ type Envelope struct {
 	Cid string `protobuf:"bytes,1,opt,name=cid" json:"cid,omitempty"`
 	// Types that are valid to be assigned to Message:
 	//	*Envelope_Error
+	//	*Envelope_Match
+	//	*Envelope_MatchCreate
+	//	*Envelope_MatchData
+	//	*Envelope_MatchDataSend
+	//	*Envelope_MatchJoin
+	//	*Envelope_MatchLeave
+	//	*Envelope_MatchPresenceEvent
+	//	*Envelope_Notifications
 	//	*Envelope_Rpc
 	//	*Envelope_StreamData
 	//	*Envelope_StreamPresenceEvent
-	//	*Envelope_Notifications
 	Message isEnvelope_Message `protobuf_oneof:"message"`
 }
 
@@ -102,24 +116,52 @@ type isEnvelope_Message interface {
 type Envelope_Error struct {
 	Error *Error `protobuf:"bytes,2,opt,name=error,oneof"`
 }
-type Envelope_Rpc struct {
-	Rpc *nakama_api.Rpc `protobuf:"bytes,3,opt,name=rpc,oneof"`
+type Envelope_Match struct {
+	Match *Match `protobuf:"bytes,3,opt,name=match,oneof"`
 }
-type Envelope_StreamData struct {
-	StreamData *StreamData `protobuf:"bytes,4,opt,name=stream_data,json=streamData,oneof"`
+type Envelope_MatchCreate struct {
+	MatchCreate *MatchCreate `protobuf:"bytes,4,opt,name=match_create,json=matchCreate,oneof"`
 }
-type Envelope_StreamPresenceEvent struct {
-	StreamPresenceEvent *StreamPresenceEvent `protobuf:"bytes,5,opt,name=stream_presence_event,json=streamPresenceEvent,oneof"`
+type Envelope_MatchData struct {
+	MatchData *MatchData `protobuf:"bytes,5,opt,name=match_data,json=matchData,oneof"`
+}
+type Envelope_MatchDataSend struct {
+	MatchDataSend *MatchDataSend `protobuf:"bytes,6,opt,name=match_data_send,json=matchDataSend,oneof"`
+}
+type Envelope_MatchJoin struct {
+	MatchJoin *MatchJoin `protobuf:"bytes,7,opt,name=match_join,json=matchJoin,oneof"`
+}
+type Envelope_MatchLeave struct {
+	MatchLeave *MatchLeave `protobuf:"bytes,8,opt,name=match_leave,json=matchLeave,oneof"`
+}
+type Envelope_MatchPresenceEvent struct {
+	MatchPresenceEvent *MatchPresenceEvent `protobuf:"bytes,9,opt,name=match_presence_event,json=matchPresenceEvent,oneof"`
 }
 type Envelope_Notifications struct {
-	Notifications *Notifications `protobuf:"bytes,6,opt,name=notifications,oneof"`
+	Notifications *Notifications `protobuf:"bytes,10,opt,name=notifications,oneof"`
+}
+type Envelope_Rpc struct {
+	Rpc *nakama_api.Rpc `protobuf:"bytes,11,opt,name=rpc,oneof"`
+}
+type Envelope_StreamData struct {
+	StreamData *StreamData `protobuf:"bytes,12,opt,name=stream_data,json=streamData,oneof"`
+}
+type Envelope_StreamPresenceEvent struct {
+	StreamPresenceEvent *StreamPresenceEvent `protobuf:"bytes,13,opt,name=stream_presence_event,json=streamPresenceEvent,oneof"`
 }
 
 func (*Envelope_Error) isEnvelope_Message()               {}
+func (*Envelope_Match) isEnvelope_Message()               {}
+func (*Envelope_MatchCreate) isEnvelope_Message()         {}
+func (*Envelope_MatchData) isEnvelope_Message()           {}
+func (*Envelope_MatchDataSend) isEnvelope_Message()       {}
+func (*Envelope_MatchJoin) isEnvelope_Message()           {}
+func (*Envelope_MatchLeave) isEnvelope_Message()          {}
+func (*Envelope_MatchPresenceEvent) isEnvelope_Message()  {}
+func (*Envelope_Notifications) isEnvelope_Message()       {}
 func (*Envelope_Rpc) isEnvelope_Message()                 {}
 func (*Envelope_StreamData) isEnvelope_Message()          {}
 func (*Envelope_StreamPresenceEvent) isEnvelope_Message() {}
-func (*Envelope_Notifications) isEnvelope_Message()       {}
 
 func (m *Envelope) GetMessage() isEnvelope_Message {
 	if m != nil {
@@ -138,6 +180,62 @@ func (m *Envelope) GetCid() string {
 func (m *Envelope) GetError() *Error {
 	if x, ok := m.GetMessage().(*Envelope_Error); ok {
 		return x.Error
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatch() *Match {
+	if x, ok := m.GetMessage().(*Envelope_Match); ok {
+		return x.Match
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchCreate() *MatchCreate {
+	if x, ok := m.GetMessage().(*Envelope_MatchCreate); ok {
+		return x.MatchCreate
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchData() *MatchData {
+	if x, ok := m.GetMessage().(*Envelope_MatchData); ok {
+		return x.MatchData
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchDataSend() *MatchDataSend {
+	if x, ok := m.GetMessage().(*Envelope_MatchDataSend); ok {
+		return x.MatchDataSend
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchJoin() *MatchJoin {
+	if x, ok := m.GetMessage().(*Envelope_MatchJoin); ok {
+		return x.MatchJoin
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchLeave() *MatchLeave {
+	if x, ok := m.GetMessage().(*Envelope_MatchLeave); ok {
+		return x.MatchLeave
+	}
+	return nil
+}
+
+func (m *Envelope) GetMatchPresenceEvent() *MatchPresenceEvent {
+	if x, ok := m.GetMessage().(*Envelope_MatchPresenceEvent); ok {
+		return x.MatchPresenceEvent
+	}
+	return nil
+}
+
+func (m *Envelope) GetNotifications() *Notifications {
+	if x, ok := m.GetMessage().(*Envelope_Notifications); ok {
+		return x.Notifications
 	}
 	return nil
 }
@@ -163,21 +261,21 @@ func (m *Envelope) GetStreamPresenceEvent() *StreamPresenceEvent {
 	return nil
 }
 
-func (m *Envelope) GetNotifications() *Notifications {
-	if x, ok := m.GetMessage().(*Envelope_Notifications); ok {
-		return x.Notifications
-	}
-	return nil
-}
-
 // XXX_OneofFuncs is for the internal use of the proto package.
 func (*Envelope) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
 	return _Envelope_OneofMarshaler, _Envelope_OneofUnmarshaler, _Envelope_OneofSizer, []interface{}{
 		(*Envelope_Error)(nil),
+		(*Envelope_Match)(nil),
+		(*Envelope_MatchCreate)(nil),
+		(*Envelope_MatchData)(nil),
+		(*Envelope_MatchDataSend)(nil),
+		(*Envelope_MatchJoin)(nil),
+		(*Envelope_MatchLeave)(nil),
+		(*Envelope_MatchPresenceEvent)(nil),
+		(*Envelope_Notifications)(nil),
 		(*Envelope_Rpc)(nil),
 		(*Envelope_StreamData)(nil),
 		(*Envelope_StreamPresenceEvent)(nil),
-		(*Envelope_Notifications)(nil),
 	}
 }
 
@@ -190,24 +288,59 @@ func _Envelope_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 		if err := b.EncodeMessage(x.Error); err != nil {
 			return err
 		}
-	case *Envelope_Rpc:
+	case *Envelope_Match:
 		b.EncodeVarint(3<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Match); err != nil {
+			return err
+		}
+	case *Envelope_MatchCreate:
+		b.EncodeVarint(4<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchCreate); err != nil {
+			return err
+		}
+	case *Envelope_MatchData:
+		b.EncodeVarint(5<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchData); err != nil {
+			return err
+		}
+	case *Envelope_MatchDataSend:
+		b.EncodeVarint(6<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchDataSend); err != nil {
+			return err
+		}
+	case *Envelope_MatchJoin:
+		b.EncodeVarint(7<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchJoin); err != nil {
+			return err
+		}
+	case *Envelope_MatchLeave:
+		b.EncodeVarint(8<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchLeave); err != nil {
+			return err
+		}
+	case *Envelope_MatchPresenceEvent:
+		b.EncodeVarint(9<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.MatchPresenceEvent); err != nil {
+			return err
+		}
+	case *Envelope_Notifications:
+		b.EncodeVarint(10<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Notifications); err != nil {
+			return err
+		}
+	case *Envelope_Rpc:
+		b.EncodeVarint(11<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Rpc); err != nil {
 			return err
 		}
 	case *Envelope_StreamData:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
+		b.EncodeVarint(12<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.StreamData); err != nil {
 			return err
 		}
 	case *Envelope_StreamPresenceEvent:
-		b.EncodeVarint(5<<3 | proto.WireBytes)
+		b.EncodeVarint(13<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.StreamPresenceEvent); err != nil {
-			return err
-		}
-	case *Envelope_Notifications:
-		b.EncodeVarint(6<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Notifications); err != nil {
 			return err
 		}
 	case nil:
@@ -228,7 +361,71 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Error{msg}
 		return true, err
-	case 3: // message.rpc
+	case 3: // message.match
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Match)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_Match{msg}
+		return true, err
+	case 4: // message.match_create
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchCreate)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchCreate{msg}
+		return true, err
+	case 5: // message.match_data
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchData)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchData{msg}
+		return true, err
+	case 6: // message.match_data_send
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchDataSend)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchDataSend{msg}
+		return true, err
+	case 7: // message.match_join
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchJoin)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchJoin{msg}
+		return true, err
+	case 8: // message.match_leave
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchLeave)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchLeave{msg}
+		return true, err
+	case 9: // message.match_presence_event
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(MatchPresenceEvent)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_MatchPresenceEvent{msg}
+		return true, err
+	case 10: // message.notifications
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Notifications)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_Notifications{msg}
+		return true, err
+	case 11: // message.rpc
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -236,7 +433,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Rpc{msg}
 		return true, err
-	case 4: // message.stream_data
+	case 12: // message.stream_data
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -244,21 +441,13 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_StreamData{msg}
 		return true, err
-	case 5: // message.stream_presence_event
+	case 13: // message.stream_presence_event
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
 		msg := new(StreamPresenceEvent)
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_StreamPresenceEvent{msg}
-		return true, err
-	case 6: // message.notifications
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Notifications)
-		err := b.DecodeMessage(msg)
-		m.Message = &Envelope_Notifications{msg}
 		return true, err
 	default:
 		return false, nil
@@ -274,24 +463,59 @@ func _Envelope_OneofSizer(msg proto.Message) (n int) {
 		n += proto.SizeVarint(2<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
-	case *Envelope_Rpc:
-		s := proto.Size(x.Rpc)
+	case *Envelope_Match:
+		s := proto.Size(x.Match)
 		n += proto.SizeVarint(3<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
-	case *Envelope_StreamData:
-		s := proto.Size(x.StreamData)
+	case *Envelope_MatchCreate:
+		s := proto.Size(x.MatchCreate)
 		n += proto.SizeVarint(4<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
-	case *Envelope_StreamPresenceEvent:
-		s := proto.Size(x.StreamPresenceEvent)
+	case *Envelope_MatchData:
+		s := proto.Size(x.MatchData)
 		n += proto.SizeVarint(5<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_MatchDataSend:
+		s := proto.Size(x.MatchDataSend)
+		n += proto.SizeVarint(6<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_MatchJoin:
+		s := proto.Size(x.MatchJoin)
+		n += proto.SizeVarint(7<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_MatchLeave:
+		s := proto.Size(x.MatchLeave)
+		n += proto.SizeVarint(8<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_MatchPresenceEvent:
+		s := proto.Size(x.MatchPresenceEvent)
+		n += proto.SizeVarint(9<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_Notifications:
 		s := proto.Size(x.Notifications)
-		n += proto.SizeVarint(6<<3 | proto.WireBytes)
+		n += proto.SizeVarint(10<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_Rpc:
+		s := proto.Size(x.Rpc)
+		n += proto.SizeVarint(11<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_StreamData:
+		s := proto.Size(x.StreamData)
+		n += proto.SizeVarint(12<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_StreamPresenceEvent:
+		s := proto.Size(x.StreamPresenceEvent)
+		n += proto.SizeVarint(13<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case nil:
@@ -337,6 +561,294 @@ func (m *Error) GetContext() map[string]string {
 	return nil
 }
 
+// A realtime match.
+type Match struct {
+	MatchId   string            `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+	Presences []*StreamPresence `protobuf:"bytes,2,rep,name=presences" json:"presences,omitempty"`
+	Self      *StreamPresence   `protobuf:"bytes,3,opt,name=self" json:"self,omitempty"`
+}
+
+func (m *Match) Reset()                    { *m = Match{} }
+func (m *Match) String() string            { return proto.CompactTextString(m) }
+func (*Match) ProtoMessage()               {}
+func (*Match) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *Match) GetMatchId() string {
+	if m != nil {
+		return m.MatchId
+	}
+	return ""
+}
+
+func (m *Match) GetPresences() []*StreamPresence {
+	if m != nil {
+		return m.Presences
+	}
+	return nil
+}
+
+func (m *Match) GetSelf() *StreamPresence {
+	if m != nil {
+		return m.Self
+	}
+	return nil
+}
+
+// Create a new realtime match.
+type MatchCreate struct {
+}
+
+func (m *MatchCreate) Reset()                    { *m = MatchCreate{} }
+func (m *MatchCreate) String() string            { return proto.CompactTextString(m) }
+func (*MatchCreate) ProtoMessage()               {}
+func (*MatchCreate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+// Realtime match data received from the server.
+type MatchData struct {
+	MatchId  string          `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+	Presence *StreamPresence `protobuf:"bytes,2,opt,name=presence" json:"presence,omitempty"`
+	OpCode   int64           `protobuf:"varint,3,opt,name=op_code,json=opCode" json:"op_code,omitempty"`
+	Data     []byte          `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (m *MatchData) Reset()                    { *m = MatchData{} }
+func (m *MatchData) String() string            { return proto.CompactTextString(m) }
+func (*MatchData) ProtoMessage()               {}
+func (*MatchData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+func (m *MatchData) GetMatchId() string {
+	if m != nil {
+		return m.MatchId
+	}
+	return ""
+}
+
+func (m *MatchData) GetPresence() *StreamPresence {
+	if m != nil {
+		return m.Presence
+	}
+	return nil
+}
+
+func (m *MatchData) GetOpCode() int64 {
+	if m != nil {
+		return m.OpCode
+	}
+	return 0
+}
+
+func (m *MatchData) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+// Send realtime match data to the server.
+type MatchDataSend struct {
+	MatchId   string            `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+	OpCode    int64             `protobuf:"varint,2,opt,name=op_code,json=opCode" json:"op_code,omitempty"`
+	Data      []byte            `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Presences []*StreamPresence `protobuf:"bytes,4,rep,name=presences" json:"presences,omitempty"`
+}
+
+func (m *MatchDataSend) Reset()                    { *m = MatchDataSend{} }
+func (m *MatchDataSend) String() string            { return proto.CompactTextString(m) }
+func (*MatchDataSend) ProtoMessage()               {}
+func (*MatchDataSend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+func (m *MatchDataSend) GetMatchId() string {
+	if m != nil {
+		return m.MatchId
+	}
+	return ""
+}
+
+func (m *MatchDataSend) GetOpCode() int64 {
+	if m != nil {
+		return m.OpCode
+	}
+	return 0
+}
+
+func (m *MatchDataSend) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+func (m *MatchDataSend) GetPresences() []*StreamPresence {
+	if m != nil {
+		return m.Presences
+	}
+	return nil
+}
+
+// Join an existing realtime match.
+type MatchJoin struct {
+	// Types that are valid to be assigned to Id:
+	//	*MatchJoin_MatchId
+	//	*MatchJoin_Token
+	Id isMatchJoin_Id `protobuf_oneof:"id"`
+}
+
+func (m *MatchJoin) Reset()                    { *m = MatchJoin{} }
+func (m *MatchJoin) String() string            { return proto.CompactTextString(m) }
+func (*MatchJoin) ProtoMessage()               {}
+func (*MatchJoin) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+type isMatchJoin_Id interface {
+	isMatchJoin_Id()
+}
+
+type MatchJoin_MatchId struct {
+	MatchId string `protobuf:"bytes,1,opt,name=match_id,json=matchId,oneof"`
+}
+type MatchJoin_Token struct {
+	Token string `protobuf:"bytes,2,opt,name=token,oneof"`
+}
+
+func (*MatchJoin_MatchId) isMatchJoin_Id() {}
+func (*MatchJoin_Token) isMatchJoin_Id()   {}
+
+func (m *MatchJoin) GetId() isMatchJoin_Id {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *MatchJoin) GetMatchId() string {
+	if x, ok := m.GetId().(*MatchJoin_MatchId); ok {
+		return x.MatchId
+	}
+	return ""
+}
+
+func (m *MatchJoin) GetToken() string {
+	if x, ok := m.GetId().(*MatchJoin_Token); ok {
+		return x.Token
+	}
+	return ""
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*MatchJoin) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _MatchJoin_OneofMarshaler, _MatchJoin_OneofUnmarshaler, _MatchJoin_OneofSizer, []interface{}{
+		(*MatchJoin_MatchId)(nil),
+		(*MatchJoin_Token)(nil),
+	}
+}
+
+func _MatchJoin_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*MatchJoin)
+	// id
+	switch x := m.Id.(type) {
+	case *MatchJoin_MatchId:
+		b.EncodeVarint(1<<3 | proto.WireBytes)
+		b.EncodeStringBytes(x.MatchId)
+	case *MatchJoin_Token:
+		b.EncodeVarint(2<<3 | proto.WireBytes)
+		b.EncodeStringBytes(x.Token)
+	case nil:
+	default:
+		return fmt.Errorf("MatchJoin.Id has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _MatchJoin_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*MatchJoin)
+	switch tag {
+	case 1: // id.match_id
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeStringBytes()
+		m.Id = &MatchJoin_MatchId{x}
+		return true, err
+	case 2: // id.token
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeStringBytes()
+		m.Id = &MatchJoin_Token{x}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _MatchJoin_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*MatchJoin)
+	// id
+	switch x := m.Id.(type) {
+	case *MatchJoin_MatchId:
+		n += proto.SizeVarint(1<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(len(x.MatchId)))
+		n += len(x.MatchId)
+	case *MatchJoin_Token:
+		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(len(x.Token)))
+		n += len(x.Token)
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
+
+// Leave a realtime match.
+type MatchLeave struct {
+	MatchId string `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+}
+
+func (m *MatchLeave) Reset()                    { *m = MatchLeave{} }
+func (m *MatchLeave) String() string            { return proto.CompactTextString(m) }
+func (*MatchLeave) ProtoMessage()               {}
+func (*MatchLeave) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+func (m *MatchLeave) GetMatchId() string {
+	if m != nil {
+		return m.MatchId
+	}
+	return ""
+}
+
+// A set of joins and leaves on a particular realtime match.
+type MatchPresenceEvent struct {
+	MatchId string            `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+	Joins   []*StreamPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
+	Leaves  []*StreamPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
+}
+
+func (m *MatchPresenceEvent) Reset()                    { *m = MatchPresenceEvent{} }
+func (m *MatchPresenceEvent) String() string            { return proto.CompactTextString(m) }
+func (*MatchPresenceEvent) ProtoMessage()               {}
+func (*MatchPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+
+func (m *MatchPresenceEvent) GetMatchId() string {
+	if m != nil {
+		return m.MatchId
+	}
+	return ""
+}
+
+func (m *MatchPresenceEvent) GetJoins() []*StreamPresence {
+	if m != nil {
+		return m.Joins
+	}
+	return nil
+}
+
+func (m *MatchPresenceEvent) GetLeaves() []*StreamPresence {
+	if m != nil {
+		return m.Leaves
+	}
+	return nil
+}
+
 // A collection of zero or more notifications.
 type Notifications struct {
 	// Collection of notifications.
@@ -346,7 +858,7 @@ type Notifications struct {
 func (m *Notifications) Reset()                    { *m = Notifications{} }
 func (m *Notifications) String() string            { return proto.CompactTextString(m) }
 func (*Notifications) ProtoMessage()               {}
-func (*Notifications) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*Notifications) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *Notifications) GetNotifications() []*nakama_api.Notification {
 	if m != nil {
@@ -370,7 +882,7 @@ type Stream struct {
 func (m *Stream) Reset()                    { *m = Stream{} }
 func (m *Stream) String() string            { return proto.CompactTextString(m) }
 func (*Stream) ProtoMessage()               {}
-func (*Stream) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*Stream) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *Stream) GetMode() int32 {
 	if m != nil {
@@ -413,7 +925,7 @@ type StreamData struct {
 func (m *StreamData) Reset()                    { *m = StreamData{} }
 func (m *StreamData) String() string            { return proto.CompactTextString(m) }
 func (*StreamData) ProtoMessage()               {}
-func (*StreamData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (*StreamData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 func (m *StreamData) GetStream() *Stream {
 	if m != nil {
@@ -453,7 +965,7 @@ type StreamPresence struct {
 func (m *StreamPresence) Reset()                    { *m = StreamPresence{} }
 func (m *StreamPresence) String() string            { return proto.CompactTextString(m) }
 func (*StreamPresence) ProtoMessage()               {}
-func (*StreamPresence) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*StreamPresence) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 func (m *StreamPresence) GetUserId() string {
 	if m != nil {
@@ -503,7 +1015,7 @@ type StreamPresenceEvent struct {
 func (m *StreamPresenceEvent) Reset()                    { *m = StreamPresenceEvent{} }
 func (m *StreamPresenceEvent) String() string            { return proto.CompactTextString(m) }
 func (*StreamPresenceEvent) ProtoMessage()               {}
-func (*StreamPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*StreamPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
 func (m *StreamPresenceEvent) GetStream() *Stream {
 	if m != nil {
@@ -529,6 +1041,13 @@ func (m *StreamPresenceEvent) GetLeaves() []*StreamPresence {
 func init() {
 	proto.RegisterType((*Envelope)(nil), "nakama.realtime.Envelope")
 	proto.RegisterType((*Error)(nil), "nakama.realtime.Error")
+	proto.RegisterType((*Match)(nil), "nakama.realtime.Match")
+	proto.RegisterType((*MatchCreate)(nil), "nakama.realtime.MatchCreate")
+	proto.RegisterType((*MatchData)(nil), "nakama.realtime.MatchData")
+	proto.RegisterType((*MatchDataSend)(nil), "nakama.realtime.MatchDataSend")
+	proto.RegisterType((*MatchJoin)(nil), "nakama.realtime.MatchJoin")
+	proto.RegisterType((*MatchLeave)(nil), "nakama.realtime.MatchLeave")
+	proto.RegisterType((*MatchPresenceEvent)(nil), "nakama.realtime.MatchPresenceEvent")
 	proto.RegisterType((*Notifications)(nil), "nakama.realtime.Notifications")
 	proto.RegisterType((*Stream)(nil), "nakama.realtime.Stream")
 	proto.RegisterType((*StreamData)(nil), "nakama.realtime.StreamData")
@@ -540,53 +1059,71 @@ func init() {
 func init() { proto.RegisterFile("rtapi/realtime.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 760 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0xdd, 0x6e, 0xe3, 0x44,
-	0x14, 0x8e, 0x9d, 0xd8, 0xad, 0x4f, 0xe8, 0x36, 0x4c, 0xdb, 0x5d, 0x2b, 0x88, 0x12, 0x79, 0xb9,
-	0xa8, 0xb8, 0x70, 0xa4, 0x22, 0x04, 0x5a, 0x89, 0x15, 0xf9, 0x71, 0x37, 0x16, 0xac, 0x13, 0x4d,
-	0x13, 0x09, 0x7a, 0x63, 0x4d, 0x9c, 0x61, 0xeb, 0xd6, 0x7f, 0xf2, 0x4c, 0x22, 0xfa, 0x0a, 0x3c,
-	0x04, 0x17, 0x5c, 0x72, 0xc5, 0x15, 0xcf, 0x83, 0xc4, 0x8b, 0xa0, 0x19, 0xdb, 0xa9, 0xfb, 0xa7,
-	0x6a, 0xaf, 0x3c, 0xe7, 0x9c, 0xef, 0x9c, 0x33, 0xfe, 0xbe, 0x73, 0x06, 0x0e, 0x73, 0x4e, 0xb2,
-	0xb0, 0x9f, 0x53, 0x12, 0xf1, 0x30, 0xa6, 0x76, 0x96, 0xa7, 0x3c, 0x45, 0xfb, 0x09, 0xb9, 0x26,
-	0x31, 0xb1, 0x2b, 0x77, 0xf7, 0xab, 0x0f, 0x21, 0xbf, 0x5c, 0x2f, 0xed, 0x20, 0x8d, 0xfb, 0x97,
-	0x34, 0x4f, 0xc3, 0x20, 0x22, 0x4b, 0xd6, 0x2f, 0x60, 0x7d, 0x51, 0x81, 0x64, 0x61, 0x91, 0x6c,
-	0xfd, 0xab, 0xc2, 0xae, 0x93, 0x6c, 0x68, 0x94, 0x66, 0x14, 0x75, 0xa0, 0x19, 0x84, 0x2b, 0x53,
-	0xe9, 0x29, 0x27, 0x06, 0x16, 0x47, 0x64, 0x83, 0x46, 0xf3, 0x3c, 0xcd, 0x4d, 0xb5, 0xa7, 0x9c,
-	0xb4, 0x4f, 0x5f, 0xda, 0xf7, 0x7a, 0xd9, 0x8e, 0x88, 0x4e, 0x1a, 0xb8, 0x80, 0xa1, 0xd7, 0xd0,
-	0xcc, 0xb3, 0xc0, 0x6c, 0x4a, 0xf4, 0x7e, 0x85, 0x16, 0xed, 0x70, 0x16, 0x4c, 0x1a, 0x58, 0x44,
-	0xd1, 0x5b, 0x68, 0x33, 0x9e, 0x53, 0x12, 0xfb, 0x2b, 0xc2, 0x89, 0xd9, 0x92, 0xe0, 0xcf, 0x1e,
-	0x94, 0x3e, 0x97, 0x98, 0x31, 0xe1, 0x64, 0xd2, 0xc0, 0xc0, 0xb6, 0x16, 0xba, 0x80, 0xa3, 0x32,
-	0x3f, 0xcb, 0x29, 0xa3, 0x49, 0x40, 0x7d, 0xba, 0xa1, 0x09, 0x37, 0x35, 0x59, 0xe9, 0xcb, 0x27,
-	0x2a, 0xcd, 0x4a, 0xb0, 0x23, 0xb0, 0x93, 0x06, 0x3e, 0x60, 0x0f, 0xdd, 0xe8, 0x0c, 0xf6, 0x92,
-	0x94, 0x87, 0xbf, 0x86, 0x01, 0xe1, 0x61, 0x9a, 0x30, 0x53, 0x97, 0x35, 0x8f, 0x1f, 0xd4, 0xf4,
-	0xea, 0xa8, 0x49, 0x03, 0xdf, 0x4d, 0x1b, 0x1a, 0xb0, 0x13, 0x53, 0xc6, 0xc8, 0x07, 0x6a, 0xfd,
-	0xa7, 0x82, 0x26, 0x69, 0x42, 0x08, 0x5a, 0x41, 0xba, 0xa2, 0x92, 0x60, 0x0d, 0xcb, 0x33, 0x32,
-	0xb7, 0x40, 0xc9, 0xb1, 0x81, 0x2b, 0x13, 0x7d, 0x0f, 0x3b, 0x41, 0x9a, 0x70, 0xfa, 0x1b, 0x37,
-	0x9b, 0xbd, 0xe6, 0x49, 0xfb, 0xf4, 0xf5, 0xe3, 0xec, 0xdb, 0xa3, 0x02, 0xe5, 0x24, 0x3c, 0xbf,
-	0xc1, 0x55, 0x4e, 0xf7, 0x0d, 0x7c, 0x52, 0x0f, 0x08, 0x71, 0xaf, 0xe9, 0x4d, 0x25, 0xee, 0x35,
-	0xbd, 0x41, 0x87, 0xa0, 0x6d, 0x48, 0xb4, 0xae, 0x1a, 0x17, 0xc6, 0x1b, 0xf5, 0x3b, 0xc5, 0xfa,
-	0x5b, 0x81, 0xd6, 0x48, 0xdc, 0xee, 0x08, 0x3e, 0xc5, 0x0b, 0x6f, 0xee, 0xbe, 0x77, 0x7c, 0xe7,
-	0xe7, 0x91, 0x33, 0x9b, 0xbb, 0x53, 0xaf, 0xd3, 0x40, 0x26, 0x1c, 0x2e, 0x3c, 0xec, 0x8c, 0xa6,
-	0xef, 0x3c, 0xf7, 0xc2, 0x19, 0xfb, 0xb3, 0xc1, 0x2f, 0x3f, 0x4d, 0x07, 0xe3, 0x8e, 0x82, 0x0e,
-	0x60, 0xff, 0xbd, 0x7b, 0x7e, 0xee, 0x7a, 0xef, 0xb6, 0x4e, 0x15, 0xed, 0x81, 0x31, 0x1c, 0x8c,
-	0x7d, 0xd7, 0x9b, 0x2d, 0xe6, 0x9d, 0xa6, 0xc4, 0x0c, 0xe6, 0xa3, 0x89, 0xef, 0x4d, 0xe7, 0xfe,
-	0xd9, 0x74, 0xe1, 0x8d, 0x3b, 0x2d, 0x74, 0x0c, 0xdd, 0xaa, 0xd3, 0xd9, 0xc2, 0x1b, 0x89, 0x46,
-	0xb5, 0xb8, 0xf6, 0x68, 0xfc, 0xf6, 0x4a, 0xba, 0x35, 0x85, 0xbd, 0x3b, 0x92, 0xa0, 0xb7, 0xf7,
-	0x95, 0x54, 0x24, 0x89, 0x66, 0x7d, 0x28, 0xeb, 0x19, 0xf7, 0x14, 0xb4, 0x22, 0xd0, 0x8b, 0xb9,
-	0x11, 0xb2, 0xc5, 0x35, 0xd9, 0xe2, 0x52, 0x36, 0xb6, 0x5e, 0x5e, 0xd1, 0x80, 0x57, 0xb2, 0x95,
-	0x26, 0x3a, 0x06, 0x58, 0x51, 0x16, 0xe4, 0x61, 0xc6, 0xd3, 0x5c, 0x6e, 0x82, 0x81, 0x6b, 0x1e,
-	0xc1, 0x7a, 0x44, 0x96, 0x34, 0x92, 0x73, 0x6f, 0xe0, 0xc2, 0xb0, 0x7e, 0x57, 0x00, 0x6e, 0x07,
-	0x1e, 0xf5, 0x41, 0x2f, 0xa6, 0x53, 0x36, 0x6d, 0x9f, 0xbe, 0x7a, 0x62, 0xa6, 0x71, 0x09, 0x43,
-	0xdf, 0x82, 0xce, 0x68, 0xb2, 0xa2, 0xd5, 0xa6, 0x7e, 0xf1, 0xcc, 0x12, 0xe0, 0x12, 0x2e, 0x7e,
-	0x4e, 0x6e, 0x61, 0x71, 0x51, 0x79, 0xb6, 0xfe, 0x50, 0xe0, 0xc5, 0x5d, 0x38, 0x7a, 0x05, 0x3b,
-	0x6b, 0x46, 0x73, 0x7f, 0xfb, 0x3c, 0xe8, 0xc2, 0x74, 0x57, 0xe8, 0x73, 0x00, 0x46, 0x19, 0x0b,
-	0xd3, 0x44, 0xc4, 0x0a, 0x2e, 0x8c, 0xd2, 0xe3, 0xae, 0x50, 0x17, 0x76, 0x05, 0x30, 0x21, 0x31,
-	0x2d, 0x5b, 0x6c, 0x6d, 0xd4, 0x83, 0x76, 0x46, 0x73, 0x16, 0x32, 0x2e, 0x5a, 0x48, 0x3e, 0x76,
-	0x71, 0xdd, 0x85, 0x5e, 0x0a, 0x1a, 0x08, 0x5f, 0x33, 0xb9, 0xda, 0x06, 0x2e, 0x2d, 0xeb, 0x1f,
-	0x05, 0x0e, 0x1e, 0x59, 0xea, 0x8f, 0xa7, 0xed, 0x1b, 0xd0, 0xae, 0xd2, 0x30, 0x61, 0xa6, 0x2a,
-	0x87, 0xe3, 0x59, 0xd6, 0x0a, 0xb4, 0x60, 0x3b, 0xa2, 0x64, 0x43, 0x59, 0xb9, 0x99, 0xcf, 0xb3,
-	0x5d, 0xc0, 0x87, 0x3f, 0xc0, 0x51, 0x90, 0xc6, 0xf6, 0xed, 0xab, 0x5c, 0x26, 0x0e, 0x5f, 0x78,
-	0xf2, 0x8b, 0xcb, 0xfc, 0x99, 0x72, 0xa1, 0xc9, 0xc7, 0xfe, 0x4f, 0xb5, 0xe5, 0xfd, 0x38, 0x1b,
-	0xfe, 0xa5, 0xea, 0x05, 0x60, 0xa9, 0xcb, 0x77, 0xfb, 0xeb, 0xff, 0x03, 0x00, 0x00, 0xff, 0xff,
-	0xc9, 0x14, 0x69, 0x59, 0x0c, 0x06, 0x00, 0x00,
+	// 1056 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0x4d, 0x6f, 0xdb, 0x46,
+	0x10, 0x15, 0x25, 0x91, 0x16, 0x47, 0x56, 0xec, 0xae, 0x3f, 0xc2, 0x3a, 0xad, 0x6b, 0x30, 0x05,
+	0x1a, 0xf4, 0x20, 0x03, 0x09, 0x8a, 0x16, 0x09, 0x12, 0xd4, 0x92, 0xe5, 0x50, 0x6d, 0x4c, 0x09,
+	0x6b, 0x1b, 0x6d, 0x7d, 0x21, 0xd6, 0xe4, 0x26, 0x66, 0x2c, 0x7e, 0x80, 0xbb, 0x32, 0xea, 0xbf,
+	0xd0, 0x53, 0x4f, 0x3d, 0xb6, 0x40, 0x8f, 0x3d, 0xe5, 0xd4, 0x3f, 0xd4, 0x3f, 0x52, 0xec, 0x92,
+	0x14, 0x29, 0x59, 0x92, 0x93, 0x4b, 0x4e, 0xe2, 0xec, 0xbe, 0x37, 0x33, 0x7a, 0x3b, 0xfb, 0x48,
+	0xd8, 0x4c, 0x38, 0x89, 0xfd, 0xfd, 0x84, 0x92, 0x11, 0xf7, 0x03, 0xda, 0x8e, 0x93, 0x88, 0x47,
+	0x68, 0x2d, 0x24, 0x57, 0x24, 0x20, 0xed, 0x7c, 0x79, 0xe7, 0xeb, 0x37, 0x3e, 0xbf, 0x1c, 0x5f,
+	0xb4, 0xdd, 0x28, 0xd8, 0xbf, 0xa4, 0x49, 0xe4, 0xbb, 0x23, 0x72, 0xc1, 0xf6, 0x53, 0xd8, 0xbe,
+	0xc8, 0x40, 0x62, 0x3f, 0x25, 0x9b, 0xef, 0x34, 0x68, 0xf4, 0xc2, 0x6b, 0x3a, 0x8a, 0x62, 0x8a,
+	0xd6, 0xa1, 0xe6, 0xfa, 0x9e, 0xa1, 0xec, 0x29, 0x8f, 0x74, 0x2c, 0x1e, 0x51, 0x1b, 0x54, 0x9a,
+	0x24, 0x51, 0x62, 0x54, 0xf7, 0x94, 0x47, 0xcd, 0xc7, 0xdb, 0xed, 0x99, 0x5a, 0xed, 0x9e, 0xd8,
+	0xb5, 0x2a, 0x38, 0x85, 0x09, 0x7c, 0x40, 0xb8, 0x7b, 0x69, 0xd4, 0x16, 0xe0, 0x8f, 0xc5, 0xae,
+	0xc0, 0x4b, 0x18, 0x3a, 0x80, 0x55, 0xf9, 0xe0, 0xb8, 0x09, 0x25, 0x9c, 0x1a, 0x75, 0x49, 0xfb,
+	0x6c, 0x3e, 0xad, 0x2b, 0x31, 0x56, 0x05, 0x37, 0x83, 0x22, 0x44, 0xcf, 0x00, 0xd2, 0x14, 0x1e,
+	0xe1, 0xc4, 0x50, 0x65, 0x82, 0x9d, 0xf9, 0x09, 0x0e, 0x09, 0x27, 0x56, 0x05, 0xeb, 0x41, 0x1e,
+	0x20, 0x0b, 0xd6, 0x0a, 0xb2, 0xc3, 0x68, 0xe8, 0x19, 0x9a, 0xcc, 0xb0, 0xbb, 0x38, 0xc3, 0x09,
+	0x0d, 0x3d, 0xab, 0x82, 0x5b, 0x41, 0x79, 0xa1, 0x68, 0xe3, 0x6d, 0xe4, 0x87, 0xc6, 0xca, 0xb2,
+	0x36, 0x7e, 0x88, 0xfc, 0x70, 0xd2, 0x86, 0x08, 0xd0, 0x0b, 0x48, 0xff, 0x92, 0x33, 0xa2, 0xe4,
+	0x9a, 0x1a, 0x0d, 0xc9, 0x7e, 0x30, 0x9f, 0xfd, 0x4a, 0x40, 0xac, 0x0a, 0x4e, 0xcb, 0xc9, 0x08,
+	0xfd, 0x04, 0x9b, 0x29, 0x3f, 0x4e, 0x28, 0xa3, 0xa1, 0x4b, 0x1d, 0x7a, 0x4d, 0x43, 0x6e, 0xe8,
+	0x32, 0xd1, 0xc3, 0xf9, 0x89, 0x86, 0x19, 0xb6, 0x27, 0xa0, 0x56, 0x05, 0xa3, 0xe0, 0xd6, 0x2a,
+	0x3a, 0x82, 0x56, 0x18, 0x71, 0xff, 0xb5, 0xef, 0x12, 0xee, 0x47, 0x21, 0x33, 0x60, 0x81, 0x3a,
+	0x76, 0x19, 0x25, 0xd4, 0x99, 0xa2, 0xa1, 0x87, 0x50, 0x4b, 0x62, 0xd7, 0x68, 0x4a, 0xf6, 0x5a,
+	0xce, 0x16, 0x63, 0x88, 0x63, 0xd7, 0xaa, 0x60, 0xb1, 0x2b, 0x54, 0x60, 0x3c, 0xa1, 0x24, 0x48,
+	0x8f, 0x72, 0x75, 0x81, 0x0a, 0x27, 0x12, 0x93, 0x9d, 0x25, 0xb0, 0x49, 0x84, 0xce, 0x61, 0x2b,
+	0xe3, 0xcf, 0xc8, 0xd0, 0x92, 0x99, 0xbe, 0x5c, 0x90, 0x69, 0x56, 0x87, 0x0d, 0x76, 0x7b, 0xb9,
+	0xa3, 0xc3, 0x4a, 0x40, 0x19, 0x23, 0x6f, 0xa8, 0xf9, 0x5f, 0x15, 0x54, 0x39, 0xf6, 0x08, 0x41,
+	0xdd, 0x8d, 0x3c, 0x2a, 0x2f, 0x8c, 0x8a, 0xe5, 0x33, 0x32, 0x26, 0x40, 0x79, 0x67, 0x74, 0x9c,
+	0x87, 0xe8, 0x39, 0xac, 0xb8, 0x51, 0xc8, 0xe9, 0xaf, 0xdc, 0xa8, 0xed, 0xd5, 0xe6, 0x9e, 0x8b,
+	0x4c, 0xdb, 0xee, 0xa6, 0xa8, 0x5e, 0xc8, 0x93, 0x1b, 0x9c, 0x73, 0x76, 0x9e, 0xc2, 0x6a, 0x79,
+	0x43, 0x5c, 0xd6, 0x2b, 0x7a, 0x93, 0x5f, 0xd6, 0x2b, 0x7a, 0x83, 0x36, 0x41, 0xbd, 0x26, 0xa3,
+	0x71, 0x5e, 0x38, 0x0d, 0x9e, 0x56, 0xbf, 0x53, 0xcc, 0x77, 0x0a, 0xd4, 0xbb, 0xa2, 0xbb, 0x2d,
+	0xf8, 0x04, 0x9f, 0xd9, 0xa7, 0xfd, 0xe3, 0x9e, 0xd3, 0xfb, 0xb9, 0xdb, 0x1b, 0x9e, 0xf6, 0x07,
+	0xf6, 0x7a, 0x05, 0x19, 0xb0, 0x79, 0x66, 0xe3, 0x5e, 0x77, 0xf0, 0xd2, 0xee, 0x9f, 0xf7, 0x0e,
+	0x9d, 0xe1, 0xc1, 0x2f, 0xaf, 0x06, 0x07, 0x87, 0xeb, 0x0a, 0xda, 0x80, 0xb5, 0xe3, 0xfe, 0xc9,
+	0x49, 0xdf, 0x7e, 0x39, 0x59, 0xac, 0xa2, 0x16, 0xe8, 0x9d, 0x83, 0x43, 0xa7, 0x6f, 0x0f, 0xcf,
+	0x4e, 0xd7, 0x6b, 0x12, 0x73, 0x70, 0xda, 0xb5, 0x1c, 0x7b, 0x70, 0xea, 0x1c, 0x0d, 0xce, 0xec,
+	0xc3, 0xf5, 0x3a, 0xda, 0x85, 0x9d, 0xbc, 0xd2, 0xd1, 0x99, 0xdd, 0x15, 0x85, 0x4a, 0xfb, 0xea,
+	0xdc, 0xfd, 0xa2, 0x25, 0xcd, 0xfc, 0x43, 0x01, 0x55, 0x8e, 0x29, 0xfa, 0x14, 0x1a, 0xe9, 0x70,
+	0x4f, 0xac, 0x69, 0x45, 0xc6, 0x7d, 0x0f, 0x3d, 0x07, 0x3d, 0x3f, 0x6a, 0x66, 0x54, 0xa5, 0xa8,
+	0x5f, 0xdc, 0x71, 0xca, 0xb8, 0x60, 0xa0, 0x27, 0x50, 0x67, 0x74, 0xf4, 0x3a, 0x33, 0xab, 0x3b,
+	0x99, 0x12, 0x6c, 0xb6, 0xa0, 0x59, 0x72, 0x23, 0xf3, 0x77, 0x05, 0xf4, 0x89, 0x35, 0x2c, 0xeb,
+	0xf5, 0x19, 0x34, 0xf2, 0xca, 0x99, 0x9b, 0xde, 0x59, 0x70, 0x42, 0x40, 0xf7, 0x61, 0x25, 0x8a,
+	0x1d, 0x39, 0x6c, 0xa2, 0xd9, 0x1a, 0xd6, 0xa2, 0x58, 0x1e, 0x28, 0x82, 0xba, 0xbc, 0x2c, 0xc2,
+	0x38, 0x57, 0xb1, 0x7c, 0x16, 0xd2, 0xb5, 0xa6, 0xdc, 0x6a, 0x59, 0x5b, 0xa5, 0xcc, 0xd5, 0xb9,
+	0x99, 0x6b, 0x45, 0xe6, 0x69, 0xbd, 0xeb, 0x1f, 0xaa, 0xb7, 0x79, 0x94, 0x49, 0x25, 0x3d, 0xef,
+	0xc1, 0x6c, 0x4f, 0x56, 0xa5, 0xe8, 0x6a, 0x1b, 0x54, 0x1e, 0x5d, 0xd1, 0x30, 0x1d, 0x65, 0xf1,
+	0xbe, 0x90, 0x61, 0xa7, 0x0e, 0x55, 0xdf, 0x33, 0xbf, 0x02, 0x28, 0xac, 0x70, 0xc9, 0x9f, 0x33,
+	0xff, 0x52, 0x00, 0xdd, 0xf6, 0xba, 0x65, 0x72, 0x7c, 0x03, 0xaa, 0x30, 0xf0, 0xf7, 0x9e, 0xa6,
+	0x14, 0x8d, 0xbe, 0x05, 0x4d, 0x5a, 0x37, 0xcb, 0xae, 0xf6, 0x9d, 0xbc, 0x0c, 0x6e, 0x0e, 0xa0,
+	0x35, 0x65, 0x9d, 0xe8, 0xc5, 0xac, 0xe3, 0x2a, 0x32, 0xa1, 0x51, 0xf6, 0xcc, 0x32, 0x63, 0xc6,
+	0x69, 0xcd, 0x11, 0x68, 0x69, 0x29, 0x71, 0x80, 0x41, 0xc9, 0x9d, 0x82, 0xcc, 0x9d, 0xd8, 0xf8,
+	0xe2, 0x2d, 0x75, 0x79, 0xee, 0x4e, 0x59, 0x88, 0x76, 0x01, 0x3c, 0xca, 0xdc, 0xc4, 0x8f, 0x79,
+	0x94, 0xc8, 0x43, 0xd7, 0x71, 0x69, 0x45, 0x98, 0xcb, 0x88, 0x5c, 0xd0, 0x91, 0x9c, 0x34, 0x1d,
+	0xa7, 0x81, 0xf9, 0x9b, 0x02, 0x50, 0xf8, 0x31, 0xda, 0x07, 0x2d, 0x35, 0x4f, 0x59, 0xb4, 0xf9,
+	0xf8, 0xfe, 0x02, 0x19, 0x70, 0x06, 0x13, 0xba, 0x89, 0x97, 0x2e, 0x4d, 0xde, 0xf7, 0x4a, 0x64,
+	0xf0, 0xa9, 0xe9, 0xd4, 0xb3, 0xb9, 0xff, 0x53, 0x81, 0x7b, 0xd3, 0x70, 0x31, 0xdd, 0x63, 0x46,
+	0x93, 0xe2, 0xa0, 0x35, 0x11, 0xf6, 0x3d, 0xf4, 0x39, 0x00, 0xa3, 0x8c, 0xf9, 0x51, 0x28, 0xf6,
+	0x52, 0x2d, 0xf4, 0x6c, 0xa5, 0xef, 0xa1, 0x1d, 0x68, 0x08, 0x60, 0x48, 0x02, 0x9a, 0x95, 0x98,
+	0xc4, 0x68, 0x0f, 0x9a, 0x31, 0x4d, 0x98, 0xcf, 0xb8, 0xbc, 0xcb, 0x42, 0x8f, 0x06, 0x2e, 0x2f,
+	0xa1, 0x6d, 0x21, 0x03, 0xe1, 0x63, 0x26, 0x3f, 0x47, 0x74, 0x9c, 0x45, 0xe6, 0xbf, 0x0a, 0x6c,
+	0xcc, 0x79, 0xe7, 0x7c, 0xb8, 0x6c, 0x1f, 0x79, 0x4a, 0x3b, 0xdf, 0xc3, 0x96, 0x1b, 0x05, 0xed,
+	0xe2, 0x63, 0x32, 0x23, 0x76, 0xee, 0xd9, 0xf2, 0x17, 0x67, 0xfc, 0xa1, 0x72, 0xae, 0xca, 0x6f,
+	0xd4, 0xbf, 0xab, 0x75, 0xfb, 0xc7, 0x61, 0xe7, 0x9f, 0xaa, 0x96, 0x02, 0x2e, 0x34, 0xf9, 0xb9,
+	0xf9, 0xe4, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0x97, 0x8b, 0x36, 0x13, 0xc3, 0x0a, 0x00, 0x00,
 }
