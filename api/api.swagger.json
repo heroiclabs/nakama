@@ -781,8 +781,8 @@
             "description": "Max number of notifications to list. Between 1 and 100.",
             "in": "query",
             "required": false,
-            "type": "string",
-            "format": "int64"
+            "type": "integer",
+            "format": "int32"
           },
           {
             "name": "cacheable_cursor",
@@ -882,6 +882,111 @@
         ]
       }
     },
+    "/v2/storage": {
+      "get": {
+        "summary": "Get storage entities.",
+        "operationId": "GetStorageEntities",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageEntities"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "delete": {
+        "summary": "Delete one or more users by ID or username.",
+        "operationId": "DeleteStorageEntities",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Update fields in the current user's account.",
+        "operationId": "WriteStorageEntities",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageEntityAcks"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiWriteStorageEntitiesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage/list": {
+      "get": {
+        "summary": "Fetch list of storage entities.",
+        "operationId": "ListStorageEntities",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageEntityList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "ID of the user.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "collection",
+            "description": "Storage collection.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Maximum number of storage entities to list. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "Use this cursor to paginate results forward.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/user": {
       "get": {
         "summary": "Fetch zero or more users by ID and/or username.",
@@ -963,6 +1068,24 @@
         }
       },
       "description": "A group to create."
+    },
+    "StorageEntityAcksStorageEntityAck": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection that the entity belongs to."
+        },
+        "key": {
+          "type": "string",
+          "description": "Entity key."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of this entity."
+        }
+      },
+      "title": "An entity ack"
     },
     "apiAccount": {
       "type": "object",
@@ -1106,6 +1229,24 @@
       },
       "description": "Create one or more groups with the current user as owner."
     },
+    "apiDeleteStorageEntitiesRequestStorageEntityId": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection that the entity belongs to."
+        },
+        "key": {
+          "type": "string",
+          "description": "Entity key."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the entity."
+        }
+      },
+      "description": "Storage entities to delete."
+    },
     "apiFriend": {
       "type": "object",
       "properties": {
@@ -1133,6 +1274,24 @@
         }
       },
       "description": "A collection of zero or more friends of the user."
+    },
+    "apiGetStorageEntitiesRequestStorageEntityId": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection that the entity belongs to."
+        },
+        "key": {
+          "type": "string",
+          "description": "Entity key."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Owner of the entity."
+        }
+      },
+      "description": "Storage entities to fetch."
     },
     "apiGroup": {
       "type": "object",
@@ -1171,14 +1330,9 @@
           "description": "Mark a group as private where only admins can accept members."
         },
         "count": {
-          "type": "string",
-          "format": "int64",
+          "type": "integer",
+          "format": "int32",
           "description": "The current count of all members in the group."
-        },
-        "utc_offset_ms": {
-          "type": "string",
-          "format": "int64",
-          "description": "The UTC offset in milliseconds."
         },
         "create_time": {
           "type": "string",
@@ -1222,8 +1376,8 @@
           "description": "Content of the notification in JSON."
         },
         "code": {
-          "type": "string",
-          "format": "int64",
+          "type": "integer",
+          "format": "int32",
           "description": "Category code for this notification."
         },
         "sender_id": {
@@ -1291,6 +1445,49 @@
         }
       },
       "description": "A user's session used to authenticate messages."
+    },
+    "apiStorageEntities": {
+      "type": "object",
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaapiStorageEntity"
+          },
+          "title": "List of storage entities;"
+        }
+      },
+      "description": "List of storage entities."
+    },
+    "apiStorageEntityAcks": {
+      "type": "object",
+      "properties": {
+        "acks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/StorageEntityAcksStorageEntityAck"
+          },
+          "description": "List of entity acks."
+        }
+      },
+      "title": "List of acks for entity storage"
+    },
+    "apiStorageEntityList": {
+      "type": "object",
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaapiStorageEntity"
+          },
+          "title": "List of storage entities;"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor associated with the query to paginate results."
+        }
+      },
+      "description": "List of storage entities."
     },
     "apiUpdateAccountRequest": {
       "type": "object",
@@ -1378,6 +1575,11 @@
           "format": "boolean",
           "description": "Indicates whether the user is currently online."
         },
+        "edge_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of related edges to this user."
+        },
         "create_time": {
           "type": "string",
           "format": "date-time",
@@ -1404,6 +1606,97 @@
       },
       "description": "A collection of zero or more users."
     },
+    "apiWriteStorageEntitiesRequest": {
+      "type": "object",
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiWriteStorageEntitiesRequestStorageEntity"
+          },
+          "description": "Entities to store in the server."
+        }
+      },
+      "description": "Store list of storage entities to server."
+    },
+    "apiWriteStorageEntitiesRequestStorageEntity": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection that this entity belongs to."
+        },
+        "key": {
+          "type": "string",
+          "description": "Entity key."
+        },
+        "value": {
+          "type": "string",
+          "description": "Entity value."
+        },
+        "version": {
+          "type": "string",
+          "title": "Possible version check before storing this entity.\nValid values are: [\"\", \"*\", \"#hash#\"]"
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Read permission for this entity."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Write permission for this entity."
+        }
+      },
+      "description": "Entity to store."
+    },
+    "nakamaapiStorageEntity": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection that this entity belongs to."
+        },
+        "key": {
+          "type": "string",
+          "description": "key of the entity."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Entity owner."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value stored in this entity."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version associated with this entity."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Read permission of this entity."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Write permission of this entity."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the entity was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the entity was last updated."
+        }
+      },
+      "description": "An entity stored in Storage."
+    },
     "protobufBoolValue": {
       "type": "object",
       "properties": {
@@ -1419,6 +1712,17 @@
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufInt32Value": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The int32 value."
+        }
+      },
+      "description": "Wrapper message for `int32`.\n\nThe JSON representation for `Int32Value` is JSON number."
     },
     "protobufStringValue": {
       "type": "object",

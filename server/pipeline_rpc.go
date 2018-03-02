@@ -17,7 +17,6 @@ package server
 import (
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/yuin/gopher-lua"
@@ -55,7 +54,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 		return
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload.Value)
+	result, fnErr := runtime.InvokeFunctionRPC(lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
@@ -85,6 +84,6 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
 		Id:      rpcMessage.Id,
-		Payload: &wrappers.StringValue{Value: result},
+		Payload: result,
 	}}})
 }

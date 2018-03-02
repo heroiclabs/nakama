@@ -75,7 +75,29 @@ CREATE TABLE IF NOT EXISTS notification (
     create_time     BIGINT          CHECK (create_time > 0) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS storage (
+    PRIMARY KEY (collection, read, key, user_id),
+    user_id         UUID,
+    collection      VARCHAR(128)    NOT NULL,
+    key             VARCHAR(128)    NOT NULL,
+    value           JSONB           DEFAULT '{}' NOT NULL,
+    version         BYTEA           NOT NULL,
+    read            SMALLINT        DEFAULT 1 CHECK (read >= 0) NOT NULL,
+    write           SMALLINT        DEFAULT 1 CHECK (write >= 0) NOT NULL,
+    create_time     BIGINT          CHECK (create_time > 0) NOT NULL,
+    update_time     BIGINT          CHECK (update_time > 0) NOT NULL,
+
+    UNIQUE(user_id, collection, key)
+);
+
+CREATE INDEX IF NOT EXISTS user_id_read_collection_key_idx ON storage (user_id, read, collection);
+
+-- List across users.
+CREATE INDEX IF NOT EXISTS read_collection_key_user_id_idx ON storage (read, collection, key, user_id);
+CREATE INDEX IF NOT EXISTS collection_read_key_user_id_idx ON storage (collection, read, key, user_id);
+
 -- +migrate Down
+DROP TABLE IF EXISTS storage;
 DROP TABLE IF EXISTS notification;
 DROP TABLE IF EXISTS user_edge;
 DROP TABLE IF EXISTS user_device;

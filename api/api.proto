@@ -171,9 +171,19 @@ service Nakama {
     option (google.api.http).delete = "/v2/notification";
   }
 
+  // Delete one or more users by ID or username.
+  rpc DeleteStorageEntities (DeleteStorageEntitiesRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/storage";
+  }
+
   // Fetch the current user's account.
   rpc GetAccount (google.protobuf.Empty) returns (Account) {
     option (google.api.http).get = "/v2/account";
+  }
+
+  // Get storage entities.
+  rpc GetStorageEntities (GetStorageEntitiesRequest) returns (StorageEntities) {
+    option (google.api.http).get = "/v2/storage";
   }
 
   // Fetch zero or more users by ID and/or username.
@@ -260,6 +270,11 @@ service Nakama {
     option (google.api.http).get = "/v2/notification";
   }
 
+  // Fetch list of storage entities.
+  rpc ListStorageEntities (ListStorageEntitiesRequest) returns (StorageEntityList) {
+    option (google.api.http).get = "/v2/storage/list";
+  }
+
   // Execute a Lua function on the server.
   rpc RpcFunc (Rpc) returns (Rpc) {
     option (google.api.http) = {
@@ -331,6 +346,14 @@ service Nakama {
   rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/account",
+      body: "*"
+    };
+  }
+
+  // Update fields in the current user's account.
+  rpc WriteStorageEntities (WriteStorageEntitiesRequest) returns (StorageEntityAcks) {
+    option (google.api.http) = {
+      put: "/v2/storage",
       body: "*"
     };
   }
@@ -553,6 +576,22 @@ message DeleteNotificationsRequest {
   repeated string ids = 1;
 }
 
+// Batch delete list of storage entities.
+message DeleteStorageEntitiesRequest {
+  // Storage entities to delete.
+  message StorageEntityId {
+    // Collection that the entity belongs to.
+    string collection = 1;
+    // Entity key.
+    string key = 2;
+    // Version of the entity.
+    string version = 3;
+  }
+
+  // List of storage records.
+  repeated StorageEntityId entityIds = 1;
+}
+
 // A friend of a user.
 message Friend {
   // The friendship status.
@@ -579,6 +618,22 @@ message Friend {
 message Friends {
   // The Friend objects.
   repeated Friend friends = 1;
+}
+
+// Batch get list of storage entities.
+message GetStorageEntitiesRequest {
+  // Storage entities to fetch.
+  message StorageEntityId {
+    // Collection that the entity belongs to.
+    string collection = 1;
+    // Entity key.
+    string key = 2;
+    // Owner of the entity.
+    string user_id = 3;
+  }
+
+  // List of storage records.
+  repeated StorageEntityId entityIds = 1;
 }
 
 // Fetch a batch of zero or more users from the server.
@@ -610,13 +665,11 @@ message Group {
   // Mark a group as private where only admins can accept members.
   bool private = 8;
   // The current count of all members in the group.
-  int64 count = 9;
-  // The UTC offset in milliseconds.
-  int64 utc_offset_ms = 10;
+  int32 count = 9;
   // The UNIX time when the group was created.
-  google.protobuf.Timestamp create_time = 11;
+  google.protobuf.Timestamp create_time = 10;
   // The UNIX time when the group was last updated.
-  google.protobuf.Timestamp update_time = 12;
+  google.protobuf.Timestamp update_time = 11;
 }
 
 // A collection of zero or more groups.
@@ -644,9 +697,21 @@ message LinkFacebookRequest {
 // Fetch a list of unexpired notifications.
 message ListNotificationsRequest {
   // Max number of notifications to list. Between 1 and 100.
-  int64 limit = 1;
+  google.protobuf.Int32Value limit = 1;
   // Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.
   string cacheable_cursor = 2;
+}
+
+// List storage entities for user ID or collection or both.
+message ListStorageEntitiesRequest {
+  // ID of the user.
+  string user_id = 1;
+  // Storage collection.
+  string collection = 2;
+  // Maximum number of storage entities to list. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
+  // Use this cursor to paginate results forward.
+  string cursor = 4;
 }
 
 // A notification in the server.
@@ -658,7 +723,7 @@ message Notification {
   // Content of the notification in JSON.
   string content = 3;
   // Category code for this notification.
-  int64 code = 4;
+  int32 code = 4;
   // ID of the sender, if a user. Otherwise 'null'.
   string sender_id = 5;
   // The UNIX time when the notification was created.
@@ -680,9 +745,9 @@ message Rpc {
   // The identifier of the function.
   string id = 1;
   // The payload of the function which must be a JSON object.
-  google.protobuf.StringValue payload = 2;
+  string payload = 2;
   // The authentication key used when executed as a non-client HTTP request.
-  google.protobuf.StringValue http_key = 3;
+  string http_key = 3;
 }
 
 // A user's session used to authenticate messages.
@@ -691,6 +756,76 @@ message Session {
   string token = 1;
   // rUDP specific authentication credentials.
   string udp_token = 2; // TODO(zyro): will we remove it?
+}
+
+// StoragePermissionWrite represents a Storage Record read permission.
+enum StoragePermissionRead {
+  // Storage owner does not have read access.
+  NO_READ = 0;
+  // Only storage owner has read access.
+  OWNER_READ = 1;
+  // Storage owner and every other user has read access.
+  PUBLIC_READ = 2;
+}
+
+// StoragePermissionWrite represents a Storage Record write permission.
+enum StoragePermissionWrite {
+  // Storage owner does not have write access.
+  NO_WRITE = 0;
+  // Storage owner has write access.
+  OWNER_WRITE = 1;
+}
+
+// An entity stored in Storage.
+message StorageEntity {
+  // Collection that this entity belongs to.
+  string collection = 1;
+  // key of the entity.
+  string key = 2;
+  // Entity owner.
+  string user_id = 3;
+  // Value stored in this entity.
+  string value = 4;
+  // Version associated with this entity.
+  string version = 5;
+  // Read permission of this entity.
+  int32 permission_read = 6;
+  // Write permission of this entity.
+  int32 permission_write = 7;
+  // The UNIX time when the entity was created.
+  google.protobuf.Timestamp create_time = 8;
+  // The UNIX time when the entity was last updated.
+  google.protobuf.Timestamp update_time = 9;
+}
+
+// List of acks for entity storage
+message StorageEntityAcks {
+  // An entity ack
+  message StorageEntityAck {
+    // Collection that the entity belongs to.
+    string collection = 1;
+    // Entity key.
+    string key = 2;
+    // Version of this entity.
+    string version = 3;
+  }
+
+  // List of entity acks.
+  repeated StorageEntityAck acks = 1;
+}
+
+// List of storage entities.
+message StorageEntities {
+  // List of storage entities;
+  repeated StorageEntity entities = 1;
+}
+
+// List of storage entities.
+message StorageEntityList {
+  // List of storage entities;
+  repeated StorageEntity entities = 1;
+  // Cursor associated with the query to paginate results.
+  string cursor = 2;
 }
 
 // Update a user's account details.
@@ -737,14 +872,39 @@ message User {
   string steam_id = 12;
   // Indicates whether the user is currently online.
   bool online = 13;
+  // Number of related edges to this user.
+  int32 edge_count = 14;
   // The UNIX time when the user was created.
-  google.protobuf.Timestamp create_time = 14;
+  google.protobuf.Timestamp create_time = 15;
   // The UNIX time when the user was last updated.
-  google.protobuf.Timestamp update_time = 15;
+  google.protobuf.Timestamp update_time = 16;
 }
 
 // A collection of zero or more users.
 message Users {
   // The User objects.
   repeated User users = 1;
+}
+
+// Store list of storage entities to server.
+message WriteStorageEntitiesRequest {
+  // Entity to store.
+  message StorageEntity {
+    // Collection that this entity belongs to.
+    string collection = 1;
+    // Entity key.
+    string key = 2;
+    // Entity value.
+    string value = 3;
+    // Possible version check before storing this entity.
+    // Valid values are: ["", "*", "#hash#"]
+    string version = 4; // if-match and if-none-match
+    // Read permission for this entity.
+    int32 permission_read = 5;
+    // Write permission for this entity.
+    int32 permission_write = 6;
+  }
+
+  // Entities to store in the server.
+  repeated StorageEntity entities = 1;
 }

@@ -207,11 +207,11 @@ func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Con
 					logger.Error("Cannot extract Rpc from incoming request")
 					return nil, status.Error(codes.FailedPrecondition, "Auth token or HTTP key required")
 				}
-				if in.HttpKey == nil {
+				if in.HttpKey == "" {
 					// HTTP key not present.
 					return nil, status.Error(codes.Unauthenticated, "Auth token or HTTP key required")
 				}
-				if in.HttpKey.Value != config.GetRuntime().HTTPKey {
+				if in.HttpKey != config.GetRuntime().HTTPKey {
 					// Value of HTTP key username component did not match.
 					return nil, status.Error(codes.Unauthenticated, "HTTP key invalid")
 				}
