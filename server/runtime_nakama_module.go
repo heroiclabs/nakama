@@ -37,15 +37,17 @@ import (
 	"crypto/rand"
 	"sync"
 
+	"crypto/hmac"
+	"crypto/sha256"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/heroiclabs/nakama/social"
 )
 
 const CALLBACKS = "runtime_callbacks"
@@ -99,10 +101,13 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"json_decode":                 n.jsonDecode,
 		"base64_encode":               n.base64Encode,
 		"base64_decode":               n.base64Decode,
+		"base64url_encode":            n.base64URLEncode,
+		"base64url_decode":            n.base64URLDecode,
 		"base16_encode":               n.base16Encode,
-		"base16_decode":               n.base16decode,
-		"aes128_encrypt":              n.aes128encrypt,
-		"aes128_decrypt":              n.aes128decrypt,
+		"base16_decode":               n.base16Decode,
+		"aes128_encrypt":              n.aes128Encrypt,
+		"aes128_decrypt":              n.aes128Decrypt,
+		"hmac_sha256_hash":            n.hmacSHA256Hash,
 		"bcrypt_hash":                 n.bcryptHash,
 		"bcrypt_compare":              n.bcryptCompare,
 		"authenticate_custom":         n.authenticateCustom,
@@ -127,7 +132,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
 		"wallet_write":                n.walletWrite,
-		// "run_once":             n.runOnce,
+		// "run_once": n.runOnce,
 	})
 
 	l.Push(mod)
@@ -397,6 +402,35 @@ func (n *NakamaModule) base64Decode(l *lua.LState) int {
 	return 1
 }
 
+func (n *NakamaModule) base64URLEncode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+
+	output := base64.URLEncoding.EncodeToString([]byte(input))
+	l.Push(lua.LString(output))
+	return 1
+}
+
+func (n *NakamaModule) base64URLDecode(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+
+	output, err := base64.RawURLEncoding.DecodeString(input)
+	if err != nil {
+		l.RaiseError("not a valid base64 url string: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(output))
+	return 1
+}
+
 func (n *NakamaModule) base16Encode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
@@ -409,7 +443,7 @@ func (n *NakamaModule) base16Encode(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) base16decode(l *lua.LState) int {
+func (n *NakamaModule) base16Decode(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
@@ -426,7 +460,7 @@ func (n *NakamaModule) base16decode(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) aes128encrypt(l *lua.LState) int {
+func (n *NakamaModule) aes128Encrypt(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
@@ -463,7 +497,7 @@ func (n *NakamaModule) aes128encrypt(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) aes128decrypt(l *lua.LState) int {
+func (n *NakamaModule) aes128Decrypt(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
@@ -494,6 +528,29 @@ func (n *NakamaModule) aes128decrypt(l *lua.LState) int {
 	stream.XORKeyStream(cipherText, cipherText)
 
 	l.Push(lua.LString(cipherText))
+	return 1
+}
+
+func (n *NakamaModule) hmacSHA256Hash(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects input string")
+		return 0
+	}
+	key := l.CheckString(2)
+	if key == "" {
+		l.ArgError(2, "expects key string")
+		return 0
+	}
+
+	mac := hmac.New(sha256.New, []byte(key))
+	_, err := mac.Write([]byte(input))
+	if err != nil {
+		l.RaiseError("error creating hash: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(mac.Sum(nil)))
 	return 1
 }
 
