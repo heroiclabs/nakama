@@ -1495,7 +1495,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	}
 	content := string(contentBytes)
 
-	code := l.CheckInt64(4)
+	code := l.CheckInt(4)
 	if code <= 0 {
 		l.ArgError(4, "expects Code to number above 0")
 		return 0
@@ -1518,7 +1518,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 		Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
 		Subject:    subject,
 		Content:    content,
-		Code:       code,
+		Code:       int32(code),
 		SenderId:   senderID,
 		Persistent: persistent,
 		CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
@@ -1591,12 +1591,12 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 					l.ArgError(1, "expects Code to be number")
 					return
 				}
-				number := int64(lua.LVAsNumber(v))
+				number := int(lua.LVAsNumber(v))
 				if number <= 0 {
 					l.ArgError(1, "expects Code to number above 0")
 					return
 				}
-				notification.Code = int64(number)
+				notification.Code = int32(number)
 			case "UserId":
 				if v.Type() != lua.LTString {
 					conversionError = true

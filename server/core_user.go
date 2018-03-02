@@ -28,7 +28,7 @@ import (
 func GetUsers(db *sql.DB, logger *zap.Logger, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
-	facebook_id, google_id, gamecenter_id, steam_id, create_time, update_time
+	facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 FROM users
 WHERE`
 
@@ -114,11 +114,12 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var google sql.NullString
 	var gamecenter sql.NullString
 	var steam sql.NullString
+	var edge_count int
 	var createTime sql.NullInt64
 	var updateTime sql.NullInt64
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-		&facebook, &google, &gamecenter, &steam, &createTime, &updateTime)
+		&facebook, &google, &gamecenter, &steam, &edge_count, &createTime, &updateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +138,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		GoogleId:     google.String,
 		GamecenterId: gamecenter.String,
 		SteamId:      steam.String,
+		EdgeCount:    int32(edge_count),
 		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
 		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
 		Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
