@@ -25,9 +25,9 @@ import (
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/rtapi"
 )
 
 const (
@@ -116,10 +116,12 @@ LIMIT $2`, params...)
 	notifications := make([]*api.Notification, 0)
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
-		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &no.CreateTime.Seconds); err != nil {
+		var senderId sql.NullString
+		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &senderId, &no.CreateTime.Seconds); err != nil {
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
+		no.SenderId = senderId.String
 		notifications = append(notifications, no)
 	}
 
