@@ -44,19 +44,20 @@ func GetAccount(db *sql.DB, logger *zap.Logger, tracker Tracker, userID uuid.UUI
 	var gamecenter sql.NullString
 	var steam sql.NullString
 	var customID sql.NullString
+	var edge_count int
 	var createTime sql.NullInt64
 	var updateTime sql.NullInt64
 	var verifyTime sql.NullInt64
 
 	query := `
 SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet,
-	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id,
+	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id, edge_count,
 	create_time, update_time, verify_time
 FROM users
 WHERE id = $1`
 
 	if err := db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata,
-		&wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &createTime, &updateTime, &verifyTime); err != nil {
+		&wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
 		logger.Error("Error retrieving user account.", zap.Error(err))
 		return nil, err
 	}
@@ -104,6 +105,7 @@ WHERE id = $1`
 			GoogleId:     google.String,
 			GamecenterId: gamecenter.String,
 			SteamId:      steam.String,
+			EdgeCount:    int32(edge_count),
 			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
 			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),

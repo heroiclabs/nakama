@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
-    FOREIGN KEY (user_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     id      VARCHAR(128) NOT NULL,
     user_id UUID         NOT NULL
@@ -52,11 +52,11 @@ CREATE TABLE IF NOT EXISTS user_device (
 
 CREATE TABLE IF NOT EXISTS user_edge (
     PRIMARY KEY (source_id, state, position),
-    FOREIGN KEY (source_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
-    FOREIGN KEY (destination_id) REFERENCES users(id), -- TODO: ON DELETE CASCADE,
+    FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
     source_id      UUID     NOT NULL,
-    position       BIGINT   NOT NULL, -- Used for sort order on rows
+    position       BIGINT   NOT NULL, -- Used for sort order on rows.
     update_time    BIGINT   CHECK (update_time > 0) NOT NULL,
     destination_id UUID     NOT NULL,
     state          SMALLINT DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
@@ -65,17 +65,39 @@ CREATE TABLE IF NOT EXISTS user_edge (
 );
 
 CREATE TABLE IF NOT EXISTS notification (
-    PRIMARY KEY (user_id, create_time ASC, id), -- Preferred sorting order should have been DESC but Cockroach's query analyser is not clever enough.
-    id              UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
-    user_id         UUID            NOT NULL,
-    subject         VARCHAR(255)    NOT NULL,
-    content         JSONB           DEFAULT '{}' NOT NULL,
-    code            SMALLINT        NOT NULL,      -- Negative values are system reserved
-    sender_id       UUID,                          -- NULL for system messages
-    create_time     BIGINT          CHECK (create_time > 0) NOT NULL
+    -- FIXME: cockroach's analyser is not clever enough when create_time has DESC mode on the index. 
+    PRIMARY KEY (user_id, create_time ASC, id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+
+    id          UUID         CONSTRAINT notification_id_key UNIQUE NOT NULL,
+    user_id     UUID         NOT NULL,
+    subject     VARCHAR(255) NOT NULL,
+    content     JSONB        DEFAULT '{}' NOT NULL,
+    code        SMALLINT     NOT NULL, -- Negative values are system reserved.
+    sender_id   UUID,                  -- NULL for system messages.
+    create_time BIGINT       CHECK (create_time > 0) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS storage (
+    PRIMARY KEY (collection, read, key, user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+
+    collection  VARCHAR(128) NOT NULL,
+    key         VARCHAR(128) NOT NULL,
+    user_id     UUID,
+    value       JSONB        DEFAULT '{}' NOT NULL,
+    version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
+    read        SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,
+    write       SMALLINT     DEFAULT 1 CHECK (write >= 0) NOT NULL,
+    create_time TIMESTAMPTZ  NOT NULL,
+    update_time TIMESTAMPTZ  NOT NULL,
+
+    UNIQUE (collection, key, user_id)
+);
+CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
+
 -- +migrate Down
+DROP TABLE IF EXISTS storage;
 DROP TABLE IF EXISTS notification;
 DROP TABLE IF EXISTS user_edge;
 DROP TABLE IF EXISTS user_device;
