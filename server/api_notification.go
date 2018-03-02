@@ -25,12 +25,16 @@ import (
 )
 
 func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificationsRequest) (*api.NotificationList, error) {
-	if in.GetLimit() < 1 || in.GetLimit() > 100 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+	limit := 1
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	notificationList, err := NotificationList(s.logger, s.db, userID, in.GetLimit(), in.GetCacheableCursor())
+	notificationList, err := NotificationList(s.logger, s.db, userID, limit, in.GetCacheableCursor())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
 	}

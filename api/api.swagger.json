@@ -778,15 +778,15 @@
         "parameters": [
           {
             "name": "limit",
-            "description": "Max number of notifications to list. Between 1 and 100.",
+            "description": "The number of notifications to get. Between 1 and 100.",
             "in": "query",
             "required": false,
-            "type": "string",
-            "format": "int64"
+            "type": "integer",
+            "format": "int32"
           },
           {
             "name": "cacheable_cursor",
-            "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.",
+            "description": "A cursor to page through notifications. May be cached by clients to get from point in time forwards.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -875,6 +875,166 @@
             "schema": {
               "type": "string"
             }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage": {
+      "delete": {
+        "summary": "Delete one or more objects by ID or username.",
+        "operationId": "DeleteStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "post": {
+        "summary": "Get storage objects.",
+        "operationId": "ReadStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjects"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiReadStorageObjectsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Write objects into the storage engine.",
+        "operationId": "WriteStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjectAcks"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiWriteStorageObjectsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage/{collection}": {
+      "get": {
+        "summary": "List collections of storage objects.",
+        "operationId": "ListStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjectList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "The number of storage objects to list. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "The cursor to page through results from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage/{collection}/{user_id}": {
+      "get": {
+        "summary": "List collections of storage objects.",
+        "operationId": "ListStorageObjects2",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjectList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "The number of storage objects to list. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "The cursor to page through results from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1106,6 +1266,24 @@
       },
       "description": "Create one or more groups with the current user as owner."
     },
+    "apiDeleteStorageObjectId": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        }
+      },
+      "description": "Storage objects to delete."
+    },
     "apiFriend": {
       "type": "object",
       "properties": {
@@ -1171,14 +1349,9 @@
           "description": "Mark a group as private where only admins can accept members."
         },
         "count": {
-          "type": "string",
-          "format": "int64",
+          "type": "integer",
+          "format": "int32",
           "description": "The current count of all members in the group."
-        },
-        "utc_offset_ms": {
-          "type": "string",
-          "format": "int64",
-          "description": "The UTC offset in milliseconds."
         },
         "create_time": {
           "type": "string",
@@ -1222,8 +1395,8 @@
           "description": "Content of the notification in JSON."
         },
         "code": {
-          "type": "string",
-          "format": "int64",
+          "type": "integer",
+          "format": "int32",
           "description": "Category code for this notification."
         },
         "sender_id": {
@@ -1260,6 +1433,37 @@
       },
       "description": "A collection of zero or more notifications."
     },
+    "apiReadStorageObjectId": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        }
+      },
+      "description": "Storage objects to get."
+    },
+    "apiReadStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "objectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiReadStorageObjectId"
+          },
+          "description": "Batch of storage objects."
+        }
+      },
+      "description": "Batch get storage objects."
+    },
     "apiRpc": {
       "type": "object",
       "properties": {
@@ -1291,6 +1495,113 @@
         }
       },
       "description": "A user's session used to authenticate messages."
+    },
+    "apiStorageObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was last updated."
+        }
+      },
+      "description": "An object within the storage engine."
+    },
+    "apiStorageObjectAck": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        }
+      },
+      "description": "A storage acknowledgement."
+    },
+    "apiStorageObjectAcks": {
+      "type": "object",
+      "properties": {
+        "acks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiStorageObjectAck"
+          },
+          "description": "Batch of storage write acknowledgements."
+        }
+      },
+      "description": "Batch of acknowledgements for the storage object write."
+    },
+    "apiStorageObjectList": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiStorageObject"
+          },
+          "description": "The list of storage objects."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "The cursor associated with the query a page of results."
+        }
+      },
+      "description": "List of storage objects."
+    },
+    "apiStorageObjects": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiStorageObject"
+          },
+          "description": "The batch of storage objects."
+        }
+      },
+      "description": "Batch of storage objects."
     },
     "apiUpdateAccountRequest": {
       "type": "object",
@@ -1378,6 +1689,11 @@
           "format": "boolean",
           "description": "Indicates whether the user is currently online."
         },
+        "edge_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of related edges to this user."
+        },
         "create_time": {
           "type": "string",
           "format": "date-time",
@@ -1404,6 +1720,51 @@
       },
       "description": "A collection of zero or more users."
     },
+    "apiWriteStorageObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection to store the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key for the object within the collection."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object to check. Possible values are: [\"\", \"*\", \"#hash#\"]."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        }
+      },
+      "description": "The object to store."
+    },
+    "apiWriteStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiWriteStorageObject"
+          },
+          "description": "The objects to store on the server."
+        }
+      },
+      "description": "Write objects to the storage engine."
+    },
     "protobufBoolValue": {
       "type": "object",
       "properties": {
@@ -1419,6 +1780,17 @@
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufInt32Value": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The int32 value."
+        }
+      },
+      "description": "Wrapper message for `int32`.\n\nThe JSON representation for `Int32Value` is JSON number."
     },
     "protobufStringValue": {
       "type": "object",
