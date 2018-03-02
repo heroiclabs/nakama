@@ -99,19 +99,23 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 		logger.Fatal("API Server gateway registration failed", zap.Error(err))
 	}
 
-	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
-	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-
 	grpcGatewayRouter := mux.NewRouter()
+	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, registry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
 	// TODO restore when admin endpoints are available.
 	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
 	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
-	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
+	// Default to passing request to GRPC Gateway. Enable compression on gateway responses.
+	handlerWithGzip := handlers.CompressHandler(grpcGateway)
+	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)
 
-	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
-	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(handlerWithGzip)
+	// Enable CORS on all requests.
+	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
+	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(grpcGatewayRouter)
+
+	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.GetSocket().Port-1),
 		Handler: handlerWithCORS,
