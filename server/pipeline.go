@@ -43,6 +43,14 @@ func NewPipeline(config Config, db *sql.DB, registry *SessionRegistry, tracker T
 
 func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
 	switch envelope.Message.(type) {
+	case *rtapi.Envelope_MatchCreate:
+		p.matchCreate(logger, session, envelope)
+	case *rtapi.Envelope_MatchDataSend:
+		p.matchDataSend(logger, session, envelope)
+	case *rtapi.Envelope_MatchJoin:
+		p.matchJoin(logger, session, envelope)
+	case *rtapi.Envelope_MatchLeave:
+		p.matchLeave(logger, session, envelope)
 	case *rtapi.Envelope_Rpc:
 		p.rpc(logger, session, envelope)
 	default:

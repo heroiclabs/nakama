@@ -37,14 +37,28 @@ message Envelope {
   oneof message {
     // Describes an error which occurred on the server.
     Error error = 2;
-    // RPC call or response.
-    api.Rpc rpc = 3;
-    // A data message delivered over a stream.
-    StreamData stream_data = 4;
-    // Represents a presence update for a particular stream.
-    StreamPresenceEvent stream_presence_event = 5;
+    // Incoming information about a realtime match.
+    Match match = 3;
+    // A client to server request to create a realtime match.
+    MatchCreate match_create = 4;
+    // Incoming realtime match data delivered from the server.
+    MatchData match_data = 5;
+    // A client to server request to send data to a realtime match.
+    MatchDataSend match_data_send = 6;
+    // A client to server request to join a realtime match.
+    MatchJoin match_join = 7;
+    // A client to server request to leave a realtime match.
+    MatchLeave match_leave = 8;
+    // Presence update for a particular realtime match.
+    MatchPresenceEvent match_presence_event = 9;
     // Notifications send by the server.
-    Notifications notifications = 6;
+    Notifications notifications = 10;
+    // RPC call or response.
+    api.Rpc rpc = 11;
+    // A data message delivered over a stream.
+    StreamData stream_data = 12;
+    // Presence update for a particular stream.
+    StreamPresenceEvent stream_presence_event = 13;
   }
 }
 
@@ -74,6 +88,52 @@ message Error {
   string message = 2;
   // Additional error details which may be different for each response.
   map<string, string> context = 3;
+}
+
+// A realtime match.
+message Match {
+  string match_id = 1;
+  repeated StreamPresence presences = 2;
+  StreamPresence self = 3;
+}
+
+// Create a new realtime match.
+message MatchCreate {}
+
+// Realtime match data received from the server.
+message MatchData {
+  string match_id = 1;
+  StreamPresence presence = 2;
+  int64 op_code = 3;
+  bytes data = 4;
+}
+
+// Send realtime match data to the server.
+message MatchDataSend {
+  string match_id = 1;
+  int64 op_code = 2;
+  bytes data = 3;
+  repeated StreamPresence presences = 4;
+}
+
+// Join an existing realtime match.
+message MatchJoin {
+  oneof id {
+    string match_id = 1;
+    string token = 2;
+  }
+}
+
+// Leave a realtime match.
+message MatchLeave {
+  string match_id = 1;
+}
+
+// A set of joins and leaves on a particular realtime match.
+message MatchPresenceEvent {
+  string match_id = 1;
+  repeated StreamPresence joins = 2;
+  repeated StreamPresence leaves = 3;
 }
 
 // A collection of zero or more notifications.
