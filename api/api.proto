@@ -183,7 +183,10 @@ service Nakama {
 
   // Get storage entities.
   rpc GetStorageObjects (GetStorageObjectsRequest) returns (StorageObjects) {
-    option (google.api.http).get = "/v2/storage";
+    option (google.api.http) = {
+      post: "/v2/storage",
+      body: "*"
+    };
   }
 
   // Fetch zero or more users by ID and/or username.
@@ -272,7 +275,12 @@ service Nakama {
 
   // Fetch list of storage entities.
   rpc ListStorageObjects (ListStorageObjectsRequest) returns (StorageObjectList) {
-    option (google.api.http).get = "/v2/storage/list";
+    option (google.api.http) = {
+      get: "/v2/storage/{collection}",
+      additional_bindings {
+        get: "/v2/storage/{collection}/{user_id}"
+      }
+    };
   }
 
   // Execute a Lua function on the server.

@@ -883,21 +883,6 @@
       }
     },
     "/v2/storage": {
-      "get": {
-        "summary": "Get storage entities.",
-        "operationId": "GetStorageObjects",
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/apiStorageObjects"
-            }
-          }
-        },
-        "tags": [
-          "Nakama"
-        ]
-      },
       "delete": {
         "summary": "Delete one or more users by ID or username.",
         "operationId": "DeleteStorageObjects",
@@ -909,6 +894,31 @@
             }
           }
         },
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "post": {
+        "summary": "Get storage entities.",
+        "operationId": "GetStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjects"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiGetStorageObjectsRequest"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -939,7 +949,7 @@
         ]
       }
     },
-    "/v2/storage/list": {
+    "/v2/storage/{collection}": {
       "get": {
         "summary": "Fetch list of storage entities.",
         "operationId": "ListStorageObjects",
@@ -953,6 +963,12 @@
         },
         "parameters": [
           {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
             "name": "user_id",
             "description": "ID of the user.",
             "in": "query",
@@ -960,10 +976,49 @@
             "type": "string"
           },
           {
-            "name": "collection",
-            "description": "The collection which stores the object.",
+            "name": "limit",
+            "description": "The number of storage objects to list. Between 1 and 100.",
             "in": "query",
             "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "The cursor to page through results from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage/{collection}/{user_id}": {
+      "get": {
+        "summary": "Fetch list of storage entities.",
+        "operationId": "ListStorageObjects2",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObjectList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
             "type": "string"
           },
           {
@@ -1274,6 +1329,19 @@
         }
       },
       "description": "A collection of zero or more friends of the user."
+    },
+    "apiGetStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "objectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGetStorageObjectsRequestStorageObjectId"
+          },
+          "description": "Batch of storage objects."
+        }
+      },
+      "description": "Batch get storage objects."
     },
     "apiGetStorageObjectsRequestStorageObjectId": {
       "type": "object",
