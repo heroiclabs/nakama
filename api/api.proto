@@ -171,7 +171,7 @@ service Nakama {
     option (google.api.http).delete = "/v2/notification";
   }
 
-  // Delete one or more users by ID or username.
+  // Delete one or more objects by ID or username.
   rpc DeleteStorageObjects (DeleteStorageObjectsRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/storage";
   }
@@ -181,7 +181,7 @@ service Nakama {
     option (google.api.http).get = "/v2/account";
   }
 
-  // Get storage entities.
+  // Get storage objects.
   rpc GetStorageObjects (GetStorageObjectsRequest) returns (StorageObjects) {
     option (google.api.http) = {
       post: "/v2/storage",
@@ -273,7 +273,7 @@ service Nakama {
     option (google.api.http).get = "/v2/notification";
   }
 
-  // Fetch list of storage entities.
+  // List collections of storage objects.
   rpc ListStorageObjects (ListStorageObjectsRequest) returns (StorageObjectList) {
     option (google.api.http) = {
       get: "/v2/storage/{collection}",
@@ -358,7 +358,7 @@ service Nakama {
     };
   }
 
-  // Update fields in the current user's account.
+  // Write objects into the storage engine.
   rpc WriteStorageObjects (WriteStorageObjectsRequest) returns (StorageObjectAcks) {
     option (google.api.http) = {
       put: "/v2/storage",
