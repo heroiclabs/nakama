@@ -702,7 +702,7 @@ message ListNotificationsRequest {
   string cacheable_cursor = 2;
 }
 
-// List storage entities for user ID or collection or both.
+// List storage entities for user ID and collection.
 message ListStorageEntitiesRequest {
   // ID of the user.
   string user_id = 1;

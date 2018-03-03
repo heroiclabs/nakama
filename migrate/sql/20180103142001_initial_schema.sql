@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS notification (
 );
 
 CREATE TABLE IF NOT EXISTS storage (
-    PRIMARY KEY (collection, read, key, user_id),
+    PRIMARY KEY (collection, read, user_id, key),
     user_id         UUID,
     collection      VARCHAR(128)    NOT NULL,
     key             VARCHAR(128)    NOT NULL,
