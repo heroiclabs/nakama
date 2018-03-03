@@ -778,7 +778,7 @@
         "parameters": [
           {
             "name": "limit",
-            "description": "Max number of notifications to list. Between 1 and 100.",
+            "description": "The number of notifications to get. Between 1 and 100.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -786,7 +786,7 @@
           },
           {
             "name": "cacheable_cursor",
-            "description": "Use this cursor to paginate notifications. Cache this to catch up to new notifications. The value of this comes from NotificationList.cacheable_cursor.",
+            "description": "A cursor to page through notifications. May be cached by clients to get from point in time forwards.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -885,12 +885,12 @@
     "/v2/storage": {
       "get": {
         "summary": "Get storage entities.",
-        "operationId": "GetStorageEntities",
+        "operationId": "GetStorageObjects",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/apiStorageEntities"
+              "$ref": "#/definitions/apiStorageObjects"
             }
           }
         },
@@ -900,7 +900,7 @@
       },
       "delete": {
         "summary": "Delete one or more users by ID or username.",
-        "operationId": "DeleteStorageEntities",
+        "operationId": "DeleteStorageObjects",
         "responses": {
           "200": {
             "description": "",
@@ -915,12 +915,12 @@
       },
       "put": {
         "summary": "Update fields in the current user's account.",
-        "operationId": "WriteStorageEntities",
+        "operationId": "WriteStorageObjects",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/apiStorageEntityAcks"
+              "$ref": "#/definitions/apiStorageObjectAcks"
             }
           }
         },
@@ -930,7 +930,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiWriteStorageEntitiesRequest"
+              "$ref": "#/definitions/apiWriteStorageObjectsRequest"
             }
           }
         ],
@@ -942,12 +942,12 @@
     "/v2/storage/list": {
       "get": {
         "summary": "Fetch list of storage entities.",
-        "operationId": "ListStorageEntities",
+        "operationId": "ListStorageObjects",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/apiStorageEntityList"
+              "$ref": "#/definitions/apiStorageObjectList"
             }
           }
         },
@@ -961,14 +961,14 @@
           },
           {
             "name": "collection",
-            "description": "Storage collection.",
+            "description": "The collection which stores the object.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "limit",
-            "description": "Maximum number of storage entities to list. Between 1 and 100.",
+            "description": "The number of storage objects to list. Between 1 and 100.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -976,7 +976,7 @@
           },
           {
             "name": "cursor",
-            "description": "Use this cursor to paginate results forward.",
+            "description": "The cursor to page through results from.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1069,23 +1069,23 @@
       },
       "description": "A group to create."
     },
-    "StorageEntityAcksStorageEntityAck": {
+    "StorageObjectAcksStorageObjectAck": {
       "type": "object",
       "properties": {
         "collection": {
           "type": "string",
-          "description": "Collection that the entity belongs to."
+          "description": "The collection which stores the object."
         },
         "key": {
           "type": "string",
-          "description": "Entity key."
+          "description": "The key of the object within the collection."
         },
         "version": {
           "type": "string",
-          "description": "Version of this entity."
+          "description": "The version hash of the object."
         }
       },
-      "title": "An entity ack"
+      "description": "A storage acknowledgement."
     },
     "apiAccount": {
       "type": "object",
@@ -1229,23 +1229,23 @@
       },
       "description": "Create one or more groups with the current user as owner."
     },
-    "apiDeleteStorageEntitiesRequestStorageEntityId": {
+    "apiDeleteStorageObjectsRequestStorageObjectId": {
       "type": "object",
       "properties": {
         "collection": {
           "type": "string",
-          "description": "Collection that the entity belongs to."
+          "description": "The collection which stores the object."
         },
         "key": {
           "type": "string",
-          "description": "Entity key."
+          "description": "The key of the object within the collection."
         },
         "version": {
           "type": "string",
-          "description": "Version of the entity."
+          "description": "The version hash of the object."
         }
       },
-      "description": "Storage entities to delete."
+      "description": "Storage objects to delete."
     },
     "apiFriend": {
       "type": "object",
@@ -1275,23 +1275,23 @@
       },
       "description": "A collection of zero or more friends of the user."
     },
-    "apiGetStorageEntitiesRequestStorageEntityId": {
+    "apiGetStorageObjectsRequestStorageObjectId": {
       "type": "object",
       "properties": {
         "collection": {
           "type": "string",
-          "description": "Collection that the entity belongs to."
+          "description": "The collection which stores the object."
         },
         "key": {
           "type": "string",
-          "description": "Entity key."
+          "description": "The key of the object within the collection."
         },
         "user_id": {
           "type": "string",
-          "description": "Owner of the entity."
+          "description": "The user owner of the object."
         }
       },
-      "description": "Storage entities to fetch."
+      "description": "Storage objects to get."
     },
     "apiGroup": {
       "type": "object",
@@ -1446,48 +1446,48 @@
       },
       "description": "A user's session used to authenticate messages."
     },
-    "apiStorageEntities": {
-      "type": "object",
-      "properties": {
-        "entities": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/nakamaapiStorageEntity"
-          },
-          "title": "List of storage entities;"
-        }
-      },
-      "description": "List of storage entities."
-    },
-    "apiStorageEntityAcks": {
+    "apiStorageObjectAcks": {
       "type": "object",
       "properties": {
         "acks": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/StorageEntityAcksStorageEntityAck"
+            "$ref": "#/definitions/StorageObjectAcksStorageObjectAck"
           },
-          "description": "List of entity acks."
+          "description": "Batch of storage write acknowledgements."
         }
       },
-      "title": "List of acks for entity storage"
+      "description": "Batch of acknowledgements for the storage object write."
     },
-    "apiStorageEntityList": {
+    "apiStorageObjectList": {
       "type": "object",
       "properties": {
-        "entities": {
+        "objects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/nakamaapiStorageEntity"
+            "$ref": "#/definitions/nakamaapiStorageObject"
           },
-          "title": "List of storage entities;"
+          "description": "The list of storage objects."
         },
         "cursor": {
           "type": "string",
-          "description": "Cursor associated with the query to paginate results."
+          "description": "The cursor associated with the query a page of results."
         }
       },
-      "description": "List of storage entities."
+      "description": "List of storage objects."
+    },
+    "apiStorageObjects": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaapiStorageObject"
+          },
+          "description": "The batch of storage objects."
+        }
+      },
+      "description": "Batch of storage objects."
     },
     "apiUpdateAccountRequest": {
       "type": "object",
@@ -1606,96 +1606,96 @@
       },
       "description": "A collection of zero or more users."
     },
-    "apiWriteStorageEntitiesRequest": {
+    "apiWriteStorageObjectsRequest": {
       "type": "object",
       "properties": {
-        "entities": {
+        "objects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/apiWriteStorageEntitiesRequestStorageEntity"
+            "$ref": "#/definitions/apiWriteStorageObjectsRequestStorageObject"
           },
-          "description": "Entities to store in the server."
+          "description": "The objects to store on the server."
         }
       },
-      "description": "Store list of storage entities to server."
+      "description": "Write objects to the storage engine."
     },
-    "apiWriteStorageEntitiesRequestStorageEntity": {
+    "apiWriteStorageObjectsRequestStorageObject": {
       "type": "object",
       "properties": {
         "collection": {
           "type": "string",
-          "description": "Collection that this entity belongs to."
+          "description": "The collection to store the object."
         },
         "key": {
           "type": "string",
-          "description": "Entity key."
+          "description": "The key for the object within the collection."
         },
         "value": {
           "type": "string",
-          "description": "Entity value."
+          "description": "The value of the object."
         },
         "version": {
           "type": "string",
-          "title": "Possible version check before storing this entity.\nValid values are: [\"\", \"*\", \"#hash#\"]"
+          "description": "The version hash of the object to check. Possible values are: [\"\", \"*\", \"#hash#\"]."
         },
         "permission_read": {
           "type": "integer",
           "format": "int32",
-          "description": "Read permission for this entity."
+          "description": "The read access permissions for the object."
         },
         "permission_write": {
           "type": "integer",
           "format": "int32",
-          "description": "Write permission for this entity."
+          "description": "The write access permissions for the object."
         }
       },
-      "description": "Entity to store."
+      "description": "The object to store."
     },
-    "nakamaapiStorageEntity": {
+    "nakamaapiStorageObject": {
       "type": "object",
       "properties": {
         "collection": {
           "type": "string",
-          "description": "Collection that this entity belongs to."
+          "description": "The collection which stores the object."
         },
         "key": {
           "type": "string",
-          "description": "key of the entity."
+          "description": "The key of the object within the collection."
         },
         "user_id": {
           "type": "string",
-          "description": "Entity owner."
+          "description": "The user owner of the object."
         },
         "value": {
           "type": "string",
-          "description": "Value stored in this entity."
+          "description": "The value of the object."
         },
         "version": {
           "type": "string",
-          "description": "Version associated with this entity."
+          "description": "The version hash of the object."
         },
         "permission_read": {
           "type": "integer",
           "format": "int32",
-          "description": "Read permission of this entity."
+          "description": "The read access permissions for the object."
         },
         "permission_write": {
           "type": "integer",
           "format": "int32",
-          "description": "Write permission of this entity."
+          "description": "The write access permissions for the object."
         },
         "create_time": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the entity was created."
+          "description": "The UNIX time when the object was created."
         },
         "update_time": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the entity was last updated."
+          "description": "The UNIX time when the object was last updated."
         }
       },
-      "description": "An entity stored in Storage."
+      "description": "An object within the storage engine."
     },
     "protobufBoolValue": {
       "type": "object",
