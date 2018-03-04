@@ -20,22 +20,18 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (s *ApiServer) ListStorageEntities(ctx context.Context, in *api.ListStorageEntitiesRequest) (*api.StorageEntityList, error) {
-
+func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageObjectsRequest) (*api.StorageObjectList, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) GetStorageEntities(ctx context.Context, in *api.GetStorageEntitiesRequest) (*api.StorageEntities, error) {
-
+func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageObjectsRequest) (*api.StorageObjects, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) WriteStorageEntities(ctx context.Context, in *api.WriteStorageEntitiesRequest) (*api.StorageEntityAcks, error) {
-
+func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorageObjectsRequest) (*api.StorageObjectAcks, error) {
 	return nil, nil
 }
 
-func (s *ApiServer) DeleteStorageEntities(ctx context.Context, in *api.DeleteStorageEntitiesRequest) (*empty.Empty, error) {
-
+func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
