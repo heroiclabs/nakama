@@ -884,7 +884,7 @@
     },
     "/v2/storage": {
       "delete": {
-        "summary": "Delete one or more users by ID or username.",
+        "summary": "Delete one or more objects by ID or username.",
         "operationId": "DeleteStorageObjects",
         "responses": {
           "200": {
@@ -899,8 +899,8 @@
         ]
       },
       "post": {
-        "summary": "Get storage entities.",
-        "operationId": "GetStorageObjects",
+        "summary": "Get storage objects.",
+        "operationId": "ReadStorageObjects",
         "responses": {
           "200": {
             "description": "",
@@ -915,7 +915,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiGetStorageObjectsRequest"
+              "$ref": "#/definitions/apiReadStorageObjectsRequest"
             }
           }
         ],
@@ -924,7 +924,7 @@
         ]
       },
       "put": {
-        "summary": "Update fields in the current user's account.",
+        "summary": "Write objects into the storage engine.",
         "operationId": "WriteStorageObjects",
         "responses": {
           "200": {
@@ -951,7 +951,7 @@
     },
     "/v2/storage/{collection}": {
       "get": {
-        "summary": "Fetch list of storage entities.",
+        "summary": "List collections of storage objects.",
         "operationId": "ListStorageObjects",
         "responses": {
           "200": {
@@ -998,7 +998,7 @@
     },
     "/v2/storage/{collection}/{user_id}": {
       "get": {
-        "summary": "Fetch list of storage entities.",
+        "summary": "List collections of storage objects.",
         "operationId": "ListStorageObjects2",
         "responses": {
           "200": {
@@ -1123,24 +1123,6 @@
         }
       },
       "description": "A group to create."
-    },
-    "StorageObjectAcksStorageObjectAck": {
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "description": "The collection which stores the object."
-        },
-        "key": {
-          "type": "string",
-          "description": "The key of the object within the collection."
-        },
-        "version": {
-          "type": "string",
-          "description": "The version hash of the object."
-        }
-      },
-      "description": "A storage acknowledgement."
     },
     "apiAccount": {
       "type": "object",
@@ -1284,7 +1266,7 @@
       },
       "description": "Create one or more groups with the current user as owner."
     },
-    "apiDeleteStorageObjectsRequestStorageObjectId": {
+    "apiDeleteStorageObjectId": {
       "type": "object",
       "properties": {
         "collection": {
@@ -1329,37 +1311,6 @@
         }
       },
       "description": "A collection of zero or more friends of the user."
-    },
-    "apiGetStorageObjectsRequest": {
-      "type": "object",
-      "properties": {
-        "objectIds": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiGetStorageObjectsRequestStorageObjectId"
-          },
-          "description": "Batch of storage objects."
-        }
-      },
-      "description": "Batch get storage objects."
-    },
-    "apiGetStorageObjectsRequestStorageObjectId": {
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "description": "The collection which stores the object."
-        },
-        "key": {
-          "type": "string",
-          "description": "The key of the object within the collection."
-        },
-        "user_id": {
-          "type": "string",
-          "description": "The user owner of the object."
-        }
-      },
-      "description": "Storage objects to get."
     },
     "apiGroup": {
       "type": "object",
@@ -1482,6 +1433,37 @@
       },
       "description": "A collection of zero or more notifications."
     },
+    "apiReadStorageObjectId": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        }
+      },
+      "description": "Storage objects to get."
+    },
+    "apiReadStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "objectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiReadStorageObjectId"
+          },
+          "description": "Batch of storage objects."
+        }
+      },
+      "description": "Batch get storage objects."
+    },
     "apiRpc": {
       "type": "object",
       "properties": {
@@ -1514,13 +1496,77 @@
       },
       "description": "A user's session used to authenticate messages."
     },
+    "apiStorageObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was last updated."
+        }
+      },
+      "description": "An object within the storage engine."
+    },
+    "apiStorageObjectAck": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        }
+      },
+      "description": "A storage acknowledgement."
+    },
     "apiStorageObjectAcks": {
       "type": "object",
       "properties": {
         "acks": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/StorageObjectAcksStorageObjectAck"
+            "$ref": "#/definitions/apiStorageObjectAck"
           },
           "description": "Batch of storage write acknowledgements."
         }
@@ -1533,7 +1579,7 @@
         "objects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/nakamaapiStorageObject"
+            "$ref": "#/definitions/apiStorageObject"
           },
           "description": "The list of storage objects."
         },
@@ -1550,7 +1596,7 @@
         "objects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/nakamaapiStorageObject"
+            "$ref": "#/definitions/apiStorageObject"
           },
           "description": "The batch of storage objects."
         }
@@ -1674,20 +1720,7 @@
       },
       "description": "A collection of zero or more users."
     },
-    "apiWriteStorageObjectsRequest": {
-      "type": "object",
-      "properties": {
-        "objects": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiWriteStorageObjectsRequestStorageObject"
-          },
-          "description": "The objects to store on the server."
-        }
-      },
-      "description": "Write objects to the storage engine."
-    },
-    "apiWriteStorageObjectsRequestStorageObject": {
+    "apiWriteStorageObject": {
       "type": "object",
       "properties": {
         "collection": {
@@ -1719,51 +1752,18 @@
       },
       "description": "The object to store."
     },
-    "nakamaapiStorageObject": {
+    "apiWriteStorageObjectsRequest": {
       "type": "object",
       "properties": {
-        "collection": {
-          "type": "string",
-          "description": "The collection which stores the object."
-        },
-        "key": {
-          "type": "string",
-          "description": "The key of the object within the collection."
-        },
-        "user_id": {
-          "type": "string",
-          "description": "The user owner of the object."
-        },
-        "value": {
-          "type": "string",
-          "description": "The value of the object."
-        },
-        "version": {
-          "type": "string",
-          "description": "The version hash of the object."
-        },
-        "permission_read": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The read access permissions for the object."
-        },
-        "permission_write": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The write access permissions for the object."
-        },
-        "create_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the object was created."
-        },
-        "update_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the object was last updated."
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiWriteStorageObject"
+          },
+          "description": "The objects to store on the server."
         }
       },
-      "description": "An object within the storage engine."
+      "description": "Write objects to the storage engine."
     },
     "protobufBoolValue": {
       "type": "object",

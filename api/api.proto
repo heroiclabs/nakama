@@ -181,14 +181,6 @@ service Nakama {
     option (google.api.http).get = "/v2/account";
   }
 
-  // Get storage objects.
-  rpc GetStorageObjects (GetStorageObjectsRequest) returns (StorageObjects) {
-    option (google.api.http) = {
-      post: "/v2/storage",
-      body: "*"
-    };
-  }
-
   // Fetch zero or more users by ID and/or username.
   rpc GetUsers (GetUsersRequest) returns (Users) {
     option (google.api.http).get = "/v2/user";
@@ -280,6 +272,14 @@ service Nakama {
       additional_bindings {
         get: "/v2/storage/{collection}/{user_id}"
       }
+    };
+  }
+
+  // Get storage objects.
+  rpc ReadStorageObjects (ReadStorageObjectsRequest) returns (StorageObjects) {
+    option (google.api.http) = {
+      post: "/v2/storage",
+      body: "*"
     };
   }
 
@@ -583,20 +583,20 @@ message DeleteNotificationsRequest {
   repeated string ids = 1;
 }
 
+// Storage objects to delete.
+message DeleteStorageObjectId {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // The version hash of the object.
+  string version = 3;
+}
+
 // Batch delete storage objects.
 message DeleteStorageObjectsRequest {
-  // Storage objects to delete.
-  message StorageObjectId {
-    // The collection which stores the object.
-    string collection = 1;
-    // The key of the object within the collection.
-    string key = 2;
-    // The version hash of the object.
-    string version = 3;
-  }
-
   // Batch of storage objects.
-  repeated StorageObjectId objectIds = 1;
+  repeated DeleteStorageObjectId objectIds = 1;
 }
 
 // A friend of a user.
@@ -625,22 +625,6 @@ message Friend {
 message Friends {
   // The Friend objects.
   repeated Friend friends = 1;
-}
-
-// Batch get storage objects.
-message GetStorageObjectsRequest {
-  // Storage objects to get.
-  message StorageObjectId {
-    // The collection which stores the object.
-    string collection = 1;
-    // The key of the object within the collection.
-    string key = 2;
-    // The user owner of the object.
-    string user_id = 3;
-  }
-
-  // Batch of storage objects.
-  repeated StorageObjectId objectIds = 1;
 }
 
 // Fetch a batch of zero or more users from the server.
@@ -747,6 +731,22 @@ message NotificationList {
   string cacheable_cursor = 2;
 }
 
+// Storage objects to get.
+message ReadStorageObjectId {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // The user owner of the object.
+  string user_id = 3;
+}
+
+// Batch get storage objects.
+message ReadStorageObjectsRequest {
+  // Batch of storage objects.
+  repeated ReadStorageObjectId objectIds = 1;
+}
+
 // Execute an Lua function on the server.
 message Rpc {
   // The identifier of the function.
@@ -767,7 +767,7 @@ message Session {
 
 // The read access permissions for a storage object.
 enum StoragePermissionRead {
-  // Default case. Assumed as NO_READ permission.
+  // Default case. Assumed as OWNER_READ permission.
   STORAGE_PERMISSION_READ_UNSPECIFIED = 0;
   // The object does not have client read permissions.
   NO_READ = 1;
@@ -779,7 +779,7 @@ enum StoragePermissionRead {
 
 // The write access permission for a storage object.
 enum StoragePermissionWrite {
-  // Default case. Assumed as NO_WRITE permission.
+  // Default case. Assumed as OWNER_WRITE permission.
   STORAGE_PERMISSION_WRITE_UNSPECIFIED = 0;
   // The object does not have client write permissions.
   NO_WRITE = 1;
@@ -809,18 +809,18 @@ message StorageObject {
   google.protobuf.Timestamp update_time = 9;
 }
 
+// A storage acknowledgement.
+message StorageObjectAck {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // The version hash of the object.
+  string version = 3;
+}
+
 // Batch of acknowledgements for the storage object write.
 message StorageObjectAcks {
-  // A storage acknowledgement.
-  message StorageObjectAck {
-    // The collection which stores the object.
-    string collection = 1;
-    // The key of the object within the collection.
-    string key = 2;
-    // The version hash of the object.
-    string version = 3;
-  }
-
   // Batch of storage write acknowledgements.
   repeated StorageObjectAck acks = 1;
 }
@@ -897,24 +897,24 @@ message Users {
   repeated User users = 1;
 }
 
+// The object to store.
+message WriteStorageObject {
+  // The collection to store the object.
+  string collection = 1;
+  // The key for the object within the collection.
+  string key = 2;
+  // The value of the object.
+  string value = 3;
+  // The version hash of the object to check. Possible values are: ["", "*", "#hash#"].
+  string version = 4; // if-match and if-none-match
+  // The read access permissions for the object.
+  int32 permission_read = 5;
+  // The write access permissions for the object.
+  int32 permission_write = 6;
+}
+
 // Write objects to the storage engine.
 message WriteStorageObjectsRequest {
-  // The object to store.
-  message StorageObject {
-    // The collection to store the object.
-    string collection = 1;
-    // The key for the object within the collection.
-    string key = 2;
-    // The value of the object.
-    string value = 3;
-    // The version hash of the object to check. Possible values are: ["", "*", "#hash#"].
-    string version = 4; // if-match and if-none-match
-    // The read access permissions for the object.
-    int32 permission_read = 5;
-    // The write access permissions for the object.
-    int32 permission_write = 6;
-  }
-
   // The objects to store on the server.
-  repeated StorageObject objects = 1;
+  repeated WriteStorageObject objects = 1;
 }
