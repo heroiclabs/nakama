@@ -50,6 +50,6 @@ local function send_notification(context, payload)
       UserId = decoded.user_id
     }
   }
-  nk.new_notifications(new_notifications)
+  nk.notifications_send(new_notifications)
 end
 nk.register_rpc(send_notification, "clientrpc.send_notification")
