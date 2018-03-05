@@ -113,7 +113,8 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(grpcGatewayRouter)
+	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE"})
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
