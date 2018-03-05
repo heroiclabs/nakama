@@ -37,7 +37,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Frie
 
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
+		return &empty.Empty{}, nil
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
@@ -81,7 +81,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 
 func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*empty.Empty, error) {
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
+		return &empty.Empty{}, nil
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
@@ -124,7 +124,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 
 func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or username.")
+		return &empty.Empty{}, nil
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)

@@ -1009,7 +1009,7 @@
     },
     "/v2/storage/{collection}": {
       "get": {
-        "summary": "List collections of storage objects.",
+        "summary": "List publicly readable storage objects in a given collection.",
         "operationId": "ListStorageObjects",
         "responses": {
           "200": {
@@ -1056,7 +1056,7 @@
     },
     "/v2/storage/{collection}/{user_id}": {
       "get": {
-        "summary": "List collections of storage objects.",
+        "summary": "List publicly readable storage objects in a given collection.",
         "operationId": "ListStorageObjects2",
         "responses": {
           "200": {

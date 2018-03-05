@@ -133,7 +133,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter M
 		}}
 	}
 
-	NotificationSend(logger, db, tracker, messageRouter, notifications)
+	NotificationSend(logger, db, messageRouter, notifications)
 
 	return nil
 }
