@@ -16,8 +16,8 @@ package server
 
 import (
 	"database/sql"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -29,6 +29,10 @@ import (
 )
 
 func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
+	if in.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "An ID must be supplied.")
+	}
+
 	query := `UPDATE users SET custom_id = NULL, update_time = $3
 WHERE id = $1
 AND custom_id = $2
@@ -55,6 +59,10 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
+	if in.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "A device ID must be supplied.")
+	}
+
 	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
 		ts := time.Now().UTC().Unix()
@@ -98,6 +106,10 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 }
 
 func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
+	if in.GetEmail() == "" || in.GetPassword() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Both email and password must be supplied.")
+	}
+
 	query := `UPDATE users SET email = NULL, password = NULL, update_time = $3
 WHERE id = $1
 AND email = $2

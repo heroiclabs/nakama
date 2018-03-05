@@ -39,6 +39,7 @@ import (
 
 	"crypto/hmac"
 	"crypto/sha256"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/gorhill/cronexpr"
@@ -1652,7 +1653,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 		userID: nots,
 	}
 
-	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
+	if err := NotificationSend(n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
@@ -1786,7 +1787,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		return 0
 	}
 
-	if err := NotificationSend(n.logger, n.db, n.tracker, n.router, notifications); err != nil {
+	if err := NotificationSend(n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 

@@ -270,7 +270,7 @@ service Nakama {
     option (google.api.http).get = "/v2/notification";
   }
 
-  // List collections of storage objects.
+  // List publicly readable storage objects in a given collection.
   rpc ListStorageObjects (ListStorageObjectsRequest) returns (StorageObjectList) {
     option (google.api.http) = {
       get: "/v2/storage/{collection}",
@@ -711,7 +711,7 @@ message ListNotificationsRequest {
   string cacheable_cursor = 2; // value from NotificationList.cacheable_cursor.
 }
 
-// List storage objects by user ID or collection or both.
+// List publicly readable storage objects in a given collection.
 message ListStorageObjectsRequest {
   // ID of the user.
   string user_id = 1;
