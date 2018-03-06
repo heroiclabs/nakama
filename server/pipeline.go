@@ -18,31 +18,36 @@ import (
 	"database/sql"
 	"fmt"
 
+	"errors"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
 )
+
+var ErrPipelineUnrecognizedPayload = errors.New("pipeline received unrecognized payload")
 
 type pipeline struct {
 	config          Config
 	db              *sql.DB
 	sessionRegistry *SessionRegistry
+	matchRegistry   MatchRegistry
 	tracker         Tracker
 	router          MessageRouter
 	runtimePool     *RuntimePool
 }
 
-func NewPipeline(config Config, db *sql.DB, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
+func NewPipeline(config Config, db *sql.DB, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
 	return &pipeline{
 		config:          config,
 		db:              db,
 		sessionRegistry: sessionRegistry,
+		matchRegistry:   matchRegistry,
 		tracker:         tracker,
 		router:          router,
 		runtimePool:     runtimePool,
 	}
 }
 
-func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) error {
 	if logger.Core().Enabled(zap.DebugLevel) {
 		logger.Debug(fmt.Sprintf("Received %T message", envelope.Message), zap.Any("message", envelope.Message))
 	}
@@ -63,6 +68,9 @@ func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope 
 			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 			Message: "Unrecognized payload",
 		}}})
-		return
+		// If we reached this point the envelope was valid but the contents are missing or unknown.
+		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
+		return ErrPipelineUnrecognizedPayload
 	}
+	return nil
 }

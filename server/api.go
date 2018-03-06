@@ -102,7 +102,7 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	grpcGatewayRouter := mux.NewRouter()
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
-	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline.processRequest))
+	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
 	// TODO restore when admin endpoints are available.
 	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
 	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)

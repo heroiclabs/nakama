@@ -489,24 +489,24 @@ func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node s
 			return
 		}
 
-		// Extract the resulting state.
-		state := mh.vm.Get(-1)
-		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
-			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
-			mh.Stop()
-			result <- false
-			return
-		}
-		mh.vm.Pop(1)
 		// Extract the join attempt response.
 		allow := mh.vm.Get(-1)
-		if state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue {
+		if allow.Type() == lua.LTString && lua.LVAsString(allow) == __nakamaReturnValue {
 			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean")
 			mh.Stop()
 			result <- false
 			return
 		} else if allow.Type() != lua.LTBool {
 			mh.logger.Warn("Match join attempt returned non-boolean join result, stopping match")
+			mh.Stop()
+			result <- false
+			return
+		}
+		mh.vm.Pop(1)
+		// Extract the resulting state.
+		state := mh.vm.Get(-1)
+		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
+			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
 			mh.Stop()
 			result <- false
 			return

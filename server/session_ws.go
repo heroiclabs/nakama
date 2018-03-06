@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrQueueFull = errors.New("outgoing queue full")
+var ErrSessionQueueFull = errors.New("session outgoing queue full")
 
 type sessionWS struct {
 	sync.Mutex
@@ -105,7 +105,7 @@ func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope)) {
+func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope) error) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
@@ -140,7 +140,10 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.Cid))
-			processRequest(requestLogger, s, request)
+			if err = processRequest(requestLogger, s, request); err != nil {
+				requestLogger.Warn("Received unrecognized payload", zap.String("data", string(data)))
+				break
+			}
 		}
 	}
 }
@@ -158,12 +161,21 @@ func (s *sessionWS) processOutgoing() {
 				return
 			}
 		case payload := <-s.outgoingCh:
+			s.Lock()
+			if s.stopped {
+				// The connection may have stopped between the payload being queued on the outgoing channel and reaching here.
+				// If that's the case then abort outgoing processing at this point and exit.
+				s.Unlock()
+				return
+			}
 			// Process the outgoing message queue.
 			s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
 			if err := s.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				s.Unlock()
 				s.logger.Warn("Could not write message", zap.Error(err))
 				return
 			}
+			s.Unlock()
 		}
 	}
 }
@@ -225,9 +237,9 @@ func (s *sessionWS) SendBytes(payload []byte) error {
 		// Terminate the connection immediately because the only alternative that doesn't block the server is
 		// to start dropping messages, which might cause unexpected behaviour.
 		s.Unlock()
-		s.logger.Warn("Could not write message, outgoing queue full")
+		s.logger.Warn("Could not write message, session outgoing queue full")
 		s.cleanupClosedConnection()
-		return ErrQueueFull
+		return ErrSessionQueueFull
 	}
 }
 

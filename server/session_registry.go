@@ -38,7 +38,7 @@ type session interface {
 	SetUsername(string)
 
 	Expiry() int64
-	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope))
+	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope) error)
 
 	Format() SessionFormat
 	Send(envelope *rtapi.Envelope) error

@@ -96,7 +96,7 @@ func main() {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, config.GetName())
-	pipeline := server.NewPipeline(config, db, sessionRegistry, tracker, router, runtimePool)
+	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, tracker, router, pipeline, runtimePool)
 
 	_, err = matchRegistry.NewMatch("match")

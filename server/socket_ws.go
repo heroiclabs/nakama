@@ -19,11 +19,10 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
-	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
 )
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -62,6 +61,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username()})
 
 		// Allow the server to begin processing incoming messages from this session.
-		s.Consume(processRequest)
+		s.Consume(pipeline.processRequest)
 	}
 }
