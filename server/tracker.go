@@ -105,7 +105,7 @@ type presenceCompact struct {
 type LocalTracker struct {
 	sync.RWMutex
 	logger             *zap.Logger
-	registry           *SessionRegistry
+	sessionRegistry    *SessionRegistry
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
 	eventsCh           chan *PresenceEvent
@@ -114,10 +114,10 @@ type LocalTracker struct {
 	presencesBySession map[uuid.UUID]map[presenceCompact]PresenceMeta
 }
 
-func StartLocalTracker(logger *zap.Logger, registry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, name string) Tracker {
+func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, name string) Tracker {
 	t := &LocalTracker{
 		logger:             logger,
-		registry:           registry,
+		sessionRegistry:    sessionRegistry,
 		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               name,
 		eventsCh:           make(chan *PresenceEvent, 128),
@@ -553,7 +553,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		presences := t.ListLocalByStream(stream)
 		for _, p := range presences {
 			// Deliver event.
-			if s := t.registry.Get(p.ID.SessionID); s != nil {
+			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
 				s.SendBytes(payloadByte)
 			} else {
 				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))
@@ -593,7 +593,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		presences := t.ListLocalByStream(stream)
 		for _, p := range presences {
 			// Deliver event.
-			if s := t.registry.Get(p.ID.SessionID); s != nil {
+			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
 				s.SendBytes(payloadByte)
 			} else {
 				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))

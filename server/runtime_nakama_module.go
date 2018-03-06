@@ -57,32 +57,32 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger       *zap.Logger
-	db           *sql.DB
-	config       Config
-	socialClient *social.Client
-	registry     *SessionRegistry
-	tracker      Tracker
-	router       MessageRouter
-	once         *sync.Once
-	announceRPC  func(string)
-	client       *http.Client
+	logger          *zap.Logger
+	db              *sql.DB
+	config          Config
+	socialClient    *social.Client
+	sessionRegistry *SessionRegistry
+	tracker         Tracker
+	router          MessageRouter
+	once            *sync.Once
+	announceRPC     func(string)
+	client          *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC: make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger:       logger,
-		db:           db,
-		config:       config,
-		socialClient: socialClient,
-		registry:     registry,
-		tracker:      tracker,
-		router:       router,
-		once:         once,
-		announceRPC:  announceRPC,
+		logger:          logger,
+		db:              db,
+		config:          config,
+		socialClient:    socialClient,
+		sessionRegistry: sessionRegistry,
+		tracker:         tracker,
+		router:          router,
+		once:            once,
+		announceRPC:     announceRPC,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -90,7 +90,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 }
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
-	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
+	functions := map[string]lua.LGFunction{
 		"sql_exec":                    n.sqlExec,
 		"sql_query":                   n.sqlQuery,
 		"uuid_v4":                     n.uuidV4,
@@ -133,7 +133,8 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"notifications_send":          n.notificationsSend,
 		"wallet_write":                n.walletWrite,
 		// "run_once": n.runOnce,
-	})
+	}
+	mod := l.SetFuncs(l.CreateTable(len(functions), len(functions)), functions)
 
 	l.Push(mod)
 	return 1
@@ -219,9 +220,9 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 		return 0
 	}
 
-	rt := l.NewTable()
+	rt := l.CreateTable(len(resultRows), len(resultRows))
 	for i, r := range resultRows {
-		rowTable := l.NewTable()
+		rowTable := l.CreateTable(resultColumnCount, resultColumnCount)
 		for j, col := range resultColumns {
 			rowTable.RawSetString(col, convertValue(l, r[j]))
 		}
@@ -1066,7 +1067,7 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 	if meta == nil {
 		l.Push(lua.LNil)
 	} else {
-		metaTable := l.NewTable()
+		metaTable := l.CreateTable(4, 4)
 		metaTable.RawSetString("Hidden", lua.LBool(meta.Hidden))
 		metaTable.RawSetString("Persistence", lua.LBool(meta.Persistence))
 		metaTable.RawSetString("Username", lua.LString(meta.Username))
@@ -1158,7 +1159,7 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 	persistence := l.OptBool(5, true)
 
 	// Look up the session.
-	session := n.registry.Get(sessionID)
+	session := n.sessionRegistry.Get(sessionID)
 	if session == nil {
 		l.ArgError(2, "session id does not exist")
 		return 0

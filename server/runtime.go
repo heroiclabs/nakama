@@ -15,24 +15,18 @@
 package server
 
 import (
-	"os"
-	"path/filepath"
-
 	"errors"
-
-	"strings"
 
 	"database/sql"
 
 	"bytes"
-	"io/ioutil"
 	"sync"
 
 	"context"
 
+	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/social"
 )
 
 const (
@@ -53,76 +47,17 @@ type RuntimePool struct {
 	pool    *sync.Pool
 }
 
-func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
-	runtimeConfig := config.GetRuntime()
-	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
-		return nil, err
-	}
-
+func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map) (*RuntimePool, error) {
 	rp := &RuntimePool{
 		once:    &sync.Once{},
 		regRPC:  make(map[string]struct{}),
-		modules: new(sync.Map),
-		stdLibs: map[string]lua.LGFunction{
-			lua.LoadLibName:   lua.OpenPackage,
-			lua.BaseLibName:   lua.OpenBase,
-			lua.TabLibName:    lua.OpenTable,
-			lua.OsLibName:     OpenOs,
-			lua.StringLibName: lua.OpenString,
-			lua.MathLibName:   lua.OpenMath,
-		},
+		modules: modules,
+		stdLibs: stdLibs,
 	}
-
-	// Override before Package library is invoked.
-	lua.LuaLDir = runtimeConfig.Path
-	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
-	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
-
-	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
-	modulePaths := make([]string, 0)
-	if err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			logger.Error("Could not read module", zap.Error(err))
-			return err
-		} else if !f.IsDir() {
-			if strings.ToLower(filepath.Ext(path)) == ".lua" {
-				var content []byte
-				if content, err = ioutil.ReadFile(path); err != nil {
-					logger.Error("Could not read module", zap.String("path", path), zap.Error(err))
-					return err
-				}
-				relPath, _ := filepath.Rel(lua.LuaLDir, path)
-				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-				// Make paths Lua friendly.
-				name = strings.Replace(name, "/", ".", -1)
-				rp.modules.Store(path, &RuntimeModule{
-					name:    name,
-					path:    path,
-					content: content,
-				})
-				modulePaths = append(modulePaths, relPath)
-			}
-		}
-		return nil
-	}); err != nil {
-		logger.Error("Failed to list modules", zap.Error(err))
-		return nil, err
-	}
-
-	multiLogger.Info("Evaluating modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
-	r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, func(id string) {
-		rp.regRPC[id] = struct{}{}
-		logger.Info("Registered RPC function invocation", zap.String("id", id))
-	})
-	if err != nil {
-		return nil, err
-	}
-	multiLogger.Info("Modules loaded")
-	r.Stop()
 
 	rp.pool = &sync.Pool{
 		New: func() interface{} {
-			r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, nil)
+			r, err := newVM(logger, db, config, socialClient, sessionRegistry, tracker, router, rp.stdLibs, modules, rp.once, nil)
 			if err != nil {
 				multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
 			}
@@ -147,7 +82,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -155,12 +90,12 @@ func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, soci
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
-	for name, lib := range rp.stdLibs {
+	for name, lib := range stdLibs {
 		vm.Push(vm.NewFunction(lib))
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, registry, tracker, router, rp.once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, tracker, router, once, announceRPC)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,
@@ -168,13 +103,13 @@ func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, soci
 		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
 	}
 
-	modules := make([]*RuntimeModule, 0)
-	rp.modules.Range(func(key interface{}, value interface{}) bool {
-		modules = append(modules, value.(*RuntimeModule))
+	mods := make([]*RuntimeModule, 0)
+	modules.Range(func(key interface{}, value interface{}) bool {
+		mods = append(mods, value.(*RuntimeModule))
 		return true
 	})
 
-	return r, r.loadModules(modules)
+	return r, r.loadModules(mods)
 }
 
 type Runtime struct {

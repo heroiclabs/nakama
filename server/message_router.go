@@ -28,14 +28,14 @@ type MessageRouter interface {
 
 type LocalMessageRouter struct {
 	jsonpbMarshaler *jsonpb.Marshaler
-	registry        *SessionRegistry
+	sessionRegistry *SessionRegistry
 	tracker         Tracker
 }
 
-func NewLocalMessageRouter(registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
+func NewLocalMessageRouter(sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
 	return &LocalMessageRouter{
 		jsonpbMarshaler: jsonpbMarshaler,
-		registry:        registry,
+		sessionRegistry: sessionRegistry,
 		tracker:         tracker,
 	}
 }
@@ -52,7 +52,7 @@ func (r *LocalMessageRouter) SendToPresences(logger *zap.Logger, presences []Pre
 	}
 	payloadBytes := []byte(payload)
 	for _, presence := range presences {
-		session := r.registry.Get(presence.ID.SessionID)
+		session := r.sessionRegistry.Get(presence.ID.SessionID)
 		if session == nil {
 			logger.Warn("No session to route to", zap.Any("sid", presence.ID.SessionID))
 			continue

@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, processRequest func(*zap.Logger, session, *rtapi.Envelope)) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -53,10 +53,10 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, registry *SessionReg
 		}
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, registry, tracker)
+		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, tracker)
 
 		// Add to the session registry.
-		registry.add(s)
+		sessionRegistry.add(s)
 
 		// Register initial presences for this session.
 		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username()})

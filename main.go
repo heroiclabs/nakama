@@ -87,15 +87,22 @@ func main() {
 	socialClient := social.NewClient(5 * time.Second)
 
 	// Start up server components.
-	registry := server.NewSessionRegistry()
-	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
-	router := server.NewLocalMessageRouter(registry, tracker, jsonpbMarshaler)
-	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, registry, tracker, router)
+	sessionRegistry := server.NewSessionRegistry()
+	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
+	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
+	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, tracker, router)
+	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, modules)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, registry, tracker, router, pipeline, runtimePool)
+	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, config.GetName())
+	pipeline := server.NewPipeline(config, db, sessionRegistry, tracker, router, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, tracker, router, pipeline, runtimePool)
+
+	_, err = matchRegistry.NewMatch("match")
+	if err != nil {
+		jsonLogger.Fatal("ERROR", zap.Error(err))
+	}
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
@@ -109,8 +116,9 @@ func main() {
 
 	// Gracefully stop server components.
 	apiServer.Stop()
+	matchRegistry.Stop()
 	tracker.Stop()
-	registry.Stop()
+	sessionRegistry.Stop()
 
 	os.Exit(0)
 }

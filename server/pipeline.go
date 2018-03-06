@@ -23,22 +23,22 @@ import (
 )
 
 type pipeline struct {
-	config      Config
-	db          *sql.DB
-	registry    *SessionRegistry
-	tracker     Tracker
-	router      MessageRouter
-	runtimePool *RuntimePool
+	config          Config
+	db              *sql.DB
+	sessionRegistry *SessionRegistry
+	tracker         Tracker
+	router          MessageRouter
+	runtimePool     *RuntimePool
 }
 
-func NewPipeline(config Config, db *sql.DB, registry *SessionRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
+func NewPipeline(config Config, db *sql.DB, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
 	return &pipeline{
-		config:      config,
-		db:          db,
-		registry:    registry,
-		tracker:     tracker,
-		router:      router,
-		runtimePool: runtimePool,
+		config:          config,
+		db:              db,
+		sessionRegistry: sessionRegistry,
+		tracker:         tracker,
+		router:          router,
+		runtimePool:     runtimePool,
 	}
 }
 

@@ -25,8 +25,8 @@ import (
 type SessionFormat uint8
 
 const (
-	SessionFormatProtobuf SessionFormat = iota
-	SessionFormatJson
+	SessionFormatJson SessionFormat = iota
+	SessionFormatProtobuf
 )
 
 type session interface {

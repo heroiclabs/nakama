@@ -43,8 +43,8 @@ type sessionWS struct {
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 
-	registry *SessionRegistry
-	tracker  Tracker
+	sessionRegistry *SessionRegistry
+	tracker         Tracker
 
 	stopped        bool
 	conn           *websocket.Conn
@@ -53,7 +53,7 @@ type sessionWS struct {
 	outgoingStopCh chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, registry *SessionRegistry, tracker Tracker) session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, tracker Tracker) session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -70,8 +70,8 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 
-		registry: registry,
-		tracker:  tracker,
+		sessionRegistry: sessionRegistry,
+		tracker:         tracker,
 
 		stopped:        false,
 		conn:           conn,
@@ -136,10 +136,6 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
 			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
-			s.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
-				Message: "Unrecognized payload",
-			}}})
 			break
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
@@ -247,7 +243,7 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
-	s.registry.remove(s.id)
+	s.sessionRegistry.remove(s.id)
 	s.tracker.UntrackAll(s.id)
 
 	// Clean up internals.

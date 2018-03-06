@@ -85,6 +85,14 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
+	// Fail fast on invalid values.
+	if l := len(mainConfig.Name); l < 1 || l > 16 {
+		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
+	}
+	if mainConfig.GetSocket().PingPeriodMs >= mainConfig.GetSocket().PongWaitMs {
+		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", mainConfig.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", mainConfig.GetSocket().PongWaitMs))
+	}
+
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
@@ -242,7 +250,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the social authentication providers.
 type SocialConfig struct {
-	Steam        *SocialConfigSteam  `yaml:"steam" json:"steam" usage:"Steam configuration"`
+	Steam *SocialConfigSteam `yaml:"steam" json:"steam" usage:"Steam configuration"`
 }
 
 // SocialConfigSteam is configuration relevant to Steam
