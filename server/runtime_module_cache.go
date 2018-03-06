@@ -26,7 +26,7 @@ import (
 	"sync"
 )
 
-func LoadRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter) (map[string]lua.LGFunction, *sync.Map, error) {
+func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
 	runtimeConfig := config.GetRuntime()
 	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
 		return nil, nil, err
@@ -79,15 +79,21 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Conf
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	multiLogger.Info("Evaluating modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
-	r, err := newVM(logger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, modules, &sync.Once{}, func(id string) {
+	multiLogger.Info("Found modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
+
+	return stdLibs, modules, nil
+}
+
+func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) error {
+	multiLogger.Info("Evaluating modules")
+	r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(id string) {
 		logger.Info("Registered RPC function invocation", zap.String("id", id))
 	})
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	multiLogger.Info("Modules loaded")
 	r.Stop()
 
-	return stdLibs, modules, nil
+	return nil
 }

@@ -58,7 +58,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		sessionRegistry.add(s)
 
 		// Register initial presences for this session.
-		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username()})
+		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username(), Hidden: true})
 
 		// Allow the server to begin processing incoming messages from this session.
 		s.Consume(pipeline.processRequest)

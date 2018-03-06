@@ -32,6 +32,7 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
+	"sync"
 )
 
 var (
@@ -84,18 +85,24 @@ func main() {
 	// Check migration status and log if the schema has diverged.
 	migrate.StartupCheck(multiLogger, db)
 
+	// Access to social provider integrations.
 	socialClient := social.NewClient(5 * time.Second)
+	// Used to govern once-per-server-start executions in all Lua runtime instances, across both pooled and match VMs.
+	once := &sync.Once{}
 
 	// Start up server components.
 	sessionRegistry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
-	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, tracker, router)
-	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, modules)
+	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, config)
+	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	// Separate module evaluation/validation from module loading.
+	// We need the match registry to be available, and that needs the modules at least cached first.
+	err = server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, config.GetName())
+	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, tracker, router, pipeline, runtimePool)
 

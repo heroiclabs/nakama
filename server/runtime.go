@@ -40,33 +40,26 @@ type RuntimeModule struct {
 }
 
 type RuntimePool struct {
-	once    *sync.Once // Used to govern once-per-server-start executions.
 	regRPC  map[string]struct{}
-	stdLibs map[string]lua.LGFunction
 	modules *sync.Map
 	pool    *sync.Pool
 }
 
-func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map) (*RuntimePool, error) {
-	rp := &RuntimePool{
-		once:    &sync.Once{},
+func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) *RuntimePool {
+	return &RuntimePool{
 		regRPC:  make(map[string]struct{}),
 		modules: modules,
-		stdLibs: stdLibs,
-	}
-
-	rp.pool = &sync.Pool{
-		New: func() interface{} {
-			r, err := newVM(logger, db, config, socialClient, sessionRegistry, tracker, router, rp.stdLibs, modules, rp.once, nil)
-			if err != nil {
-				multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
-			}
-			// TODO find a way to run r.Stop() when the pool discards this runtime.
-			return r
+		pool: &sync.Pool{
+			New: func() interface{} {
+				r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, nil)
+				if err != nil {
+					multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
+				}
+				// TODO find a way to run r.Stop() when the pool discards this runtime.
+				return r
+			},
 		},
 	}
-
-	return rp, nil
 }
 
 func (rp *RuntimePool) HasRPC(id string) bool {
@@ -82,7 +75,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -95,7 +88,7 @@ func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.C
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, tracker, router, once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceRPC)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,

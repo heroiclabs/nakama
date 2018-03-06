@@ -39,6 +39,7 @@ type MatchDataMessage struct {
 type MatchHandler struct {
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
+	router        MessageRouter
 
 	// Identification not (directly) controlled by match init.
 	id     uuid.UUID
@@ -71,7 +72,7 @@ type MatchHandler struct {
 	state lua.LValue
 }
 
-func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, matchRegistry MatchRegistry, id uuid.UUID, node string, name string) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, id uuid.UUID, node string, name string) (*MatchHandler, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -84,7 +85,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, tracker, router, &sync.Once{}, nil)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	// Create the context to be used throughout this match.
@@ -173,6 +174,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	mh := &MatchHandler{
 		logger:        logger.With(zap.String("mid", id.String())),
 		matchRegistry: matchRegistry,
+		router:        router,
 
 		id:    id,
 		node:  node,
@@ -206,145 +208,8 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 	// Set up the dispatcher that exposes control functions to the match loop.
 	mh.dispatcher = vm.SetFuncs(vm.CreateTable(2, 2), map[string]lua.LGFunction{
-		"broadcast_message": func(l *lua.LState) int {
-			opCode := l.CheckInt64(1)
-			data := l.OptString(2, "")
-			var dataBytes []byte
-			if data != "" {
-				dataBytes = []byte(data)
-			}
-
-			filter := l.OptTable(3, nil)
-			var presences []Presence
-			if filter != nil {
-				fl := filter.Len()
-				if fl == 0 {
-					return 0
-				}
-				presences = make([]Presence, 0, fl)
-				conversionError := false
-				filter.ForEach(func(_, p lua.LValue) {
-					pt, ok := p.(*lua.LTable)
-					if !ok {
-						conversionError = true
-						l.ArgError(1, "expects a valid set of presences")
-						return
-					}
-
-					presence := Presence{ID: PresenceID{}}
-					pt.ForEach(func(k, v lua.LValue) {
-						switch k.String() {
-						case "UserId":
-							uid, err := uuid.FromString(v.String())
-							if err != nil {
-								conversionError = true
-								l.ArgError(1, "expects each presence to have a valid UserId")
-								return
-							}
-							presence.UserID = uid
-						case "SessionId":
-							sid, err := uuid.FromString(v.String())
-							if err != nil {
-								conversionError = true
-								l.ArgError(1, "expects each presence to have a valid SessionId")
-								return
-							}
-							presence.ID.SessionID = sid
-						case "Node":
-							if v.Type() != lua.LTString {
-								conversionError = true
-								l.ArgError(1, "expects Node to be string")
-								return
-							}
-							presence.ID.Node = v.String()
-						}
-					})
-					if presence.UserID == uuid.Nil || presence.ID.SessionID == uuid.Nil || presence.ID.Node == "" {
-						conversionError = true
-						l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
-						return
-					}
-					if conversionError {
-						return
-					}
-					presences = append(presences, presence)
-				})
-				if conversionError {
-					return 0
-				}
-			}
-
-			msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
-				MatchId: mh.idStr,
-				OpCode:  opCode,
-				Data:    dataBytes,
-			}}}
-
-			if presences == nil {
-				router.SendToStream(mh.logger, mh.stream, msg)
-			} else {
-				router.SendToPresences(mh.logger, presences, msg)
-			}
-
-			return 0
-		},
-		"match_kick": func(l *lua.LState) int {
-			input := l.CheckTable(1)
-			participants := make([]*MatchParticipant, 0, input.Len())
-			conversionError := false
-			input.ForEach(func(_, p lua.LValue) {
-				pt, ok := p.(*lua.LTable)
-				if !ok {
-					conversionError = true
-					l.ArgError(1, "expects a valid set of presences")
-					return
-				}
-
-				participant := &MatchParticipant{}
-				pt.ForEach(func(k, v lua.LValue) {
-					switch k.String() {
-					case "UserId":
-						uid, err := uuid.FromString(v.String())
-						if err != nil {
-							conversionError = true
-							l.ArgError(1, "expects each presence to have a valid UserId")
-							return
-						}
-						participant.UserID = uid
-					case "SessionId":
-						sid, err := uuid.FromString(v.String())
-						if err != nil {
-							conversionError = true
-							l.ArgError(1, "expects each presence to have a valid SessionId")
-							return
-						}
-						participant.SessionID = sid
-					case "Node":
-						if v.Type() != lua.LTString {
-							conversionError = true
-							l.ArgError(1, "expects Node to be string")
-							return
-						}
-						participant.Node = v.String()
-					}
-				})
-				if participant.UserID == uuid.Nil || participant.SessionID == uuid.Nil || participant.Node == "" {
-					conversionError = true
-					l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
-					return
-				}
-				if conversionError {
-					return
-				}
-				participants = append(participants, participant)
-			})
-			if conversionError {
-				return 0
-			}
-
-			matchRegistry.Kick(mh.stream, participants)
-			return 0
-		},
+		"broadcast_message": mh.broadcastMessage,
+		"match_kick":        mh.matchKick,
 	})
 
 	// Set up the ticker that governs the match loop.
@@ -578,4 +443,153 @@ func Leave(leaves []Presence) func(mh *MatchHandler) {
 
 		mh.state = state
 	}
+}
+
+func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
+	opCode := l.CheckInt64(1)
+	data := l.OptString(2, "")
+	var dataBytes []byte
+	if data != "" {
+		dataBytes = []byte(data)
+	}
+
+	filter := l.OptTable(3, nil)
+	var presences []Presence
+	if filter != nil {
+		fl := filter.Len()
+		if fl == 0 {
+			return 0
+		}
+		presences = make([]Presence, 0, fl)
+		conversionError := false
+		filter.ForEach(func(_, p lua.LValue) {
+			pt, ok := p.(*lua.LTable)
+			if !ok {
+				conversionError = true
+				l.ArgError(1, "expects a valid set of presences")
+				return
+			}
+
+			presence := Presence{ID: PresenceID{}}
+			pt.ForEach(func(k, v lua.LValue) {
+				switch k.String() {
+				case "UserId":
+					uid, err := uuid.FromString(v.String())
+					if err != nil {
+						conversionError = true
+						l.ArgError(1, "expects each presence to have a valid UserId")
+						return
+					}
+					presence.UserID = uid
+				case "SessionId":
+					sid, err := uuid.FromString(v.String())
+					if err != nil {
+						conversionError = true
+						l.ArgError(1, "expects each presence to have a valid SessionId")
+						return
+					}
+					presence.ID.SessionID = sid
+				case "Node":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects Node to be string")
+						return
+					}
+					presence.ID.Node = v.String()
+				}
+			})
+			if presence.UserID == uuid.Nil || presence.ID.SessionID == uuid.Nil || presence.ID.Node == "" {
+				conversionError = true
+				l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
+				return
+			}
+			if conversionError {
+				return
+			}
+			presences = append(presences, presence)
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
+		MatchId: mh.idStr,
+		OpCode:  opCode,
+		Data:    dataBytes,
+	}}}
+
+	if presences == nil {
+		mh.router.SendToStream(mh.logger, mh.stream, msg)
+	} else {
+		mh.router.SendToPresences(mh.logger, presences, msg)
+	}
+
+	return 0
+}
+
+func (mh *MatchHandler) matchKick(l *lua.LState) int {
+	input := l.CheckTable(1)
+	if input == nil {
+		return 0
+	}
+	size := input.Len()
+	if size == 0 {
+		return 0
+	}
+
+	participants := make([]*MatchParticipant, 0, size)
+	conversionError := false
+	input.ForEach(func(_, p lua.LValue) {
+		pt, ok := p.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of presences")
+			return
+		}
+
+		participant := &MatchParticipant{}
+		pt.ForEach(func(k, v lua.LValue) {
+			switch k.String() {
+			case "UserId":
+				uid, err := uuid.FromString(v.String())
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, "expects each presence to have a valid UserId")
+					return
+				}
+				participant.UserID = uid
+			case "SessionId":
+				sid, err := uuid.FromString(v.String())
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, "expects each presence to have a valid SessionId")
+					return
+				}
+				participant.SessionID = sid
+			case "Node":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects Node to be string")
+					return
+				}
+				participant.Node = v.String()
+			}
+		})
+		if participant.UserID == uuid.Nil || participant.SessionID == uuid.Nil || participant.Node == "" {
+			conversionError = true
+			l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
+			return
+		}
+		if conversionError {
+			return
+		}
+		participants = append(participants, participant)
+	})
+	if conversionError {
+		return 0
+	}
+
+	mh.matchRegistry.Kick(mh.stream, participants)
+	return 0
 }

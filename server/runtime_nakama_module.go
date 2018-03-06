@@ -62,6 +62,7 @@ type NakamaModule struct {
 	config          Config
 	socialClient    *social.Client
 	sessionRegistry *SessionRegistry
+	matchRegistry   MatchRegistry
 	tracker         Tracker
 	router          MessageRouter
 	once            *sync.Once
@@ -69,7 +70,7 @@ type NakamaModule struct {
 	client          *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC: make(map[string]*lua.LFunction),
 	}))
@@ -79,6 +80,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		config:          config,
 		socialClient:    socialClient,
 		sessionRegistry: sessionRegistry,
+		matchRegistry:   matchRegistry,
 		tracker:         tracker,
 		router:          router,
 		once:            once,
@@ -128,6 +130,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
+		"match_create":                n.matchCreate,
 		"register_rpc":                n.registerRPC,
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
@@ -1445,6 +1448,26 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 	n.router.SendToStream(n.logger, stream, msg)
 
 	return 0
+}
+
+func (n *NakamaModule) matchCreate(l *lua.LState) int {
+	// Parse the name of the Lua module that should handle the match.
+	name := l.CheckString(1)
+	if name == "" {
+		l.ArgError(1, "expects module name")
+		return 0
+	}
+
+	// Start the match.
+	mh, err := n.matchRegistry.NewMatch(name)
+	if err != nil {
+		l.RaiseError("error creating match: %v", err.Error())
+		return 0
+	}
+
+	// Return the match ID in a form that can be directly sent to clients.
+	l.Push(lua.LString(mh.idStr))
+	return 1
 }
 
 func (n *NakamaModule) registerRPC(l *lua.LState) int {

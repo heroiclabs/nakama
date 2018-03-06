@@ -54,11 +54,12 @@ type LocalMatchRegistry struct {
 	router          MessageRouter
 	stdLibs         map[string]lua.LGFunction
 	modules         *sync.Map
+	once            *sync.Once
 	node            string
 	matches         map[uuid.UUID]*MatchHandler
 }
 
-func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, node string) MatchRegistry {
 	return &LocalMatchRegistry{
 		logger:          logger,
 		db:              db,
@@ -68,6 +69,7 @@ func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, social
 		tracker:         tracker,
 		router:          router,
 		stdLibs:         stdLibs,
+		once:            once,
 		node:            node,
 		matches:         make(map[uuid.UUID]*MatchHandler),
 	}
@@ -75,7 +77,7 @@ func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, social
 
 func (r *LocalMatchRegistry) NewMatch(name string) (*MatchHandler, error) {
 	id := uuid.NewV4()
-	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r.tracker, r.router, r.stdLibs, r, id, r.node, name)
+	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name)
 	if err != nil {
 		return nil, err
 	}
