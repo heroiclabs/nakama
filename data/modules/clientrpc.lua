@@ -53,3 +53,13 @@ local function send_notification(context, payload)
   nk.notifications_send(new_notifications)
 end
 nk.register_rpc(send_notification, "clientrpc.send_notification")
+
+local function send_stream_data(context, payload)
+  local stream = {
+    Mode = 20,
+    Label = "Stream Data Test",
+  }
+  nk.stream_user_join(context.UserId, context.SessionId, stream, false, false)
+  nk.stream_send(stream, tostring(payload))
+end
+nk.register_rpc(send_stream_data, "clientrpc.send_stream_data")
