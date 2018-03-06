@@ -16,6 +16,7 @@ package server
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
@@ -42,6 +43,10 @@ func NewPipeline(config Config, db *sql.DB, registry *SessionRegistry, tracker T
 }
 
 func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+	if logger.Core().Enabled(zap.DebugLevel) {
+		logger.Debug(fmt.Sprintf("Received %T message", envelope.Message), zap.Any("message", envelope.Message))
+	}
+
 	switch envelope.Message.(type) {
 	case *rtapi.Envelope_MatchCreate:
 		p.matchCreate(logger, session, envelope)

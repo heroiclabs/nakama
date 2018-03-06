@@ -195,13 +195,21 @@ func (s *sessionWS) Format() SessionFormat {
 }
 
 func (s *sessionWS) Send(envelope *rtapi.Envelope) error {
-	s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.String("cid", envelope.Cid))
-
 	payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
 		s.logger.Warn("Could not marshal to json", zap.Error(err))
 		return err
 	}
+
+	if s.logger.Core().Enabled(zap.DebugLevel) {
+		switch envelope.Message.(type) {
+		case *rtapi.Envelope_Error:
+			s.logger.Debug("Sending error message", zap.String("payload", payload))
+		default:
+			s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.String("payload", payload))
+		}
+	}
+
 	return s.SendBytes([]byte(payload))
 }
 
