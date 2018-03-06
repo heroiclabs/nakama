@@ -145,13 +145,9 @@ func (n *NakamaModule) sqlExec(l *lua.LState) int {
 		l.ArgError(1, "expects query string")
 		return 0
 	}
-	paramsTable := l.OptTable(2, l.NewTable())
-	if paramsTable == nil {
-		l.ArgError(2, "expects params table")
-		return 0
-	}
+	paramsTable := l.OptTable(2, nil)
 	var params []interface{}
-	if paramsTable.Len() != 0 {
+	if paramsTable != nil && paramsTable.Len() != 0 {
 		var ok bool
 		params, ok = convertLuaValue(paramsTable).([]interface{})
 		if !ok {
@@ -181,13 +177,9 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 		l.ArgError(1, "expects query string")
 		return 0
 	}
-	paramsTable := l.OptTable(2, l.NewTable())
-	if paramsTable == nil {
-		l.ArgError(2, "expects params table")
-		return 0
-	}
+	paramsTable := l.OptTable(2, nil)
 	var params []interface{}
-	if paramsTable.Len() != 0 {
+	if paramsTable != nil && paramsTable.Len() != 0 {
 		var ok bool
 		params, ok = convertLuaValue(paramsTable).([]interface{})
 		if !ok {
@@ -1021,7 +1013,7 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(3)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
@@ -1111,7 +1103,7 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(3)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
@@ -1210,7 +1202,7 @@ func (n *NakamaModule) streamUserLeave(l *lua.LState) int {
 
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(3)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
@@ -1267,7 +1259,7 @@ func (n *NakamaModule) streamUserLeave(l *lua.LState) int {
 func (n *NakamaModule) streamCount(l *lua.LState) int {
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(1)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(1, "expects a valid stream")
 		return 0
 	}
@@ -1325,7 +1317,7 @@ func (n *NakamaModule) streamCount(l *lua.LState) int {
 func (n *NakamaModule) streamClose(l *lua.LState) int {
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(1)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(1, "expects a valid stream")
 		return 0
 	}
@@ -1382,7 +1374,7 @@ func (n *NakamaModule) streamClose(l *lua.LState) int {
 func (n *NakamaModule) streamSend(l *lua.LState) int {
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(1)
-	if streamTable == nil || streamTable.Len() == 0 {
+	if streamTable == nil {
 		l.ArgError(1, "expects a valid stream")
 		return 0
 	}
