@@ -76,10 +76,12 @@ message Error {
     BAD_INPUT = 3;
     // The match id was not found.
     MATCH_NOT_FOUND = 4;
+    // The match join was rejected.
+    MATCH_JOIN_REJECTED = 5;
     // The runtime function does not exist on the server.
-    RUNTIME_FUNCTION_NOT_FOUND = 5;
+    RUNTIME_FUNCTION_NOT_FOUND = 6;
     // The runtime function executed with an error.
-    RUNTIME_FUNCTION_EXCEPTION = 6;
+    RUNTIME_FUNCTION_EXCEPTION = 7;
   }
 
   // The error code which should be one of "Error.Code" enums.

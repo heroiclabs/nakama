@@ -16,18 +16,18 @@ package server
 
 import (
 	"database/sql"
-	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"sync"
+	"time"
 )
 
-type MatchParticipant struct {
+type MatchPresence struct {
 	Node      string
-	UserID    uuid.UUID
-	SessionID uuid.UUID
+	UserId    uuid.UUID
+	SessionId uuid.UUID
 	Username  string
 }
 
@@ -36,11 +36,11 @@ type MatchRegistry interface {
 	RemoveMatch(id uuid.UUID)
 	Stop()
 
-	Join(id uuid.UUID, node string, participant MatchParticipant) bool
-	Leave(id uuid.UUID, presences []Presence)
-	Kick(stream PresenceStream, participants []*MatchParticipant)
+	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool)
+	Leave(id uuid.UUID, node string, presences []Presence)
+	Kick(stream PresenceStream, presences []*MatchPresence)
 
-	SendData(id uuid.UUID, node string, data *rtapi.MatchData)
+	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte)
 }
 
 type LocalMatchRegistry struct {
@@ -102,26 +102,83 @@ func (r *LocalMatchRegistry) Stop() {
 	r.Unlock()
 }
 
-func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, participant MatchParticipant) bool {
+func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool) {
 	if node != r.node {
-		return false
+		return false, false
 	}
-	return true
+
+	var mh *MatchHandler
+	var ok bool
+	r.RLock()
+	mh, ok = r.matches[id]
+	r.RUnlock()
+	if !ok {
+		return false, false
+	}
+
+	resultCh := make(chan bool, 1)
+	mh.callCh <- JoinAttempt(resultCh, userID, sessionID, username, fromNode)
+
+	// Set up a limit to how long the call will wait.
+	ticker := time.NewTicker(time.Second * 10)
+	select {
+	case <-ticker.C:
+		ticker.Stop()
+		// The join attempt has timed out, match was found but join is assumed to be rejected.
+		return true, false
+	case r := <-resultCh:
+		ticker.Stop()
+		// The join attempt has returned a result.
+		return true, r
+	}
 }
 
-func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []Presence) {
+func (r *LocalMatchRegistry) Leave(id uuid.UUID, node string, presences []Presence) {
+	if node != r.node {
+		return
+	}
 
+	var mh *MatchHandler
+	var ok bool
+	r.RLock()
+	mh, ok = r.matches[id]
+	r.RUnlock()
+	if !ok {
+		return
+	}
+
+	mh.callCh <- Leave(presences)
 }
 
-func (r *LocalMatchRegistry) Kick(stream PresenceStream, participants []*MatchParticipant) {
-	for _, participant := range participants {
-		if participant.Node != r.node {
+func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPresence) {
+	for _, presence := range presences {
+		if presence.Node != r.node {
 			continue
 		}
-		r.tracker.Untrack(participant.SessionID, stream, participant.UserID)
+		r.tracker.Untrack(presence.SessionId, stream, presence.UserId)
 	}
 }
 
-func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, data *rtapi.MatchData) {
+func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte) {
+	if node != r.node {
+		return
+	}
 
+	var mh *MatchHandler
+	var ok bool
+	r.RLock()
+	mh, ok = r.matches[id]
+	r.RUnlock()
+	if !ok {
+		return
+	}
+
+	mh.inputCh <- &MatchDataMessage{
+		UserID:    userID,
+		SessionID: sessionID,
+		Username:  username,
+		Node:      node,
+		OpCode:    opCode,
+		Data:      data,
+	}
 }

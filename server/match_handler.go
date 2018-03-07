@@ -324,10 +324,10 @@ func loop(mh *MatchHandler) {
 	mh.tick++
 }
 
-func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
+func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
 		if mh.stopped {
-			result <- false
+			resultCh <- false
 			return
 		}
 
@@ -350,7 +350,7 @@ func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node s
 		if err != nil {
 			mh.Stop()
 			mh.logger.Warn("Stopping match after error from match_join_attempt execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
-			result <- false
+			resultCh <- false
 			return
 		}
 
@@ -359,12 +359,12 @@ func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node s
 		if allow.Type() == lua.LTString && lua.LVAsString(allow) == __nakamaReturnValue {
 			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean")
 			mh.Stop()
-			result <- false
+			resultCh <- false
 			return
 		} else if allow.Type() != lua.LTBool {
 			mh.logger.Warn("Match join attempt returned non-boolean join result, stopping match")
 			mh.Stop()
-			result <- false
+			resultCh <- false
 			return
 		}
 		mh.vm.Pop(1)
@@ -373,7 +373,7 @@ func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node s
 		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
 			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
 			mh.Stop()
-			result <- false
+			resultCh <- false
 			return
 		}
 		mh.vm.Pop(1)
@@ -381,13 +381,13 @@ func JoinAttempt(result chan bool, userID, sessionID uuid.UUID, username, node s
 		if sentinel := mh.vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
 			mh.logger.Warn("Match join attempt returned too many values, stopping match")
 			mh.Stop()
-			result <- false
+			resultCh <- false
 			return
 		}
 		mh.vm.Pop(1)
 
 		mh.state = state
-		result <- lua.LVAsBool(allow)
+		resultCh <- lua.LVAsBool(allow)
 	}
 }
 
@@ -513,10 +513,54 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 		}
 	}
 
+	sender := l.OptTable(4, nil)
+	var presence *rtapi.StreamPresence
+	if sender != nil {
+		presence := &rtapi.StreamPresence{}
+		conversionError := false
+		sender.ForEach(func(k, v lua.LValue) {
+			switch k.String() {
+			case "UserId":
+				s := v.String()
+				_, err := uuid.FromString(s)
+				if err != nil {
+					conversionError = true
+					l.ArgError(4, "expects presence to have a valid UserId")
+					return
+				}
+				presence.UserId = s
+			case "SessionId":
+				s := v.String()
+				_, err := uuid.FromString(s)
+				if err != nil {
+					conversionError = true
+					l.ArgError(4, "expects presence to have a valid SessionId")
+					return
+				}
+				presence.SessionId = s
+			case "Username":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(4, "expects Username to be string")
+					return
+				}
+				presence.Username = v.String()
+			}
+		})
+		if presence.UserId == "" || presence.SessionId == "" || presence.Username == "" {
+			l.ArgError(4, "expects presence to have a valid UserId, SessionId, and Username")
+			return 0
+		}
+		if conversionError {
+			return 0
+		}
+	}
+
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
-		MatchId: mh.idStr,
-		OpCode:  opCode,
-		Data:    dataBytes,
+		MatchId:  mh.idStr,
+		Presence: presence,
+		OpCode:   opCode,
+		Data:     dataBytes,
 	}}}
 
 	if presences == nil {
@@ -538,7 +582,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 		return 0
 	}
 
-	participants := make([]*MatchParticipant, 0, size)
+	presences := make([]*MatchPresence, 0, size)
 	conversionError := false
 	input.ForEach(func(_, p lua.LValue) {
 		pt, ok := p.(*lua.LTable)
@@ -548,7 +592,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 			return
 		}
 
-		participant := &MatchParticipant{}
+		presence := &MatchPresence{}
 		pt.ForEach(func(k, v lua.LValue) {
 			switch k.String() {
 			case "UserId":
@@ -558,7 +602,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 					l.ArgError(1, "expects each presence to have a valid UserId")
 					return
 				}
-				participant.UserID = uid
+				presence.UserId = uid
 			case "SessionId":
 				sid, err := uuid.FromString(v.String())
 				if err != nil {
@@ -566,17 +610,17 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 					l.ArgError(1, "expects each presence to have a valid SessionId")
 					return
 				}
-				participant.SessionID = sid
+				presence.SessionId = sid
 			case "Node":
 				if v.Type() != lua.LTString {
 					conversionError = true
 					l.ArgError(1, "expects Node to be string")
 					return
 				}
-				participant.Node = v.String()
+				presence.Node = v.String()
 			}
 		})
-		if participant.UserID == uuid.Nil || participant.SessionID == uuid.Nil || participant.Node == "" {
+		if presence.UserId == uuid.Nil || presence.SessionId == uuid.Nil || presence.Node == "" {
 			conversionError = true
 			l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
 			return
@@ -584,12 +628,12 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 		if conversionError {
 			return
 		}
-		participants = append(participants, participant)
+		presences = append(presences, presence)
 	})
 	if conversionError {
 		return 0
 	}
 
-	mh.matchRegistry.Kick(mh.stream, participants)
+	mh.matchRegistry.Kick(mh.stream, presences)
 	return 0
 }

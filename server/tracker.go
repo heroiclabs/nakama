@@ -17,6 +17,7 @@ package server
 import (
 	"sync"
 
+	"fmt"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
@@ -535,13 +536,30 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			streamWire.Descriptor_ = stream.Descriptor.String()
 		}
 
-		// Construct the wire representation of the event.
-		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
-			Stream: streamWire,
-			Joins:  joins,
-			Leaves: leaves,
-		},
-		}}
+		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.
+		presences := t.ListLocalByStream(stream)
+		if len(presences) == 0 {
+			continue
+		}
+
+		// Construct the wire representation of the event based on the stream mode.
+		var envelope *rtapi.Envelope
+		switch stream.Mode {
+		case StreamModeMatchRelayed:
+			fallthrough
+		case StreamModeMatchAuthoritative:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
+				MatchId: fmt.Sprintf("%v:%v", stream.Subject.String(), stream.Label),
+				Joins:   joins,
+				Leaves:  leaves,
+			}}}
+		default:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
+				Stream: streamWire,
+				Joins:  joins,
+				Leaves: leaves,
+			}}}
+		}
 		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
 		if err != nil {
 			t.logger.Warn("Could not marshal presence event to json", zap.Error(err))
@@ -549,10 +567,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 		payloadByte := []byte(payload)
 
-		// Find the list of event recipients.
-		presences := t.ListLocalByStream(stream)
+		// Deliver event.
 		for _, p := range presences {
-			// Deliver event.
 			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
 				s.SendBytes(payloadByte)
 			} else {
@@ -575,13 +591,30 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			streamWire.Descriptor_ = stream.Descriptor.String()
 		}
 
-		// Construct the wire representation of the event.
-		envelope := &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
-			Stream: streamWire,
-			// No joins.
-			Leaves: leaves,
-		},
-		}}
+		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.
+		presences := t.ListLocalByStream(stream)
+		if len(presences) == 0 {
+			continue
+		}
+
+		// Construct the wire representation of the event based on the stream mode.
+		var envelope *rtapi.Envelope
+		switch stream.Mode {
+		case StreamModeMatchRelayed:
+			fallthrough
+		case StreamModeMatchAuthoritative:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
+				MatchId: fmt.Sprintf("%v:%v", stream.Subject.String(), stream.Label),
+				// No joins.
+				Leaves: leaves,
+			}}}
+		default:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StreamPresenceEvent{StreamPresenceEvent: &rtapi.StreamPresenceEvent{
+				Stream: streamWire,
+				// No joins.
+				Leaves: leaves,
+			}}}
+		}
 		payload, err := t.jsonpbMarshaler.MarshalToString(envelope)
 		if err != nil {
 			t.logger.Warn("Could not marshal presence event to json", zap.Error(err))
@@ -589,10 +622,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 		payloadByte := []byte(payload)
 
-		// Find the list of event recipients.
-		presences := t.ListLocalByStream(stream)
+		// Deliver event.
 		for _, p := range presences {
-			// Deliver event.
 			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
 				s.SendBytes(payloadByte)
 			} else {

@@ -82,7 +82,7 @@ func main() {
 	db, dbVersion := dbConnect(multiLogger, config.GetDatabase().Addresses)
 	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
-	// Check migration status and log if the schema has diverged.
+	// Check migration status and fail fast if the schema has diverged.
 	migrate.StartupCheck(multiLogger, db)
 
 	// Access to social provider integrations.
@@ -95,9 +95,12 @@ func main() {
 	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, config)
+	if err != nil {
+		multiLogger.Fatal("Failed reading runtime modules", zap.Error(err))
+	}
 	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
 	// Separate module evaluation/validation from module loading.
-	// We need the match registry to be available, and that needs the modules at least cached first.
+	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
 	err = server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))

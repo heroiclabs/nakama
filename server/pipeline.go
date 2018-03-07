@@ -33,6 +33,7 @@ type pipeline struct {
 	tracker         Tracker
 	router          MessageRouter
 	runtimePool     *RuntimePool
+	node            string
 }
 
 func NewPipeline(config Config, db *sql.DB, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
@@ -44,6 +45,7 @@ func NewPipeline(config Config, db *sql.DB, sessionRegistry *SessionRegistry, ma
 		tracker:         tracker,
 		router:          router,
 		runtimePool:     runtimePool,
+		node:            config.GetName(),
 	}
 }
 
