@@ -231,8 +231,18 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 	}
 
 	retValue := l.Get(-1)
+	l.Pop(1)
 	if retValue.Type() == lua.LTString && lua.LVAsString(retValue) == __nakamaReturnValue {
 		return nil, nil
+	}
+
+	// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
+	for {
+		v := l.Get(-1)
+		l.Pop(1)
+		if v.Type() == lua.LTString && lua.LVAsString(v) == __nakamaReturnValue {
+			break
+		}
 	}
 
 	return retValue, nil
