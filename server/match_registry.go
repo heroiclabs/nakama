@@ -26,8 +26,8 @@ import (
 
 type MatchPresence struct {
 	Node      string
-	UserId    uuid.UUID
-	SessionId uuid.UUID
+	UserID    uuid.UUID
+	SessionID uuid.UUID
 	Username  string
 }
 
@@ -43,7 +43,8 @@ type MatchRegistry interface {
 	// Pass a user join attempt to a match handler. Returns if the match was found, and if the join was accepted.
 	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool)
 	// Notify a match handler that a user has left or disconnected.
-	Leave(id uuid.UUID, node string, presences []Presence)
+	// Expects that the caller has already determined the match is hosted on the current node.
+	Leave(id uuid.UUID, presences []*MatchPresence)
 	// Called by match handlers to request the removal fo a match participant.
 	Kick(stream PresenceStream, presences []*MatchPresence)
 	// Pass a data payload (usually from a user) to the appropriate match handler.
@@ -145,11 +146,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	}
 }
 
-func (r *LocalMatchRegistry) Leave(id uuid.UUID, node string, presences []Presence) {
-	if node != r.node {
-		return
-	}
-
+func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
 	var mh *MatchHandler
 	var ok bool
 	r.RLock()
@@ -159,7 +156,7 @@ func (r *LocalMatchRegistry) Leave(id uuid.UUID, node string, presences []Presen
 		return
 	}
 
-	// Doesn't matter if the call queue was full. If the match is being closed then leaves don't matter anyway.
+	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
 	mh.QueueCall(Leave(presences))
 }
 
@@ -168,7 +165,7 @@ func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPrese
 		if presence.Node != r.node {
 			continue
 		}
-		r.tracker.Untrack(presence.SessionId, stream, presence.UserId)
+		r.tracker.Untrack(presence.SessionID, stream, presence.UserID)
 	}
 }
 

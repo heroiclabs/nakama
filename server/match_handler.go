@@ -408,7 +408,7 @@ func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node
 	}
 }
 
-func Leave(leaves []Presence) func(mh *MatchHandler) {
+func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
 		if mh.stopped {
 			return
@@ -419,9 +419,9 @@ func Leave(leaves []Presence) func(mh *MatchHandler) {
 		for i, p := range leaves {
 			presence := mh.vm.CreateTable(4, 4)
 			presence.RawSetString("UserId", lua.LString(p.UserID.String()))
-			presence.RawSetString("SessionId", lua.LString(p.ID.SessionID.String()))
-			presence.RawSetString("Username", lua.LString(p.Meta.Username))
-			presence.RawSetString("Node", lua.LString(p.ID.Node))
+			presence.RawSetString("SessionId", lua.LString(p.SessionID.String()))
+			presence.RawSetString("Username", lua.LString(p.Username))
+			presence.RawSetString("Node", lua.LString(p.Node))
 
 			presences.RawSetInt(i+1, presence)
 		}
@@ -619,7 +619,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 					l.ArgError(1, "expects each presence to have a valid UserId")
 					return
 				}
-				presence.UserId = uid
+				presence.UserID = uid
 			case "SessionId":
 				sid, err := uuid.FromString(v.String())
 				if err != nil {
@@ -627,7 +627,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 					l.ArgError(1, "expects each presence to have a valid SessionId")
 					return
 				}
-				presence.SessionId = sid
+				presence.SessionID = sid
 			case "Node":
 				if v.Type() != lua.LTString {
 					conversionError = true
@@ -637,7 +637,7 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 				presence.Node = v.String()
 			}
 		})
-		if presence.UserId == uuid.Nil || presence.SessionId == uuid.Nil || presence.Node == "" {
+		if presence.UserID == uuid.Nil || presence.SessionID == uuid.Nil || presence.Node == "" {
 			conversionError = true
 			l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
 			return

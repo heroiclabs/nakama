@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS users (
     edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
     create_time   BIGINT        CHECK (create_time > 0) NOT NULL,
     update_time   BIGINT        CHECK (update_time > 0) NOT NULL,
-    verify_time   BIGINT        CHECK (verify_time >= 0) DEFAULT 0 NOT NULL,
-    disable_time  BIGINT        CHECK (disable_time >= 0) DEFAULT 0 NOT NULL
+    verify_time   BIGINT        DEFAULT 0 CHECK (verify_time >= 0) NOT NULL,
+    disable_time  BIGINT        DEFAULT 0 CHECK (disable_time >= 0) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_device (
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 );
 
 CREATE TABLE IF NOT EXISTS notification (
-    -- FIXME: cockroach's analyser is not clever enough when create_time has DESC mode on the index. 
+    -- FIXME: cockroach's analyser is not clever enough when create_time has DESC mode on the index.
     PRIMARY KEY (user_id, create_time ASC, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 

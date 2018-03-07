@@ -67,6 +67,7 @@ type PresenceEvent struct {
 }
 
 type Tracker interface {
+	SetMatchLeaveListener(func(id uuid.UUID, leaves []*MatchPresence))
 	Stop()
 
 	// Individual presence and user operations.
@@ -106,6 +107,7 @@ type presenceCompact struct {
 type LocalTracker struct {
 	sync.RWMutex
 	logger             *zap.Logger
+	matchLeaveListener func(id uuid.UUID, leaves []*MatchPresence)
 	sessionRegistry    *SessionRegistry
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
@@ -138,6 +140,10 @@ func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jso
 		}
 	}()
 	return t
+}
+
+func (t *LocalTracker) SetMatchLeaveListener(f func(id uuid.UUID, leaves []*MatchPresence)) {
+	t.matchLeaveListener = f
 }
 
 func (t *LocalTracker) Stop() {
@@ -488,6 +494,10 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	// Convert to wire representation at the same time.
 	streamJoins := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
 	streamLeaves := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
+
+	// Track grouped authoritative match leaves separately from client-bound events.
+	matchLeaves := make(map[uuid.UUID][]*MatchPresence, 0)
+
 	for _, p := range e.joins {
 		pWire := &rtapi.StreamPresence{
 			UserId:      p.UserID.String(),
@@ -510,11 +520,31 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			Persistence: p.Meta.Persistence,
 			Status:      p.Meta.Status,
 		}
-		if j, ok := streamLeaves[p.Stream]; ok {
-			streamLeaves[p.Stream] = append(j, pWire)
+		if l, ok := streamLeaves[p.Stream]; ok {
+			streamLeaves[p.Stream] = append(l, pWire)
 		} else {
 			streamLeaves[p.Stream] = []*rtapi.StreamPresence{pWire}
 		}
+
+		// We only care about authoritative match leaves where the match host is the current node.
+		if p.Stream.Mode == StreamModeMatchAuthoritative && p.Stream.Label == t.name {
+			mp := &MatchPresence{
+				Node:      p.ID.Node,
+				UserID:    p.UserID,
+				SessionID: p.ID.SessionID,
+				Username:  p.Meta.Username,
+			}
+			if l, ok := matchLeaves[p.Stream.Subject]; ok {
+				matchLeaves[p.Stream.Subject] = append(l, mp)
+			} else {
+				matchLeaves[p.Stream.Subject] = []*MatchPresence{mp}
+			}
+		}
+	}
+
+	// Notify locally hosted authoritative matches of leave events.
+	for matchID, leaves := range matchLeaves {
+		t.matchLeaveListener(matchID, leaves)
 	}
 
 	// Send joins, together with any leaves for the same topic.

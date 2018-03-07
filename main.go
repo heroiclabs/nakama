@@ -99,6 +99,7 @@ func main() {
 		multiLogger.Fatal("Failed reading runtime modules", zap.Error(err))
 	}
 	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	// Separate module evaluation/validation from module loading.
 	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
 	err = server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
