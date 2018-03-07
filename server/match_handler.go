@@ -224,13 +224,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 				return
 			case <-mh.ticker.C:
 				// Tick, queue a match loop invocation.
-				select {
-				case mh.callCh <- loop:
-					continue
-				default:
-					// Match call queue is full, the handler isn't processing fast enough.
-					mh.logger.Warn("Match handler processing too slow, closing match")
-					mh.Stop()
+				if !mh.QueueCall(loop) {
 					return
 				}
 			case call := <-mh.callCh:
@@ -243,10 +237,10 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	return mh, nil
 }
 
-// Used when an internal match process requires it to stop.
+// Used when an internal match process (or error) requires it to stop.
 func (mh *MatchHandler) Stop() {
 	mh.Close()
-	mh.matchRegistry.RemoveMatch(mh.id)
+	mh.matchRegistry.RemoveMatch(mh.id, mh.stream)
 }
 
 // Used when the match is closed externally.
@@ -257,6 +251,29 @@ func (mh *MatchHandler) Close() {
 	mh.stopped = true
 	close(mh.stopCh)
 	mh.ticker.Stop()
+}
+
+func (mh *MatchHandler) QueueCall(f func(*MatchHandler)) bool {
+	select {
+	case mh.callCh <- f:
+		return true
+	default:
+		// Match call queue is full, the handler isn't processing fast enough.
+		mh.logger.Warn("Match handler call processing too slow, closing match")
+		mh.Stop()
+		return false
+	}
+}
+
+func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
+	select {
+	case mh.inputCh <- m:
+		return
+	default:
+		// Match input queue is full, the handler isn't processing fast enough or there's too much incoming data.
+		mh.logger.Warn("Match handler data processing too slow, dropping data message")
+		return
+	}
 }
 
 func loop(mh *MatchHandler) {

@@ -109,11 +109,6 @@ func main() {
 	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, tracker, router, pipeline, runtimePool)
 
-	_, err = matchRegistry.NewMatch("match")
-	if err != nil {
-		jsonLogger.Fatal("ERROR", zap.Error(err))
-	}
-
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)

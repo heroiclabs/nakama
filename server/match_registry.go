@@ -32,14 +32,22 @@ type MatchPresence struct {
 }
 
 type MatchRegistry interface {
+	// Create and start a new match, given a Lua module name.
 	NewMatch(name string) (*MatchHandler, error)
-	RemoveMatch(id uuid.UUID)
+	// Remove a tracked match and ensure all its presences are cleaned up.
+	// Does not ensure the match process itself is no longer running, that must be handled separately.
+	RemoveMatch(id uuid.UUID, stream PresenceStream)
+	// Stop the match registry and close all matches it's tracking.
 	Stop()
 
+	// Pass a user join attempt to a match handler. Returns if the match was found, and if the join was accepted.
 	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool)
+	// Notify a match handler that a user has left or disconnected.
 	Leave(id uuid.UUID, node string, presences []Presence)
+	// Called by match handlers to request the removal fo a match participant.
 	Kick(stream PresenceStream, presences []*MatchPresence)
-
+	// Pass a data payload (usually from a user) to the appropriate match handler.
+	// Assumes that the data sender has already been validated as a match participant before this call.
 	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte)
 }
 
@@ -87,10 +95,11 @@ func (r *LocalMatchRegistry) NewMatch(name string) (*MatchHandler, error) {
 	return match, nil
 }
 
-func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID) {
+func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.Lock()
 	delete(r.matches, id)
 	r.Unlock()
+	r.tracker.UntrackByStream(stream)
 }
 
 func (r *LocalMatchRegistry) Stop() {
@@ -117,14 +126,17 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	}
 
 	resultCh := make(chan bool, 1)
-	mh.callCh <- JoinAttempt(resultCh, userID, sessionID, username, fromNode)
+	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode)) {
+		// The match call queue was full, so will be closed and therefore can't be joined.
+		return true, false
+	}
 
-	// Set up a limit to how long the call will wait.
+	// Set up a limit to how long the call will wait, default is 10 seconds.
 	ticker := time.NewTicker(time.Second * 10)
 	select {
 	case <-ticker.C:
 		ticker.Stop()
-		// The join attempt has timed out, match was found but join is assumed to be rejected.
+		// The join attempt has timed out, join is assumed to be rejected.
 		return true, false
 	case r := <-resultCh:
 		ticker.Stop()
@@ -147,7 +159,8 @@ func (r *LocalMatchRegistry) Leave(id uuid.UUID, node string, presences []Presen
 		return
 	}
 
-	mh.callCh <- Leave(presences)
+	// Doesn't matter if the call queue was full. If the match is being closed then leaves don't matter anyway.
+	mh.QueueCall(Leave(presences))
 }
 
 func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPresence) {
@@ -173,12 +186,12 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		return
 	}
 
-	mh.inputCh <- &MatchDataMessage{
+	mh.QueueData(&MatchDataMessage{
 		UserID:    userID,
 		SessionID: sessionID,
 		Username:  username,
 		Node:      node,
 		OpCode:    opCode,
 		Data:      data,
-	}
+	})
 }
