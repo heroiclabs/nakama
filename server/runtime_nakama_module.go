@@ -378,7 +378,13 @@ func (n *NakamaModule) base64Encode(l *lua.LState) int {
 		return 0
 	}
 
-	output := base64.StdEncoding.EncodeToString([]byte(input))
+	padding := l.OptBool(2, true)
+
+	e := base64.StdEncoding
+	if !padding {
+		e = base64.RawStdEncoding
+	}
+	output := e.EncodeToString([]byte(input))
 	l.Push(lua.LString(output))
 	return 1
 }
@@ -390,7 +396,16 @@ func (n *NakamaModule) base64Decode(l *lua.LState) int {
 		return 0
 	}
 
-	output, err := base64.RawStdEncoding.DecodeString(input)
+	padding := l.OptBool(2, false)
+
+	if !padding {
+		// Pad string up to length multiple of 4 if needed to effectively make padding optional.
+		if maybePad := len(input) % 4; maybePad != 0 {
+			input += strings.Repeat("=", 4-maybePad)
+		}
+	}
+
+	output, err := base64.StdEncoding.DecodeString(input)
 	if err != nil {
 		l.RaiseError("not a valid base64 string: %v", err.Error())
 		return 0
@@ -407,7 +422,13 @@ func (n *NakamaModule) base64URLEncode(l *lua.LState) int {
 		return 0
 	}
 
-	output := base64.URLEncoding.EncodeToString([]byte(input))
+	padding := l.OptBool(2, true)
+
+	e := base64.URLEncoding
+	if !padding {
+		e = base64.RawURLEncoding
+	}
+	output := e.EncodeToString([]byte(input))
 	l.Push(lua.LString(output))
 	return 1
 }
@@ -419,7 +440,16 @@ func (n *NakamaModule) base64URLDecode(l *lua.LState) int {
 		return 0
 	}
 
-	output, err := base64.RawURLEncoding.DecodeString(input)
+	padding := l.OptBool(2, false)
+
+	if !padding {
+		// Pad string up to length multiple of 4 if needed to effectively make padding optional.
+		if maybePad := len(input) % 4; maybePad != 0 {
+			input += strings.Repeat("=", 4-maybePad)
+		}
+	}
+
+	output, err := base64.URLEncoding.DecodeString(input)
 	if err != nil {
 		l.RaiseError("not a valid base64 url string: %v", err.Error())
 		return 0
