@@ -46,9 +46,9 @@ type RuntimePool struct {
 	pool    *sync.Pool
 }
 
-func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) *RuntimePool {
+func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regRPC map[string]struct{}, once *sync.Once) *RuntimePool {
 	return &RuntimePool{
-		regRPC:  make(map[string]struct{}),
+		regRPC:  regRPC,
 		modules: modules,
 		pool: &sync.Pool{
 			New: func() interface{} {

@@ -84,16 +84,18 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 	return stdLibs, modules, nil
 }
 
-func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) error {
+func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (map[string]struct{}, error) {
+	regRPC := make(map[string]struct{})
 	multiLogger.Info("Evaluating modules")
 	r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(id string) {
+		regRPC[id] = struct{}{}
 		logger.Info("Registered RPC function invocation", zap.String("id", id))
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	multiLogger.Info("Modules loaded")
 	r.Stop()
 
-	return nil
+	return regRPC, nil
 }
