@@ -38,14 +38,14 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 	}
 
 	cursor := in.GetCursor()
-	var storageCursor *storageCursor = nil
+	var sc *storageCursor = nil
 	if cursor != "" {
-		storageCursor = &storageCursor{}
+		sc = &storageCursor{}
 		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
 			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", cursor))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(storageCursor); err != nil {
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
 				s.logger.Warn("Could not decode storage cursor.", zap.String("cursor", cursor))
 				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 			}
@@ -62,12 +62,12 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 
 		userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 		if uuid.Equal(userID, uid) {
-			storageObjectList, listingError = StorageObjectsListUser(s.logger, s.db, userID, in.GetCollection(), limit, cursor, storageCursor)
+			storageObjectList, listingError = StorageObjectsListUser(s.logger, s.db, userID, in.GetCollection(), limit, cursor, sc)
 		} else {
-			storageObjectList, listingError = StorageObjectsListPublicReadUser(s.logger, s.db, uid, in.GetCollection(), limit, cursor, storageCursor)
+			storageObjectList, listingError = StorageObjectsListPublicReadUser(s.logger, s.db, uid, in.GetCollection(), limit, cursor, sc)
 		}
 	} else {
-		storageObjectList, listingError = StorageObjectsListPublicRead(s.logger, s.db, in.GetCollection(), limit, cursor, storageCursor)
+		storageObjectList, listingError = StorageObjectsListPublicRead(s.logger, s.db, in.GetCollection(), limit, cursor, sc)
 	}
 
 	if listingError != nil {
@@ -86,7 +86,18 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		return &api.StorageObjectAcks{}, nil
 	}
 
-	return nil, nil
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	userObjects := map[uuid.UUID][]*api.WriteStorageObject{userID: in.GetObjects()}
+
+	acks, code, err := StorageWriteObjects(s.logger, s.db, userID, userObjects)
+	if err == nil {
+		return acks, nil
+	}
+
+	if code == codes.Internal {
+		return nil, status.Error(codes.Internal, "Error writing storage objects.")
+	}
+	return nil, status.Error(code, err.Error())
 }
 
 func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
