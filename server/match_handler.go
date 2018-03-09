@@ -92,7 +92,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	ctx := vm.CreateTable(6, 6)
 	ctx.RawSetString(__CTX_ENV, ConvertMap(vm, config.GetRuntime().Environment))
 	ctx.RawSetString(__CTX_MODE, lua.LString(Match.String()))
-	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(id.String()))
+	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v:%v", id.String(), node)))
 	ctx.RawSetString(__CTX_MATCH_NODE, lua.LString(node))
 
 	// Require the match module to load it (and its dependencies) and get its returned value.
