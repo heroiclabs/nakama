@@ -260,6 +260,11 @@ service Nakama {
     option (google.api.http).get = "/v2/friend";
   }
 
+  // Fetch list of running matches.
+  rpc ListMatches (ListMatchesRequest) returns (MatchList) {
+    option (google.api.http).get = "/v2/match";
+  }
+
   // Fetch list of notifications.
   rpc ListNotifications (ListNotificationsRequest) returns (NotificationList) {
     option (google.api.http).get = "/v2/notification";
@@ -685,6 +690,19 @@ message LinkFacebookRequest {
   google.protobuf.BoolValue import = 4;
 }
 
+message ListMatchesRequest {
+  // Limit the number of returned matches.
+  google.protobuf.Int32Value limit = 1;
+  // Authoritative or relayed matches.
+  google.protobuf.BoolValue authoritative = 2;
+  // Label filter.
+  google.protobuf.StringValue label = 3;
+  // Minimum user count.
+  google.protobuf.Int32Value min_size = 4;
+  // Maximum user count.
+  google.protobuf.Int32Value max_size = 5;
+}
+
 // Get a list of unexpired notifications.
 message ListNotificationsRequest {
   // The number of notifications to get. Between 1 and 100.
@@ -703,6 +721,24 @@ message ListStorageObjectsRequest {
   google.protobuf.Int32Value limit = 3;
   // The cursor to page through results from.
   string cursor = 4; // value from StorageObjectList.cursor.
+}
+
+// Represents a realtime match.
+message Match {
+  // The ID of the match, can be used to join.
+  string match_id = 1;
+  // True if it's an server-managed authoritative match, false otherwise.
+  bool authoritative = 2;
+  // Match label, if any.
+  google.protobuf.StringValue label = 3;
+  // Current number of users in the match.
+  int32 size = 4;
+}
+
+// A list of realtime matches.
+message MatchList {
+  // A number of matches corresponding to a list operation.
+  repeated Match matches = 1;
 }
 
 // A notification in the server.

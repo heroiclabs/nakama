@@ -16,12 +16,24 @@ package server
 
 import (
 	"database/sql"
+	"fmt"
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"sync"
 	"time"
+)
+
+var (
+	MatchFilterValue = uint8(0)
+	MatchFilterPtr   = &MatchFilterValue
+
+	MatchFilterAny           = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr, StreamModeMatchAuthoritative: MatchFilterPtr}
+	MatchFilterRelayed       = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
+	MatchFilterAuthoritative = map[uint8]*uint8{StreamModeMatchAuthoritative: MatchFilterPtr}
 )
 
 type MatchPresence struct {
@@ -31,17 +43,27 @@ type MatchPresence struct {
 	Username  string
 }
 
+type MatchJoinResult struct {
+	Allow bool
+	Label string
+}
+
 type MatchRegistry interface {
 	// Create and start a new match, given a Lua module name.
-	NewMatch(name string) (*MatchHandler, error)
+	NewMatch(name string, params interface{}) (*MatchHandler, error)
+	// Return a match handler by ID, only from the local node.
+	GetMatch(id uuid.UUID) *MatchHandler
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
+	// List (and optionally filter) currently running matches.
+	// This can list across both authoritative and relayed matches.
+	ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match
 	// Stop the match registry and close all matches it's tracking.
 	Stop()
 
-	// Pass a user join attempt to a match handler. Returns if the match was found, and if the join was accepted.
-	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool)
+	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, and the match label.
+	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string)
 	// Notify a match handler that a user has left or disconnected.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Leave(id uuid.UUID, presences []*MatchPresence)
@@ -84,9 +106,9 @@ func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, social
 	}
 }
 
-func (r *LocalMatchRegistry) NewMatch(name string) (*MatchHandler, error) {
+func (r *LocalMatchRegistry) NewMatch(name string, params interface{}) (*MatchHandler, error) {
 	id := uuid.NewV4()
-	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name)
+	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -96,11 +118,141 @@ func (r *LocalMatchRegistry) NewMatch(name string) (*MatchHandler, error) {
 	return match, nil
 }
 
+func (r *LocalMatchRegistry) GetMatch(id uuid.UUID) *MatchHandler {
+	var mh *MatchHandler
+	r.RLock()
+	mh = r.matches[id]
+	r.RUnlock()
+	return mh
+}
+
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.Lock()
 	delete(r.matches, id)
 	r.Unlock()
 	r.tracker.UntrackByStream(stream)
+}
+
+func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match {
+	var modes map[uint8]*uint8
+	if authoritative == nil {
+		modes = MatchFilterAny
+	} else if authoritative.Value {
+		modes = MatchFilterAuthoritative
+	} else {
+		modes = MatchFilterRelayed
+	}
+
+	// Initial list of candidate matches.
+	matches := r.tracker.CountByStreamModeFilter(modes)
+
+	// Results.
+	results := make([]*api.Match, 0, limit)
+
+	// Track authoritative matches that have been checked already, if authoritative results are allowed.
+	var checked map[uuid.UUID]struct{}
+	if authoritative == nil || authoritative.Value {
+		checked = make(map[uuid.UUID]struct{})
+	}
+
+	// Maybe filter by label.
+	for stream, size := range matches {
+		if stream.Mode == StreamModeMatchRelayed {
+			if label != nil {
+				// Any label filter fails for relayed matches.
+				continue
+			}
+			if minSize != nil && minSize.Value > size {
+				// Too few users.
+				continue
+			}
+			if maxSize != nil && maxSize.Value < size {
+				// Too many users.
+				continue
+			}
+
+			matchID := fmt.Sprintf("%v:", stream.Subject.String())
+			results = append(results, &api.Match{
+				MatchId:       matchID,
+				Authoritative: false,
+				// No label.
+				Size: size,
+			})
+			if len(results) == limit {
+				break
+			}
+		} else if stream.Mode == StreamModeMatchAuthoritative {
+			// Authoritative matches that have already been checked.
+			checked[stream.Subject] = struct{}{}
+
+			if minSize != nil && minSize.Value > size {
+				// Too few users.
+				continue
+			}
+			if maxSize != nil && maxSize.Value < size {
+				// Too many users.
+				continue
+			}
+
+			mh := r.GetMatch(stream.Subject)
+			if mh == nil || (label != nil && label.Value != mh.Label) {
+				continue
+			}
+			results = append(results, &api.Match{
+				MatchId:       mh.IDStr,
+				Authoritative: true,
+				Label:         &wrappers.StringValue{Value: mh.Label},
+				Size:          size,
+			})
+			if len(results) == limit {
+				break
+			}
+		} else {
+			r.logger.Warn("Ignoring unknown stream mode in match listing operation", zap.Uint8("mode", stream.Mode))
+		}
+	}
+
+	// Return results here if:
+	// 1. We have enough results.
+	// or
+	// 2. Not enough results, but we're not allowed to return potentially empty authoritative matches.
+	if len(results) == limit || (authoritative != nil && !authoritative.Value) {
+		return results
+	}
+
+	// Otherwise look for empty matches to help fulfil the request, but ensure no duplicates.
+	r.RLock()
+	for _, mh := range r.matches {
+		if _, ok := checked[mh.ID]; ok {
+			// Already checked and discarded this match for failing a filter, skip it.
+			continue
+		}
+		if label != nil && label.Value != mh.Label {
+			// Label mismatch.
+			continue
+		}
+		size := int32(r.tracker.CountByStream(mh.Stream))
+		if minSize != nil && minSize.Value > size {
+			// Too few users.
+			continue
+		}
+		if maxSize != nil && maxSize.Value < size {
+			// Too many users.
+			continue
+		}
+		results = append(results, &api.Match{
+			MatchId:       mh.IDStr,
+			Authoritative: true,
+			Label:         &wrappers.StringValue{Value: mh.Label},
+			Size:          size,
+		})
+		if len(results) == limit {
+			break
+		}
+	}
+	r.RUnlock()
+
+	return results
 }
 
 func (r *LocalMatchRegistry) Stop() {
@@ -112,9 +264,9 @@ func (r *LocalMatchRegistry) Stop() {
 	r.Unlock()
 }
 
-func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool) {
+func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string) {
 	if node != r.node {
-		return false, false
+		return false, false, ""
 	}
 
 	var mh *MatchHandler
@@ -123,13 +275,13 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	mh, ok = r.matches[id]
 	r.RUnlock()
 	if !ok {
-		return false, false
+		return false, false, ""
 	}
 
-	resultCh := make(chan bool, 1)
+	resultCh := make(chan *MatchJoinResult, 1)
 	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode)) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
-		return true, false
+		return true, false, ""
 	}
 
 	// Set up a limit to how long the call will wait, default is 10 seconds.
@@ -138,11 +290,11 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	case <-ticker.C:
 		ticker.Stop()
 		// The join attempt has timed out, join is assumed to be rejected.
-		return true, false
+		return true, false, ""
 	case r := <-resultCh:
 		ticker.Stop()
 		// The join attempt has returned a result.
-		return true, r
+		return true, r.Allow, r.Label
 	}
 }
 

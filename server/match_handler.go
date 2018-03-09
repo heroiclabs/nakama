@@ -42,10 +42,10 @@ type MatchHandler struct {
 	router        MessageRouter
 
 	// Identification not (directly) controlled by match init.
-	id     uuid.UUID
-	node   string
-	idStr  string
-	stream PresenceStream
+	ID     uuid.UUID
+	Node   string
+	IDStr  string
+	Stream PresenceStream
 
 	// Internal state.
 	tick          lua.LNumber
@@ -65,14 +65,14 @@ type MatchHandler struct {
 	stopped bool
 
 	// Immutable configuration set by match init.
-	label string
-	rate  int
+	Label string
+	Rate  int
 
 	// Match state.
 	state lua.LValue
 }
 
-func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, id uuid.UUID, node string, name string) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, id uuid.UUID, node string, name string, params interface{}) (*MatchHandler, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -125,7 +125,13 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	vm.Push(lua.LString(__nakamaReturnValue))
 	vm.Push(initFn)
 	vm.Push(ctx)
-	err = vm.PCall(1, lua.MultRet, nil)
+	if params == nil {
+		vm.Push(lua.LNil)
+	} else {
+		vm.Push(convertValue(vm, params))
+	}
+
+	err = vm.PCall(2, lua.MultRet, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error running match_init: %v", err.Error())
 	}
@@ -138,6 +144,11 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		return nil, errors.New("match_init returned unexpected third value, must be a label string")
 	}
 	vm.Pop(1)
+
+	labelStr := label.String()
+	if len(labelStr) > 256 {
+		return nil, errors.New("match_init returned invalid label, must be 256 bytes or less")
+	}
 
 	// Extract desired tick rate.
 	rate := vm.Get(-1)
@@ -176,10 +187,10 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		matchRegistry: matchRegistry,
 		router:        router,
 
-		id:    id,
-		node:  node,
-		idStr: fmt.Sprintf("%v:%v", id.String(), node),
-		stream: PresenceStream{
+		ID:    id,
+		Node:  node,
+		IDStr: fmt.Sprintf("%v:%v", id.String(), node),
+		Stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
 			Label:   node,
@@ -200,8 +211,8 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		stopCh:  make(chan struct{}),
 		stopped: false,
 
-		label: label.String(),
-		rate:  rateInt,
+		Label: labelStr,
+		Rate:  rateInt,
 
 		state: state,
 	}
@@ -213,7 +224,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	})
 
 	// Set up the ticker that governs the match loop.
-	mh.ticker = time.NewTicker(time.Second / time.Duration(mh.rate))
+	mh.ticker = time.NewTicker(time.Second / time.Duration(mh.Rate))
 
 	// Continuously run queued actions until the match stops.
 	go func() {
@@ -240,7 +251,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 // Used when an internal match process (or error) requires it to stop.
 func (mh *MatchHandler) Stop() {
 	mh.Close()
-	mh.matchRegistry.RemoveMatch(mh.id, mh.stream)
+	mh.matchRegistry.RemoveMatch(mh.ID, mh.Stream)
 }
 
 // Used when the match is closed externally.
@@ -341,10 +352,10 @@ func loop(mh *MatchHandler) {
 	mh.tick++
 }
 
-func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
+func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
 		if mh.stopped {
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 
@@ -367,7 +378,7 @@ func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node
 		if err != nil {
 			mh.Stop()
 			mh.logger.Warn("Stopping match after error from match_join_attempt execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 
@@ -376,12 +387,12 @@ func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node
 		if allow.Type() == lua.LTString && lua.LVAsString(allow) == __nakamaReturnValue {
 			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean")
 			mh.Stop()
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		} else if allow.Type() != lua.LTBool {
 			mh.logger.Warn("Match join attempt returned non-boolean join result, stopping match")
 			mh.Stop()
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 		mh.vm.Pop(1)
@@ -390,7 +401,7 @@ func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node
 		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
 			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
 			mh.Stop()
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 		mh.vm.Pop(1)
@@ -398,13 +409,13 @@ func JoinAttempt(resultCh chan bool, userID, sessionID uuid.UUID, username, node
 		if sentinel := mh.vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
 			mh.logger.Warn("Match join attempt returned too many values, stopping match")
 			mh.Stop()
-			resultCh <- false
+			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 		mh.vm.Pop(1)
 
 		mh.state = state
-		resultCh <- lua.LVAsBool(allow)
+		resultCh <- &MatchJoinResult{Allow: lua.LVAsBool(allow), Label: mh.Label}
 	}
 }
 
@@ -471,13 +482,13 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	}
 
 	filter := l.OptTable(3, nil)
-	var presences []Presence
+	var presences []*Presence
 	if filter != nil {
 		fl := filter.Len()
 		if fl == 0 {
 			return 0
 		}
-		presences = make([]Presence, 0, fl)
+		presences = make([]*Presence, 0, fl)
 		conversionError := false
 		filter.ForEach(func(_, p lua.LValue) {
 			pt, ok := p.(*lua.LTable)
@@ -487,7 +498,7 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 				return
 			}
 
-			presence := Presence{ID: PresenceID{}}
+			presence := &Presence{ID: PresenceID{}}
 			pt.ForEach(func(k, v lua.LValue) {
 				switch k.String() {
 				case "UserId":
@@ -574,14 +585,14 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	}
 
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
-		MatchId:  mh.idStr,
+		MatchId:  mh.IDStr,
 		Presence: presence,
 		OpCode:   opCode,
 		Data:     dataBytes,
 	}}}
 
 	if presences == nil {
-		mh.router.SendToStream(mh.logger, mh.stream, msg)
+		mh.router.SendToStream(mh.logger, mh.Stream, msg)
 	} else {
 		mh.router.SendToPresences(mh.logger, presences, msg)
 	}
@@ -651,6 +662,6 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 		return 0
 	}
 
-	mh.matchRegistry.Kick(mh.stream, presences)
+	mh.matchRegistry.Kick(mh.Stream, presences)
 	return 0
 }

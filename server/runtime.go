@@ -27,6 +27,7 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -189,7 +190,7 @@ func (r *Runtime) GetRuntimeCallback(e ExecutionMode, key string) *lua.LFunction
 	return nil
 }
 
-func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload string) (string, error) {
+func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload string) (string, error, codes.Code) {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
@@ -199,21 +200,21 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username stri
 		lv = lua.LString(payload)
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv)
+	retValue, err, code := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
-		return "", err
+		return "", err, code
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return "", nil
+		return "", nil, 0
 	} else if retValue.Type() == lua.LTString {
-		return retValue.String(), nil
+		return retValue.String(), nil, 0
 	}
 
-	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte")
+	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte"), codes.Internal
 }
 
-func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error) {
+func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
 	l.Push(lua.LString(__nakamaReturnValue))
 	l.Push(fn)
 
@@ -227,13 +228,41 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 
 	err := l.PCall(nargs, lua.MultRet, nil)
 	if err != nil {
-		return nil, err
+		// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
+		for {
+			v := l.Get(-1)
+			l.Pop(1)
+			if v.Type() == lua.LTString && lua.LVAsString(v) == __nakamaReturnValue {
+				break
+			}
+		}
+
+		if apiError, ok := err.(*lua.ApiError); ok && apiError.Object.Type() == lua.LTTable {
+			t := apiError.Object.(*lua.LTable)
+			switch t.Len() {
+			case 0:
+				return nil, err, codes.Internal
+			case 1:
+				apiError.Object = t.RawGetInt(1)
+				return nil, err, codes.Internal
+			default:
+				// Ignore everything beyond the first 2 params, if there are more.
+				apiError.Object = t.RawGetInt(1)
+				code := codes.Internal
+				if c := t.RawGetInt(2); c.Type() == lua.LTNumber {
+					code = codes.Code(c.(lua.LNumber))
+				}
+				return nil, err, code
+			}
+		}
+
+		return nil, err, codes.Internal
 	}
 
 	retValue := l.Get(-1)
 	l.Pop(1)
 	if retValue.Type() == lua.LTString && lua.LVAsString(retValue) == __nakamaReturnValue {
-		return nil, nil
+		return nil, nil, 0
 	}
 
 	// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
@@ -245,7 +274,7 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 		}
 	}
 
-	return retValue, nil
+	return retValue, nil, 0
 }
 
 func (r *Runtime) Stop() {

@@ -31,6 +31,8 @@ func (e ExecutionMode) String() string {
 	switch e {
 	case RPC:
 		return "rpc"
+	case Match:
+		return "match"
 	}
 
 	return ""
@@ -53,9 +55,9 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 	size := 2
 	if uid != "" {
 		size += 3
-	}
-	if sid != "" {
-		size++
+		if sid != "" {
+			size++
+		}
 	}
 
 	lt := l.CreateTable(size, size)
@@ -66,9 +68,9 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 		lt.RawSetString(__CTX_USER_ID, lua.LString(uid))
 		lt.RawSetString(__CTX_USERNAME, lua.LString(username))
 		lt.RawSetString(__CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
-	}
-	if sid != "" {
-		lt.RawSetString(__CTX_SESSION_ID, lua.LString(sid))
+		if sid != "" {
+			lt.RawSetString(__CTX_SESSION_ID, lua.LString(sid))
+		}
 	}
 
 	return lt

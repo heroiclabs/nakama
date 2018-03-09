@@ -16,6 +16,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -44,7 +45,10 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *rt
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
-		MatchId:   fmt.Sprintf("%v:", matchID.String()),
+		MatchId:       fmt.Sprintf("%v:", matchID.String()),
+		Authoritative: false,
+		// No label.
+		Size:      1,
 		Presences: []*rtapi.StreamPresence{self},
 		Self:      self,
 	}}})
@@ -116,15 +120,17 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 		return
 	}
 
+	var label *wrappers.StringValue
 	meta := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), stream, session.UserID())
 	if meta == nil {
 		username := session.Username()
 		found := true
 		allow := true
+		var l string
 		// The user is not yet part of the match, attempt to join.
 		if mode == StreamModeMatchAuthoritative {
 			// If it's an authoritative match, ask the match handler if it will allow the join.
-			found, allow = p.matchRegistry.Join(matchID, node, session.UserID(), session.ID(), username, p.node)
+			found, allow, l = p.matchRegistry.Join(matchID, node, session.UserID(), session.ID(), username, p.node)
 		}
 		if !found {
 			// Match did not exist.
@@ -141,6 +147,10 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 				Message: "Match join rejected",
 			}}})
 			return
+		}
+		if mode == StreamModeMatchAuthoritative {
+			// If we've reached here, it was an accepted authoritative join.
+			label = &wrappers.StringValue{Value: l}
 		}
 		m := PresenceMeta{
 			Username: username,
@@ -167,9 +177,12 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
-		MatchId:   matchIDString,
-		Presences: presences,
-		Self:      self,
+		MatchId:       matchIDString,
+		Authoritative: mode == StreamModeMatchAuthoritative,
+		Label:         label,
+		Size:          int32(len(presences)),
+		Presences:     presences,
+		Self:          self,
 	}}})
 }
 

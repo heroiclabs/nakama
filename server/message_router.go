@@ -22,7 +22,7 @@ import (
 
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
-	SendToPresences(*zap.Logger, []Presence, proto.Message)
+	SendToPresences(*zap.Logger, []*Presence, proto.Message)
 	SendToStream(*zap.Logger, PresenceStream, proto.Message)
 }
 
@@ -40,7 +40,7 @@ func NewLocalMessageRouter(sessionRegistry *SessionRegistry, tracker Tracker, js
 	}
 }
 
-func (r *LocalMessageRouter) SendToPresences(logger *zap.Logger, presences []Presence, msg proto.Message) {
+func (r *LocalMessageRouter) SendToPresences(logger *zap.Logger, presences []*Presence, msg proto.Message) {
 	if len(presences) == 0 {
 		return
 	}

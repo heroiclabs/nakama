@@ -14,12 +14,37 @@
  limitations under the License.
 --]]
 
+function print_r(arr, indentLevel)
+  if type(arr) ~= "table" then
+    return tostring(arr)
+  end
+
+  local str = ""
+  local indentStr = "#"
+
+  if(indentLevel == nil) then
+    return print_r(arr, 0)
+  end
+
+  for i = 0, indentLevel do
+    indentStr = indentStr.."\t"
+  end
+
+  for index,Value in pairs(arr) do
+    if type(Value) == "table" then
+      str = str..indentStr..index..": \n"..print_r(Value, (indentLevel + 1))
+    else
+      str = str..indentStr..index..": "..tostring(Value).."\n"
+    end
+  end
+  return str
+end
+
 local M = {}
 
-M.match_init = function(context)
-  print("match init " .. context.ExecutionMode)
-  print("match init " .. context.MatchId)
-  print("match init " .. context.MatchNode)
+M.match_init = function(context, params)
+  print("match init context:\n" .. print_r(context))
+  print("match init params:\n" .. print_r(params))
   local state = {}
   local tick_rate = 1
   local label = "skill=100-150"

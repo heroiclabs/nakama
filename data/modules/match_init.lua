@@ -14,4 +14,4 @@
  limitations under the License.
 --]]
 
-require("nakama").match_create("match")
+require("nakama").match_create("match", { a = 1, b = { c = true}})

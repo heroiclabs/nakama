@@ -108,7 +108,7 @@ func main() {
 	}
 	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)

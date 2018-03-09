@@ -51,29 +51,31 @@ type ApiServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config
-	runtimePool       *RuntimePool
+	socialClient      *social.Client
+	matchRegistry     MatchRegistry
 	tracker           Tracker
 	router            MessageRouter
-	socialClient      *social.Client
+	runtimePool       *RuntimePool
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(ocgrpc.NewServerStatsHandler()),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
 
 	s := &ApiServer{
-		logger:       logger,
-		db:           db,
-		config:       config,
-		runtimePool:  runtimePool,
-		tracker:      tracker,
-		router:       router,
-		socialClient: socialClient,
-		grpcServer:   grpcServer,
+		logger:        logger,
+		db:            db,
+		config:        config,
+		socialClient:  socialClient,
+		matchRegistry: matchRegistry,
+		tracker:       tracker,
+		router:        router,
+		runtimePool:   runtimePool,
+		grpcServer:    grpcServer,
 	}
 
 	// Register and start GRPC server.

@@ -40,6 +40,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
@@ -131,6 +132,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
 		"match_create":                n.matchCreate,
+		"match_list":                  n.matchList,
 		"register_rpc":                n.registerRPC,
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
@@ -1458,15 +1460,81 @@ func (n *NakamaModule) matchCreate(l *lua.LState) int {
 		return 0
 	}
 
+	params := convertLuaValue(l.Get(2))
+
 	// Start the match.
-	mh, err := n.matchRegistry.NewMatch(name)
+	mh, err := n.matchRegistry.NewMatch(name, params)
 	if err != nil {
 		l.RaiseError("error creating match: %v", err.Error())
 		return 0
 	}
 
 	// Return the match ID in a form that can be directly sent to clients.
-	l.Push(lua.LString(mh.idStr))
+	l.Push(lua.LString(mh.IDStr))
+	return 1
+}
+
+func (n *NakamaModule) matchList(l *lua.LState) int {
+	// Parse limit.
+	limit := l.OptInt(1, 1)
+
+	// Parse authoritative flag.
+	var authoritative *wrappers.BoolValue
+	if v := l.Get(2); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTBool {
+			l.ArgError(2, "expects authoritative true/false or nil")
+			return 0
+		}
+		authoritative = &wrappers.BoolValue{Value: lua.LVAsBool(v)}
+	}
+
+	// Parse label filter.
+	var label *wrappers.StringValue
+	if v := l.Get(3); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTString {
+			l.ArgError(3, "expects label string or nil")
+			return 0
+		}
+		label = &wrappers.StringValue{Value: lua.LVAsString(v)}
+	}
+
+	// Parse minimum size filter.
+	var minSize *wrappers.Int32Value
+	if v := l.Get(4); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(4, "expects minimum size number or nil")
+			return 0
+		}
+		minSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+	}
+
+	// Parse maximum size filter.
+	var maxSize *wrappers.Int32Value
+	if v := l.Get(5); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(5, "expects maximum size number or nil")
+			return 0
+		}
+		maxSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+	}
+
+	results := n.matchRegistry.ListMatches(limit, authoritative, label, minSize, maxSize)
+
+	s := len(results)
+	matches := l.CreateTable(s, s)
+	for i, result := range results {
+		match := l.CreateTable(4, 4)
+		match.RawSetString("MatchId", lua.LString(result.MatchId))
+		match.RawSetString("Authoritative", lua.LBool(result.Authoritative))
+		if result.Label == nil {
+			match.RawSetString("Label", lua.LNil)
+		} else {
+			match.RawSetString("Label", lua.LString(result.Label.Value))
+		}
+		match.RawSetString("Size", lua.LNumber(result.Size))
+		matches.RawSetInt(i+1, match)
+	}
+	l.Push(matches)
 	return 1
 }
 
