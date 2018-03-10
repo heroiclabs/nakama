@@ -803,28 +803,6 @@ message Session {
   string udp_token = 3; // TODO(zyro): will we remove it?
 }
 
-// The read access permissions for a storage object.
-enum StoragePermissionRead {
-  // Default case. Assumed as OWNER_READ permission.
-  STORAGE_PERMISSION_READ_UNSPECIFIED = 0;
-  // The object does not have client read permissions.
-  NO_READ = 1;
-  // The object may be read by the user owner.
-  OWNER_READ = 2;
-  // The object may be read by any user.
-  PUBLIC_READ = 3;
-}
-
-// The write access permission for a storage object.
-enum StoragePermissionWrite {
-  // Default case. Assumed as OWNER_WRITE permission.
-  STORAGE_PERMISSION_WRITE_UNSPECIFIED = 0;
-  // The object does not have client write permissions.
-  NO_WRITE = 1;
-  // The object may be written by the user owner.
-  OWNER_WRITE = 2;
-}
-
 // An object within the storage engine.
 message StorageObject {
   // The collection which stores the object.
@@ -946,9 +924,9 @@ message WriteStorageObject {
   // The version hash of the object to check. Possible values are: ["", "*", "#hash#"].
   string version = 4; // if-match and if-none-match
   // The read access permissions for the object.
-  int32 permission_read = 5;
+  google.protobuf.Int32Value permission_read = 5;
   // The write access permissions for the object.
-  int32 permission_write = 6;
+  google.protobuf.Int32Value permission_write = 6;
 }
 
 // Write objects to the storage engine.

@@ -220,14 +220,22 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, writerUserID uuid.UUID, 
 		return nil, codes.InvalidArgument, errors.New("Invalid values for collection or key.")
 	}
 
-	if object.GetPermissionRead() != 0 && object.GetPermissionRead() != 1 && object.GetPermissionRead() != 2 {
-		logger.Debug("Invalid Read permission supplied. It must be either 0, 1 or 2.", zap.Any("object", object))
-		return nil, codes.InvalidArgument, errors.New("Invalid read permission value.")
+	permissionRead := int32(1)
+	if object.GetPermissionRead() != nil {
+		permissionRead = object.GetPermissionRead().GetValue()
+		if permissionRead < 0 || permissionRead > 2 {
+			logger.Debug("Invalid Read permission supplied. It must be either 0, 1 or 2.", zap.Any("object", object))
+			return nil, codes.InvalidArgument, errors.New("Invalid read permission value.")
+		}
 	}
 
-	if object.GetPermissionWrite() != 0 && object.GetPermissionWrite() != 1 {
-		logger.Debug("Invalid Write permission supplied. It must be either 0 or 1.", zap.Any("object", object))
-		return nil, codes.InvalidArgument, errors.New("Invalid write permission value.")
+	permissionWrite := int32(1)
+	if object.GetPermissionWrite() != nil {
+		permissionWrite = object.GetPermissionWrite().GetValue()
+		if permissionWrite < 0 || permissionWrite > 1 {
+			logger.Debug("Invalid Write permission supplied. It must be either 0 or 1.", zap.Any("object", object))
+			return nil, codes.InvalidArgument, errors.New("Invalid write permission value.")
+		}
 	}
 
 	var maybeJSON interface{}
@@ -238,7 +246,7 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, writerUserID uuid.UUID, 
 	// Write storage objects authoritatively, disregarding permissions.
 	authWrite := uuid.Equal(writerUserID, uuid.Nil)
 
-	params := []interface{}{object.GetCollection(), object.GetKey(), object.GetValue(), object.GetValue(), object.GetPermissionRead(), object.GetPermissionWrite()}
+	params := []interface{}{object.GetCollection(), object.GetKey(), object.GetValue(), object.GetValue(), permissionRead, permissionWrite}
 	query, params := getStorageWriteQuery(authWrite, ownerID, object.GetVersion(), params)
 
 	ack := &api.StorageObjectAck{}
