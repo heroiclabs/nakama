@@ -21,6 +21,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -128,6 +129,7 @@ LIMIT $3
 		}
 	}
 
+	defer rows.Close()
 	objects, err := storageObjectsList(rows, cursor)
 	if err != nil {
 		logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
@@ -184,6 +186,72 @@ func storageObjectsList(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	}
 
 	return objectList, nil
+}
+
+func StorageObjectsRead(logger *zap.Logger, db *sql.DB, userID uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
+	params := make([]interface{}, 0)
+
+	whereClause := ""
+	for _, id := range objectIDs {
+		l := len(params)
+		if whereClause != "" {
+			whereClause += " OR "
+		}
+
+		if id.GetUserId() == "" {
+			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = NULL AND read = 2) ", l+1, l+2)
+			params = append(params, id.Collection, id.Key)
+		} else if uuid.Equal(userID, uuid.Nil) { // Disregard permissions if called authoritatively.
+			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v) ", l+1, l+2, l+3)
+			params = append(params, id.Collection, id.Key, id.UserId)
+		} else {
+			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v AND (read = 2 OR (read = 1 AND user_id = $%v))) ", l+1, l+2, l+3, l+4)
+			params = append(params, id.Collection, id.Key, id.UserId, userID)
+		}
+	}
+
+	query := `
+SELECT collection, record, user_id, value, version, read, write, create_time, update_time
+FROM storage
+WHERE
+` + whereClause
+
+	rows, err := db.Query(query, params...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}, nil
+		} else {
+			logger.Error("Could not read storage objects.", zap.Error(err))
+			return nil, err
+		}
+	}
+	defer rows.Close()
+
+	objects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
+	for rows.Next() {
+		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+		var createTimeStr string
+		var updateTimeStr string
+		var userID sql.NullString
+		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTimeStr, &updateTimeStr); err != nil {
+			return nil, err
+		}
+
+		createTime, _ := pq.ParseTimestamp(time.UTC, createTimeStr)
+		o.CreateTime.Seconds = createTime.Unix()
+		updateTime, _ := pq.ParseTimestamp(time.UTC, updateTimeStr)
+		o.UpdateTime.Seconds = updateTime.Unix()
+
+		o.UserId = userID.String
+		objects.Objects = append(objects.Objects, o)
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Could not read storage objects.", zap.Error(err))
+		return nil, err
+	}
+
+	return objects, nil
+
 }
 
 func StorageWriteObjects(logger *zap.Logger, db *sql.DB, writerUserID uuid.UUID, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {

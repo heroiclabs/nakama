@@ -78,7 +78,18 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 }
 
 func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageObjectsRequest) (*api.StorageObjects, error) {
-	return nil, nil
+	if in.GetObjectIds() == nil || len(in.GetObjectIds()) == 0 {
+		return &api.StorageObjects{}, nil
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	objects, err := StorageObjectsRead(s.logger, s.db, userID, in.GetObjectIds())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error reading storage objects.")
+	}
+
+	return objects, nil
 }
 
 func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorageObjectsRequest) (*api.StorageObjectAcks, error) {
