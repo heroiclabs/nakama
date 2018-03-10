@@ -65,7 +65,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 	case *rtapi.MatchJoin_MatchId:
 		matchIDString = m.GetMatchId()
 		// Validate the match ID.
-		matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ":", 2)
+		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
 		if len(matchIDComponents) != 2 {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),

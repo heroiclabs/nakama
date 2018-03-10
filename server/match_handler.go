@@ -37,6 +37,7 @@ type MatchDataMessage struct {
 }
 
 type MatchHandler struct {
+	sync.Mutex
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
 	router        MessageRouter
@@ -258,10 +259,13 @@ func (mh *MatchHandler) Stop() {
 
 // Used when the match is closed externally.
 func (mh *MatchHandler) Close() {
+	mh.Lock()
 	if mh.stopped {
+		mh.Unlock()
 		return
 	}
 	mh.stopped = true
+	mh.Unlock()
 	close(mh.stopCh)
 	mh.ticker.Stop()
 }
@@ -290,9 +294,12 @@ func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
 }
 
 func loop(mh *MatchHandler) {
+	mh.Lock()
 	if mh.stopped {
+		mh.Unlock()
 		return
 	}
+	mh.Unlock()
 
 	// Drain the input queue into a Lua table.
 	size := len(mh.inputCh)
@@ -356,10 +363,13 @@ func loop(mh *MatchHandler) {
 
 func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
+		mh.Lock()
 		if mh.stopped {
+			mh.Unlock()
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
+		mh.Unlock()
 
 		presence := mh.vm.CreateTable(4, 4)
 		presence.RawSetString("UserId", lua.LString(userID.String()))
@@ -423,9 +433,12 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 
 func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
+		mh.Lock()
 		if mh.stopped {
+			mh.Unlock()
 			return
 		}
+		mh.Unlock()
 
 		size := len(leaves)
 		presences := mh.vm.CreateTable(size, size)
