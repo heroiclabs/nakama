@@ -490,10 +490,14 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 
 func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	opCode := l.CheckInt64(1)
-	data := l.OptString(2, "")
+
 	var dataBytes []byte
-	if data != "" {
-		dataBytes = []byte(data)
+	if data := l.Get(2); data.Type() != lua.LTNil {
+		if data.Type() != lua.LTString {
+			l.ArgError(2, "expects data to be a string or nil")
+			return 0
+		}
+		dataBytes = []byte(data.(lua.LString))
 	}
 
 	filter := l.OptTable(3, nil)
@@ -616,7 +620,7 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 }
 
 func (mh *MatchHandler) matchKick(l *lua.LState) int {
-	input := l.CheckTable(1)
+	input := l.OptTable(1, nil)
 	if input == nil {
 		return 0
 	}
