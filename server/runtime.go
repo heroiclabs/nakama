@@ -30,9 +30,16 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const (
-	__nakamaReturnValue = "__nakama_return_flag__"
-)
+const LTSentinel = lua.LValueType(-1)
+
+type LSentinelType struct {
+	lua.LNilType
+}
+
+func (s *LSentinelType) String() string       { return "" }
+func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
+
+var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeModule struct {
 	name    string
@@ -215,7 +222,7 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username stri
 }
 
 func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
-	l.Push(lua.LString(__nakamaReturnValue))
+	l.Push(LSentinel)
 	l.Push(fn)
 
 	nargs := 1
@@ -232,7 +239,7 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 		for {
 			v := l.Get(-1)
 			l.Pop(1)
-			if v.Type() == lua.LTString && lua.LVAsString(v) == __nakamaReturnValue {
+			if v.Type() == LTSentinel {
 				break
 			}
 		}
@@ -261,7 +268,7 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 
 	retValue := l.Get(-1)
 	l.Pop(1)
-	if retValue.Type() == lua.LTString && lua.LVAsString(retValue) == __nakamaReturnValue {
+	if retValue.Type() == LTSentinel {
 		return nil, nil, 0
 	}
 
@@ -269,7 +276,7 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 	for {
 		v := l.Get(-1)
 		l.Pop(1)
-		if v.Type() == lua.LTString && lua.LVAsString(v) == __nakamaReturnValue {
+		if v.Type() == LTSentinel {
 			break
 		}
 	}

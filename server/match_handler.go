@@ -122,7 +122,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	}
 
 	// Run the match_init sequence.
-	vm.Push(lua.LString(__nakamaReturnValue))
+	vm.Push(LSentinel)
 	vm.Push(initFn)
 	vm.Push(ctx)
 	if params == nil {
@@ -138,7 +138,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 	// Extract desired label.
 	label := vm.Get(-1)
-	if label.Type() == lua.LTString && lua.LVAsString(label) == __nakamaReturnValue {
+	if label.Type() == LTSentinel {
 		return nil, errors.New("match_init returned unexpected third value, must be a label string")
 	} else if label.Type() != lua.LTString {
 		return nil, errors.New("match_init returned unexpected third value, must be a label string")
@@ -152,7 +152,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 	// Extract desired tick rate.
 	rate := vm.Get(-1)
-	if rate.Type() == lua.LTString && lua.LVAsString(rate) == __nakamaReturnValue {
+	if rate.Type() == LTSentinel {
 		return nil, errors.New("match_init returned unexpected second value, must be a tick rate number")
 	} else if rate.Type() != lua.LTNumber {
 		return nil, errors.New("match_init returned unexpected second value, must be a tick rate number")
@@ -166,13 +166,13 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 	// Extract initial state.
 	state := vm.Get(-1)
-	if state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue {
+	if state.Type() == LTSentinel {
 		return nil, errors.New("match_init returned unexpected first value, must be a state")
 	}
 	vm.Pop(1)
 
 	// Drop the sentinel value from the stack.
-	if sentinel := vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
+	if sentinel := vm.Get(-1); sentinel.Type() != LTSentinel {
 		return nil, errors.New("match_init returned too many arguments, must be: state, tick rate number, label string")
 	}
 	vm.Pop(1)
@@ -244,6 +244,8 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 			}
 		}
 	}()
+
+	mh.logger.Debug("Match started")
 
 	return mh, nil
 }
@@ -317,7 +319,7 @@ func loop(mh *MatchHandler) {
 	}
 
 	// Execute the match_loop call.
-	mh.vm.Push(lua.LString(__nakamaReturnValue))
+	mh.vm.Push(LSentinel)
 	mh.vm.Push(mh.loopFn)
 	mh.vm.Push(mh.ctx)
 	mh.vm.Push(mh.dispatcher)
@@ -334,14 +336,14 @@ func loop(mh *MatchHandler) {
 
 	// Extract the resulting state.
 	state := mh.vm.Get(-1)
-	if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
+	if state.Type() == lua.LTNil || state.Type() == LTSentinel {
 		mh.logger.Debug("Match loop returned nil or no state, stopping match")
 		mh.Stop()
 		return
 	}
 	mh.vm.Pop(1)
 	// Check for and remove the sentinel value, will fail if there are any extra return values.
-	if sentinel := mh.vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
+	if sentinel := mh.vm.Get(-1); sentinel.Type() != LTSentinel {
 		mh.logger.Warn("Match loop returned too many values, stopping match")
 		mh.Stop()
 		return
@@ -366,7 +368,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		presence.RawSetString("Node", lua.LString(node))
 
 		// Execute the match_join_attempt call.
-		mh.vm.Push(lua.LString(__nakamaReturnValue))
+		mh.vm.Push(LSentinel)
 		mh.vm.Push(mh.joinAttemptFn)
 		mh.vm.Push(mh.ctx)
 		mh.vm.Push(mh.dispatcher)
@@ -384,7 +386,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 
 		// Extract the join attempt response.
 		allow := mh.vm.Get(-1)
-		if allow.Type() == lua.LTString && lua.LVAsString(allow) == __nakamaReturnValue {
+		if allow.Type() == LTSentinel {
 			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
@@ -398,7 +400,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		mh.vm.Pop(1)
 		// Extract the resulting state.
 		state := mh.vm.Get(-1)
-		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
+		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
 			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
@@ -406,7 +408,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		}
 		mh.vm.Pop(1)
 		// Check for and remove the sentinel value, will fail if there are any extra return values.
-		if sentinel := mh.vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
+		if sentinel := mh.vm.Get(-1); sentinel.Type() != LTSentinel {
 			mh.logger.Warn("Match join attempt returned too many values, stopping match")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
@@ -438,7 +440,7 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 		}
 
 		// Execute the match_leave call.
-		mh.vm.Push(lua.LString(__nakamaReturnValue))
+		mh.vm.Push(LSentinel)
 		mh.vm.Push(mh.leaveFn)
 		mh.vm.Push(mh.ctx)
 		mh.vm.Push(mh.dispatcher)
@@ -455,14 +457,14 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 
 		// Extract the resulting state.
 		state := mh.vm.Get(-1)
-		if state.Type() == lua.LTNil || (state.Type() == lua.LTString && lua.LVAsString(state) == __nakamaReturnValue) {
+		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
 			mh.logger.Debug("Match leave returned nil or no state, stopping match")
 			mh.Stop()
 			return
 		}
 		mh.vm.Pop(1)
 		// Check for and remove the sentinel value, will fail if there are any extra return values.
-		if sentinel := mh.vm.Get(-1); sentinel.Type() != lua.LTString || lua.LVAsString(sentinel) != __nakamaReturnValue {
+		if sentinel := mh.vm.Get(-1); sentinel.Type() != LTSentinel {
 			mh.logger.Warn("Match leave returned too many values, stopping match")
 			mh.Stop()
 			return
