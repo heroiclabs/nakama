@@ -190,7 +190,8 @@ local function match_loop(context, dispatcher, tick, state, messages)
   if state.debug then
     print("match " .. context.MatchId .. " tick " .. tick)
   end
-  if tick < 10 then
+--  if tick < (1*60) then
+  if tick < 3 then
     return state
   end
 end
