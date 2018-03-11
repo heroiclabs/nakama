@@ -211,7 +211,7 @@ func StorageObjectsRead(logger *zap.Logger, db *sql.DB, userID uuid.UUID, object
 	}
 
 	query := `
-SELECT collection, record, user_id, value, version, read, write, create_time, update_time
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE
 ` + whereClause
