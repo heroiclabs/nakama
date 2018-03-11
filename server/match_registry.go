@@ -216,7 +216,7 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 	// 1. We have enough results.
 	// or
 	// 2. Not enough results, but we're not allowed to return potentially empty authoritative matches.
-	if len(results) == limit || (authoritative != nil && !authoritative.Value) {
+	if len(results) == limit || ((authoritative != nil && !authoritative.Value) || (minSize != nil && minSize.Value > 0)) {
 		return results
 	}
 
