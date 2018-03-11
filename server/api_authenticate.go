@@ -256,7 +256,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 }
 
 func generateToken(config Config, userID, username string) string {
-	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
+	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
 	return generateTokenWithExpiry(config, userID, username, exp)
 }
 

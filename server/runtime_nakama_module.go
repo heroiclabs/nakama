@@ -956,7 +956,7 @@ func (n *NakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	exp := l.OptInt64(3, 0)
 	if exp == 0 {
 		// If expiry is 0 or not set, use standard configured expiry.
-		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
+		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
 	token := generateTokenWithExpiry(n.config, userIDString, username, exp)
@@ -1200,12 +1200,16 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
+	success, newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
 	}, false)
+	if !success {
+		l.RaiseError("tracker rejected new presence, session is closing")
+		return 0
+	}
 
 	l.Push(lua.LBool(newlyTracked))
 	return 1

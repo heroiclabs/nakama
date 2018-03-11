@@ -33,10 +33,13 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *rt
 
 	username := session.Username()
 
-	p.tracker.Track(session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), PresenceMeta{
+	if success, _ := p.tracker.Track(session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), PresenceMeta{
 		Username: username,
 		Format:   session.Format(),
-	}, false)
+	}, false); !success {
+		// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
+		return
+	}
 
 	self := &rtapi.StreamPresence{
 		UserId:    session.UserID().String(),
@@ -156,7 +159,10 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 			Username: username,
 			Format:   session.Format(),
 		}
-		p.tracker.Track(session.ID(), stream, session.UserID(), m, false)
+		if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), m, false); !success {
+			// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
+			return
+		}
 		meta = &m
 	}
 
@@ -223,7 +229,7 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 	incoming := envelope.GetMatchDataSend()
 
 	// Validate the match ID.
-	matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ":", 2)
+	matchIDComponents := strings.SplitN(incoming.MatchId, ":", 2)
 	if len(matchIDComponents) != 2 {
 		return
 	}

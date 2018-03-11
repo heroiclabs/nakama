@@ -34,6 +34,8 @@ const (
 	StreamModeMatchAuthoritative
 )
 
+const EventsQueueSize = 512
+
 type PresenceID struct {
 	Node      string
 	SessionID uuid.UUID
@@ -70,8 +72,8 @@ type Tracker interface {
 	SetMatchLeaveListener(func(id uuid.UUID, leaves []*MatchPresence))
 	Stop()
 
-	// Track returns true if it's a new presence, false otherwise.
-	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
+	// Track returns success true/false, and new presence true/false.
+	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool)
 	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID)
 	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
@@ -128,7 +130,7 @@ func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jso
 		sessionRegistry:    sessionRegistry,
 		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               name,
-		eventsCh:           make(chan *PresenceEvent, 1024),
+		eventsCh:           make(chan *PresenceEvent, EventsQueueSize),
 		stopCh:             make(chan struct{}),
 		presencesByStream:  make(map[uint8]map[PresenceStream]map[presenceCompact]PresenceMeta),
 		presencesBySession: make(map[uuid.UUID]map[presenceCompact]PresenceMeta),
@@ -156,7 +158,7 @@ func (t *LocalTracker) Stop() {
 	close(t.stopCh)
 }
 
-func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
+func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
 
@@ -168,13 +170,13 @@ func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID 
 			bySession[pc] = meta
 		} else {
 			t.Unlock()
-			return false
+			return true, false
 		}
 	} else {
 		if !allowIfFirstForSession {
 			// If it's the first presence for this session, only allow it if explicitly permitted to.
 			t.Unlock()
-			return false
+			return false, false
 		}
 		// If nothing at all was tracked for the current session, begin tracking.
 		bySession = make(map[presenceCompact]PresenceMeta)
@@ -206,7 +208,7 @@ func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID 
 			nil,
 		)
 	}
-	return true
+	return true, true
 }
 
 func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {

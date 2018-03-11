@@ -27,6 +27,11 @@ import (
 	"time"
 )
 
+const (
+	InputQueueSize = 128
+	CallQueueSize  = 128
+)
+
 type MatchDataMessage struct {
 	UserID    uuid.UUID
 	SessionID uuid.UUID
@@ -105,7 +110,12 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	}
 
 	// Extract the expected function references.
-	tab := vm.CheckTable(1)
+	var tab *lua.LTable
+	if t := vm.Get(-1); t.Type() != lua.LTTable {
+		return nil, errors.New("match module must return a table containing the match callback functions")
+	} else {
+		tab = t.(*lua.LTable)
+	}
 	initFn := tab.RawGet(lua.LString("match_init"))
 	if initFn.Type() != lua.LTFunction {
 		return nil, errors.New("match_init not found or not a function")
@@ -208,9 +218,9 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		ctx:           ctx,
 		// Dispatcher below.
 
-		inputCh: make(chan *MatchDataMessage, 128),
+		inputCh: make(chan *MatchDataMessage, InputQueueSize),
 		// Ticker below.
-		callCh:  make(chan func(mh *MatchHandler), 128),
+		callCh:  make(chan func(mh *MatchHandler), CallQueueSize),
 		stopCh:  make(chan struct{}),
 		stopped: false,
 
