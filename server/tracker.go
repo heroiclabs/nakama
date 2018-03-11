@@ -543,7 +543,8 @@ func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*Presence
 	}
 	ps := make([]*PresenceID, 0, len(byStream))
 	for pc, _ := range byStream {
-		ps = append(ps, &pc.ID)
+		pid := pc.ID
+		ps = append(ps, &pid)
 	}
 	t.RUnlock()
 	return ps
