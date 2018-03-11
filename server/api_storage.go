@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/json"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -62,12 +63,12 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 
 		userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 		if uuid.Equal(userID, uid) {
-			storageObjectList, listingError = StorageObjectsListUser(s.logger, s.db, userID, in.GetCollection(), limit, cursor, sc)
+			storageObjectList, listingError = StorageListObjectsUser(s.logger, s.db, userID, in.GetCollection(), limit, cursor, sc)
 		} else {
-			storageObjectList, listingError = StorageObjectsListPublicReadUser(s.logger, s.db, uid, in.GetCollection(), limit, cursor, sc)
+			storageObjectList, listingError = StorageListObjectsPublicReadUser(s.logger, s.db, uid, in.GetCollection(), limit, cursor, sc)
 		}
 	} else {
-		storageObjectList, listingError = StorageObjectsListPublicRead(s.logger, s.db, in.GetCollection(), limit, cursor, sc)
+		storageObjectList, listingError = StorageListObjectsPublicRead(s.logger, s.db, in.GetCollection(), limit, cursor, sc)
 	}
 
 	if listingError != nil {
@@ -82,9 +83,21 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 		return &api.StorageObjects{}, nil
 	}
 
+	for _, object := range in.GetObjectIds() {
+		if object.GetCollection() == "" || object.GetKey() == "" {
+			return nil, status.Error(codes.InvalidArgument, "Invalid collection or key value supplied. They must be set.")
+		}
+
+		if object.GetUserId() != "" {
+			if _, err := uuid.FromString(object.GetUserId()); err != nil {
+				return nil, status.Error(codes.InvalidArgument, "Invalid user ID - make sure user ID is a valid UUID.")
+			}
+		}
+	}
+
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
-	objects, err := StorageObjectsRead(s.logger, s.db, userID, in.GetObjectIds())
+	objects, err := StorageReadObjects(s.logger, s.db, userID, in.GetObjectIds())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error reading storage objects.")
 	}
@@ -97,10 +110,35 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		return &api.StorageObjectAcks{}, nil
 	}
 
+	for _, object := range in.GetObjects() {
+		if object.GetCollection() == "" || object.GetKey() == "" || object.GetValue() == "" {
+			return nil, status.Error(codes.InvalidArgument, "Invalid collection or key value supplied. They must be set.")
+		}
+
+		if object.GetPermissionRead() != nil {
+			permissionRead := object.GetPermissionRead().GetValue()
+			if permissionRead < 0 || permissionRead > 2 {
+				return nil, status.Error(codes.InvalidArgument, "Invalid Read permission supplied. It must be either 0, 1 or 2.")
+			}
+		}
+
+		if object.GetPermissionWrite() != nil {
+			permissionWrite := object.GetPermissionWrite().GetValue()
+			if permissionWrite < 0 || permissionWrite > 1 {
+				return nil, status.Error(codes.InvalidArgument, "Invalid Write permission supplied. It must be either 0 or 1.")
+			}
+		}
+
+		var maybeJSON interface{}
+		if json.Unmarshal([]byte(object.GetValue()), &maybeJSON) != nil {
+			return nil, status.Error(codes.InvalidArgument, "Object value must be JSON.")
+		}
+	}
+
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	userObjects := map[uuid.UUID][]*api.WriteStorageObject{userID: in.GetObjects()}
 
-	acks, code, err := StorageWriteObjects(s.logger, s.db, userID, userObjects)
+	acks, code, err := StorageWriteObjects(s.logger, s.db, false, userObjects)
 	if err == nil {
 		return acks, nil
 	}
@@ -112,5 +150,22 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 }
 
 func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
+	if in.GetObjectIds() == nil || len(in.GetObjectIds()) == 0 {
+		return &empty.Empty{}, nil
+	}
+
+	for _, objectID := range in.GetObjectIds() {
+		if objectID.GetCollection() == "" || objectID.GetKey() == "" {
+			return nil, status.Error(codes.InvalidArgument, "Invalid collection or key value supplied. They must be set.")
+		}
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	objectIDs := map[uuid.UUID][]*api.DeleteStorageObjectId{userID: in.GetObjectIds()}
+
+	if err := StorageDeleteObjects(s.logger, s.db, false, objectIDs); err != nil {
+		return nil, status.Error(codes.Internal, "Error deleting storage objects.")
+	}
+
 	return &empty.Empty{}, nil
 }
