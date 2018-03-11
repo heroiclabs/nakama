@@ -601,7 +601,7 @@ message DeleteStorageObjectId {
 // Batch delete storage objects.
 message DeleteStorageObjectsRequest {
   // Batch of storage objects.
-  repeated DeleteStorageObjectId objectIds = 1;
+  repeated DeleteStorageObjectId object_ids = 1;
 }
 
 // A friend of a user.
@@ -780,7 +780,7 @@ message ReadStorageObjectId {
 // Batch get storage objects.
 message ReadStorageObjectsRequest {
   // Batch of storage objects.
-  repeated ReadStorageObjectId objectIds = 1;
+  repeated ReadStorageObjectId object_ids = 1;
 }
 
 // Execute an Lua function on the server.
