@@ -173,7 +173,10 @@ service Nakama {
 
   // Delete one or more objects by ID or username.
   rpc DeleteStorageObjects (DeleteStorageObjectsRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/storage";
+    option (google.api.http) = {
+      put: "/v2/storage/delete",
+      body: "*"
+    };
   }
 
   // Fetch the current user's account.

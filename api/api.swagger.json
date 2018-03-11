@@ -941,21 +941,6 @@
       }
     },
     "/v2/storage": {
-      "delete": {
-        "summary": "Delete one or more objects by ID or username.",
-        "operationId": "DeleteStorageObjects",
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/protobufEmpty"
-            }
-          }
-        },
-        "tags": [
-          "Nakama"
-        ]
-      },
       "post": {
         "summary": "Get storage objects.",
         "operationId": "ReadStorageObjects",
@@ -999,6 +984,33 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiWriteStorageObjectsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/storage/delete": {
+      "put": {
+        "summary": "Delete one or more objects by ID or username.",
+        "operationId": "DeleteStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiDeleteStorageObjectsRequest"
             }
           }
         ],
@@ -1341,6 +1353,19 @@
         }
       },
       "description": "Storage objects to delete."
+    },
+    "apiDeleteStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "object_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiDeleteStorageObjectId"
+          },
+          "description": "Batch of storage objects."
+        }
+      },
+      "description": "Batch delete storage objects."
     },
     "apiFriend": {
       "type": "object",
