@@ -40,6 +40,7 @@ type MatchHandler struct {
 	sync.Mutex
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
+	tracker       Tracker
 	router        MessageRouter
 
 	// Identification not (directly) controlled by match init.
@@ -186,6 +187,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	mh := &MatchHandler{
 		logger:        logger.With(zap.String("mid", id.String())),
 		matchRegistry: matchRegistry,
+		tracker:       tracker,
 		router:        router,
 
 		ID:    id,
@@ -501,13 +503,13 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	}
 
 	filter := l.OptTable(3, nil)
-	var presences []*Presence
+	var presenceIDs []*PresenceID
 	if filter != nil {
 		fl := filter.Len()
 		if fl == 0 {
 			return 0
 		}
-		presences = make([]*Presence, 0, fl)
+		presenceIDs = make([]*PresenceID, 0, fl)
 		conversionError := false
 		filter.ForEach(func(_, p lua.LValue) {
 			pt, ok := p.(*lua.LTable)
@@ -517,17 +519,9 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 				return
 			}
 
-			presence := &Presence{ID: PresenceID{}}
+			presenceID := &PresenceID{}
 			pt.ForEach(func(k, v lua.LValue) {
 				switch k.String() {
-				case "UserId":
-					uid, err := uuid.FromString(v.String())
-					if err != nil {
-						conversionError = true
-						l.ArgError(1, "expects each presence to have a valid UserId")
-						return
-					}
-					presence.UserID = uid
 				case "SessionId":
 					sid, err := uuid.FromString(v.String())
 					if err != nil {
@@ -535,17 +529,17 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 						l.ArgError(1, "expects each presence to have a valid SessionId")
 						return
 					}
-					presence.ID.SessionID = sid
+					presenceID.SessionID = sid
 				case "Node":
 					if v.Type() != lua.LTString {
 						conversionError = true
 						l.ArgError(1, "expects Node to be string")
 						return
 					}
-					presence.ID.Node = v.String()
+					presenceID.Node = v.String()
 				}
 			})
-			if presence.UserID == uuid.Nil || presence.ID.SessionID == uuid.Nil || presence.ID.Node == "" {
+			if presenceID.SessionID == uuid.Nil || presenceID.Node == "" {
 				conversionError = true
 				l.ArgError(1, "expects each presence to have a valid UserId, SessionId, and Node")
 				return
@@ -553,11 +547,16 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 			if conversionError {
 				return
 			}
-			presences = append(presences, presence)
+			presenceIDs = append(presenceIDs, presenceID)
 		})
 		if conversionError {
 			return 0
 		}
+	}
+
+	if presenceIDs != nil && len(presenceIDs) == 0 {
+		// Filter is empty, there are no requested message targets.
+		return 0
 	}
 
 	sender := l.OptTable(4, nil)
@@ -603,6 +602,34 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 		}
 	}
 
+	if presenceIDs != nil {
+		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
+		actualPresenceIDs := mh.tracker.ListPresenceIDByStream(mh.Stream)
+		for i := 0; i < len(presenceIDs); i++ {
+			found := false
+			presenceID := presenceIDs[i]
+			for j := 0; j < len(actualPresenceIDs); j++ {
+				if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
+					// If it matches, drop it.
+					actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
+					actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
+					found = true
+					break
+				}
+			}
+			if !found {
+				// If this presence wasn't in the filters, it's not needed.
+				presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+				presenceIDs = presenceIDs[:len(presenceIDs)-1]
+				i--
+			}
+		}
+		if len(presenceIDs) == 0 {
+			// None of the target presenceIDs existed in the list of match members.
+			return 0
+		}
+	}
+
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
 		MatchId:  mh.IDStr,
 		Presence: presence,
@@ -610,10 +637,10 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 		Data:     dataBytes,
 	}}}
 
-	if presences == nil {
+	if presenceIDs == nil {
 		mh.router.SendToStream(mh.logger, mh.Stream, msg)
 	} else {
-		mh.router.SendToPresences(mh.logger, presences, msg)
+		mh.router.SendToPresenceIDs(mh.logger, presenceIDs, msg)
 	}
 
 	return 0

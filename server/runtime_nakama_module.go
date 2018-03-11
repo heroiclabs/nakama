@@ -1200,14 +1200,14 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	alreadyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
+	newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
-	})
+	}, false)
 
-	l.Push(lua.LBool(alreadyTracked))
+	l.Push(lua.LBool(newlyTracked))
 	return 1
 }
 

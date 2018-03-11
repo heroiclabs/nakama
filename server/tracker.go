@@ -70,8 +70,8 @@ type Tracker interface {
 	SetMatchLeaveListener(func(id uuid.UUID, leaves []*MatchPresence))
 	Stop()
 
-	// Individual presence and user operations.
-	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
+	// Track returns true if it's a new presence, false otherwise.
+	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
 	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID)
 	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
@@ -90,14 +90,17 @@ type Tracker interface {
 	Count() int
 	// Get the number of presences in the given stream.
 	CountByStream(stream PresenceStream) int
-	// Get a snapshot of current presence counts for the given stream modes.
+	// Get a snapshot of current presence counts for streams with one of the given stream modes.
 	CountByStreamModeFilter(modes map[uint8]*uint8) map[*PresenceStream]int32
 	// Check if a single presence on the current node exists.
 	GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta
 	// List presences by stream.
 	ListByStream(stream PresenceStream) []*Presence
-	// List presences on the current node by stream.
-	ListLocalByStream(stream PresenceStream) []*Presence
+
+	// Fast lookup of local session IDs to use for message delivery.
+	ListLocalSessionIDByStream(stream PresenceStream) []uuid.UUID
+	// Fast lookup of node + session IDs to use for message delivery.
+	ListPresenceIDByStream(stream PresenceStream) []*PresenceID
 }
 
 type presenceCompact struct {
@@ -125,7 +128,7 @@ func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jso
 		sessionRegistry:    sessionRegistry,
 		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               name,
-		eventsCh:           make(chan *PresenceEvent, 128),
+		eventsCh:           make(chan *PresenceEvent, 1024),
 		stopCh:             make(chan struct{}),
 		presencesByStream:  make(map[uint8]map[PresenceStream]map[presenceCompact]PresenceMeta),
 		presencesBySession: make(map[uuid.UUID]map[presenceCompact]PresenceMeta),
@@ -153,48 +156,49 @@ func (t *LocalTracker) Stop() {
 	close(t.stopCh)
 }
 
-func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
+func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
-	alreadyTracked := false
 	t.Lock()
 
 	// See if this session has any presences tracked at all.
-	bySession, anyTracked := t.presencesBySession[sessionID]
-	if anyTracked {
+	if bySession, anyTracked := t.presencesBySession[sessionID]; anyTracked {
 		// Then see if the exact presence we need is tracked.
-		_, alreadyTracked = bySession[pc]
-	}
-
-	// Maybe update tracking for session.
-	if !anyTracked {
+		if _, alreadyTracked := bySession[pc]; !alreadyTracked {
+			// If the current session had others tracked, but not this presence.
+			bySession[pc] = meta
+		} else {
+			t.Unlock()
+			return false
+		}
+	} else {
+		if !allowIfFirstForSession {
+			// If it's the first presence for this session, only allow it if explicitly permitted to.
+			t.Unlock()
+			return false
+		}
 		// If nothing at all was tracked for the current session, begin tracking.
 		bySession = make(map[presenceCompact]PresenceMeta)
 		bySession[pc] = meta
 		t.presencesBySession[sessionID] = bySession
-	} else if !alreadyTracked {
-		// If the current session had others tracked, but not this presence.
-		bySession[pc] = meta
 	}
 
-	// Maybe update tracking for stream.
-	if !alreadyTracked {
-		byStreamMode, ok := t.presencesByStream[stream.Mode]
-		if !ok {
-			byStreamMode = make(map[PresenceStream]map[presenceCompact]PresenceMeta)
-			t.presencesByStream[stream.Mode] = byStreamMode
-		}
+	// Update tracking for stream.
+	byStreamMode, ok := t.presencesByStream[stream.Mode]
+	if !ok {
+		byStreamMode = make(map[PresenceStream]map[presenceCompact]PresenceMeta)
+		t.presencesByStream[stream.Mode] = byStreamMode
+	}
 
-		if byStream, ok := byStreamMode[stream]; !ok {
-			byStream = make(map[presenceCompact]PresenceMeta)
-			byStream[pc] = meta
-			byStreamMode[stream] = byStream
-		} else {
-			byStream[pc] = meta
-		}
+	if byStream, ok := byStreamMode[stream]; !ok {
+		byStream = make(map[presenceCompact]PresenceMeta)
+		byStream[pc] = meta
+		byStreamMode[stream] = byStream
+	} else {
+		byStream[pc] = meta
 	}
 
 	t.Unlock()
-	if !alreadyTracked && !meta.Hidden {
+	if !meta.Hidden {
 		t.queueEvent(
 			[]Presence{
 				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
@@ -202,7 +206,7 @@ func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID 
 			nil,
 		)
 	}
-	return !alreadyTracked
+	return true
 }
 
 func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {
@@ -447,9 +451,9 @@ func (t *LocalTracker) StreamExists(stream PresenceStream) bool {
 func (t *LocalTracker) Count() int {
 	var count int
 	t.RLock()
-	// For each stream add together their presence count.
-	for _, byStream := range t.presencesByStream {
-		count += len(byStream)
+	// For each session add together their presence count.
+	for _, bySession := range t.presencesBySession {
+		count += len(bySession)
 	}
 	t.RUnlock()
 	return count
@@ -513,16 +517,31 @@ func (t *LocalTracker) ListByStream(stream PresenceStream) []*Presence {
 	return ps
 }
 
-func (t *LocalTracker) ListLocalByStream(stream PresenceStream) []*Presence {
+func (t *LocalTracker) ListLocalSessionIDByStream(stream PresenceStream) []uuid.UUID {
 	t.RLock()
 	byStream, anyTracked := t.presencesByStream[stream.Mode][stream]
 	if !anyTracked {
 		t.RUnlock()
-		return []*Presence{}
+		return []uuid.UUID{}
 	}
-	ps := make([]*Presence, 0, len(byStream))
-	for pc, meta := range byStream {
-		ps = append(ps, &Presence{ID: pc.ID, Stream: stream, UserID: pc.UserID, Meta: meta})
+	ps := make([]uuid.UUID, 0, len(byStream))
+	for pc, _ := range byStream {
+		ps = append(ps, pc.ID.SessionID)
+	}
+	t.RUnlock()
+	return ps
+}
+
+func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*PresenceID {
+	t.RLock()
+	byStream, anyTracked := t.presencesByStream[stream.Mode][stream]
+	if !anyTracked {
+		t.RUnlock()
+		return []*PresenceID{}
+	}
+	ps := make([]*PresenceID, 0, len(byStream))
+	for pc, _ := range byStream {
+		ps = append(ps, &pc.ID)
 	}
 	t.RUnlock()
 	return ps
@@ -548,7 +567,9 @@ func (t *LocalTracker) queueEvent(joins, leaves []Presence) {
 }
 
 func (t *LocalTracker) processEvent(e *PresenceEvent) {
-	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.joins)), zap.Int("leaves", len(e.leaves)))
+	if t.logger.Core().Enabled(zap.DebugLevel) {
+		t.logger.Debug("Processing presence event", zap.Int("joins", len(e.joins)), zap.Int("leaves", len(e.leaves)))
+	}
 
 	// Group joins/leaves by stream to allow batching.
 	// Convert to wire representation at the same time.
@@ -627,8 +648,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 
 		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.
-		presences := t.ListLocalByStream(stream)
-		if len(presences) == 0 {
+		sessionIDs := t.ListLocalSessionIDByStream(stream)
+		if len(sessionIDs) == 0 {
 			continue
 		}
 
@@ -658,11 +679,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		payloadByte := []byte(payload)
 
 		// Deliver event.
-		for _, p := range presences {
-			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
+		for _, sessionID := range sessionIDs {
+			if s := t.sessionRegistry.Get(sessionID); s != nil {
 				s.SendBytes(payloadByte)
-			} else {
-				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))
+			} else if t.logger.Core().Enabled(zap.DebugLevel) {
+				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}
 		}
 	}
@@ -682,8 +703,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 
 		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.
-		presences := t.ListLocalByStream(stream)
-		if len(presences) == 0 {
+		sessionIDs := t.ListLocalSessionIDByStream(stream)
+		if len(sessionIDs) == 0 {
 			continue
 		}
 
@@ -713,11 +734,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		payloadByte := []byte(payload)
 
 		// Deliver event.
-		for _, p := range presences {
-			if s := t.sessionRegistry.Get(p.ID.SessionID); s != nil {
+		for _, sessionID := range sessionIDs {
+			if s := t.sessionRegistry.Get(sessionID); s != nil {
 				s.SendBytes(payloadByte)
-			} else {
-				t.logger.Warn("Could not deliver presence event, no session", zap.String("sid", p.ID.SessionID.String()))
+			} else if t.logger.Core().Enabled(zap.DebugLevel) {
+				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}
 		}
 	}

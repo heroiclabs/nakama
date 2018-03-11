@@ -75,7 +75,7 @@ func main() {
 	jsonLogger, multiLogger := server.SetupLogging(config)
 
 	multiLogger.Info("Nakama starting")
-	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()))
+	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 

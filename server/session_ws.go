@@ -27,6 +27,7 @@ import (
 	"github.com/satori/go.uuid"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"net"
 )
 
 var ErrSessionQueueFull = errors.New("session outgoing queue full")
@@ -126,8 +127,12 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 	for {
 		_, data, err := s.conn.ReadMessage()
 		if err != nil {
+			// Ignore "normal" WebSocket errors.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
-				s.logger.Warn("Error reading message from client", zap.Error(err))
+				// Ignore underlying connection being shut down while read is waiting for data.
+				if e, ok := err.(*net.OpError); !ok || e.Err.Error() != "use of closed network connection" {
+					s.logger.Warn("Error reading message from client", zap.Error(err))
+				}
 			}
 			break
 		}
@@ -252,7 +257,9 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	if s.logger.Core().Enabled(zap.DebugLevel) {
+		s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	}
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
 	s.sessionRegistry.remove(s.id)

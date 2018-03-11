@@ -36,7 +36,7 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *rt
 	p.tracker.Track(session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), PresenceMeta{
 		Username: username,
 		Format:   session.Format(),
-	})
+	}, false)
 
 	self := &rtapi.StreamPresence{
 		UserId:    session.UserID().String(),
@@ -156,7 +156,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 			Username: username,
 			Format:   session.Format(),
 		}
-		p.tracker.Track(session.ID(), stream, session.UserID(), m)
+		p.tracker.Track(session.ID(), stream, session.UserID(), m, false)
 		meta = &m
 	}
 
@@ -262,18 +262,18 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 
 	// If it was a relayed match, proceed with filter and data routing logic.
 	stream := PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}
-	ps := p.tracker.ListByStream(stream)
-	if len(ps) == 0 {
+	presenceIDs := p.tracker.ListPresenceIDByStream(stream)
+	if len(presenceIDs) == 0 {
 		return
 	}
 
 	senderFound := false
-	for i := 0; i < len(ps); i++ {
-		p := ps[i]
-		if p.ID.SessionID == session.ID() && p.UserID == session.UserID() {
+	for i := 0; i < len(presenceIDs); i++ {
+		presenceID := presenceIDs[i]
+		if presenceID.SessionID == session.ID() {
 			// Don't echo back to sender.
-			ps[i] = ps[len(ps)-1]
-			ps = ps[:len(ps)-1]
+			presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+			presenceIDs = presenceIDs[:len(presenceIDs)-1]
 			senderFound = true
 			if filters == nil {
 				break
@@ -284,7 +284,7 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 			// Check if this presence is specified in the filters.
 			filterFound := false
 			for j := 0; j < len(filters); j++ {
-				if filter := filters[j]; p.ID.SessionID == filter.sessionID && p.UserID == filter.userID {
+				if filter := filters[j]; presenceID.SessionID == filter.sessionID {
 					// If a filter matches, drop it.
 					filters[j] = filters[len(filters)-1]
 					filters = filters[:len(filters)-1]
@@ -294,8 +294,8 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 			}
 			if !filterFound {
 				// If this presence wasn't in the filters, it's not needed.
-				ps[i] = ps[len(ps)-1]
-				ps = ps[:len(ps)-1]
+				presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+				presenceIDs = presenceIDs[:len(presenceIDs)-1]
 				i--
 			}
 		}
@@ -307,7 +307,7 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 	}
 
 	// Check if there are any recipients left.
-	if len(ps) == 0 {
+	if len(presenceIDs) == 0 {
 		return
 	}
 
@@ -322,5 +322,5 @@ func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *
 		Data:   incoming.Data,
 	}}}
 
-	p.router.SendToPresences(logger, ps, outgoing)
+	p.router.SendToPresenceIDs(logger, presenceIDs, outgoing)
 }
