@@ -1681,6 +1681,10 @@
         "version": {
           "type": "string",
           "description": "The version hash of the object."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The owner of the object."
         }
       },
       "description": "A storage acknowledgement."

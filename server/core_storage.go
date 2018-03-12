@@ -81,8 +81,7 @@ func StorageListObjectsPublicReadUser(logger *zap.Logger, db *sql.DB, userID uui
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1 AND read = 2 AND user_id = $2 ` + cursorQuery + `
-LIMIT $3
-`
+LIMIT $3`
 
 	rows, err := db.Query(query, params...)
 	if err != nil {
@@ -184,7 +183,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	return objectList, nil
 }
 
-func StorageReadObjects(logger *zap.Logger, db *sql.DB, userID uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
+func StorageReadObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
 	params := make([]interface{}, 0)
 
 	whereClause := ""
@@ -195,14 +194,14 @@ func StorageReadObjects(logger *zap.Logger, db *sql.DB, userID uuid.UUID, object
 		}
 
 		if id.GetUserId() == "" {
-			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = NULL AND read = 2) ", l+1, l+2)
-			params = append(params, id.Collection, id.Key)
-		} else if uuid.Equal(userID, uuid.Nil) { // Disregard permissions if called authoritatively.
+			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v AND read = 2) ", l+1, l+2, l+3)
+			params = append(params, id.Collection, id.Key, uuid.Nil)
+		} else if uuid.Equal(caller, uuid.Nil) { // Disregard permissions if called authoritatively.
 			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v) ", l+1, l+2, l+3)
 			params = append(params, id.Collection, id.Key, id.UserId)
 		} else {
 			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v AND (read = 2 OR (read = 1 AND user_id = $%v))) ", l+1, l+2, l+3, l+4)
-			params = append(params, id.Collection, id.Key, id.UserId, userID)
+			params = append(params, id.Collection, id.Key, id.UserId, caller)
 		}
 	}
 
@@ -246,7 +245,6 @@ WHERE
 	}
 
 	return objects, nil
-
 }
 
 func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
@@ -294,10 +292,13 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool,
 		permissionWrite = object.GetPermissionWrite().GetValue()
 	}
 
-	params := []interface{}{object.GetCollection(), object.GetKey(), object.GetValue(), object.GetValue(), permissionRead, permissionWrite}
-	query, params := getStorageWriteQuery(authoritativeWrite, ownerID, object.GetVersion(), params)
+	params := []interface{}{object.GetCollection(), object.GetKey(), object.GetValue(), object.GetValue(), permissionRead, permissionWrite, ownerID}
+	query, params := getStorageWriteQuery(authoritativeWrite, object.GetVersion(), params)
 
 	ack := &api.StorageObjectAck{}
+	if !uuid.Equal(ownerID, uuid.Nil) {
+		ack.UserId = ownerID.String()
+	}
 
 	if err := tx.QueryRow(query, params...).Scan(&ack.Collection, &ack.Key, &ack.Version); err != nil {
 		if err != sql.ErrNoRows {
@@ -310,7 +311,7 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool,
 	return ack, nil
 }
 
-func getStorageWriteQuery(authoritativeWrite bool, ownerID uuid.UUID, version string, params []interface{}) (string, []interface{}) {
+func getStorageWriteQuery(authoritativeWrite bool, version string, params []interface{}) (string, []interface{}) {
 	query := ""
 
 	// Write storage objects authoritatively, disregarding permissions.
@@ -318,32 +319,12 @@ func getStorageWriteQuery(authoritativeWrite bool, ownerID uuid.UUID, version st
 		if version == "" {
 			query = `
 INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
-SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), NULL
-ON CONFLICT (collection, key, user_id)
-DO UPDATE SET value = $3, version = md5($4::VARCHAR), read = $5, write = $6, update_time = now()
-RETURNING collection, key, version`
-			if uuid.Equal(ownerID, uuid.Nil) { // Writing object belonging to a user
-				params = append(params, ownerID)
-				query = `
-INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
 SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), $7::UUID
 ON CONFLICT (collection, key, user_id)
 DO UPDATE SET value = $3, version = md5($4::VARCHAR), read = $5, write = $6, update_time = now()
 RETURNING collection, key, version`
-			}
 		} else if version == "*" { // if-none-match
 			query = `
-INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
-SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), NULL
-WHERE NOT EXISTS
-	(SELECT key FROM storage
-		WHERE user_id = NULL
-		AND collection = $1::VARCHAR
-		AND key = $2::VARCHAR)
-RETURNING collection, key, version`
-			if uuid.Equal(ownerID, uuid.Nil) { // Writing object belonging to a user
-				params = append(params, ownerID)
-				query = `
 INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
 SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), $7::UUID
 WHERE NOT EXISTS
@@ -352,39 +333,22 @@ WHERE NOT EXISTS
 		AND collection = $1::VARCHAR
 		AND key = $2::VARCHAR)
 RETURNING collection, key, version`
-			}
 		} else { // if-match
 			params = append(params, version)
 			query = `
 INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
-SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), NULL
+SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), $7::UUID
 WHERE EXISTS
 	(SELECT key FROM storage
-		WHERE user_id = NULL
+		WHERE user_id = $7::UUID
 		AND collection = $1::VARCHAR
 		AND key = $2::VARCHAR
-		AND version = $7::VARCHAR)
+		AND version = $8::VARCHAR)
 ON CONFLICT (collection, key, user_id)
 DO UPDATE SET value = $3, version = md5($4::VARCHAR), read = $5, write = $6, update_time = now()
 RETURNING collection, key, version`
-			if !uuid.Equal(ownerID, uuid.Nil) { // Writing object belonging to a user
-				params = append(params, ownerID)
-				query = `
-INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
-SELECT $1, $2, $3, md5($4::VARCHAR), $5, $6, now(), now(), $8::UUID
-WHERE EXISTS
-	(SELECT key FROM storage
-		WHERE user_id = $8::UUID
-		AND collection = $1::VARCHAR
-		AND key = $2::VARCHAR
-		AND version = $7::VARCHAR)
-ON CONFLICT (collection, key, user_id)
-DO UPDATE SET value = $3, version = md5($4::VARCHAR), read = $5, write = $6, update_time = now()
-RETURNING collection, key, version`
-			}
 		}
 	} else {
-		params = append(params, ownerID)
 		if version == "" {
 			query = `
 INSERT INTO storage (collection, key, value, version, read, write, create_time, update_time, user_id)
@@ -433,17 +397,16 @@ func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bo
 	return Transact(logger, db, func(tx *sql.Tx) error {
 		for ownerID, objectIDs := range userObjectIDs {
 			for _, objectID := range objectIDs {
-				params := []interface{}{objectID.GetCollection(), objectID.GetKey()}
-				query := "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = NULL"
+				params := []interface{}{objectID.GetCollection(), objectID.GetKey(), ownerID}
+				query := "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
 
 				if !authoritativeDelete {
-					params = append(params, ownerID)
 					query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND write > 0"
 				}
 
 				if objectID.GetVersion() != "" {
 					params = append(params, objectID.Version)
-					query += fmt.Sprintf(" AND version = $%v", len(params))
+					query += fmt.Sprintf(" AND version = $4")
 				}
 
 				if _, err := tx.Exec(query, params...); err != nil {

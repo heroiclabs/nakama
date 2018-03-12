@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS notification (
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (collection, read, key, user_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    -- TODO: (mo, zyro) figure out references for uuid.Nil
+    --FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     collection  VARCHAR(128) NOT NULL,
     key         VARCHAR(128) NOT NULL,

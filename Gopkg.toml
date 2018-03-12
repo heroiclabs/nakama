@@ -57,3 +57,7 @@
 [[constraint]]
   name = "github.com/gobuffalo/packr"
   revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "~1.1.4"
