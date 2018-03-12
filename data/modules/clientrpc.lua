@@ -63,3 +63,9 @@ local function send_stream_data(context, payload)
   nk.stream_send(stream, tostring(payload))
 end
 nk.register_rpc(send_stream_data, "clientrpc.send_stream_data")
+
+local function create_authoritative_match(_context, _payload)
+  local match_id = nk.match_create("match", {})
+  return nk.json_encode({ match_id = match_id })
+end
+nk.register_rpc(create_authoritative_match, "clientrpc.create_authoritative_match")

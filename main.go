@@ -32,6 +32,7 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
+	"sync"
 )
 
 var (
@@ -74,28 +75,40 @@ func main() {
 	jsonLogger, multiLogger := server.SetupLogging(config)
 
 	multiLogger.Info("Nakama starting")
-	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()))
+	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 
 	db, dbVersion := dbConnect(multiLogger, config.GetDatabase().Addresses)
 	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
-	// Check migration status and log if the schema has diverged.
+	// Check migration status and fail fast if the schema has diverged.
 	migrate.StartupCheck(multiLogger, db)
 
+	// Access to social provider integrations.
 	socialClient := social.NewClient(5 * time.Second)
+	// Used to govern once-per-server-start executions in all Lua runtime instances, across both pooled and match VMs.
+	once := &sync.Once{}
 
 	// Start up server components.
-	registry := server.NewSessionRegistry()
-	tracker := server.StartLocalTracker(jsonLogger, registry, jsonpbMarshaler, config.GetName())
-	router := server.NewLocalMessageRouter(registry, tracker, jsonpbMarshaler)
-	runtimePool, err := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, registry, tracker, router)
+	sessionRegistry := server.NewSessionRegistry()
+	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
+	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
+	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, config)
+	if err != nil {
+		multiLogger.Fatal("Failed reading runtime modules", zap.Error(err))
+	}
+	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	tracker.SetMatchLeaveListener(matchRegistry.Leave)
+	// Separate module evaluation/validation from module loading.
+	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
+	regRPC, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	pipeline := server.NewPipeline(config, db, registry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, registry, tracker, router, pipeline, runtimePool)
+	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regRPC, once)
+	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
@@ -109,8 +122,9 @@ func main() {
 
 	// Gracefully stop server components.
 	apiServer.Stop()
+	matchRegistry.Stop()
 	tracker.Stop()
-	registry.Stop()
+	sessionRegistry.Stop()
 
 	os.Exit(0)
 }

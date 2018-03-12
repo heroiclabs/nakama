@@ -54,7 +54,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 		return
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
+	result, fnErr, _ := runtime.InvokeFunctionRPC(lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))

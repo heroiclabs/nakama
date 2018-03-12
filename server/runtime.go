@@ -15,29 +15,31 @@
 package server
 
 import (
-	"os"
-	"path/filepath"
-
 	"errors"
-
-	"strings"
 
 	"database/sql"
 
 	"bytes"
-	"io/ioutil"
 	"sync"
 
 	"context"
 
+	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"github.com/heroiclabs/nakama/social"
+	"google.golang.org/grpc/codes"
 )
 
-const (
-	__nakamaReturnValue = "__nakama_return_flag__"
-)
+const LTSentinel = lua.LValueType(-1)
+
+type LSentinelType struct {
+	lua.LNilType
+}
+
+func (s *LSentinelType) String() string       { return "" }
+func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
+
+var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeModule struct {
 	name    string
@@ -46,92 +48,26 @@ type RuntimeModule struct {
 }
 
 type RuntimePool struct {
-	once    *sync.Once // Used to govern once-per-server-start executions.
 	regRPC  map[string]struct{}
-	stdLibs map[string]lua.LGFunction
 	modules *sync.Map
 	pool    *sync.Pool
 }
 
-func NewRuntimePool(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter) (*RuntimePool, error) {
-	runtimeConfig := config.GetRuntime()
-	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
-		return nil, err
-	}
-
-	rp := &RuntimePool{
-		once:    &sync.Once{},
-		regRPC:  make(map[string]struct{}),
-		modules: new(sync.Map),
-		stdLibs: map[string]lua.LGFunction{
-			lua.LoadLibName:   lua.OpenPackage,
-			lua.BaseLibName:   lua.OpenBase,
-			lua.TabLibName:    lua.OpenTable,
-			lua.OsLibName:     OpenOs,
-			lua.StringLibName: lua.OpenString,
-			lua.MathLibName:   lua.OpenMath,
-		},
-	}
-
-	// Override before Package library is invoked.
-	lua.LuaLDir = runtimeConfig.Path
-	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
-	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
-
-	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
-	modulePaths := make([]string, 0)
-	if err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			logger.Error("Could not read module", zap.Error(err))
-			return err
-		} else if !f.IsDir() {
-			if strings.ToLower(filepath.Ext(path)) == ".lua" {
-				var content []byte
-				if content, err = ioutil.ReadFile(path); err != nil {
-					logger.Error("Could not read module", zap.String("path", path), zap.Error(err))
-					return err
+func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regRPC map[string]struct{}, once *sync.Once) *RuntimePool {
+	return &RuntimePool{
+		regRPC:  regRPC,
+		modules: modules,
+		pool: &sync.Pool{
+			New: func() interface{} {
+				r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, nil)
+				if err != nil {
+					multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
 				}
-				relPath, _ := filepath.Rel(lua.LuaLDir, path)
-				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-				// Make paths Lua friendly.
-				name = strings.Replace(name, "/", ".", -1)
-				rp.modules.Store(path, &RuntimeModule{
-					name:    name,
-					path:    path,
-					content: content,
-				})
-				modulePaths = append(modulePaths, relPath)
-			}
-		}
-		return nil
-	}); err != nil {
-		logger.Error("Failed to list modules", zap.Error(err))
-		return nil, err
-	}
-
-	multiLogger.Info("Evaluating modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
-	r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, func(id string) {
-		rp.regRPC[id] = struct{}{}
-		logger.Info("Registered RPC function invocation", zap.String("id", id))
-	})
-	if err != nil {
-		return nil, err
-	}
-	multiLogger.Info("Modules loaded")
-	r.Stop()
-
-	rp.pool = &sync.Pool{
-		New: func() interface{} {
-			r, err := rp.newVM(logger, db, config, socialClient, registry, tracker, router, nil)
-			if err != nil {
-				multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
-			}
-			// TODO find a way to run r.Stop() when the pool discards this runtime.
-			return r
+				// TODO find a way to run r.Stop() when the pool discards this runtime.
+				return r
+			},
 		},
 	}
-
-	return rp, nil
 }
 
 func (rp *RuntimePool) HasRPC(id string) bool {
@@ -147,7 +83,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, registry *SessionRegistry, tracker Tracker, router MessageRouter, announceRPC func(string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -155,12 +91,12 @@ func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, soci
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
-	for name, lib := range rp.stdLibs {
+	for name, lib := range stdLibs {
 		vm.Push(vm.NewFunction(lib))
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, registry, tracker, router, rp.once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceRPC)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,
@@ -168,13 +104,13 @@ func (rp *RuntimePool) newVM(logger *zap.Logger, db *sql.DB, config Config, soci
 		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
 	}
 
-	modules := make([]*RuntimeModule, 0)
-	rp.modules.Range(func(key interface{}, value interface{}) bool {
-		modules = append(modules, value.(*RuntimeModule))
+	mods := make([]*RuntimeModule, 0)
+	modules.Range(func(key interface{}, value interface{}) bool {
+		mods = append(mods, value.(*RuntimeModule))
 		return true
 	})
 
-	return r, r.loadModules(modules)
+	return r, r.loadModules(mods)
 }
 
 type Runtime struct {
@@ -261,7 +197,7 @@ func (r *Runtime) GetRuntimeCallback(e ExecutionMode, key string) *lua.LFunction
 	return nil
 }
 
-func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload string) (string, error) {
+func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload string) (string, error, codes.Code) {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
@@ -271,22 +207,22 @@ func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username stri
 		lv = lua.LString(payload)
 	}
 
-	retValue, err := r.invokeFunction(l, fn, ctx, lv)
+	retValue, err, code := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
-		return "", err
+		return "", err, code
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return "", nil
+		return "", nil, 0
 	} else if retValue.Type() == lua.LTString {
-		return retValue.String(), nil
+		return retValue.String(), nil, 0
 	}
 
-	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte")
+	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte"), codes.Internal
 }
 
-func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error) {
-	l.Push(lua.LString(__nakamaReturnValue))
+func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
+	l.Push(LSentinel)
 	l.Push(fn)
 
 	nargs := 1
@@ -299,15 +235,53 @@ func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTab
 
 	err := l.PCall(nargs, lua.MultRet, nil)
 	if err != nil {
-		return nil, err
+		// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
+		for {
+			v := l.Get(-1)
+			l.Pop(1)
+			if v.Type() == LTSentinel {
+				break
+			}
+		}
+
+		if apiError, ok := err.(*lua.ApiError); ok && apiError.Object.Type() == lua.LTTable {
+			t := apiError.Object.(*lua.LTable)
+			switch t.Len() {
+			case 0:
+				return nil, err, codes.Internal
+			case 1:
+				apiError.Object = t.RawGetInt(1)
+				return nil, err, codes.Internal
+			default:
+				// Ignore everything beyond the first 2 params, if there are more.
+				apiError.Object = t.RawGetInt(1)
+				code := codes.Internal
+				if c := t.RawGetInt(2); c.Type() == lua.LTNumber {
+					code = codes.Code(c.(lua.LNumber))
+				}
+				return nil, err, code
+			}
+		}
+
+		return nil, err, codes.Internal
 	}
 
 	retValue := l.Get(-1)
-	if retValue.Type() == lua.LTString && lua.LVAsString(retValue) == __nakamaReturnValue {
-		return nil, nil
+	l.Pop(1)
+	if retValue.Type() == LTSentinel {
+		return nil, nil, 0
 	}
 
-	return retValue, nil
+	// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
+	for {
+		v := l.Get(-1)
+		l.Pop(1)
+		if v.Type() == LTSentinel {
+			break
+		}
+	}
+
+	return retValue, nil, 0
 }
 
 func (r *Runtime) Stop() {

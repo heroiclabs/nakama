@@ -25,8 +25,8 @@ import (
 type SessionFormat uint8
 
 const (
-	SessionFormatProtobuf SessionFormat = iota
-	SessionFormatJson
+	SessionFormatJson SessionFormat = iota
+	SessionFormatProtobuf
 )
 
 type session interface {
@@ -38,7 +38,7 @@ type session interface {
 	SetUsername(string)
 
 	Expiry() int64
-	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope))
+	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope) error)
 
 	Format() SessionFormat
 	Send(envelope *rtapi.Envelope) error
