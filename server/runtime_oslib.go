@@ -87,7 +87,7 @@ func osDate(L *lua.LState) int {
 			t = time.Unix(L.CheckInt64(2), 0)
 		}
 		if strings.HasPrefix(cfmt, "*t") {
-			ret := L.NewTable()
+			ret := L.CreateTable(9, 9)
 			ret.RawSetString("year", lua.LNumber(t.Year()))
 			ret.RawSetString("month", lua.LNumber(t.Month()))
 			ret.RawSetString("day", lua.LNumber(t.Day()))

@@ -85,6 +85,14 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
+	// Fail fast on invalid values.
+	if l := len(mainConfig.Name); l < 1 || l > 16 {
+		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
+	}
+	if mainConfig.GetSocket().PingPeriodMs >= mainConfig.GetSocket().PongWaitMs {
+		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", mainConfig.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", mainConfig.GetSocket().PongWaitMs))
+	}
+
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
@@ -105,15 +113,15 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 }
 
 type config struct {
-	Name     string          `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique"`
+	Name     string          `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
 	Config   string          `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
 	Datadir  string          `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Log      *LogConfig      `yaml:"log" json:"log" usage:"Log levels and output"`
-	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings"`
-	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configurations"`
-	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings"`
-	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social providers"`
-	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties"`
+	Log      *LogConfig      `yaml:"log" json:"log" usage:"Log levels and output."`
+	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -167,13 +175,13 @@ func (c *config) GetRuntime() *RuntimeConfig {
 
 // LogConfig is configuration relevant to logging levels and output.
 type LogConfig struct {
-	// By default, log all messages with Warn and Error messages to a log file inside Data/Log/<name>.log file. The content will be in JSON.
+	// By default, log all messages with Info and higher levels to a log file inside Data/Log/<name>.log file. The content will be in JSON.
 	// if --log.verbose is passed, log messages with Debug and higher levels.
 	// if --log.stdout is passed, logs are only printed to stdout.
-	// In all cases, Error messages trigger the stacktrace to be dumped as well.
+	// In all cases, Error and Fatal messages trigger the stacktrace to be dumped as well.
 
-	Verbose bool `yaml:"verbose" json:"verbose" usage:"Turn verbose logging on"`
-	Stdout  bool `yaml:"stdout" json:"stdout" usage:"Log to stdout instead of file"`
+	Verbose bool `yaml:"verbose" json:"verbose" usage:"Turn verbose logging on."`
+	Stdout  bool `yaml:"stdout" json:"stdout" usage:"Log to stdout instead of file."`
 }
 
 // NewLogConfig creates a new LogConfig struct.
@@ -186,15 +194,15 @@ func NewLogConfig() *LogConfig {
 
 // SessionConfig is configuration relevant to the session.
 type SessionConfig struct {
-	EncryptionKey string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
-	TokenExpiryMs int64  `yaml:"token_expiry_ms" json:"token_expiry_ms" usage:"Token expiry in milliseconds."`
+	EncryptionKey  string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
+	TokenExpirySec int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct.
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
-		EncryptionKey: "defaultencryptionkey",
-		TokenExpiryMs: 60000,
+		EncryptionKey:  "defaultencryptionkey",
+		TokenExpirySec: 60,
 	}
 }
 
@@ -204,8 +212,8 @@ type SocketConfig struct {
 	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
-	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`
-	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between client ping messages. This value must be less than the pong_wait_ms."`
+	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client."`
+	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms."`
 	OutgoingQueueSize   int    `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect."`
 	SSLCertificate      string `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key"`
 	SSLPrivateKey       string `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate"`
@@ -228,7 +236,7 @@ func NewSocketConfig() *SocketConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage.
 type DatabaseConfig struct {
-	Addresses         []string `yaml:"address" json:"address" usage:"List of CockroachDB servers (username:password@address:port/dbname)"`
+	Addresses         []string `yaml:"address" json:"address" usage:"List of CockroachDB servers (username:password@address:port/dbname)."`
 	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
 	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database."`
 	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database."`
@@ -246,7 +254,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the social authentication providers.
 type SocialConfig struct {
-	Steam        *SocialConfigSteam  `yaml:"steam" json:"steam" usage:"Steam configuration"`
+	Steam *SocialConfigSteam `yaml:"steam" json:"steam" usage:"Steam configuration."`
 }
 
 // SocialConfigSteam is configuration relevant to Steam
@@ -268,8 +276,8 @@ func NewSocialConfig() *SocialConfig {
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
 	Environment map[string]interface{} `yaml:"env" json:"env"` // Not supported in FlagOverrides.
-	Path        string                 `yaml:"path" json:"path" usage:"Path of modules for the server to scan."`
-	HTTPKey     string                 `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key"`
+	Path        string                 `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
+	HTTPKey     string                 `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
