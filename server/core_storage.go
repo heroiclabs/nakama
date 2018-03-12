@@ -21,7 +21,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -141,17 +140,15 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	objects := make([]*api.StorageObject, 0)
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTimeStr string
-		var updateTimeStr string
+		var createTime *pq.NullTime
+		var updateTime *pq.NullTime
 		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTimeStr, &updateTimeStr); err != nil {
+		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			return nil, err
 		}
 
-		createTime, _ := pq.ParseTimestamp(time.UTC, createTimeStr)
-		o.CreateTime.Seconds = createTime.Unix()
-		updateTime, _ := pq.ParseTimestamp(time.UTC, updateTimeStr)
-		o.UpdateTime.Seconds = updateTime.Unix()
+		o.CreateTime.Seconds = createTime.Time.Unix()
+		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
 		o.UserId = userID.String
 		objects = append(objects, o)
@@ -229,17 +226,16 @@ WHERE
 	objects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTimeStr string
-		var updateTimeStr string
+		var createTime *pq.NullTime
+		var updateTime *pq.NullTime
+
 		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTimeStr, &updateTimeStr); err != nil {
+		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			return nil, err
 		}
 
-		createTime, _ := pq.ParseTimestamp(time.UTC, createTimeStr)
-		o.CreateTime.Seconds = createTime.Unix()
-		updateTime, _ := pq.ParseTimestamp(time.UTC, updateTimeStr)
-		o.UpdateTime.Seconds = updateTime.Unix()
+		o.CreateTime.Seconds = createTime.Time.Unix()
+		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
 		o.UserId = userID.String
 		objects.Objects = append(objects.Objects, o)
