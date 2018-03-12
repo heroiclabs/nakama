@@ -57,7 +57,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload)
+	result, fnErr, code := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload)
 	s.runtimePool.Put(runtime)
 	if fnErr != nil {
 		s.logger.Error("Runtime RPC function caused an error", zap.String("id", in.Id), zap.Error(fnErr))
@@ -72,9 +72,9 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 					msg = msgParts[0]
 				}
 			}
-			return nil, status.Error(codes.Aborted, msg)
+			return nil, status.Error(code, msg)
 		} else {
-			return nil, status.Error(codes.Aborted, fnErr.Error())
+			return nil, status.Error(code, fnErr.Error())
 		}
 	}
 

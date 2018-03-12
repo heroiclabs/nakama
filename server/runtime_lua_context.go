@@ -24,12 +24,15 @@ type ExecutionMode int
 
 const (
 	RPC ExecutionMode = iota
+	Match
 )
 
 func (e ExecutionMode) String() string {
 	switch e {
 	case RPC:
 		return "rpc"
+	case Match:
+		return "match"
 	}
 
 	return ""
@@ -42,10 +45,22 @@ const (
 	__CTX_USERNAME         = "Username"
 	__CTX_USER_SESSION_EXP = "UserSessionExp"
 	__CTX_SESSION_ID       = "SessionId"
+	__CTX_MATCH_ID         = "MatchId"
+	__CTX_MATCH_NODE       = "MatchNode"
+	__CTX_MATCH_LABEL      = "MatchLabel"
+	__CTX_MATCH_TICK_RATE  = "MatchTickRate"
 )
 
 func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid string, username string, sessionExpiry int64, sid string) *lua.LTable {
-	lt := l.NewTable()
+	size := 2
+	if uid != "" {
+		size += 3
+		if sid != "" {
+			size++
+		}
+	}
+
+	lt := l.CreateTable(size, size)
 	lt.RawSetString(__CTX_ENV, env)
 	lt.RawSetString(__CTX_MODE, lua.LString(mode.String()))
 
@@ -53,16 +68,17 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 		lt.RawSetString(__CTX_USER_ID, lua.LString(uid))
 		lt.RawSetString(__CTX_USERNAME, lua.LString(username))
 		lt.RawSetString(__CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
-	}
-	if sid != "" {
-		lt.RawSetString(__CTX_SESSION_ID, lua.LString(sid))
+		if sid != "" {
+			lt.RawSetString(__CTX_SESSION_ID, lua.LString(sid))
+		}
 	}
 
 	return lt
 }
 
 func ConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
-	lt := l.NewTable()
+	size := len(data)
+	lt := l.CreateTable(size, size)
 
 	for k, v := range data {
 		lt.RawSetString(k, convertValue(l, v))
@@ -108,7 +124,8 @@ func convertValue(l *lua.LState, val interface{}) lua.LValue {
 	case map[string]interface{}:
 		return ConvertMap(l, v)
 	case []interface{}:
-		lt := l.NewTable()
+		size := len(val.([]interface{}))
+		lt := l.CreateTable(size, size)
 		for k, v := range v {
 			lt.RawSetInt(k+1, convertValue(l, v))
 		}

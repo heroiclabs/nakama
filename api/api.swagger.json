@@ -763,6 +763,64 @@
         ]
       }
     },
+    "/v2/match": {
+      "get": {
+        "summary": "Fetch list of running matches.",
+        "operationId": "ListMatches",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiMatchList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Limit the number of returned matches.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "authoritative",
+            "description": "Authoritative or relayed matches.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "label",
+            "description": "Label filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "min_size",
+            "description": "Minimum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "max_size",
+            "description": "Maximum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/notification": {
       "get": {
         "summary": "Fetch list of notifications.",
@@ -1378,6 +1436,43 @@
         }
       },
       "description": "A collection of zero or more groups."
+    },
+    "apiMatch": {
+      "type": "object",
+      "properties": {
+        "match_id": {
+          "type": "string",
+          "description": "The ID of the match, can be used to join."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if it's an server-managed authoritative match, false otherwise."
+        },
+        "label": {
+          "type": "string",
+          "description": "Match label, if any."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of users in the match."
+        }
+      },
+      "description": "Represents a realtime match."
+    },
+    "apiMatchList": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiMatch"
+          },
+          "description": "A number of matches corresponding to a list operation."
+        }
+      },
+      "description": "A list of realtime matches."
     },
     "apiNotification": {
       "type": "object",

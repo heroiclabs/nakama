@@ -16,55 +16,56 @@ package server
 
 import (
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
 )
 
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
-	SendToPresences(*zap.Logger, []Presence, proto.Message)
-	SendToStream(*zap.Logger, PresenceStream, proto.Message)
+	SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope)
+	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope)
 }
 
 type LocalMessageRouter struct {
 	jsonpbMarshaler *jsonpb.Marshaler
-	registry        *SessionRegistry
+	sessionRegistry *SessionRegistry
 	tracker         Tracker
 }
 
-func NewLocalMessageRouter(registry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
+func NewLocalMessageRouter(sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
 	return &LocalMessageRouter{
 		jsonpbMarshaler: jsonpbMarshaler,
-		registry:        registry,
+		sessionRegistry: sessionRegistry,
 		tracker:         tracker,
 	}
 }
 
-func (r *LocalMessageRouter) SendToPresences(logger *zap.Logger, presences []Presence, msg proto.Message) {
-	if len(presences) == 0 {
+func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs []*PresenceID, envelope *rtapi.Envelope) {
+	if len(presenceIDs) == 0 {
 		return
 	}
 
-	payload, err := r.jsonpbMarshaler.MarshalToString(msg)
+	payload, err := r.jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
 		logger.Error("Could not marshall message to json", zap.Error(err))
 		return
 	}
 	payloadBytes := []byte(payload)
-	for _, presence := range presences {
-		session := r.registry.Get(presence.ID.SessionID)
+	for _, presenceID := range presenceIDs {
+		session := r.sessionRegistry.Get(presenceID.SessionID)
 		if session == nil {
-			logger.Warn("No session to route to", zap.Any("sid", presence.ID.SessionID))
+			if logger.Core().Enabled(zap.DebugLevel) {
+				logger.Debug("No session to route to", zap.Any("sid", presenceID.SessionID))
+			}
 			continue
 		}
-		err := session.SendBytes(payloadBytes)
-		if err != nil {
-			logger.Error("Failed to route to", zap.Any("sid", presence.ID.SessionID), zap.Error(err))
+		if err := session.SendBytes(payloadBytes); err != nil {
+			logger.Error("Failed to route to", zap.Any("sid", presenceID.SessionID), zap.Error(err))
 		}
 	}
 }
 
-func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, msg proto.Message) {
-	presences := r.tracker.ListByStream(stream)
-	r.SendToPresences(logger, presences, msg)
+func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, envelope *rtapi.Envelope) {
+	presenceIDs := r.tracker.ListPresenceIDByStream(stream)
+	r.SendToPresenceIDs(logger, presenceIDs, envelope)
 }
