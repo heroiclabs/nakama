@@ -40,6 +40,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
@@ -57,32 +58,34 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger       *zap.Logger
-	db           *sql.DB
-	config       Config
-	socialClient *social.Client
-	registry     *SessionRegistry
-	tracker      Tracker
-	router       MessageRouter
-	once         *sync.Once
-	announceRPC  func(string)
-	client       *http.Client
+	logger          *zap.Logger
+	db              *sql.DB
+	config          Config
+	socialClient    *social.Client
+	sessionRegistry *SessionRegistry
+	matchRegistry   MatchRegistry
+	tracker         Tracker
+	router          MessageRouter
+	once            *sync.Once
+	announceRPC     func(string)
+	client          *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, registry *SessionRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC: make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger:       logger,
-		db:           db,
-		config:       config,
-		socialClient: socialClient,
-		registry:     registry,
-		tracker:      tracker,
-		router:       router,
-		once:         once,
-		announceRPC:  announceRPC,
+		logger:          logger,
+		db:              db,
+		config:          config,
+		socialClient:    socialClient,
+		sessionRegistry: sessionRegistry,
+		matchRegistry:   matchRegistry,
+		tracker:         tracker,
+		router:          router,
+		once:            once,
+		announceRPC:     announceRPC,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -90,7 +93,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 }
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
-	mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
+	functions := map[string]lua.LGFunction{
 		"sql_exec":                    n.sqlExec,
 		"sql_query":                   n.sqlQuery,
 		"uuid_v4":                     n.uuidV4,
@@ -128,12 +131,15 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
+		"match_create":                n.matchCreate,
+		"match_list":                  n.matchList,
 		"register_rpc":                n.registerRPC,
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
 		"wallet_write":                n.walletWrite,
 		// "run_once": n.runOnce,
-	})
+	}
+	mod := l.SetFuncs(l.CreateTable(len(functions), len(functions)), functions)
 
 	l.Push(mod)
 	return 1
@@ -219,9 +225,9 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 		return 0
 	}
 
-	rt := l.NewTable()
+	rt := l.CreateTable(len(resultRows), len(resultRows))
 	for i, r := range resultRows {
-		rowTable := l.NewTable()
+		rowTable := l.CreateTable(resultColumnCount, resultColumnCount)
 		for j, col := range resultColumns {
 			rowTable.RawSetString(col, convertValue(l, r[j]))
 		}
@@ -372,7 +378,13 @@ func (n *NakamaModule) base64Encode(l *lua.LState) int {
 		return 0
 	}
 
-	output := base64.StdEncoding.EncodeToString([]byte(input))
+	padding := l.OptBool(2, true)
+
+	e := base64.StdEncoding
+	if !padding {
+		e = base64.RawStdEncoding
+	}
+	output := e.EncodeToString([]byte(input))
 	l.Push(lua.LString(output))
 	return 1
 }
@@ -384,7 +396,16 @@ func (n *NakamaModule) base64Decode(l *lua.LState) int {
 		return 0
 	}
 
-	output, err := base64.RawStdEncoding.DecodeString(input)
+	padding := l.OptBool(2, false)
+
+	if !padding {
+		// Pad string up to length multiple of 4 if needed to effectively make padding optional.
+		if maybePad := len(input) % 4; maybePad != 0 {
+			input += strings.Repeat("=", 4-maybePad)
+		}
+	}
+
+	output, err := base64.StdEncoding.DecodeString(input)
 	if err != nil {
 		l.RaiseError("not a valid base64 string: %v", err.Error())
 		return 0
@@ -401,7 +422,13 @@ func (n *NakamaModule) base64URLEncode(l *lua.LState) int {
 		return 0
 	}
 
-	output := base64.URLEncoding.EncodeToString([]byte(input))
+	padding := l.OptBool(2, true)
+
+	e := base64.URLEncoding
+	if !padding {
+		e = base64.RawURLEncoding
+	}
+	output := e.EncodeToString([]byte(input))
 	l.Push(lua.LString(output))
 	return 1
 }
@@ -413,7 +440,16 @@ func (n *NakamaModule) base64URLDecode(l *lua.LState) int {
 		return 0
 	}
 
-	output, err := base64.RawURLEncoding.DecodeString(input)
+	padding := l.OptBool(2, false)
+
+	if !padding {
+		// Pad string up to length multiple of 4 if needed to effectively make padding optional.
+		if maybePad := len(input) % 4; maybePad != 0 {
+			input += strings.Repeat("=", 4-maybePad)
+		}
+	}
+
+	output, err := base64.URLEncoding.DecodeString(input)
 	if err != nil {
 		l.RaiseError("not a valid base64 url string: %v", err.Error())
 		return 0
@@ -920,7 +956,7 @@ func (n *NakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	exp := l.OptInt64(3, 0)
 	if exp == 0 {
 		// If expiry is 0 or not set, use standard configured expiry.
-		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpiryMs) * time.Millisecond).Unix()
+		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
 	token := generateTokenWithExpiry(n.config, userIDString, username, exp)
@@ -1066,7 +1102,7 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 	if meta == nil {
 		l.Push(lua.LNil)
 	} else {
-		metaTable := l.NewTable()
+		metaTable := l.CreateTable(4, 4)
 		metaTable.RawSetString("Hidden", lua.LBool(meta.Hidden))
 		metaTable.RawSetString("Persistence", lua.LBool(meta.Persistence))
 		metaTable.RawSetString("Username", lua.LString(meta.Username))
@@ -1158,20 +1194,24 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 	persistence := l.OptBool(5, true)
 
 	// Look up the session.
-	session := n.registry.Get(sessionID)
+	session := n.sessionRegistry.Get(sessionID)
 	if session == nil {
 		l.ArgError(2, "session id does not exist")
 		return 0
 	}
 
-	alreadyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
+	success, newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
-	})
+	}, false)
+	if !success {
+		l.RaiseError("tracker rejected new presence, session is closing")
+		return 0
+	}
 
-	l.Push(lua.LBool(alreadyTracked))
+	l.Push(lua.LBool(newlyTracked))
 	return 1
 }
 
@@ -1444,6 +1484,92 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 	n.router.SendToStream(n.logger, stream, msg)
 
 	return 0
+}
+
+func (n *NakamaModule) matchCreate(l *lua.LState) int {
+	// Parse the name of the Lua module that should handle the match.
+	name := l.CheckString(1)
+	if name == "" {
+		l.ArgError(1, "expects module name")
+		return 0
+	}
+
+	params := convertLuaValue(l.Get(2))
+
+	// Start the match.
+	mh, err := n.matchRegistry.NewMatch(name, params)
+	if err != nil {
+		l.RaiseError("error creating match: %v", err.Error())
+		return 0
+	}
+
+	// Return the match ID in a form that can be directly sent to clients.
+	l.Push(lua.LString(mh.IDStr))
+	return 1
+}
+
+func (n *NakamaModule) matchList(l *lua.LState) int {
+	// Parse limit.
+	limit := l.OptInt(1, 1)
+
+	// Parse authoritative flag.
+	var authoritative *wrappers.BoolValue
+	if v := l.Get(2); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTBool {
+			l.ArgError(2, "expects authoritative true/false or nil")
+			return 0
+		}
+		authoritative = &wrappers.BoolValue{Value: lua.LVAsBool(v)}
+	}
+
+	// Parse label filter.
+	var label *wrappers.StringValue
+	if v := l.Get(3); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTString {
+			l.ArgError(3, "expects label string or nil")
+			return 0
+		}
+		label = &wrappers.StringValue{Value: lua.LVAsString(v)}
+	}
+
+	// Parse minimum size filter.
+	var minSize *wrappers.Int32Value
+	if v := l.Get(4); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(4, "expects minimum size number or nil")
+			return 0
+		}
+		minSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+	}
+
+	// Parse maximum size filter.
+	var maxSize *wrappers.Int32Value
+	if v := l.Get(5); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(5, "expects maximum size number or nil")
+			return 0
+		}
+		maxSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+	}
+
+	results := n.matchRegistry.ListMatches(limit, authoritative, label, minSize, maxSize)
+
+	s := len(results)
+	matches := l.CreateTable(s, s)
+	for i, result := range results {
+		match := l.CreateTable(4, 4)
+		match.RawSetString("MatchId", lua.LString(result.MatchId))
+		match.RawSetString("Authoritative", lua.LBool(result.Authoritative))
+		if result.Label == nil {
+			match.RawSetString("Label", lua.LNil)
+		} else {
+			match.RawSetString("Label", lua.LString(result.Label.Value))
+		}
+		match.RawSetString("Size", lua.LNumber(result.Size))
+		matches.RawSetInt(i+1, match)
+	}
+	l.Push(matches)
+	return 1
 }
 
 func (n *NakamaModule) registerRPC(l *lua.LState) int {

@@ -19,6 +19,7 @@ syntax = "proto3";
 
 package nakama.realtime;
 
+import "google/protobuf/wrappers.proto";
 import "github.com/heroiclabs/nakama/api/api.proto";
 
 option go_package = "rtapi";
@@ -76,10 +77,12 @@ message Error {
     BAD_INPUT = 3;
     // The match id was not found.
     MATCH_NOT_FOUND = 4;
+    // The match join was rejected.
+    MATCH_JOIN_REJECTED = 5;
     // The runtime function does not exist on the server.
-    RUNTIME_FUNCTION_NOT_FOUND = 5;
+    RUNTIME_FUNCTION_NOT_FOUND = 6;
     // The runtime function executed with an error.
-    RUNTIME_FUNCTION_EXCEPTION = 6;
+    RUNTIME_FUNCTION_EXCEPTION = 7;
   }
 
   // The error code which should be one of "Error.Code" enums.
@@ -92,9 +95,18 @@ message Error {
 
 // A realtime match.
 message Match {
+  // The match unique ID.
   string match_id = 1;
-  repeated StreamPresence presences = 2;
-  StreamPresence self = 3;
+  // True if it's an server-managed authoritative match, false otherwise.
+  bool authoritative = 2;
+  // Match label, if any.
+  google.protobuf.StringValue label = 3;
+  // The number of users currently in the match.
+  int32 size = 4;
+  // The users currently in the match.
+  repeated StreamPresence presences = 5;
+  // A reference to the current user's presence in the match.
+  StreamPresence self = 6;
 }
 
 // Create a new realtime match.
@@ -102,37 +114,51 @@ message MatchCreate {}
 
 // Realtime match data received from the server.
 message MatchData {
+  // The match unique ID.
   string match_id = 1;
+  // A reference to the user presence that sent this data, if any.
   StreamPresence presence = 2;
+  // Op code value.
   int64 op_code = 3;
+  // Data payload, if any.
   bytes data = 4;
 }
 
 // Send realtime match data to the server.
 message MatchDataSend {
+  // The match unique ID.
   string match_id = 1;
+  // Op code value.
   int64 op_code = 2;
+  // Data payload, if any.
   bytes data = 3;
+  // List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
   repeated StreamPresence presences = 4;
 }
 
 // Join an existing realtime match.
 message MatchJoin {
   oneof id {
+    // The match unique ID.
     string match_id = 1;
+    // A matchmaking result token.
     string token = 2;
   }
 }
 
 // Leave a realtime match.
 message MatchLeave {
+  // The match unique ID.
   string match_id = 1;
 }
 
 // A set of joins and leaves on a particular realtime match.
 message MatchPresenceEvent {
+  // The match unique ID.
   string match_id = 1;
+  // User presences that have just joined the match.
   repeated StreamPresence joins = 2;
+  // User presences that have just left the match.
   repeated StreamPresence leaves = 3;
 }
 

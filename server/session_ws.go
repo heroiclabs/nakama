@@ -27,9 +27,10 @@ import (
 	"github.com/satori/go.uuid"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"net"
 )
 
-var ErrQueueFull = errors.New("outgoing queue full")
+var ErrSessionQueueFull = errors.New("session outgoing queue full")
 
 type sessionWS struct {
 	sync.Mutex
@@ -43,8 +44,8 @@ type sessionWS struct {
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 
-	registry *SessionRegistry
-	tracker  Tracker
+	sessionRegistry *SessionRegistry
+	tracker         Tracker
 
 	stopped        bool
 	conn           *websocket.Conn
@@ -53,7 +54,7 @@ type sessionWS struct {
 	outgoingStopCh chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, registry *SessionRegistry, tracker Tracker) session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, tracker Tracker) session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -70,8 +71,8 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 
-		registry: registry,
-		tracker:  tracker,
+		sessionRegistry: sessionRegistry,
+		tracker:         tracker,
 
 		stopped:        false,
 		conn:           conn,
@@ -105,7 +106,7 @@ func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope)) {
+func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope) error) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
@@ -126,8 +127,12 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 	for {
 		_, data, err := s.conn.ReadMessage()
 		if err != nil {
+			// Ignore "normal" WebSocket errors.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
-				s.logger.Warn("Error reading message from client", zap.Error(err))
+				// Ignore underlying connection being shut down while read is waiting for data.
+				if e, ok := err.(*net.OpError); !ok || e.Err.Error() != "use of closed network connection" {
+					s.logger.Warn("Error reading message from client", zap.Error(err))
+				}
 			}
 			break
 		}
@@ -136,15 +141,14 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
 			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
-			s.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
-				Message: "Unrecognized payload",
-			}}})
 			break
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.Cid))
-			processRequest(requestLogger, s, request)
+			if err = processRequest(requestLogger, s, request); err != nil {
+				requestLogger.Warn("Received unrecognized payload", zap.String("data", string(data)))
+				break
+			}
 		}
 	}
 }
@@ -162,12 +166,21 @@ func (s *sessionWS) processOutgoing() {
 				return
 			}
 		case payload := <-s.outgoingCh:
+			s.Lock()
+			if s.stopped {
+				// The connection may have stopped between the payload being queued on the outgoing channel and reaching here.
+				// If that's the case then abort outgoing processing at this point and exit.
+				s.Unlock()
+				return
+			}
 			// Process the outgoing message queue.
 			s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
 			if err := s.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				s.Unlock()
 				s.logger.Warn("Could not write message", zap.Error(err))
 				return
 			}
+			s.Unlock()
 		}
 	}
 }
@@ -229,9 +242,9 @@ func (s *sessionWS) SendBytes(payload []byte) error {
 		// Terminate the connection immediately because the only alternative that doesn't block the server is
 		// to start dropping messages, which might cause unexpected behaviour.
 		s.Unlock()
-		s.logger.Warn("Could not write message, outgoing queue full")
+		s.logger.Warn("Could not write message, session outgoing queue full")
 		s.cleanupClosedConnection()
-		return ErrQueueFull
+		return ErrSessionQueueFull
 	}
 }
 
@@ -244,10 +257,12 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.stopped = true
 	s.Unlock()
 
-	s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	if s.logger.Core().Enabled(zap.DebugLevel) {
+		s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+	}
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
-	s.registry.remove(s.id)
+	s.sessionRegistry.remove(s.id)
 	s.tracker.UntrackAll(s.id)
 
 	// Clean up internals.
