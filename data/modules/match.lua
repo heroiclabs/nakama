@@ -195,6 +195,7 @@ Expected return these values (all required) in order:
 local function match_loop(context, dispatcher, tick, state, messages)
   if state.debug then
     print("match " .. context.MatchId .. " tick " .. tick)
+    print("match " .. context.MatchId .. " messages:\n" .. du.print_r(messages))
   end
   if tick < 180 then
     return state
