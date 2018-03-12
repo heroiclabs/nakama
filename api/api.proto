@@ -836,6 +836,8 @@ message StorageObjectAck {
   string key = 2;
   // The version hash of the object.
   string version = 3;
+  // The owner of the object.
+  string user_id = 4;
 }
 
 // Batch of acknowledgements for the storage object write.

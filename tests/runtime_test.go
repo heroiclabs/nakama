@@ -10,12 +10,13 @@ import (
 	"testing"
 
 	"fmt"
+	"sync"
+
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"sync"
 )
 
 type DummyMessageRouter struct{}
