@@ -193,12 +193,16 @@ func StorageReadObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, object
 			whereClause += " OR "
 		}
 
-		if id.GetUserId() == "" {
+		if uuid.Equal(caller, uuid.Nil) { // Disregard permissions if called authoritatively.
+			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v) ", l+1, l+2, l+3)
+			if id.UserId == "" {
+				params = append(params, id.Collection, id.Key, uuid.Nil)
+			} else {
+				params = append(params, id.Collection, id.Key, id.UserId)
+			}
+		} else if id.GetUserId() == "" {
 			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v AND read = 2) ", l+1, l+2, l+3)
 			params = append(params, id.Collection, id.Key, uuid.Nil)
-		} else if uuid.Equal(caller, uuid.Nil) { // Disregard permissions if called authoritatively.
-			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v) ", l+1, l+2, l+3)
-			params = append(params, id.Collection, id.Key, id.UserId)
 		} else {
 			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v AND (read = 2 OR (read = 1 AND user_id = $%v))) ", l+1, l+2, l+3, l+4)
 			params = append(params, id.Collection, id.Key, id.UserId, caller)
@@ -236,7 +240,9 @@ WHERE
 		o.CreateTime.Seconds = createTime.Time.Unix()
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-		o.UserId = userID.String
+		if !uuid.Equal(uuid.FromStringOrNil(userID.String), uuid.Nil) {
+			o.UserId = userID.String
+		}
 		objects.Objects = append(objects.Objects, o)
 	}
 	if err = rows.Err(); err != nil {

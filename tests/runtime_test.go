@@ -50,9 +50,7 @@ func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.Run
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
 	}
-	runtimePool := server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
-
-	return runtimePool
+	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
