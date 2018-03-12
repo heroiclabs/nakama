@@ -89,6 +89,9 @@ Expected return these values (all required) in order:
 2. Boolean true if the join attempt should be allowed, false otherwise.
 --]]
 local function match_join_attempt(context, dispatcher, tick, state, presence)
+  if state.debug then
+    print("match join attempt:\n" .. du.print_r(presence))
+  end
   return state, true
 end
 
@@ -136,6 +139,9 @@ Expected return these values (all required) in order:
 1. An (optionally) updated state. May be any non-nil Lua term, or nil to end the match.
 --]]
 local function match_leave(context, dispatcher, tick, state, presences)
+  if state.debug then
+    print("match leave:\n" .. du.print_r(presences))
+  end
   return state
 end
 
@@ -190,7 +196,7 @@ local function match_loop(context, dispatcher, tick, state, messages)
   if state.debug then
     print("match " .. context.MatchId .. " tick " .. tick)
   end
-  if tick < 10 then
+  if tick < 180 then
     return state
   end
 end
