@@ -70,7 +70,7 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 	assert.Len(t, readData.Objects, 1, "data length was not 1")
 	assert.Equal(t, acks.Acks[0].Collection, readData.Objects[0].Collection, "collection did not match")
 	assert.Equal(t, acks.Acks[0].Key, readData.Objects[0].Key, "record did not match")
-	assert.Equal(t, uuid.Nil.String(), readData.Objects[0].UserId, "user id was not nil")
+	assert.Equal(t, "", readData.Objects[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), readData.Objects[0].Version, "version did not match")
 	assert.Equal(t, int32(2), readData.Objects[0].PermissionRead, "permission read did not match")
 	assert.Equal(t, int32(1), readData.Objects[0].PermissionWrite, "permission write did not match")
@@ -138,7 +138,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
-		uuid.NewV4(): {{
+		uuid.Nil: {{
 			Collection:      "testcollection",
 			Key:             generateString(),
 			Value:           "{\"foo\":\"bar\"}",
@@ -152,592 +152,508 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected -  not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
 }
 
-//func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//			Collection:      "testcollection",
-//			Key:             generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead:  &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//
-//	data = []*server.StorageData{
-//		&server.StorageData{
-//			Collection:      "testcollection",
-//			Key:             data[0].Key,
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         acks.Acks[0].Version,
-//			PermissionRead:  &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//
-//	acks, code, err = server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//}
+func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
 
-//func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//
-//	data = []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          data[0].Key,
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         "fail",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//
-//	acks, code, err = server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			Version:         "*",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//}
-//
-//func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//
-//	data = []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          data[0].Key,
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         "*",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//
-//	acks, code, err = server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         "fail",
-//			PermissionRead: &wrappers.Int32Value{Value: 0},
-//			PermissionWrite: &wrappers.Int32Value{Value: 0},,
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWritePipelineSingleGlobalNotAllowed(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uuid.NewV4().String(), data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "A client cannot write global records", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWritePipelineSingleOtherClientNotAllowed(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uuid.NewV4().String(),
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uuid.NewV4().String(), data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.BAD_INPUT, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "A client can only write their own records", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWritePipelineUserSingle(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.EqualValues(t, data[0].UserId, acks.Acks[0].UserId, "user id did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//}
-//
-//func TestStorageWritePipelineUserMultiple(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"baz\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 0},
-//			PermissionWrite: &wrappers.Int32Value{Value: 0},,
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"qux\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 1},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 3, "acks length was not 3")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket 0 did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection 0 did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key 0 did not match")
-//	assert.EqualValues(t, data[0].UserId, acks.Acks[0].UserId, "user id 0 did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version 0 did not match")
-//	assert.Equal(t, data[1].Bucket, acks[1].Bucket, "bucket 1 did not match")
-//	assert.Equal(t, data[1].Collection, acks[1].Collection, "collection 1 did not match")
-//	assert.Equal(t, data[1].Key, acks[1].Key, "record 1 did not match")
-//	assert.EqualValues(t, data[1].UserId, acks[1].UserId, "user id 1 did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), acks[1].Version, "version 1 did not match")
-//	assert.Equal(t, data[2].Bucket, acks[2].Bucket, "bucket 2 did not match")
-//	assert.Equal(t, data[2].Collection, acks[2].Collection, "collection 2 did not match")
-//	assert.Equal(t, data[2].Key, acks[2].Key, "record 2 did not match")
-//	assert.EqualValues(t, data[2].UserId, acks[2].UserId, "user id 2 did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[2].Value))), acks[2].Version, "version 2 did not match")
-//}
-//
-//func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	record := generateString()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			Value:           "{\"foo\":\"baz\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 0},
-//			PermissionWrite: &wrappers.Int32Value{Value: 0},,
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			Value:           "{\"foo\":\"qux\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 1},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, "", data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 3, "acks length was not 3")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket 0 did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection 0 did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key 0 did not match")
-//	assert.Equal(t, "", acks.Acks[0].UserId, "user id 0 was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version 0 did not match")
-//	assert.Equal(t, data[1].Bucket, acks[1].Bucket, "bucket 1 did not match")
-//	assert.Equal(t, data[1].Collection, acks[1].Collection, "collection 1 did not match")
-//	assert.Equal(t, data[1].Key, acks[1].Key, "record 1 did not match")
-//	assert.Equal(t, "", acks[1].UserId, "user id 1 was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), acks[1].Version, "version 1 did not match")
-//	assert.Equal(t, data[2].Bucket, acks[2].Bucket, "bucket 2 did not match")
-//	assert.Equal(t, data[2].Collection, acks[2].Collection, "collection 2 did not match")
-//	assert.Equal(t, data[2].Key, acks[2].Key, "record 2 did not match")
-//	assert.Equal(t, "", acks[2].UserId, "user id 2 was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[2].Value))), acks[2].Version, "version 2 did not match")
-//
-//	ids := []*server.StorageKey{
-//		&server.StorageKey{
-//			Bucket:     "testbucket",
-//			Collection: "testcollection",
-//			Key:     record,
-//		},
-//	}
-//
-//	data, code, err = server.StorageReadObjects(logger, db, uuid.Nil, ids)
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, data, "data was nil")
-//	assert.Len(t, data, 1, "data length was not 1")
-//	assert.Equal(t, "testbucket", data[0].Bucket, "bucket did not match")
-//	assert.Equal(t, "testcollection", data[0].Collection, "collection did not match")
-//	assert.Equal(t, record, data[0].Key, "record did not match")
-//	assert.Equal(t, "", data[0].UserId, "user id was not nil")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256("{\"foo\":\"qux\"}"))), data[0].Version, "version did not match")
-//	assert.Equal(t, int64(1), data[0].PermissionRead, "permission read did not match")
-//	assert.Equal(t, int64(1), data[0].PermissionWrite, "permission write did not match")
-//}
-//
-//func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	record := generateString()
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"baz\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 1},
-//			PermissionWrite: &wrappers.Int32Value{Value: 0},,
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 2, "acks length was not 2")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket 0 did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection 0 did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key 0 did not match")
-//	assert.EqualValues(t, uid, acks.Acks[0].UserId, "user id 0 did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version 0 did not match")
-//	assert.Equal(t, data[1].Bucket, acks[1].Bucket, "bucket 1 did not match")
-//	assert.Equal(t, data[1].Collection, acks[1].Collection, "collection 1 did not match")
-//	assert.Equal(t, data[1].Key, acks[1].Key, "record 1 did not match")
-//	assert.EqualValues(t, uid, acks[1].UserId, "user id 1 did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256(data[1].Value))), acks[1].Version, "version 1 did not match")
-//
-//	ids := []*server.StorageKey{
-//		&server.StorageKey{
-//			Bucket:     "testbucket",
-//			Collection: "testcollection",
-//			Key:     record,
-//			UserId:     uid,
-//		},
-//	}
-//
-//	data, code, err = server.StorageReadObjects(logger, db, "", acks)
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, data, "data was nil")
-//	assert.Len(t, data, 1, "data length was not 1")
-//	assert.Equal(t, "testbucket", data[0].Bucket, "bucket did not match")
-//	assert.Equal(t, "testcollection", data[0].Collection, "collection did not match")
-//	assert.Equal(t, record, data[0].Key, "record did not match")
-//	assert.EqualValues(t, uid, data[0].UserId, "user id did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", sha256.Sum256("{\"foo\":\"baz\"}"))), data[0].Version, "version did not match")
-//	assert.Equal(t, int64(1), data[0].PermissionRead, "permission read did not match")
-//	assert.Equal(t, int64(0), data[0].PermissionWrite, "permission write did not match")
-//}
-//
-//func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			Version:         "fail",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.EqualValues(t, acks.Acks[0].UserId, data[0].UserId, "user id did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//
-//	data = []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          generateString(),
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         "fail",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err = server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, acks, "acks was not nil")
-//	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
-//	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
-//}
-//
-//func TestStorageWritePipelineIfMatchExists(t *testing.T) {
-//	db := db(t)
-//	defer db.Close()
-//
-//	record := generateString()
-//	uid := uuid.NewV4().String()
-//
-//	data := []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"bar\"}",
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err := server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.EqualValues(t, acks.Acks[0].UserId, data[0].UserId, "user id did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//
-//	data = []*server.StorageData{
-//		&server.StorageData{
-//						Collection:      "testcollection",
-//			Key:          record,
-//			UserId:          uid,
-//			Value:           "{\"foo\":\"baz\"}",
-//			Version:         acks.Acks[0].Version,
-//			PermissionRead: &wrappers.Int32Value{Value: 2},
-//			PermissionWrite: &wrappers.Int32Value{Value: 1},
-//		},
-//	}
-//	acks, code, err = server.StorageWriteObjects(logger, db, uid, data)
-//
-//	assert.Nil(t, err, "err was not nil")
-//	assert.Equal(t, 0, int(code), "code was not 0")
-//	assert.NotNil(t, acks, "acks was nil")
-//	assert.Len(t, acks, 1, "acks length was not 1")
-//	assert.Equal(t, data[0].Bucket, acks.Acks[0].Bucket, "bucket did not match")
-//	assert.Equal(t, data[0].Collection, acks.Acks[0].Collection, "collection did not match")
-//	assert.Equal(t, data[0].Key, acks.acks.Acks[0].Key, "key did not match")
-//	assert.EqualValues(t, acks.Acks[0].UserId, data[0].UserId, "user id did not match")
-//	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
-//}
-//
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
+
+	data = map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             data[uuid.Nil][0].Key,
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         acks.Acks[0].Version,
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+
+	acks, code, err = server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
+}
+
+func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
+
+	data = map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             data[uuid.Nil][0].Key,
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         "fail",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+
+	acks, code, err = server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, acks, "acks was not nil")
+	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+}
+
+func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			Version:         "*",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
+}
+
+func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version did not match")
+
+	data = map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             data[uuid.Nil][0].Key,
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         "*",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+
+	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, acks, "acks was not nil")
+	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+}
+
+func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}, {
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         "fail",
+			PermissionRead:  &wrappers.Int32Value{Value: 0},
+			PermissionWrite: &wrappers.Int32Value{Value: 0},
+		}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, acks, "acks was not nil")
+	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+}
+
+func TestStorageWritePipelineUserSingle(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uid][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uid][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.EqualValues(t, uid.String(), acks.Acks[0].UserId, "user id did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks.Acks[0].Version, "version did not match")
+}
+
+func TestStorageWritePipelineUserMultiple(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		},
+			{
+				Collection:      "testcollection",
+				Key:             generateString(),
+				Value:           "{\"foo\":\"baz\"}",
+				PermissionRead:  &wrappers.Int32Value{Value: 0},
+				PermissionWrite: &wrappers.Int32Value{Value: 0},
+			},
+			{
+				Collection:      "testcollection",
+				Key:             generateString(),
+				Value:           "{\"foo\":\"qux\"}",
+				PermissionRead:  &wrappers.Int32Value{Value: 1},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			}},
+	}
+	allAcks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks := allAcks.Acks
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks, 3, "acks length was not 3")
+	assert.Equal(t, data[uid][0].Collection, acks[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[uid][0].Key, acks[0].Key, "key 0 did not match")
+	assert.EqualValues(t, uid.String(), acks[0].UserId, "user id 0 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks[0].Version, "version 0 did not match")
+	assert.Equal(t, data[uid][1].Collection, acks[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[uid][1].Key, acks[1].Key, "record 1 did not match")
+	assert.EqualValues(t, uid.String(), acks[1].UserId, "user id 1 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][1].Value))))), acks[1].Version, "version 1 did not match")
+	assert.Equal(t, data[uid][2].Collection, acks[2].Collection, "collection 2 did not match")
+	assert.Equal(t, data[uid][2].Key, acks[2].Key, "record 2 did not match")
+	assert.EqualValues(t, uid.String(), acks[2].UserId, "user id 2 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][2].Value))))), acks[2].Version, "version 2 did not match")
+}
+
+func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	key := generateString()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uuid.Nil: {{
+			Collection:      "testcollection",
+			Key:             key,
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		},
+			{
+				Collection:      "testcollection",
+				Key:             key,
+				Value:           "{\"foo\":\"baz\"}",
+				PermissionRead:  &wrappers.Int32Value{Value: 0},
+				PermissionWrite: &wrappers.Int32Value{Value: 0},
+			},
+			{
+				Collection:      "testcollection",
+				Key:             key,
+				Value:           "{\"foo\":\"qux\"}",
+				PermissionRead:  &wrappers.Int32Value{Value: 1},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, 0, int(code), "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 3, "acks length was not 3")
+	assert.Equal(t, data[uuid.Nil][0].Collection, acks.Acks[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[uuid.Nil][0].Key, acks.Acks[0].Key, "key 0 did not match")
+	assert.Equal(t, "", acks.Acks[0].UserId, "user id 0 was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][0].Value))))), acks.Acks[0].Version, "version 0 did not match")
+
+	assert.Equal(t, data[uuid.Nil][1].Collection, acks.Acks[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[uuid.Nil][1].Key, acks.Acks[1].Key, "record 1 did not match")
+	assert.Equal(t, "", acks.Acks[1].UserId, "user id 1 was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][1].Value))))), acks.Acks[1].Version, "version 1 did not match")
+
+	assert.Equal(t, data[uuid.Nil][2].Collection, acks.Acks[2].Collection, "collection 2 did not match")
+	assert.Equal(t, data[uuid.Nil][2].Key, acks.Acks[2].Key, "record 2 did not match")
+	assert.Equal(t, "", acks.Acks[2].UserId, "user id 2 was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uuid.Nil][2].Value))))), acks.Acks[2].Version, "version 0 did not match")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection",
+		Key:        key,
+	}}
+
+	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, readData, "data was nil")
+	assert.Len(t, readData.Objects, 1, "data length was not 1")
+	assert.Equal(t, "testcollection", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, key, readData.Objects[0].Key, "key did not match")
+	assert.Equal(t, "", readData.Objects[0].UserId, "user id was not nil")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte("{\"foo\":\"qux\"}")))), readData.Objects[0].Version, "version did not match")
+	assert.Equal(t, int32(1), readData.Objects[0].PermissionRead, "permission read did not match")
+	assert.Equal(t, int32(1), readData.Objects[0].PermissionWrite, "permission write did not match")
+}
+
+func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	key := generateString()
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             key,
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		},
+			{
+				Collection:      "testcollection",
+				Key:             key,
+				Value:           "{\"foo\":\"baz\"}",
+				PermissionRead:  &wrappers.Int32Value{Value: 1},
+				PermissionWrite: &wrappers.Int32Value{Value: 0},
+			}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 2, "acks length was not 2")
+	assert.Equal(t, data[uid][0].Collection, acks.Acks[0].Collection, "collection 0 did not match")
+	assert.Equal(t, data[uid][0].Key, acks.Acks[0].Key, "key 0 did not match")
+	assert.EqualValues(t, uid.String(), acks.Acks[0].UserId, "user id 0 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks.Acks[0].Version, "version 0 did not match")
+	assert.Equal(t, data[uid][1].Collection, acks.Acks[1].Collection, "collection 1 did not match")
+	assert.Equal(t, data[uid][1].Key, acks.Acks[1].Key, "record 1 did not match")
+	assert.EqualValues(t, uid.String(), acks.Acks[1].UserId, "user id 1 did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][1].Value))))), acks.Acks[1].Version, "version 1 did not match")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection",
+		Key:        key,
+		UserId:     uid.String(),
+	},
+	}
+
+	readData, err := server.StorageReadObjects(logger, db, uid, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, readData, "data was nil")
+	assert.Len(t, readData.Objects, 1, "data length was not 1")
+	assert.Equal(t, "testcollection", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, key, readData.Objects[0].Key, "record did not match")
+	assert.EqualValues(t, uid.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte("{\"foo\":\"baz\"}")))), readData.Objects[0].Version, "version did not match")
+	assert.Equal(t, int32(1), readData.Objects[0].PermissionRead, "permission read did not match")
+	assert.Equal(t, int32(0), readData.Objects[0].PermissionWrite, "permission write did not match")
+}
+
+func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			Version:         "fail",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, acks, "acks was not nil")
+	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+}
+
+func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uid][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uid][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.EqualValues(t, acks.Acks[0].UserId, uid.String(), "user id did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks.Acks[0].Version, "version did not match")
+
+	data = map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             generateString(),
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         "fail",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, acks, "acks was not nil")
+	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.NotNil(t, err, "err was nil")
+	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+}
+
+func TestStorageWritePipelineIfMatchExists(t *testing.T) {
+	db := db(t)
+	defer db.Close()
+
+	key := generateString()
+	uid := uuid.NewV4()
+
+	data := map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             key,
+			Value:           "{\"foo\":\"bar\"}",
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uid][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uid][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.EqualValues(t, acks.Acks[0].UserId, uid.String(), "user id did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks.Acks[0].Version, "version did not match")
+
+	data = map[uuid.UUID][]*api.WriteStorageObject{
+		uid: {{
+			Collection:      "testcollection",
+			Key:             key,
+			Value:           "{\"foo\":\"baz\"}",
+			Version:         acks.Acks[0].Version,
+			PermissionRead:  &wrappers.Int32Value{Value: 2},
+			PermissionWrite: &wrappers.Int32Value{Value: 1},
+		}},
+	}
+	acks, _, err = server.StorageWriteObjects(logger, db, false, data)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+	assert.Equal(t, data[uid][0].Collection, acks.Acks[0].Collection, "collection did not match")
+	assert.Equal(t, data[uid][0].Key, acks.Acks[0].Key, "key did not match")
+	assert.EqualValues(t, acks.Acks[0].UserId, uid.String(), "user id did not match")
+	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((data[uid][0].Value))))), acks.Acks[0].Version, "version did not match")
+}
+
 //func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 //	db := db(t)
 //	defer db.Close()
@@ -813,7 +729,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 //	assert.Nil(t, acks, "acks was not nil")
 //	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
 //	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+//	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
 //}
 //
 //func TestStorageWritePipelinePermissionFail(t *testing.T) {
@@ -860,7 +776,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 //	assert.Nil(t, acks, "acks was not nil")
 //	assert.Equal(t, server.STORAGE_REJECTED, code, "code did not match")
 //	assert.NotNil(t, err, "err was nil")
-//	assert.Equal(t, "Storage write rejected: not found, version check failed, or permission denied", err.Error(), "error message did not match")
+//	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
 //}
 //
 //func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {

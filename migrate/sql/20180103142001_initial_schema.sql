@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS storage (
 
     collection  VARCHAR(128) NOT NULL,
     key         VARCHAR(128) NOT NULL,
-    user_id     UUID,
+    user_id     UUID,        NOT NULL,
     value       JSONB        DEFAULT '{}' NOT NULL,
     version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
     read        SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,
