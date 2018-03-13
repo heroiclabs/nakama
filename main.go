@@ -130,16 +130,15 @@ func main() {
 }
 
 func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) {
-	// TODO config database pooling
 	rawurl := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
-	url, err := url.Parse(rawurl)
+	parsedUrl, err := url.Parse(rawurl)
 	if err != nil {
 		multiLogger.Fatal("Bad database connection URL", zap.Error(err))
 	}
-	query := url.Query()
+	query := parsedUrl.Query()
 	if len(query.Get("sslmode")) == 0 {
 		query.Set("sslmode", "disable")
-		url.RawQuery = query.Encode()
+		parsedUrl.RawQuery = query.Encode()
 	}
 
 	if len(parsedUrl.Path) < 1 {
@@ -154,6 +153,9 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	if err != nil {
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
+	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
+	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
+	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
 
 	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
 	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
