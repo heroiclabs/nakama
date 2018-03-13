@@ -23,12 +23,15 @@ import (
 type ExecutionMode int
 
 const (
-	RPC ExecutionMode = iota
+	RunOnce ExecutionMode = iota
+	RPC
 	Match
 )
 
 func (e ExecutionMode) String() string {
 	switch e {
+	case RunOnce:
+		return "run_once"
 	case RPC:
 		return "rpc"
 	case Match:
