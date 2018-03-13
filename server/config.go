@@ -242,9 +242,9 @@ type DatabaseConfig struct {
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Addresses:         []string{"root@localhost:26257"},
-		ConnMaxLifetimeMs: 60000,
+		ConnMaxLifetimeMs: 0,
 		MaxOpenConns:      0,
-		MaxIdleConns:      0,
+		MaxIdleConns:      2,
 	}
 }
 
