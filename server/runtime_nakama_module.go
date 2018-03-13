@@ -137,7 +137,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
 		"wallet_write":                n.walletWrite,
-		// "run_once": n.runOnce,
+		"run_once":                    n.runOnce,
 	}
 	mod := l.SetFuncs(l.CreateTable(len(functions), len(functions)), functions)
 
@@ -1828,9 +1828,23 @@ func (n *NakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
+		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), RunOnce, "", "", 0, "")
+
+		l.Push(LSentinel)
 		l.Push(fn)
-		if err := l.PCall(0, lua.MultRet, nil); err != nil {
+		l.Push(ctx)
+		if err := l.PCall(1, lua.MultRet, nil); err != nil {
 			l.RaiseError("error in run_once function: %v", err.Error())
+			return
+		}
+
+		// Unwind the stack up to and including our sentinel value, effectively discarding any returned parameters.
+		for {
+			v := l.Get(-1)
+			l.Pop(1)
+			if v.Type() == LTSentinel {
+				break
+			}
 		}
 	})
 
