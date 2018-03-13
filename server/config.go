@@ -244,7 +244,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 		Addresses:         []string{"root@localhost:26257"},
 		ConnMaxLifetimeMs: 0,
 		MaxOpenConns:      0,
-		MaxIdleConns:      2,
+		MaxIdleConns:      100,
 	}
 }
 
