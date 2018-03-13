@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"encoding/json"
+	"strconv"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
@@ -29,7 +31,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
 )
 
 func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, error) {
@@ -77,6 +78,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_custom_id_key") {
 				// A concurrent write has inserted this custom ID.
+				logger.Debug("Did not insert new user as custom ID already exists.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -85,6 +87,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
 		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
