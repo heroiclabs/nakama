@@ -151,7 +151,7 @@ func main() {
 
 func dbConnect(multiLogger *zap.Logger, dsns []string) (*sql.DB, string) {
 	// TODO config database pooling
-	var rawurl = fmt.Sprintf("postgresql://%s", dsns[0])
+	rawurl := fmt.Sprintf("postgresql://%s", dsns[0])
 	url, err := url.Parse(rawurl)
 	if err != nil {
 		multiLogger.Fatal("Bad connection URL", zap.Error(err))
