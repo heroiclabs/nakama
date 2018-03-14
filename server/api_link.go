@@ -16,8 +16,8 @@ package server
 
 import (
 	"database/sql"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -187,7 +187,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if in.Import == nil || in.Import.Value {
-		importFacebookFriends(s.logger, s.db, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token)
+		importFacebookFriends(s.logger, s.db, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 
 	return &empty.Empty{}, nil

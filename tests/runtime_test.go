@@ -6,20 +6,26 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"fmt"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
+	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"sync"
 )
 
+type DummyMessageRouter struct{}
+
+func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope) {}
+func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope)     {}
+
 var (
-	tempDir, _ = ioutil.TempDir("", "nakama")
-	luaPath    = filepath.Join(tempDir, "modules")
-	config     = server.NewConfig()
-	logger     = server.NewConsoleLogger(os.Stdout, true)
+	config = server.NewConfig()
+	logger = server.NewConsoleLogger(os.Stdout, true)
 )
 
 func db(t *testing.T) *sql.DB {
@@ -34,23 +40,30 @@ func db(t *testing.T) *sql.DB {
 	return db
 }
 
-func vm(t *testing.T) *server.RuntimePool {
-	config.Runtime.Path = luaPath
-	runtimePool, err := server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil)
-	if err != nil {
-		t.Error("Failed initializing runtime modules", zap.Error(err))
+func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.RuntimePool {
+	stdLibs := map[string]lua.LGFunction{
+		lua.LoadLibName:   server.OpenPackage(modules),
+		lua.BaseLibName:   lua.OpenBase,
+		lua.TabLibName:    lua.OpenTable,
+		lua.OsLibName:     server.OpenOs,
+		lua.StringLibName: lua.OpenString,
+		lua.MathLibName:   lua.OpenMath,
 	}
+	runtimePool := server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
 
 	return runtimePool
 }
 
-func writeLuaModule(name, content string) {
-	os.MkdirAll(luaPath, os.ModePerm)
-	ioutil.WriteFile(filepath.Join(luaPath, name), []byte(content), 0644)
+func writeLuaModule(modules *sync.Map, name, content string) {
+	modules.Store(name, &server.RuntimeModule{
+		Name:    name,
+		Path:    fmt.Sprintf("%v.lua", name),
+		Content: []byte(content),
+	})
 }
 
-func writeStatsModule() {
-	writeLuaModule("stats.lua", `
+func writeStatsModule(modules *sync.Map) {
+	writeLuaModule(modules, "stats", `
 stats={}
 -- Get the mean value of a table
 function stats.mean( t )
@@ -68,8 +81,8 @@ print("Stats Module Loaded")
 return stats`)
 }
 
-func writeTestModule() {
-	writeLuaModule("test.lua", `
+func writeTestModule(modules *sync.Map) {
+	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
 function test.printWorld()
@@ -82,7 +95,7 @@ return test
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t)
+	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -100,7 +113,7 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t)
+	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -124,44 +137,44 @@ file_exists "./"`)
 // Have a look at the stdout messages to see if the module was loaded multiple times
 // You should only see "Test Module Loaded" once
 func TestRuntimeRequireEval(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeTestModule()
-	writeLuaModule("test-invoke.lua", `
+	modules := new(sync.Map)
+	writeTestModule(modules)
+	writeLuaModule(modules, "test-invoke", `
 local nakama = require("nakama")
 local test = require("test")
 test.printWorld()
 `)
 
-	vm(t)
+	vm(t, modules, make(map[string]struct{}, 0))
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeStatsModule()
-	writeLuaModule("local_test.lua", `
+	modules := new(sync.Map)
+	writeStatsModule(modules)
+	writeLuaModule(modules, "local_test", `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
 `)
 
-	vm(t)
+	vm(t, modules, make(map[string]struct{}, 0))
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeStatsModule()
-	writeLuaModule("states-invoke.lua", `
+	modules := new(sync.Map)
+	writeStatsModule(modules)
+	writeLuaModule(modules, "states-invoke", `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
 `)
 
-	vm(t)
+	vm(t, modules, make(map[string]struct{}, 0))
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -172,20 +185,20 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeLuaModule("http-invoke.lua", `
+	writeLuaModule(modules, "http-invoke", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.RPC, "helloworld")
 	payload := "Hello World"
 
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -196,8 +209,8 @@ nakama.register_rpc(test.printWorld, "helloworld")
 }
 
 func TestRuntimeRegisterRPCWithPayloadEndToEnd(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -208,23 +221,23 @@ end
 print("Test Module Loaded")
 return test
 	`)
-	writeLuaModule("http-invoke.lua", `
+	writeLuaModule(modules, "http-invoke", `
 local nakama = require("nakama")
 local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
-	pipeline := server.NewPipeline(config, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, nil, pipeline, rp)
+	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, rp)
+	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
 	client := &http.Client{}
-	request, _ := http.NewRequest("POST", "http://localhost:7351/v2/rpc/helloworld?http_key=defaultkey", strings.NewReader(payload))
+	request, _ := http.NewRequest("POST", "http://localhost:7349/v2/rpc/helloworld?http_key=defaultkey", strings.NewReader(payload))
 	request.Header.Add("Content-Type", "Application/JSON")
 	res, err := client.Do(request)
 	if err != nil {
@@ -243,8 +256,8 @@ nakama.register_rpc(test.printWorld, "helloworld")
 }
 
 func TestRuntimeHTTPRequest(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	local success, code, headers, body = pcall(nakama.http_request, "http://httpbin.org/status/200", "GET", {})
@@ -253,12 +266,12 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", "")
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -269,8 +282,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeJson(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.json_encode(nakama.json_decode(payload))
@@ -278,13 +291,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -295,8 +308,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBase64(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.base64_decode(nakama.base64_encode(payload))
@@ -304,13 +317,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -321,8 +334,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBase16(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.base16_decode(nakama.base16_encode(payload))
@@ -330,13 +343,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -347,8 +360,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeAes128(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.aes128_decrypt(nakama.aes128_encrypt(payload, "goldenbridge_key"), "goldenbridge_key")
@@ -356,13 +369,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -373,8 +386,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBcryptHash(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.bcrypt_hash(payload)
@@ -382,13 +395,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -400,8 +413,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBcryptCompare(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return tostring(nakama.bcrypt_compare(payload, "something_to_encrypt"))
@@ -409,14 +422,14 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t)
+	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
 	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err := r.InvokeFunctionRPC(fn, "", "", 0, "", string(hash))
+	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -427,8 +440,8 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeNotificationsSend(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
@@ -439,19 +452,19 @@ local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
 
 local new_notifications = {
-  { Subject = subject, Content = content, UserId = user_id, Code = code, Persistent = false}
+  { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
 }
 nk.notifications_send(new_notifications)
 `)
 
-	rp := vm(t)
+	rp := vm(t, modules, make(map[string]struct{}, 0))
 	r := rp.Get()
 	defer r.Stop()
 }
 
 func TestRuntimeNotificationSend(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
@@ -464,14 +477,14 @@ local code = 1
 nk.notification_send(user_id, subject, content, code, "", false)
 `)
 
-	rp := vm(t)
+	rp := vm(t, modules, make(map[string]struct{}, 0))
 	r := rp.Get()
 	defer r.Stop()
 }
 
 func TestRuntimeWalletWrite(t *testing.T) {
-	defer os.RemoveAll(luaPath)
-	writeLuaModule("test.lua", `
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
 local content = {
@@ -482,7 +495,7 @@ local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 nk.wallet_write(user_id, content)
 `)
 
-	rp := vm(t)
+	rp := vm(t, modules, make(map[string]struct{}, 0))
 	r := rp.Get()
 	defer r.Stop()
 }
