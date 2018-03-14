@@ -57,9 +57,9 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 				// Make paths Lua friendly.
 				name = strings.Replace(name, "/", ".", -1)
 				modules.Store(name, &RuntimeModule{
-					name:    name,
-					path:    path,
-					content: content,
+					Name:    name,
+					Path:    path,
+					Content: content,
 				})
 				modulePaths = append(modulePaths, relPath)
 			}

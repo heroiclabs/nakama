@@ -64,7 +64,7 @@ func OpenPackage(modules *sync.Map) func(L *lua.LState) int {
 				L.Push(lua.LString(fmt.Sprintf("invalid cached module '%s'", name)))
 				return 1
 			}
-			fn, err := L.Load(bytes.NewReader(module.content), module.path)
+			fn, err := L.Load(bytes.NewReader(module.Content), module.Path)
 			if err != nil {
 				L.RaiseError(err.Error())
 			}

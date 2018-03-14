@@ -166,5 +166,15 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 }
 
 func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
-	return nil, nil
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Facebook token is required.")
+	}
+
+	err := importFacebookFriends(s.logger, s.db, s.socialClient, ctx.Value(ctxUserIDKey{}).(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, in.Reset_ != nil && in.Reset_.Value)
+	if err != nil {
+		// Already logged inside the core importFacebookFriends function.
+		return nil, err
+	}
+
+	return &empty.Empty{}, nil
 }
