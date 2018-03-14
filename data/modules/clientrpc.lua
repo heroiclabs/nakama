@@ -42,12 +42,12 @@ local function send_notification(context, payload)
   local decoded = nk.json_decode(payload)
   local new_notifications = {
     {
-      Code = 1,
-      Content = { reward_coins = 1000 },
-      Persistent = true,
-      SenderId = context.UserId,
-      Subject = "You've unlocked level 100!",
-      UserId = decoded.user_id
+      code = 1,
+      content = { reward_coins = 1000 },
+      persistent = true,
+      sender_id = context.user_id,
+      subject = "You've unlocked level 100!",
+      user_id = decoded.user_id
     }
   }
   nk.notifications_send(new_notifications)
@@ -56,10 +56,10 @@ nk.register_rpc(send_notification, "clientrpc.send_notification")
 
 local function send_stream_data(context, payload)
   local stream = {
-    Mode = 20,
-    Label = "Stream Data Test",
+    mode = 20,
+    label = "Stream Data Test",
   }
-  nk.stream_user_join(context.UserId, context.SessionId, stream, false, false)
+  nk.stream_user_join(context.user_id, context.session_id, stream, false, false)
   nk.stream_send(stream, tostring(payload))
 end
 nk.register_rpc(send_stream_data, "clientrpc.send_stream_data")

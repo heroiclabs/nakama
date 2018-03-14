@@ -793,7 +793,7 @@ func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	// Import friends if requested.
 	if importFriends {
-		importFacebookFriends(n.logger, n.db, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token)
+		importFacebookFriends(n.logger, n.db, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -1057,37 +1057,37 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1103,10 +1103,10 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 		l.Push(lua.LNil)
 	} else {
 		metaTable := l.CreateTable(4, 4)
-		metaTable.RawSetString("Hidden", lua.LBool(meta.Hidden))
-		metaTable.RawSetString("Persistence", lua.LBool(meta.Persistence))
-		metaTable.RawSetString("Username", lua.LString(meta.Username))
-		metaTable.RawSetString("Status", lua.LString(meta.Status))
+		metaTable.RawSetString("hidden", lua.LBool(meta.Hidden))
+		metaTable.RawSetString("persistence", lua.LBool(meta.Persistence))
+		metaTable.RawSetString("username", lua.LString(meta.Username))
+		metaTable.RawSetString("status", lua.LString(meta.Status))
 		l.Push(metaTable)
 	}
 	return 1
@@ -1147,37 +1147,37 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1250,37 +1250,37 @@ func (n *NakamaModule) streamUserLeave(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1307,37 +1307,37 @@ func (n *NakamaModule) streamCount(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1365,37 +1365,37 @@ func (n *NakamaModule) streamClose(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1422,37 +1422,37 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 	conversionError := ""
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
 		switch k.String() {
-		case "Mode":
+		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream Mode must be a number"
+				conversionError = "stream mode must be a number"
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "Subject":
+		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Subject must be a string"
+				conversionError = "stream subject must be a string"
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Subject must be a valid identifier"
+				conversionError = "stream subject must be a valid identifier"
 				return
 			}
 			stream.Subject = sid
-		case "Descriptor":
+		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Descriptor must be a string"
+				conversionError = "stream descriptor must be a string"
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream Descriptor must be a valid identifier"
+				conversionError = "stream descriptor must be a valid identifier"
 				return
 			}
 			stream.Subject = did
-		case "Label":
+		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream Label must be a string"
+				conversionError = "stream label must be a string"
 				return
 			}
 			stream.Label = v.String()
@@ -1558,14 +1558,14 @@ func (n *NakamaModule) matchList(l *lua.LState) int {
 	matches := l.CreateTable(s, s)
 	for i, result := range results {
 		match := l.CreateTable(4, 4)
-		match.RawSetString("MatchId", lua.LString(result.MatchId))
-		match.RawSetString("Authoritative", lua.LBool(result.Authoritative))
+		match.RawSetString("match_id", lua.LString(result.MatchId))
+		match.RawSetString("authoritative", lua.LBool(result.Authoritative))
 		if result.Label == nil {
-			match.RawSetString("Label", lua.LNil)
+			match.RawSetString("label", lua.LNil)
 		} else {
-			match.RawSetString("Label", lua.LString(result.Label.Value))
+			match.RawSetString("label", lua.LString(result.Label.Value))
 		}
-		match.RawSetString("Size", lua.LNumber(result.Size))
+		match.RawSetString("size", lua.LNumber(result.Size))
 		matches.RawSetInt(i+1, match)
 	}
 	l.Push(matches)
@@ -1595,13 +1595,13 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	u := l.CheckString(1)
 	userID, err := uuid.FromString(u)
 	if err != nil {
-		l.ArgError(1, "expects UserID to be a valid UUID")
+		l.ArgError(1, "expects user_id to be a valid UUID")
 		return 0
 	}
 
 	subject := l.CheckString(2)
 	if subject == "" {
-		l.ArgError(2, "expects Subject to be non-empty")
+		l.ArgError(2, "expects subject to be a non-empty string")
 		return 0
 	}
 
@@ -1615,7 +1615,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 
 	code := l.CheckInt(4)
 	if code <= 0 {
-		l.ArgError(4, "expects Code to number above 0")
+		l.ArgError(4, "expects code to number above 0")
 		return 0
 	}
 
@@ -1624,7 +1624,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	if s != "" {
 		suid, err := uuid.FromString(s)
 		if err != nil {
-			l.ArgError(5, "expects senderID to either be not set, empty string or a valid UUID")
+			l.ArgError(5, "expects sender)id to either be not set, empty string or a valid UUID")
 			return 0
 		}
 		senderID = suid.String()
@@ -1673,24 +1673,24 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		userID := uuid.Nil
 		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
 			switch k.String() {
-			case "Persistent":
+			case "persistent":
 				if v.Type() != lua.LTBool {
 					conversionError = true
-					l.ArgError(1, "expects Persistent to be boolean")
+					l.ArgError(1, "expects persistent to be boolean")
 					return
 				}
 				notification.Persistent = lua.LVAsBool(v)
-			case "Subject":
+			case "subject":
 				if v.Type() != lua.LTString {
 					conversionError = true
-					l.ArgError(1, "expects Subject to be string")
+					l.ArgError(1, "expects subject to be string")
 					return
 				}
 				notification.Subject = v.String()
-			case "Content":
+			case "content":
 				if v.Type() != lua.LTTable {
 					conversionError = true
-					l.ArgError(1, "expects Content to be a table")
+					l.ArgError(1, "expects content to be a table")
 					return
 				}
 
@@ -1703,47 +1703,47 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 				}
 
 				notification.Content = string(contentBytes)
-			case "Code":
+			case "code":
 				if v.Type() != lua.LTNumber {
 					conversionError = true
-					l.ArgError(1, "expects Code to be number")
+					l.ArgError(1, "expects code to be number")
 					return
 				}
 				number := int(lua.LVAsNumber(v))
 				if number <= 0 {
-					l.ArgError(1, "expects Code to number above 0")
+					l.ArgError(1, "expects code to number above 0")
 					return
 				}
 				notification.Code = int32(number)
-			case "UserId":
+			case "user_id":
 				if v.Type() != lua.LTString {
 					conversionError = true
-					l.ArgError(1, "expects UserId to be string")
+					l.ArgError(1, "expects user_id to be string")
 					return
 				}
 				u := v.String()
 				if u == "" {
-					l.ArgError(1, "expects UserId to be a valid UUID")
+					l.ArgError(1, "expects user_id to be a valid UUID")
 					return
 				}
 				uid, err := uuid.FromString(u)
 				if err != nil {
-					l.ArgError(1, "expects UserId to be a valid UUID")
+					l.ArgError(1, "expects user_id to be a valid UUID")
 					return
 				}
 				userID = uid
-			case "SenderId":
+			case "sender_id":
 				if v.Type() == lua.LTNil {
 					return
 				}
 				if v.Type() != lua.LTString {
 					conversionError = true
-					l.ArgError(1, "expects SenderId to be string")
+					l.ArgError(1, "expects sender_id to be string")
 					return
 				}
 				u := v.String()
 				if u == "" {
-					l.ArgError(1, "expects SenderId to be a valid UUID")
+					l.ArgError(1, "expects sender_id to be a valid UUID")
 					return
 				}
 				notification.SenderId = u
@@ -1751,16 +1751,16 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		})
 
 		if notification.Subject == "" {
-			l.ArgError(1, "expects Subject to be non-empty")
+			l.ArgError(1, "expects subject to be non-empty")
 			return
 		} else if len(notification.Content) == 0 {
-			l.ArgError(1, "expects Content to be a valid JSON")
+			l.ArgError(1, "expects content to be a valid JSON")
 			return
 		} else if uuid.Equal(uuid.Nil, userID) {
-			l.ArgError(1, "expects UserId to be a valid UUID")
+			l.ArgError(1, "expects user_id to be a valid UUID")
 			return
 		} else if notification.Code == 0 {
-			l.ArgError(1, "expects Code to number above 0")
+			l.ArgError(1, "expects code to number above 0")
 			return
 		}
 

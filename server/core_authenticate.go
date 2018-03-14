@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"errors"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
@@ -95,16 +96,53 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 }
 
 func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username string, create bool) (string, string, error) {
-	if !create {
-		return LoginDevice(logger, db, deviceID, username, create)
+	found := true
+
+	// Look for an existing account.
+	query := "SELECT user_id FROM user_device WHERE id = $1"
+	var dbUserID string
+	err := db.QueryRow(query, deviceID).Scan(&dbUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+			// No user account found.
+			//return "", "", status.Error(codes.NotFound, "Device ID not found.")
+		} else {
+			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
+		}
 	}
 
-	// Use existing user account if found, otherwise create a new user account.
-	var dbUserID string
-	var dbUsername string
+	// Existing account found.
+	if found {
+		// Load its details.
+		query = "SELECT username, disable_time FROM users WHERE id = $1"
+		var dbUsername string
+		var dbDisableTime int64
+		err = db.QueryRow(query, dbUserID).Scan(&dbUsername, &dbDisableTime)
+		if err != nil {
+			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
+		}
+
+		// Check if it's disabled.
+		if dbDisableTime != 0 {
+			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		}
+
+		return dbUserID, dbUsername, nil
+	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
 	fnErr := Transact(logger, db, func(tx *sql.Tx) error {
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
+		//ts := time.Now().UTC().Unix()
 		query := `
 INSERT INTO users (id, username, create_time, update_time)
 SELECT $1 AS id,
@@ -114,137 +152,70 @@ SELECT $1 AS id,
 WHERE NOT EXISTS
   (SELECT id
    FROM user_device
-   WHERE id = $3::VARCHAR)
-ON CONFLICT(id) DO NOTHING
-RETURNING id, username, disable_time`
+   WHERE id = $3::VARCHAR)`
 
-		var dbDisableTime int64
-		err := tx.QueryRow(query, userID, username, deviceID, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+		result, err := tx.Exec(query, userID, username, deviceID, time.Now().UTC().Unix())
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			if err == sql.ErrNoRows {
+				// A concurrent write has inserted this device ID.
+				logger.Debug("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+				return status.Error(codes.Internal, "Error finding or creating user account.")
+			} else if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				return status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
-
-			if err == sql.ErrNoRows {
-				// let's catch this case as it could be there could be a device ID already
-				// linked to a ID so let's attempt a vanilla login
-				dbUserID, dbUsername, err = LoginDevice(logger, db, deviceID, username, create)
-				return err
-			} else {
-				logger.Error("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-				return status.Error(codes.Internal, "Error finding or creating user account.")
-			}
+			logger.Error("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			return status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+			return status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
-		query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2) ON CONFLICT(id) DO NOTHING"
-		_, err = tx.Exec(query, deviceID, userID)
+		query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
+		result, err = tx.Exec(query, deviceID, userID)
 		if err != nil {
 			logger.Error("Cannot add device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return status.Error(codes.Internal, "Error finding or creating user account.")
 		}
 
+		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+			return status.Error(codes.Internal, "Error finding or creating user account.")
+		}
+
 		return nil
 	})
-
 	if fnErr != nil {
-		return dbUserID, dbUsername, fnErr
+		return "", "", fnErr
 	}
 
-	return dbUserID, dbUsername, nil
+	return userID, username, nil
 }
 
-func LoginDevice(logger *zap.Logger, db *sql.DB, deviceID, username string, create bool) (string, string, error) {
-	query := "SELECT user_id FROM user_device WHERE id = $1"
+func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, error) {
+	found := true
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
+	// Look for an existing account.
+	query := "SELECT id, username, password, disable_time FROM users WHERE email = $1"
 	var dbUserID string
-	err := db.QueryRow(query, deviceID).Scan(&dbUserID)
+	var dbUsername string
+	var dbPassword string
+	var dbDisableTime int64
+	err := db.QueryRow(query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// No user account found.
-			return "", "", status.Error(codes.NotFound, "Device ID not found.")
+			found = false
 		} else {
-			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			logger.Error("Cannot find user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
-	query = "SELECT username, disable_time FROM users WHERE id = $1"
-	var dbUsername string
-	var dbDisableTime int64
-
-	err = db.QueryRow(query, dbUserID).Scan(&dbUsername, &dbDisableTime)
-	if err != nil {
-		logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding user account.")
-	}
-
-	if dbDisableTime != 0 {
-		logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-	}
-
-	return dbUserID, dbUsername, nil
-}
-
-func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, error) {
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
-	if create {
-		// Use existing user account if found, otherwise create a new user account.
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
-		query := `
-INSERT INTO users (id, username, email, password, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $5)
-ON CONFLICT (email) DO UPDATE SET email = $3, password = $4
-RETURNING id, username, disable_time`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, userID, username, email, hashedPassword, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
-			}
-			logger.Error("Cannot find or create user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
-		}
-
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-		}
-
-		return dbUserID, dbUsername, nil
-	} else {
-		// Do not create a new user account.
-		query := `
-SELECT id, username, password, disable_time
-FROM users
-WHERE email = $1`
-
-		var dbUserID string
-		var dbUsername string
-		var dbPassword string
-		var dbDisableTime int64
-		err := db.QueryRow(query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// No user account found.
-				return "", "", status.Error(codes.NotFound, "User account not found.")
-			} else {
-				logger.Error("Cannot find user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding user account.")
-			}
-		}
-
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
@@ -257,6 +228,37 @@ WHERE email = $1`
 
 		return dbUserID, dbUsername, nil
 	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
+	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $5)"
+	result, err := db.Exec(query, userID, username, email, hashedPassword, time.Now().UTC().Unix())
+	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_email_key") {
+				// A concurrent write has inserted this email.
+				logger.Debug("Did not insert new user as email already exists.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, nil
 }
 
 func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client, accessToken, username string, create bool) (string, string, error) {
@@ -265,57 +267,26 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 		logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
 		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
+	found := true
 
-	if create {
-		// Use existing user account if found, otherwise create a new user account.
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
-		query := `
-INSERT INTO users (id, username, facebook_id, create_time, update_time)
-VALUES ($1, $2, $3, $4, $4)
-ON CONFLICT (facebook_id) DO UPDATE SET facebook_id = $3
-RETURNING id, username, disable_time`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, userID, username, facebookProfile.ID, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
-			}
-			logger.Error("Cannot find or create user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	// Look for an existing account.
+	query := "SELECT id, username, disable_time FROM users WHERE facebook_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime int64
+	err = db.QueryRow(query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Cannot find user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
 		}
+	}
 
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-		}
-
-		return dbUserID, dbUsername, nil
-	} else {
-		// Do not create a new user account.
-		query := `
-SELECT id, username, disable_time
-FROM users
-WHERE facebook_id = $1`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// No user account found.
-				return "", "", status.Error(codes.NotFound, "User account not found.")
-			} else {
-				logger.Error("Cannot find user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding user account.")
-			}
-		}
-
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
@@ -323,6 +294,37 @@ WHERE facebook_id = $1`
 
 		return dbUserID, dbUsername, nil
 	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
+	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
+	result, err := db.Exec(query, userID, username, facebookProfile.ID, time.Now().UTC().Unix())
+	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_facebook_id_key") {
+				// A concurrent write has inserted this Facebook ID.
+				logger.Debug("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
+				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, nil
 }
 
 func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Client, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, error) {
@@ -331,57 +333,26 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 		logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
 		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
+	found := true
 
-	if create {
-		// Use existing user account if found, otherwise create a new user account.
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
-		query := `
-INSERT INTO users (id, username, gamecenter_id, create_time, update_time)
-VALUES ($1, $2, $3, $4, $4)
-ON CONFLICT (gamecenter_id) DO UPDATE SET gamecenter_id = $3
-RETURNING id, username, disable_time`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, userID, username, playerID, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
-			}
-			logger.Error("Cannot find or create user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	// Look for an existing account.
+	query := "SELECT id, username, disable_time FROM users WHERE gamecenter_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime int64
+	err = db.QueryRow(query, playerID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Cannot find user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
 		}
+	}
 
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-		}
-
-		return dbUserID, dbUsername, nil
-	} else {
-		// Do not create a new user account.
-		query := `
-SELECT id, username, disable_time
-FROM users
-WHERE gamecenter_id = $1`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, playerID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// No user account found.
-				return "", "", status.Error(codes.NotFound, "User account not found.")
-			} else {
-				logger.Error("Cannot find user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding user account.")
-			}
-		}
-
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
@@ -389,6 +360,37 @@ WHERE gamecenter_id = $1`
 
 		return dbUserID, dbUsername, nil
 	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
+	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
+	result, err := db.Exec(query, userID, username, playerID, time.Now().UTC().Unix())
+	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_gamecenter_id_key") {
+				// A concurrent write has inserted this GameCenter ID.
+				logger.Debug("Did not insert new user as GameCenter ID already exists.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
+				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, nil
 }
 
 func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, error) {
@@ -397,57 +399,26 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 		logger.Debug("Could not authenticate Google profile.", zap.Error(err))
 		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
+	found := true
 
-	if create {
-		// Use existing user account if found, otherwise create a new user account.
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
-		query := `
-INSERT INTO users (id, username, google_id, create_time, update_time)
-VALUES ($1, $2, $3, $4, $4)
-ON CONFLICT (google_id) DO UPDATE SET google_id = $3
-RETURNING id, username, disable_time`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, userID, username, googleProfile.Sub, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
-			}
-			logger.Error("Cannot find or create user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	// Look for an existing account.
+	query := "SELECT id, username, disable_time FROM users WHERE google_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime int64
+	err = db.QueryRow(query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Cannot find user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
 		}
+	}
 
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-		}
-
-		return dbUserID, dbUsername, nil
-	} else {
-		// Do not create a new user account.
-		query := `
-SELECT id, username, disable_time
-FROM users
-WHERE google_id = $1`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// No user account found.
-				return "", "", status.Error(codes.NotFound, "User account not found.")
-			} else {
-				logger.Error("Cannot find user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding user account.")
-			}
-		}
-
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
@@ -455,6 +426,37 @@ WHERE google_id = $1`
 
 		return dbUserID, dbUsername, nil
 	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
+	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
+	result, err := db.Exec(query, userID, username, googleProfile.Sub, time.Now().UTC().Unix())
+	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_google_id_key") {
+				// A concurrent write has inserted this Google ID.
+				logger.Debug("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, nil
 }
 
 func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, error) {
@@ -463,83 +465,129 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 		logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
 		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
-
 	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
+	found := true
 
-	if create {
-		// Use existing user account if found, otherwise create a new user account.
-		userID := uuid.NewV4().String()
-		ts := time.Now().UTC().Unix()
-		query := `
-INSERT INTO users (id, username, steam_id, create_time, update_time)
-VALUES ($1, $2, $3, $4, $4)
-ON CONFLICT (steam_id) DO UPDATE SET steam_id = $3
-RETURNING id, username, disable_time`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, userID, username, steamID, ts).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
-			}
-			logger.Error("Cannot find or create user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	// Look for an existing account.
+	query := "SELECT id, username, disable_time FROM users WHERE steam_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime int64
+	err = db.QueryRow(query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Cannot find user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", status.Error(codes.Internal, "Error finding user account.")
 		}
+	}
 
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
 		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
-		}
-
-		return dbUserID, dbUsername, nil
-	} else {
-		// Do not create a new user account.
-		query := `
-SELECT id, username, disable_time
-FROM users
-WHERE steam_id = $1`
-
-		var dbUserID string
-		var dbUsername string
-		var dbDisableTime int64
-		err := db.QueryRow(query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// No user account found.
-				return "", "", status.Error(codes.NotFound, "User account not found.")
-			} else {
-				logger.Error("Cannot find user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding user account.")
-			}
-		}
-
-		if dbDisableTime != 0 {
-			logger.Debug("User account is disabled.", zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+			logger.Debug("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		return dbUserID, dbUsername, nil
 	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.NewV4().String()
+	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
+	result, err := db.Exec(query, userID, username, steamID, time.Now().UTC().Unix())
+	if err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_steam_id_key") {
+				// A concurrent write has inserted this Steam ID.
+				logger.Debug("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, nil
 }
 
-func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client, userID uuid.UUID, username, token string) {
+func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
 	facebookProfiles, err := client.GetFacebookFriends(token)
 	if err != nil {
 		logger.Debug("Could not import Facebook friends.", zap.Error(err))
-		return
+		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
-	if len(facebookProfiles) == 0 {
-		return
+	if len(facebookProfiles) == 0 && !reset {
+		// No Facebook friends to import, and friend reset not requested - no work to do.
+		return nil
 	}
 
 	ts := time.Now().UTC().Unix()
 	friendUserIDs := make([]uuid.UUID, 0)
 
 	err = Transact(logger, db, func(tx *sql.Tx) error {
+		if reset {
+			// Reset all friends for the current user, replacing them entirely with their Facebook friends.
+			// Note: will NOT remove blocked users.
+			query := "DELETE FROM user_edge WHERE source_id = $1 AND state != 3"
+			result, err := tx.Exec(query, userID)
+			if err != nil {
+				return err
+			}
+			if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 0 {
+				// Update edge count to reflect removed friends.
+				query = "UPDATE user SET edge_count = edge_count - $2 WHERE id = $1"
+				result, err := tx.Exec(query, userID, rowsAffectedCount)
+				if err != nil {
+					return err
+				}
+				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+					return errors.New("error updating edge count after friends reset")
+				}
+			}
+
+			// Remove links to the current user.
+			// Note: will NOT remove blocks.
+			query = "DELETE FROM user_edge WHERE destination_id = $1 AND state != 3 RETURNING source_id"
+			rows, err := tx.Query(query, userID)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			var id string
+			query = "UPDATE user SET edge_count = edge_count - 1 WHERE id = $1"
+			for rows.Next() {
+				// Update edge count to reflect each removed friend.
+				err = rows.Scan(&id)
+				if err != nil {
+					return err
+				}
+				result, err := tx.Exec(query, id)
+				if err != nil {
+					return err
+				}
+				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+					return errors.New("error updating edge count after friend reset")
+				}
+			}
+		}
+
 		statements := make([]string, 0, len(facebookProfiles))
 		params := make([]interface{}, 0, len(facebookProfiles))
 		count := 1
@@ -637,6 +685,7 @@ AND EXISTS
 	})
 	if err != nil {
 		logger.Error("Error importing Facebook friends.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing Facebook friends.")
 	}
 
 	if len(friendUserIDs) != 0 {
@@ -655,4 +704,6 @@ AND EXISTS
 			}}
 		}
 	}
+
+	return nil
 }

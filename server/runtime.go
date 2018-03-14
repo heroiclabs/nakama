@@ -42,9 +42,9 @@ func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
 var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeModule struct {
-	name    string
-	path    string
-	content []byte
+	Name    string
+	Path    string
+	Content []byte
 }
 
 type RuntimePool struct {
@@ -154,13 +154,13 @@ func (r *Runtime) loadModules(modules []*RuntimeModule) error {
 	preload := r.vm.GetField(r.vm.GetField(r.vm.Get(lua.EnvironIndex), "package"), "preload")
 	fns := make(map[string]*lua.LFunction)
 	for _, module := range modules {
-		f, err := r.vm.Load(bytes.NewReader(module.content), module.path)
+		f, err := r.vm.Load(bytes.NewReader(module.Content), module.Path)
 		if err != nil {
-			r.logger.Error("Could not load module", zap.String("name", module.path), zap.Error(err))
+			r.logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
 			return err
 		} else {
-			r.vm.SetField(preload, module.name, f)
-			fns[module.name] = f
+			r.vm.SetField(preload, module.Name, f)
+			fns[module.Name] = f
 		}
 	}
 
