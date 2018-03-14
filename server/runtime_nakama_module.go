@@ -95,6 +95,9 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
+		"register_rpc":                n.registerRPC,
+		"run_once":                    n.runOnce,
+		"cron_next":                   n.cronNext,
 		"sql_exec":                    n.sqlExec,
 		"sql_query":                   n.sqlQuery,
 		"uuid_v4":                     n.uuidV4,
@@ -122,7 +125,6 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"authenticate_google":         n.authenticateGoogle,
 		"authenticate_steam":          n.authenticateSteam,
 		"authenticate_token_generate": n.authenticateTokenGenerate,
-		"cron_next":                   n.cronNext,
 		"logger_info":                 n.loggerInfo,
 		"logger_warn":                 n.loggerWarn,
 		"logger_error":                n.loggerError,
@@ -134,15 +136,91 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"stream_send":                 n.streamSend,
 		"match_create":                n.matchCreate,
 		"match_list":                  n.matchList,
-		"register_rpc":                n.registerRPC,
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
 		"wallet_write":                n.walletWrite,
-		"run_once":                    n.runOnce,
+		"storage_list":                n.storageList,
+		"storage_read":                n.storageRead,
+		"storage_write":               n.storageWrite,
+		"storage_delete":              n.storageDelete,
 	}
 	mod := l.SetFuncs(l.CreateTable(len(functions), len(functions)), functions)
 
 	l.Push(mod)
+	return 1
+}
+
+func (n *NakamaModule) registerRPC(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects rpc id")
+		return 0
+	}
+
+	id = strings.ToLower(id)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	rc.RPC[id] = fn
+	if n.announceRPC != nil {
+		n.announceRPC(id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) runOnce(l *lua.LState) int {
+	n.once.Do(func() {
+		fn := l.CheckFunction(1)
+		if fn == nil {
+			l.ArgError(1, "expects a function")
+			return
+		}
+
+		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), RunOnce, "", "", 0, "")
+
+		l.Push(LSentinel)
+		l.Push(fn)
+		l.Push(ctx)
+		if err := l.PCall(1, lua.MultRet, nil); err != nil {
+			l.RaiseError("error in run_once function: %v", err.Error())
+			return
+		}
+
+		// Unwind the stack up to and including our sentinel value, effectively discarding any returned parameters.
+		for {
+			v := l.Get(-1)
+			l.Pop(1)
+			if v.Type() == LTSentinel {
+				break
+			}
+		}
+	})
+
+	return 0
+}
+
+func (n *NakamaModule) cronNext(l *lua.LState) int {
+	cron := l.CheckString(1)
+	if cron == "" {
+		l.ArgError(1, "expects cron string")
+		return 0
+	}
+	ts := l.CheckInt64(2)
+	if ts == 0 {
+		l.ArgError(1, "expects timestamp in seconds")
+		return 0
+	}
+
+	expr, err := cronexpr.Parse(cron)
+	if err != nil {
+		l.ArgError(1, "expects a valid cron string")
+		return 0
+	}
+	t := time.Unix(ts, 0).UTC()
+	next := expr.Next(t)
+	nextTs := next.UTC().Unix()
+	l.Push(lua.LNumber(nextTs))
 	return 1
 }
 
@@ -973,30 +1051,6 @@ func (n *NakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) cronNext(l *lua.LState) int {
-	cron := l.CheckString(1)
-	if cron == "" {
-		l.ArgError(1, "expects cron string")
-		return 0
-	}
-	ts := l.CheckInt64(2)
-	if ts == 0 {
-		l.ArgError(1, "expects timestamp in seconds")
-		return 0
-	}
-
-	expr, err := cronexpr.Parse(cron)
-	if err != nil {
-		l.ArgError(1, "expects a valid cron string")
-		return 0
-	}
-	t := time.Unix(ts, 0).UTC()
-	next := expr.Next(t)
-	nextTs := next.UTC().Unix()
-	l.Push(lua.LNumber(nextTs))
-	return 1
-}
-
 func (n *NakamaModule) loggerInfo(l *lua.LState) int {
 	message := l.CheckString(1)
 	if message == "" {
@@ -1580,25 +1634,6 @@ func (n *NakamaModule) matchList(l *lua.LState) int {
 	return 1
 }
 
-func (n *NakamaModule) registerRPC(l *lua.LState) int {
-	fn := l.CheckFunction(1)
-	id := l.CheckString(2)
-
-	if id == "" {
-		l.ArgError(2, "expects rpc id")
-		return 0
-	}
-
-	id = strings.ToLower(id)
-
-	rc := l.Context().Value(CALLBACKS).(*Callbacks)
-	rc.RPC[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(id)
-	}
-	return 0
-}
-
 func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	u := l.CheckString(1)
 	userID, err := uuid.FromString(u)
@@ -1828,33 +1863,385 @@ func (n *NakamaModule) walletWrite(l *lua.LState) int {
 	return 0
 }
 
-func (n *NakamaModule) runOnce(l *lua.LState) int {
-	n.once.Do(func() {
-		fn := l.CheckFunction(1)
-		if fn == nil {
-			l.ArgError(1, "expects a function")
-			return
+func (n *NakamaModule) storageList(l *lua.LState) int {
+	userIDString := l.OptString(1, "")
+	collection := l.OptString(2, "")
+	limit := l.CheckInt(3)
+	cursor := l.OptString(4, "")
+
+	userID := uuid.Nil
+	if userIDString != "" {
+		uid, err := uuid.FromString(userIDString)
+		if err != nil {
+			l.ArgError(1, "expects empty or a valid user ID")
+		}
+		userID = uid
+	}
+
+	objectList, _, err := StorageListObjects(n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list storage objects: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, v := range objectList.GetObjects() {
+		valueMap := map[string]interface{}{
+			"collection":       v.Collection,
+			"key":              v.Key,
+			"user_id":          v.UserId,
+			"value":            v.Value,
+			"version":          v.Version,
+			"permission_read":  v.PermissionRead,
+			"permission_write": v.PermissionWrite,
+			"create_time":      v.CreateTime,
+			"update_time":      v.UpdateTime,
 		}
 
-		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), RunOnce, "", "", 0, "")
+		lt := ConvertMap(l, valueMap)
+		lt.RawSetString("value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
+	}
+	l.Push(lv)
 
-		l.Push(LSentinel)
-		l.Push(fn)
-		l.Push(ctx)
-		if err := l.PCall(1, lua.MultRet, nil); err != nil {
-			l.RaiseError("error in run_once function: %v", err.Error())
-			return
+	if objectList.GetCursor() != "" {
+		l.Push(lua.LString(objectList.GetCursor()))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
+}
+
+func (n *NakamaModule) storageRead(l *lua.LState) int {
+	keysTable := l.CheckTable(1)
+	if keysTable == nil || keysTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of keys")
+		return 0
+	}
+	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
+	if !ok {
+		l.ArgError(1, "expects a valid set of data")
+		return 0
+	}
+	keyMap := make([]map[string]interface{}, 0)
+	for _, d := range keysRaw {
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of data")
+			return 0
+		} else {
+			keyMap = append(keyMap, m)
 		}
+	}
 
-		// Unwind the stack up to and including our sentinel value, effectively discarding any returned parameters.
-		for {
-			v := l.Get(-1)
-			l.Pop(1)
-			if v.Type() == LTSentinel {
-				break
+	objectIDs := make([]*api.ReadStorageObjectId, len(keyMap))
+	idx := 0
+	for i, k := range keyMap {
+		var collection string
+		if c, ok := k["collection"]; !ok {
+			l.ArgError(i, "expects a collection in each object ID")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(i, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
 			}
 		}
-	})
+		var key string
+		if r, ok := k["key"]; !ok {
+			l.ArgError(i, "expects a key in each object ID")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(i, "key must be a string")
+				return 0
+			} else {
+				key = rs
+			}
+		}
+		var userID uuid.UUID
+		if u, ok := k["user_id"]; ok {
+			if us, ok := u.(string); !ok {
+				l.ArgError(i, "expects valid user IDs in each object ID, when provided")
+				return 0
+			} else {
+				uid, err := uuid.FromString(us)
+				if err != nil {
+					l.ArgError(i, "expects valid user IDs in each object ID, when provided")
+					return 0
+				}
+				userID = uid
+			}
+		}
+
+		objectIDs[idx] = &api.ReadStorageObjectId{
+			Collection: collection,
+			Key:        key,
+			UserId:     userID.String(),
+		}
+		idx++
+	}
+
+	objects, err := StorageReadObjects(n.logger, n.db, uuid.Nil, objectIDs)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to read storage objects: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, v := range objects.GetObjects() {
+		valueMap := map[string]interface{}{
+			"collection":       v.GetCollection(),
+			"key":              v.GetKey(),
+			"user_id":          v.GetUserId(),
+			"value":            v.GetValue(),
+			"version":          v.GetVersion(),
+			"permission_read":  v.GetPermissionRead(),
+			"permission_write": v.GetPermissionWrite(),
+			"create_time":      v.GetCreateTime(),
+			"update_time":      v.GetUpdateTime(),
+		}
+
+		lt := ConvertMap(l, valueMap)
+		lt.RawSetString("value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
+	}
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageWrite(l *lua.LState) int {
+	dataTable := l.CheckTable(1)
+	if dataTable == nil || dataTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of data")
+		return 0
+	}
+	dataRaw, ok := convertLuaValue(dataTable).([]interface{})
+	if !ok {
+		l.ArgError(1, "expects a valid set of data")
+		return 0
+	}
+	dataMap := make([]map[string]interface{}, 0)
+	for _, d := range dataRaw {
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of data")
+			return 0
+		} else {
+			dataMap = append(dataMap, m)
+		}
+	}
+
+	data := make(map[uuid.UUID][]*api.WriteStorageObject, len(dataMap))
+	for i, k := range dataMap {
+		var collection string
+		if c, ok := k["collection"]; !ok {
+			l.ArgError(i, "expects a collection in each object")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(i, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
+			}
+		}
+		var key string
+		if r, ok := k["key"]; !ok {
+			l.ArgError(i, "expects a key in each object")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(i, "key must be a string")
+				return 0
+			} else {
+				key = rs
+			}
+		}
+		var value []byte
+		if v, ok := k["value"]; !ok {
+			l.ArgError(i, "expects a value in each key")
+			return 0
+		} else {
+			if vs, ok := v.(map[string]interface{}); !ok {
+				l.ArgError(i, "value must be a table")
+				return 0
+			} else {
+				dataJson, err := json.Marshal(vs)
+				if err != nil {
+					l.RaiseError("could not convert value to JSON: %v", err.Error())
+					return 0
+				}
+				value = dataJson
+			}
+		}
+		var userID uuid.UUID
+		if u, ok := k["user_id"]; ok {
+			if us, ok := u.(string); !ok {
+				l.ArgError(i, "expects valid user IDs in each object, when provided")
+				return 0
+			} else {
+				uid, err := uuid.FromString(us)
+				if err != nil {
+					l.ArgError(i, "expects valid user IDs in each object, when provided")
+					return 0
+				}
+				userID = uid
+			}
+		}
+		var version string
+		if v, ok := k["version"]; ok {
+			if vs, ok := v.(string); !ok {
+				l.ArgError(1, "version must be a string")
+				return 0
+			} else {
+				version = vs
+			}
+		}
+		readPermission := int32(1)
+		if r, ok := k["permission_read"]; ok {
+			if rf, ok := r.(float64); !ok {
+				l.ArgError(i, "permission read must be a number")
+				return 0
+			} else {
+				readPermission = int32(rf)
+			}
+		}
+		writePermission := int32(1)
+		if w, ok := k["permission_write"]; ok {
+			if wf, ok := w.(float64); !ok {
+				l.ArgError(i, "permission write must be a number")
+				return 0
+			} else {
+				writePermission = int32(wf)
+			}
+		}
+
+		objects := data[userID]
+		if objects == nil {
+			objects = make([]*api.WriteStorageObject, 0)
+		}
+
+		data[userID] = append(objects, &api.WriteStorageObject{
+			Collection:      collection,
+			Key:             key,
+			Value:           string(value),
+			Version:         version,
+			PermissionRead:  &wrappers.Int32Value{Value: readPermission},
+			PermissionWrite: &wrappers.Int32Value{Value: writePermission},
+		})
+	}
+
+	acks, _, err := StorageWriteObjects(n.logger, n.db, true, data)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.NewTable()
+	for i, k := range acks.Acks {
+		valueMap := map[string]interface{}{
+			"collection": k.GetCollection(),
+			"key":        k.GetKey(),
+			"user_id":    k.GetUserId(),
+			"version":    k.GetVersion(),
+		}
+
+		lt := ConvertMap(l, valueMap)
+		lt.RawSetString("value", ConvertMap(l, valueMap))
+		lv.RawSetInt(i+1, lt)
+	}
+	l.Push(lv)
+	return 1
+}
+
+func (n *NakamaModule) storageDelete(l *lua.LState) int {
+	keysTable := l.CheckTable(1)
+	if keysTable == nil || keysTable.Len() == 0 {
+		l.ArgError(1, "expects a valid set of object IDs")
+		return 0
+	}
+	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
+	if !ok {
+		l.ArgError(1, "expects a valid set of object IDs")
+		return 0
+	}
+	keyMap := make([]map[string]interface{}, 0)
+	for _, d := range keysRaw {
+		if m, ok := d.(map[string]interface{}); !ok {
+			l.ArgError(1, "expects a valid set of object IDs")
+			return 0
+		} else {
+			keyMap = append(keyMap, m)
+		}
+	}
+
+	ids := make(map[uuid.UUID][]*api.DeleteStorageObjectId, len(keyMap))
+	for i, k := range keyMap {
+		var collection string
+		if c, ok := k["collection"]; !ok {
+			l.ArgError(i, "expects a collection in each object ID")
+			return 0
+		} else {
+			if cs, ok := c.(string); !ok {
+				l.ArgError(i, "collection must be a string")
+				return 0
+			} else {
+				collection = cs
+			}
+		}
+		var key string
+		if r, ok := k["key"]; !ok {
+			l.ArgError(i, "expects a record in each object ID")
+			return 0
+		} else {
+			if rs, ok := r.(string); !ok {
+				l.ArgError(i, "key must be a string")
+				return 0
+			} else {
+				key = rs
+			}
+		}
+		var userID uuid.UUID
+		if u, ok := k["user_id"]; ok {
+			if us, ok := u.(string); !ok {
+				l.ArgError(i, "expects valid user IDs in each object iD, when provided")
+				return 0
+			} else {
+				uid, err := uuid.FromString(us)
+				if err != nil {
+					l.ArgError(i, "expects valid user IDs in each object ID, when provided")
+					return 0
+				}
+				userID = uid
+			}
+		}
+		var version string
+		if v, ok := k["version"]; ok {
+			if vs, ok := v.(string); !ok {
+				l.ArgError(i, "version must be a string")
+				return 0
+			} else {
+				version = vs
+			}
+		}
+
+		objectIDs := ids[userID]
+		if objectIDs == nil {
+			objectIDs = make([]*api.DeleteStorageObjectId, 0)
+		}
+
+		ids[userID] = append(objectIDs, &api.DeleteStorageObjectId{
+			Collection: collection,
+			Key:        key,
+			Version:    version,
+		})
+	}
+
+	if _, err := StorageDeleteObjects(n.logger, n.db, true, ids); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
+	}
 
 	return 0
 }
