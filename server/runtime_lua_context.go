@@ -42,16 +42,16 @@ func (e ExecutionMode) String() string {
 }
 
 const (
-	__CTX_ENV              = "Env"
-	__CTX_MODE             = "ExecutionMode"
-	__CTX_USER_ID          = "UserId"
-	__CTX_USERNAME         = "Username"
-	__CTX_USER_SESSION_EXP = "UserSessionExp"
-	__CTX_SESSION_ID       = "SessionId"
-	__CTX_MATCH_ID         = "MatchId"
-	__CTX_MATCH_NODE       = "MatchNode"
-	__CTX_MATCH_LABEL      = "MatchLabel"
-	__CTX_MATCH_TICK_RATE  = "MatchTickRate"
+	__CTX_ENV              = "env"
+	__CTX_MODE             = "execution_mode"
+	__CTX_USER_ID          = "user_id"
+	__CTX_USERNAME         = "username"
+	__CTX_USER_SESSION_EXP = "user_session_exp"
+	__CTX_SESSION_ID       = "session_id"
+	__CTX_MATCH_ID         = "match_id"
+	__CTX_MATCH_NODE       = "match_node"
+	__CTX_MATCH_LABEL      = "match_label"
+	__CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
 func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid string, username string, sessionExpiry int64, sid string) *lua.LTable {

@@ -21,10 +21,10 @@ Called when a match is created as a result of nk.match_create().
 
 Context represents information about the match and server, for information purposes. Format:
 {
-  Env = {}, -- key-value data set in the runtime.env server configuration.
-  ExecutionMode = "Match",
-  MatchId = "client-friendly match ID, can be shared with clients and used in match join operations",
-  MatchNode = "name of the Nakama node hosting this match"
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  execution_mode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match"
 }
 
 Params is the optional arbitrary second argument passed to `nk.match_create()`, or `nil` if none was used.
@@ -52,12 +52,12 @@ Called when a user attempts to join the match using the client's match join oper
 
 Context represents information about the match and server, for information purposes. Format:
 {
-  Env = {}, -- key-value data set in the runtime.env server configuration.
-  ExecutionMode = "Match",
-  MatchId = "client-friendly match ID, can be shared with clients and used in match join operations",
-  MatchNode = "name of the Nakama node hosting this match",
-  MatchLabel = "the label string returned from match_init",
-  MatchTickrate = 1 -- the tick rate returned by match_init
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  execution_mode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match",
+  match_label = "the label string returned from match_init",
+  match_tick_rate = 1 -- the tick rate returned by match_init
 }
 
 Dispatcher exposes useful functions to the match. Format:
@@ -78,10 +78,10 @@ State is the current in-memory match state, may be any Lua term except nil.
 
 Presence is the user attempting to join the match. Format:
 {
-  UserId: "user unique ID",
-  SessionId: "session ID of the user's current connection",
-  Username: "user's unique username",
-  Node: "name of the Nakama node the user is connected to"
+  user_id: "user unique ID",
+  session_id: "session ID of the user's current connection",
+  username: "user's unique username",
+  node: "name of the Nakama node the user is connected to"
 }
 
 Expected return these values (all required) in order:
@@ -100,12 +100,12 @@ Called when one or more users have left the match for any reason, including conn
 
 Context represents information about the match and server, for information purposes. Format:
 {
-  Env = {}, -- key-value data set in the runtime.env server configuration.
-  ExecutionMode = "Match",
-  MatchId = "client-friendly match ID, can be shared with clients and used in match join operations",
-  MatchNode = "name of the Nakama node hosting this match",
-  MatchLabel = "the label string returned from match_init",
-  MatchTickrate = 1 -- the tick rate returned by match_init
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  execution_mode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match",
+  match_label = "the label string returned from match_init",
+  match_tick_rate = 1 -- the tick rate returned by match_init
 }
 
 Dispatcher exposes useful functions to the match. Format:
@@ -127,10 +127,10 @@ State is the current in-memory match state, may be any Lua term except nil.
 Presences is a list of users that have left the match. Format:
 {
   {
-    UserId: "user unique ID",
-    SessionId: "session ID of the user's current connection",
-    Username: "user's unique username",
-    Node: "name of the Nakama node the user is connected to"
+    user_id: "user unique ID",
+    session_id: "session ID of the user's current connection",
+    username: "user's unique username",
+    node: "name of the Nakama node the user is connected to"
   },
   ...
 }
@@ -150,12 +150,12 @@ Called on an interval based on the tick rate returned by match_init.
 
 Context represents information about the match and server, for information purposes. Format:
 {
-  Env = {}, -- key-value data set in the runtime.env server configuration.
-  ExecutionMode = "Match",
-  MatchId = "client-friendly match ID, can be shared with clients and used in match join operations",
-  MatchNode = "name of the Nakama node hosting this match",
-  MatchLabel = "the label string returned from match_init",
-  MatchTickrate = 1 -- the tick rate returned by match_init
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  executionMode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match",
+  match_label = "the label string returned from match_init",
+  match_tick_rate = 1 -- the tick rate returned by match_init
 }
 
 Dispatcher exposes useful functions to the match. Format:
@@ -177,14 +177,14 @@ State is the current in-memory match state, may be any Lua term except nil.
 Messages is a list of data messages received from users between the previous and current ticks. Format:
 {
   {
-    Sender = {
-      UserId: "user unique ID",
-      SessionId: "session ID of the user's current connection",
-      Username: "user's unique username",
-      Node: "name of the Nakama node the user is connected to"
+    sender = {
+      user_id: "user unique ID",
+      session_id: "session ID of the user's current connection",
+      username: "user's unique username",
+      node: "name of the Nakama node the user is connected to"
     },
-    OpCode = 1, -- numeric op code set by the sender.
-    Data = "any string data set by the sender" -- may be nil.
+    op_code = 1, -- numeric op code set by the sender.
+    data = "any string data set by the sender" -- may be nil.
   },
   ...
 }
@@ -194,8 +194,8 @@ Expected return these values (all required) in order:
 --]]
 local function match_loop(context, dispatcher, tick, state, messages)
   if state.debug then
-    print("match " .. context.MatchId .. " tick " .. tick)
-    print("match " .. context.MatchId .. " messages:\n" .. du.print_r(messages))
+    print("match " .. context.match_id .. " tick " .. tick)
+    print("match " .. context.match_id .. " messages:\n" .. du.print_r(messages))
   end
   if tick < 180 then
     return state
