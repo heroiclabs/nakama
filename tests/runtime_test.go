@@ -50,6 +50,7 @@ func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.Run
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
 	}
+
 	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
 }
 
@@ -492,6 +493,46 @@ local content = {
 local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 
 nk.wallet_write(user_id, content)
+`)
+
+	rp := vm(t, modules, make(map[string]struct{}, 0))
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeStorageWrite(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test.lua", `
+local nk = require("nakama")
+
+local new_objects = {
+	{collection = "settings", key = "a", user_id = nil, value = {}},
+	{collection = "settings", key = "b", user_id = nil, value = {}},
+	{collection = "settings", key = "c", user_id = nil, value = {}}
+}
+
+nk.storage_write(new_objects)
+`)
+
+	rp := vm(t, modules, make(map[string]struct{}, 0))
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeStorageRead(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test.lua", `
+local nk = require("nakama")
+local object_ids = {
+  {collection = "settings", key = "a", user_id = nil},
+  {collection = "settings", key = "b", user_id = nil},
+  {collection = "settings", key = "c", user_id = nil}
+}
+local objects = nk.storage_read(object_ids)
+for i, r in ipairs(objects)
+do
+  assert(#r.value == 0, "'r.value' must be '{}'")
+end
 `)
 
 	rp := vm(t, modules, make(map[string]struct{}, 0))
