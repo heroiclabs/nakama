@@ -36,6 +36,46 @@ type storageCursor struct {
 	Read   int32
 }
 
+func StorageListObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
+	var sc *storageCursor = nil
+	if cursor != "" {
+		sc = &storageCursor{}
+		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
+			logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", cursor))
+			return nil, codes.InvalidArgument, errors.New("Malformed cursor was used.")
+		} else {
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
+				logger.Warn("Could not decode storage cursor.", zap.String("cursor", cursor))
+				return nil, codes.InvalidArgument, errors.New("Malformed cursor was used.")
+			}
+		}
+	}
+
+	var result *api.StorageObjectList
+	var resultErr error
+	if uuid.Equal(caller, uuid.Nil) {
+		// disregard permissions
+		result, resultErr = StorageListObjectsUser(logger, db, true, ownerID, collection, limit, cursor, sc)
+	} else if uuid.Equal(ownerID, uuid.Nil) {
+		// not authoritative but trying to list global data from context of a user.
+		result, resultErr = StorageListObjectsPublicRead(logger, db, collection, limit, cursor, sc)
+	} else {
+		if uuid.Equal(caller, ownerID) {
+			// trying to list own user data
+			result, resultErr = StorageListObjectsUser(logger, db, false, ownerID, collection, limit, cursor, sc)
+		} else {
+			// trying to list someone else's data
+			result, resultErr = StorageListObjectsPublicReadUser(logger, db, ownerID, collection, limit, cursor, sc)
+		}
+	}
+
+	if resultErr != nil {
+		return nil, codes.Internal, resultErr
+	}
+
+	return result, codes.OK, nil
+}
+
 func StorageListObjectsPublicRead(logger *zap.Logger, db *sql.DB, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, limit}
@@ -48,8 +88,7 @@ func StorageListObjectsPublicRead(logger *zap.Logger, db *sql.DB, collection str
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1 AND read = 2` + cursorQuery + `
-LIMIT $2
-`
+LIMIT $2`
 
 	rows, err := db.Query(query, params...)
 	if err != nil {
@@ -101,7 +140,7 @@ LIMIT $3`
 	return objects, err
 }
 
-func StorageListObjectsUser(logger *zap.Logger, db *sql.DB, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
+func StorageListObjectsUser(logger *zap.Logger, db *sql.DB, authoritative bool, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, userID, limit}
 	if storageCursor != nil {
@@ -113,8 +152,15 @@ func StorageListObjectsUser(logger *zap.Logger, db *sql.DB, userID uuid.UUID, co
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1 AND read > 0 AND user_id = $2 ` + cursorQuery + `
-LIMIT $3
-`
+LIMIT $3`
+	if authoritative {
+		// disregard permissions
+		query = `
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time
+FROM storage
+WHERE collection = $1 AND user_id = $2 ` + cursorQuery + `
+LIMIT $3`
+	}
 
 	rows, err := db.Query(query, params...)
 	if err != nil {
@@ -399,8 +445,9 @@ RETURNING collection, key, version`
 	return query, params
 }
 
-func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) error {
-	return Transact(logger, db, func(tx *sql.Tx) error {
+func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
+	returnCode := codes.OK
+	if err := Transact(logger, db, func(tx *sql.Tx) error {
 		for ownerID, objectIDs := range userObjectIDs {
 			for _, objectID := range objectIDs {
 				params := []interface{}{objectID.GetCollection(), objectID.GetKey(), ownerID}
@@ -415,11 +462,27 @@ func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bo
 					query += fmt.Sprintf(" AND version = $4")
 				}
 
-				if _, err := tx.Exec(query, params...); err != nil {
+				result, err := tx.Exec(query, params...)
+				if err != nil {
+					returnCode = codes.Internal
 					logger.Error("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", objectID))
+					return err
+				}
+
+				if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
+					returnCode = codes.InvalidArgument
+					return errors.New("Storage delete rejected - not found, version check failed, or permission denied.")
 				}
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		// in case it is a commit/rollback error
+		if _, ok := err.(pq.Error); ok {
+			return codes.Internal, err
+		}
+		return returnCode, err
+	}
+
+	return codes.OK, nil
 }

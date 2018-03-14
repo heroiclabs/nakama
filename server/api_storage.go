@@ -15,15 +15,11 @@
 package server
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/gob"
 	"encoding/json"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,41 +34,23 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 		limit = int(in.GetLimit().Value)
 	}
 
-	cursor := in.GetCursor()
-	var sc *storageCursor = nil
-	if cursor != "" {
-		sc = &storageCursor{}
-		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
-			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", cursor))
-			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
-				s.logger.Warn("Could not decode storage cursor.", zap.String("cursor", cursor))
-				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-			}
-		}
-	}
-
-	var storageObjectList *api.StorageObjectList
-	var listingError error
+	caller := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	userID := uuid.Nil
 	if in.GetUserId() != "" {
 		uid, err := uuid.FromString(in.GetUserId())
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID - make sure user ID is a valid UUID.")
 		}
-
-		userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-		if uuid.Equal(userID, uid) {
-			storageObjectList, listingError = StorageListObjectsUser(s.logger, s.db, userID, in.GetCollection(), limit, cursor, sc)
-		} else {
-			storageObjectList, listingError = StorageListObjectsPublicReadUser(s.logger, s.db, uid, in.GetCollection(), limit, cursor, sc)
-		}
-	} else {
-		storageObjectList, listingError = StorageListObjectsPublicRead(s.logger, s.db, in.GetCollection(), limit, cursor, sc)
+		userID = uid
 	}
 
+	storageObjectList, code, listingError := StorageListObjects(s.logger, s.db, caller, userID, in.GetCollection(), limit, in.GetCursor())
+
 	if listingError != nil {
-		return nil, status.Error(codes.Internal, "Error listing storage objects.")
+		if code == codes.Internal {
+			return nil, status.Error(code, "Error listing storage objects.")
+		}
+		return nil, status.Error(code, listingError.Error())
 	}
 
 	return storageObjectList, nil
@@ -163,8 +141,11 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	objectIDs := map[uuid.UUID][]*api.DeleteStorageObjectId{userID: in.GetObjectIds()}
 
-	if err := StorageDeleteObjects(s.logger, s.db, false, objectIDs); err != nil {
-		return nil, status.Error(codes.Internal, "Error deleting storage objects.")
+	if code, err := StorageDeleteObjects(s.logger, s.db, false, objectIDs); err != nil {
+		if code == codes.Internal {
+			return nil, status.Error(codes.Internal, "Error deleting storage objects.")
+		}
+		return nil, status.Error(code, err.Error())
 	}
 
 	return &empty.Empty{}, nil

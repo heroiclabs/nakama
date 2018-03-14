@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS users (
     disable_time  BIGINT        DEFAULT 0 CHECK (disable_time >= 0) NOT NULL
 );
 
+INSERT INTO users (id, username, create_time, update_time)
+    VALUES ('00000000-0000-0000-0000-000000000000', '', 1, 1)
+    ON CONFLICT(id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -80,12 +84,11 @@ CREATE TABLE IF NOT EXISTS notification (
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (collection, read, key, user_id),
-    -- TODO: (mo, zyro) figure out references for uuid.Nil
-    --FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     collection  VARCHAR(128) NOT NULL,
     key         VARCHAR(128) NOT NULL,
-    user_id     UUID,        NOT NULL,
+    user_id     UUID         NOT NULL,
     value       JSONB        DEFAULT '{}' NOT NULL,
     version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
     read        SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,

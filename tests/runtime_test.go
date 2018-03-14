@@ -32,11 +32,11 @@ var (
 func db(t *testing.T) *sql.DB {
 	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
 	if err != nil {
-		t.Fatal("Error connecting to database", zap.Error(err))
+		t.Fatal("Error connecting to database", err)
 	}
 	err = db.Ping()
 	if err != nil {
-		t.Fatal("Error pinging database", zap.Error(err))
+		t.Fatal("Error pinging database", err)
 	}
 	return db
 }
