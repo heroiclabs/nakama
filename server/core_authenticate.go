@@ -34,7 +34,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, error) {
+func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, bool, error) {
 	found := true
 
 	// Look for an existing account.
@@ -48,7 +48,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 			found = false
 		} else {
 			logger.Error("Cannot find user with custom ID.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -57,15 +57,15 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -76,26 +76,26 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_custom_id_key") {
 				// A concurrent write has inserted this custom ID.
 				logger.Debug("Did not insert new user as custom ID already exists.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with custom ID.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username string, create bool) (string, string, error) {
+func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username string, create bool) (string, string, bool, error) {
 	found := true
 
 	// Look for an existing account.
@@ -109,7 +109,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 			//return "", "", status.Error(codes.NotFound, "Device ID not found.")
 		} else {
 			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -122,21 +122,21 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 		err = db.QueryRow(query, dbUserID).Scan(&dbUsername, &dbDisableTime)
 		if err != nil {
 			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -187,13 +187,13 @@ WHERE NOT EXISTS
 		return nil
 	})
 	if fnErr != nil {
-		return "", "", fnErr
+		return "", "", false, fnErr
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, error) {
+func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, bool, error) {
 	found := true
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
@@ -209,7 +209,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 			found = false
 		} else {
 			logger.Error("Cannot find user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -218,20 +218,20 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
 		err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
 		if err != nil {
-			return "", "", status.Error(codes.Unauthenticated, "Invalid credentials.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -242,30 +242,30 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_email_key") {
 				// A concurrent write has inserted this email.
 				logger.Debug("Did not insert new user as email already exists.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client, accessToken, username string, create bool) (string, string, error) {
+func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client, accessToken, username string, create bool) (string, string, bool, error) {
 	facebookProfile, err := client.GetFacebookProfile(accessToken)
 	if err != nil {
 		logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
-		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 	found := true
 
@@ -280,7 +280,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 			found = false
 		} else {
 			logger.Error("Cannot find user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -289,15 +289,15 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -308,30 +308,30 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_facebook_id_key") {
 				// A concurrent write has inserted this Facebook ID.
 				logger.Debug("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Client, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, error) {
+func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Client, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error) {
 	valid, err := client.CheckGameCenterID(playerID, bundleID, timestamp, salt, signature, publicKeyUrl)
 	if !valid || err != nil {
 		logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
-		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
+		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 	found := true
 
@@ -346,7 +346,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 			found = false
 		} else {
 			logger.Error("Cannot find user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -355,15 +355,15 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -374,30 +374,30 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_gamecenter_id_key") {
 				// A concurrent write has inserted this GameCenter ID.
 				logger.Debug("Did not insert new user as GameCenter ID already exists.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, error) {
+func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, bool, error) {
 	googleProfile, err := client.CheckGoogleToken(idToken)
 	if err != nil {
 		logger.Debug("Could not authenticate Google profile.", zap.Error(err))
-		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 	found := true
 
@@ -412,7 +412,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 			found = false
 		} else {
 			logger.Error("Cannot find user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -421,15 +421,15 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -440,30 +440,30 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_google_id_key") {
 				// A concurrent write has inserted this Google ID.
 				logger.Debug("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
-func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, error) {
+func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, bool, error) {
 	steamProfile, err := client.GetSteamProfile(publisherKey, appID, token)
 	if err != nil {
 		logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
-		return "", "", status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
 	found := true
@@ -479,7 +479,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 			found = false
 		} else {
 			logger.Error("Cannot find user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -488,15 +488,15 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 		// Check if it's disabled.
 		if dbDisableTime != 0 {
 			logger.Debug("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		return dbUserID, dbUsername, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -507,23 +507,23 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_steam_id_key") {
 				// A concurrent write has inserted this Steam ID.
 				logger.Debug("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, nil
+	return userID, username, true, nil
 }
 
 func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
