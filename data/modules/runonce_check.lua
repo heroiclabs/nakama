@@ -21,7 +21,7 @@ local nk = require("nakama")
 --]]
 
 nk.run_once(function(context)
-  assert(context.ExecutionMode, "run_once")
+  assert(context.execution_mode, "run_once")
 end)
 
 nk.run_once(function(context)
