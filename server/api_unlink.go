@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -33,7 +32,7 @@ func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*e
 		return nil, status.Error(codes.InvalidArgument, "An ID must be supplied.")
 	}
 
-	query := `UPDATE users SET custom_id = NULL, update_time = $3
+	query := `UPDATE users SET custom_id = NULL, update_time = now()
 WHERE id = $1
 AND custom_id = $2
 AND ((facebook_id IS NOT NULL
@@ -45,8 +44,7 @@ AND ((facebook_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
-	res, err := s.db.Exec(query, userID, in.Id, ts)
+	res, err := s.db.Exec(query, userID, in.Id)
 
 	if err != nil {
 		s.logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
@@ -65,7 +63,6 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 
 	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
-		ts := time.Now().UTC().Unix()
 
 		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
@@ -86,7 +83,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
 		}
 
-		res, err = tx.Exec("UPDATE users SET update_time = $2 WHERE id = $1", userID, ts)
+		res, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Could not unlink Device ID.")
@@ -110,7 +107,7 @@ func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Both email and password must be supplied.")
 	}
 
-	query := `UPDATE users SET email = NULL, password = NULL, update_time = $3
+	query := `UPDATE users SET email = NULL, password = NULL, update_time = now()
 WHERE id = $1
 AND email = $2
 AND ((facebook_id IS NOT NULL
@@ -122,9 +119,8 @@ AND ((facebook_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	cleanEmail := strings.ToLower(in.Email)
-	res, err := s.db.Exec(query, userID, cleanEmail, ts)
+	res, err := s.db.Exec(query, userID, cleanEmail)
 
 	if err != nil {
 		s.logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
@@ -147,7 +143,7 @@ func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook)
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
-	query := `UPDATE users SET facebook_id = NULL, update_time = $3
+	query := `UPDATE users SET facebook_id = NULL, update_time = now()
 WHERE id = $1
 AND facebook_id = $2
 AND ((custom_id IS NOT NULL
@@ -159,8 +155,7 @@ AND ((custom_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
-	res, err := s.db.Exec(query, userID, facebookProfile.ID, ts)
+	res, err := s.db.Exec(query, userID, facebookProfile.ID)
 
 	if err != nil {
 		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
@@ -193,7 +188,7 @@ func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCen
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 
-	query := `UPDATE users SET gamecenter_id = NULL, update_time = $3
+	query := `UPDATE users SET gamecenter_id = NULL, update_time = now()
 WHERE id = $1
 AND gamecenter_id = $2
 AND ((custom_id IS NOT NULL
@@ -205,8 +200,7 @@ AND ((custom_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
-	res, err := s.db.Exec(query, userID, in.PlayerId, ts)
+	res, err := s.db.Exec(query, userID, in.PlayerId)
 
 	if err != nil {
 		s.logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
@@ -229,7 +223,7 @@ func (s *ApiServer) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle) (*e
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 
-	query := `UPDATE users SET google_id = NULL, update_time = $3
+	query := `UPDATE users SET google_id = NULL, update_time = now()
 WHERE id = $1
 AND google_id = $2
 AND ((custom_id IS NOT NULL
@@ -241,8 +235,7 @@ AND ((custom_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
-	res, err := s.db.Exec(query, userID, googleProfile.Sub, ts)
+	res, err := s.db.Exec(query, userID, googleProfile.Sub)
 
 	if err != nil {
 		s.logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
@@ -269,7 +262,7 @@ func (s *ApiServer) UnlinkSteam(ctx context.Context, in *api.AccountSteam) (*emp
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
-	query := `UPDATE users SET steam_id = NULL, update_time = $3
+	query := `UPDATE users SET steam_id = NULL, update_time = now()
 WHERE id = $1
 AND steam_id = $2
 AND ((custom_id IS NOT NULL
@@ -281,8 +274,7 @@ AND ((custom_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
-	res, err := s.db.Exec(query, userID, strconv.FormatUint(steamProfile.SteamID, 10), ts)
+	res, err := s.db.Exec(query, userID, strconv.FormatUint(steamProfile.SteamID, 10))
 
 	if err != nil {
 		s.logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))

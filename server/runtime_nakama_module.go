@@ -875,7 +875,7 @@ func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	// Import friends if requested.
 	if importFriends {
-		importFacebookFriends(n.logger, n.db, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		importFacebookFriends(n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -1663,7 +1663,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	}
 
 	s := l.OptString(5, "")
-	senderID := ""
+	senderID := uuid.Nil.String()
 	if s != "" {
 		suid, err := uuid.FromString(s)
 		if err != nil {
@@ -1714,6 +1714,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 
 		notification := &api.Notification{}
 		userID := uuid.Nil
+		senderID := uuid.Nil
 		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
 			switch k.String() {
 			case "persistent":
@@ -1789,7 +1790,12 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 					l.ArgError(1, "expects sender_id to be a valid UUID")
 					return
 				}
-				notification.SenderId = u
+				sid, err := uuid.FromString(u)
+				if err != nil {
+					l.ArgError(1, "expects user_id to be a valid UUID")
+					return
+				}
+				senderID = sid
 			}
 		})
 
@@ -1809,6 +1815,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 
 		notification.Id = uuid.NewV4().String()
 		notification.CreateTime = &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()}
+		notification.SenderId = senderID.String()
 
 		no := notifications[userID]
 		if no == nil {

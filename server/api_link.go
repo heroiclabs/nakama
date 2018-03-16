@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -42,18 +41,16 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET custom_id = $2, update_time = $3
+SET custom_id = $2, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE custom_id = $2 AND NOT id = $1))`,
 		userID,
-		customID,
-		ts)
+		customID)
 
 	if err != nil {
 		s.logger.Error("Could not link custom ID.", zap.Error(err), zap.Any("input", in))
@@ -77,7 +74,6 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 
 	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
 		userID := ctx.Value(ctxUserIDKey{})
-		ts := time.Now().UTC().Unix()
 
 		var dbDeviceIdLinkedUser int64
 		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
@@ -97,7 +93,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 			}
 		}
 
-		_, err = tx.Exec("UPDATE users SET update_time = $1 WHERE id = $2", ts, userID)
+		_, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Error("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
 			return status.Error(codes.Internal, "Error linking Device ID.")
@@ -129,10 +125,9 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET email = $2, password = $3, update_time = $4
+SET email = $2, password = $3, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
@@ -140,8 +135,7 @@ AND (NOT EXISTS
      WHERE email = $2 AND NOT id = $1))`,
 		userID,
 		cleanEmail,
-		hashedPassword,
-		ts)
+		hashedPassword)
 
 	if err != nil {
 		s.logger.Error("Could not link email.", zap.Error(err), zap.Any("input", in))
@@ -165,18 +159,16 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET facebook_id = $2, update_time = $3
+SET facebook_id = $2, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE facebook_id = $2 AND NOT id = $1))`,
 		userID,
-		facebookProfile.ID,
-		ts)
+		facebookProfile.ID)
 
 	if err != nil {
 		s.logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", in))
@@ -187,7 +179,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if in.Import == nil || in.Import.Value {
-		importFacebookFriends(s.logger, s.db, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
+		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 
 	return &empty.Empty{}, nil
@@ -215,18 +207,16 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET gamecenter_id = $2, update_time = $3
+SET gamecenter_id = $2, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE gamecenter_id = $2 AND NOT id = $1))`,
 		userID,
-		in.PlayerId,
-		ts)
+		in.PlayerId)
 
 	if err != nil {
 		s.logger.Error("Could not link GameCenter ID.", zap.Error(err), zap.Any("input", in))
@@ -250,18 +240,16 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET google_id = $2, update_time = $3
+SET google_id = $2, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub,
-		ts)
+		googleProfile.Sub)
 
 	if err != nil {
 		s.logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", in))
@@ -289,18 +277,16 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
-	ts := time.Now().UTC().Unix()
 	res, err := s.db.Exec(`
 UPDATE users
-SET steam_id = $2, update_time = $3
+SET steam_id = $2, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE steam_id = $2 AND NOT id = $1))`,
 		userID,
-		strconv.FormatUint(steamProfile.SteamID, 10),
-		ts)
+		strconv.FormatUint(steamProfile.SteamID, 10))
 
 	if err != nil {
 		s.logger.Error("Could not link Steam ID.", zap.Error(err), zap.Any("input", in))

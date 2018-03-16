@@ -185,8 +185,8 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	objects := make([]*api.StorageObject, 0)
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTime *pq.NullTime
-		var updateTime *pq.NullTime
+		var createTime pq.NullTime
+		var updateTime pq.NullTime
 		var userID sql.NullString
 		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			return nil, err
@@ -275,8 +275,8 @@ WHERE
 	objects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTime *pq.NullTime
-		var updateTime *pq.NullTime
+		var createTime pq.NullTime
+		var updateTime pq.NullTime
 
 		var userID sql.NullString
 		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
