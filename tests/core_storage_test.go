@@ -36,8 +36,8 @@ func generateString() string {
 
 func insertUser(t *testing.T, db *sql.DB, uid uuid.UUID) {
 	if _, err := db.Exec(`
-INSERT INTO users (id, username, create_time, update_time)
-VALUES ($1, $2, 1, 1)
+INSERT INTO users (id, username)
+VALUES ($1, $2)
 ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
 		t.Fatal("Could not insert new user.", err)
 	}

@@ -14,4 +14,4 @@
  limitations under the License.
 --]]
 
-require("nakama").match_create("match", {debug = true})
+--require("nakama").match_create("match", {debug = true})
