@@ -1580,6 +1580,11 @@
     "apiSession": {
       "type": "object",
       "properties": {
+        "created": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if the corresponding account was just created, false otherwise."
+        },
         "token": {
           "type": "string",
           "description": "Authentication credentials."

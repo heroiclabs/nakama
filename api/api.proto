@@ -795,10 +795,12 @@ message Rpc {
 
 // A user's session used to authenticate messages.
 message Session {
+  // True if the corresponding account was just created, false otherwise.
+  bool created = 1;
   // Authentication credentials.
-  string token = 1;
+  string token = 2;
   // rUDP specific authentication credentials.
-  string udp_token = 2; // TODO(zyro): will we remove it?
+  string udp_token = 3; // TODO(zyro): will we remove it?
 }
 
 // The read access permissions for a storage object.
