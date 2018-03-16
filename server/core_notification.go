@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"errors"
 	"strconv"
 	"strings"
 
@@ -44,7 +43,7 @@ type notificationCacheableCursor struct {
 	CreateTime     int64
 }
 
-func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
+func NotificationSend(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
 	persistentNotifications := make(map[uuid.UUID][]*api.Notification)
 	for userID, ns := range notifications {
 		for _, userNotification := range ns {
@@ -80,23 +79,10 @@ func NotificationSend(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRo
 	return nil
 }
 
-func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string) (*api.NotificationList, error) {
-	nc := &notificationCacheableCursor{}
-	if cursor != "" {
-		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
-			logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
-			return nil, errors.New("Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
-				logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
-				return nil, errors.New("Malformed cursor was used.")
-			}
-		}
-	}
-
+func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
 	params := []interface{}{userID, limit}
 	cursorQuery := " "
-	if nc.NotificationID != nil {
+	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3, $4::UUID)"
 		params = append(params, nc.CreateTime, uuid.FromBytesOrNil(nc.NotificationID))
 	}
@@ -116,12 +102,12 @@ LIMIT $2`, params...)
 	notifications := make([]*api.Notification, 0)
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
-		var senderId sql.NullString
-		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &senderId, &no.CreateTime.Seconds); err != nil {
+		var senderID sql.NullString
+		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &senderID, &no.CreateTime.Seconds); err != nil {
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
-		no.SenderId = senderId.String
+		no.SenderId = senderID.String
 		notifications = append(notifications, no)
 	}
 
