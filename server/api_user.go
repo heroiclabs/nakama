@@ -24,7 +24,7 @@ import (
 
 func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api.Users, error) {
 	if in.GetIds() == nil && in.GetUsernames() == nil && in.GetFacebookIds() == nil {
-		return nil, status.Error(codes.InvalidArgument, "Specify at least one ID or Username or Facebook ID.")
+		return &api.Users{}, nil
 	}
 
 	ids := make([]string, 0)

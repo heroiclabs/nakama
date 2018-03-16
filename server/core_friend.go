@@ -89,7 +89,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.Friends{Friends: friends}, nil
 }
 
-func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
+func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	ts := time.Now().UTC().Unix()
 
 	uniqueFriendIDs := make(map[string]struct{})
@@ -133,7 +133,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter M
 		}}
 	}
 
-	NotificationSend(logger, db, tracker, messageRouter, notifications)
+	NotificationSend(logger, db, messageRouter, notifications)
 
 	return nil
 }
