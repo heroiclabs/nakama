@@ -173,7 +173,10 @@ service Nakama {
 
   // Delete one or more objects by ID or username.
   rpc DeleteStorageObjects (DeleteStorageObjectsRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/storage";
+    option (google.api.http) = {
+      put: "/v2/storage/delete",
+      body: "*"
+    };
   }
 
   // Fetch the current user's account.
@@ -270,7 +273,7 @@ service Nakama {
     option (google.api.http).get = "/v2/notification";
   }
 
-  // List collections of storage objects.
+  // List publicly readable storage objects in a given collection.
   rpc ListStorageObjects (ListStorageObjectsRequest) returns (StorageObjectList) {
     option (google.api.http) = {
       get: "/v2/storage/{collection}",
@@ -601,7 +604,7 @@ message DeleteStorageObjectId {
 // Batch delete storage objects.
 message DeleteStorageObjectsRequest {
   // Batch of storage objects.
-  repeated DeleteStorageObjectId objectIds = 1;
+  repeated DeleteStorageObjectId object_ids = 1;
 }
 
 // A friend of a user.
@@ -711,7 +714,7 @@ message ListNotificationsRequest {
   string cacheable_cursor = 2; // value from NotificationList.cacheable_cursor.
 }
 
-// List storage objects by user ID or collection or both.
+// List publicly readable storage objects in a given collection.
 message ListStorageObjectsRequest {
   // ID of the user.
   string user_id = 1;
@@ -780,7 +783,7 @@ message ReadStorageObjectId {
 // Batch get storage objects.
 message ReadStorageObjectsRequest {
   // Batch of storage objects.
-  repeated ReadStorageObjectId objectIds = 1;
+  repeated ReadStorageObjectId object_ids = 1;
 }
 
 // Execute an Lua function on the server.
@@ -801,28 +804,6 @@ message Session {
   string token = 2;
   // rUDP specific authentication credentials.
   string udp_token = 3; // TODO(zyro): will we remove it?
-}
-
-// The read access permissions for a storage object.
-enum StoragePermissionRead {
-  // Default case. Assumed as OWNER_READ permission.
-  STORAGE_PERMISSION_READ_UNSPECIFIED = 0;
-  // The object does not have client read permissions.
-  NO_READ = 1;
-  // The object may be read by the user owner.
-  OWNER_READ = 2;
-  // The object may be read by any user.
-  PUBLIC_READ = 3;
-}
-
-// The write access permission for a storage object.
-enum StoragePermissionWrite {
-  // Default case. Assumed as OWNER_WRITE permission.
-  STORAGE_PERMISSION_WRITE_UNSPECIFIED = 0;
-  // The object does not have client write permissions.
-  NO_WRITE = 1;
-  // The object may be written by the user owner.
-  OWNER_WRITE = 2;
 }
 
 // An object within the storage engine.
@@ -855,6 +836,8 @@ message StorageObjectAck {
   string key = 2;
   // The version hash of the object.
   string version = 3;
+  // The owner of the object.
+  string user_id = 4;
 }
 
 // Batch of acknowledgements for the storage object write.
@@ -946,9 +929,9 @@ message WriteStorageObject {
   // The version hash of the object to check. Possible values are: ["", "*", "#hash#"].
   string version = 4; // if-match and if-none-match
   // The read access permissions for the object.
-  int32 permission_read = 5;
+  google.protobuf.Int32Value permission_read = 5;
   // The write access permissions for the object.
-  int32 permission_write = 6;
+  google.protobuf.Int32Value permission_write = 6;
 }
 
 // Write objects to the storage engine.

@@ -941,21 +941,6 @@
       }
     },
     "/v2/storage": {
-      "delete": {
-        "summary": "Delete one or more objects by ID or username.",
-        "operationId": "DeleteStorageObjects",
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/protobufEmpty"
-            }
-          }
-        },
-        "tags": [
-          "Nakama"
-        ]
-      },
       "post": {
         "summary": "Get storage objects.",
         "operationId": "ReadStorageObjects",
@@ -1007,9 +992,36 @@
         ]
       }
     },
+    "/v2/storage/delete": {
+      "put": {
+        "summary": "Delete one or more objects by ID or username.",
+        "operationId": "DeleteStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiDeleteStorageObjectsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/storage/{collection}": {
       "get": {
-        "summary": "List collections of storage objects.",
+        "summary": "List publicly readable storage objects in a given collection.",
         "operationId": "ListStorageObjects",
         "responses": {
           "200": {
@@ -1056,7 +1068,7 @@
     },
     "/v2/storage/{collection}/{user_id}": {
       "get": {
-        "summary": "List collections of storage objects.",
+        "summary": "List publicly readable storage objects in a given collection.",
         "operationId": "ListStorageObjects2",
         "responses": {
           "200": {
@@ -1342,6 +1354,19 @@
       },
       "description": "Storage objects to delete."
     },
+    "apiDeleteStorageObjectsRequest": {
+      "type": "object",
+      "properties": {
+        "object_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiDeleteStorageObjectId"
+          },
+          "description": "Batch of storage objects."
+        }
+      },
+      "description": "Batch delete storage objects."
+    },
     "apiFriend": {
       "type": "object",
       "properties": {
@@ -1549,7 +1574,7 @@
     "apiReadStorageObjectsRequest": {
       "type": "object",
       "properties": {
-        "objectIds": {
+        "object_ids": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiReadStorageObjectId"
@@ -1656,6 +1681,10 @@
         "version": {
           "type": "string",
           "description": "The version hash of the object."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The owner of the object."
         }
       },
       "description": "A storage acknowledgement."
