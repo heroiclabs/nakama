@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	"errors"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
@@ -41,7 +42,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	query := "SELECT id, username, disable_time FROM users WHERE custom_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err := db.QueryRow(query, customID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -55,7 +56,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -70,8 +71,8 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
-	result, err := db.Exec(query, userID, username, customID, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.Exec(query, userID, username, customID)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -118,7 +119,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 		// Load its details.
 		query = "SELECT username, disable_time FROM users WHERE id = $1"
 		var dbUsername string
-		var dbDisableTime int64
+		var dbDisableTime pq.NullTime
 		err = db.QueryRow(query, dbUserID).Scan(&dbUsername, &dbDisableTime)
 		if err != nil {
 			logger.Error("Cannot find user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -126,7 +127,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 		}
 
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -142,19 +143,18 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 	// Create a new account.
 	userID := uuid.NewV4().String()
 	fnErr := Transact(logger, db, func(tx *sql.Tx) error {
-		//ts := time.Now().UTC().Unix()
 		query := `
 INSERT INTO users (id, username, create_time, update_time)
 SELECT $1 AS id,
 		 $2 AS username,
-		 $4 AS create_time,
-		 $4 AS update_time
+		 now(),
+		 now()
 WHERE NOT EXISTS
   (SELECT id
    FROM user_device
    WHERE id = $3::VARCHAR)`
 
-		result, err := tx.Exec(query, userID, username, deviceID, time.Now().UTC().Unix())
+		result, err := tx.Exec(query, userID, username, deviceID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// A concurrent write has inserted this device ID.
@@ -202,7 +202,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	var dbUserID string
 	var dbUsername string
 	var dbPassword string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err := db.QueryRow(query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -216,7 +216,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -236,8 +236,8 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $5)"
-	result, err := db.Exec(query, userID, username, email, hashedPassword, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
+	result, err := db.Exec(query, userID, username, email, hashedPassword)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -273,7 +273,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 	query := "SELECT id, username, disable_time FROM users WHERE facebook_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err = db.QueryRow(query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -287,7 +287,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -302,8 +302,8 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
-	result, err := db.Exec(query, userID, username, facebookProfile.ID, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.Exec(query, userID, username, facebookProfile.ID)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -339,7 +339,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 	query := "SELECT id, username, disable_time FROM users WHERE gamecenter_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err = db.QueryRow(query, playerID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -353,7 +353,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -368,8 +368,8 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
-	result, err := db.Exec(query, userID, username, playerID, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.Exec(query, userID, username, playerID)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -405,7 +405,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 	query := "SELECT id, username, disable_time FROM users WHERE google_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err = db.QueryRow(query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -419,7 +419,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -434,8 +434,8 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
-	result, err := db.Exec(query, userID, username, googleProfile.Sub, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.Exec(query, userID, username, googleProfile.Sub)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -472,7 +472,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	query := "SELECT id, username, disable_time FROM users WHERE steam_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime int64
+	var dbDisableTime pq.NullTime
 	err = db.QueryRow(query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -486,7 +486,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime != 0 {
+		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
 			logger.Debug("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -501,8 +501,8 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 
 	// Create a new account.
 	userID := uuid.NewV4().String()
-	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, $4, $4)"
-	result, err := db.Exec(query, userID, username, steamID, time.Now().UTC().Unix())
+	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.Exec(query, userID, username, steamID)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -538,7 +538,7 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client
 		return nil
 	}
 
-	ts := time.Now().UTC().Unix()
+	position := time.Now().UTC().Unix()
 	friendUserIDs := make([]uuid.UUID, 0)
 
 	err = Transact(logger, db, func(tx *sql.Tx) error {
@@ -628,10 +628,10 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client
 
 			// Attempt to mark as accepted any previous invite between these users, in any direction.
 			res, err := tx.Exec(`
-UPDATE user_edge SET state = 0, update_time = $3
+UPDATE user_edge SET state = 0, update_time = now()
 WHERE (source_id = $1 AND destination_id = $2 AND (state = 1 OR state = 2))
 OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
-`, friendID, userID, ts)
+`, friendID, userID)
 			if err != nil {
 				logger.Error("Error accepting invite in Facebook friend import.", zap.Error(err))
 				continue
@@ -646,8 +646,8 @@ OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
 SELECT source_id, destination_id, state, position, update_time
 FROM (VALUES
-  ($1::UUID, $2::UUID, 0, $3::BIGINT, $3::BIGINT),
-  ($2::UUID, $1::UUID, 0, $3::BIGINT, $3::BIGINT)
+  ($1::UUID, $2::UUID, 0, $3::BIGINT, now()),
+  ($2::UUID, $1::UUID, 0, $3::BIGINT, now())
 ) AS ue(source_id, destination_id, state, position, update_time)
 WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)
 AND NOT EXISTS
@@ -655,7 +655,7 @@ AND NOT EXISTS
 	 FROM user_edge
 	 WHERE source_id = $2::UUID AND destination_id = $1::UUID AND state = 3)
 ON CONFLICT (source_id, destination_id) DO NOTHING
-`, userID, friendID, ts)
+`, userID, friendID, position)
 			if err != nil {
 				logger.Error("Error adding new edges in Facebook friend import.", zap.Error(err))
 				continue
@@ -663,14 +663,14 @@ ON CONFLICT (source_id, destination_id) DO NOTHING
 
 			res, err = tx.Exec(`
 UPDATE users
-SET edge_count = edge_count + 1, update_time = $3
+SET edge_count = edge_count + 1, update_time = now()
 WHERE (id = $1::UUID OR id = $2::UUID)
 AND EXISTS
   (SELECT state
    FROM user_edge
    WHERE (source_id = $1::UUID AND destination_id = $2::UUID AND position = $3)
    OR (source_id = $2::UUID AND destination_id = $1::UUID AND position = $3))
-`, userID, friendID, ts)
+`, userID, friendID, position)
 			if err != nil {
 				logger.Error("Error updating edge count in Facebook friend import.", zap.Error(err))
 				continue
@@ -700,7 +700,7 @@ AND EXISTS
 				SenderId:   userID.String(),
 				Code:       NOTIFICATION_FRIEND_JOIN_GAME,
 				Persistent: true,
-				CreateTime: &timestamp.Timestamp{Seconds: ts},
+				CreateTime: &timestamp.Timestamp{Seconds: position},
 			}}
 		}
 	}
