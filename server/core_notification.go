@@ -25,6 +25,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
@@ -102,12 +103,16 @@ LIMIT $2`, params...)
 	notifications := make([]*api.Notification, 0)
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
-		var senderID sql.NullString
-		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &senderID, &no.CreateTime.Seconds); err != nil {
+		var createTime pq.NullTime
+		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
-		no.SenderId = senderID.String
+
+		no.CreateTime.Seconds = createTime.Time.Unix()
+		if no.SenderId == uuid.Nil.String() {
+			no.SenderId = ""
+		}
 		notifications = append(notifications, no)
 	}
 
@@ -174,14 +179,7 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 				",$" + strconv.Itoa(counter+5) +
 				",$" + strconv.Itoa(counter+6)
 
-			if un.SenderId == "" {
-				statement += ",NULL"
-				counter = counter + 6
-			} else {
-				statement += ",$" + strconv.Itoa(counter+7)
-				counter = counter + 7
-			}
-
+			counter = counter + 6
 			statements = append(statements, "("+statement+")")
 
 			params = append(params, un.Id)
@@ -189,17 +187,14 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 			params = append(params, un.Subject)
 			params = append(params, un.Content)
 			params = append(params, un.Code)
-			params = append(params, un.CreateTime.Seconds)
-			if un.SenderId != "" {
-				params = append(params, un.SenderId)
-			}
+			params = append(params, un.SenderId)
 		}
 	}
 
-	query := "INSERT INTO notification (id, user_id, subject, content, code, create_time, sender_id) VALUES " + strings.Join(statements, ", ")
+	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
 
 	if _, err := db.Exec(query, params...); err != nil {
-		logger.Error("Could not save notifications", zap.Error(err))
+		logger.Error("Could not save notifications.", zap.Error(err))
 		return err
 	}
 
