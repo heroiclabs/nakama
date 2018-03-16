@@ -653,7 +653,7 @@ func (n *NakamaModule) authenticateCustom(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, err := AuthenticateCustom(n.logger, n.db, id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateCustom(n.logger, n.db, id, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -661,7 +661,8 @@ func (n *NakamaModule) authenticateCustom(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateDevice(l *lua.LState) int {
@@ -693,7 +694,7 @@ func (n *NakamaModule) authenticateDevice(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, err := AuthenticateDevice(n.logger, n.db, id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateDevice(n.logger, n.db, id, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -701,7 +702,8 @@ func (n *NakamaModule) authenticateDevice(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
@@ -748,7 +750,7 @@ func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 
 	cleanEmail := strings.ToLower(email)
 
-	dbUserID, dbUsername, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -756,7 +758,8 @@ func (n *NakamaModule) authenticateEmail(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
@@ -785,7 +788,7 @@ func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, err := AuthenticateFacebook(n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(n.logger, n.db, n.socialClient, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -798,7 +801,8 @@ func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateGameCenter(l *lua.LState) int {
@@ -849,7 +853,7 @@ func (n *NakamaModule) authenticateGameCenter(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(8, true)
 
-	dbUserID, dbUsername, err := AuthenticateGameCenter(n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -857,7 +861,8 @@ func (n *NakamaModule) authenticateGameCenter(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateGoogle(l *lua.LState) int {
@@ -883,7 +888,7 @@ func (n *NakamaModule) authenticateGoogle(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, err := AuthenticateGoogle(n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(n.logger, n.db, n.socialClient, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -891,7 +896,8 @@ func (n *NakamaModule) authenticateGoogle(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateSteam(l *lua.LState) int {
@@ -922,7 +928,7 @@ func (n *NakamaModule) authenticateSteam(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, err := AuthenticateSteam(n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateSteam(n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -930,7 +936,8 @@ func (n *NakamaModule) authenticateSteam(l *lua.LState) int {
 
 	l.Push(lua.LString(dbUserID))
 	l.Push(lua.LString(dbUsername))
-	return 2
+	l.Push(lua.LBool(created))
+	return 3
 }
 
 func (n *NakamaModule) authenticateTokenGenerate(l *lua.LState) int {

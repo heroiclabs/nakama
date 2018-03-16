@@ -54,13 +54,13 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateCustom(s.logger, s.db, in.Account.Id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateCustom(s.logger, s.db, in.Account.Id, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.AuthenticateDeviceRequest) (*api.Session, error) {
@@ -84,13 +84,13 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateDevice(s.logger, s.db, in.Account.Id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateDevice(s.logger, s.db, in.Account.Id, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateEmailRequest) (*api.Session, error) {
@@ -121,13 +121,13 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateEmail(s.logger, s.db, cleanEmail, email.Password, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateEmail(s.logger, s.db, cleanEmail, email.Password, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
@@ -147,7 +147,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateFacebook(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
@@ -190,13 +190,13 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateGameCenter(s.logger, s.db, s.socialClient, in.Account.PlayerId, in.Account.BundleId, in.Account.TimestampSeconds, in.Account.Salt, in.Account.Signature, in.Account.PublicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(s.logger, s.db, s.socialClient, in.Account.PlayerId, in.Account.BundleId, in.Account.TimestampSeconds, in.Account.Salt, in.Account.Signature, in.Account.PublicKeyUrl, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
@@ -216,13 +216,13 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateGoogle(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
@@ -246,13 +246,13 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, err := AuthenticateSteam(s.logger, s.db, s.socialClient, s.config.GetSocial().Steam.AppID, s.config.GetSocial().Steam.PublisherKey, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateSteam(s.logger, s.db, s.socialClient, s.config.GetSocial().Steam.AppID, s.config.GetSocial().Steam.PublisherKey, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Token: token}, nil
+	return &api.Session{Created: created, Token: token}, nil
 }
 
 func generateToken(config Config, userID, username string) string {
