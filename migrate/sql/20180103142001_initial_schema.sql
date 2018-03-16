@@ -36,12 +36,13 @@ CREATE TABLE IF NOT EXISTS users (
     steam_id      VARCHAR(128)  UNIQUE,
     custom_id     VARCHAR(128)  UNIQUE,
     edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
-    create_time   BIGINT        CHECK (create_time > 0) NOT NULL,
-    update_time   BIGINT        CHECK (update_time > 0) NOT NULL,
-    verify_time   BIGINT        DEFAULT 0 CHECK (verify_time >= 0) NOT NULL,
-    disable_time  BIGINT        DEFAULT 0 CHECK (disable_time >= 0) NOT NULL
+    create_time   TIMESTAMPZ    CHECK (create_time > 0) NOT NULL,
+    update_time   TIMESTAMPZ    CHECK (update_time > 0) NOT NULL,
+    verify_time   TIMESTAMPZ    DEFAULT 0 CHECK (verify_time >= 0) NOT NULL,
+    disable_time  TIMESTAMPZ    DEFAULT 0 CHECK (disable_time >= 0) NOT NULL
 );
 
+-- Setup System user.
 INSERT INTO users (id, username, create_time, update_time)
     VALUES ('00000000-0000-0000-0000-000000000000', '', 1, 1)
     ON CONFLICT(id) DO NOTHING;
@@ -50,8 +51,8 @@ CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id      VARCHAR(128) NOT NULL,
-    user_id UUID         NOT NULL
+    id      VARCHAR(128)        NOT NULL,
+    user_id UUID                NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_edge (
@@ -59,11 +60,11 @@ CREATE TABLE IF NOT EXISTS user_edge (
     FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    source_id      UUID     NOT NULL,
-    position       BIGINT   NOT NULL, -- Used for sort order on rows.
-    update_time    BIGINT   CHECK (update_time > 0) NOT NULL,
-    destination_id UUID     NOT NULL,
-    state          SMALLINT DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
+    source_id      UUID         NOT NULL,
+    position       BIGINT       NOT NULL, -- Used for sort order on rows.
+    update_time    TIMESTAMPZ   CHECK (update_time > 0) NOT NULL,
+    destination_id UUID         NOT NULL,
+    state          SMALLINT     DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
 
     UNIQUE (source_id, destination_id)
 );
@@ -73,28 +74,28 @@ CREATE TABLE IF NOT EXISTS notification (
     PRIMARY KEY (user_id, create_time ASC, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          UUID         CONSTRAINT notification_id_key UNIQUE NOT NULL,
-    user_id     UUID         NOT NULL,
-    subject     VARCHAR(255) NOT NULL,
-    content     JSONB        DEFAULT '{}' NOT NULL,
-    code        SMALLINT     NOT NULL, -- Negative values are system reserved.
-    sender_id   UUID,                  -- NULL for system messages.
-    create_time BIGINT       CHECK (create_time > 0) NOT NULL
+    id          UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
+    user_id     UUID            NOT NULL,
+    subject     VARCHAR(255)    NOT NULL,
+    content     JSONB           DEFAULT '{}' NOT NULL,
+    code        SMALLINT        NOT NULL, -- Negative values are system reserved.
+    sender_id   UUID,           NOT NULL,
+    create_time TIMESTAMPZ      CHECK (create_time > 0) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (collection, read, key, user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    collection  VARCHAR(128) NOT NULL,
-    key         VARCHAR(128) NOT NULL,
-    user_id     UUID         NOT NULL,
-    value       JSONB        DEFAULT '{}' NOT NULL,
-    version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
-    read        SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,
-    write       SMALLINT     DEFAULT 1 CHECK (write >= 0) NOT NULL,
-    create_time TIMESTAMPTZ  NOT NULL,
-    update_time TIMESTAMPTZ  NOT NULL,
+    collection  VARCHAR(128)    NOT NULL,
+    key         VARCHAR(128)    NOT NULL,
+    user_id     UUID            NOT NULL,
+    value       JSONB           DEFAULT '{}' NOT NULL,
+    version     VARCHAR(32)     NOT NULL, -- md5 hash of value object.
+    read        SMALLINT        DEFAULT 1 CHECK (read >= 0) NOT NULL,
+    write       SMALLINT        DEFAULT 1 CHECK (write >= 0) NOT NULL,
+    create_time TIMESTAMPTZ     NOT NULL,
+    update_time TIMESTAMPTZ     NOT NULL,
 
     UNIQUE (collection, key, user_id)
 );

@@ -21,6 +21,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
@@ -115,8 +116,8 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var gamecenter sql.NullString
 	var steam sql.NullString
 	var edge_count int
-	var createTime sql.NullInt64
-	var updateTime sql.NullInt64
+	var createTime *pq.NullTime
+	var updateTime *pq.NullTime
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
 		&facebook, &google, &gamecenter, &steam, &edge_count, &createTime, &updateTime)
@@ -139,8 +140,8 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		GamecenterId: gamecenter.String,
 		SteamId:      steam.String,
 		EdgeCount:    int32(edge_count),
-		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
-		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
+		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 		Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 	}, nil
 }
