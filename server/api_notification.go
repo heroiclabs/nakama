@@ -15,11 +15,15 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/gob"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,8 +37,23 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 		limit = int(in.GetLimit().Value)
 	}
 
+	cursor := in.GetCacheableCursor()
+	var nc *notificationCacheableCursor = nil
+	if cursor != "" {
+		nc = &notificationCacheableCursor{}
+		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
+			s.logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		} else {
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
+				s.logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
+				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+			}
+		}
+	}
+
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	notificationList, err := NotificationList(s.logger, s.db, userID, limit, in.GetCacheableCursor())
+	notificationList, err := NotificationList(s.logger, s.db, userID, limit, cursor, nc)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
 	}
@@ -44,7 +63,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 
 func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest) (*empty.Empty, error) {
 	if len(in.GetIds()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "There must be at least one notification ID to delete.")
+		return &empty.Empty{}, nil
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)

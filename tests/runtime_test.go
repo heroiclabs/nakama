@@ -1,3 +1,17 @@
+// Copyright 2017 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tests
 
 import (
@@ -10,12 +24,13 @@ import (
 	"testing"
 
 	"fmt"
+	"sync"
+
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"sync"
 )
 
 type DummyMessageRouter struct{}
@@ -31,11 +46,11 @@ var (
 func db(t *testing.T) *sql.DB {
 	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
 	if err != nil {
-		t.Fatal("Error connecting to database", zap.Error(err))
+		t.Fatal("Error connecting to database", err)
 	}
 	err = db.Ping()
 	if err != nil {
-		t.Fatal("Error pinging database", zap.Error(err))
+		t.Fatal("Error pinging database", err)
 	}
 	return db
 }
@@ -49,9 +64,8 @@ func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.Run
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
 	}
-	runtimePool := server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
 
-	return runtimePool
+	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -493,6 +507,46 @@ local content = {
 local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 
 nk.wallet_write(user_id, content)
+`)
+
+	rp := vm(t, modules, make(map[string]struct{}, 0))
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeStorageWrite(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test.lua", `
+local nk = require("nakama")
+
+local new_objects = {
+	{collection = "settings", key = "a", user_id = nil, value = {}},
+	{collection = "settings", key = "b", user_id = nil, value = {}},
+	{collection = "settings", key = "c", user_id = nil, value = {}}
+}
+
+nk.storage_write(new_objects)
+`)
+
+	rp := vm(t, modules, make(map[string]struct{}, 0))
+	r := rp.Get()
+	defer r.Stop()
+}
+
+func TestRuntimeStorageRead(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test.lua", `
+local nk = require("nakama")
+local object_ids = {
+  {collection = "settings", key = "a", user_id = nil},
+  {collection = "settings", key = "b", user_id = nil},
+  {collection = "settings", key = "c", user_id = nil}
+}
+local objects = nk.storage_read(object_ids)
+for i, r in ipairs(objects)
+do
+  assert(#r.value == 0, "'r.value' must be '{}'")
+end
 `)
 
 	rp := vm(t, modules, make(map[string]struct{}, 0))
