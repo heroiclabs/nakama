@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -185,10 +184,9 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 		return errors.New("No fields to update.")
 	}
 
-	ts := time.Now().UTC().Unix()
-	params = append(params, ts, userID)
+	params = append(params, userID)
 
-	query := "UPDATE users SET update_time = $" + strconv.Itoa(index) + ", " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index+1)
+	query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index)
 
 	if _, err := db.Exec(query, params...); err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
