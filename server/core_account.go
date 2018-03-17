@@ -87,7 +87,7 @@ WHERE id = $1`
 	}
 
 	var verifyTimestamp *timestamp.Timestamp = nil
-	if !time.Unix(0, 0).Equal(verifyTime.Time) {
+	if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
 		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}
 
