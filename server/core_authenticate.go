@@ -526,7 +526,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	return userID, username, true, nil
 }
 
-func importFacebookFriends(logger *zap.Logger, db *sql.DB, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
+func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
 	facebookProfiles, err := client.GetFacebookFriends(token)
 	if err != nil {
 		logger.Debug("Could not import Facebook friends.", zap.Error(err))
@@ -703,6 +703,7 @@ AND EXISTS
 				CreateTime: &timestamp.Timestamp{Seconds: position},
 			}}
 		}
+		NotificationSend(logger, db, messageRouter, notifications)
 	}
 
 	return nil

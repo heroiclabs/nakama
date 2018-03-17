@@ -875,7 +875,7 @@ func (n *NakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	// Import friends if requested.
 	if importFriends {
-		importFacebookFriends(n.logger, n.db, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		importFacebookFriends(n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))

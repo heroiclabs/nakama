@@ -179,7 +179,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if in.Import == nil || in.Import.Value {
-		importFacebookFriends(s.logger, s.db, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
+		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 
 	return &empty.Empty{}, nil
