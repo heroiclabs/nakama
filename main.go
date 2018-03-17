@@ -44,7 +44,7 @@ var (
 		EnumsAsInts:  true,
 		EmitDefaults: false,
 		Indent:       "",
-		OrigName:     false,
+		OrigName:     true,
 	}
 	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
