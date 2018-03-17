@@ -31,9 +31,9 @@ import (
 
 const (
 	dbErrorDuplicateDatabase = "42P04"
-	migrationTable = "migration_info"
-	dialect        = "postgres"
-	defaultLimit   = -1
+	migrationTable           = "migration_info"
+	dialect                  = "postgres"
+	defaultLimit             = -1
 )
 
 type statusRow struct {
