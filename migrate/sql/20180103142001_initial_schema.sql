@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 
 CREATE TABLE IF NOT EXISTS notification (
     -- FIXME: cockroach's analyser is not clever enough when create_time has DESC mode on the index.
-    PRIMARY KEY (user_id, create_time ASC, id),
+    PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     id          UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,

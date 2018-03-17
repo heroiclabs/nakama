@@ -24,14 +24,16 @@ import (
 	"time"
 
 	"github.com/gobuffalo/packr"
+	"github.com/lib/pq"
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 )
 
 const (
-	migrationTable = "migration_info"
-	dialect        = "postgres"
-	defaultLimit   = -1
+	dbErrorDuplicateDatabase = "42P04"
+	migrationTable           = "migration_info"
+	dialect                  = "postgres"
+	defaultLimit             = -1
 )
 
 type statusRow struct {
@@ -138,18 +140,14 @@ func Parse(args []string, logger *zap.Logger) {
 	}
 	logger.Info("Database information", zap.String("version", dbVersion))
 
-	var exists bool
-	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbname).Scan(&exists)
-start:
-	switch {
-	case err != nil:
-		logger.Fatal("Database query failed", zap.Error(err))
-	case !exists:
-		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
-		exists = err == nil
-		goto start
-	case exists:
-		logger.Info("Using existing database", zap.String("name", dbname))
+	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorDuplicateDatabase {
+			logger.Info("Using existing database", zap.String("name", dbname))
+		} else {
+			logger.Fatal("Database query failed", zap.Error(err))
+		}
+	} else {
+		logger.Info("Creating new database", zap.String("name", dbname))
 	}
 	db.Close()
 
