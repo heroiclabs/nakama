@@ -117,6 +117,11 @@ func Parse(args []string, logger *zap.Logger) {
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
+	query := parsedUrl.Query()
+	if len(query.Get("sslmode")) == 0 {
+		query.Set("sslmode", "disable")
+		parsedUrl.RawQuery = query.Encode()
+	}
 
 	query := parsedUrl.Query()
 	if len(query.Get("sslmode")) == 0 {
