@@ -53,8 +53,8 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		var location sql.NullString
 		var timezone sql.NullString
 		var metadata []byte
-		var createTime *pq.NullTime
-		var updateTime *pq.NullTime
+		var createTime pq.NullTime
+		var updateTime pq.NullTime
 		var state sql.NullInt64
 
 		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &state); err != nil {

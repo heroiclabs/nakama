@@ -45,9 +45,9 @@ func GetAccount(db *sql.DB, logger *zap.Logger, tracker Tracker, userID uuid.UUI
 	var steam sql.NullString
 	var customID sql.NullString
 	var edge_count int
-	var createTime sql.NullInt64
-	var updateTime sql.NullInt64
-	var verifyTime sql.NullInt64
+	var createTime pq.NullTime
+	var updateTime pq.NullTime
+	var verifyTime pq.NullTime
 
 	query := `
 SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet,
@@ -87,8 +87,8 @@ WHERE id = $1`
 	}
 
 	var verifyTimestamp *timestamp.Timestamp = nil
-	if verifyTime.Valid && verifyTime.Int64 != 0 {
-		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Int64}
+	if !time.Unix(0, 0).Equal(verifyTime.Time) {
+		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}
 
 	return &api.Account{
@@ -106,8 +106,8 @@ WHERE id = $1`
 			GamecenterId: gamecenter.String,
 			SteamId:      steam.String,
 			EdgeCount:    int32(edge_count),
-			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Int64},
-			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Int64},
+			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 		},
 		Wallet:     wallet.String,

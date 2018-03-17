@@ -20,10 +20,10 @@ local nk = require("nakama")
   Test run_once function calls at server startup.
 --]]
 
-nk.run_once(function(context)
-  assert(context.ExecutionMode, "run_once")
-end)
-
-nk.run_once(function(context)
-  error("Should not be executed.")
-end)
+--nk.run_once(function(context)
+--  assert(context.ExecutionMode, "run_once")
+--end)
+--
+--nk.run_once(function(context)
+--  error("Should not be executed.")
+--end)

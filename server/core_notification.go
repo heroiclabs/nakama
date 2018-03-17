@@ -103,7 +103,7 @@ LIMIT $2`, params...)
 	notifications := make([]*api.Notification, 0)
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
-		var createTime *pq.NullTime
+		var createTime pq.NullTime
 		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
@@ -177,10 +177,9 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 				",$" + strconv.Itoa(counter+3) +
 				",$" + strconv.Itoa(counter+4) +
 				",$" + strconv.Itoa(counter+5) +
-				",$" + strconv.Itoa(counter+6) +
-				",$" + strconv.Itoa(counter+7)
+				",$" + strconv.Itoa(counter+6)
 
-			counter = counter + 7
+			counter = counter + 6
 			statements = append(statements, "("+statement+")")
 
 			params = append(params, un.Id)
@@ -189,11 +188,10 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 			params = append(params, un.Content)
 			params = append(params, un.Code)
 			params = append(params, un.SenderId)
-			params = append(params, " now() ")
 		}
 	}
 
-	query := "INSERT INTO notification (id, user_id, subject, content, code, create_time, sender_id) VALUES " + strings.Join(statements, ", ")
+	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
 
 	if _, err := db.Exec(query, params...); err != nil {
 		logger.Error("Could not save notifications.", zap.Error(err))

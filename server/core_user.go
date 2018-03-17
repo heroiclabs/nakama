@@ -116,8 +116,8 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var gamecenter sql.NullString
 	var steam sql.NullString
 	var edge_count int
-	var createTime *pq.NullTime
-	var updateTime *pq.NullTime
+	var createTime pq.NullTime
+	var updateTime pq.NullTime
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
 		&facebook, &google, &gamecenter, &steam, &edge_count, &createTime, &updateTime)
