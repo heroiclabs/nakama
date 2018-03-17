@@ -56,7 +56,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -127,7 +127,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 		}
 
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -216,7 +216,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -287,7 +287,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -353,7 +353,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -419,7 +419,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -486,7 +486,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && !dbDisableTime.Time.IsZero() {
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Debug("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
