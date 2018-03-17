@@ -130,15 +130,15 @@ func main() {
 }
 
 func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) {
-	rawurl := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
-	parsedUrl, err := url.Parse(rawurl)
+	rawUrl := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
+	parsedUrl, err := url.Parse(rawUrl)
 	if err != nil {
 		multiLogger.Fatal("Bad database connection URL", zap.Error(err))
 	}
-	query := url.Query()
+	query := parsedUrl.Query()
 	if len(query.Get("sslmode")) == 0 {
 		query.Set("sslmode", "disable")
-		url.RawQuery = query.Encode()
+		parsedUrl.RawQuery = query.Encode()
 	}
 
 	if len(parsedUrl.Path) < 1 {

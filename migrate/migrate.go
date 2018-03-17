@@ -112,21 +112,26 @@ func Parse(args []string, logger *zap.Logger) {
 
 	ms.parseSubcommand(args[1:])
 
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", ms.dbAddress)
-	url, err := url.Parse(rawurl)
+	rawUrl := fmt.Sprintf("postgresql://%s", ms.dbAddress)
+	parsedUrl, err := url.Parse(rawUrl)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
+	query := parsedUrl.Query()
+	if len(query.Get("sslmode")) == 0 {
+		query.Set("sslmode", "disable")
+		parsedUrl.RawQuery = query.Encode()
+	}
 
 	dbname := "nakama"
-	if len(url.Path) > 1 {
-		dbname = url.Path[1:]
+	if len(parsedUrl.Path) > 1 {
+		dbname = parsedUrl.Path[1:]
 	}
 
 	logger.Info("Database connection", zap.String("dsn", ms.dbAddress))
 
-	url.Path = ""
-	db, err := sql.Open(dialect, url.String())
+	parsedUrl.Path = ""
+	db, err := sql.Open(dialect, parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
@@ -152,8 +157,8 @@ func Parse(args []string, logger *zap.Logger) {
 	db.Close()
 
 	// Append dbname to data source name.
-	url.Path = fmt.Sprintf("/%s", dbname)
-	db, err = sql.Open(dialect, url.String())
+	parsedUrl.Path = fmt.Sprintf("/%s", dbname)
+	db, err = sql.Open(dialect, parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
