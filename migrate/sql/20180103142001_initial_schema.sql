@@ -36,23 +36,23 @@ CREATE TABLE IF NOT EXISTS users (
     steam_id      VARCHAR(128)  UNIQUE,
     custom_id     VARCHAR(128)  UNIQUE,
     edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
-    create_time   TIMESTAMPZ    CHECK (create_time > 0) NOT NULL,
-    update_time   TIMESTAMPZ    CHECK (update_time > 0) NOT NULL,
-    verify_time   TIMESTAMPZ    DEFAULT 0 CHECK (verify_time >= 0) NOT NULL,
-    disable_time  TIMESTAMPZ    DEFAULT 0 CHECK (disable_time >= 0) NOT NULL
+    create_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    update_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    verify_time   TIMESTAMPTZ   DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
+    disable_time  TIMESTAMPTZ   DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL
 );
 
 -- Setup System user.
-INSERT INTO users (id, username, create_time, update_time)
-    VALUES ('00000000-0000-0000-0000-000000000000', '', 1, 1)
+INSERT INTO users (id, username)
+    VALUES ('00000000-0000-0000-0000-000000000000', '')
     ON CONFLICT(id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id      VARCHAR(128)        NOT NULL,
-    user_id UUID                NOT NULL
+    id          VARCHAR(128)    NOT NULL,
+    user_id     UUID            NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_edge (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 
     source_id      UUID         NOT NULL,
     position       BIGINT       NOT NULL, -- Used for sort order on rows.
-    update_time    TIMESTAMPZ   CHECK (update_time > 0) NOT NULL,
+    update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
     destination_id UUID         NOT NULL,
     state          SMALLINT     DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
 
@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS notification (
     subject     VARCHAR(255)    NOT NULL,
     content     JSONB           DEFAULT '{}' NOT NULL,
     code        SMALLINT        NOT NULL, -- Negative values are system reserved.
-    sender_id   UUID,           NOT NULL,
-    create_time TIMESTAMPZ      CHECK (create_time > 0) NOT NULL
+    sender_id   UUID            NOT NULL,
+    create_time TIMESTAMPTZ     DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS storage (
@@ -94,8 +94,8 @@ CREATE TABLE IF NOT EXISTS storage (
     version     VARCHAR(32)     NOT NULL, -- md5 hash of value object.
     read        SMALLINT        DEFAULT 1 CHECK (read >= 0) NOT NULL,
     write       SMALLINT        DEFAULT 1 CHECK (write >= 0) NOT NULL,
-    create_time TIMESTAMPTZ     NOT NULL,
-    update_time TIMESTAMPTZ     NOT NULL,
+    create_time TIMESTAMPTZ     DEFAULT now() NOT NULL,
+    update_time TIMESTAMPTZ     DEFAULT now() NOT NULL,
 
     UNIQUE (collection, key, user_id)
 );
