@@ -96,7 +96,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	// Create the context to be used throughout this match.
-	ctx := vm.CreateTable(6, 6)
+	ctx := vm.CreateTable(0, 6)
 	ctx.RawSetString(__CTX_ENV, ConvertMap(vm, config.GetRuntime().Environment))
 	ctx.RawSetString(__CTX_MODE, lua.LString(Match.String()))
 	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v:%v", id.String(), node)))
@@ -231,7 +231,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	}
 
 	// Set up the dispatcher that exposes control functions to the match loop.
-	mh.dispatcher = vm.SetFuncs(vm.CreateTable(2, 2), map[string]lua.LGFunction{
+	mh.dispatcher = vm.SetFuncs(vm.CreateTable(0, 2), map[string]lua.LGFunction{
 		"broadcast_message": mh.broadcastMessage,
 		"match_kick":        mh.matchKick,
 	})
@@ -315,17 +315,17 @@ func loop(mh *MatchHandler) {
 
 	// Drain the input queue into a Lua table.
 	size := len(mh.inputCh)
-	input := mh.vm.CreateTable(size, size)
+	input := mh.vm.CreateTable(size, 0)
 	for i := 1; i <= size; i++ {
 		msg := <-mh.inputCh
 
-		presence := mh.vm.CreateTable(4, 4)
+		presence := mh.vm.CreateTable(0, 4)
 		presence.RawSetString("user_id", lua.LString(msg.UserID.String()))
 		presence.RawSetString("session_id", lua.LString(msg.SessionID.String()))
 		presence.RawSetString("username", lua.LString(msg.Username))
 		presence.RawSetString("node", lua.LString(msg.Node))
 
-		in := mh.vm.CreateTable(3, 3)
+		in := mh.vm.CreateTable(0, 3)
 		in.RawSetString("sender", presence)
 		in.RawSetString("op_code", lua.LNumber(msg.OpCode))
 		if msg.Data != nil {
@@ -383,7 +383,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		}
 		mh.Unlock()
 
-		presence := mh.vm.CreateTable(4, 4)
+		presence := mh.vm.CreateTable(0, 4)
 		presence.RawSetString("user_id", lua.LString(userID.String()))
 		presence.RawSetString("session_id", lua.LString(sessionID.String()))
 		presence.RawSetString("username", lua.LString(username))
@@ -452,10 +452,9 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 		}
 		mh.Unlock()
 
-		size := len(leaves)
-		presences := mh.vm.CreateTable(size, size)
+		presences := mh.vm.CreateTable(len(leaves), 0)
 		for i, p := range leaves {
-			presence := mh.vm.CreateTable(4, 4)
+			presence := mh.vm.CreateTable(0, 4)
 			presence.RawSetString("user_id", lua.LString(p.UserID.String()))
 			presence.RawSetString("session_id", lua.LString(p.SessionID.String()))
 			presence.RawSetString("username", lua.LString(p.Username))

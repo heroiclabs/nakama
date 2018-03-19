@@ -63,7 +63,7 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 		}
 	}
 
-	lt := l.CreateTable(size, size)
+	lt := l.CreateTable(0, size)
 	lt.RawSetString(__CTX_ENV, env)
 	lt.RawSetString(__CTX_MODE, lua.LString(mode.String()))
 
@@ -80,8 +80,7 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 }
 
 func ConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
-	size := len(data)
-	lt := l.CreateTable(size, size)
+	lt := l.CreateTable(0, len(data))
 
 	for k, v := range data {
 		lt.RawSetString(k, convertValue(l, v))
@@ -127,8 +126,7 @@ func convertValue(l *lua.LState, val interface{}) lua.LValue {
 	case map[string]interface{}:
 		return ConvertMap(l, v)
 	case []interface{}:
-		size := len(val.([]interface{}))
-		lt := l.CreateTable(size, size)
+		lt := l.CreateTable(len(val.([]interface{})), 0)
 		for k, v := range v {
 			lt.RawSetInt(k+1, convertValue(l, v))
 		}

@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetUsers(db *sql.DB, logger *zap.Logger, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
+func GetUsers(logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
 	facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
