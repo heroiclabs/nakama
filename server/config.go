@@ -251,6 +251,8 @@ type SocketConfig struct {
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
 	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait for a pong message from the client after sending a ping."`
 	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between client ping messages. This value must be less than the pong_wait_ms."`
+	SSLCertificate      string `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key"`
+	SSLPrivateKey       string `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate"`
 }
 
 // NewTransportConfig creates a new TransportConfig struct
@@ -264,6 +266,8 @@ func NewSocketConfig() *SocketConfig {
 		WriteWaitMs:         5000,
 		PongWaitMs:          10000,
 		PingPeriodMs:        8000,
+		SSLCertificate:      "",
+		SSLPrivateKey:       "",
 	}
 }
 

@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -308,6 +309,17 @@ func (a *authenticationService) configure() {
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins)(a.mux)
 
 	a.httpServer = &http.Server{Addr: fmt.Sprintf(":%d", a.config.GetSocket().Port), Handler: handlerWithCORS}
+
+	sockConfig := a.config.GetSocket()
+	if len(sockConfig.SSLCertificate) > 0 && len(sockConfig.SSLPrivateKey) > 0 {
+		cer, err := tls.LoadX509KeyPair(sockConfig.SSLCertificate, sockConfig.SSLPrivateKey)
+		if err != nil {
+			a.logger.Error("Loading SSL certs failed", zap.Error(err))
+		} else {
+			a.logger.Info("SSL mode enabled")
+			a.httpServer.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
+		}
+	}
 }
 
 func (a *authenticationService) StartServer(logger *zap.Logger) {
@@ -319,8 +331,15 @@ func (a *authenticationService) StartServer(logger *zap.Logger) {
 
 	// Start HTTP and WebSocket client listener.
 	go func() {
-		if err := a.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("WebSocket client listener failed", zap.Error(err))
+		if a.httpServer.TLSConfig != nil {
+			if err := a.httpServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				logger.Fatal("WebSocket client listener failed", zap.Error(err))
+			}
+
+		} else {
+			if err := a.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Fatal("WebSocket client listener failed", zap.Error(err))
+			}
 		}
 	}()
 
