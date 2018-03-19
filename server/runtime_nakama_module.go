@@ -128,6 +128,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"logger_info":                 n.loggerInfo,
 		"logger_warn":                 n.loggerWarn,
 		"logger_error":                n.loggerError,
+		"stream_user_list":            n.streamUserList,
 		"stream_user_get":             n.streamUserGet,
 		"stream_user_join":            n.streamUserJoin,
 		"stream_user_leave":           n.streamUserLeave,
@@ -1081,6 +1082,79 @@ func (n *NakamaModule) loggerError(l *lua.LState) int {
 	}
 	n.logger.Error(message)
 	l.Push(lua.LString(message))
+	return 1
+}
+
+func (n *NakamaModule) streamUserList(l *lua.LState) int {
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(1)
+	if streamTable == nil {
+		l.ArgError(1, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	conversionError := ""
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = "stream mode must be a number"
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = "stream subject must be a string"
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = "stream subject must be a valid identifier"
+				return
+			}
+			stream.Subject = sid
+		case "descriptor":
+			if v.Type() != lua.LTString {
+				conversionError = "stream descriptor must be a string"
+				return
+			}
+			did, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = "stream descriptor must be a valid identifier"
+				return
+			}
+			stream.Subject = did
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = "stream label must be a string"
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError != "" {
+		l.ArgError(1, conversionError)
+		return 0
+	}
+
+	presences := n.tracker.ListByStream(stream)
+
+	size := len(presences)
+	presencesTable := l.CreateTable(size, size)
+	for i, p := range presences {
+		presenceTable := l.CreateTable(7, 7)
+		presenceTable.RawSetString("user_id", lua.LString(p.UserID.String()))
+		presenceTable.RawSetString("session_id", lua.LString(p.ID.SessionID.String()))
+		presenceTable.RawSetString("node_id", lua.LString(p.ID.Node))
+		presenceTable.RawSetString("hidden", lua.LBool(p.Meta.Hidden))
+		presenceTable.RawSetString("persistence", lua.LBool(p.Meta.Persistence))
+		presenceTable.RawSetString("username", lua.LString(p.Meta.Username))
+		presenceTable.RawSetString("status", lua.LString(p.Meta.Status))
+
+		presencesTable.RawSetInt(i+1, presenceTable)
+	}
+
+	l.Push(presencesTable)
 	return 1
 }
 

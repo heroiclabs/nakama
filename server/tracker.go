@@ -84,7 +84,7 @@ type Tracker interface {
 	UntrackLocalByStream(stream PresenceStream)
 
 	// List the nodes that have at least one presence for the given stream.
-	ListNodesForStream(stream PresenceStream) []string
+	ListNodesForStream(stream PresenceStream) map[string]struct{}
 
 	// Check if a stream exists (has any presences) or not.
 	StreamExists(stream PresenceStream) bool
@@ -431,15 +431,15 @@ func (t *LocalTracker) UntrackByStream(stream PresenceStream) {
 	t.Unlock()
 }
 
-func (t *LocalTracker) ListNodesForStream(stream PresenceStream) []string {
+func (t *LocalTracker) ListNodesForStream(stream PresenceStream) map[string]struct{} {
 	t.RLock()
 	_, anyTracked := t.presencesByStream[stream.Mode][stream]
 	t.RUnlock()
 	if anyTracked {
 		// For the local tracker having any presences for this stream is enough.
-		return []string{t.name}
+		return map[string]struct{}{t.name: struct{}{}}
 	}
-	return []string{}
+	return map[string]struct{}{}
 }
 
 func (t *LocalTracker) StreamExists(stream PresenceStream) bool {
