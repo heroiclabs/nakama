@@ -49,7 +49,7 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 		facebookIDs = in.GetFacebookIds()
 	}
 
-	users, err := GetUsers(s.db, s.logger, s.tracker, ids, usernames, facebookIDs)
+	users, err := GetUsers(s.logger, s.db, s.tracker, ids, usernames, facebookIDs)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving user accounts.")
 	}

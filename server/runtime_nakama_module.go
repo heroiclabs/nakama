@@ -128,6 +128,8 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"logger_info":                 n.loggerInfo,
 		"logger_warn":                 n.loggerWarn,
 		"logger_error":                n.loggerError,
+		"users_get_id":                n.usersGetId,
+		"users_get_username":          n.usersGetUsername,
 		"stream_user_list":            n.streamUserList,
 		"stream_user_get":             n.streamUserGet,
 		"stream_user_join":            n.streamUserJoin,
@@ -145,7 +147,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"storage_write":               n.storageWrite,
 		"storage_delete":              n.storageDelete,
 	}
-	mod := l.SetFuncs(l.CreateTable(len(functions), len(functions)), functions)
+	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
 
 	l.Push(mod)
 	return 1
@@ -305,9 +307,9 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 		return 0
 	}
 
-	rt := l.CreateTable(len(resultRows), len(resultRows))
+	rt := l.CreateTable(len(resultRows), 0)
 	for i, r := range resultRows {
-		rowTable := l.CreateTable(resultColumnCount, resultColumnCount)
+		rowTable := l.CreateTable(0, resultColumnCount)
 		for j, col := range resultColumns {
 			rowTable.RawSetString(col, convertValue(l, r[j]))
 		}
@@ -1085,6 +1087,139 @@ func (n *NakamaModule) loggerError(l *lua.LState) int {
 	return 1
 }
 
+func (n *NakamaModule) usersGetId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid user id list")
+		return 0
+	}
+	userIDs, ok := convertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user id data")
+		return 0
+	}
+	if len(userIDs) == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	// Input individual ID validation.
+	userIDStrings := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each user id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each user id must be a valid id string")
+			return 0
+		} else {
+			userIDStrings = append(userIDStrings, ids)
+		}
+	}
+
+	// Get the user accounts.
+	users, err := GetUsers(n.logger, n.db, n.tracker, userIDStrings, nil, nil)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	usersTable := l.CreateTable(len(users.Users), 0)
+	for i, u := range users.Users {
+		ut := l.CreateTable(0, 10)
+		ut.RawSetString("user_id", lua.LString(u.Id))
+		ut.RawSetString("username", lua.LString(u.Username))
+		ut.RawSetString("display_name", lua.LString(u.DisplayName))
+		ut.RawSetString("avatar_url", lua.LString(u.AvatarUrl))
+		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
+		ut.RawSetString("location", lua.LString(u.Location))
+		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
+		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		ut.RawSetString("metadata", metadataTable)
+
+		usersTable.RawSetInt(i+1, ut)
+	}
+
+	l.Push(usersTable)
+	return 1
+}
+
+func (n *NakamaModule) usersGetUsername(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid username list")
+		return 0
+	}
+	usernames, ok := convertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid username data")
+		return 0
+	}
+	if len(usernames) == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	// Input individual ID validation.
+	usernameStrings := make([]string, 0, len(usernames))
+	for _, u := range usernames {
+		if us, ok := u.(string); !ok || us == "" {
+			l.ArgError(1, "each username must be a string")
+			return 0
+		} else {
+			usernameStrings = append(usernameStrings, us)
+		}
+	}
+
+	// Get the user accounts.
+	users, err := GetUsers(n.logger, n.db, n.tracker, nil, usernameStrings, nil)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	usersTable := l.CreateTable(len(users.Users), 0)
+	for i, u := range users.Users {
+		ut := l.CreateTable(0, 10)
+		ut.RawSetString("user_id", lua.LString(u.Id))
+		ut.RawSetString("username", lua.LString(u.Username))
+		ut.RawSetString("display_name", lua.LString(u.DisplayName))
+		ut.RawSetString("avatar_url", lua.LString(u.AvatarUrl))
+		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
+		ut.RawSetString("location", lua.LString(u.Location))
+		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
+		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		ut.RawSetString("metadata", metadataTable)
+
+		usersTable.RawSetInt(i+1, ut)
+	}
+
+	l.Push(usersTable)
+	return 1
+}
+
 func (n *NakamaModule) streamUserList(l *lua.LState) int {
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(1)
@@ -1139,10 +1274,9 @@ func (n *NakamaModule) streamUserList(l *lua.LState) int {
 
 	presences := n.tracker.ListByStream(stream)
 
-	size := len(presences)
-	presencesTable := l.CreateTable(size, size)
+	presencesTable := l.CreateTable(len(presences), 0)
 	for i, p := range presences {
-		presenceTable := l.CreateTable(7, 7)
+		presenceTable := l.CreateTable(0, 7)
 		presenceTable.RawSetString("user_id", lua.LString(p.UserID.String()))
 		presenceTable.RawSetString("session_id", lua.LString(p.ID.SessionID.String()))
 		presenceTable.RawSetString("node_id", lua.LString(p.ID.Node))
@@ -1238,7 +1372,7 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 	if meta == nil {
 		l.Push(lua.LNil)
 	} else {
-		metaTable := l.CreateTable(4, 4)
+		metaTable := l.CreateTable(0, 4)
 		metaTable.RawSetString("hidden", lua.LBool(meta.Hidden))
 		metaTable.RawSetString("persistence", lua.LBool(meta.Persistence))
 		metaTable.RawSetString("username", lua.LString(meta.Username))
@@ -1690,10 +1824,9 @@ func (n *NakamaModule) matchList(l *lua.LState) int {
 
 	results := n.matchRegistry.ListMatches(limit, authoritative, label, minSize, maxSize)
 
-	s := len(results)
-	matches := l.CreateTable(s, s)
+	matches := l.CreateTable(len(results), 0)
 	for i, result := range results {
-		match := l.CreateTable(4, 4)
+		match := l.CreateTable(0, 4)
 		match.RawSetString("match_id", lua.LString(result.MatchId))
 		match.RawSetString("authoritative", lua.LBool(result.Authoritative))
 		if result.Label == nil {

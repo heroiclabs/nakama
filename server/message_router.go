@@ -55,12 +55,12 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 		session := r.sessionRegistry.Get(presenceID.SessionID)
 		if session == nil {
 			if logger.Core().Enabled(zap.DebugLevel) {
-				logger.Debug("No session to route to", zap.Any("sid", presenceID.SessionID))
+				logger.Debug("No session to route to", zap.String("sid", presenceID.SessionID.String()))
 			}
 			continue
 		}
 		if err := session.SendBytes(payloadBytes); err != nil {
-			logger.Error("Failed to route to", zap.Any("sid", presenceID.SessionID), zap.Error(err))
+			logger.Error("Failed to route to", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
 		}
 	}
 }
