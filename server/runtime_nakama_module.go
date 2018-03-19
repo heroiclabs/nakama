@@ -1128,7 +1128,7 @@ func (n *NakamaModule) usersGetId(l *lua.LState) int {
 	// Convert and push the values.
 	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, u := range users.Users {
-		ut := l.CreateTable(0, 10)
+		ut := l.CreateTable(0, 16)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
 		ut.RawSetString("display_name", lua.LString(u.DisplayName))
@@ -1136,6 +1136,20 @@ func (n *NakamaModule) usersGetId(l *lua.LState) int {
 		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
 		ut.RawSetString("location", lua.LString(u.Location))
 		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.FacebookId != "" {
+			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.GoogleId != "" {
+			ut.RawSetString("google_id", lua.LString(u.GoogleId))
+		}
+		if u.GamecenterId != "" {
+			ut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
+		}
+		if u.SteamId != "" {
+			ut.RawSetString("steam_id", lua.LString(u.SteamId))
+		}
+		ut.RawSetString("online", lua.LBool(u.Online))
+		ut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
 		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
 		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
 
@@ -1193,7 +1207,7 @@ func (n *NakamaModule) usersGetUsername(l *lua.LState) int {
 	// Convert and push the values.
 	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, u := range users.Users {
-		ut := l.CreateTable(0, 10)
+		ut := l.CreateTable(0, 16)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
 		ut.RawSetString("display_name", lua.LString(u.DisplayName))
@@ -1201,6 +1215,20 @@ func (n *NakamaModule) usersGetUsername(l *lua.LState) int {
 		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
 		ut.RawSetString("location", lua.LString(u.Location))
 		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.FacebookId != "" {
+			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.GoogleId != "" {
+			ut.RawSetString("google_id", lua.LString(u.GoogleId))
+		}
+		if u.GamecenterId != "" {
+			ut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
+		}
+		if u.SteamId != "" {
+			ut.RawSetString("steam_id", lua.LString(u.SteamId))
+		}
+		ut.RawSetString("online", lua.LBool(u.Online))
+		ut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
 		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
 		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
 
