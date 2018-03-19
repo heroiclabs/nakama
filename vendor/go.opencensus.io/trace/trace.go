@@ -22,6 +22,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"go.opencensus.io/internal"
 )
 
 // Span represents a span of a trace.  It has an associated SpanContext, and
@@ -44,6 +46,8 @@ type Span struct {
 }
 
 // IsRecordingEvents returns true if events are being recorded for this span.
+// Use this check to avoid computing expensive annotations when they will never
+// be used.
 func (s *Span) IsRecordingEvents() bool {
 	if s == nil {
 		return false
@@ -78,9 +82,9 @@ func (t TraceOptions) IsSampled() bool {
 // SpanContext is not an implementation of context.Context.
 // TODO: add reference to external Census docs for SpanContext.
 type SpanContext struct {
-	TraceID
-	SpanID
-	TraceOptions
+	TraceID      TraceID
+	SpanID       SpanID
+	TraceOptions TraceOptions
 }
 
 type contextKey struct{}
@@ -98,45 +102,28 @@ func WithSpan(parent context.Context, s *Span) context.Context {
 
 // StartOptions contains options concerning how a span is started.
 type StartOptions struct {
-	// RecordEvents indicates whether to record data for this span, and include
-	// the span in a local span store.
-	// Events will also be recorded if the span will be exported.
-	RecordEvents bool
-
-	Sampler Sampler // if non-nil, the Sampler to consult for this span.
-
-	// RegisterNameForLocalSpanStore indicates that a local span store for spans
-	// of this name should be created, if one does not exist.
-	// If RecordEvents is false, this option has no effect.
-	RegisterNameForLocalSpanStore bool
+	// Sampler to consult for this Span. If provided, it is always consulted.
+	//
+	// If not provided, then the behavior differs based on whether
+	// the parent of this Span is remote, local, or there is no parent.
+	// In the case of a remote parent or no parent, the
+	// default sampler (see SetDefaultSampler) will be consulted. Otherwise,
+	// when there is a non-remote parent, no new sampling decision will be made:
+	// we will preserve the sampling of the parent.
+	Sampler Sampler
 }
 
 // TODO(jbd): Remove start options.
 
-// StartSpan starts a new child span of the current span in the context.
+// StartSpan starts a new child span of the current span in the context. If
+// there is no span in the context, creates a new trace and span.
 //
-// If there is no span in the context, creates a new trace and span.
+// This is provided as a convenience for WithSpan(ctx, NewSpan(...)). Use it
+// if you require custom spans in addition to the default spans provided by
+// ocgrpc, ochttp or similar framework integration.
 func StartSpan(ctx context.Context, name string) (context.Context, *Span) {
 	parentSpan, _ := ctx.Value(contextKey{}).(*Span)
 	span := NewSpan(name, parentSpan, StartOptions{})
-	return WithSpan(ctx, span), span
-}
-
-// StartSpanWithOptions starts a new child span of the current span in the context.
-//
-// If there is no span in the context, creates a new trace and span.
-func StartSpanWithOptions(ctx context.Context, name string, o StartOptions) (context.Context, *Span) {
-	parentSpan, _ := ctx.Value(contextKey{}).(*Span)
-	span := NewSpan(name, parentSpan, o)
-	return WithSpan(ctx, span), span
-}
-
-// StartSpanWithRemoteParent starts a new child span with the given parent SpanContext.
-//
-// If there is an existing span in ctx, it is ignored -- the returned Span is a
-// child of the span specified by parent.
-func StartSpanWithRemoteParent(ctx context.Context, name string, parent SpanContext, o StartOptions) (context.Context, *Span) {
-	span := NewSpanWithRemoteParent(name, parent, o)
 	return WithSpan(ctx, span), span
 }
 
@@ -178,7 +165,7 @@ func startSpanInternal(name string, hasParent bool, parent SpanContext, remotePa
 		if o.Sampler != nil {
 			sampler = o.Sampler
 		}
-		span.spanContext.setIsSampled(sampler.Sample(SamplingParameters{
+		span.spanContext.setIsSampled(sampler(SamplingParameters{
 			ParentContext:   parent,
 			TraceID:         span.spanContext.TraceID,
 			SpanID:          span.spanContext.SpanID,
@@ -186,7 +173,7 @@ func startSpanInternal(name string, hasParent bool, parent SpanContext, remotePa
 			HasRemoteParent: remoteParent}).Sample)
 	}
 
-	if !o.RecordEvents && !span.spanContext.IsSampled() {
+	if !internal.LocalSpanStoreEnabled && !span.spanContext.IsSampled() {
 		return span
 	}
 
@@ -199,13 +186,9 @@ func startSpanInternal(name string, hasParent bool, parent SpanContext, remotePa
 	if hasParent {
 		span.data.ParentSpanID = parent.SpanID
 	}
-	if o.RecordEvents {
+	if internal.LocalSpanStoreEnabled {
 		var ss *spanStore
-		if o.RegisterNameForLocalSpanStore {
-			ss = spanStoreForNameCreateIfNew(name)
-		} else {
-			ss = spanStoreForName(name)
-		}
+		ss = spanStoreForNameCreateIfNew(name)
 		if ss != nil {
 			span.spanStore = ss
 			ss.add(span)
@@ -223,17 +206,17 @@ func (s *Span) End() {
 	s.exportOnce.Do(func() {
 		// TODO: optimize to avoid this call if sd won't be used.
 		sd := s.makeSpanData()
-		sd.EndTime = time.Now()
+		sd.EndTime = internal.MonotonicEndTime(sd.StartTime)
 		if s.spanStore != nil {
 			s.spanStore.finished(s, sd)
 		}
 		if s.spanContext.IsSampled() {
 			// TODO: consider holding exportersMu for less time.
 			exportersMu.Lock()
-			defer exportersMu.Unlock()
 			for e := range exporters {
 				e.ExportSpan(sd)
 			}
+			exportersMu.Unlock()
 		}
 	})
 }
@@ -272,10 +255,10 @@ func (s *Span) SetStatus(status Status) {
 	s.mu.Unlock()
 }
 
-// SetAttributes sets attributes in the span.
+// AddAttributes sets attributes in the span.
 //
 // Existing attributes whose keys appear in the attributes parameter are overwritten.
-func (s *Span) SetAttributes(attributes ...Attribute) {
+func (s *Span) AddAttributes(attributes ...Attribute) {
 	if !s.IsRecordingEvents() {
 		return
 	}
@@ -290,14 +273,7 @@ func (s *Span) SetAttributes(attributes ...Attribute) {
 // copyAttributes copies a slice of Attributes into a map.
 func copyAttributes(m map[string]interface{}, attributes []Attribute) {
 	for _, a := range attributes {
-		switch a := a.(type) {
-		case BoolAttribute:
-			m[a.Key] = a.Value
-		case Int64Attribute:
-			m[a.Key] = a.Value
-		case StringAttribute:
-			m[a.Key] = a.Value
-		}
+		m[a.key] = a.value
 	}
 }
 
@@ -419,11 +395,12 @@ func (s *Span) String() string {
 }
 
 var (
-	mu          sync.Mutex // protects the variables below
-	traceIDRand *rand.Rand
-	traceIDAdd  [2]uint64
-	nextSpanID  uint64
-	spanIDInc   uint64
+	mu             sync.Mutex // protects the variables below
+	traceIDRand    *rand.Rand
+	traceIDAdd     [2]uint64
+	nextSpanID     uint64
+	spanIDInc      uint64
+	defaultSampler Sampler
 )
 
 func init() {

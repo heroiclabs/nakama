@@ -12,24 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package zipkin contains an exporter for Zipkin.
-//
-// Example:
-//
-// 	import (
-// 		openzipkin "github.com/openzipkin/zipkin-go"
-// 		"github.com/openzipkin/zipkin-go/reporter/http"
-// 		"go.opencensus.io/exporter/trace/zipkin"
-// 	)
-//	...
-//		localEndpoint, err := openzipkin.NewEndpoint("server", "server:5454")
-// 		if err != nil {
-// 			log.Print(err)
-// 		}
-// 		reporter := http.NewReporter("http://localhost:9411/api/v2/spans")
-// 		exporter := zipkin.NewExporter(reporter, localEndpoint)
-// 		trace.RegisterExporter(exporter)
-package zipkin
+// Package zipkin contains an trace exporter for Zipkin.
+package zipkin // import "go.opencensus.io/exporter/zipkin"
 
 import (
 	"encoding/binary"

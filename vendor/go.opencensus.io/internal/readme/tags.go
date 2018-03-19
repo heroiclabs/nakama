@@ -24,16 +24,6 @@ import (
 func tagsExamples() {
 	ctx := context.Background()
 
-	// START stringKey
-	// Get a key to represent user OS.
-	key, err := tag.NewKey("my.org/keys/user-os")
-	if err != nil {
-		log.Fatal(err)
-	}
-	// END stringKey
-	_ = key
-
-	// START tagMap
 	osKey, err := tag.NewKey("my.org/keys/user-os")
 	if err != nil {
 		log.Fatal(err)
@@ -43,39 +33,24 @@ func tagsExamples() {
 		log.Fatal(err)
 	}
 
-	tagMap, err := tag.NewMap(ctx,
+	// START new
+	ctx, err = tag.New(ctx,
 		tag.Insert(osKey, "macOS-10.12.5"),
 		tag.Upsert(userIDKey, "cde36753ed"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// END tagMap
-
-	// START newContext
-	ctx = tag.NewContext(ctx, tagMap)
-	// END newContext
-
-	// START replaceTagMap
-	tagMap, err = tag.NewMap(ctx,
-		tag.Insert(osKey, "macOS-10.12.5"),
-		tag.Upsert(userIDKey, "fff0989878"),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ctx = tag.NewContext(ctx, tagMap)
-	// END replaceTagMap
+	// END new
 
 	// START profiler
-	tagMap, err = tag.NewMap(ctx,
+	ctx, err = tag.New(ctx,
 		tag.Insert(osKey, "macOS-10.12.5"),
 		tag.Insert(userIDKey, "fff0989878"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = tag.NewContext(ctx, tagMap)
 	tag.Do(ctx, func(ctx context.Context) {
 		// Do work.
 		// When profiling is on, samples will be

@@ -78,12 +78,12 @@ func TestEncodeDecode(t *testing.T) {
 		for i, pair := range tc.pairs {
 			mods[i] = Upsert(pair.k, pair.v)
 		}
-		ts, err := NewMap(context.Background(), mods...)
+		ctx, err := New(context.Background(), mods...)
 		if err != nil {
 			t.Errorf("%v: NewMap = %v", tc.label, err)
 		}
 
-		encoded := Encode(ts)
+		encoded := Encode(FromContext(ctx))
 		decoded, err := Decode(encoded)
 		if err != nil {
 			t.Errorf("%v: decoding encoded tag map failed: %v", tc.label, err)
@@ -106,7 +106,7 @@ func TestEncodeDecode(t *testing.T) {
 
 func TestDecode(t *testing.T) {
 	k1, _ := NewKey("k1")
-	m, _ := NewMap(context.Background(), Insert(k1, "v1"))
+	ctx, _ := New(context.Background(), Insert(k1, "v1"))
 
 	tests := []struct {
 		name    string
@@ -117,7 +117,7 @@ func TestDecode(t *testing.T) {
 		{
 			name:    "valid",
 			bytes:   []byte{0, 0, 2, 107, 49, 2, 118, 49},
-			want:    m,
+			want:    FromContext(ctx),
 			wantErr: false,
 		},
 		{

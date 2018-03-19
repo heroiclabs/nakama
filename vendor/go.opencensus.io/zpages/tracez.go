@@ -26,6 +26,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"go.opencensus.io/internal"
 	"go.opencensus.io/trace"
 )
 
@@ -74,6 +75,10 @@ var (
 	}
 )
 
+func init() {
+	internal.LocalSpanStoreEnabled = true
+}
+
 func canonicalCodeString(code int32) string {
 	if code < 0 || int(code) >= len(canonicalCodes) {
 		return "error code " + strconv.FormatInt(int64(code), 10)
@@ -81,8 +86,7 @@ func canonicalCodeString(code int32) string {
 	return canonicalCodes[code]
 }
 
-// TracezHandler is a handler for /tracez.
-func TracezHandler(w http.ResponseWriter, r *http.Request) {
+func tracezHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	name := r.Form.Get(spanNameQueryField)
@@ -332,10 +336,15 @@ func traceRows(s *trace.SpanData) []traceRow {
 }
 
 func traceSpans(spanName string, spanType, spanSubtype int) []*trace.SpanData {
+	internalTrace := internal.Trace.(interface {
+		ReportActiveSpans(name string) []*trace.SpanData
+		ReportSpansByError(name string, code int32) []*trace.SpanData
+		ReportSpansByLatency(name string, minLatency, maxLatency time.Duration) []*trace.SpanData
+	})
 	var spans []*trace.SpanData
 	switch spanType {
 	case 0: // active
-		spans = trace.ReportActiveSpans(spanName)
+		spans = internalTrace.ReportActiveSpans(spanName)
 	case 1: // latency
 		var min, max time.Duration
 		n := len(defaultLatencies)
@@ -346,9 +355,9 @@ func traceSpans(spanName string, spanType, spanSubtype int) []*trace.SpanData {
 		} else if 0 < spanSubtype && spanSubtype < n {
 			min, max = defaultLatencies[spanSubtype-1], defaultLatencies[spanSubtype]
 		}
-		spans = trace.ReportSpansByLatency(spanName, min, max)
+		spans = internalTrace.ReportSpansByLatency(spanName, min, max)
 	case 2: // error
-		spans = trace.ReportSpansByError(spanName, 0)
+		spans = internalTrace.ReportSpansByError(spanName, 0)
 	}
 	return spans
 }
@@ -382,4 +391,56 @@ func writeTextTraces(w io.Writer, data traceData) {
 		tw.Write([]byte("\n"))
 	}
 	tw.Flush()
+}
+
+type summaryPageData struct {
+	Header             []string
+	LatencyBucketNames []string
+	Links              bool
+	TracesEndpoint     string
+	Rows               []summaryPageRow
+}
+
+type summaryPageRow struct {
+	Name    string
+	Active  int
+	Latency []int
+	Errors  int
+}
+
+func getSummaryPageData() summaryPageData {
+	data := summaryPageData{
+		Links:          true,
+		TracesEndpoint: "tracez",
+	}
+	internalTrace := internal.Trace.(interface {
+		ReportSpansPerMethod() map[string]internal.PerMethodSummary
+	})
+	for name, s := range internalTrace.ReportSpansPerMethod() {
+		if len(data.Header) == 0 {
+			data.Header = []string{"Name", "Active"}
+			for _, b := range s.LatencyBuckets {
+				l := b.MinLatency
+				s := fmt.Sprintf(">%v", l)
+				if l == 100*time.Second {
+					s = ">100s"
+				}
+				data.Header = append(data.Header, s)
+				data.LatencyBucketNames = append(data.LatencyBucketNames, s)
+			}
+			data.Header = append(data.Header, "Errors")
+		}
+		row := summaryPageRow{Name: name, Active: s.Active}
+		for _, l := range s.LatencyBuckets {
+			row.Latency = append(row.Latency, l.Size)
+		}
+		for _, e := range s.ErrorBuckets {
+			row.Errors += e.Size
+		}
+		data.Rows = append(data.Rows, row)
+	}
+	sort.Slice(data.Rows, func(i, j int) bool {
+		return data.Rows[i].Name < data.Rows[j].Name
+	})
+	return data
 }

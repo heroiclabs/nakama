@@ -30,12 +30,10 @@ import (
 // traceExporter is an implementation of trace.Exporter that uploads spans to
 // Stackdriver.
 //
-// traceExporter also implements trace/propagation.HTTPFormat and can
-// propagate Stackdriver Traces over HTTP requests.
 type traceExporter struct {
 	projectID string
 	bundler   *bundler.Bundler
-	// uploadFn defaults to uploadToStackdriver; it can be replaced for tests.
+	// uploadFn defaults to uploadSpans; it can be replaced for tests.
 	uploadFn func(spans []*trace.SpanData)
 	overflowLogger
 	client *tracingclient.Client
@@ -75,7 +73,7 @@ func newTraceExporterWithClient(o Options, c *tracingclient.Client) *traceExport
 	bundler.BufferedByteLimit = bundler.BundleCountThreshold * 2000
 
 	e.bundler = bundler
-	e.uploadFn = e.uploadToStackdriver
+	e.uploadFn = e.uploadSpans
 	return e
 }
 
@@ -107,8 +105,8 @@ func (e *traceExporter) Flush() {
 	e.bundler.Flush()
 }
 
-// uploadToStackdriver uploads a set of spans to Stackdriver.
-func (e *traceExporter) uploadToStackdriver(spans []*trace.SpanData) {
+// uploadSpans uploads a set of spans to Stackdriver.
+func (e *traceExporter) uploadSpans(spans []*trace.SpanData) {
 	req := tracepb.BatchWriteSpansRequest{
 		Name:  "projects/" + e.projectID,
 		Spans: make([]*tracepb.Span, 0, len(spans)),
@@ -116,8 +114,16 @@ func (e *traceExporter) uploadToStackdriver(spans []*trace.SpanData) {
 	for _, span := range spans {
 		req.Spans = append(req.Spans, protoFromSpanData(span, e.projectID))
 	}
-	err := e.client.BatchWriteSpans(context.Background(), &req)
+	// Create a never-sampled span to prevent traces associated with exporter.
+	span := trace.NewSpan("go.opencensus.io/exporter/stackdriver.uploadSpans", nil, trace.StartOptions{Sampler: trace.NeverSample()})
+	defer span.End()
+	span.AddAttributes(trace.Int64Attribute("num_spans", int64(len(spans))))
+
+	ctx := trace.WithSpan(context.Background(), span) // TODO: add timeouts
+	err := e.client.BatchWriteSpans(ctx, &req)
 	if err != nil {
+		span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
+		// TODO: Allow configuring a logger for exporters.
 		log.Printf("OpenCensus Stackdriver exporter: failed to upload %d spans: %v", len(spans), err)
 	}
 }

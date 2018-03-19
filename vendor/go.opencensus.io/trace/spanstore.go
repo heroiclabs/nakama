@@ -17,6 +17,8 @@ package trace
 import (
 	"sync"
 	"time"
+
+	"go.opencensus.io/internal"
 )
 
 const (
@@ -29,8 +31,16 @@ var (
 	spanStores = make(map[string]*spanStore)
 )
 
+// This exists purely to avoid exposing internal methods used by z-Pages externally.
+type internalOnly struct{}
+
+func init() {
+	//TODO(#412): remove
+	internal.Trace = &internalOnly{}
+}
+
 // ReportActiveSpans returns the active spans for the given name.
-func ReportActiveSpans(name string) []*SpanData {
+func (i internalOnly) ReportActiveSpans(name string) []*SpanData {
 	s := spanStoreForName(name)
 	if s == nil {
 		return nil
@@ -47,7 +57,7 @@ func ReportActiveSpans(name string) []*SpanData {
 // ReportSpansByError returns a sample of error spans.
 //
 // If code is nonzero, only spans with that status code are returned.
-func ReportSpansByError(name string, code int32) []*SpanData {
+func (i internalOnly) ReportSpansByError(name string, code int32) []*SpanData {
 	s := spanStoreForName(name)
 	if s == nil {
 		return nil
@@ -77,17 +87,9 @@ func ReportSpansByError(name string, code int32) []*SpanData {
 	return out
 }
 
-// BucketConfiguration stores the number of samples to store for span buckets
-// for successful and failed spans for a particular span name.
-type BucketConfiguration struct {
-	Name                 string
-	MaxRequestsSucceeded int
-	MaxRequestsErrors    int
-}
-
 // ConfigureBucketSizes sets the number of spans to keep per latency and error
 // bucket for different span names.
-func ConfigureBucketSizes(bcs []BucketConfiguration) {
+func (i internalOnly) ConfigureBucketSizes(bcs []internal.BucketConfiguration) {
 	for _, bc := range bcs {
 		latencyBucketSize := bc.MaxRequestsSucceeded
 		if latencyBucketSize < 0 {
@@ -108,24 +110,24 @@ func ConfigureBucketSizes(bcs []BucketConfiguration) {
 }
 
 // ReportSpansPerMethod returns a summary of what spans are being stored for each span name.
-func ReportSpansPerMethod() map[string]PerMethodSummary {
-	out := make(map[string]PerMethodSummary)
+func (i internalOnly) ReportSpansPerMethod() map[string]internal.PerMethodSummary {
+	out := make(map[string]internal.PerMethodSummary)
 	ssmu.RLock()
 	defer ssmu.RUnlock()
 	for name, s := range spanStores {
 		s.mu.Lock()
-		p := PerMethodSummary{
+		p := internal.PerMethodSummary{
 			Active: len(s.active),
 		}
 		for code, b := range s.errors {
-			p.ErrorBuckets = append(p.ErrorBuckets, ErrorBucketSummary{
+			p.ErrorBuckets = append(p.ErrorBuckets, internal.ErrorBucketSummary{
 				ErrorCode: code,
 				Size:      b.size(),
 			})
 		}
 		for i, b := range s.latency {
 			min, max := latencyBucketBounds(i)
-			p.LatencyBuckets = append(p.LatencyBuckets, LatencyBucketSummary{
+			p.LatencyBuckets = append(p.LatencyBuckets, internal.LatencyBucketSummary{
 				MinLatency: min,
 				MaxLatency: max,
 				Size:       b.size(),
@@ -141,7 +143,7 @@ func ReportSpansPerMethod() map[string]PerMethodSummary {
 //
 // minLatency is the minimum latency of spans to be returned.
 // maxLatency, if nonzero, is the maximum latency of spans to be returned.
-func ReportSpansByLatency(name string, minLatency, maxLatency time.Duration) []*SpanData {
+func (i internalOnly) ReportSpansByLatency(name string, minLatency, maxLatency time.Duration) []*SpanData {
 	s := spanStoreForName(name)
 	if s == nil {
 		return nil
@@ -174,25 +176,6 @@ func ReportSpansByLatency(name string, minLatency, maxLatency time.Duration) []*
 		}
 	}
 	return out
-}
-
-// PerMethodSummary is a summary of the spans stored for a single span name.
-type PerMethodSummary struct {
-	Active         int
-	LatencyBuckets []LatencyBucketSummary
-	ErrorBuckets   []ErrorBucketSummary
-}
-
-// LatencyBucketSummary is a summary of a latency bucket.
-type LatencyBucketSummary struct {
-	MinLatency, MaxLatency time.Duration
-	Size                   int
-}
-
-// ErrorBucketSummary is a summary of an error bucket.
-type ErrorBucketSummary struct {
-	ErrorCode int32
-	Size      int
 }
 
 // spanStore keeps track of spans stored for a particular span name.

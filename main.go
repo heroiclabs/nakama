@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
-	"sync"
 )
 
 var (

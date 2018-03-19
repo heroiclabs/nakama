@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package jaeger contains an OpenCensus tracing exporter for Jaeger.
-package jaeger
+package jaeger // import "go.opencensus.io/exporter/jaeger"
 
 import (
 	"bytes"
@@ -123,27 +123,27 @@ func (e *Exporter) ExportSpan(data *trace.SpanData) {
 			}
 		}
 		logs = append(logs, &gen.Log{
-			Timestamp: a.Time.Unix() * 1000 * 1000,
+			Timestamp: a.Time.UnixNano() / 1000,
 			Fields:    fields,
 		})
 	}
 	var refs []*gen.SpanRef
 	for _, link := range data.Links {
 		refs = append(refs, &gen.SpanRef{
-			TraceIdLow:  bytesToInt64(link.TraceID[0:8]),
-			TraceIdHigh: bytesToInt64(link.TraceID[8:16]),
+			TraceIdHigh: bytesToInt64(link.TraceID[0:8]),
+			TraceIdLow:  bytesToInt64(link.TraceID[8:16]),
 			SpanId:      bytesToInt64(link.SpanID[:]),
 		})
 	}
 	span := &gen.Span{
-		TraceIdLow:    bytesToInt64(data.TraceID[0:8]),
-		TraceIdHigh:   bytesToInt64(data.TraceID[8:16]),
+		TraceIdHigh:   bytesToInt64(data.TraceID[0:8]),
+		TraceIdLow:    bytesToInt64(data.TraceID[8:16]),
 		SpanId:        bytesToInt64(data.SpanID[:]),
 		ParentSpanId:  bytesToInt64(data.ParentSpanID[:]),
 		OperationName: data.Name,
 		Flags:         int32(data.TraceOptions),
-		StartTime:     data.StartTime.Unix() * 1000 * 1000, // Add nanosecs.
-		Duration:      int64(data.EndTime.Sub(data.StartTime)),
+		StartTime:     data.StartTime.UnixNano() / 1000,
+		Duration:      data.EndTime.Sub(data.StartTime).Nanoseconds() / 1000,
 		Tags:          tags,
 		Logs:          logs,
 		References:    refs,

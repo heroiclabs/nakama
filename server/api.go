@@ -32,7 +32,10 @@ import (
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
-	ocgrpc "go.opencensus.io/plugin/grpc"
+	"go.opencensus.io/exporter/stackdriver"
+	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -61,8 +64,16 @@ type ApiServer struct {
 }
 
 func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
+	stackDriverExporter, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID: "[[YOUR-PROJECT]]",
+	})
+	if err != nil {
+		logger.Fatal("Could not setup Stackdriver exporter.", zap.Error(err))
+	}
+	view.RegisterExporter(stackDriverExporter)
+
 	grpcServer := grpc.NewServer(
-		grpc.StatsHandler(ocgrpc.NewServerStatsHandler()),
+		grpc.StatsHandler(ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
 
@@ -106,8 +117,8 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
 	// TODO restore when admin endpoints are available.
-	// grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
-	// grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
+	grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
+	grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
 	// Default to passing request to GRPC Gateway. Enable compression on gateway responses.
 	handlerWithGzip := handlers.CompressHandler(grpcGateway)
 	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)

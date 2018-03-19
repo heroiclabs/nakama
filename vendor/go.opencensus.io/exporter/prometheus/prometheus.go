@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package prometheus contains the Prometheus exporters for
-// Stackdriver Monitoring.
+// Package prometheus contains a Prometheus exporter.
 //
 // Please note that this exporter is currently work in progress and not complete.
-package prometheus
+package prometheus // import "go.opencensus.io/exporter/prometheus"
 
 import (
 	"bytes"
@@ -27,7 +26,7 @@ import (
 	"sync"
 
 	"go.opencensus.io/internal"
-	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -51,6 +50,7 @@ type Exporter struct {
 // Options contains options for configuring the exporter.
 type Options struct {
 	Namespace string
+	Registry  *prometheus.Registry
 	OnError   func(err error)
 }
 
@@ -62,7 +62,7 @@ var (
 // NewExporter returns an exporter that exports stats to Prometheus.
 // Only one exporter should exist per instance
 func NewExporter(o Options) (*Exporter, error) {
-	var err error = errSingletonExporter
+	var err = errSingletonExporter
 	var exporter *Exporter
 	newExporterOnce.Do(func() {
 		exporter, err = newExporter(o)
@@ -74,34 +74,25 @@ func newExporter(o Options) (*Exporter, error) {
 	if o.Namespace == "" {
 		o.Namespace = defaultNamespace
 	}
-	reg := prometheus.NewRegistry()
-	collector := newCollector(o, reg)
+	if o.Registry == nil {
+		o.Registry = prometheus.NewRegistry()
+	}
+	collector := newCollector(o, o.Registry)
 	e := &Exporter{
 		opts:    o,
-		g:       reg,
+		g:       o.Registry,
 		c:       collector,
-		handler: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+		handler: promhttp.HandlerFor(o.Registry, promhttp.HandlerOpts{}),
 	}
 	return e, nil
 }
 
 var _ http.Handler = (*Exporter)(nil)
-var _ stats.Exporter = (*Exporter)(nil)
+var _ view.Exporter = (*Exporter)(nil)
 
-func allowedWindowType(v *stats.View) bool {
-	// TODO: (@rakyll, @odeke-em): Only the cumulative window will
-	// be exported in this version. Support others in the future.
-	// See Issue https://github.com/census-instrumentation/opencensus-go/issues/214
-	_, ok := v.Window().(stats.Cumulative)
-	return ok
-}
-
-func (c *collector) registerViews(views ...*stats.View) {
+func (c *collector) registerViews(views ...*view.View) {
 	count := 0
 	for _, view := range views {
-		if !allowedWindowType(view) {
-			continue
-		}
 		sig := viewSignature(c.opts.Namespace, view)
 		c.registeredViewsMu.Lock()
 		_, ok := c.registeredViews[sig]
@@ -110,8 +101,8 @@ func (c *collector) registerViews(views ...*stats.View) {
 		if !ok {
 			desc := prometheus.NewDesc(
 				viewName(c.opts.Namespace, view),
-				view.Description(),
-				tagKeysToLabels(view.TagKeys()),
+				view.Description,
+				tagKeysToLabels(view.TagKeys),
 				nil,
 			)
 			c.registeredViewsMu.Lock()
@@ -124,10 +115,22 @@ func (c *collector) registerViews(views ...*stats.View) {
 		return
 	}
 
-	c.reg.Unregister(c)
-	if err := c.reg.Register(c); err != nil {
-		c.opts.onError(fmt.Errorf("cannot register the collector: %v", err))
-	}
+	c.ensureRegisteredOnce()
+}
+
+// ensureRegisteredOnce invokes reg.Register on the collector itself
+// exactly once to ensure that we don't get errors such as
+//  cannot register the collector: descriptor Desc{fqName: *}
+//  already exists with the same fully-qualified name and const label values
+// which is documented by Prometheus at
+//  https://github.com/prometheus/client_golang/blob/fcc130e101e76c5d303513d0e28f4b6d732845c7/prometheus/registry.go#L89-L101
+func (c *collector) ensureRegisteredOnce() {
+	c.registerOnce.Do(func() {
+		if err := c.reg.Register(c); err != nil {
+			c.opts.onError(fmt.Errorf("cannot register the collector: %v", err))
+		}
+	})
+
 }
 
 func (o *Options) onError(err error) {
@@ -145,7 +148,7 @@ func (o *Options) onError(err error) {
 // DistributionData will be Histogram Metric, and MeanData
 // will be Summary Metric. Please note the Summary Metric from
 // MeanData does not have any quantiles.
-func (e *Exporter) ExportView(vd *stats.ViewData) {
+func (e *Exporter) ExportView(vd *view.Data) {
 	if len(vd.Rows) == 0 {
 		return
 	}
@@ -162,6 +165,8 @@ type collector struct {
 	opts Options
 	mu   sync.Mutex // mu guards all the fields.
 
+	registerOnce sync.Once
+
 	// reg helps collector register views dynamically.
 	reg *prometheus.Registry
 
@@ -169,14 +174,14 @@ type collector struct {
 	// appended to on every Export invocation, from
 	// stats. These views are cleared out when
 	// Collect is invoked and the cycle is repeated.
-	viewData map[string]*stats.ViewData
+	viewData map[string]*view.Data
 
 	registeredViewsMu sync.Mutex
 	// registeredViews maps a view to a prometheus desc.
 	registeredViews map[string]*prometheus.Desc
 }
 
-func (c *collector) addViewData(vd *stats.ViewData) {
+func (c *collector) addViewData(vd *view.Data) {
 	c.registerViews(vd.View)
 	sig := viewSignature(c.opts.Namespace, vd.View)
 
@@ -203,11 +208,10 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 // Collect is invoked everytime a prometheus.Gatherer is run
 // for example when the HTTP endpoint is invoked by Prometheus.
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
-	for _, vd := range c.viewData {
-		if !allowedWindowType(vd.View) {
-			continue
-		}
+	// We need a copy of all the view data up until this point.
+	viewData := c.cloneViewData()
 
+	for _, vd := range viewData {
 		sig := viewSignature(c.opts.Namespace, vd.View)
 		c.registeredViewsMu.Lock()
 		desc := c.registeredViews[sig]
@@ -225,30 +229,30 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 
 }
 
-func (c *collector) toMetric(desc *prometheus.Desc, view *stats.View, row *stats.Row) (prometheus.Metric, error) {
-	switch agg := view.Aggregation().(type) {
-	case stats.CountAggregation:
-		data := row.Data.(*stats.CountData)
+func (c *collector) toMetric(desc *prometheus.Desc, v *view.View, row *view.Row) (prometheus.Metric, error) {
+	switch agg := v.Aggregation.(type) {
+	case view.CountAggregation:
+		data := row.Data.(*view.CountData)
 		return prometheus.NewConstMetric(desc, prometheus.CounterValue, float64(*data), tagValues(row.Tags)...)
 
-	case stats.DistributionAggregation:
-		data := row.Data.(*stats.DistributionData)
+	case view.DistributionAggregation:
+		data := row.Data.(*view.DistributionData)
 		points := make(map[float64]uint64)
 		for i, b := range agg {
 			points[b] = uint64(data.CountPerBucket[i])
 		}
 		return prometheus.NewConstHistogram(desc, uint64(data.Count), data.Sum(), points, tagValues(row.Tags)...)
 
-	case stats.MeanAggregation:
-		data := row.Data.(*stats.MeanData)
+	case view.MeanAggregation:
+		data := row.Data.(*view.MeanData)
 		return prometheus.NewConstSummary(desc, uint64(data.Count), data.Sum(), make(map[float64]float64), tagValues(row.Tags)...)
 
-	case stats.SumAggregation:
-		data := row.Data.(*stats.SumData)
+	case view.SumAggregation:
+		data := row.Data.(*view.SumData)
 		return prometheus.NewConstMetric(desc, prometheus.UntypedValue, float64(*data), tagValues(row.Tags)...)
 
 	default:
-		return nil, fmt.Errorf("aggregation %T is not yet supported", view.Aggregation())
+		return nil, fmt.Errorf("aggregation %T is not yet supported", v.Aggregation)
 	}
 }
 
@@ -272,7 +276,7 @@ func newCollector(opts Options, registrar *prometheus.Registry) *collector {
 		reg:             registrar,
 		opts:            opts,
 		registeredViews: make(map[string]*prometheus.Desc),
-		viewData:        make(map[string]*stats.ViewData),
+		viewData:        make(map[string]*view.Data),
 	}
 }
 
@@ -284,15 +288,26 @@ func tagValues(t []tag.Tag) []string {
 	return values
 }
 
-func viewName(namespace string, v *stats.View) string {
-	return namespace + "_" + internal.Sanitize(v.Name())
+func viewName(namespace string, v *view.View) string {
+	return namespace + "_" + internal.Sanitize(v.Name)
 }
 
-func viewSignature(namespace string, v *stats.View) string {
+func viewSignature(namespace string, v *view.View) string {
 	var buf bytes.Buffer
 	buf.WriteString(viewName(namespace, v))
-	for _, k := range v.TagKeys() {
+	for _, k := range v.TagKeys {
 		buf.WriteString("-" + k.Name())
 	}
 	return buf.String()
+}
+
+func (c *collector) cloneViewData() map[string]*view.Data {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	viewDataCopy := make(map[string]*view.Data)
+	for sig, viewData := range c.viewData {
+		viewDataCopy[sig] = viewData
+	}
+	return viewDataCopy
 }
