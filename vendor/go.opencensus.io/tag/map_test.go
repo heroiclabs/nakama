@@ -27,13 +27,15 @@ func TestContext(t *testing.T) {
 	k1, _ := NewKey("k1")
 	k2, _ := NewKey("k2")
 
-	want, _ := NewMap(context.Background(),
+	ctx := context.Background()
+	ctx, _ = New(ctx,
 		Insert(k1, "v1"),
 		Insert(k2, "v2"),
 	)
-
-	ctx := NewContext(context.Background(), want)
 	got := FromContext(ctx)
+	want := newMap(2)
+	want.insert(k1, "v1")
+	want.insert(k2, "v2")
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Map = %#v; want %#v", got, want)
@@ -43,12 +45,15 @@ func TestContext(t *testing.T) {
 func TestDo(t *testing.T) {
 	k1, _ := NewKey("k1")
 	k2, _ := NewKey("k2")
-	want, _ := NewMap(context.Background(),
+	ctx := context.Background()
+	ctx, _ = New(ctx,
 		Insert(k1, "v1"),
 		Insert(k2, "v2"),
 	)
-	ctx := NewContext(context.Background(), want)
-	var got *Map
+	got := FromContext(ctx)
+	want := newMap(2)
+	want.insert(k1, "v1")
+	want.insert(k2, "v2")
 	Do(ctx, func(ctx context.Context) {
 		got = FromContext(ctx)
 	})
@@ -152,13 +157,13 @@ func TestNewMap(t *testing.T) {
 		}
 		mods = append(mods, tt.mods...)
 		ctx := NewContext(context.Background(), tt.initial)
-		got, err := NewMap(ctx, mods...)
+		ctx, err := New(ctx, mods...)
 		if tt.want != nil && err != nil {
-			t.Errorf("%v: NewMap = %v", tt.name, err)
+			t.Errorf("%v: New = %v", tt.name, err)
 		}
 
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%v: got %v; want %v", tt.name, got, tt.want)
+		if got, want := FromContext(ctx), tt.want; !reflect.DeepEqual(got, want) {
+			t.Errorf("%v: got %v; want %v", tt.name, got, want)
 		}
 	}
 }
@@ -184,7 +189,8 @@ func TestNewMapValidation(t *testing.T) {
 
 	for i, tt := range tests {
 		ctx := NewContext(context.Background(), tt.seed)
-		m, err := NewMap(ctx)
+		ctx, err := New(ctx)
+
 		if tt.err != "" {
 			if err == nil {
 				t.Errorf("#%d: got nil error; want %q", i, tt.err)
@@ -192,16 +198,13 @@ func TestNewMapValidation(t *testing.T) {
 			} else if s, substr := err.Error(), tt.err; !strings.Contains(s, substr) {
 				t.Errorf("#%d:\ngot %q\nwant %q", i, s, substr)
 			}
-			if m != nil {
-				t.Errorf("#%d: non-nil Map: %+v", i, m)
-			}
 			continue
 		}
-
 		if err != nil {
 			t.Errorf("#%d: got %q want nil", i, err)
 			continue
 		}
+		m := FromContext(ctx)
 		if m == nil {
 			t.Errorf("#%d: got nil map", i)
 			continue

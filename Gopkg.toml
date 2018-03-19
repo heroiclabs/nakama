@@ -4,7 +4,7 @@
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "~1.9.0"
+  version = "~1.10.0"
 
 [[constraint]]
   name = "github.com/go-yaml/yaml"
@@ -28,11 +28,11 @@
 
 [[constraint]]
   name = "github.com/gorilla/mux"
-  version = "~1.6.0"
+  version = "~1.6.1"
 
 [[constraint]]
   name = "github.com/dgrijalva/jwt-go"
-  version = "~3.1.0"
+  version = "~3.2.0"
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
@@ -51,12 +51,12 @@
   revision = "1875d0a70c90e57f11972aefd42276df65e895b9"
 
 [[constraint]]
-  name = "go.opencensus.io"
-  version = "0.2.0"
-
-[[constraint]]
   name = "github.com/gobuffalo/packr"
   revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
+
+[[override]]
+  name = "github.com/prometheus/client_golang"
+  revision = "d49167c4b9f3c4451707560c5c71471ff5291aaa"
 
 [[constraint]]
   name = "github.com/stretchr/testify"

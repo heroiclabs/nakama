@@ -1,9 +1,8 @@
 language: go
 
 go:
-  # 1.8 is tested by AppVeyor 
-  - 1.9.x
-  - master
+  # 1.8 is tested by AppVeyor
+  - 1.10.x
 
 go_import_path: go.opencensus.io
 
@@ -16,7 +15,7 @@ before_script:
   - PKGS=$(go list ./... | grep -v /vendor/)             # All the import paths, excluding vendor/ if any
 
 script:
-  - gofmt -w ./
+  - if [ -n "$(gofmt -s -l .)" ]; then echo "gofmt the following files:"; gofmt -s -l .; exit 1; fi
   - go vet ./...
   - go test -v -race $PKGS            # Run all the tests with the race detector enabled
   - 'if [[ $TRAVIS_GO_VERSION = 1.8* ]]; then ! golint ./... | grep -vE "(_mock|_string|\.pb)\.go:"; fi'

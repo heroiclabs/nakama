@@ -13,56 +13,24 @@
 // limitations under the License.
 
 // Package stackdriver contains the OpenCensus exporters for
-// Stackdriver Monitoring and Tracing.
+// Stackdriver Monitoring and Stackdriver Tracing.
 //
 // Please note that the Stackdriver exporter is currently experimental.
 //
-// Create an exporter:
-//
-// 	import (
-// 		"go.opencensus.io/exporter/stackdriver"
-// 		"go.opencensus.io/trace"
-// 		"go.opencensus.io/stats"
-// 	)
-//
-// 	exporter, err := stackdriver.NewExporter(stackdriver.Options{ProjectID: "google-project-id"})
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-//
-// Export to Stackdriver Stats:
-//
-// 	stats.RegisterExporter(exporter)
-//
-// Export to Stackdriver Trace:
-//
-// 	trace.RegisterExporter(exporter)
-//
 // The package uses Application Default Credentials to authenticate.  See
 // https://developers.google.com/identity/protocols/application-default-credentials
-//
-// Exporter can be used to propagate traces over HTTP requests for Stackdriver Trace.
-//
-// Example:
-//
-// 	import (
-// 		"go.opencensus.io/plugin/http/httptrace"
-// 		"go.opencensus.io/plugin/http/propagation/google"
-// 	)
-//
-//	client := &http.Client {
-//		Transport: httptrace.NewTransport(nil, &google.HTTPFormat{}),
-//	}
-//
-// All outgoing requests from client will include a Stackdriver Trace header.
-// See the httptrace package for how to handle incoming requests.
-package stackdriver
+package stackdriver // import "go.opencensus.io/exporter/stackdriver"
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"go.opencensus.io/stats"
+	traceapi "cloud.google.com/go/trace/apiv2"
+	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
 )
@@ -71,10 +39,12 @@ import (
 type Options struct {
 	// ProjectID is the identifier of the Stackdriver
 	// project the user is uploading the stats data to.
+	// If not set, this will default to your "Application Default Credentials".
+	// For details see: https://developers.google.com/accounts/docs/application-default-credentials
 	ProjectID string
 
 	// OnError is the hook to be called when there is
-	// an error occurred when uploading the stats data.
+	// an error uploading the stats or tracing data.
 	// If no custom hook is set, errors are logged.
 	// Optional.
 	OnError func(err error)
@@ -101,6 +71,10 @@ type Options struct {
 	// with type global and no resource labels will be used.
 	// Optional.
 	Resource *monitoredrespb.MonitoredResource
+
+	// MetricPrefix overrides the OpenCensus prefix of a stackdriver metric.
+	// Optional.
+	MetricPrefix string
 }
 
 // Exporter is a stats.Exporter and trace.Exporter
@@ -110,7 +84,19 @@ type Exporter struct {
 	statsExporter *statsExporter
 }
 
+// NewExporter creates a new Exporter that implements both stats.Exporter and
+// trace.Exporter.
 func NewExporter(o Options) (*Exporter, error) {
+	if o.ProjectID == "" {
+		creds, err := google.FindDefaultCredentials(context.Background(), traceapi.DefaultAuthScopes()...)
+		if err != nil {
+			return nil, fmt.Errorf("stackdriver: %v", err)
+		}
+		if creds.ProjectID == "" {
+			return nil, errors.New("stackdriver: no project found with application default credentials")
+		}
+		o.ProjectID = creds.ProjectID
+	}
 	se, err := newStatsExporter(o)
 	if err != nil {
 		return nil, err
@@ -127,7 +113,7 @@ func NewExporter(o Options) (*Exporter, error) {
 
 // ExportView exports to the Stackdriver Monitoring if view data
 // has one or more rows.
-func (e *Exporter) ExportView(vd *stats.ViewData) {
+func (e *Exporter) ExportView(vd *view.Data) {
 	e.statsExporter.ExportView(vd)
 }
 

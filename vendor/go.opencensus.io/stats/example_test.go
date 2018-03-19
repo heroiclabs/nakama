@@ -17,40 +17,15 @@ package stats_test
 import (
 	"context"
 	"log"
-	"time"
 
 	"go.opencensus.io/stats"
 )
 
-func Example_record() {
-	m, err := stats.NewMeasureInt64("my.org/measure/openconns", "open connections", "")
+func ExampleRecord() {
+	ctx := context.Background()
+	openConns, err := stats.Int64("my.org/measure/openconns", "open connections", stats.UnitNone)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	stats.Record(context.TODO(), m.M(124)) // Record 124 open connections.
-}
-
-func Example_view() {
-	m, err := stats.NewMeasureInt64("my.org/measure/openconns", "open connections", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	view, err := stats.NewView(
-		"my.org/views/openconns",
-		"open connections distribution over one second time window",
-		nil,
-		m,
-		stats.DistributionAggregation([]float64{0, 1000, 2000}),
-		stats.Interval{Duration: time.Second},
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := view.Subscribe(); err != nil {
-		log.Fatal(err)
-	}
-
-	// Use stats.RegisterExporter to export collected data.
+	stats.Record(ctx, openConns.M(124)) // Record 124 open connections.
 }

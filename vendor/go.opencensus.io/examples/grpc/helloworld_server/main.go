@@ -18,14 +18,16 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
+	"time"
 
-	"go.opencensus.io/examples/grpc/exporter"
+	"go.opencensus.io/examples/exporter"
 	pb "go.opencensus.io/examples/grpc/proto"
-	ocgrpc "go.opencensus.io/plugin/grpc"
-	"go.opencensus.io/plugin/grpc/grpcstats"
-	"go.opencensus.io/stats"
+	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/trace"
 	"go.opencensus.io/zpages"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -39,18 +41,23 @@ type server struct{}
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	ctx, span := trace.StartSpan(ctx, "sleep")
+	time.Sleep(time.Duration(rand.Float64() * float64(time.Second)))
+	span.End()
 	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
 }
 
 func main() {
-	zpages.AddDefaultHTTPHandlers()
-	go func() { log.Fatal(http.ListenAndServe(":8081", nil)) }()
+	go func() {
+		http.Handle("/debug/", http.StripPrefix("/debug", zpages.Handler))
+		log.Fatal(http.ListenAndServe(":8081", nil))
+	}()
 	// Register stats and trace exporters to export
 	// the collected data.
-	stats.RegisterExporter(&exporter.Exporter{})
+	view.RegisterExporter(&exporter.PrintExporter{})
 
 	// Subscribe to collect server request count.
-	if err := grpcstats.RPCServerRequestCountView.Subscribe(); err != nil {
+	if err := view.Subscribe(ocgrpc.DefaultServerViews...); err != nil {
 		log.Fatal(err)
 	}
 
@@ -61,7 +68,7 @@ func main() {
 
 	// Set up a new server with the OpenCensus
 	// stats handler to enable stats and tracing.
-	s := grpc.NewServer(grpc.StatsHandler(ocgrpc.NewServerStatsHandler()))
+	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 	pb.RegisterGreeterServer(s, &server{})
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
