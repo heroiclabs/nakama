@@ -15,30 +15,43 @@
 
 package stats
 
-// MeasureInt64 is a measure of type int64.
-type MeasureInt64 struct {
-	name        string
-	unit        string
-	description string
+// Int64Measure is a measure of type int64.
+type Int64Measure struct {
+	measure
 }
 
-// Name returns the name of the measure.
-func (m *MeasureInt64) Name() string {
-	return m.name
+func (i *Int64Measure) subscribe() {
+	i.measure.subscribe()
 }
 
-// Description returns the description of the measure.
-func (m *MeasureInt64) Description() string {
-	return m.description
-}
-
-// Unit returns the unit of the measure.
-func (m *MeasureInt64) Unit() string {
-	return m.unit
+func (i *Int64Measure) subscribed() bool {
+	return i.measure.subscribed()
 }
 
 // M creates a new int64 measurement.
 // Use Record to record measurements.
-func (m *MeasureInt64) M(v int64) Measurement {
-	return Measurement{m: m, v: v}
+func (i *Int64Measure) M(v int64) Measurement {
+	if !i.subscribed() {
+		return Measurement{}
+	}
+	return Measurement{m: i, v: float64(v)}
+}
+
+// Int64 creates a new measure of type Int64Measure. It returns an
+// error if a measure with the same name already exists.
+func Int64(name, description, unit string) (*Int64Measure, error) {
+	if err := checkName(name); err != nil {
+		return nil, err
+	}
+	m := &Int64Measure{
+		measure: measure{
+			name:        name,
+			description: description,
+			unit:        unit,
+		},
+	}
+	if _, err := register(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

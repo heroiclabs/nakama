@@ -165,18 +165,16 @@ func Encode(m *Map) []byte {
 	eg := &encoderGRPC{
 		buf: make([]byte, len(m.m)),
 	}
-
 	eg.writeByte(byte(tagsVersionID))
 	for k, v := range m.m {
 		eg.writeByte(byte(keyTypeString))
 		eg.writeStringWithVarintLen(k.name)
 		eg.writeBytesWithVarintLen([]byte(v))
 	}
-
 	return eg.bytes()
 }
 
-// Decode  decodes the given []byte into a tag map.
+// Decode decodes the given []byte into a tag map.
 func Decode(bytes []byte) (*Map, error) {
 	ts := newMap(0)
 

@@ -37,7 +37,7 @@ func ExampleNewKey() {
 	_ = key // use key
 }
 
-func ExampleNewMap() {
+func ExampleNew() {
 	osKey, err := tag.NewKey("my.org/keys/user-os")
 	if err != nil {
 		log.Fatal(err)
@@ -47,25 +47,25 @@ func ExampleNewMap() {
 		log.Fatal(err)
 	}
 
-	tagMap, err := tag.NewMap(ctx,
+	ctx, err := tag.New(ctx,
 		tag.Insert(osKey, "macOS-10.12.5"),
 		tag.Upsert(userIDKey, "cde36753ed"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = tagMap // use the tag map
+
+	_ = ctx // use context
 }
 
-func ExampleNewMap_replace() {
-	tagMap, err := tag.NewMap(ctx,
+func ExampleNew_replace() {
+	ctx, err := tag.New(ctx,
 		tag.Insert(key, "macOS-10.12.5"),
 		tag.Upsert(key, "macOS-10.12.7"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = tag.NewContext(ctx, tagMap)
 
 	_ = ctx // use context
 }
@@ -84,14 +84,13 @@ func ExampleFromContext() {
 }
 
 func ExampleDo() {
-	tagMap, err := tag.NewMap(ctx,
+	ctx, err := tag.New(ctx,
 		tag.Insert(key, "macOS-10.12.5"),
 		tag.Upsert(key, "macOS-10.12.7"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = tag.NewContext(ctx, tagMap)
 	tag.Do(ctx, func(ctx context.Context) {
 		_ = ctx // use context
 	})

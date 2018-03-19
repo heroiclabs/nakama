@@ -2143,7 +2143,7 @@ func (p *CollectorProcessor) Process(ctx context.Context, iprot, oprot thrift.TP
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
 	x9.Write(oprot)
 	oprot.WriteMessageEnd()
-	oprot.Flush()
+	oprot.Flush(ctx)
 	return false, x9
 
 }
@@ -2160,7 +2160,7 @@ func (p *collectorProcessorSubmitBatches) Process(ctx context.Context, seqId int
 		oprot.WriteMessageBegin("submitBatches", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
-		oprot.Flush()
+		oprot.Flush(ctx)
 		return false, err
 	}
 
@@ -2173,7 +2173,7 @@ func (p *collectorProcessorSubmitBatches) Process(ctx context.Context, seqId int
 		oprot.WriteMessageBegin("submitBatches", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
-		oprot.Flush()
+		oprot.Flush(ctx)
 		return true, err2
 	} else {
 		result.Success = retval
@@ -2187,7 +2187,7 @@ func (p *collectorProcessorSubmitBatches) Process(ctx context.Context, seqId int
 	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
 		err = err2
 	}
-	if err2 = oprot.Flush(); err == nil && err2 != nil {
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
 		err = err2
 	}
 	if err != nil {

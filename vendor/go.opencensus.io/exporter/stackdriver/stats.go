@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package stackdriver contains the OpenCensus exporters for
-// Stackdriver Monitoring.
-//
-// Please note that the Stackdriver exporter is currently experimental.
 package stackdriver
 
 import (
@@ -33,11 +29,12 @@ import (
 	"time"
 
 	"go.opencensus.io/internal"
-	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3"
-	timestamp "github.com/golang/protobuf/ptypes/timestamp"
+	"cloud.google.com/go/monitoring/apiv3"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"google.golang.org/api/option"
 	"google.golang.org/api/support/bundler"
 	distributionpb "google.golang.org/genproto/googleapis/api/distribution"
@@ -53,6 +50,7 @@ import (
 const maxTimeSeriesPerUpload = 200
 const opencensusTaskKey = "opencensus_task"
 const opencensusTaskDescription = "Opencensus task identifier"
+const defaultDisplayNamePrefix = "OpenCensus"
 
 // statsExporter exports stats to the Stackdriver Monitoring.
 type statsExporter struct {
@@ -106,8 +104,8 @@ func newStatsExporter(o Options) (*statsExporter, error) {
 		createdViews: make(map[string]*metricpb.MetricDescriptor),
 		taskValue:    getTaskValue(),
 	}
-	e.bundler = bundler.NewBundler((*stats.ViewData)(nil), func(bundle interface{}) {
-		vds := bundle.([]*stats.ViewData)
+	e.bundler = bundler.NewBundler((*view.Data)(nil), func(bundle interface{}) {
+		vds := bundle.([]*view.Data)
 		e.handleUpload(vds...)
 	})
 	e.bundler.DelayThreshold = e.o.BundleDelayThreshold
@@ -117,7 +115,7 @@ func newStatsExporter(o Options) (*statsExporter, error) {
 
 // ExportView exports to the Stackdriver Monitoring if view data
 // has one or more rows.
-func (e *statsExporter) ExportView(vd *stats.ViewData) {
+func (e *statsExporter) ExportView(vd *view.Data) {
 	if len(vd.Rows) == 0 {
 		return
 	}
@@ -145,9 +143,9 @@ func getTaskValue() string {
 }
 
 // handleUpload handles uploading a slice
-// of ViewData, as well as error handling.
-func (e *statsExporter) handleUpload(vds ...*stats.ViewData) {
-	if err := e.upload(vds); err != nil {
+// of Data, as well as error handling.
+func (e *statsExporter) handleUpload(vds ...*view.Data) {
+	if err := e.uploadStats(vds); err != nil {
 		e.onError(err)
 	}
 }
@@ -168,21 +166,24 @@ func (e *statsExporter) onError(err error) {
 	log.Printf("Failed to export to Stackdriver Monitoring: %v", err)
 }
 
-func (e *statsExporter) upload(vds []*stats.ViewData) error {
-	ctx := context.Background()
+func (e *statsExporter) uploadStats(vds []*view.Data) error {
+	span := trace.NewSpan(
+		"go.opencensus.io/exporter/stackdriver.uploadStats",
+		nil,
+		trace.StartOptions{Sampler: trace.NeverSample()},
+	)
+	ctx := trace.WithSpan(context.Background(), span)
+	defer span.End()
 
 	for _, vd := range vds {
-		if _, ok := vd.View.Window().(stats.Cumulative); !ok {
-			// TODO(jbd): Only Cumulative window will be exported to Stackdriver in this version.
-			// Support others when custom delta metrics are supported.
-			continue
-		}
 		if err := e.createMeasure(ctx, vd); err != nil {
+			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
 			return err
 		}
 	}
 	for _, req := range e.makeReq(vds, maxTimeSeriesPerUpload) {
 		if err := e.c.CreateTimeSeries(ctx, req); err != nil {
+			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
 			// TODO(jbd): Don't fail fast here, batch errors?
 			return err
 		}
@@ -190,7 +191,7 @@ func (e *statsExporter) upload(vds []*stats.ViewData) error {
 	return nil
 }
 
-func (e *statsExporter) makeReq(vds []*stats.ViewData, limit int) []*monitoringpb.CreateTimeSeriesRequest {
+func (e *statsExporter) makeReq(vds []*view.Data, limit int) []*monitoringpb.CreateTimeSeriesRequest {
 	var reqs []*monitoringpb.CreateTimeSeriesRequest
 	var timeSeries []*monitoringpb.TimeSeries
 
@@ -202,15 +203,10 @@ func (e *statsExporter) makeReq(vds []*stats.ViewData, limit int) []*monitoringp
 	}
 
 	for _, vd := range vds {
-		if _, ok := vd.View.Window().(stats.Cumulative); !ok {
-			// TODO(jbd): Only Cumulative window will be exported to Stackdriver in this version.
-			// Support others when custom delta metrics are supported.
-			continue
-		}
 		for _, row := range vd.Rows {
 			ts := &monitoringpb.TimeSeries{
 				Metric: &metricpb.Metric{
-					Type:   namespacedViewName(vd.View.Name(), false),
+					Type:   namespacedViewName(vd.View.Name, false),
 					Labels: newLabels(row.Tags, e.taskValue),
 				},
 				Resource: resource,
@@ -237,20 +233,18 @@ func (e *statsExporter) makeReq(vds []*stats.ViewData, limit int) []*monitoringp
 
 // createMeasure creates a MetricDescriptor for the given view data in Stackdriver Monitoring.
 // An error will be returned if there is already a metric descriptor created with the same name
-// but it has a different aggregation, window or keys.
-func (e *statsExporter) createMeasure(ctx context.Context, vd *stats.ViewData) error {
+// but it has a different aggregation or keys.
+func (e *statsExporter) createMeasure(ctx context.Context, vd *view.Data) error {
 	e.createdViewsMu.Lock()
 	defer e.createdViewsMu.Unlock()
 
-	m := vd.View.Measure()
-	agg := vd.View.Aggregation()
-	window := vd.View.Window()
-	tagKeys := vd.View.TagKeys()
-	viewName := vd.View.Name()
+	m := vd.View.Measure
+	agg := vd.View.Aggregation
+	tagKeys := vd.View.TagKeys
+	viewName := vd.View.Name
 
 	if md, ok := e.createdViews[viewName]; ok {
-		// Check agg, window and keys.
-		return equalAggWindowTagKeys(md, agg, window, tagKeys)
+		return equalAggTagKeys(md, agg, tagKeys)
 	}
 
 	metricName := monitoring.MetricMetricDescriptorPath(e.o.ProjectID, namespacedViewName(viewName, true))
@@ -258,7 +252,7 @@ func (e *statsExporter) createMeasure(ctx context.Context, vd *stats.ViewData) e
 		Name: metricName,
 	})
 	if err == nil {
-		if err := equalAggWindowTagKeys(md, agg, window, tagKeys); err != nil {
+		if err := equalAggTagKeys(md, agg, tagKeys); err != nil {
 			return err
 		}
 		e.createdViews[viewName] = md
@@ -272,37 +266,34 @@ func (e *statsExporter) createMeasure(ctx context.Context, vd *stats.ViewData) e
 	var valueType metricpb.MetricDescriptor_ValueType
 
 	switch agg.(type) {
-	case stats.CountAggregation:
+	case view.CountAggregation:
 		valueType = metricpb.MetricDescriptor_INT64
-	case stats.SumAggregation:
+	case view.SumAggregation:
 		valueType = metricpb.MetricDescriptor_DOUBLE
-	case stats.MeanAggregation:
+	case view.MeanAggregation:
 		valueType = metricpb.MetricDescriptor_DISTRIBUTION
-	case stats.DistributionAggregation:
+	case view.DistributionAggregation:
 		valueType = metricpb.MetricDescriptor_DISTRIBUTION
 	default:
 		return fmt.Errorf("unsupported aggregation type: %T", agg)
 	}
 
-	switch window.(type) {
-	case stats.Cumulative:
-		metricKind = metricpb.MetricDescriptor_CUMULATIVE
-	case stats.Interval:
-		metricKind = metricpb.MetricDescriptor_DELTA
-	default:
-		return fmt.Errorf("unsupported window type: %T", window)
+	metricKind = metricpb.MetricDescriptor_CUMULATIVE
+	displayNamePrefix := defaultDisplayNamePrefix
+	if e.o.MetricPrefix != "" {
+		displayNamePrefix = e.o.MetricPrefix
 	}
 
 	md, err = createMetricDescriptor(ctx, e.c, &monitoringpb.CreateMetricDescriptorRequest{
 		Name: monitoring.MetricProjectPath(e.o.ProjectID),
 		MetricDescriptor: &metricpb.MetricDescriptor{
-			DisplayName: path.Join("OpenCensus", viewName),
+			DisplayName: path.Join(displayNamePrefix, viewName),
 			Description: m.Description(),
 			Unit:        m.Unit(),
 			Type:        namespacedViewName(viewName, false),
 			MetricKind:  metricKind,
 			ValueType:   valueType,
-			Labels:      newLabelDescriptors(vd.View.TagKeys()),
+			Labels:      newLabelDescriptors(vd.View.TagKeys),
 		},
 	})
 	if err != nil {
@@ -313,7 +304,7 @@ func (e *statsExporter) createMeasure(ctx context.Context, vd *stats.ViewData) e
 	return nil
 }
 
-func newPoint(v *stats.View, row *stats.Row, start, end time.Time) *monitoringpb.Point {
+func newPoint(v *view.View, row *view.Row, start, end time.Time) *monitoringpb.Point {
 	return &monitoringpb.Point{
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: &timestamp.Timestamp{
@@ -329,17 +320,17 @@ func newPoint(v *stats.View, row *stats.Row, start, end time.Time) *monitoringpb
 	}
 }
 
-func newTypedValue(view *stats.View, r *stats.Row) *monitoringpb.TypedValue {
+func newTypedValue(vd *view.View, r *view.Row) *monitoringpb.TypedValue {
 	switch v := r.Data.(type) {
-	case *stats.CountData:
+	case *view.CountData:
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_Int64Value{
 			Int64Value: int64(*v),
 		}}
-	case *stats.SumData:
+	case *view.SumData:
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{
 			DoubleValue: float64(*v),
 		}}
-	case *stats.MeanData:
+	case *view.MeanData:
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DistributionValue{
 			DistributionValue: &distributionpb.Distribution{
 				Count: int64(v.Count),
@@ -355,8 +346,8 @@ func newTypedValue(view *stats.View, r *stats.Row) *monitoringpb.TypedValue {
 				BucketCounts: []int64{0, int64(v.Count)},
 			},
 		}}
-	case *stats.DistributionData:
-		bounds := view.Aggregation().(stats.DistributionAggregation)
+	case *view.DistributionData:
+		bounds := vd.Aggregation.(view.DistributionAggregation)
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DistributionValue{
 			DistributionValue: &distributionpb.Distribution{
 				Count: v.Count,
@@ -415,16 +406,7 @@ func newLabelDescriptors(keys []tag.Key) []*labelpb.LabelDescriptor {
 	return labelDescriptors
 }
 
-func equalAggWindowTagKeys(md *metricpb.MetricDescriptor, agg stats.Aggregation, window stats.Window, keys []tag.Key) error {
-	var w stats.Window
-
-	switch md.MetricKind {
-	case metricpb.MetricDescriptor_DELTA:
-		w = stats.Interval{}
-	case metricpb.MetricDescriptor_CUMULATIVE:
-		w = stats.Cumulative{}
-	}
-
+func equalAggTagKeys(md *metricpb.MetricDescriptor, agg view.Aggregation, keys []tag.Key) error {
 	aggType := reflect.TypeOf(agg)
 	if aggType.Kind() == reflect.Ptr { // if pointer, find out the concrete type
 		aggType = reflect.ValueOf(agg).Elem().Type()
@@ -432,23 +414,15 @@ func equalAggWindowTagKeys(md *metricpb.MetricDescriptor, agg stats.Aggregation,
 	var aggTypeMatch bool
 	switch md.ValueType {
 	case metricpb.MetricDescriptor_INT64:
-		aggTypeMatch = aggType == reflect.TypeOf(stats.CountAggregation{})
+		aggTypeMatch = aggType == reflect.TypeOf(view.CountAggregation{})
 	case metricpb.MetricDescriptor_DOUBLE:
-		aggTypeMatch = aggType == reflect.TypeOf(stats.SumAggregation{})
+		aggTypeMatch = aggType == reflect.TypeOf(view.SumAggregation{})
 	case metricpb.MetricDescriptor_DISTRIBUTION:
-		aggTypeMatch = aggType == reflect.TypeOf(stats.MeanAggregation{}) || aggType == reflect.TypeOf(stats.DistributionAggregation{})
+		aggTypeMatch = aggType == reflect.TypeOf(view.MeanAggregation{}) || aggType == reflect.TypeOf(view.DistributionAggregation{})
 	}
 
 	if !aggTypeMatch {
 		return fmt.Errorf("stackdriver metric descriptor was not created with aggregation type %T", aggType)
-	}
-
-	winType := reflect.TypeOf(window)
-	if winType.Kind() == reflect.Ptr { // if pointer, find out the concrete type
-		winType = reflect.ValueOf(window).Elem().Type()
-	}
-	if winType != reflect.TypeOf(w) {
-		return fmt.Errorf("stackdriver metric descriptor was not created with window type %T", w)
 	}
 
 	if len(md.Labels) != len(keys)+1 {

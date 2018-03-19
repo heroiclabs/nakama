@@ -14,7 +14,7 @@
 //
 
 /*
-Package stats contains support for OpenCensus stats collection.
+Package stats contains support for OpenCensus stats recording.
 
 OpenCensus allows users to create typed measures, record measurements,
 aggregate the collected data, and export the aggregated data.
@@ -26,7 +26,7 @@ For example, latency, request Mb/s, and response Mb/s are measures
 to collect from a server.
 
 Each measure needs to be registered before being used. Measure
-constructors such as NewMeasureInt64 and NewMeasureFloat64 automatically
+constructors such as Int64 and Float64 automatically
 register the measure by the given name. Each registered measure needs
 to be unique by name. Measures also have a description and a unit.
 
@@ -48,33 +48,6 @@ recording to reduce cost. Recording of measurements is cheap.
 Libraries can always record measurements, and end-users can later decide
 on which measurements they want to collect by registering views. This allows
 libraries to turn on the instrumentation by default.
-
-Views
-
-In order to collect measurements, views need to be defined and registered.
-A view allows recorded measurements to be filtered and aggregated over a time window.
-
-All recorded measurements can be filtered by a list of tags.
-
-OpenCensus provides several aggregation methods: count, distribution, sum and mean.
-Count aggregation only counts the number of measurement points. Distribution
-aggregation provides statistical summary of the aggregated data. Sum distribution
-sums up the measurement points. Mean provides the mean of the recorded measurements.
-Aggregations can either happen cumulatively or over an interval.
-
-Users can dynamically create and delete views.
-
-Libraries can export their own views and claim the view names
-by registering them themselves.
-
-Exporting
-
-Collected and aggregated data can be exported to a metric collection
-backend by registering its exporter.
-
-Multiple exporters can be registered to upload the data to various
-different backends. Users need to unregister the exporters once they
-no longer are needed.
 */
 package stats // import "go.opencensus.io/stats"
 
