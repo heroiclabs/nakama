@@ -34,6 +34,7 @@ type Config interface {
 	GetName() string
 	GetDataDir() string
 	GetLog() *LogConfig
+	GetMetrics() *MetricsConfig
 	GetSession() *SessionConfig
 	GetSocket() *SocketConfig
 	GetDatabase() *DatabaseConfig
@@ -117,6 +118,7 @@ type config struct {
 	Config   string          `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
 	Datadir  string          `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
 	Log      *LogConfig      `yaml:"log" json:"log" usage:"Log levels and output."`
+	Metrics  *MetricsConfig  `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
 	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings."`
 	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configuration."`
 	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings."`
@@ -133,6 +135,7 @@ func NewConfig() *config {
 		Name:     nodeName,
 		Datadir:  dataDirectory,
 		Log:      NewLogConfig(),
+		Metrics:  NewMetricsConfig(),
 		Session:  NewSessionConfig(),
 		Socket:   NewSocketConfig(),
 		Database: NewDatabaseConfig(),
@@ -151,6 +154,10 @@ func (c *config) GetDataDir() string {
 
 func (c *config) GetLog() *LogConfig {
 	return c.Log
+}
+
+func (c *config) GetMetrics() *MetricsConfig {
+	return c.Metrics
 }
 
 func (c *config) GetSession() *SessionConfig {
@@ -192,6 +199,24 @@ func NewLogConfig() *LogConfig {
 	}
 }
 
+// MetricsConfig is configuration relevant to metrics capturing and output.
+type MetricsConfig struct {
+	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 1 second."`
+	StackdriverProjectID string `yaml:"stackdriver_projectid" json:"stackdriver_projectid" usage:"This is the identifier of the Stackdriver project the server is uploading the stats data to. Setting this enabled metrics to be exported to Stackdriver."`
+	Namespace            string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus or prefix for Stackdriver metrics. It will always prepend node name."`
+	PrometheusPort       int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
+}
+
+// NewMetricsConfig creates a new MatricsConfig struct.
+func NewMetricsConfig() *MetricsConfig {
+	return &MetricsConfig{
+		ReportingFreqSec:     1,
+		StackdriverProjectID: "",
+		Namespace:            "",
+		PrometheusPort:       0,
+	}
+}
+
 // SessionConfig is configuration relevant to the session.
 type SessionConfig struct {
 	EncryptionKey  string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
@@ -210,11 +235,14 @@ func NewSessionConfig() *SessionConfig {
 type SocketConfig struct {
 	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
 	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
-	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
-	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data."`
-	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client."`
-	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms."`
-	OutgoingQueueSize   int    `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect."`
+	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
+	ReadTimeoutMs       int    `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
+	WriteTimeoutMs      int    `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
+	IdeaTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
+	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data. Used for real-time connections."`
+	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client. Used for real-time connections."`
+	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms. Used for real-time connections."`
+	OutgoingQueueSize   int    `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
 }
 
 // NewTransportConfig creates a new TransportConfig struct.
@@ -223,6 +251,9 @@ func NewSocketConfig() *SocketConfig {
 		ServerKey:           "defaultkey",
 		Port:                7350,
 		MaxMessageSizeBytes: 2048,
+		ReadTimeoutMs:       10 * 1000,
+		WriteTimeoutMs:      10 * 1000,
+		IdeaTimeoutMs:       60 * 1000,
 		WriteWaitMs:         5000,
 		PongWaitMs:          10000,
 		PingPeriodMs:        8000,

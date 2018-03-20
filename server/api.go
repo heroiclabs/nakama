@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
@@ -32,10 +33,7 @@ import (
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
-	"go.opencensus.io/exporter/stackdriver"
 	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/stats/view"
-	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -63,17 +61,10 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
-	stackDriverExporter, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID: "[[YOUR-PROJECT]]",
-	})
-	if err != nil {
-		logger.Fatal("Could not setup Stackdriver exporter.", zap.Error(err))
-	}
-	view.RegisterExporter(stackDriverExporter)
-
+func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
-		grpc.StatsHandler(ocgrpc.ServerHandler{IsPublicEndpoint: true}),
+		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
+		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
 		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
 	)
 
@@ -91,14 +82,15 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 
 	// Register and start GRPC server.
 	api.RegisterNakamaServer(grpcServer, s)
+	multiLogger.Info("Starting API server to server gRPC requests", zap.Int("port", config.GetSocket().Port))
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port))
 		if err != nil {
-			logger.Fatal("API Server listener failed to start", zap.Error(err))
+			multiLogger.Fatal("API Server listener failed to start", zap.Error(err))
 		}
 
 		if err := grpcServer.Serve(listener); err != nil {
-			logger.Fatal("API Server listener failed", zap.Error(err))
+			multiLogger.Fatal("API Server listener failed", zap.Error(err))
 		}
 	}()
 
@@ -107,9 +99,13 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port)
-	opts := []grpc.DialOption{grpc.WithInsecure()}
+	opts := []grpc.DialOption{
+		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithInsecure(),
+	}
 	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, opts); err != nil {
-		logger.Fatal("API Server gateway registration failed", zap.Error(err))
+		multiLogger.Fatal("API Server gateway registration failed", zap.Error(err))
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
@@ -117,8 +113,10 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
 	// TODO restore when admin endpoints are available.
-	grpcGatewayRouter.HandleFunc("/metrics", zpages.RpczHandler)
-	grpcGatewayRouter.HandleFunc("/trace", zpages.TracezHandler)
+	//grpcGatewayRouter.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+	//	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	//	zpages.WriteHTMLRpczPage(w)
+	//})
 	// Default to passing request to GRPC Gateway. Enable compression on gateway responses.
 	handlerWithGzip := handlers.CompressHandler(grpcGateway)
 	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)
@@ -131,12 +129,17 @@ func StartApiServer(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mars
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.GetSocket().Port-1),
-		Handler: handlerWithCORS,
+		Addr:         fmt.Sprintf(":%d", config.GetSocket().Port-1),
+		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
+		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
+		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdeaTimeoutMs)),
+		Handler:      handlerWithCORS,
 	}
+
+	multiLogger.Info("Starting API server to server HTTP requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
 		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("API Server gateway listener failed", zap.Error(err))
+			multiLogger.Fatal("API Server gateway listener failed", zap.Error(err))
 		}
 	}()
 

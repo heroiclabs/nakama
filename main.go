@@ -108,7 +108,8 @@ func main() {
 	}
 	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regRPC, once)
 	pipeline := server.NewPipeline(config, db, sessionRegistry, matchRegistry, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(jsonLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
+	metrics := server.NewMetrics(multiLogger, config)
+	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
@@ -122,6 +123,7 @@ func main() {
 
 	// Gracefully stop server components.
 	apiServer.Stop()
+	metrics.Stop(jsonLogger)
 	matchRegistry.Stop()
 	tracker.Stop()
 	sessionRegistry.Stop()
