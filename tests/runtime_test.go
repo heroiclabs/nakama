@@ -246,7 +246,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	defer r.Stop()
 
 	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
+	apiServer := server.StartApiServer(logger, logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
