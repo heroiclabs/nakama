@@ -1094,6 +1094,10 @@ func (n *NakamaModule) usersGetId(l *lua.LState) int {
 		l.ArgError(1, "invalid user id list")
 		return 0
 	}
+	if input.Len() == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
 	userIDs, ok := convertLuaValue(input).([]interface{})
 	if !ok {
 		l.ArgError(1, "invalid user id data")
@@ -1175,6 +1179,10 @@ func (n *NakamaModule) usersGetUsername(l *lua.LState) int {
 	if input == nil {
 		l.ArgError(1, "invalid username list")
 		return 0
+	}
+	if input.Len() == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
 	}
 	usernames, ok := convertLuaValue(input).([]interface{})
 	if !ok {
