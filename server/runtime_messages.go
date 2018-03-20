@@ -67,4 +67,5 @@ var RUNTIME_MESSAGES = map[string]string{
 	"*server.Envelope_Rpc":                     "trpc",
 	"*server.Envelope_NotificationsList":       "tnotificationslist",
 	"*server.Envelope_NotificationsRemove":     "tnotificationsremove",
+	"*server.Envelope_Purchase":     						"tpurchase",
 }
