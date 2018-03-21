@@ -23,6 +23,7 @@ import (
 
 	"github.com/lib/pq"
 	"go.uber.org/zap"
+	"github.com/satori/go.uuid"
 )
 
 func (p *pipeline) querySocialGraph(logger *zap.Logger, filterQuery string, params []interface{}) ([]*User, error) {
@@ -86,7 +87,7 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID string, handle 
 	var err error
 
 	ts := nowMs()
-	friendUserIDs := make([]interface{}, 0)
+	friendUserIDs := make([]string, 0)
 	defer func() {
 		if err != nil {
 			logger.Error("Could not import friends from Facebook", zap.Error(err))
@@ -116,10 +117,9 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID string, handle 
 
 						notifications := make([]*NNotification, len(friendUserIDs))
 						for i, friendUserID := range friendUserIDs {
-							fid := friendUserID.(string)
 							notifications[i] = &NNotification{
 								Id:         generateNewId(),
-								UserID:     fid,
+								UserID:     friendUserID,
 								Subject:    subject,
 								Content:    content,
 								Code:       NOTIFICATION_FRIEND_JOIN_GAME,
@@ -220,7 +220,11 @@ func (p *pipeline) addFacebookFriends(logger *zap.Logger, userID string, handle 
 	}
 
 	// Track the user IDs to notify their friend has joined the game.
-	friendUserIDs = paramsEdge[2:]
+	for _, id := range paramsEdge[2:] {
+		uid, _ := uuid.FromBytes(id.([]byte))
+		friendUserIDs = append(friendUserIDs, uid.String())
+	}
+
 }
 
 func (p *pipeline) getFriends(tracker Tracker, filterQuery string, userID string) ([]*Friend, error) {

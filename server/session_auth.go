@@ -314,7 +314,7 @@ func (a *authenticationService) configure() {
 	if len(sockConfig.SSLCertificate) > 0 && len(sockConfig.SSLPrivateKey) > 0 {
 		cer, err := tls.LoadX509KeyPair(sockConfig.SSLCertificate, sockConfig.SSLPrivateKey)
 		if err != nil {
-			a.logger.Error("Loading SSL certs failed", zap.Error(err))
+			a.logger.Fatal("Loading SSL certs failed", zap.Error(err))
 		} else {
 			a.logger.Info("SSL mode enabled")
 			a.httpServer.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
