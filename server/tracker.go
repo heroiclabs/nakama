@@ -64,8 +64,8 @@ type Presence struct {
 }
 
 type PresenceEvent struct {
-	joins  []Presence
-	leaves []Presence
+	Joins  []Presence
+	Leaves []Presence
 }
 
 type Tracker interface {
@@ -552,7 +552,7 @@ func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*Presence
 
 func (t *LocalTracker) queueEvent(joins, leaves []Presence) {
 	select {
-	case t.eventsCh <- &PresenceEvent{joins: joins, leaves: leaves}:
+	case t.eventsCh <- &PresenceEvent{Joins: joins, Leaves: leaves}:
 		// Event queued for asynchronous dispatch.
 	default:
 		// Event queue is full, log an error and completely drain the queue.
@@ -571,7 +571,7 @@ func (t *LocalTracker) queueEvent(joins, leaves []Presence) {
 
 func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	if t.logger.Core().Enabled(zap.DebugLevel) {
-		t.logger.Debug("Processing presence event", zap.Int("joins", len(e.joins)), zap.Int("leaves", len(e.leaves)))
+		t.logger.Debug("Processing presence event", zap.Int("joins", len(e.Joins)), zap.Int("leaves", len(e.Leaves)))
 	}
 
 	// Group joins/leaves by stream to allow batching.
@@ -582,7 +582,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	// Track grouped authoritative match leaves separately from client-bound events.
 	matchLeaves := make(map[uuid.UUID][]*MatchPresence, 0)
 
-	for _, p := range e.joins {
+	for _, p := range e.Joins {
 		pWire := &rtapi.StreamPresence{
 			UserId:      p.UserID.String(),
 			SessionId:   p.ID.SessionID.String(),
@@ -596,7 +596,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			streamJoins[p.Stream] = []*rtapi.StreamPresence{pWire}
 		}
 	}
-	for _, p := range e.leaves {
+	for _, p := range e.Leaves {
 		pWire := &rtapi.StreamPresence{
 			UserId:      p.UserID.String(),
 			SessionId:   p.ID.SessionID.String(),
