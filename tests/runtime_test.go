@@ -15,47 +15,25 @@
 package tests
 
 import (
-	"database/sql"
 	"errors"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
 	"fmt"
 	"sync"
 
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
+	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type DummyMessageRouter struct{}
-
-func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope) {}
-func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope)     {}
-
-var (
-	config = server.NewConfig()
-	logger = server.NewConsoleLogger(os.Stdout, true)
-)
-
-func db(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
-	if err != nil {
-		t.Fatal("Error connecting to database", err)
-	}
-	err = db.Ping()
-	if err != nil {
-		t.Fatal("Error pinging database", err)
-	}
-	return db
-}
-
-func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.RuntimePool {
+func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 	stdLibs := map[string]lua.LGFunction{
 		lua.LoadLibName:   server.OpenPackage(modules),
 		lua.BaseLibName:   lua.OpenBase,
@@ -65,7 +43,15 @@ func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.Run
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
+	db := NewDB(t)
+	once := &sync.Once{}
+	router := &DummyMessageRouter{}
+	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, once)
+	if err != nil {
+		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
+	}
+
+	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -109,7 +95,7 @@ return test
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
+	rp := vm(t, new(sync.Map))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -127,7 +113,7 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
+	rp := vm(t, new(sync.Map))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -159,7 +145,7 @@ local test = require("test")
 test.printWorld()
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules)
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
@@ -171,7 +157,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules)
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
@@ -183,7 +169,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules)
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
@@ -205,14 +191,14 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetRuntimeCallback(server.RPC, "helloworld")
+	fn := r.GetCallback(server.RPC, "helloworld")
 	payload := "Hello World"
 
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -241,12 +227,11 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
-	r := rp.Get()
-	defer r.Stop()
+	rp := vm(t, modules)
 
-	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
+	db := NewDB(t)
+	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, rp)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -280,12 +265,12 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", "")
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -305,13 +290,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -331,13 +316,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -357,13 +342,13 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -383,18 +368,18 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if strings.TrimSpace(m) != payload {
+	if strings.TrimSpace(m.(string)) != payload {
 		t.Error("Invocation failed. Return result not expected", m)
 	}
 }
@@ -409,18 +394,18 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(m), []byte(payload))
+	err = bcrypt.CompareHashAndPassword([]byte(m.(string)), []byte(payload))
 	if err != nil {
 		t.Error("Return result not expected", m, err)
 	}
@@ -436,14 +421,14 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", string(hash))
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -471,7 +456,7 @@ local new_notifications = {
 nk.notifications_send(new_notifications)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -491,7 +476,7 @@ local code = 1
 nk.notification_send(user_id, subject, content, code, "", false)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -509,7 +494,7 @@ local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 nk.wallet_write(user_id, content)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -528,7 +513,7 @@ local new_objects = {
 nk.storage_write(new_objects)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -549,7 +534,221 @@ do
 end
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
+}
+
+func TestRuntimeReqBeforeHook(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_storage_write(ctx, payload)
+	return payload
+end
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(acks.Acks) != 1 {
+		t.Error("Invocation failed. Return result not expected: ", len(acks.Acks))
+	}
+}
+
+func TestRuntimeReqBeforeHookDisallowed(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_storage_write(ctx, payload)
+	return nil
+end
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	_, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err == nil {
+		t.Fatal("Request should have been disallowed.")
+	}
+}
+
+func TestRuntimeReqAfterHook(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function after_storage_write(ctx, payload)
+	nakama.wallet_write(ctx.user_id, {gem = 10})
+	return payload
+end
+nakama.register_req_after(after_storage_write, "WriteStorageObjects")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(acks.Acks) != 1 {
+		t.Error("Invocation failed. Return result not expected: ", len(acks.Acks))
+	}
+
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{"gem": 10}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
+}
+
+func TestRuntimeRTBeforeHook(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_match_create(ctx, payload)
+	nakama.wallet_write(ctx.user_id, {gem = 20})
+	return payload
+end
+nakama.register_rt_before(before_match_create, "MatchCreate")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, pipeline := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	userID, err := UserIDFromSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	session := &DummySession{
+		uid:      userID,
+		messages: make([]*rtapi.Envelope, 0),
+	}
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_MatchCreate{
+			MatchCreate: &rtapi.MatchCreate{},
+		},
+	}
+
+	pipeline.ProcessRequest(logger, session, envelope)
+
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{"gem": 20}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
+}
+
+func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_match_create(ctx, payload)
+	return nil
+end
+nakama.register_rt_before(before_match_create, "MatchCreate")
+
+function after_match_create(ctx, payload)
+	nakama.wallet_write(ctx.user_id, {gem = 30})
+	return payload
+end
+nakama.register_rt_after(after_match_create, "MatchCreate")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, pipeline := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	userID, err := UserIDFromSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	session := &DummySession{
+		uid:      userID,
+		messages: make([]*rtapi.Envelope, 0),
+	}
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_MatchCreate{
+			MatchCreate: &rtapi.MatchCreate{},
+		},
+	}
+
+	pipeline.ProcessRequest(logger, session, envelope)
+
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
 }

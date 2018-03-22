@@ -61,11 +61,11 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(SecurityInterceptorFunc(logger, config)),
+		grpc.UnaryInterceptor(interceptorFunc(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)),
 	)
 
 	s := &ApiServer{
@@ -159,122 +159,163 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 	return &empty.Empty{}, nil
 }
 
-func SecurityInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func interceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		//logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
+		ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
+		if err != nil {
+			return nil, err
+		}
+
 		switch info.FullMethod {
 		case "/nakama.api.Nakama/Healthcheck":
-			// Healthcheck has no security.
-			return handler(ctx, req)
-		case "/nakama.api.Nakama/AuthenticateCustom":
 			fallthrough
-		case "/nakama.api.Nakama/AuthenticateDevice":
-			fallthrough
-		case "/nakama.api.Nakama/AuthenticateEmail":
-			fallthrough
-		case "/nakama.api.Nakama/AuthenticateFacebook":
-			fallthrough
-		case "/nakama.api.Nakama/AuthenticateGameCenter":
-			fallthrough
-		case "/nakama.api.Nakama/AuthenticateGoogle":
-			fallthrough
-		case "/nakama.api.Nakama/AuthenticateSteam":
-			// Authentication functions require Server key.
-			md, ok := metadata.FromIncomingContext(ctx)
-			if !ok {
-				logger.Error("Cannot extract metadata from incoming context")
-				return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
-			}
-			auth, ok := md["authorization"]
-			if !ok {
-				auth, ok = md["grpcgateway-authorization"]
-			}
-			if !ok {
-				// Neither "authorization" nor "grpc-authorization" were supplied.
-				return nil, status.Error(codes.Unauthenticated, "Server key required")
-			}
-			if len(auth) != 1 {
-				// Value of "authorization" or "grpc-authorization" was empty or repeated.
-				return nil, status.Error(codes.Unauthenticated, "Server key required")
-			}
-			username, _, ok := ParseBasicAuth(auth[0])
-			if !ok {
-				// Value of "authorization" or "grpc-authorization" was malformed.
-				return nil, status.Error(codes.Unauthenticated, "Server key invalid")
-			}
-			if username != config.GetSocket().ServerKey {
-				// Value of "authorization" or "grpc-authorization" username component did not match server key.
-				return nil, status.Error(codes.Unauthenticated, "Server key invalid")
-			}
 		case "/nakama.api.Nakama/RpcFunc":
-			// RPC allows full user authentication or HTTP key authentication.
-			md, ok := metadata.FromIncomingContext(ctx)
-			if !ok {
-				logger.Error("Cannot extract metadata from incoming context")
-				return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
-			}
-			auth, ok := md["authorization"]
-			if !ok {
-				auth, ok = md["grpcgateway-authorization"]
-			}
-			if !ok {
-				// Neither "authorization" nor "grpc-authorization" were supplied. Try to validate HTTP key instead.
-				in, ok := req.(*api.Rpc)
-				if !ok {
-					logger.Error("Cannot extract Rpc from incoming request")
-					return nil, status.Error(codes.FailedPrecondition, "Auth token or HTTP key required")
-				}
-				if in.HttpKey == "" {
-					// HTTP key not present.
-					return nil, status.Error(codes.Unauthenticated, "Auth token or HTTP key required")
-				}
-				if in.HttpKey != config.GetRuntime().HTTPKey {
-					// Value of HTTP key username component did not match.
-					return nil, status.Error(codes.Unauthenticated, "HTTP key invalid")
-				}
-				return handler(ctx, req)
-			}
-			if len(auth) != 1 {
-				// Value of "authorization" or "grpc-authorization" was empty or repeated.
-				return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
-			}
-			userID, username, exp, ok := ParseBearerAuth([]byte(config.GetSession().EncryptionKey), auth[0])
-			if !ok {
-				// Value of "authorization" or "grpc-authorization" was malformed or expired.
-				return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
-			}
-			ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxExpiryKey{}, exp)
-		default:
-			// Unless explicitly defined above, handlers require full user authentication.
-			md, ok := metadata.FromIncomingContext(ctx)
-			if !ok {
-				logger.Error("Cannot extract metadata from incoming context")
-				return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
-			}
-			auth, ok := md["authorization"]
-			if !ok {
-				auth, ok = md["grpcgateway-authorization"]
-			}
-			if !ok {
-				// Neither "authorization" nor "grpc-authorization" were supplied.
-				return nil, status.Error(codes.Unauthenticated, "Auth token required")
-			}
-			if len(auth) != 1 {
-				// Value of "authorization" or "grpc-authorization" was empty or repeated.
-				return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
-			}
-			userID, username, exp, ok := ParseBearerAuth([]byte(config.GetSession().EncryptionKey), auth[0])
-			if !ok {
-				// Value of "authorization" or "grpc-authorization" was malformed or expired.
-				return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
-			}
-			ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxExpiryKey{}, exp)
+			return handler(ctx, req)
 		}
-		return handler(ctx, req)
+
+		uid := uuid.Nil
+		username := ""
+		expiry := int64(0)
+		if ctx.Value(ctxUserIDKey{}) != nil {
+			// incase of authentication methods, uid is nil
+			uid = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+			username = ctx.Value(ctxUsernameKey{}).(string)
+			expiry = ctx.Value(ctxExpiryKey{}).(int64)
+		}
+
+		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
+		if hookErr != nil {
+			return nil, hookErr
+		} else if beforeHookResult == nil {
+			// if result is nil, requested resource is disabled.
+			logger.Warn("Intercepted a disabled resource.",
+				zap.String("resource", info.FullMethod),
+				zap.String("uid", uid.String()),
+				zap.String("username", username))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+
+		handlerResult, handlerErr := handler(ctx, beforeHookResult)
+		if handlerErr == nil {
+			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, handlerResult)
+		}
+		return handlerResult, handlerErr
 	}
 }
 
-func ParseBasicAuth(auth string) (username, password string, ok bool) {
+func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) (context.Context, error) {
+	switch info.FullMethod {
+	case "/nakama.api.Nakama/Healthcheck":
+		// Healthcheck has no security.
+		return nil, nil
+	case "/nakama.api.Nakama/AuthenticateCustom":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateDevice":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateEmail":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateFacebook":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateGameCenter":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateGoogle":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateSteam":
+		// Authentication functions require Server key.
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			logger.Error("Cannot extract metadata from incoming context")
+			return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
+		}
+		auth, ok := md["authorization"]
+		if !ok {
+			auth, ok = md["grpcgateway-authorization"]
+		}
+		if !ok {
+			// Neither "authorization" nor "grpc-authorization" were supplied.
+			return nil, status.Error(codes.Unauthenticated, "Server key required")
+		}
+		if len(auth) != 1 {
+			// Value of "authorization" or "grpc-authorization" was empty or repeated.
+			return nil, status.Error(codes.Unauthenticated, "Server key required")
+		}
+		username, _, ok := parseBasicAuth(auth[0])
+		if !ok {
+			// Value of "authorization" or "grpc-authorization" was malformed.
+			return nil, status.Error(codes.Unauthenticated, "Server key invalid")
+		}
+		if username != config.GetSocket().ServerKey {
+			// Value of "authorization" or "grpc-authorization" username component did not match server key.
+			return nil, status.Error(codes.Unauthenticated, "Server key invalid")
+		}
+	case "/nakama.api.Nakama/RpcFunc":
+		// RPC allows full user authentication or HTTP key authentication.
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			logger.Error("Cannot extract metadata from incoming context")
+			return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
+		}
+		auth, ok := md["authorization"]
+		if !ok {
+			auth, ok = md["grpcgateway-authorization"]
+		}
+		if !ok {
+			// Neither "authorization" nor "grpc-authorization" were supplied. Try to validate HTTP key instead.
+			in, ok := req.(*api.Rpc)
+			if !ok {
+				logger.Error("Cannot extract Rpc from incoming request")
+				return nil, status.Error(codes.FailedPrecondition, "Auth token or HTTP key required")
+			}
+			if in.HttpKey == "" {
+				// HTTP key not present.
+				return nil, status.Error(codes.Unauthenticated, "Auth token or HTTP key required")
+			}
+			if in.HttpKey != config.GetRuntime().HTTPKey {
+				// Value of HTTP key username component did not match.
+				return nil, status.Error(codes.Unauthenticated, "HTTP key invalid")
+			}
+			return ctx, nil
+		}
+		if len(auth) != 1 {
+			// Value of "authorization" or "grpc-authorization" was empty or repeated.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+		userID, username, exp, ok := parseBearerAuth([]byte(config.GetSession().EncryptionKey), auth[0])
+		if !ok {
+			// Value of "authorization" or "grpc-authorization" was malformed or expired.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxExpiryKey{}, exp)
+	default:
+		// Unless explicitly defined above, handlers require full user authentication.
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			logger.Error("Cannot extract metadata from incoming context")
+			return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
+		}
+		auth, ok := md["authorization"]
+		if !ok {
+			auth, ok = md["grpcgateway-authorization"]
+		}
+		if !ok {
+			// Neither "authorization" nor "grpc-authorization" were supplied.
+			return nil, status.Error(codes.Unauthenticated, "Auth token required")
+		}
+		if len(auth) != 1 {
+			// Value of "authorization" or "grpc-authorization" was empty or repeated.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+		userID, username, exp, ok := parseBearerAuth([]byte(config.GetSession().EncryptionKey), auth[0])
+		if !ok {
+			// Value of "authorization" or "grpc-authorization" was malformed or expired.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxExpiryKey{}, exp)
+	}
+	return ctx, nil
+}
+
+func parseBasicAuth(auth string) (username, password string, ok bool) {
 	if auth == "" {
 		return
 	}
@@ -294,7 +335,7 @@ func ParseBasicAuth(auth string) (username, password string, ok bool) {
 	return cs[:s], cs[s+1:], true
 }
 
-func ParseBearerAuth(hmacSecretByte []byte, auth string) (userID uuid.UUID, username string, exp int64, ok bool) {
+func parseBearerAuth(hmacSecretByte []byte, auth string) (userID uuid.UUID, username string, exp int64, ok bool) {
 	if auth == "" {
 		return
 	}
@@ -302,10 +343,10 @@ func ParseBearerAuth(hmacSecretByte []byte, auth string) (userID uuid.UUID, user
 	if !strings.HasPrefix(auth, prefix) {
 		return
 	}
-	return ParseToken(hmacSecretByte, string(auth[len(prefix):]))
+	return parseToken(hmacSecretByte, string(auth[len(prefix):]))
 }
 
-func ParseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, username string, exp int64, ok bool) {
+func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, username string, exp int64, ok bool) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])

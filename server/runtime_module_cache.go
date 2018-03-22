@@ -16,15 +16,22 @@ package server
 
 import (
 	"database/sql"
-	"github.com/heroiclabs/nakama/social"
-	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/heroiclabs/nakama/social"
+	"github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
 )
+
+type RegCallbacks struct {
+	RPC    map[string]interface{}
+	Before map[string]interface{}
+	After  map[string]interface{}
+}
 
 func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
 	runtimeConfig := config.GetRuntime()
@@ -84,12 +91,26 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 	return stdLibs, modules, nil
 }
 
-func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (map[string]struct{}, error) {
-	regRPC := make(map[string]struct{})
+func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
+	regCallbacks := &RegCallbacks{
+		RPC:    make(map[string]interface{}),
+		Before: make(map[string]interface{}),
+		After:  make(map[string]interface{}),
+	}
+
 	multiLogger.Info("Evaluating modules")
-	r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(id string) {
-		regRPC[id] = struct{}{}
-		logger.Info("Registered RPC function invocation", zap.String("id", id))
+	r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
+		switch execMode {
+		case RPC:
+			regCallbacks.RPC[id] = struct{}{}
+			logger.Info("Registered RPC function invocation", zap.String("id", id))
+		case BEFORE:
+			regCallbacks.Before[id] = struct{}{}
+			logger.Info("Registered Before function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
+		case AFTER:
+			regCallbacks.After[id] = struct{}{}
+			logger.Info("Registered After function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
+		}
 	})
 	if err != nil {
 		return nil, err
@@ -97,5 +118,5 @@ func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config 
 	multiLogger.Info("Modules loaded")
 	r.Stop()
 
-	return regRPC, nil
+	return regCallbacks, nil
 }

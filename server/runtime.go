@@ -15,8 +15,6 @@
 package server
 
 import (
-	"errors"
-
 	"database/sql"
 
 	"bytes"
@@ -48,15 +46,15 @@ type RuntimeModule struct {
 }
 
 type RuntimePool struct {
-	regRPC  map[string]struct{}
-	modules *sync.Map
-	pool    *sync.Pool
+	regCallbacks *RegCallbacks
+	modules      *sync.Map
+	pool         *sync.Pool
 }
 
-func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regRPC map[string]struct{}, once *sync.Once) *RuntimePool {
+func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
 	return &RuntimePool{
-		regRPC:  regRPC,
-		modules: modules,
+		regCallbacks: regCallbacks,
+		modules:      modules,
 		pool: &sync.Pool{
 			New: func() interface{} {
 				r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, nil)
@@ -70,8 +68,17 @@ func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, 
 	}
 }
 
-func (rp *RuntimePool) HasRPC(id string) bool {
-	_, ok := rp.regRPC[id]
+func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
+	ok := false
+	switch mode {
+	case RPC:
+		_, ok = rp.regCallbacks.RPC[id]
+	case BEFORE:
+		_, ok = rp.regCallbacks.Before[id]
+	case AFTER:
+		_, ok = rp.regCallbacks.After[id]
+	}
+
 	return ok
 }
 
@@ -83,7 +90,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -96,7 +103,7 @@ func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.C
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceCallback)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,
@@ -187,38 +194,40 @@ func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
 	return r.vm.NewThread()
 }
 
-func (r *Runtime) GetRuntimeCallback(e ExecutionMode, key string) *lua.LFunction {
+func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
 	cp := r.vm.Context().Value(CALLBACKS).(*Callbacks)
 	switch e {
 	case RPC:
 		return cp.RPC[key]
+	case BEFORE:
+		return cp.Before[key]
+	case AFTER:
+		return cp.After[key]
 	}
 
 	return nil
 }
 
-func (r *Runtime) InvokeFunctionRPC(fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload string) (string, error, codes.Code) {
+func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload interface{}) (interface{}, error, codes.Code) {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
-	ctx := NewLuaContext(l, r.luaEnv, RPC, uid, username, sessionExpiry, sid)
+	ctx := NewLuaContext(l, r.luaEnv, execMode, uid, username, sessionExpiry, sid)
 	var lv lua.LValue
-	if payload != "" {
-		lv = lua.LString(payload)
+	if payload != nil {
+		lv = ConvertValue(l, payload)
 	}
 
 	retValue, err, code := r.invokeFunction(l, fn, ctx, lv)
 	if err != nil {
-		return "", err, code
+		return nil, err, code
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return "", nil, 0
-	} else if retValue.Type() == lua.LTString {
-		return retValue.String(), nil, 0
+		return nil, nil, 0
 	}
 
-	return "", errors.New("runtime function returned invalid data - only allowed one return value of type String/Byte"), codes.Internal
+	return ConvertLuaValue(retValue), nil, 0
 }
 
 func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
