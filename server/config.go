@@ -72,6 +72,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 			}
 		}
 	}
+	runtimeEnvironment := convertRuntimeEnv(logger, mainConfig.GetRuntime().Environment, mainConfig.GetRuntime().Env)
 
 	// Override config with those passed from command-line.
 	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
@@ -99,6 +100,8 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
+	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
+
 	// Log warnings for insecure default parameter values.
 	if mainConfig.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
@@ -111,6 +114,27 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 
 	return mainConfig
+}
+
+func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]interface{}, mergeEnv []string) map[string]interface{} {
+	envMap := make(map[string]interface{}, len(existingEnv))
+	for k, v := range existingEnv {
+		envMap[k] = v
+	}
+
+	for _, e := range mergeEnv {
+		if !strings.Contains(e, "=") {
+			logger.Fatal("Invalid runtime environment value.", zap.String("value", e))
+		}
+
+		kv := strings.SplitN(e, "=", 2) // the value can contain the character "=" many times over.
+		if len(kv) == 1 {
+			envMap[kv[0]] = ""
+		} else if len(kv) == 2 {
+			envMap[kv[0]] = kv[1]
+		}
+	}
+	return envMap
 }
 
 type config struct {
@@ -201,8 +225,8 @@ func NewLogConfig() *LogConfig {
 
 // MetricsConfig is configuration relevant to metrics capturing and output.
 type MetricsConfig struct {
-	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 1 second."`
-	StackdriverProjectID string `yaml:"stackdriver_projectid" json:"stackdriver_projectid" usage:"This is the identifier of the Stackdriver project the server is uploading the stats data to. Setting this enabled metrics to be exported to Stackdriver."`
+	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 10 seconds."`
+	StackdriverProjectID string `yaml:"stackdriver_projectid" json:"stackdriver_projectid" usage:"This is the identifier of the Stackdriver project the server is uploading the stats data to. Setting this enables metrics to be exported to Stackdriver."`
 	Namespace            string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus or prefix for Stackdriver metrics. It will always prepend node name."`
 	PrometheusPort       int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
 }
@@ -210,7 +234,7 @@ type MetricsConfig struct {
 // NewMetricsConfig creates a new MatricsConfig struct.
 func NewMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
-		ReportingFreqSec:     1,
+		ReportingFreqSec:     10,
 		StackdriverProjectID: "",
 		Namespace:            "",
 		PrometheusPort:       0,
@@ -238,7 +262,7 @@ type SocketConfig struct {
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
 	ReadTimeoutMs       int    `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
 	WriteTimeoutMs      int    `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
-	IdeaTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
+	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
 	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data. Used for real-time connections."`
 	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client. Used for real-time connections."`
 	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms. Used for real-time connections."`
@@ -255,7 +279,7 @@ func NewSocketConfig() *SocketConfig {
 		MaxMessageSizeBytes: 2048,
 		ReadTimeoutMs:       10 * 1000,
 		WriteTimeoutMs:      10 * 1000,
-		IdeaTimeoutMs:       60 * 1000,
+		IdleTimeoutMs:       60 * 1000,
 		WriteWaitMs:         5000,
 		PongWaitMs:          10000,
 		PingPeriodMs:        8000,
@@ -306,15 +330,17 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment map[string]interface{} `yaml:"env" json:"env"` // Not supported in FlagOverrides.
-	Path        string                 `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
-	HTTPKey     string                 `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	Environment map[string]interface{}
+	Env         []string `yaml:"env" json:"env"`
+	Path        string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
+	HTTPKey     string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment: make(map[string]interface{}),
+		Environment: make(map[string]interface{}, 0),
+		Env:         make([]string, 0),
 		Path:        "",
 		HTTPKey:     "defaultkey",
 	}

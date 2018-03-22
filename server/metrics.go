@@ -97,7 +97,7 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 		Addr:         fmt.Sprintf(":%d", config.GetMetrics().PrometheusPort),
 		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
-		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdeaTimeoutMs)),
+		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
 		Handler:      handlerWithCORS,
 	}
 

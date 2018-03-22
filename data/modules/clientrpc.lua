@@ -15,6 +15,7 @@
 --]]
 
 local nk = require("nakama")
+local du = require("debug_utils")
 
 --[[
   Test RPC function calls from client libraries.
@@ -69,3 +70,12 @@ local function create_authoritative_match(_context, _payload)
   return nk.json_encode({ match_id = match_id })
 end
 nk.register_rpc(create_authoritative_match, "clientrpc.create_authoritative_match")
+
+local function print_env(context, _)
+  print("env:\n" .. du.print_r(context.env))
+  local response = {
+    message = context.env
+  }
+  return nk.json_encode(response)
+end
+nk.register_rpc(print_env, "clientrpc.print_env")

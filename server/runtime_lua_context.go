@@ -25,6 +25,8 @@ type ExecutionMode int
 const (
 	RunOnce ExecutionMode = iota
 	RPC
+	BEFORE
+	AFTER
 	Match
 )
 
@@ -34,6 +36,10 @@ func (e ExecutionMode) String() string {
 		return "run_once"
 	case RPC:
 		return "rpc"
+	case BEFORE:
+		return "before"
+	case AFTER:
+		return "after"
 	case Match:
 		return "match"
 	}
@@ -83,18 +89,18 @@ func ConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
 	lt := l.CreateTable(0, len(data))
 
 	for k, v := range data {
-		lt.RawSetString(k, convertValue(l, v))
+		lt.RawSetString(k, ConvertValue(l, v))
 	}
 
 	return lt
 }
 
 func ConvertLuaTable(lv *lua.LTable) map[string]interface{} {
-	returnData, _ := convertLuaValue(lv).(map[string]interface{})
+	returnData, _ := ConvertLuaValue(lv).(map[string]interface{})
 	return returnData
 }
 
-func convertValue(l *lua.LState, val interface{}) lua.LValue {
+func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	if val == nil {
 		return lua.LNil
 	}
@@ -128,7 +134,7 @@ func convertValue(l *lua.LState, val interface{}) lua.LValue {
 	case []interface{}:
 		lt := l.CreateTable(len(val.([]interface{})), 0)
 		for k, v := range v {
-			lt.RawSetInt(k+1, convertValue(l, v))
+			lt.RawSetInt(k+1, ConvertValue(l, v))
 		}
 		return lt
 	default:
@@ -136,7 +142,7 @@ func convertValue(l *lua.LState, val interface{}) lua.LValue {
 	}
 }
 
-func convertLuaValue(lv lua.LValue) interface{} {
+func ConvertLuaValue(lv lua.LValue) interface{} {
 	// Taken from: https://github.com/yuin/gluamapper/blob/master/gluamapper.go#L79
 	switch v := lv.(type) {
 	case *lua.LNilType:
@@ -153,15 +159,15 @@ func convertLuaValue(lv lua.LValue) interface{} {
 			// Table.
 			ret := make(map[string]interface{})
 			v.ForEach(func(key, value lua.LValue) {
-				keystr := fmt.Sprint(convertLuaValue(key))
-				ret[keystr] = convertLuaValue(value)
+				keystr := fmt.Sprint(ConvertLuaValue(key))
+				ret[keystr] = ConvertLuaValue(value)
 			})
 			return ret
 		} else {
 			// Array.
 			ret := make([]interface{}, 0, maxn)
 			for i := 1; i <= maxn; i++ {
-				ret = append(ret, convertLuaValue(v.RawGetInt(i)))
+				ret = append(ret, ConvertLuaValue(v.RawGetInt(i)))
 			}
 			return ret
 		}
