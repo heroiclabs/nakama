@@ -21,13 +21,14 @@ import (
 	"sync"
 	"time"
 
+	"net"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"net"
 )
 
 var ErrSessionQueueFull = errors.New("session outgoing queue full")
@@ -54,7 +55,7 @@ type sessionWS struct {
 	outgoingStopCh chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, tracker Tracker) session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, tracker Tracker) Session {
 	sessionID := uuid.NewV4()
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -106,7 +107,7 @@ func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session session, envelope *rtapi.Envelope) error) {
+func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
@@ -145,8 +146,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session sess
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
 			requestLogger := s.logger.With(zap.String("cid", request.Cid))
-			if err = processRequest(requestLogger, s, request); err != nil {
-				requestLogger.Warn("Received unrecognized payload", zap.String("data", string(data)))
+			if !processRequest(requestLogger, s, request) {
 				break
 			}
 		}

@@ -17,14 +17,15 @@ package server
 import (
 	"database/sql"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 const (
@@ -140,7 +141,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	if params == nil {
 		vm.Push(lua.LNil)
 	} else {
-		vm.Push(convertValue(vm, params))
+		vm.Push(ConvertValue(vm, params))
 	}
 
 	err = vm.PCall(2, lua.MultRet, nil)

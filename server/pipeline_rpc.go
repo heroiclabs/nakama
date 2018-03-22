@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -35,7 +35,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 
 	id := strings.ToLower(rpcMessage.Id)
 
-	if !p.runtimePool.HasRPC(id) {
+	if !p.runtimePool.HasCallback(RPC, id) {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
 			Message: "RPC function not found",
@@ -44,7 +44,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 	}
 
 	runtime := p.runtimePool.Get()
-	lf := runtime.GetRuntimeCallback(RPC, id)
+	lf := runtime.GetCallback(RPC, id)
 	if lf == nil {
 		p.runtimePool.Put(runtime)
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -54,7 +54,7 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 		return
 	}
 
-	result, fnErr, _ := runtime.InvokeFunctionRPC(lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
+	result, fnErr, _ := runtime.InvokeFunction(RPC, lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
@@ -82,8 +82,22 @@ func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Enve
 		return
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
-		Id:      rpcMessage.Id,
-		Payload: result,
-	}}})
+	if result == nil {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
+			Id: rpcMessage.Id,
+		}}})
+		return
+	}
+
+	if payload, ok := result.(string); !ok {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
+			Message: "Runtime function returned invalid data - only allowed one return value of type String/Byte.",
+		}}})
+	} else {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
+			Id:      rpcMessage.Id,
+			Payload: payload,
+		}}})
+	}
 }

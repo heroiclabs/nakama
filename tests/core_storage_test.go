@@ -16,11 +16,8 @@ package tests
 
 import (
 	"crypto/md5"
-	"database/sql"
 	"fmt"
-	"strconv"
 	"testing"
-	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
@@ -30,23 +27,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func generateString() string {
-	return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-}
-
-func insertUser(t *testing.T, db *sql.DB, uid uuid.UUID) {
-	if _, err := db.Exec(`
-INSERT INTO users (id, username)
-VALUES ($1, $2)
-ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
-		t.Fatal("Could not insert new user.", err)
-	}
-}
-
 func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -85,34 +69,34 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	u0 := uuid.NewV4()
-	insertUser(t, db, u0)
+	InsertUser(t, db, u0)
 	u1 := uuid.NewV4()
-	insertUser(t, db, u1)
+	InsertUser(t, db, u1)
 	u2 := uuid.NewV4()
-	insertUser(t, db, u2)
+	InsertUser(t, db, u2)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		u0: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 		u1: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"baz\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 		u2: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"qux\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 1},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -144,13 +128,13 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			Version:         "fail",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
@@ -165,13 +149,13 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -210,13 +194,13 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -251,13 +235,13 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			Version:         "*",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
@@ -275,13 +259,13 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -315,19 +299,19 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}, {
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"baz\"}",
 			Version:         "fail",
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
@@ -342,16 +326,16 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 }
 
 func TestStorageWritePipelineUserSingle(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -368,30 +352,30 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 }
 
 func TestStorageWritePipelineUserMultiple(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		},
 			{
 				Collection:      "testcollection",
-				Key:             generateString(),
+				Key:             GenerateString(),
 				Value:           "{\"foo\":\"baz\"}",
 				PermissionRead:  &wrappers.Int32Value{Value: 0},
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			},
 			{
 				Collection:      "testcollection",
-				Key:             generateString(),
+				Key:             GenerateString(),
 				Value:           "{\"foo\":\"qux\"}",
 				PermissionRead:  &wrappers.Int32Value{Value: 1},
 				PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -418,10 +402,10 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 }
 
 func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -484,12 +468,12 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 }
 
 func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -540,16 +524,16 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 }
 
 func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			Version:         "fail",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
@@ -564,16 +548,16 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 }
 
 func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
@@ -591,7 +575,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 	data = map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"baz\"}",
 			Version:         "fail",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
@@ -606,12 +590,12 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 }
 
 func TestStorageWritePipelineIfMatchExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -652,16 +636,16 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 }
 
 func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
 			Collection:      "testcollection",
-			Key:             generateString(),
+			Key:             GenerateString(),
 			Value:           "{\"foo\":\"bar\"}",
 			Version:         "*",
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
@@ -679,12 +663,12 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 }
 
 func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -722,12 +706,12 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 }
 
 func TestStorageWritePipelinePermissionFail(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -764,10 +748,10 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 }
 
 func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -807,10 +791,10 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 }
 
 func TestStorageFetchRuntimeMixed(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -855,12 +839,12 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 }
 
 func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -903,10 +887,10 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 }
 
 func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -941,12 +925,12 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -982,12 +966,12 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserRead(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1030,12 +1014,12 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserPublic(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1077,12 +1061,12 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1118,12 +1102,12 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1167,13 +1151,13 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 }
 
 func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	record1 := generateString()
-	record2 := generateString()
+	record1 := GenerateString()
+	record2 := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1232,10 +1216,10 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -1270,10 +1254,10 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -1307,12 +1291,12 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1346,12 +1330,12 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1395,12 +1379,12 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 }
 
 func TestStorageRemovePipelineUserWrite(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1434,12 +1418,12 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 }
 
 func TestStorageRemovePipelineUserDenied(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1474,13 +1458,13 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	deleteIDs := map[uuid.UUID][]*api.DeleteStorageObjectId{
 		uuid.Nil: {{
 			Collection: "testcollection",
-			Key:        generateString(),
+			Key:        GenerateString(),
 			Version:    "fail",
 		}},
 	}
@@ -1490,10 +1474,10 @@ func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -1529,10 +1513,10 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 }
 
 func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
-	key := generateString()
+	key := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uuid.Nil: {{
@@ -1568,11 +1552,11 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 }
 
 func TestStorageListRuntimeUser(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
+	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1614,12 +1598,12 @@ func TestStorageListRuntimeUser(t *testing.T) {
 }
 
 func TestStorageListPipelineUserSelf(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
-	collection := generateString()
+	InsertUser(t, db, uid)
+	collection := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{
@@ -1663,12 +1647,12 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 }
 
 func TestStorageListPipelineUserOther(t *testing.T) {
-	db := db(t)
+	db := NewDB(t)
 	defer db.Close()
 
 	uid := uuid.NewV4()
-	insertUser(t, db, uid)
-	collection := generateString()
+	InsertUser(t, db, uid)
+	collection := GenerateString()
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
 		uid: {{

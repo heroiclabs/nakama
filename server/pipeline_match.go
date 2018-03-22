@@ -16,11 +16,12 @@ package server
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"strings"
 )
 
 type matchDataFilter struct {
@@ -28,7 +29,7 @@ type matchDataFilter struct {
 	sessionID uuid.UUID
 }
 
-func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	matchID := uuid.NewV4()
 
 	username := session.Username()
@@ -57,7 +58,7 @@ func (p *pipeline) matchCreate(logger *zap.Logger, session session, envelope *rt
 	}}})
 }
 
-func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	m := envelope.GetMatchJoin()
 	var err error
 	var matchID uuid.UUID
@@ -192,7 +193,7 @@ func (p *pipeline) matchJoin(logger *zap.Logger, session session, envelope *rtap
 	}}})
 }
 
-func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ":", 2)
 	if len(matchIDComponents) != 2 {
@@ -225,7 +226,7 @@ func (p *pipeline) matchLeave(logger *zap.Logger, session session, envelope *rta
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid})
 }
 
-func (p *pipeline) matchDataSend(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	incoming := envelope.GetMatchDataSend()
 
 	// Validate the match ID.
