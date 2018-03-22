@@ -480,7 +480,8 @@ func (t *LocalTracker) CountByStreamModeFilter(modes map[uint8]*uint8) map[*Pres
 			continue
 		}
 		for s, ps := range byStreamMode {
-			counts[&s] = int32(len(ps))
+			cs := s
+			counts[&cs] = int32(len(ps))
 		}
 	}
 	t.RUnlock()
