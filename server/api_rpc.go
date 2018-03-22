@@ -33,7 +33,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	id := strings.ToLower(in.Id)
 
-	if !s.runtimePool.HasRPC(id) {
+	if !s.runtimePool.HasCallback(RPC, id) {
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
@@ -51,14 +51,15 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	}
 
 	runtime := s.runtimePool.Get()
-	lf := runtime.GetRuntimeCallback(RPC, id)
+	lf := runtime.GetCallback(RPC, id)
 	if lf == nil {
 		s.runtimePool.Put(runtime)
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr, code := runtime.InvokeFunctionRPC(lf, uid, username, expiry, "", in.Payload)
+	result, fnErr, code := runtime.InvokeFunction(RPC, lf, uid, username, expiry, "", in.Payload)
 	s.runtimePool.Put(runtime)
+
 	if fnErr != nil {
 		s.logger.Error("Runtime RPC function caused an error", zap.String("id", in.Id), zap.Error(fnErr))
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !s.config.GetLog().Verbose {
@@ -78,5 +79,9 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		}
 	}
 
-	return &api.Rpc{Payload: result}, nil
+	if payload, ok := result.(string); !ok {
+		return nil, status.Error(codes.Internal, "Runtime function returned invalid data - only allowed one return value of type String/Byte.")
+	} else {
+		return &api.Rpc{Payload: payload}, nil
+	}
 }

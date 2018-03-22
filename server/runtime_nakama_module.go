@@ -53,9 +53,13 @@ import (
 )
 
 const CALLBACKS = "runtime_callbacks"
+const API_PREFIX = "/nakama.api.Nakama/"
+const RTAPI_PREFIX = "*server.Envelope_"
 
 type Callbacks struct {
-	RPC map[string]*lua.LFunction
+	RPC    map[string]*lua.LFunction
+	Before map[string]*lua.LFunction
+	After  map[string]*lua.LFunction
 }
 
 type NakamaModule struct {
@@ -68,13 +72,15 @@ type NakamaModule struct {
 	tracker         Tracker
 	router          MessageRouter
 	once            *sync.Once
-	announceRPC     func(string)
+	announceRPC     func(ExecutionMode, string)
 	client          *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(ExecutionMode, string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
-		RPC: make(map[string]*lua.LFunction),
+		RPC:    make(map[string]*lua.LFunction),
+		Before: make(map[string]*lua.LFunction),
+		After:  make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
 		logger:          logger,
@@ -96,6 +102,10 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 func (n *NakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
 		"register_rpc":                n.registerRPC,
+		"register_req_before":         n.registerReqBefore,
+		"register_req_after":          n.registerReqAfter,
+		"register_rt_before":          n.registerRTBefore,
+		"register_rt_after":           n.registerRTAfter,
 		"run_once":                    n.runOnce,
 		"cron_next":                   n.cronNext,
 		"sql_exec":                    n.sqlExec,
@@ -164,7 +174,83 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.RPC[id] = fn
 	if n.announceRPC != nil {
-		n.announceRPC(id)
+		n.announceRPC(RPC, id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) registerReqBefore(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects method name")
+		return 0
+	}
+
+	id = strings.ToLower(API_PREFIX + id)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	rc.Before[id] = fn
+	if n.announceRPC != nil {
+		n.announceRPC(BEFORE, id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) registerReqAfter(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects method name")
+		return 0
+	}
+
+	id = strings.ToLower(API_PREFIX + id)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	rc.After[id] = fn
+	if n.announceRPC != nil {
+		n.announceRPC(AFTER, id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) registerRTBefore(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects message name")
+		return 0
+	}
+
+	id = strings.ToLower(RTAPI_PREFIX + id)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	rc.Before[id] = fn
+	if n.announceRPC != nil {
+		n.announceRPC(BEFORE, id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) registerRTAfter(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects message name")
+		return 0
+	}
+
+	id = strings.ToLower(RTAPI_PREFIX + id)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	rc.After[id] = fn
+	if n.announceRPC != nil {
+		n.announceRPC(AFTER, id)
 	}
 	return 0
 }
@@ -234,7 +320,7 @@ func (n *NakamaModule) sqlExec(l *lua.LState) int {
 	var params []interface{}
 	if paramsTable != nil && paramsTable.Len() != 0 {
 		var ok bool
-		params, ok = convertLuaValue(paramsTable).([]interface{})
+		params, ok = ConvertLuaValue(paramsTable).([]interface{})
 		if !ok {
 			l.ArgError(2, "expects a list of params as a table")
 			return 0
@@ -266,7 +352,7 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 	var params []interface{}
 	if paramsTable != nil && paramsTable.Len() != 0 {
 		var ok bool
-		params, ok = convertLuaValue(paramsTable).([]interface{})
+		params, ok = ConvertLuaValue(paramsTable).([]interface{})
 		if !ok {
 			l.ArgError(2, "expects a list of params as a table")
 			return 0
@@ -308,7 +394,7 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 	for i, r := range resultRows {
 		rowTable := l.CreateTable(resultColumnCount, resultColumnCount)
 		for j, col := range resultColumns {
-			rowTable.RawSetString(col, convertValue(l, r[j]))
+			rowTable.RawSetString(col, ConvertValue(l, r[j]))
 		}
 		rt.RawSetInt(i+1, rowTable)
 	}
@@ -422,7 +508,7 @@ func (n *NakamaModule) jsonEncode(l *lua.LState) int {
 		return 0
 	}
 
-	jsonData := convertLuaValue(jsonTable)
+	jsonData := ConvertLuaValue(jsonTable)
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
 		l.RaiseError("error encoding to JSON: %v", err.Error())
@@ -446,7 +532,7 @@ func (n *NakamaModule) jsonDecode(l *lua.LState) int {
 		return 0
 	}
 
-	l.Push(convertValue(l, jsonData))
+	l.Push(ConvertValue(l, jsonData))
 	return 1
 }
 
@@ -1556,7 +1642,7 @@ func (n *NakamaModule) matchCreate(l *lua.LState) int {
 		return 0
 	}
 
-	params := convertLuaValue(l.Get(2))
+	params := ConvertLuaValue(l.Get(2))
 
 	// Start the match.
 	mh, err := n.matchRegistry.NewMatch(name, params)
@@ -1926,7 +2012,7 @@ func (n *NakamaModule) storageRead(l *lua.LState) int {
 		l.ArgError(1, "expects a valid set of keys")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
+	keysRaw, ok := ConvertLuaValue(keysTable).([]interface{})
 	if !ok {
 		l.ArgError(1, "expects a valid set of data")
 		return 0
@@ -2025,7 +2111,7 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
-	dataRaw, ok := convertLuaValue(dataTable).([]interface{})
+	dataRaw, ok := ConvertLuaValue(dataTable).([]interface{})
 	if !ok {
 		l.ArgError(1, "expects a valid set of data")
 		return 0
@@ -2169,7 +2255,7 @@ func (n *NakamaModule) storageDelete(l *lua.LState) int {
 		l.ArgError(1, "expects a valid set of object IDs")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
+	keysRaw, ok := ConvertLuaValue(keysTable).([]interface{})
 	if !ok {
 		l.ArgError(1, "expects a valid set of object IDs")
 		return 0

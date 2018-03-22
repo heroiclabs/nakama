@@ -55,7 +55,15 @@ func db(t *testing.T) *sql.DB {
 	return db
 }
 
-func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.RuntimePool {
+func newRegCallbacks() *server.RegCallbacks {
+	return &server.RegCallbacks{
+		RPC:    make(map[string]interface{}),
+		Before: make(map[string]interface{}),
+		After:  make(map[string]interface{}),
+	}
+}
+
+func vm(t *testing.T, modules *sync.Map, regCallbacks *server.RegCallbacks) *server.RuntimePool {
 	stdLibs := map[string]lua.LGFunction{
 		lua.LoadLibName:   server.OpenPackage(modules),
 		lua.BaseLibName:   lua.OpenBase,
@@ -65,7 +73,7 @@ func vm(t *testing.T, modules *sync.Map, regRPC map[string]struct{}) *server.Run
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regRPC, &sync.Once{})
+	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regCallbacks, &sync.Once{})
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -109,7 +117,7 @@ return test
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
+	rp := vm(t, new(sync.Map), newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 
@@ -127,7 +135,7 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t, new(sync.Map), make(map[string]struct{}, 0))
+	rp := vm(t, new(sync.Map), newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 
@@ -159,7 +167,7 @@ local test = require("test")
 test.printWorld()
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules, newRegCallbacks())
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
@@ -171,7 +179,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules, newRegCallbacks())
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
@@ -183,7 +191,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
 `)
 
-	vm(t, modules, make(map[string]struct{}, 0))
+	vm(t, modules, newRegCallbacks())
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
@@ -205,14 +213,16 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["helloworld"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetRuntimeCallback(server.RPC, "helloworld")
+	fn := r.GetCallback(server.RPC, "helloworld")
 	payload := "Hello World"
 
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -241,11 +251,13 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"helloworld": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["helloworld"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
-	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, rp)
+	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, nil, nil, rp)
 	apiServer := server.StartApiServer(logger, logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
@@ -280,12 +292,14 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", "")
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -305,13 +319,15 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -331,13 +347,15 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -357,13 +375,15 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -383,18 +403,20 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if strings.TrimSpace(m) != payload {
+	if strings.TrimSpace(m.(string)) != payload {
 		t.Error("Invocation failed. Return result not expected", m)
 	}
 }
@@ -409,18 +431,20 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(m), []byte(payload))
+	err = bcrypt.CompareHashAndPassword([]byte(m.(string)), []byte(payload))
 	if err != nil {
 		t.Error("Return result not expected", m, err)
 	}
@@ -436,14 +460,16 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	rp := vm(t, modules, map[string]struct{}{"test": struct{}{}})
+	regCallbacks := newRegCallbacks()
+	regCallbacks.RPC["test"] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
 	r := rp.Get()
 	defer r.Stop()
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	fn := r.GetRuntimeCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunctionRPC(fn, "", "", 0, "", string(hash))
+	fn := r.GetCallback(server.RPC, "test")
+	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -471,7 +497,7 @@ local new_notifications = {
 nk.notifications_send(new_notifications)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -491,7 +517,7 @@ local code = 1
 nk.notification_send(user_id, subject, content, code, "", false)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -509,7 +535,7 @@ local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 nk.wallet_write(user_id, content)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -528,7 +554,7 @@ local new_objects = {
 nk.storage_write(new_objects)
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -549,7 +575,7 @@ do
 end
 `)
 
-	rp := vm(t, modules, make(map[string]struct{}, 0))
+	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
 }
