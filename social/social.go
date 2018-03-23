@@ -16,6 +16,8 @@ package social
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
@@ -23,16 +25,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 	"sync"
-	"github.com/dgrijalva/jwt-go"
-	"crypto"
-	"crypto/rsa"
+	"time"
 )
 
 // Client is responsible for making calls to different providers
@@ -135,7 +135,7 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 	caBlock, _ := pem.Decode(caData)
 	caCert, _ := x509.ParseCertificate(caBlock.Bytes)
 	return &Client{
-		client:           &http.Client{
+		client: &http.Client{
 			Timeout: timeout,
 		},
 		gamecenterCaCert: caCert,
@@ -215,7 +215,7 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 				if !ok {
 
 				}
- 				newCerts = append(newCerts, pub)
+				newCerts = append(newCerts, pub)
 				if newRefreshAt == 0 || newRefreshAt > currentCert.NotAfter.UTC().Unix() {
 					// Refresh all certs 1 hour before the soonest expiry is due.
 					newRefreshAt = currentCert.NotAfter.UTC().Unix() - 3600

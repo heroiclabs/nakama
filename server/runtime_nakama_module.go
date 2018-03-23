@@ -2124,6 +2124,7 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 		uid, err := uuid.FromString(userIDString)
 		if err != nil {
 			l.ArgError(1, "expects empty or a valid user ID")
+			return 0
 		}
 		userID = uid
 	}
@@ -2134,23 +2135,32 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 		return 0
 	}
 
-	lv := l.NewTable()
+	lv := l.CreateTable(len(objectList.GetObjects()), 0)
 	for i, v := range objectList.GetObjects() {
-		valueMap := map[string]interface{}{
-			"collection":       v.Collection,
-			"key":              v.Key,
-			"user_id":          v.UserId,
-			"value":            v.Value,
-			"version":          v.Version,
-			"permission_read":  v.PermissionRead,
-			"permission_write": v.PermissionWrite,
-			"create_time":      v.CreateTime,
-			"update_time":      v.UpdateTime,
+		vt := l.CreateTable(0, 9)
+		vt.RawSetString("key", lua.LString(v.Key))
+		vt.RawSetString("collection", lua.LString(v.Collection))
+		if v.UserId != "" {
+			vt.RawSetString("user_id", lua.LString(v.UserId))
+		} else {
+			vt.RawSetString("user_id", lua.LNil)
 		}
+		vt.RawSetString("version", lua.LString(v.Version))
+		vt.RawSetString("permission_read", lua.LNumber(v.PermissionRead))
+		vt.RawSetString("permission_write", lua.LNumber(v.PermissionWrite))
+		vt.RawSetString("create_time", lua.LNumber(v.CreateTime.Seconds))
+		vt.RawSetString("update_time", lua.LNumber(v.UpdateTime.Seconds))
 
-		lt := ConvertMap(l, valueMap)
-		lt.RawSetString("value", ConvertMap(l, valueMap))
-		lv.RawSetInt(i+1, lt)
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(v.Value), &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+		valueTable := ConvertMap(l, valueMap)
+		vt.RawSetString("value", valueTable)
+
+		lv.RawSetInt(i+1, vt)
 	}
 	l.Push(lv)
 
@@ -2240,23 +2250,32 @@ func (n *NakamaModule) storageRead(l *lua.LState) int {
 		return 0
 	}
 
-	lv := l.NewTable()
+	lv := l.CreateTable(len(objects.GetObjects()), 0)
 	for i, v := range objects.GetObjects() {
-		valueMap := map[string]interface{}{
-			"collection":       v.GetCollection(),
-			"key":              v.GetKey(),
-			"user_id":          v.GetUserId(),
-			"value":            v.GetValue(),
-			"version":          v.GetVersion(),
-			"permission_read":  v.GetPermissionRead(),
-			"permission_write": v.GetPermissionWrite(),
-			"create_time":      v.GetCreateTime(),
-			"update_time":      v.GetUpdateTime(),
+		vt := l.CreateTable(0, 9)
+		vt.RawSetString("key", lua.LString(v.Key))
+		vt.RawSetString("collection", lua.LString(v.Collection))
+		if v.UserId != "" {
+			vt.RawSetString("user_id", lua.LString(v.UserId))
+		} else {
+			vt.RawSetString("user_id", lua.LNil)
 		}
+		vt.RawSetString("version", lua.LString(v.Version))
+		vt.RawSetString("permission_read", lua.LNumber(v.PermissionRead))
+		vt.RawSetString("permission_write", lua.LNumber(v.PermissionWrite))
+		vt.RawSetString("create_time", lua.LNumber(v.CreateTime.Seconds))
+		vt.RawSetString("update_time", lua.LNumber(v.UpdateTime.Seconds))
 
-		lt := ConvertMap(l, valueMap)
-		lt.RawSetString("value", ConvertMap(l, valueMap))
-		lv.RawSetInt(i+1, lt)
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(v.Value), &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+		valueTable := ConvertMap(l, valueMap)
+		vt.RawSetString("value", valueTable)
+
+		lv.RawSetInt(i+1, vt)
 	}
 	l.Push(lv)
 	return 1
@@ -2389,18 +2408,19 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 		return 0
 	}
 
-	lv := l.NewTable()
+	lv := l.CreateTable(len(acks.Acks), 0)
 	for i, k := range acks.Acks {
-		valueMap := map[string]interface{}{
-			"collection": k.GetCollection(),
-			"key":        k.GetKey(),
-			"user_id":    k.GetUserId(),
-			"version":    k.GetVersion(),
+		kt := l.CreateTable(0, 4)
+		kt.RawSetString("key", lua.LString(k.Key))
+		kt.RawSetString("collection", lua.LString(k.Collection))
+		if k.UserId != "" {
+			kt.RawSetString("user_id", lua.LString(k.UserId))
+		} else {
+			kt.RawSetString("user_id", lua.LNil)
 		}
+		kt.RawSetString("version", lua.LString(k.Version))
 
-		lt := ConvertMap(l, valueMap)
-		lt.RawSetString("value", ConvertMap(l, valueMap))
-		lv.RawSetInt(i+1, lt)
+		lv.RawSetInt(i+1, kt)
 	}
 	l.Push(lv)
 	return 1
