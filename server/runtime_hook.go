@@ -63,7 +63,11 @@ func invokeReqBeforeHook(logger *zap.Logger,
 		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
 	}
 
-	result, fnErr, code := runtime.InvokeFunction(BEFORE, lf, uid.String(), username, expiry, sessionID, reqMap)
+	userID := ""
+	if uid != uuid.Nil {
+		userID = uid.String()
+	}
+	result, fnErr, code := runtime.InvokeFunction(BEFORE, lf, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -136,7 +140,11 @@ func invokeReqAfterHook(logger *zap.Logger,
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 	}
 
-	_, fnErr, _ := runtime.InvokeFunction(AFTER, lf, uid.String(), username, expiry, sessionID, reqMap)
+	userID := ""
+	if uid != uuid.Nil {
+		userID = uid.String()
+	}
+	_, fnErr, _ := runtime.InvokeFunction(AFTER, lf, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {

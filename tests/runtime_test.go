@@ -15,45 +15,21 @@
 package tests
 
 import (
-	"database/sql"
 	"errors"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
 	"fmt"
 	"sync"
 
-	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type DummyMessageRouter struct{}
-
-func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope) {}
-func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope)     {}
-
-var (
-	config = server.NewConfig()
-	logger = server.NewConsoleLogger(os.Stdout, true)
-)
-
-func db(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
-	if err != nil {
-		t.Fatal("Error connecting to database", err)
-	}
-	err = db.Ping()
-	if err != nil {
-		t.Fatal("Error pinging database", err)
-	}
-	return db
-}
 
 func newRegCallbacks() *server.RegCallbacks {
 	return &server.RegCallbacks{
@@ -73,7 +49,7 @@ func vm(t *testing.T, modules *sync.Map, regCallbacks *server.RegCallbacks) *ser
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	return server.NewRuntimePool(logger, logger, db(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regCallbacks, &sync.Once{})
+	return server.NewRuntimePool(logger, logger, NewDB(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regCallbacks, &sync.Once{})
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -254,11 +230,10 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	regCallbacks := newRegCallbacks()
 	regCallbacks.RPC["helloworld"] = struct{}{}
 	rp := vm(t, modules, regCallbacks)
-	r := rp.Get()
-	defer r.Stop()
 
-	pipeline := server.NewPipeline(config, nil, nil, nil, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, logger, nil, nil, nil, config, nil, nil, nil, nil, nil, pipeline, rp)
+	db := NewDB(t)
+	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, rp)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -578,4 +553,124 @@ end
 	rp := vm(t, modules, newRegCallbacks())
 	r := rp.Get()
 	defer r.Stop()
+}
+
+func TestRuntimeBeforeHook(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_storage_write(ctx, payload)
+	return payload
+end
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")
+	`)
+
+	regCallbacks := newRegCallbacks()
+	regCallbacks.Before[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
+
+	defer NewAPIServer(t, rp).Stop()
+	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	defer conn.Close()
+
+	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(acks.Acks) != 1 {
+		t.Error("Invocation failed. Return result not expected: ", len(acks.Acks))
+	}
+}
+
+func TestRuntimeBeforeHookDisallowed(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_storage_write(ctx, payload)
+	return nil
+end
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")
+	`)
+
+	regCallbacks := newRegCallbacks()
+	regCallbacks.Before[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
+
+	defer NewAPIServer(t, rp).Stop()
+	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	defer conn.Close()
+
+	_, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err == nil {
+		t.Fatal("Request should have been disallowed.")
+	}
+}
+
+func TestRuntimeAfterHook(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function after_storage_write(ctx, payload)
+	nakama.wallet_write(ctx.user_id, {gem = 10})
+	return payload
+end
+nakama.register_req_after(after_storage_write, "WriteStorageObjects")
+	`)
+
+	regCallbacks := newRegCallbacks()
+	regCallbacks.After[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
+	rp := vm(t, modules, regCallbacks)
+
+	defer NewAPIServer(t, rp).Stop()
+	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	defer conn.Close()
+
+	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+		Objects: []*api.WriteStorageObject{{
+			Collection: "collection",
+			Key:        "key",
+			Value: `
+{
+	"key": "value"
+}`,
+		}},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(acks.Acks) != 1 {
+		t.Error("Invocation failed. Return result not expected: ", len(acks.Acks))
+	}
+
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{"gem": 10}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
 }

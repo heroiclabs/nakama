@@ -173,9 +173,16 @@ func interceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool
 			return handler(ctx, req)
 		}
 
-		uid := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-		username := ctx.Value(ctxUsernameKey{}).(string)
-		expiry := ctx.Value(ctxExpiryKey{}).(int64)
+		uid := uuid.Nil
+		username := ""
+		expiry := int64(0)
+		if ctx.Value(ctxUserIDKey{}) != nil {
+			// incase of authentication methods, uid is nil
+			uid = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+			username = ctx.Value(ctxUsernameKey{}).(string)
+			expiry = ctx.Value(ctxExpiryKey{}).(int64)
+		}
+
 		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
 		if hookErr != nil {
 			return nil, hookErr
