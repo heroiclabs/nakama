@@ -38,6 +38,42 @@ type DummyMessageRouter struct{}
 func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope) {}
 func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope)     {}
 
+type DummySession struct {
+	messages []*rtapi.Envelope
+	uid      uuid.UUID
+}
+
+func (d *DummySession) Logger() *zap.Logger {
+	return logger
+}
+func (d *DummySession) ID() uuid.UUID {
+	return uuid.NewV4()
+}
+func (d *DummySession) UserID() uuid.UUID {
+	return d.uid
+}
+func (d *DummySession) Username() string {
+	return ""
+}
+func (d *DummySession) SetUsername(string) {}
+func (d *DummySession) Expiry() int64 {
+	return int64(0)
+}
+func (d *DummySession) Consume(func(logger *zap.Logger, session server.Session, envelope *rtapi.Envelope) bool) {
+}
+func (d *DummySession) Format() server.SessionFormat {
+	return server.SessionFormatJson
+}
+func (d *DummySession) Send(envelope *rtapi.Envelope) error {
+	d.messages = append(d.messages, envelope)
+	return nil
+}
+func (d *DummySession) SendBytes(payload []byte) error {
+	return nil
+}
+
+func (d *DummySession) Close() {}
+
 var (
 	config          = server.NewConfig()
 	logger          = server.NewConsoleLogger(os.Stdout, true)
@@ -77,13 +113,13 @@ ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
 	}
 }
 
-func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) *server.ApiServer {
+func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) (*server.ApiServer, *server.Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
 	tracker := &server.LocalTracker{}
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, tracker, router, runtimePool)
 	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, tracker, router, pipeline, runtimePool)
-	return apiServer
+	return apiServer, pipeline
 }
 
 func NewSession(t *testing.T) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {

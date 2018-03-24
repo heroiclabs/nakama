@@ -28,18 +28,11 @@ import (
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func newRegCallbacks() *server.RegCallbacks {
-	return &server.RegCallbacks{
-		RPC:    make(map[string]interface{}),
-		Before: make(map[string]interface{}),
-		After:  make(map[string]interface{}),
-	}
-}
-
-func vm(t *testing.T, modules *sync.Map, regCallbacks *server.RegCallbacks) *server.RuntimePool {
+func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 	stdLibs := map[string]lua.LGFunction{
 		lua.LoadLibName:   server.OpenPackage(modules),
 		lua.BaseLibName:   lua.OpenBase,
@@ -49,7 +42,15 @@ func vm(t *testing.T, modules *sync.Map, regCallbacks *server.RegCallbacks) *ser
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	return server.NewRuntimePool(logger, logger, NewDB(t), config, nil, nil, nil, nil, &DummyMessageRouter{}, stdLibs, modules, regCallbacks, &sync.Once{})
+	db := NewDB(t)
+	once := &sync.Once{}
+	router := &DummyMessageRouter{}
+	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, once)
+	if err != nil {
+		t.Fatalf("Failed initializing runtime modules: %s", zap.Error(err))
+	}
+
+	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -93,7 +94,7 @@ return test
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t, new(sync.Map), newRegCallbacks())
+	rp := vm(t, new(sync.Map))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -111,7 +112,7 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t, new(sync.Map), newRegCallbacks())
+	rp := vm(t, new(sync.Map))
 	r := rp.Get()
 	defer r.Stop()
 
@@ -143,7 +144,7 @@ local test = require("test")
 test.printWorld()
 `)
 
-	vm(t, modules, newRegCallbacks())
+	vm(t, modules)
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
@@ -155,7 +156,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)
 `)
 
-	vm(t, modules, newRegCallbacks())
+	vm(t, modules)
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
@@ -167,7 +168,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))
 `)
 
-	vm(t, modules, newRegCallbacks())
+	vm(t, modules)
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
@@ -189,9 +190,7 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["helloworld"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -227,9 +226,7 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["helloworld"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 
 	db := NewDB(t)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, rp)
@@ -267,9 +264,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -294,9 +289,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -322,9 +315,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -350,9 +341,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -378,9 +367,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -406,9 +393,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -435,9 +420,7 @@ end
 nakama.register_rpc(test, "test")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.RPC["test"] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 
@@ -472,7 +455,7 @@ local new_notifications = {
 nk.notifications_send(new_notifications)
 `)
 
-	rp := vm(t, modules, newRegCallbacks())
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -492,7 +475,7 @@ local code = 1
 nk.notification_send(user_id, subject, content, code, "", false)
 `)
 
-	rp := vm(t, modules, newRegCallbacks())
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -510,7 +493,7 @@ local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 nk.wallet_write(user_id, content)
 `)
 
-	rp := vm(t, modules, newRegCallbacks())
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -529,7 +512,7 @@ local new_objects = {
 nk.storage_write(new_objects)
 `)
 
-	rp := vm(t, modules, newRegCallbacks())
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
@@ -550,12 +533,12 @@ do
 end
 `)
 
-	rp := vm(t, modules, newRegCallbacks())
+	rp := vm(t, modules)
 	r := rp.Get()
 	defer r.Stop()
 }
 
-func TestRuntimeBeforeHook(t *testing.T) {
+func TestRuntimeReqBeforeHook(t *testing.T) {
 	modules := new(sync.Map)
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
@@ -565,11 +548,10 @@ end
 nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.Before[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 
-	defer NewAPIServer(t, rp).Stop()
+	server, _ := NewAPIServer(t, rp)
+	defer server.Stop()
 	conn, client, ctx := NewAuthenticatedAPIClient(t)
 	defer conn.Close()
 
@@ -593,7 +575,7 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 	}
 }
 
-func TestRuntimeBeforeHookDisallowed(t *testing.T) {
+func TestRuntimeReqBeforeHookDisallowed(t *testing.T) {
 	modules := new(sync.Map)
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
@@ -603,11 +585,10 @@ end
 nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.Before[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 
-	defer NewAPIServer(t, rp).Stop()
+	server, _ := NewAPIServer(t, rp)
+	defer server.Stop()
 	conn, client, ctx := NewAuthenticatedAPIClient(t)
 	defer conn.Close()
 
@@ -627,7 +608,7 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 	}
 }
 
-func TestRuntimeAfterHook(t *testing.T) {
+func TestRuntimeReqAfterHook(t *testing.T) {
 	modules := new(sync.Map)
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
@@ -638,11 +619,10 @@ end
 nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 	`)
 
-	regCallbacks := newRegCallbacks()
-	regCallbacks.After[strings.ToLower(server.API_PREFIX+"WriteStorageObjects")] = struct{}{}
-	rp := vm(t, modules, regCallbacks)
+	rp := vm(t, modules)
 
-	defer NewAPIServer(t, rp).Stop()
+	server, _ := NewAPIServer(t, rp)
+	defer server.Stop()
 	conn, client, ctx := NewAuthenticatedAPIClient(t)
 	defer conn.Close()
 
@@ -674,3 +654,31 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
 	}
 }
+
+//func TestRuntimeRTBeforeHook(t *testing.T) {
+//	modules := new(sync.Map)
+//	writeLuaModule(modules, "test", `
+//local nakama = require("nakama")
+//function before_storage_write(ctx, payload)
+//	return payload
+//end
+//nakama.register_req_before(before_storage_write, "WriteStorageObjects")
+//	`)
+//
+//	rp := vm(t, modules)
+//
+//	server, pipeline := NewAPIServer(t, rp)
+//	defer server.Stop()
+//	session := &DummySession{
+//		uid:      uuid.NewV4(),
+//		messages: make([]*rtapi.Envelope, 0),
+//	}
+//
+//	envelope := &rtapi.Envelope{}
+//
+//	pipeline.ProcessRequest(logger, session, envelope)
+//
+//	if len(session.messages) == 0 {
+//		t.Fatal("No messages were left in the queue.")
+//	}
+//}

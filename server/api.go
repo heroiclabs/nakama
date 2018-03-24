@@ -61,7 +61,7 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),

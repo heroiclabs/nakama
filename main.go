@@ -102,11 +102,11 @@ func main() {
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	// Separate module evaluation/validation from module loading.
 	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
-	regRPC, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
+	regCallbacks, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regRPC, once)
+	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	metrics := server.NewMetrics(multiLogger, config)
 	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)

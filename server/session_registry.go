@@ -29,7 +29,7 @@ const (
 	SessionFormatProtobuf
 )
 
-type session interface {
+type Session interface {
 	Logger() *zap.Logger
 	ID() uuid.UUID
 	UserID() uuid.UUID
@@ -38,7 +38,7 @@ type session interface {
 	SetUsername(string)
 
 	Expiry() int64
-	Consume(func(logger *zap.Logger, session session, envelope *rtapi.Envelope) bool)
+	Consume(func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool)
 
 	Format() SessionFormat
 	Send(envelope *rtapi.Envelope) error
@@ -50,12 +50,12 @@ type session interface {
 // SessionRegistry maintains a thread-safe list of sessions to their IDs.
 type SessionRegistry struct {
 	sync.RWMutex
-	sessions map[uuid.UUID]session
+	sessions map[uuid.UUID]Session
 }
 
 func NewSessionRegistry() *SessionRegistry {
 	return &SessionRegistry{
-		sessions: make(map[uuid.UUID]session),
+		sessions: make(map[uuid.UUID]Session),
 	}
 }
 
@@ -70,15 +70,15 @@ func (r *SessionRegistry) Stop() {
 	r.Unlock()
 }
 
-func (r *SessionRegistry) Get(sessionID uuid.UUID) session {
-	var s session
+func (r *SessionRegistry) Get(sessionID uuid.UUID) Session {
+	var s Session
 	r.RLock()
 	s = r.sessions[sessionID]
 	r.RUnlock()
 	return s
 }
 
-func (r *SessionRegistry) add(s session) {
+func (r *SessionRegistry) add(s Session) {
 	r.Lock()
 	r.sessions[s.ID()] = s
 	r.Unlock()

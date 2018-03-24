@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *pipeline) rpc(logger *zap.Logger, session session, envelope *rtapi.Envelope) {
+func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

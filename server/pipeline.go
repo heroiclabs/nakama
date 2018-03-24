@@ -18,17 +18,13 @@ import (
 	"database/sql"
 	"fmt"
 
-	"errors"
-
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
-var ErrPipelineUnrecognizedPayload = errors.New("pipeline received unrecognized payload")
-
-type pipeline struct {
+type Pipeline struct {
 	config            Config
 	db                *sql.DB
 	jsonpbMarshaler   *jsonpb.Marshaler
@@ -41,8 +37,8 @@ type pipeline struct {
 	node              string
 }
 
-func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *pipeline {
-	return &pipeline{
+func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *Pipeline {
+	return &Pipeline{
 		config:            config,
 		db:                db,
 		jsonpbMarshaler:   jsonpbMarshaler,
@@ -56,7 +52,7 @@ func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, j
 	}
 }
 
-func (p *pipeline) processRequest(logger *zap.Logger, session session, envelope *rtapi.Envelope) bool {
+func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool {
 	if logger.Core().Enabled(zap.DebugLevel) {
 		logger.Debug(fmt.Sprintf("Received %T message", envelope.Message), zap.Any("message", envelope.Message))
 	}
