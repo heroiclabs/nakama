@@ -26,7 +26,9 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
+	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -655,30 +657,34 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 	}
 }
 
-//func TestRuntimeRTBeforeHook(t *testing.T) {
-//	modules := new(sync.Map)
-//	writeLuaModule(modules, "test", `
-//local nakama = require("nakama")
-//function before_storage_write(ctx, payload)
-//	return payload
-//end
-//nakama.register_req_before(before_storage_write, "WriteStorageObjects")
-//	`)
-//
-//	rp := vm(t, modules)
-//
-//	server, pipeline := NewAPIServer(t, rp)
-//	defer server.Stop()
-//	session := &DummySession{
-//		uid:      uuid.NewV4(),
-//		messages: make([]*rtapi.Envelope, 0),
-//	}
-//
-//	envelope := &rtapi.Envelope{}
-//
-//	pipeline.ProcessRequest(logger, session, envelope)
-//
-//	if len(session.messages) == 0 {
-//		t.Fatal("No messages were left in the queue.")
-//	}
-//}
+func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_match_create(ctx, payload)
+	return nil
+end
+nakama.register_rt_before(before_match_create, "MatchCreate")
+	`)
+
+	rp := vm(t, modules)
+
+	server, pipeline := NewAPIServer(t, rp)
+	defer server.Stop()
+	session := &DummySession{
+		uid:      uuid.NewV4(),
+		messages: make([]*rtapi.Envelope, 0),
+	}
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_MatchCreate{
+			MatchCreate: &rtapi.MatchCreate{},
+		},
+	}
+
+	pipeline.ProcessRequest(logger, session, envelope)
+
+	if len(session.messages) != 0 {
+		t.Fatal("Unexpected number of messages were left in the queue. ")
+	}
+}

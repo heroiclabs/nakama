@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -31,6 +32,20 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+)
+
+var (
+	config          = server.NewConfig()
+	logger          = server.NewConsoleLogger(os.Stdout, true)
+	jsonpbMarshaler = &jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+		Indent:       "",
+		OrigName:     true,
+	}
+	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
 )
 
 type DummyMessageRouter struct{}
@@ -69,24 +84,13 @@ func (d *DummySession) Send(envelope *rtapi.Envelope) error {
 	return nil
 }
 func (d *DummySession) SendBytes(payload []byte) error {
+	envelope := &rtapi.Envelope{}
+	jsonpbUnmarshaler.Unmarshal(bytes.NewReader(payload), envelope)
+	d.messages = append(d.messages, envelope)
 	return nil
 }
 
 func (d *DummySession) Close() {}
-
-var (
-	config          = server.NewConfig()
-	logger          = server.NewConsoleLogger(os.Stdout, true)
-	jsonpbMarshaler = &jsonpb.Marshaler{
-		EnumsAsInts:  true,
-		EmitDefaults: false,
-		Indent:       "",
-		OrigName:     true,
-	}
-	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
-		AllowUnknownFields: false,
-	}
-)
 
 func NewDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
