@@ -54,7 +54,7 @@ import (
 
 const CALLBACKS = "runtime_callbacks"
 const API_PREFIX = "/nakama.api.Nakama/"
-const RTAPI_PREFIX = "*server.Envelope_"
+const RTAPI_PREFIX = "*rtapi.Envelope_"
 
 type Callbacks struct {
 	RPC    map[string]*lua.LFunction

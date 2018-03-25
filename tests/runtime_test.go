@@ -552,9 +552,9 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 
 	rp := vm(t, modules)
 
-	server, _ := NewAPIServer(t, rp)
-	defer server.Stop()
-	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
 	defer conn.Close()
 
 	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -589,9 +589,9 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 
 	rp := vm(t, modules)
 
-	server, _ := NewAPIServer(t, rp)
-	defer server.Stop()
-	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
 	defer conn.Close()
 
 	_, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -623,9 +623,9 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 
 	rp := vm(t, modules)
 
-	server, _ := NewAPIServer(t, rp)
-	defer server.Stop()
-	conn, client, ctx := NewAuthenticatedAPIClient(t)
+	apiserver, _ := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
 	defer conn.Close()
 
 	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -657,22 +657,31 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 	}
 }
 
-func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
+func TestRuntimeRTBeforeHook(t *testing.T) {
 	modules := new(sync.Map)
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
-	return nil
+	nakama.wallet_write(ctx.user_id, {gem = 20})
+	return payload
 end
 nakama.register_rt_before(before_match_create, "MatchCreate")
 	`)
 
 	rp := vm(t, modules)
 
-	server, pipeline := NewAPIServer(t, rp)
-	defer server.Stop()
+	apiserver, pipeline := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	userID, err := UserIDFromSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	session := &DummySession{
-		uid:      uuid.NewV4(),
+		uid:      userID,
 		messages: make([]*rtapi.Envelope, 0),
 	}
 
@@ -684,7 +693,63 @@ nakama.register_rt_before(before_match_create, "MatchCreate")
 
 	pipeline.ProcessRequest(logger, session, envelope)
 
-	if len(session.messages) != 0 {
-		t.Fatal("Unexpected number of messages were left in the queue. ")
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{"gem": 20}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
+}
+
+func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test", `
+local nakama = require("nakama")
+function before_match_create(ctx, payload)
+	return nil
+end
+nakama.register_rt_before(before_match_create, "MatchCreate")
+
+function after_match_create(ctx, payload)
+	nakama.wallet_write(ctx.user_id, {gem = 30})
+	return payload
+end
+nakama.register_rt_after(after_match_create, "MatchCreate")
+	`)
+
+	rp := vm(t, modules)
+
+	apiserver, pipeline := NewAPIServer(t, rp)
+	defer apiserver.Stop()
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	defer conn.Close()
+
+	userID, err := UserIDFromSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	session := &DummySession{
+		uid:      userID,
+		messages: make([]*rtapi.Envelope, 0),
+	}
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_MatchCreate{
+			MatchCreate: &rtapi.MatchCreate{},
+		},
+	}
+
+	pipeline.ProcessRequest(logger, session, envelope)
+
+	account, err := client.GetAccount(ctx, &empty.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if account.Wallet != `{}` {
+		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
 	}
 }

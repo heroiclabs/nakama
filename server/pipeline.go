@@ -84,6 +84,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	}
 
 	if activateHooks {
+
 		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, sessionID, uid, username, expiry, messageName, envelope)
 
 		if hookErr != nil {

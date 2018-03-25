@@ -19,8 +19,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,7 +128,7 @@ func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) (*server.ApiSer
 	return apiServer, pipeline
 }
 
-func NewSession(t *testing.T) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {
+func NewSession(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {
 	ctx := context.Background()
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("defaultkey:")),
@@ -139,7 +141,7 @@ func NewSession(t *testing.T) (*grpc.ClientConn, api.NakamaClient, *api.Session,
 	client := api.NewNakamaClient(conn)
 	session, err := client.AuthenticateCustom(outgoingCtx, &api.AuthenticateCustomRequest{
 		Account: &api.AccountCustom{
-			Id: uuid.NewV4().String(),
+			Id: customID,
 		},
 		Username: GenerateString(),
 	})
@@ -150,8 +152,8 @@ func NewSession(t *testing.T) (*grpc.ClientConn, api.NakamaClient, *api.Session,
 	return conn, client, session, outgoingCtx
 }
 
-func NewAuthenticatedAPIClient(t *testing.T) (*grpc.ClientConn, api.NakamaClient, context.Context) {
-	conn, _, session, _ := NewSession(t)
+func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {
+	conn, _, session, _ := NewSession(t, customID)
 	conn.Close()
 
 	ctx := context.Background()
@@ -164,5 +166,21 @@ func NewAuthenticatedAPIClient(t *testing.T) (*grpc.ClientConn, api.NakamaClient
 	}
 
 	client := api.NewNakamaClient(conn)
-	return conn, client, outgoingCtx
+	return conn, client, session, outgoingCtx
+}
+
+func UserIDFromSession(session *api.Session) (uuid.UUID, error) {
+	parts := strings.Split(session.Token, ".")
+	content, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	data := make(map[string]interface{}, 0)
+	err = json.Unmarshal(content, &data)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return uuid.FromString(data["uid"].(string))
 }
