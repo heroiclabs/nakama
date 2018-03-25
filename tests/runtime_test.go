@@ -30,7 +30,6 @@ import (
 	"github.com/heroiclabs/nakama/server"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -49,7 +48,7 @@ func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 	router := &DummyMessageRouter{}
 	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, once)
 	if err != nil {
-		t.Fatalf("Failed initializing runtime modules: %s", zap.Error(err))
+		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
 	}
 
 	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
