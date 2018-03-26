@@ -133,11 +133,13 @@ func invokeReqAfterHook(logger *zap.Logger,
 	reqJSON, err := jsonpbMarshaler.MarshalToString(reqProto)
 	if err != nil {
 		logger.Error("Could not marshall request to JSON", zap.Any("request", req), zap.Error(err))
+		return
 	}
 
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
+		return
 	}
 
 	userID := ""

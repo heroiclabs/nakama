@@ -79,7 +79,12 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		}
 	}
 
+	if result == nil {
+		return &api.Rpc{}, nil
+	}
+
 	if payload, ok := result.(string); !ok {
+		s.logger.Warn("Runtime function returned invalid data", zap.Any("result", result))
 		return nil, status.Error(codes.Internal, "Runtime function returned invalid data - only allowed one return value of type String/Byte.")
 	} else {
 		return &api.Rpc{Payload: payload}, nil
