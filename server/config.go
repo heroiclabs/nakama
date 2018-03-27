@@ -72,6 +72,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 			}
 		}
 	}
+	runtimeEnvironment := convertRuntimeEnv(logger, mainConfig.GetRuntime().Environment, mainConfig.GetRuntime().Env)
 
 	// Override config with those passed from command-line.
 	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
@@ -99,6 +100,8 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
 	}
 
+	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
+
 	// Log warnings for insecure default parameter values.
 	if mainConfig.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
@@ -111,6 +114,27 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 
 	return mainConfig
+}
+
+func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]interface{}, mergeEnv []string) map[string]interface{} {
+	envMap := make(map[string]interface{}, len(existingEnv))
+	for k, v := range existingEnv {
+		envMap[k] = v
+	}
+
+	for _, e := range mergeEnv {
+		if !strings.Contains(e, "=") {
+			logger.Fatal("Invalid runtime environment value.", zap.String("value", e))
+		}
+
+		kv := strings.SplitN(e, "=", 2) // the value can contain the character "=" many times over.
+		if len(kv) == 1 {
+			envMap[kv[0]] = ""
+		} else if len(kv) == 2 {
+			envMap[kv[0]] = kv[1]
+		}
+	}
+	return envMap
 }
 
 type config struct {
@@ -302,15 +326,17 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment map[string]interface{} `yaml:"env" json:"env"` // Not supported in FlagOverrides.
-	Path        string                 `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
-	HTTPKey     string                 `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	Environment map[string]interface{}
+	Env         []string `yaml:"env" json:"env"`
+	Path        string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
+	HTTPKey     string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment: make(map[string]interface{}),
+		Environment: make(map[string]interface{}, 0),
+		Env:         make([]string, 0),
 		Path:        "",
 		HTTPKey:     "defaultkey",
 	}
