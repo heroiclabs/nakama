@@ -90,7 +90,7 @@ func (rp *RuntimePool) Put(r *Runtime) {
 	rp.pool.Put(r)
 }
 
-func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceRPC func(ExecutionMode, string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -103,7 +103,7 @@ func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.C
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceRPC)
+	nakamaModule := NewNakamaModule(logger, db, config, socialClient, vm, sessionRegistry, matchRegistry, tracker, router, once, announceCallback)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &Runtime{
 		logger: logger,

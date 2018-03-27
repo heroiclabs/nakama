@@ -63,36 +63,36 @@ type Callbacks struct {
 }
 
 type NakamaModule struct {
-	logger          *zap.Logger
-	db              *sql.DB
-	config          Config
-	socialClient    *social.Client
-	sessionRegistry *SessionRegistry
-	matchRegistry   MatchRegistry
-	tracker         Tracker
-	router          MessageRouter
-	once            *sync.Once
-	announceRPC     func(ExecutionMode, string)
-	client          *http.Client
+	logger           *zap.Logger
+	db               *sql.DB
+	config           Config
+	socialClient     *social.Client
+	sessionRegistry  *SessionRegistry
+	matchRegistry    MatchRegistry
+	tracker          Tracker
+	router           MessageRouter
+	once             *sync.Once
+	announceCallback func(ExecutionMode, string)
+	client           *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceRPC func(ExecutionMode, string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceCallback func(ExecutionMode, string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
 		After:  make(map[string]*lua.LFunction),
 	}))
 	return &NakamaModule{
-		logger:          logger,
-		db:              db,
-		config:          config,
-		socialClient:    socialClient,
-		sessionRegistry: sessionRegistry,
-		matchRegistry:   matchRegistry,
-		tracker:         tracker,
-		router:          router,
-		once:            once,
-		announceRPC:     announceRPC,
+		logger:           logger,
+		db:               db,
+		config:           config,
+		socialClient:     socialClient,
+		sessionRegistry:  sessionRegistry,
+		matchRegistry:    matchRegistry,
+		tracker:          tracker,
+		router:           router,
+		once:             once,
+		announceCallback: announceCallback,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -173,8 +173,8 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.RPC[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(RPC, id)
+	if n.announceCallback != nil {
+		n.announceCallback(RPC, id)
 	}
 	return 0
 }
@@ -192,8 +192,8 @@ func (n *NakamaModule) registerReqBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.Before[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(BEFORE, id)
+	if n.announceCallback != nil {
+		n.announceCallback(BEFORE, id)
 	}
 	return 0
 }
@@ -211,8 +211,8 @@ func (n *NakamaModule) registerReqAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.After[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(AFTER, id)
+	if n.announceCallback != nil {
+		n.announceCallback(AFTER, id)
 	}
 	return 0
 }
@@ -230,8 +230,8 @@ func (n *NakamaModule) registerRTBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.Before[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(BEFORE, id)
+	if n.announceCallback != nil {
+		n.announceCallback(BEFORE, id)
 	}
 	return 0
 }
@@ -249,8 +249,8 @@ func (n *NakamaModule) registerRTAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	rc.After[id] = fn
-	if n.announceRPC != nil {
-		n.announceRPC(AFTER, id)
+	if n.announceCallback != nil {
+		n.announceCallback(AFTER, id)
 	}
 	return 0
 }
