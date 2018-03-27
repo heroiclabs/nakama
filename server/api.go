@@ -132,7 +132,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		Addr:         fmt.Sprintf(":%d", config.GetSocket().Port-1),
 		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
-		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdeaTimeoutMs)),
+		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
 		Handler:      handlerWithCORS,
 	}
 
