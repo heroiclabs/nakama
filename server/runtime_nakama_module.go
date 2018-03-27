@@ -419,13 +419,13 @@ func (n *NakamaModule) httpRequest(l *lua.LState) int {
 }
 
 func (n *NakamaModule) jsonEncode(l *lua.LState) int {
-	jsonTable := l.Get(1)
-	if jsonTable == nil {
+	value := l.Get(1)
+	if value == nil {
 		l.ArgError(1, "expects a non-nil value to encode")
 		return 0
 	}
 
-	jsonData := convertLuaValue(jsonTable)
+	jsonData := convertLuaValue(value)
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
 		l.RaiseError("error encoding to JSON: %v", err.Error())
@@ -1360,47 +1360,56 @@ func (n *NakamaModule) streamUserGet(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(3, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1450,47 +1459,56 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(3, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1553,47 +1571,56 @@ func (n *NakamaModule) streamUserLeave(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(3, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1610,47 +1637,56 @@ func (n *NakamaModule) streamCount(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(1, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1668,47 +1704,56 @@ func (n *NakamaModule) streamClose(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(1, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1725,47 +1770,56 @@ func (n *NakamaModule) streamSend(l *lua.LState) int {
 		return 0
 	}
 	stream := PresenceStream{}
-	conversionError := ""
+	conversionError := false
 	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		switch k.String() {
 		case "mode":
 			if v.Type() != lua.LTNumber {
-				conversionError = "stream mode must be a number"
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
-				conversionError = "stream subject must be a string"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream subject must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "descriptor":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
 				return
 			}
 			did, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
 				return
 			}
 			stream.Subject = did
 		case "label":
 			if v.Type() != lua.LTString {
-				conversionError = "stream label must be a string"
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
 		}
 	})
-	if conversionError != "" {
-		l.ArgError(1, conversionError)
+	if conversionError {
 		return 0
 	}
 
@@ -1948,6 +2002,10 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 	conversionError := false
 	notifications := make(map[uuid.UUID][]*api.Notification)
 	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		if conversionError {
+			return
+		}
+
 		notificationTable, ok := g.(*lua.LTable)
 		if !ok {
 			conversionError = true
@@ -1958,7 +2016,11 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		notification := &api.Notification{}
 		userID := uuid.Nil
 		senderID := uuid.Nil
-		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		notificationTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
 			switch k.String() {
 			case "persistent":
 				if v.Type() != lua.LTBool {
@@ -2041,6 +2103,10 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 				senderID = sid
 			}
 		})
+
+		if conversionError {
+			return
+		}
 
 		if notification.Subject == "" {
 			l.ArgError(1, "expects subject to be non-empty")
@@ -2175,74 +2241,98 @@ func (n *NakamaModule) storageList(l *lua.LState) int {
 
 func (n *NakamaModule) storageRead(l *lua.LState) int {
 	keysTable := l.CheckTable(1)
-	if keysTable == nil || keysTable.Len() == 0 {
+	if keysTable == nil {
 		l.ArgError(1, "expects a valid set of keys")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
-	if !ok {
-		l.ArgError(1, "expects a valid set of data")
-		return 0
-	}
-	keyMap := make([]map[string]interface{}, 0)
-	for _, d := range keysRaw {
-		if m, ok := d.(map[string]interface{}); !ok {
-			l.ArgError(1, "expects a valid set of data")
-			return 0
-		} else {
-			keyMap = append(keyMap, m)
-		}
+	size := keysTable.Len()
+	if size == 0 {
+		// Empty input, empty response.
+		l.Push(l.CreateTable(0, 0))
+		return 1
 	}
 
-	objectIDs := make([]*api.ReadStorageObjectId, len(keyMap))
-	idx := 0
-	for i, k := range keyMap {
-		var collection string
-		if c, ok := k["collection"]; !ok {
-			l.ArgError(i, "expects a collection in each object ID")
-			return 0
-		} else {
-			if cs, ok := c.(string); !ok {
-				l.ArgError(i, "collection must be a string")
-				return 0
-			} else {
-				collection = cs
-			}
+	objectIDs := make([]*api.ReadStorageObjectId, 0, size)
+	conversionError := false
+	keysTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
 		}
-		var key string
-		if r, ok := k["key"]; !ok {
-			l.ArgError(i, "expects a key in each object ID")
-			return 0
-		} else {
-			if rs, ok := r.(string); !ok {
-				l.ArgError(i, "key must be a string")
-				return 0
-			} else {
-				key = rs
-			}
+
+		keyTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of keys")
+			return
 		}
-		var userID uuid.UUID
-		if u, ok := k["user_id"]; ok {
-			if us, ok := u.(string); !ok {
-				l.ArgError(i, "expects valid user IDs in each object ID, when provided")
-				return 0
-			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(i, "expects valid user IDs in each object ID, when provided")
-					return 0
+
+		objectID := &api.ReadStorageObjectId{}
+		keyTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "collection":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects collection to be string")
+					return
 				}
-				userID = uid
+				objectID.Collection = v.String()
+				if objectID.Collection == "" {
+					conversionError = true
+					l.ArgError(1, "expects collection to be a non-empty string")
+					return
+				}
+			case "key":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects key to be string")
+					return
+				}
+				objectID.Key = v.String()
+				if objectID.Key == "" {
+					conversionError = true
+					l.ArgError(1, "expects key to be a non-empty string")
+					return
+				}
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				objectID.UserId = v.String()
+				if _, err := uuid.FromString(objectID.UserId); err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
 			}
+		})
+
+		if conversionError {
+			return
 		}
 
-		objectIDs[idx] = &api.ReadStorageObjectId{
-			Collection: collection,
-			Key:        key,
-			UserId:     userID.String(),
+		if objectID.UserId == "" {
+			// Default to server-owned data if no owner is supplied.
+			objectID.UserId = uuid.Nil.String()
 		}
-		idx++
-	}
+
+		if objectID.Collection == "" {
+			conversionError = true
+			l.ArgError(1, "expects collection to be supplied")
+			return
+		} else if objectID.Key == "" {
+			conversionError = true
+			l.ArgError(1, "expects key to be supplied")
+			return
+		}
+
+		objectIDs = append(objectIDs, objectID)
+	})
 
 	objects, err := StorageReadObjects(n.logger, n.db, uuid.Nil, objectIDs)
 	if err != nil {
@@ -2283,123 +2373,152 @@ func (n *NakamaModule) storageRead(l *lua.LState) int {
 
 func (n *NakamaModule) storageWrite(l *lua.LState) int {
 	dataTable := l.CheckTable(1)
-	if dataTable == nil || dataTable.Len() == 0 {
+	if dataTable == nil {
 		l.ArgError(1, "expects a valid set of data")
 		return 0
 	}
-	dataRaw, ok := convertLuaValue(dataTable).([]interface{})
-	if !ok {
-		l.ArgError(1, "expects a valid set of data")
-		return 0
+	size := dataTable.Len()
+	if size == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
 	}
-	dataMap := make([]map[string]interface{}, 0)
-	for _, d := range dataRaw {
-		if m, ok := d.(map[string]interface{}); !ok {
+
+	data := make(map[uuid.UUID][]*api.WriteStorageObject)
+	conversionError := false
+	dataTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		dataTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
 			l.ArgError(1, "expects a valid set of data")
-			return 0
-		} else {
-			dataMap = append(dataMap, m)
+			return
 		}
-	}
 
-	data := make(map[uuid.UUID][]*api.WriteStorageObject, len(dataMap))
-	for i, k := range dataMap {
-		var collection string
-		if c, ok := k["collection"]; !ok {
-			l.ArgError(i, "expects a collection in each object")
-			return 0
-		} else {
-			if cs, ok := c.(string); !ok {
-				l.ArgError(i, "collection must be a string")
-				return 0
-			} else {
-				collection = cs
-			}
-		}
-		var key string
-		if r, ok := k["key"]; !ok {
-			l.ArgError(i, "expects a key in each object")
-			return 0
-		} else {
-			if rs, ok := r.(string); !ok {
-				l.ArgError(i, "key must be a string")
-				return 0
-			} else {
-				key = rs
-			}
-		}
-		var value []byte
-		if v, ok := k["value"]; !ok {
-			l.ArgError(i, "expects a value in each key")
-			return 0
-		} else {
-			if vs, ok := v.(map[string]interface{}); !ok {
-				l.ArgError(i, "value must be a table")
-				return 0
-			} else {
-				dataJson, err := json.Marshal(vs)
-				if err != nil {
-					l.RaiseError("could not convert value to JSON: %v", err.Error())
-					return 0
-				}
-				value = dataJson
-			}
-		}
 		var userID uuid.UUID
-		if u, ok := k["user_id"]; ok {
-			if us, ok := u.(string); !ok {
-				l.ArgError(i, "expects valid user IDs in each object, when provided")
-				return 0
-			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(i, "expects valid user IDs in each object, when provided")
-					return 0
+		d := &api.WriteStorageObject{}
+		dataTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "collection":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects collection to be string")
+					return
 				}
-				userID = uid
+				d.Collection = v.String()
+				if d.Collection == "" {
+					conversionError = true
+					l.ArgError(1, "expects collection to be a non-empty string")
+					return
+				}
+			case "key":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects key to be string")
+					return
+				}
+				d.Key = v.String()
+				if d.Key == "" {
+					conversionError = true
+					l.ArgError(1, "expects key to be a non-empty string")
+					return
+				}
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				var err error
+				if userID, err = uuid.FromString(v.String()); err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
+			case "value":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(1, "expects value to be table")
+					return
+				}
+				valueMap := ConvertLuaTable(v.(*lua.LTable))
+				valueBytes, err := json.Marshal(valueMap)
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, fmt.Sprintf("failed to convert value: %s", err.Error()))
+					return
+				}
+				d.Value = string(valueBytes)
+			case "version":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects version to be string")
+					return
+				}
+				d.Version = v.String()
+				if d.Version == "" {
+					conversionError = true
+					l.ArgError(1, "expects version to be a non-empty string")
+					return
+				}
+			case "permission_read":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects permission_read to be number")
+					return
+				}
+				d.PermissionRead = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+			case "permission_write":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects permission_write to be number")
+					return
+				}
+				d.PermissionWrite = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
 			}
-		}
-		var version string
-		if v, ok := k["version"]; ok {
-			if vs, ok := v.(string); !ok {
-				l.ArgError(1, "version must be a string")
-				return 0
-			} else {
-				version = vs
-			}
-		}
-		readPermission := int32(1)
-		if r, ok := k["permission_read"]; ok {
-			if rf, ok := r.(float64); !ok {
-				l.ArgError(i, "permission read must be a number")
-				return 0
-			} else {
-				readPermission = int32(rf)
-			}
-		}
-		writePermission := int32(1)
-		if w, ok := k["permission_write"]; ok {
-			if wf, ok := w.(float64); !ok {
-				l.ArgError(i, "permission write must be a number")
-				return 0
-			} else {
-				writePermission = int32(wf)
-			}
-		}
-
-		objects := data[userID]
-		if objects == nil {
-			objects = make([]*api.WriteStorageObject, 0)
-		}
-
-		data[userID] = append(objects, &api.WriteStorageObject{
-			Collection:      collection,
-			Key:             key,
-			Value:           string(value),
-			Version:         version,
-			PermissionRead:  &wrappers.Int32Value{Value: readPermission},
-			PermissionWrite: &wrappers.Int32Value{Value: writePermission},
 		})
+
+		if conversionError {
+			return
+		}
+
+		if d.Collection == "" {
+			conversionError = true
+			l.ArgError(1, "expects collection to be supplied")
+			return
+		} else if d.Key == "" {
+			conversionError = true
+			l.ArgError(1, "expects key to be supplied")
+			return
+		} else if d.Value == "" {
+			conversionError = true
+			l.ArgError(1, "expects value to be supplied")
+			return
+		}
+
+		if d.PermissionRead == nil {
+			// Default to owner read if no permission_read is supplied.
+			d.PermissionRead = &wrappers.Int32Value{Value: 1}
+		}
+		if d.PermissionWrite == nil {
+			// Default to owner write if no permission_write is supplied.
+			d.PermissionWrite = &wrappers.Int32Value{Value: 1}
+		}
+
+		if objects, ok := data[userID]; !ok {
+			data[userID] = []*api.WriteStorageObject{d}
+		} else {
+			data[userID] = append(objects, d)
+		}
+	})
+	if conversionError {
+		return 0
 	}
 
 	acks, _, err := StorageWriteObjects(n.logger, n.db, true, data)
@@ -2428,88 +2547,113 @@ func (n *NakamaModule) storageWrite(l *lua.LState) int {
 
 func (n *NakamaModule) storageDelete(l *lua.LState) int {
 	keysTable := l.CheckTable(1)
-	if keysTable == nil || keysTable.Len() == 0 {
+	if keysTable == nil {
 		l.ArgError(1, "expects a valid set of object IDs")
 		return 0
 	}
-	keysRaw, ok := convertLuaValue(keysTable).([]interface{})
-	if !ok {
-		l.ArgError(1, "expects a valid set of object IDs")
+	size := keysTable.Len()
+	if size == 0 {
 		return 0
 	}
-	keyMap := make([]map[string]interface{}, 0)
-	for _, d := range keysRaw {
-		if m, ok := d.(map[string]interface{}); !ok {
+
+	objectIDs := make(map[uuid.UUID][]*api.DeleteStorageObjectId)
+	conversionError := false
+	keysTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		keyTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
 			l.ArgError(1, "expects a valid set of object IDs")
-			return 0
-		} else {
-			keyMap = append(keyMap, m)
+			return
 		}
-	}
 
-	ids := make(map[uuid.UUID][]*api.DeleteStorageObjectId, len(keyMap))
-	for i, k := range keyMap {
-		var collection string
-		if c, ok := k["collection"]; !ok {
-			l.ArgError(i, "expects a collection in each object ID")
-			return 0
-		} else {
-			if cs, ok := c.(string); !ok {
-				l.ArgError(i, "collection must be a string")
-				return 0
-			} else {
-				collection = cs
-			}
-		}
-		var key string
-		if r, ok := k["key"]; !ok {
-			l.ArgError(i, "expects a record in each object ID")
-			return 0
-		} else {
-			if rs, ok := r.(string); !ok {
-				l.ArgError(i, "key must be a string")
-				return 0
-			} else {
-				key = rs
-			}
-		}
 		var userID uuid.UUID
-		if u, ok := k["user_id"]; ok {
-			if us, ok := u.(string); !ok {
-				l.ArgError(i, "expects valid user IDs in each object iD, when provided")
-				return 0
-			} else {
-				uid, err := uuid.FromString(us)
-				if err != nil {
-					l.ArgError(i, "expects valid user IDs in each object ID, when provided")
-					return 0
+		objectID := &api.DeleteStorageObjectId{}
+		keyTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "collection":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects collection to be string")
+					return
 				}
-				userID = uid
+				objectID.Collection = v.String()
+				if objectID.Collection == "" {
+					conversionError = true
+					l.ArgError(1, "expects collection to be a non-empty string")
+					return
+				}
+			case "key":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects key to be string")
+					return
+				}
+				objectID.Key = v.String()
+				if objectID.Key == "" {
+					conversionError = true
+					l.ArgError(1, "expects key to be a non-empty string")
+					return
+				}
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				var err error
+				if userID, err = uuid.FromString(v.String()); err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
+			case "version":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects version to be string")
+					return
+				}
+				objectID.Version = v.String()
+				if objectID.Version == "" {
+					conversionError = true
+					l.ArgError(1, "expects version to be a non-empty string")
+					return
+				}
 			}
-		}
-		var version string
-		if v, ok := k["version"]; ok {
-			if vs, ok := v.(string); !ok {
-				l.ArgError(i, "version must be a string")
-				return 0
-			} else {
-				version = vs
-			}
-		}
-
-		objectIDs := ids[userID]
-		if objectIDs == nil {
-			objectIDs = make([]*api.DeleteStorageObjectId, 0)
-		}
-
-		ids[userID] = append(objectIDs, &api.DeleteStorageObjectId{
-			Collection: collection,
-			Key:        key,
-			Version:    version,
 		})
+
+		if conversionError {
+			return
+		}
+
+		if objectID.Collection == "" {
+			conversionError = true
+			l.ArgError(1, "expects collection to be supplied")
+			return
+		} else if objectID.Key == "" {
+			conversionError = true
+			l.ArgError(1, "expects key to be supplied")
+			return
+		}
+
+		if objects, ok := objectIDs[userID]; !ok {
+			objectIDs[userID] = []*api.DeleteStorageObjectId{objectID}
+		} else {
+			objectIDs[userID] = append(objects, objectID)
+		}
+	})
+	if conversionError {
+		return 0
 	}
 
-	if _, err := StorageDeleteObjects(n.logger, n.db, true, ids); err != nil {
+	if _, err := StorageDeleteObjects(n.logger, n.db, true, objectIDs); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 
