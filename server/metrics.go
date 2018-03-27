@@ -57,11 +57,11 @@ func (m *Metrics) initStackdriver(logger *zap.Logger, config Config) {
 		MetricPrefix: prefix,
 		ProjectID:    config.GetMetrics().StackdriverProjectID,
 		OnError: func(err error) {
-			logger.Error("Could not upload data to Stackdriver.", zap.Error(err))
+			logger.Error("Could not upload data to Stackdriver", zap.Error(err))
 		},
 	})
 	if err != nil {
-		logger.Fatal("Could not setup Stackdriver exporter.", zap.Error(err))
+		logger.Fatal("Could not setup Stackdriver exporter", zap.Error(err))
 	}
 	view.RegisterExporter(exporter)
 }
@@ -77,11 +77,11 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 		Namespace: prefix,
 		Registry:  registry,
 		OnError: func(err error) {
-			logger.Error("Could not upload data to Prometheus.", zap.Error(err))
+			logger.Error("Could not upload data to Prometheus", zap.Error(err))
 		},
 	})
 	if err != nil {
-		logger.Fatal("Could not setup Prometheus exporter.", zap.Error(err))
+		logger.Fatal("Could not setup Prometheus exporter", zap.Error(err))
 	}
 
 	view.RegisterExporter(exporter)
@@ -101,10 +101,10 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 		Handler:      handlerWithCORS,
 	}
 
-	logger.Info("Starting Prometheus server to server metrics requests", zap.Int("port", config.GetMetrics().PrometheusPort))
+	logger.Info("Starting Prometheus server for metrics requests", zap.Int("port", config.GetMetrics().PrometheusPort))
 	go func() {
 		if err := m.prometheusHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Prometheus listener failed.", zap.Error(err))
+			logger.Fatal("Prometheus listener failed", zap.Error(err))
 		}
 	}()
 }
@@ -112,7 +112,7 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 func (m *Metrics) Stop(logger *zap.Logger) {
 	if m.prometheusHTTPServer != nil {
 		if err := m.prometheusHTTPServer.Shutdown(context.Background()); err != nil {
-			logger.Error("Prometheus listener shutdown failed.", zap.Error(err))
+			logger.Error("Prometheus listener shutdown failed", zap.Error(err))
 		}
 	}
 }
