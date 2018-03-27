@@ -82,15 +82,15 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 
 	// Register and start GRPC server.
 	api.RegisterNakamaServer(grpcServer, s)
-	multiLogger.Info("Starting API server to server gRPC requests", zap.Int("port", config.GetSocket().Port))
+	multiLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port))
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port))
 		if err != nil {
-			multiLogger.Fatal("API Server listener failed to start", zap.Error(err))
+			multiLogger.Fatal("API server listener failed to start", zap.Error(err))
 		}
 
 		if err := grpcServer.Serve(listener); err != nil {
-			multiLogger.Fatal("API Server listener failed", zap.Error(err))
+			multiLogger.Fatal("API server listener failed", zap.Error(err))
 		}
 	}()
 
@@ -105,7 +105,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		grpc.WithInsecure(),
 	}
 	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, opts); err != nil {
-		multiLogger.Fatal("API Server gateway registration failed", zap.Error(err))
+		multiLogger.Fatal("API server gateway registration failed", zap.Error(err))
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
@@ -136,10 +136,10 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		Handler:      handlerWithCORS,
 	}
 
-	multiLogger.Info("Starting API server to server HTTP requests", zap.Int("port", config.GetSocket().Port-1))
+	multiLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
 		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			multiLogger.Fatal("API Server gateway listener failed", zap.Error(err))
+			multiLogger.Fatal("API server gateway listener failed", zap.Error(err))
 		}
 	}()
 
@@ -149,7 +149,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 func (s *ApiServer) Stop() {
 	// 1. Stop GRPC Gateway server first as it sits above GRPC server.
 	if err := s.grpcGatewayServer.Shutdown(context.Background()); err != nil {
-		s.logger.Error("API Server gateway listener shutdown failed", zap.Error(err))
+		s.logger.Error("API server gateway listener shutdown failed", zap.Error(err))
 	}
 	// 2. Stop GRPC server.
 	s.grpcServer.GracefulStop()
