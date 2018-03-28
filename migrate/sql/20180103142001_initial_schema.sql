@@ -101,7 +101,65 @@ CREATE TABLE IF NOT EXISTS storage (
 );
 CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
 
+CREATE TABLE IF NOT EXISTS message (
+  PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
+  FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE,
+  FOREIGN KEY (reference_id) REFERENCES message (id) ON DELETE CASCADE,
+
+  id                UUID         UNIQUE NOT NULL,
+  -- chat(0), chat_update(1), group_join(2), group_add(3), group_leave(4), group_kick(5), group_promoted(6)
+  code              SMALLINT     DEFAULT 0 NOT NULL,
+  sender_id         UUID         NOT NULL,
+  username          VARCHAR(128) NOT NULL,
+  stream_mode       SMALLINT     NOT NULL,
+  stream_subject    UUID         NOT NULL,
+  stream_descriptor UUID         NOT NULL,
+  stream_label      VARCHAR(128) NOT NULL,
+  content           JSONB        DEFAULT '{}' NOT NULL,
+  reference_id      UUID,
+  create_time       TIMESTAMPTZ  DEFAULT now() NOT NULL,
+  update_time       TIMESTAMPTZ  DEFAULT now() NOT NULL,
+
+  UNIQUE (sender_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS leaderboard (
+  PRIMARY KEY (id),
+
+  id             VARCHAR(128) NOT NULL,
+  authoritative  BOOLEAN      DEFAULT FALSE,
+  cached_count   BIGINT       DEFAULT 0 CHECK (cached_count >= 0) NOT NULL,
+  sort_order     SMALLINT     DEFAULT 1 NOT NULL, -- asc(0), desc(1)
+  reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
+  metadata       JSONB        DEFAULT '{}' NOT NULL,
+  create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
+  update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS leaderboard_record (
+  PRIMARY KEY (leaderboard_id, expiry_time, score, subscore, owner_id),
+  FOREIGN KEY (leaderboard_id) REFERENCES leaderboard (id) ON DELETE CASCADE,
+
+  leaderboard_id VARCHAR(128) NOT NULL,
+  owner_id       UUID         NOT NULL,
+  username       VARCHAR(128),
+  score          BIGINT       DEFAULT 0 CHECK (score >= 0) NOT NULL,
+  subscore       BIGINT       DEFAULT 0 CHECK (subscore >= 0) NOT NULL,
+  rank_value     BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
+  num_score      INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
+  metadata       JSONB        DEFAULT '{}' NOT NULL,
+  create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
+  update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
+  expiry_time    TIMESTAMPTZ  DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
+  rank_time      TIMESTAMPTZ  DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
+
+  UNIQUE (owner_id, leaderboard_id, expiry_time)
+);
+
 -- +migrate Down
+DROP TABLE IF EXISTS leaderboard_record;
+DROP TABLE IF EXISTS leaderboard;
+DROP TABLE IF EXISTS message;
 DROP TABLE IF EXISTS storage;
 DROP TABLE IF EXISTS notification;
 DROP TABLE IF EXISTS user_edge;
