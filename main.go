@@ -81,7 +81,7 @@ func main() {
 	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 
-	db, dbVersion := dbConnect(multiLogger, config.GetDatabase().Addresses)
+	db, dbVersion := dbConnect(multiLogger, config)
 	multiLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and log if the schema has diverged.
@@ -149,9 +149,9 @@ func main() {
 	select {}
 }
 
-func dbConnect(multiLogger *zap.Logger, dsns []string) (*sql.DB, string) {
+func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) {
 	// TODO config database pooling
-	rawurl := fmt.Sprintf("postgresql://%s", dsns[0])
+	rawurl := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
 	url, err := url.Parse(rawurl)
 	if err != nil {
 		multiLogger.Fatal("Bad connection URL", zap.Error(err))
@@ -174,6 +174,10 @@ func dbConnect(multiLogger *zap.Logger, dsns []string) (*sql.DB, string) {
 	if err != nil {
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
+
+	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
+	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
+	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
 
 	var dbVersion string
 	if err := db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {

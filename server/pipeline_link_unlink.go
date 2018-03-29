@@ -170,7 +170,7 @@ func (p *pipeline) linkGoogle(logger *zap.Logger, session session, envelope *Env
 		return
 	}
 
-	googleProfile, err := p.socialClient.GetGoogleProfile(accessToken)
+	googleProfile, err := p.socialClient.CheckGoogleToken(accessToken)
 	if err != nil {
 		logger.Warn("Could not get Google profile", zap.Error(err))
 		session.Send(ErrorMessage(envelope.CollationId, USER_LINK_PROVIDER_UNAVAILABLE, "Could not get Google profile"), true)
@@ -186,7 +186,7 @@ AND NOT EXISTS
      FROM users
      WHERE google_id = $2)`,
 		session.UserID(),
-		googleProfile.ID,
+		googleProfile.Sub,
 		nowMs())
 
 	if err != nil {

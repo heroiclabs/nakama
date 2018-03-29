@@ -27,9 +27,11 @@ import (
 
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
+	"github.com/lib/pq"
 )
 
 const (
+	dbErrorDuplicateDatabase = "42P04"
 	migrationTable = "migration_info"
 	dialect        = "postgres"
 	defaultLimit   = -1
@@ -104,21 +106,27 @@ func MigrateParse(args []string, logger *zap.Logger) {
 
 	ms.parseSubcommand(args[1:])
 
-	rawurl := fmt.Sprintf("postgresql://%s?sslmode=disable", ms.dbAddress)
-	url, err := url.Parse(rawurl)
+	rawUrl := fmt.Sprintf("postgresql://%s", ms.dbAddress)
+	parsedUrl, err := url.Parse(rawUrl)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
 
+	query := parsedUrl.Query()
+	if len(query.Get("sslmode")) == 0 {
+		query.Set("sslmode", "disable")
+		parsedUrl.RawQuery = query.Encode()
+	}
+
 	dbname := "nakama"
-	if len(url.Path) > 1 {
-		dbname = url.Path[1:]
+	if len(parsedUrl.Path) > 1 {
+		dbname = parsedUrl.Path[1:]
 	}
 
 	logger.Info("Database connection", zap.String("db", ms.dbAddress))
 
-	url.Path = ""
-	db, err := sql.Open(dialect, url.String())
+	parsedUrl.Path = ""
+	db, err := sql.Open(dialect, parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
@@ -132,24 +140,20 @@ func MigrateParse(args []string, logger *zap.Logger) {
 	}
 	logger.Info("Database information", zap.String("version", dbVersion))
 
-	var exists bool
-	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbname).Scan(&exists)
-start:
-	switch {
-	case err != nil:
-		logger.Fatal("Database query failed", zap.Error(err))
-	case !exists:
-		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
-		exists = err == nil
-		goto start
-	case exists:
-		logger.Info("Using existing database", zap.String("name", dbname))
+	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorDuplicateDatabase {
+			logger.Info("Using existing database", zap.String("name", dbname))
+		} else {
+			logger.Fatal("Database query failed", zap.Error(err))
+		}
+	} else {
+		logger.Info("Creating new database", zap.String("name", dbname))
 	}
 	db.Close()
 
 	// Append dbname to data source name.
-	url.Path = fmt.Sprintf("/%s", dbname)
-	db, err = sql.Open(dialect, url.String())
+	parsedUrl.Path = fmt.Sprintf("/%s", dbname)
+	db, err = sql.Open(dialect, parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}

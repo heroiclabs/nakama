@@ -631,7 +631,7 @@ func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) (strin
 		return "", "", 0, "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
-	googleProfile, err := a.socialClient.GetGoogleProfile(accessToken)
+	googleProfile, err := a.socialClient.CheckGoogleToken(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Google profile", zap.Error(err))
 		return "", "", 0, errorCouldNotLogin, AUTH_ERROR
@@ -641,7 +641,7 @@ func (a *authenticationService) loginGoogle(authReq *AuthenticateRequest) (strin
 	var handle string
 	var disabledAt int64
 	err = a.db.QueryRow("SELECT id, handle, disabled_at FROM users WHERE google_id = $1",
-		googleProfile.ID).
+		googleProfile.Sub).
 		Scan(&userID, &handle, &disabledAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -960,7 +960,7 @@ func (a *authenticationService) registerGoogle(tx *sql.Tx, authReq *Authenticate
 		return "", "", "", "Invalid Google access token, no spaces or control characters allowed", BAD_INPUT
 	}
 
-	googleProfile, err := a.socialClient.GetGoogleProfile(accessToken)
+	googleProfile, err := a.socialClient.CheckGoogleToken(accessToken)
 	if err != nil {
 		a.logger.Warn("Could not get Google profile", zap.Error(err))
 		return "", "", "", errorCouldNotRegister, AUTH_ERROR
@@ -982,7 +982,7 @@ WHERE NOT EXISTS
  WHERE google_id = $3::VARCHAR)`,
 		userID,
 		handle,
-		googleProfile.ID,
+		googleProfile.Sub,
 		updatedAt)
 
 	if err != nil {
@@ -998,7 +998,7 @@ WHERE NOT EXISTS
 		return "", "", "", errorCouldNotRegister, RUNTIME_EXCEPTION
 	}
 
-	return userID, handle, googleProfile.ID, "", 0
+	return userID, handle, googleProfile.Sub, "", 0
 }
 
 func (a *authenticationService) registerGameCenter(tx *sql.Tx, authReq *AuthenticateRequest) (string, string, string, string, Error_Code) {
