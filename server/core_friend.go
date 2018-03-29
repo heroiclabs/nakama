@@ -21,9 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"go.uber.org/zap"
+	"github.com/lib/pq"
 )
 
-func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID string, handle string, friendID string) error {
+func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID string, handle string, friendID string) (err error) {
 	tx, txErr := db.Begin()
 	if txErr != nil {
 		return txErr
@@ -31,11 +32,17 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID s
 
 	isFriendAccept := false
 	updatedAt := nowMs()
-	var err error
 	defer func() {
 		if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil { // don't override value of err
 				logger.Error("Could not rollback transaction", zap.Error(rollbackErr))
+			}
+
+			if e, ok := err.(*pq.Error); ok && e.Code == "23505" {
+				// Ignore error if it is dbErrorUniqueViolation,
+				// which is the case if we are adding users that already have a relationship.
+				logger.Warn("CODE", zap.Any("code", e.Code), zap.String("msg", e.Message))
+				err = nil
 			}
 		} else {
 			if e := tx.Commit(); e != nil {
