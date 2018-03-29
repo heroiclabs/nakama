@@ -41,7 +41,6 @@ func friendAdd(logger *zap.Logger, db *sql.DB, ns *NotificationService, userID s
 			if e, ok := err.(*pq.Error); ok && e.Code == "23505" {
 				// Ignore error if it is dbErrorUniqueViolation,
 				// which is the case if we are adding users that already have a relationship.
-				logger.Warn("CODE", zap.Any("code", e.Code), zap.String("msg", e.Message))
 				err = nil
 			}
 		} else {

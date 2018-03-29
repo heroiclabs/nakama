@@ -1910,6 +1910,8 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 		}
 
 		notification := &NNotification{}
+		notification.CreatedAt = nowMs()
+		notification.ExpiresAt = n.notificationService.expiryMs + notification.CreatedAt
 		notificationTable.ForEach(func(k lua.LValue, v lua.LValue) {
 			switch k.String() {
 			case "Persistent":
@@ -1950,10 +1952,22 @@ func (n *NakamaModule) notificationsSendId(l *lua.LState) int {
 				}
 				number := int64(lua.LVAsNumber(v))
 				if number <= 100 {
-					l.ArgError(1, "expects Code to number above 100")
+					l.ArgError(1, "expects Code to be above 100")
 					return
 				}
 				notification.Code = int64(number)
+			case "ExpiresAt":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects ExpiresAt to be number")
+					return
+				}
+				number := int64(lua.LVAsNumber(v))
+				if number <= 0 {
+					l.ArgError(1, "expects ExpiresAt to be above 100")
+					return
+				}
+				notification.ExpiresAt = notification.CreatedAt + int64(number)
 			case "UserId":
 				if v.Type() != lua.LTString {
 					conversionError = true

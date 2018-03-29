@@ -207,8 +207,6 @@ func (n *NotificationService) NotificationsRemove(userID string, notificationIDs
 }
 
 func (n *NotificationService) notificationsSave(notifications []*NNotification) error {
-	createdAt := nowMs()
-	expiresAt := createdAt + n.expiryMs
 
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
@@ -231,8 +229,8 @@ func (n *NotificationService) notificationsSave(notifications []*NNotification) 
 		params = append(params, no.Content)
 		params = append(params, no.Code)
 		params = append(params, no.SenderID)
-		params = append(params, createdAt)
-		params = append(params, expiresAt)
+		params = append(params, no.CreatedAt)
+		params = append(params, no.ExpiresAt)
 
 		counter = counter + 8
 	}
