@@ -3,9 +3,21 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com/) and this project uses [semantic versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.4.1] - 2018-03-30
+### Added
+- Allow the server to handle SSL termination of client connections although NOT recommended in production.
+- Add code runtime hook for IAP validation messages.
+
+### Changed
+- Update social sign-in code for changes to Google's API.
+- Migrate code is now cockroach2 compatible.
+
 ### Fixed
+- Fix bitshift code in rUDP protocol parser.
 - Fix incorrect In-app purchase setup availability checks.
+- Cast ID in friend add queries which send notifications.
+- Expiry field in notifications now stored in database write.
+- Return success if user is re-added who is already a friend.
 
 ## [1.4.0] - 2017-12-16
 ### Changed
