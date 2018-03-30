@@ -23,7 +23,7 @@
   "description": "Configures and serves authoritative DNS records.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/cloud-dns",
-  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/SuyHwKhP-B9n7DrZc4jJuDANomI\"",
+  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/e5F2mTs50sJnLnMkzFkqjWW6G1k\"",
   "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
     "x32": "https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png"
@@ -501,9 +501,6 @@
             }
           },
           "path": "{project}/managedZones/{managedZone}",
-          "response": {
-            "$ref": "ManagedZonesDeleteResponse"
-          },
           "scopes": [
             "https://www.googleapis.com/auth/cloud-platform",
             "https://www.googleapis.com/auth/ndev.clouddns.readwrite"
@@ -763,7 +760,7 @@
       }
     }
   },
-  "revision": "20180123",
+  "revision": "20180314",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Change": {
@@ -1138,15 +1135,6 @@
             "$ref": "Operation"
           },
           "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "ManagedZonesDeleteResponse": {
-      "id": "ManagedZonesDeleteResponse",
-      "properties": {
-        "header": {
-          "$ref": "ResponseHeader"
         }
       },
       "type": "object"

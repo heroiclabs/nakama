@@ -18,7 +18,6 @@ package zipkin // import "go.opencensus.io/exporter/zipkin"
 import (
 	"encoding/binary"
 	"strconv"
-	"strings"
 
 	"github.com/openzipkin/zipkin-go/model"
 	"github.com/openzipkin/zipkin-go/reporter"
@@ -102,22 +101,11 @@ func convertSpanID(s trace.SpanID) model.ID {
 }
 
 func spanKind(s *trace.SpanData) model.Kind {
-	if s.HasRemoteParent {
-		return model.Server
-	}
-	if strings.HasPrefix(s.Name, "Sent.") {
+	switch s.SpanKind {
+	case trace.SpanKindClient:
 		return model.Client
-	}
-	if strings.HasPrefix(s.Name, "Recv.") {
+	case trace.SpanKindServer:
 		return model.Server
-	}
-	if len(s.MessageEvents) > 0 {
-		switch s.MessageEvents[0].EventType {
-		case trace.MessageEventTypeSent:
-			return model.Client
-		case trace.MessageEventTypeRecv:
-			return model.Server
-		}
 	}
 	return model.Undetermined
 }

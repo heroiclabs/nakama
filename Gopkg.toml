@@ -4,23 +4,23 @@
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "~1.10.0"
+  version = "~1.11.1"
 
 [[constraint]]
   name = "github.com/go-yaml/yaml"
-  revision = "c95af922eae69f190717a0b7148960af8c55a072"
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[constraint]]
   name = "github.com/satori/go.uuid"
-  revision = "063359185d32c6b045fa171ad7033ea545864fa1"
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
 
 [[constraint]]
   name = "github.com/rubenv/sql-migrate"
-  revision = "6edbfbd6a369ee82463312ec67b2c92f97a1d4dc"
+  revision = "081fe17d19ff4e2dd9f5a0c1158e6bcf74da6906"
 
 [[constraint]]
   name = "github.com/lib/pq"
-  revision = "83612a56d3dd153a94a629cd64925371c9adad78"
+  revision = "d34b9ff171c21ad295489235aec8b6626023cd04"
 
 [[constraint]]
   name = "github.com/gorilla/handlers"
@@ -36,11 +36,11 @@
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
-  revision = "292fd08b2560ad524ee37396253d71570339a821"
+  revision = "eb925808374e5ca90c83401a40d711dc08c0c0f6"
 
 [[constraint]]
   name = "github.com/yuin/gopher-lua"
-  revision = "7d7bc8747e3f614c5c587729a341fe7d8903cdb8"
+  revision = "84ea3a3c79b3c4b3b39606cc96f255cd63635ce0"
 
 [[constraint]]
   name = "github.com/gorhill/cronexpr"
@@ -48,11 +48,11 @@
 
 [[constraint]]
   name = "golang.org/x/crypto"
-  revision = "1875d0a70c90e57f11972aefd42276df65e895b9"
+  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
 
 [[constraint]]
   name = "github.com/gobuffalo/packr"
-  revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
+  version = "~1.10.7"
 
 [[override]]
   name = "github.com/prometheus/client_golang"
@@ -60,4 +60,4 @@
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "~1.1.4"
+  version = "~1.2.1"

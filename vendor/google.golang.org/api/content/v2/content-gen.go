@@ -2268,7 +2268,7 @@ type GmbAccounts struct {
 	// AccountId: The ID of the account.
 	AccountId uint64 `json:"accountId,omitempty,string"`
 
-	// GmbAccounts: A list of GMB account which are available to the
+	// GmbAccounts: A list of GMB accounts which are available to the
 	// merchant.
 	GmbAccounts []*GmbAccountsGmbAccount `json:"gmbAccounts,omitempty"`
 
@@ -2305,7 +2305,7 @@ type GmbAccountsGmbAccount struct {
 	// Name: The name of the GMB account.
 	Name string `json:"name,omitempty"`
 
-	// Type: Type of the GMB account (User or Business).
+	// Type: The type of the GMB account (User or Business).
 	Type string `json:"type,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Email") to
@@ -2858,10 +2858,10 @@ func (s *InventorySetResponse) MarshalJSON() ([]byte, error) {
 }
 
 type LiaAboutPageSettings struct {
-	// Status: The status verification process.
+	// Status: The status of the verification process for the About page.
 	Status string `json:"status,omitempty"`
 
-	// Url: The about URL.
+	// Url: The URL for the About page.
 	Url string `json:"url,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Status") to
@@ -2888,7 +2888,7 @@ func (s *LiaAboutPageSettings) MarshalJSON() ([]byte, error) {
 }
 
 type LiaCountrySettings struct {
-	// About: The about page settings.
+	// About: The settings for the About page.
 	About *LiaAboutPageSettings `json:"about,omitempty"`
 
 	// Country: CLDR country code (e.g. "US").
@@ -2898,7 +2898,7 @@ type LiaCountrySettings struct {
 	// storefront" feature.
 	HostedLocalStorefrontActive bool `json:"hostedLocalStorefrontActive,omitempty"`
 
-	// Inventory: LIA inventory settings.
+	// Inventory: LIA inventory verification settings.
 	Inventory *LiaInventorySettings `json:"inventory,omitempty"`
 
 	// OnDisplayToOrder: LIA "On Display To Order" settings.
@@ -2931,12 +2931,12 @@ func (s *LiaCountrySettings) MarshalJSON() ([]byte, error) {
 }
 
 type LiaInventorySettings struct {
-	// InventoryVerificationContactEmail: The email of contact which will be
-	// contacted during the verification process.
+	// InventoryVerificationContactEmail: The email of the contact for the
+	// inventory verification process.
 	InventoryVerificationContactEmail string `json:"inventoryVerificationContactEmail,omitempty"`
 
-	// InventoryVerificationContactName: The name of contact which will be
-	// contacted during the verification process.
+	// InventoryVerificationContactName: The name of the contact for the
+	// inventory verification process.
 	InventoryVerificationContactName string `json:"inventoryVerificationContactName,omitempty"`
 
 	// InventoryVerificationContactStatus: The status of the verification
@@ -3203,7 +3203,7 @@ type LiasettingsGetAccessibleGmbAccountsResponse struct {
 	// AccountId: The ID of the account.
 	AccountId uint64 `json:"accountId,omitempty,string"`
 
-	// GmbAccounts: A list of GMB account which are available to the
+	// GmbAccounts: A list of GMB accounts which are available to the
 	// merchant.
 	GmbAccounts []*GmbAccountsGmbAccount `json:"gmbAccounts,omitempty"`
 
@@ -3243,7 +3243,7 @@ type LiasettingsListResponse struct {
 	// string "content#liasettingsListResponse".
 	Kind string `json:"kind,omitempty"`
 
-	// NextPageToken: The token for the retrieval of the next page of Lia
+	// NextPageToken: The token for the retrieval of the next page of LIA
 	// settings.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
@@ -3641,7 +3641,9 @@ func (s *OrderCancellation) MarshalJSON() ([]byte, error) {
 }
 
 type OrderCustomer struct {
-	// Email: Email address of the customer.
+	// Email: Email address that should be used for order related
+	// communications. In certain cases this might not be a real users
+	// email, but a proxy email.
 	Email string `json:"email,omitempty"`
 
 	// ExplicitMarketingPreference: If set, this indicates the user
@@ -6458,7 +6460,8 @@ type PosInventory struct {
 	// Quantity: The available quantity of the item.
 	Quantity int64 `json:"quantity,omitempty,string"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -6507,7 +6510,8 @@ type PosInventoryRequest struct {
 	// Quantity: The available quantity of the item.
 	Quantity int64 `json:"quantity,omitempty,string"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -6560,7 +6564,8 @@ type PosInventoryResponse struct {
 	// Quantity: The available quantity of the item.
 	Quantity int64 `json:"quantity,omitempty,string"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -6657,7 +6662,8 @@ type PosSale struct {
 	// SaleId: A unique ID to group items from the same sale event.
 	SaleId string `json:"saleId,omitempty"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -6710,7 +6716,8 @@ type PosSaleRequest struct {
 	// SaleId: A unique ID to group items from the same sale event.
 	SaleId string `json:"saleId,omitempty"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -6767,7 +6774,8 @@ type PosSaleResponse struct {
 	// SaleId: A unique ID to group items from the same sale event.
 	SaleId string `json:"saleId,omitempty"`
 
-	// StoreCode: The identifier of the merchant's store.
+	// StoreCode: The identifier of the merchant's store. Either a storeCode
+	// inserted via the API or the code of the store in Google My Business.
 	StoreCode string `json:"storeCode,omitempty"`
 
 	// TargetCountry: The CLDR territory code for the item.
@@ -13423,7 +13431,7 @@ type LiasettingsCustombatchCall struct {
 	header_                       http.Header
 }
 
-// Custombatch: Retrieves and updates the Lia settings of multiple
+// Custombatch: Retrieves and/or updates the LIA settings of multiple
 // accounts in a single request.
 func (r *LiasettingsService) Custombatch(liasettingscustombatchrequest *LiasettingsCustomBatchRequest) *LiasettingsCustombatchCall {
 	c := &LiasettingsCustombatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -13521,7 +13529,7 @@ func (c *LiasettingsCustombatchCall) Do(opts ...googleapi.CallOption) (*Liasetti
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves and updates the Lia settings of multiple accounts in a single request.",
+	//   "description": "Retrieves and/or updates the LIA settings of multiple accounts in a single request.",
 	//   "httpMethod": "POST",
 	//   "id": "content.liasettings.custombatch",
 	//   "parameters": {
@@ -13557,7 +13565,7 @@ type LiasettingsGetCall struct {
 	header_      http.Header
 }
 
-// Get: Retrieves the Lia settings of the account.
+// Get: Retrieves the LIA settings of the account.
 func (r *LiasettingsService) Get(merchantId uint64, accountId uint64) *LiasettingsGetCall {
 	c := &LiasettingsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -13660,7 +13668,7 @@ func (c *LiasettingsGetCall) Do(opts ...googleapi.CallOption) (*LiaSettings, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves the Lia settings of the account.",
+	//   "description": "Retrieves the LIA settings of the account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.liasettings.get",
 	//   "parameterOrder": [
@@ -13669,7 +13677,7 @@ func (c *LiasettingsGetCall) Do(opts ...googleapi.CallOption) (*LiaSettings, err
 	//   ],
 	//   "parameters": {
 	//     "accountId": {
-	//       "description": "The ID of the account for which to get/update Lia settings.",
+	//       "description": "The ID of the account for which to get or update LIA settings.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -13706,7 +13714,7 @@ type LiasettingsGetaccessiblegmbaccountsCall struct {
 	header_      http.Header
 }
 
-// Getaccessiblegmbaccounts: Retrieves the list of accesable Google My
+// Getaccessiblegmbaccounts: Retrieves the list of accessible Google My
 // Business accounts.
 func (r *LiasettingsService) Getaccessiblegmbaccounts(merchantId uint64, accountId uint64) *LiasettingsGetaccessiblegmbaccountsCall {
 	c := &LiasettingsGetaccessiblegmbaccountsCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -13812,7 +13820,7 @@ func (c *LiasettingsGetaccessiblegmbaccountsCall) Do(opts ...googleapi.CallOptio
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves the list of accesable Google My Business accounts.",
+	//   "description": "Retrieves the list of accessible Google My Business accounts.",
 	//   "httpMethod": "GET",
 	//   "id": "content.liasettings.getaccessiblegmbaccounts",
 	//   "parameterOrder": [
@@ -13821,7 +13829,7 @@ func (c *LiasettingsGetaccessiblegmbaccountsCall) Do(opts ...googleapi.CallOptio
 	//   ],
 	//   "parameters": {
 	//     "accountId": {
-	//       "description": "The ID of the account for which to retrieve the accessible Google My Business accounts.",
+	//       "description": "The ID of the account for which to retrieve accessible Google My Business accounts.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -13857,7 +13865,7 @@ type LiasettingsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the Lia settings of the sub-accounts in your Merchant
+// List: Lists the LIA settings of the sub-accounts in your Merchant
 // Center account.
 func (r *LiasettingsService) List(merchantId uint64) *LiasettingsListCall {
 	c := &LiasettingsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -13866,7 +13874,7 @@ func (r *LiasettingsService) List(merchantId uint64) *LiasettingsListCall {
 }
 
 // MaxResults sets the optional parameter "maxResults": The maximum
-// number of Lia settings to return in the response, used for paging.
+// number of LIA settings to return in the response, used for paging.
 func (c *LiasettingsListCall) MaxResults(maxResults int64) *LiasettingsListCall {
 	c.urlParams_.Set("maxResults", fmt.Sprint(maxResults))
 	return c
@@ -13973,7 +13981,7 @@ func (c *LiasettingsListCall) Do(opts ...googleapi.CallOption) (*LiasettingsList
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the Lia settings of the sub-accounts in your Merchant Center account.",
+	//   "description": "Lists the LIA settings of the sub-accounts in your Merchant Center account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.liasettings.list",
 	//   "parameterOrder": [
@@ -13981,7 +13989,7 @@ func (c *LiasettingsListCall) Do(opts ...googleapi.CallOption) (*LiasettingsList
 	//   ],
 	//   "parameters": {
 	//     "maxResults": {
-	//       "description": "The maximum number of Lia settings to return in the response, used for paging.",
+	//       "description": "The maximum number of LIA settings to return in the response, used for paging.",
 	//       "format": "uint32",
 	//       "location": "query",
 	//       "type": "integer"
@@ -14043,7 +14051,7 @@ type LiasettingsPatchCall struct {
 	header_     http.Header
 }
 
-// Patch: Updates the Lia settings of the account. This method supports
+// Patch: Updates the LIA settings of the account. This method supports
 // patch semantics.
 func (r *LiasettingsService) Patch(merchantId uint64, accountId uint64, liasettings *LiaSettings) *LiasettingsPatchCall {
 	c := &LiasettingsPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -14147,7 +14155,7 @@ func (c *LiasettingsPatchCall) Do(opts ...googleapi.CallOption) (*LiaSettings, e
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the Lia settings of the account. This method supports patch semantics.",
+	//   "description": "Updates the LIA settings of the account. This method supports patch semantics.",
 	//   "httpMethod": "PATCH",
 	//   "id": "content.liasettings.patch",
 	//   "parameterOrder": [
@@ -14156,7 +14164,7 @@ func (c *LiasettingsPatchCall) Do(opts ...googleapi.CallOption) (*LiaSettings, e
 	//   ],
 	//   "parameters": {
 	//     "accountId": {
-	//       "description": "The ID of the account for which to get/update Lia settings.",
+	//       "description": "The ID of the account for which to get or update LIA settings.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -14200,7 +14208,7 @@ type LiasettingsRequestgmbaccessCall struct {
 	header_    http.Header
 }
 
-// Requestgmbaccess: Requests access to a specified Google By Business
+// Requestgmbaccess: Requests access to a specified Google My Business
 // account.
 func (r *LiasettingsService) Requestgmbaccess(merchantId uint64, accountId uint64) *LiasettingsRequestgmbaccessCall {
 	c := &LiasettingsRequestgmbaccessCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -14210,7 +14218,7 @@ func (r *LiasettingsService) Requestgmbaccess(merchantId uint64, accountId uint6
 }
 
 // GmbEmail sets the optional parameter "gmbEmail": The email of the
-// Google My Business Account.
+// Google My Business account.
 func (c *LiasettingsRequestgmbaccessCall) GmbEmail(gmbEmail string) *LiasettingsRequestgmbaccessCall {
 	c.urlParams_.Set("gmbEmail", gmbEmail)
 	return c
@@ -14299,7 +14307,7 @@ func (c *LiasettingsRequestgmbaccessCall) Do(opts ...googleapi.CallOption) (*Lia
 	}
 	return ret, nil
 	// {
-	//   "description": "Requests access to a specified Google By Business account.",
+	//   "description": "Requests access to a specified Google My Business account.",
 	//   "httpMethod": "POST",
 	//   "id": "content.liasettings.requestgmbaccess",
 	//   "parameterOrder": [
@@ -14315,7 +14323,7 @@ func (c *LiasettingsRequestgmbaccessCall) Do(opts ...googleapi.CallOption) (*Lia
 	//       "type": "string"
 	//     },
 	//     "gmbEmail": {
-	//       "description": "The email of the Google My Business Account.",
+	//       "description": "The email of the Google My Business account.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -14350,8 +14358,8 @@ type LiasettingsRequestinventoryverificationCall struct {
 	header_    http.Header
 }
 
-// Requestinventoryverification: Requests the inventory validation for
-// the specified country.
+// Requestinventoryverification: Requests inventory validation for the
+// specified country.
 func (r *LiasettingsService) Requestinventoryverification(merchantId uint64, accountId uint64, country string) *LiasettingsRequestinventoryverificationCall {
 	c := &LiasettingsRequestinventoryverificationCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -14445,7 +14453,7 @@ func (c *LiasettingsRequestinventoryverificationCall) Do(opts ...googleapi.CallO
 	}
 	return ret, nil
 	// {
-	//   "description": "Requests the inventory validation for the specified country.",
+	//   "description": "Requests inventory validation for the specified country.",
 	//   "httpMethod": "POST",
 	//   "id": "content.liasettings.requestinventoryverification",
 	//   "parameterOrder": [
@@ -14462,7 +14470,7 @@ func (c *LiasettingsRequestinventoryverificationCall) Do(opts ...googleapi.CallO
 	//       "type": "string"
 	//     },
 	//     "country": {
-	//       "description": "The country for which the inventory validation is requested.",
+	//       "description": "The country for which inventory validation is requested.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -14497,8 +14505,8 @@ type LiasettingsSetinventoryverificationcontactCall struct {
 	header_    http.Header
 }
 
-// Setinventoryverificationcontact: Sets the inventory validation
-// verification for the specified country.
+// Setinventoryverificationcontact: Sets the inventory verification
+// contract for the specified country.
 func (r *LiasettingsService) Setinventoryverificationcontact(merchantId uint64, accountId uint64) *LiasettingsSetinventoryverificationcontactCall {
 	c := &LiasettingsSetinventoryverificationcontactCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -14507,7 +14515,7 @@ func (r *LiasettingsService) Setinventoryverificationcontact(merchantId uint64, 
 }
 
 // ContactEmail sets the optional parameter "contactEmail": The email of
-// the inventory check contact.
+// the inventory verification contact.
 func (c *LiasettingsSetinventoryverificationcontactCall) ContactEmail(contactEmail string) *LiasettingsSetinventoryverificationcontactCall {
 	c.urlParams_.Set("contactEmail", contactEmail)
 	return c
@@ -14521,14 +14529,14 @@ func (c *LiasettingsSetinventoryverificationcontactCall) ContactName(contactName
 }
 
 // Country sets the optional parameter "country": The country for which
-// the inventory verification is requested.
+// inventory verification is requested.
 func (c *LiasettingsSetinventoryverificationcontactCall) Country(country string) *LiasettingsSetinventoryverificationcontactCall {
 	c.urlParams_.Set("country", country)
 	return c
 }
 
-// Language sets the optional parameter "language": The country for
-// which the inventory verification is requested.
+// Language sets the optional parameter "language": The language for
+// which inventory verification is requested.
 func (c *LiasettingsSetinventoryverificationcontactCall) Language(language string) *LiasettingsSetinventoryverificationcontactCall {
 	c.urlParams_.Set("language", language)
 	return c
@@ -14618,7 +14626,7 @@ func (c *LiasettingsSetinventoryverificationcontactCall) Do(opts ...googleapi.Ca
 	}
 	return ret, nil
 	// {
-	//   "description": "Sets the inventory validation verification for the specified country.",
+	//   "description": "Sets the inventory verification contract for the specified country.",
 	//   "httpMethod": "POST",
 	//   "id": "content.liasettings.setinventoryverificationcontact",
 	//   "parameterOrder": [
@@ -14634,7 +14642,7 @@ func (c *LiasettingsSetinventoryverificationcontactCall) Do(opts ...googleapi.Ca
 	//       "type": "string"
 	//     },
 	//     "contactEmail": {
-	//       "description": "The email of the inventory check contact.",
+	//       "description": "The email of the inventory verification contact.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -14644,12 +14652,12 @@ func (c *LiasettingsSetinventoryverificationcontactCall) Do(opts ...googleapi.Ca
 	//       "type": "string"
 	//     },
 	//     "country": {
-	//       "description": "The country for which the inventory verification is requested.",
+	//       "description": "The country for which inventory verification is requested.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "language": {
-	//       "description": "The country for which the inventory verification is requested.",
+	//       "description": "The language for which inventory verification is requested.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -14684,7 +14692,7 @@ type LiasettingsUpdateCall struct {
 	header_     http.Header
 }
 
-// Update: Updates the Lia settings of the account.
+// Update: Updates the LIA settings of the account.
 func (r *LiasettingsService) Update(merchantId uint64, accountId uint64, liasettings *LiaSettings) *LiasettingsUpdateCall {
 	c := &LiasettingsUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -14787,7 +14795,7 @@ func (c *LiasettingsUpdateCall) Do(opts ...googleapi.CallOption) (*LiaSettings, 
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the Lia settings of the account.",
+	//   "description": "Updates the LIA settings of the account.",
 	//   "httpMethod": "PUT",
 	//   "id": "content.liasettings.update",
 	//   "parameterOrder": [
@@ -14796,7 +14804,7 @@ func (c *LiasettingsUpdateCall) Do(opts ...googleapi.CallOption) (*LiaSettings, 
 	//   ],
 	//   "parameters": {
 	//     "accountId": {
-	//       "description": "The ID of the account for which to get/update Lia settings.",
+	//       "description": "The ID of the account for which to get or update LIA settings.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18106,7 +18114,7 @@ func (c *PosDeleteCall) Do(opts ...googleapi.CallOption) error {
 	//       "type": "boolean"
 	//     },
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18262,7 +18270,7 @@ func (c *PosGetCall) Do(opts ...googleapi.CallOption) (*PosStore, error) {
 	//   ],
 	//   "parameters": {
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18422,7 +18430,7 @@ func (c *PosInsertCall) Do(opts ...googleapi.CallOption) (*PosStore, error) {
 	//       "type": "boolean"
 	//     },
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18579,7 +18587,7 @@ func (c *PosInventoryCall) Do(opts ...googleapi.CallOption) (*PosInventoryRespon
 	//       "type": "boolean"
 	//     },
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18731,7 +18739,7 @@ func (c *PosListCall) Do(opts ...googleapi.CallOption) (*PosListResponse, error)
 	//   ],
 	//   "parameters": {
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,
@@ -18885,7 +18893,7 @@ func (c *PosSaleCall) Do(opts ...googleapi.CallOption) (*PosSaleResponse, error)
 	//       "type": "boolean"
 	//     },
 	//     "merchantId": {
-	//       "description": "The ID of the POS provider.",
+	//       "description": "The ID of the POS or inventory data provider.",
 	//       "format": "uint64",
 	//       "location": "path",
 	//       "required": true,

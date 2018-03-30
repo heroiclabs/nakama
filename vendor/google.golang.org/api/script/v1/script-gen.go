@@ -1,4 +1,4 @@
-// Package script provides access to the Google Apps Script API.
+// Package script provides access to the Apps Script API.
 //
 // See https://developers.google.com/apps-script/api/
 //

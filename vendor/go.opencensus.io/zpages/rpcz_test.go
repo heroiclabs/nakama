@@ -17,80 +17,15 @@ package zpages
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"log"
-	"net"
 	"testing"
 	"time"
 
 	"go.opencensus.io/internal/testpb"
-	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/stats/view"
-	"google.golang.org/grpc"
 )
 
-type testServer struct{}
-
-var _ testpb.FooServer = (*testServer)(nil)
-
-func (s *testServer) Single(ctx context.Context, in *testpb.FooRequest) (*testpb.FooResponse, error) {
-	if in.Fail {
-		return nil, fmt.Errorf("request failed")
-	}
-	return &testpb.FooResponse{}, nil
-}
-
-func (s *testServer) Multiple(stream testpb.Foo_MultipleServer) error {
-	for {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if in.Fail {
-			return fmt.Errorf("request failed")
-		}
-		if err := stream.Send(&testpb.FooResponse{}); err != nil {
-			return err
-		}
-	}
-}
-
-func newClientAndServer() (client testpb.FooClient, server *grpc.Server, cleanup func()) {
-	// initialize server
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		log.Fatal(err)
-	}
-	server = grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
-	testpb.RegisterFooServer(server, &testServer{})
-	go server.Serve(listener)
-
-	// Initialize client.
-	clientConn, err := grpc.Dial(
-		listener.Addr().String(),
-		grpc.WithInsecure(),
-		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
-		grpc.WithBlock())
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	client = testpb.NewFooClient(clientConn)
-
-	cleanup = func() {
-		server.GracefulStop()
-		clientConn.Close()
-	}
-
-	return client, server, cleanup
-}
-
 func TestRpcz(t *testing.T) {
-	client, _, cleanup := newClientAndServer()
+	client, cleanup := testpb.NewTestClient(t)
 	defer cleanup()
 
 	_, err := client.Single(context.Background(), &testpb.FooRequest{})

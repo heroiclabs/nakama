@@ -141,6 +141,40 @@
         }
       }
     },
+    "locations": {
+      "resources": {
+        "operations": {
+          "methods": {
+            "get": {
+              "description": "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice.",
+              "flatPath": "v1/locations/{locationsId}/operations/{operationsId}",
+              "httpMethod": "GET",
+              "id": "vision.locations.operations.get",
+              "parameterOrder": [
+                "name"
+              ],
+              "parameters": {
+                "name": {
+                  "description": "The name of the operation resource.",
+                  "location": "path",
+                  "pattern": "^locations/[^/]+/operations/[^/]+$",
+                  "required": true,
+                  "type": "string"
+                }
+              },
+              "path": "v1/{+name}",
+              "response": {
+                "$ref": "Operation"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform",
+                "https://www.googleapis.com/auth/cloud-vision"
+              ]
+            }
+          }
+        }
+      }
+    },
     "operations": {
       "methods": {
         "cancel": {
@@ -210,7 +244,7 @@
             "name": {
               "description": "The name of the operation resource.",
               "location": "path",
-              "pattern": "^operations/.+$",
+              "pattern": "^operations/[^/]+$",
               "required": true,
               "type": "string"
             }
@@ -269,7 +303,7 @@
       }
     }
   },
-  "revision": "20180221",
+  "revision": "20180327",
   "rootUrl": "https://vision.googleapis.com/",
   "schemas": {
     "AnnotateImageRequest": {
@@ -1025,7 +1059,7 @@
         },
         "latLongRect": {
           "$ref": "LatLongRect",
-          "description": "lat/long rectangle that specifies the location of the image."
+          "description": "Not used."
         },
         "webDetectionParams": {
           "$ref": "WebDetectionParams",
@@ -1732,7 +1766,7 @@
     }
   },
   "servicePath": "",
-  "title": "Google Cloud Vision API",
+  "title": "Cloud Vision API",
   "version": "v1",
   "version_module": true
 }

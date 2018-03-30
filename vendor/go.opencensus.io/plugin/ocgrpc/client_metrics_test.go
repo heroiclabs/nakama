@@ -30,7 +30,7 @@ func TestViewsAggregationsConform(t *testing.T) {
 	// https://github.com/census-instrumentation/opencensus-java/blob/2b464864e3dd3f80e8e4c9dc72fccc225444a939/contrib/grpc_metrics/src/main/java/io/opencensus/contrib/grpc/metrics/RpcViewConstants.java#L113-L658
 	// Add any other defined views to be type checked during tests to ensure we don't regress.
 
-	assertTypeOf := func(v *view.View, wantSample view.Aggregation) {
+	assertTypeOf := func(v *view.View, wantSample *view.Aggregation) {
 		aggregation := v.Aggregation
 		gotValue := reflect.ValueOf(aggregation)
 		wantValue := reflect.ValueOf(wantSample)
@@ -40,12 +40,12 @@ func TestViewsAggregationsConform(t *testing.T) {
 		}
 	}
 
-	assertTypeOf(ClientErrorCountView, view.MeanAggregation{})
-	assertTypeOf(ClientRoundTripLatencyView, view.DistributionAggregation{})
-	assertTypeOf(ClientRequestBytesView, view.DistributionAggregation{})
-	assertTypeOf(ClientResponseBytesView, view.DistributionAggregation{})
-	assertTypeOf(ClientRequestCountView, view.DistributionAggregation{})
-	assertTypeOf(ClientResponseCountView, view.DistributionAggregation{})
+	assertTypeOf(ClientErrorCountView, view.Mean())
+	assertTypeOf(ClientRoundTripLatencyView, view.Distribution())
+	assertTypeOf(ClientRequestBytesView, view.Distribution())
+	assertTypeOf(ClientResponseBytesView, view.Distribution())
+	assertTypeOf(ClientRequestCountView, view.Distribution())
+	assertTypeOf(ClientResponseCountView, view.Distribution())
 }
 
 func TestStrictViewNames(t *testing.T) {

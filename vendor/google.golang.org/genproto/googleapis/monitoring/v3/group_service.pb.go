@@ -8,7 +8,7 @@ import fmt "fmt"
 import math "math"
 import _ "google.golang.org/genproto/googleapis/api/annotations"
 import google_api4 "google.golang.org/genproto/googleapis/api/monitoredres"
-import google_protobuf4 "github.com/golang/protobuf/ptypes/empty"
+import google_protobuf5 "github.com/golang/protobuf/ptypes/empty"
 
 import (
 	context "golang.org/x/net/context"
@@ -45,7 +45,7 @@ type ListGroupsRequest struct {
 func (m *ListGroupsRequest) Reset()                    { *m = ListGroupsRequest{} }
 func (m *ListGroupsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListGroupsRequest) ProtoMessage()               {}
-func (*ListGroupsRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{0} }
+func (*ListGroupsRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{0} }
 
 type isListGroupsRequest_Filter interface {
 	isListGroupsRequest_Filter()
@@ -208,7 +208,7 @@ type ListGroupsResponse struct {
 func (m *ListGroupsResponse) Reset()                    { *m = ListGroupsResponse{} }
 func (m *ListGroupsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListGroupsResponse) ProtoMessage()               {}
-func (*ListGroupsResponse) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{1} }
+func (*ListGroupsResponse) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{1} }
 
 func (m *ListGroupsResponse) GetGroup() []*Group {
 	if m != nil {
@@ -234,7 +234,7 @@ type GetGroupRequest struct {
 func (m *GetGroupRequest) Reset()                    { *m = GetGroupRequest{} }
 func (m *GetGroupRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetGroupRequest) ProtoMessage()               {}
-func (*GetGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{2} }
+func (*GetGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{2} }
 
 func (m *GetGroupRequest) GetName() string {
 	if m != nil {
@@ -258,7 +258,7 @@ type CreateGroupRequest struct {
 func (m *CreateGroupRequest) Reset()                    { *m = CreateGroupRequest{} }
 func (m *CreateGroupRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateGroupRequest) ProtoMessage()               {}
-func (*CreateGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{3} }
+func (*CreateGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{3} }
 
 func (m *CreateGroupRequest) GetName() string {
 	if m != nil {
@@ -293,7 +293,7 @@ type UpdateGroupRequest struct {
 func (m *UpdateGroupRequest) Reset()                    { *m = UpdateGroupRequest{} }
 func (m *UpdateGroupRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateGroupRequest) ProtoMessage()               {}
-func (*UpdateGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{4} }
+func (*UpdateGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{4} }
 
 func (m *UpdateGroupRequest) GetGroup() *Group {
 	if m != nil {
@@ -319,7 +319,7 @@ type DeleteGroupRequest struct {
 func (m *DeleteGroupRequest) Reset()                    { *m = DeleteGroupRequest{} }
 func (m *DeleteGroupRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteGroupRequest) ProtoMessage()               {}
-func (*DeleteGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{5} }
+func (*DeleteGroupRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{5} }
 
 func (m *DeleteGroupRequest) GetName() string {
 	if m != nil {
@@ -357,7 +357,7 @@ type ListGroupMembersRequest struct {
 func (m *ListGroupMembersRequest) Reset()                    { *m = ListGroupMembersRequest{} }
 func (m *ListGroupMembersRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListGroupMembersRequest) ProtoMessage()               {}
-func (*ListGroupMembersRequest) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{6} }
+func (*ListGroupMembersRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{6} }
 
 func (m *ListGroupMembersRequest) GetName() string {
 	if m != nil {
@@ -409,7 +409,7 @@ type ListGroupMembersResponse struct {
 func (m *ListGroupMembersResponse) Reset()                    { *m = ListGroupMembersResponse{} }
 func (m *ListGroupMembersResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListGroupMembersResponse) ProtoMessage()               {}
-func (*ListGroupMembersResponse) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{7} }
+func (*ListGroupMembersResponse) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{7} }
 
 func (m *ListGroupMembersResponse) GetMembers() []*google_api4.MonitoredResource {
 	if m != nil {
@@ -464,7 +464,7 @@ type GroupServiceClient interface {
 	// You can change any group attributes except `name`.
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*Group, error)
 	// Deletes an existing group.
-	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error)
+	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error)
 	// Lists the monitored resources that are members of a group.
 	ListGroupMembers(ctx context.Context, in *ListGroupMembersRequest, opts ...grpc.CallOption) (*ListGroupMembersResponse, error)
 }
@@ -513,8 +513,8 @@ func (c *groupServiceClient) UpdateGroup(ctx context.Context, in *UpdateGroupReq
 	return out, nil
 }
 
-func (c *groupServiceClient) DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error) {
-	out := new(google_protobuf4.Empty)
+func (c *groupServiceClient) DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error) {
+	out := new(google_protobuf5.Empty)
 	err := grpc.Invoke(ctx, "/google.monitoring.v3.GroupService/DeleteGroup", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -544,7 +544,7 @@ type GroupServiceServer interface {
 	// You can change any group attributes except `name`.
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*Group, error)
 	// Deletes an existing group.
-	DeleteGroup(context.Context, *DeleteGroupRequest) (*google_protobuf4.Empty, error)
+	DeleteGroup(context.Context, *DeleteGroupRequest) (*google_protobuf5.Empty, error)
 	// Lists the monitored resources that are members of a group.
 	ListGroupMembers(context.Context, *ListGroupMembersRequest) (*ListGroupMembersResponse, error)
 }
@@ -694,9 +694,9 @@ var _GroupService_serviceDesc = grpc.ServiceDesc{
 	Metadata: "google/monitoring/v3/group_service.proto",
 }
 
-func init() { proto.RegisterFile("google/monitoring/v3/group_service.proto", fileDescriptor2) }
+func init() { proto.RegisterFile("google/monitoring/v3/group_service.proto", fileDescriptor4) }
 
-var fileDescriptor2 = []byte{
+var fileDescriptor4 = []byte{
 	// 826 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0x4d, 0x6f, 0xd3, 0x4c,
 	0x10, 0x7e, 0xdd, 0xa4, 0x69, 0xb2, 0x69, 0xd5, 0x76, 0x55, 0xf5, 0x8d, 0xdc, 0x0f, 0x05, 0xf7,

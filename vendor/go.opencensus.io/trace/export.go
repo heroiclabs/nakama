@@ -58,6 +58,7 @@ func UnregisterExporter(e Exporter) {
 type SpanData struct {
 	SpanContext
 	ParentSpanID SpanID
+	SpanKind     int
 	Name         string
 	StartTime    time.Time
 	// The wall clock time of EndTime will be adjusted to always be offset

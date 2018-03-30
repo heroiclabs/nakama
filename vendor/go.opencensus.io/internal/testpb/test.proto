@@ -4,6 +4,7 @@ package testpb;
 
 message FooRequest {
   bool fail = 1;
+  int64 sleep_nanos = 2;
 }
 
 message FooResponse {

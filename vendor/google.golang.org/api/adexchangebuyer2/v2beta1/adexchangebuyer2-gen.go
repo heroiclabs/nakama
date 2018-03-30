@@ -1675,23 +1675,6 @@ type FilterSet struct {
 	//   "APP" - The ad impression appears in an app.
 	Environment string `json:"environment,omitempty"`
 
-	// Format: DEPRECATED: use repeated formats field instead.
-	// The format on which to filter; optional.
-	//
-	// Possible values:
-	//   "FORMAT_UNSPECIFIED" - A placeholder for an undefined format;
-	// indicates that no format filter
-	// will be applied.
-	//   "NATIVE_DISPLAY" - The ad impression is a native ad, and display
-	// (i.e. image) format.
-	//   "NATIVE_VIDEO" - The ad impression is a native ad, and video
-	// format.
-	//   "NON_NATIVE_DISPLAY" - The ad impression is not a native ad, and
-	// display (i.e. image) format.
-	//   "NON_NATIVE_VIDEO" - The ad impression is not a native ad, and
-	// video format.
-	Format string `json:"format,omitempty"`
-
 	// Formats: The list of formats on which to filter; may be empty. The
 	// filters
 	// represented by multiple formats are ORed together (i.e. if

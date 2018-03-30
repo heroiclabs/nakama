@@ -30,7 +30,7 @@ type matchDataFilter struct {
 }
 
 func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
-	matchID := uuid.NewV4()
+	matchID := uuid.Must(uuid.NewV4())
 
 	username := session.Username()
 

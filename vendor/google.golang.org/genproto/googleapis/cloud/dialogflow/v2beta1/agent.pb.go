@@ -250,8 +250,7 @@ func (m *Agent) GetClassificationThreshold() float32 {
 	return 0
 }
 
-// The request message for
-// [Agents.GetAgent][google.cloud.dialogflow.v2beta1.Agents.GetAgent].
+// The request message for [Agents.GetAgent][google.cloud.dialogflow.v2beta1.Agents.GetAgent].
 type GetAgentRequest struct {
 	// Required. The project that the agent to fetch is associated with.
 	// Format: `projects/<Project ID>`.
@@ -270,8 +269,7 @@ func (m *GetAgentRequest) GetParent() string {
 	return ""
 }
 
-// The request message for
-// [Agents.SearchAgents][google.cloud.dialogflow.v2beta1.Agents.SearchAgents].
+// The request message for [Agents.SearchAgents][google.cloud.dialogflow.v2beta1.Agents.SearchAgents].
 type SearchAgentsRequest struct {
 	// Required. The project to list agents from.
 	// Format: `projects/<Project ID or '-'>`.
@@ -309,8 +307,7 @@ func (m *SearchAgentsRequest) GetPageToken() string {
 	return ""
 }
 
-// The response message for
-// [Agents.SearchAgents][google.cloud.dialogflow.v2beta1.Agents.SearchAgents].
+// The response message for [Agents.SearchAgents][google.cloud.dialogflow.v2beta1.Agents.SearchAgents].
 type SearchAgentsResponse struct {
 	// The list of agents. There will be a maximum number of items returned based
 	// on the page_size field in the request.
@@ -339,8 +336,7 @@ func (m *SearchAgentsResponse) GetNextPageToken() string {
 	return ""
 }
 
-// The request message for
-// [Agents.TrainAgent][google.cloud.dialogflow.v2beta1.Agents.TrainAgent].
+// The request message for [Agents.TrainAgent][google.cloud.dialogflow.v2beta1.Agents.TrainAgent].
 type TrainAgentRequest struct {
 	// Required. The project that the agent to train is associated with.
 	// Format: `projects/<Project ID>`.
@@ -359,14 +355,11 @@ func (m *TrainAgentRequest) GetParent() string {
 	return ""
 }
 
-// The request message for
-// [Agents.ExportAgent][google.cloud.dialogflow.v2beta1.Agents.ExportAgent].
+// The request message for [Agents.ExportAgent][google.cloud.dialogflow.v2beta1.Agents.ExportAgent].
 type ExportAgentRequest struct {
 	// Required. The project that the agent to export is associated with.
 	// Format: `projects/<Project ID>`.
 	Parent string `protobuf:"bytes,1,opt,name=parent" json:"parent,omitempty"`
-	// Warning: Exporting agents to a URI is not implemented yet.
-	// This feature is coming soon.
 	// Optional. The Google Cloud Storage URI to export the agent to.
 	// Note: The URI must start with
 	// "gs://". If left unspecified, the serialized agent is returned inline.
@@ -392,8 +385,7 @@ func (m *ExportAgentRequest) GetAgentUri() string {
 	return ""
 }
 
-// The response message for
-// [Agents.ExportAgent][google.cloud.dialogflow.v2beta1.Agents.ExportAgent].
+// The response message for [Agents.ExportAgent][google.cloud.dialogflow.v2beta1.Agents.ExportAgent].
 type ExportAgentResponse struct {
 	// Required. The exported agent.
 	//
@@ -509,8 +501,7 @@ func _ExportAgentResponse_OneofSizer(msg proto.Message) (n int) {
 	return n
 }
 
-// The request message for
-// [Agents.ImportAgent][google.cloud.dialogflow.v2beta1.Agents.ImportAgent].
+// The request message for [Agents.ImportAgent][google.cloud.dialogflow.v2beta1.Agents.ImportAgent].
 type ImportAgentRequest struct {
 	// Required. The project that the agent to import is associated with.
 	// Format: `projects/<Project ID>`.
@@ -636,8 +627,7 @@ func _ImportAgentRequest_OneofSizer(msg proto.Message) (n int) {
 	return n
 }
 
-// The request message for
-// [Agents.RestoreAgent][google.cloud.dialogflow.v2beta1.Agents.RestoreAgent].
+// The request message for [Agents.RestoreAgent][google.cloud.dialogflow.v2beta1.Agents.RestoreAgent].
 type RestoreAgentRequest struct {
 	// Required. The project that the agent to restore is associated with.
 	// Format: `projects/<Project ID>`.
@@ -806,8 +796,7 @@ type AgentsClient interface {
 	// Exports the specified agent to a ZIP file.
 	//
 	//
-	// Operation <response:
-	// [ExportAgentResponse][google.cloud.dialogflow.v2beta1.ExportAgentResponse],
+	// Operation <response: [ExportAgentResponse][google.cloud.dialogflow.v2beta1.ExportAgentResponse],
 	//            metadata: [google.protobuf.Struct][google.protobuf.Struct]>
 	ExportAgent(ctx context.Context, in *ExportAgentRequest, opts ...grpc.CallOption) (*google_longrunning.Operation, error)
 	// Imports the specified agent from a ZIP file.
@@ -915,8 +904,7 @@ type AgentsServer interface {
 	// Exports the specified agent to a ZIP file.
 	//
 	//
-	// Operation <response:
-	// [ExportAgentResponse][google.cloud.dialogflow.v2beta1.ExportAgentResponse],
+	// Operation <response: [ExportAgentResponse][google.cloud.dialogflow.v2beta1.ExportAgentResponse],
 	//            metadata: [google.protobuf.Struct][google.protobuf.Struct]>
 	ExportAgent(context.Context, *ExportAgentRequest) (*google_longrunning.Operation, error)
 	// Imports the specified agent from a ZIP file.

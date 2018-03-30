@@ -94,6 +94,8 @@ func Subscribe(views ...*View) error {
 
 // Unsubscribe the given views. Data will not longer be exported for these views
 // after Unsubscribe returns.
+// It is not necessary to unsubscribe from views you expect to collect for the
+// duration of your program execution.
 func Unsubscribe(views ...*View) {
 	names := make([]string, len(views))
 	for i := range views {

@@ -122,7 +122,7 @@ func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, use
 			subject = fmt.Sprintf("%v accepted your friend request", username)
 		}
 		notifications[uid] = []*api.Notification{{
-			Id:         uuid.NewV4().String(),
+			Id:         uuid.Must(uuid.NewV4()).String(),
 			Subject:    subject,
 			Content:    string(content),
 			SenderId:   userID.String(),

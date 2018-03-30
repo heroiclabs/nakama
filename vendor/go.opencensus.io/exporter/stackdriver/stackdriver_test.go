@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opencensus.io/internal/testpb"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
@@ -80,4 +81,29 @@ func TestExport(t *testing.T) {
 	// Flush twice to expose issue of exporter creating traces internally (#557)
 	exporter.Flush()
 	exporter.Flush()
+}
+
+func TestGRPC(t *testing.T) {
+	projectID, ok := os.LookupEnv("STACKDRIVER_TEST_PROJECT_ID")
+	if !ok {
+		t.Skip("STACKDRIVER_TEST_PROJECT_ID not set")
+	}
+
+	exporter, err := NewExporter(Options{ProjectID: projectID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer exporter.Flush()
+
+	trace.RegisterExporter(exporter)
+	defer trace.UnregisterExporter(exporter)
+	view.RegisterExporter(exporter)
+	defer view.UnregisterExporter(exporter)
+
+	trace.SetDefaultSampler(trace.AlwaysSample())
+
+	client, done := testpb.NewTestClient(t)
+	defer done()
+
+	client.Single(context.Background(), &testpb.FooRequest{SleepNanos: int64(42 * time.Millisecond)})
 }

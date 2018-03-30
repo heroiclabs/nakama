@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/status"
 
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 
@@ -125,7 +126,7 @@ func TestRunTransaction(t *testing.T) {
 	// Retry entire transaction.
 	srv.reset()
 	srv.addRPC(beginReq, beginRes)
-	srv.addRPC(commitReq, grpc.Errorf(codes.Aborted, ""))
+	srv.addRPC(commitReq, status.Errorf(codes.Aborted, ""))
 	srv.addRPC(
 		&pb.BeginTransactionRequest{
 			Database: db,
@@ -150,7 +151,7 @@ func TestTransactionErrors(t *testing.T) {
 	c, srv := newMock(t)
 	var (
 		tid         = []byte{1}
-		internalErr = grpc.Errorf(codes.Internal, "so sad")
+		internalErr = status.Errorf(codes.Internal, "so sad")
 		beginReq    = &pb.BeginTransactionRequest{
 			Database: db,
 		}
@@ -189,7 +190,7 @@ func TestTransactionErrors(t *testing.T) {
 	srv.reset()
 	srv.addRPC(beginReq, beginRes)
 	srv.addRPC(getReq, internalErr)
-	srv.addRPC(rollbackReq, grpc.Errorf(codes.FailedPrecondition, ""))
+	srv.addRPC(rollbackReq, status.Errorf(codes.FailedPrecondition, ""))
 	err = c.RunTransaction(ctx, get)
 	if grpc.Code(err) != codes.Internal {
 		t.Errorf("got <%v>, want Internal", err)
@@ -275,7 +276,7 @@ func TestTransactionErrors(t *testing.T) {
 	// Too many retries.
 	srv.reset()
 	srv.addRPC(beginReq, beginRes)
-	srv.addRPC(commitReq, grpc.Errorf(codes.Aborted, ""))
+	srv.addRPC(commitReq, status.Errorf(codes.Aborted, ""))
 	srv.addRPC(
 		&pb.BeginTransactionRequest{
 			Database: db,
@@ -287,7 +288,7 @@ func TestTransactionErrors(t *testing.T) {
 		},
 		beginRes,
 	)
-	srv.addRPC(commitReq, grpc.Errorf(codes.Aborted, ""))
+	srv.addRPC(commitReq, status.Errorf(codes.Aborted, ""))
 	srv.addRPC(rollbackReq, &empty.Empty{})
 	err = c.RunTransaction(ctx, func(context.Context, *Transaction) error { return nil },
 		MaxAttempts(2))

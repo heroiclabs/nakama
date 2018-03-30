@@ -569,7 +569,7 @@ type Document struct {
 	// UpdateTime: Output only. The time at which the document was last
 	// changed.
 	//
-	// This value is initally set to the `create_time` then
+	// This value is initially set to the `create_time` then
 	// increases
 	// monotonically with each change to the document. It can also
 	// be

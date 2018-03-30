@@ -278,7 +278,7 @@ func (q *Query) newJob() (*bq.Job, error) {
 		return nil, err
 	}
 	return &bq.Job{
-		JobReference:  q.JobIDConfig.createJobRef(q.client.projectID),
+		JobReference:  q.JobIDConfig.createJobRef(q.client),
 		Configuration: config,
 	}, nil
 }

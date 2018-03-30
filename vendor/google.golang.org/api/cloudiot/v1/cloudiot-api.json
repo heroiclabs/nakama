@@ -557,7 +557,7 @@
                           "type": "string"
                         },
                         "updateMask": {
-                          "description": "Only updates the `device` fields indicated by this mask.\nThe field mask must not be empty, and it must not contain fields that\nare immutable or only set by the server.\nMutable top-level fields: `credentials`, `enabled_state`, and `metadata`",
+                          "description": "Only updates the `device` fields indicated by this mask.\nThe field mask must not be empty, and it must not contain fields that\nare immutable or only set by the server.\nMutable top-level fields: `credentials`, `blocked`, and `metadata`",
                           "format": "google-fieldmask",
                           "location": "query",
                           "type": "string"
@@ -658,7 +658,7 @@
       }
     }
   },
-  "revision": "20180227",
+  "revision": "20180314",
   "rootUrl": "https://cloudiot.googleapis.com/",
   "schemas": {
     "Binding": {

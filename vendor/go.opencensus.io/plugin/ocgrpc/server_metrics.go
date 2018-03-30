@@ -47,7 +47,7 @@ var (
 		Description: "RPC Errors",
 		TagKeys:     []tag.Key{KeyMethod, KeyStatus},
 		Measure:     ServerErrorCount,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ServerServerElapsedTimeView = &view.View{

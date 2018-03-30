@@ -311,7 +311,7 @@ func (m *Command_EnvironmentVariable) GetValue() string {
 	return ""
 }
 
-// A `Platform` is a set of requirements, such as hardware, operation system, or
+// A `Platform` is a set of requirements, such as hardware, operating system, or
 // compiler toolchain, for an
 // [Action][google.devtools.remoteexecution.v1test.Action]'s execution
 // environment. A `Platform` is represented as a series of key-value pairs
@@ -1274,7 +1274,6 @@ func (m *BatchUpdateBlobsResponse_Response) GetStatus() *google_rpc.Status {
 
 // A request message for
 // [ContentAddressableStorage.GetTree][google.devtools.remoteexecution.v1test.ContentAddressableStorage.GetTree].
-// This message is deprecated and should no longer be used.
 type GetTreeRequest struct {
 	// The instance of the execution system to operate against. A server may
 	// support multiple instances of the execution system (with their own workers,
@@ -1333,7 +1332,6 @@ func (m *GetTreeRequest) GetPageToken() string {
 
 // A response message for
 // [ContentAddressableStorage.GetTree][google.devtools.remoteexecution.v1test.ContentAddressableStorage.GetTree].
-// This message is deprecated and should no longer be used.
 type GetTreeResponse struct {
 	// The directories descended from the requested root.
 	Directories []*Directory `protobuf:"bytes,1,rep,name=directories" json:"directories,omitempty"`
@@ -1832,7 +1830,21 @@ type ContentAddressableStorageClient interface {
 	// [Digest][google.devtools.remoteexecution.v1test.Digest] does not match the
 	// provided data.
 	BatchUpdateBlobs(ctx context.Context, in *BatchUpdateBlobsRequest, opts ...grpc.CallOption) (*BatchUpdateBlobsResponse, error)
-	// DEPRECATED: This method is deprecated and should no longer be used.
+	// Fetch the entire directory tree rooted at a node.
+	//
+	// This request must be targeted at a
+	// [Directory][google.devtools.remoteexecution.v1test.Directory] stored in the
+	// [ContentAddressableStorage][google.devtools.remoteexecution.v1test.ContentAddressableStorage]
+	// (CAS). The server will enumerate the `Directory` tree recursively and
+	// return every node descended from the root.
+	// The exact traversal order is unspecified and, unless retrieving subsequent
+	// pages from an earlier request, is not guaranteed to be stable across
+	// multiple invocations of `GetTree`.
+	//
+	// If part of the tree is missing from the CAS, the server will return the
+	// portion present and omit the rest.
+	//
+	// * `NOT_FOUND`: The requested tree root is not present in the CAS.
 	GetTree(ctx context.Context, in *GetTreeRequest, opts ...grpc.CallOption) (*GetTreeResponse, error)
 }
 
@@ -1901,7 +1913,21 @@ type ContentAddressableStorageServer interface {
 	// [Digest][google.devtools.remoteexecution.v1test.Digest] does not match the
 	// provided data.
 	BatchUpdateBlobs(context.Context, *BatchUpdateBlobsRequest) (*BatchUpdateBlobsResponse, error)
-	// DEPRECATED: This method is deprecated and should no longer be used.
+	// Fetch the entire directory tree rooted at a node.
+	//
+	// This request must be targeted at a
+	// [Directory][google.devtools.remoteexecution.v1test.Directory] stored in the
+	// [ContentAddressableStorage][google.devtools.remoteexecution.v1test.ContentAddressableStorage]
+	// (CAS). The server will enumerate the `Directory` tree recursively and
+	// return every node descended from the root.
+	// The exact traversal order is unspecified and, unless retrieving subsequent
+	// pages from an earlier request, is not guaranteed to be stable across
+	// multiple invocations of `GetTree`.
+	//
+	// If part of the tree is missing from the CAS, the server will return the
+	// portion present and omit the rest.
+	//
+	// * `NOT_FOUND`: The requested tree root is not present in the CAS.
 	GetTree(context.Context, *GetTreeRequest) (*GetTreeResponse, error)
 }
 

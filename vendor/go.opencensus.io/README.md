@@ -45,7 +45,7 @@ you to instrument your services and collect diagnostics data all
 through your services end-to-end.
 
 Start with instrumenting HTTP and gRPC clients and servers,
-then add additional custom instrumentation.
+then add additional custom instrumentation if needed.
 
 * [HTTP guide](https://github.com/census-instrumentation/opencensus-go/tree/master/examples/http)
 * [gRPC guide](https://github.com/census-instrumentation/opencensus-go/tree/master/examples/grpc)
@@ -111,10 +111,10 @@ Currently four types of aggregations are supported:
 
 [embedmd]:# (stats.go aggs)
 ```go
-distAgg := view.DistributionAggregation{0, 1 << 32, 2 << 32, 3 << 32}
-countAgg := view.CountAggregation{}
-sumAgg := view.SumAggregation{}
-meanAgg := view.MeanAggregation{}
+distAgg := view.Distribution(0, 1<<32, 2<<32, 3<<32)
+countAgg := view.Count()
+sumAgg := view.Sum()
+meanAgg := view.Mean()
 ```
 
 Here we create a view with the DistributionAggregation over our measure.
@@ -125,7 +125,7 @@ if err = view.Subscribe(&view.View{
 	Name:        "my.org/video_size_distribution",
 	Description: "distribution of processed video size over time",
 	Measure:     videoSize,
-	Aggregation: view.DistributionAggregation([]float64{0, 1 << 32, 2 << 32, 3 << 32}),
+	Aggregation: view.Distribution(0, 1<<32, 2<<32, 3<<32),
 }); err != nil {
 	log.Fatalf("Failed to subscribe to view: %v", err)
 }

@@ -88,13 +88,13 @@ func TestExporter_makeReq(t *testing.T) {
 		Description: "desc",
 		TagKeys:     []tag.Key{key},
 		Measure:     m,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 	distView := &view.View{
 		Name:        "distview",
 		Description: "desc",
 		Measure:     m,
-		Aggregation: view.DistributionAggregation{2, 4, 7},
+		Aggregation: view.Distribution(2, 4, 7),
 	}
 
 	start := time.Now()
@@ -393,7 +393,7 @@ func TestExporter_makeReq_batching(t *testing.T) {
 		Description: "desc",
 		TagKeys:     []tag.Key{key},
 		Measure:     m,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	tests := []struct {
@@ -457,7 +457,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 	tests := []struct {
 		name    string
 		md      *metricpb.MetricDescriptor
-		agg     view.Aggregation
+		agg     *view.Aggregation
 		keys    []tag.Key
 		wantErr bool
 	}{
@@ -468,7 +468,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_INT64,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     view.CountAggregation{},
+			agg:     view.Count(),
 			wantErr: false,
 		},
 		{
@@ -478,7 +478,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_DOUBLE,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     view.SumAggregation{},
+			agg:     view.Sum(),
 			wantErr: false,
 		},
 		{
@@ -488,7 +488,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_DISTRIBUTION,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     view.MeanAggregation{},
+			agg:     view.Mean(),
 			wantErr: false,
 		},
 		{
@@ -498,7 +498,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_DISTRIBUTION,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     view.CountAggregation{},
+			agg:     view.Count(),
 			wantErr: true,
 		},
 		{
@@ -508,7 +508,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_DOUBLE,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     view.MeanAggregation{},
+			agg:     view.Mean(),
 			wantErr: true,
 		},
 		{
@@ -522,7 +522,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 					{Key: opencensusTaskKey},
 				},
 			},
-			agg:     view.DistributionAggregation{},
+			agg:     view.Distribution(),
 			keys:    []tag.Key{key1, key2},
 			wantErr: false,
 		},
@@ -532,7 +532,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
 				ValueType:  metricpb.MetricDescriptor_DISTRIBUTION,
 			},
-			agg:     view.DistributionAggregation{},
+			agg:     view.Distribution(),
 			keys:    []tag.Key{key1, key2},
 			wantErr: true,
 		},
@@ -543,7 +543,7 @@ func TestEqualAggWindowTagKeys(t *testing.T) {
 				ValueType:  metricpb.MetricDescriptor_INT64,
 				Labels:     []*label.LabelDescriptor{{Key: opencensusTaskKey}},
 			},
-			agg:     &view.CountAggregation{},
+			agg:     view.Count(),
 			wantErr: false,
 		},
 	}
@@ -581,7 +581,7 @@ func TestExporter_createMeasure(t *testing.T) {
 		Description: "desc",
 		TagKeys:     []tag.Key{key},
 		Measure:     m,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	data := view.CountData(0)
@@ -643,7 +643,7 @@ func TestExporter_makeReq_withCustomMonitoredResource(t *testing.T) {
 		Description: "desc",
 		TagKeys:     []tag.Key{key},
 		Measure:     m,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 	if err := view.Subscribe(v); err != nil {
 		t.Fatal(err)

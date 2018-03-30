@@ -225,7 +225,7 @@
         "locations": {
           "methods": {
             "get": {
-              "description": "Get information about a location.",
+              "description": "Gets information about a location.",
               "flatPath": "v1/projects/{projectsId}/locations/{locationsId}",
               "httpMethod": "GET",
               "id": "bigquerydatatransfer.projects.locations.get",
@@ -1156,7 +1156,7 @@
       }
     }
   },
-  "revision": "20180312",
+  "revision": "20180317",
   "rootUrl": "https://bigquerydatatransfer.googleapis.com/",
   "schemas": {
     "CheckValidCredsRequest": {

@@ -209,7 +209,7 @@ func (t *Transaction) Get(dr *DocumentRef) (*DocumentSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newDocumentSnapshot(dr, docProto, t.c)
+	return newDocumentSnapshot(dr, docProto, t.c, nil)
 }
 
 // GetAll retrieves multiple documents with a single call. The DocumentSnapshots are

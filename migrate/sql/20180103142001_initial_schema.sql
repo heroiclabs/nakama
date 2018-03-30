@@ -156,7 +156,20 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
   UNIQUE (owner_id, leaderboard_id, expiry_time)
 );
 
+CREATE TABLE IF NOT EXISTS wallet_ledger (
+  PRIMARY KEY (user_id, create_time, id),
+  FOREIGN KEY (user_id) REFERENCES users (id),
+
+  id             UUID        UNIQUE NOT NULL,
+  user_id        UUID        NOT NULL,
+  changeset      JSONB       NOT NULL,
+  metadata       JSONB       NOT NULL,
+  create_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
+  update_time    TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
 -- +migrate Down
+DROP TABLE IF EXISTS wallet_ledger;
 DROP TABLE IF EXISTS leaderboard_record;
 DROP TABLE IF EXISTS leaderboard;
 DROP TABLE IF EXISTS message;

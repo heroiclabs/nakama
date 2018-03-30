@@ -9,7 +9,7 @@ import math "math"
 import _ "google.golang.org/genproto/googleapis/api/annotations"
 import google_api5 "google.golang.org/genproto/googleapis/api/metric"
 import google_api4 "google.golang.org/genproto/googleapis/api/monitoredres"
-import google_protobuf4 "github.com/golang/protobuf/ptypes/empty"
+import google_protobuf5 "github.com/golang/protobuf/ptypes/empty"
 import google_rpc "google.golang.org/genproto/googleapis/rpc/status"
 
 import (
@@ -47,7 +47,7 @@ func (x ListTimeSeriesRequest_TimeSeriesView) String() string {
 	return proto.EnumName(ListTimeSeriesRequest_TimeSeriesView_name, int32(x))
 }
 func (ListTimeSeriesRequest_TimeSeriesView) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor4, []int{8, 0}
+	return fileDescriptor6, []int{8, 0}
 }
 
 // The `ListMonitoredResourceDescriptors` request.
@@ -77,7 +77,7 @@ func (m *ListMonitoredResourceDescriptorsRequest) Reset() {
 func (m *ListMonitoredResourceDescriptorsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListMonitoredResourceDescriptorsRequest) ProtoMessage()    {}
 func (*ListMonitoredResourceDescriptorsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor4, []int{0}
+	return fileDescriptor6, []int{0}
 }
 
 func (m *ListMonitoredResourceDescriptorsRequest) GetName() string {
@@ -125,7 +125,7 @@ func (m *ListMonitoredResourceDescriptorsResponse) Reset() {
 func (m *ListMonitoredResourceDescriptorsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListMonitoredResourceDescriptorsResponse) ProtoMessage()    {}
 func (*ListMonitoredResourceDescriptorsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor4, []int{1}
+	return fileDescriptor6, []int{1}
 }
 
 func (m *ListMonitoredResourceDescriptorsResponse) GetResourceDescriptors() []*google_api4.MonitoredResourceDescriptor {
@@ -155,7 +155,7 @@ func (m *GetMonitoredResourceDescriptorRequest) Reset()         { *m = GetMonito
 func (m *GetMonitoredResourceDescriptorRequest) String() string { return proto.CompactTextString(m) }
 func (*GetMonitoredResourceDescriptorRequest) ProtoMessage()    {}
 func (*GetMonitoredResourceDescriptorRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor4, []int{2}
+	return fileDescriptor6, []int{2}
 }
 
 func (m *GetMonitoredResourceDescriptorRequest) GetName() string {
@@ -190,7 +190,7 @@ type ListMetricDescriptorsRequest struct {
 func (m *ListMetricDescriptorsRequest) Reset()                    { *m = ListMetricDescriptorsRequest{} }
 func (m *ListMetricDescriptorsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListMetricDescriptorsRequest) ProtoMessage()               {}
-func (*ListMetricDescriptorsRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{3} }
+func (*ListMetricDescriptorsRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{3} }
 
 func (m *ListMetricDescriptorsRequest) GetName() string {
 	if m != nil {
@@ -234,7 +234,7 @@ type ListMetricDescriptorsResponse struct {
 func (m *ListMetricDescriptorsResponse) Reset()                    { *m = ListMetricDescriptorsResponse{} }
 func (m *ListMetricDescriptorsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListMetricDescriptorsResponse) ProtoMessage()               {}
-func (*ListMetricDescriptorsResponse) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{4} }
+func (*ListMetricDescriptorsResponse) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{4} }
 
 func (m *ListMetricDescriptorsResponse) GetMetricDescriptors() []*google_api5.MetricDescriptor {
 	if m != nil {
@@ -262,7 +262,7 @@ type GetMetricDescriptorRequest struct {
 func (m *GetMetricDescriptorRequest) Reset()                    { *m = GetMetricDescriptorRequest{} }
 func (m *GetMetricDescriptorRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetMetricDescriptorRequest) ProtoMessage()               {}
-func (*GetMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{5} }
+func (*GetMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{5} }
 
 func (m *GetMetricDescriptorRequest) GetName() string {
 	if m != nil {
@@ -284,7 +284,7 @@ type CreateMetricDescriptorRequest struct {
 func (m *CreateMetricDescriptorRequest) Reset()                    { *m = CreateMetricDescriptorRequest{} }
 func (m *CreateMetricDescriptorRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateMetricDescriptorRequest) ProtoMessage()               {}
-func (*CreateMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{6} }
+func (*CreateMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{6} }
 
 func (m *CreateMetricDescriptorRequest) GetName() string {
 	if m != nil {
@@ -312,7 +312,7 @@ type DeleteMetricDescriptorRequest struct {
 func (m *DeleteMetricDescriptorRequest) Reset()                    { *m = DeleteMetricDescriptorRequest{} }
 func (m *DeleteMetricDescriptorRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteMetricDescriptorRequest) ProtoMessage()               {}
-func (*DeleteMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{7} }
+func (*DeleteMetricDescriptorRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{7} }
 
 func (m *DeleteMetricDescriptorRequest) GetName() string {
 	if m != nil {
@@ -362,7 +362,7 @@ type ListTimeSeriesRequest struct {
 func (m *ListTimeSeriesRequest) Reset()                    { *m = ListTimeSeriesRequest{} }
 func (m *ListTimeSeriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListTimeSeriesRequest) ProtoMessage()               {}
-func (*ListTimeSeriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{8} }
+func (*ListTimeSeriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{8} }
 
 func (m *ListTimeSeriesRequest) GetName() string {
 	if m != nil {
@@ -433,7 +433,7 @@ type ListTimeSeriesResponse struct {
 func (m *ListTimeSeriesResponse) Reset()                    { *m = ListTimeSeriesResponse{} }
 func (m *ListTimeSeriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListTimeSeriesResponse) ProtoMessage()               {}
-func (*ListTimeSeriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{9} }
+func (*ListTimeSeriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{9} }
 
 func (m *ListTimeSeriesResponse) GetTimeSeries() []*TimeSeries {
 	if m != nil {
@@ -465,7 +465,7 @@ type CreateTimeSeriesRequest struct {
 func (m *CreateTimeSeriesRequest) Reset()                    { *m = CreateTimeSeriesRequest{} }
 func (m *CreateTimeSeriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateTimeSeriesRequest) ProtoMessage()               {}
-func (*CreateTimeSeriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{10} }
+func (*CreateTimeSeriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{10} }
 
 func (m *CreateTimeSeriesRequest) GetName() string {
 	if m != nil {
@@ -495,7 +495,7 @@ type CreateTimeSeriesError struct {
 func (m *CreateTimeSeriesError) Reset()                    { *m = CreateTimeSeriesError{} }
 func (m *CreateTimeSeriesError) String() string            { return proto.CompactTextString(m) }
 func (*CreateTimeSeriesError) ProtoMessage()               {}
-func (*CreateTimeSeriesError) Descriptor() ([]byte, []int) { return fileDescriptor4, []int{11} }
+func (*CreateTimeSeriesError) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{11} }
 
 func (m *CreateTimeSeriesError) GetTimeSeries() *TimeSeries {
 	if m != nil {
@@ -552,14 +552,14 @@ type MetricServiceClient interface {
 	CreateMetricDescriptor(ctx context.Context, in *CreateMetricDescriptorRequest, opts ...grpc.CallOption) (*google_api5.MetricDescriptor, error)
 	// Deletes a metric descriptor. Only user-created
 	// [custom metrics](/monitoring/custom-metrics) can be deleted.
-	DeleteMetricDescriptor(ctx context.Context, in *DeleteMetricDescriptorRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error)
+	DeleteMetricDescriptor(ctx context.Context, in *DeleteMetricDescriptorRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error)
 	// Lists time series that match a filter. This method does not require a Stackdriver account.
 	ListTimeSeries(ctx context.Context, in *ListTimeSeriesRequest, opts ...grpc.CallOption) (*ListTimeSeriesResponse, error)
 	// Creates or adds data to one or more time series.
 	// The response is empty if all time series in the request were written.
 	// If any time series could not be written, a corresponding failure message is
 	// included in the error response.
-	CreateTimeSeries(ctx context.Context, in *CreateTimeSeriesRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error)
+	CreateTimeSeries(ctx context.Context, in *CreateTimeSeriesRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error)
 }
 
 type metricServiceClient struct {
@@ -615,8 +615,8 @@ func (c *metricServiceClient) CreateMetricDescriptor(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *metricServiceClient) DeleteMetricDescriptor(ctx context.Context, in *DeleteMetricDescriptorRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error) {
-	out := new(google_protobuf4.Empty)
+func (c *metricServiceClient) DeleteMetricDescriptor(ctx context.Context, in *DeleteMetricDescriptorRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error) {
+	out := new(google_protobuf5.Empty)
 	err := grpc.Invoke(ctx, "/google.monitoring.v3.MetricService/DeleteMetricDescriptor", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -633,8 +633,8 @@ func (c *metricServiceClient) ListTimeSeries(ctx context.Context, in *ListTimeSe
 	return out, nil
 }
 
-func (c *metricServiceClient) CreateTimeSeries(ctx context.Context, in *CreateTimeSeriesRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error) {
-	out := new(google_protobuf4.Empty)
+func (c *metricServiceClient) CreateTimeSeries(ctx context.Context, in *CreateTimeSeriesRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error) {
+	out := new(google_protobuf5.Empty)
 	err := grpc.Invoke(ctx, "/google.monitoring.v3.MetricService/CreateTimeSeries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -659,14 +659,14 @@ type MetricServiceServer interface {
 	CreateMetricDescriptor(context.Context, *CreateMetricDescriptorRequest) (*google_api5.MetricDescriptor, error)
 	// Deletes a metric descriptor. Only user-created
 	// [custom metrics](/monitoring/custom-metrics) can be deleted.
-	DeleteMetricDescriptor(context.Context, *DeleteMetricDescriptorRequest) (*google_protobuf4.Empty, error)
+	DeleteMetricDescriptor(context.Context, *DeleteMetricDescriptorRequest) (*google_protobuf5.Empty, error)
 	// Lists time series that match a filter. This method does not require a Stackdriver account.
 	ListTimeSeries(context.Context, *ListTimeSeriesRequest) (*ListTimeSeriesResponse, error)
 	// Creates or adds data to one or more time series.
 	// The response is empty if all time series in the request were written.
 	// If any time series could not be written, a corresponding failure message is
 	// included in the error response.
-	CreateTimeSeries(context.Context, *CreateTimeSeriesRequest) (*google_protobuf4.Empty, error)
+	CreateTimeSeries(context.Context, *CreateTimeSeriesRequest) (*google_protobuf5.Empty, error)
 }
 
 func RegisterMetricServiceServer(s *grpc.Server, srv MetricServiceServer) {
@@ -858,9 +858,9 @@ var _MetricService_serviceDesc = grpc.ServiceDesc{
 	Metadata: "google/monitoring/v3/metric_service.proto",
 }
 
-func init() { proto.RegisterFile("google/monitoring/v3/metric_service.proto", fileDescriptor4) }
+func init() { proto.RegisterFile("google/monitoring/v3/metric_service.proto", fileDescriptor6) }
 
-var fileDescriptor4 = []byte{
+var fileDescriptor6 = []byte{
 	// 1011 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x57, 0x4d, 0x6f, 0x1b, 0x45,
 	0x18, 0x66, 0x92, 0x34, 0x1f, 0xaf, 0xd5, 0x90, 0x4e, 0x5b, 0xd7, 0x6c, 0x13, 0xe4, 0x2e, 0x2a,

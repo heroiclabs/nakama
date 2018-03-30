@@ -39,6 +39,10 @@ type Options struct {
 	// For example, http://localhost:14268.
 	Endpoint string
 
+	// AgentEndpoint instructs exporter to send spans to jaeger-agent at this address.
+	// For example, localhost:6831.
+	AgentEndpoint string
+
 	// OnError is the hook to be called when there is
 	// an error occurred when uploading the stats data.
 	// If no custom hook is set, errors are logged.
@@ -61,10 +65,20 @@ type Options struct {
 // the collected spans to Jaeger.
 func NewExporter(o Options) (*Exporter, error) {
 	endpoint := o.Endpoint
-	if endpoint == "" {
+	if endpoint == "" && o.AgentEndpoint == "" {
 		return nil, errors.New("missing endpoint for Jaeger exporter")
 	}
-	endpoint = endpoint + "/api/traces?format=jaeger.thrift"
+
+	var client *agentClientUDP
+	var err error
+	if endpoint != "" {
+		endpoint = endpoint + "/api/traces?format=jaeger.thrift"
+	} else {
+		client, err = newAgentClientUDP(o.AgentEndpoint, udpPacketMaxLength)
+		if err != nil {
+			return nil, err
+		}
+	}
 	onError := func(err error) {
 		if o.OnError != nil {
 			o.OnError(err)
@@ -77,10 +91,12 @@ func NewExporter(o Options) (*Exporter, error) {
 		service = defaultServiceName
 	}
 	e := &Exporter{
-		endpoint: endpoint,
-		username: o.Username,
-		password: o.Password,
-		service:  service,
+		endpoint:      endpoint,
+		agentEndpoint: o.AgentEndpoint,
+		client:        client,
+		username:      o.Username,
+		password:      o.Password,
+		service:       service,
 	}
 	bundler := bundler.NewBundler((*gen.Span)(nil), func(bundle interface{}) {
 		if err := e.upload(bundle.([]*gen.Span)); err != nil {
@@ -93,35 +109,47 @@ func NewExporter(o Options) (*Exporter, error) {
 
 // Exporter is an implementation of trace.Exporter that uploads spans to Jaeger.
 type Exporter struct {
-	endpoint string
-	service  string
-	bundler  *bundler.Bundler
+	endpoint      string
+	agentEndpoint string
+	service       string
+	bundler       *bundler.Bundler
+	client        *agentClientUDP
 
 	username, password string
 }
 
 var _ trace.Exporter = (*Exporter)(nil)
 
-// TODO(jbd): Also implement propagation.HTTPFormat.
-
 // ExportSpan exports a SpanData to Jaeger.
 func (e *Exporter) ExportSpan(data *trace.SpanData) {
-	var tags []*gen.Tag
+	e.bundler.Add(spanDataToThrift(data), 1)
+	// TODO(jbd): Handle oversized bundlers.
+}
+
+func spanDataToThrift(data *trace.SpanData) *gen.Span {
+	tags := make([]*gen.Tag, 0, len(data.Attributes))
 	for k, v := range data.Attributes {
 		tag := attributeToTag(k, v)
 		if tag != nil {
 			tags = append(tags, tag)
 		}
 	}
+
+	tags = append(tags,
+		attributeToTag("status.code", data.Status.Code),
+		attributeToTag("status.message", data.Status.Message),
+	)
+
 	var logs []*gen.Log
 	for _, a := range data.Annotations {
-		var fields []*gen.Tag
+		fields := make([]*gen.Tag, 0, len(a.Attributes))
 		for k, v := range a.Attributes {
 			tag := attributeToTag(k, v)
 			if tag != nil {
-				fields = append(tags, tag)
+				fields = append(fields, tag)
 			}
 		}
+		fields = append(fields, attributeToTag("message", a.Message))
 		logs = append(logs, &gen.Log{
 			Timestamp: a.Time.UnixNano() / 1000,
 			Fields:    fields,
@@ -135,12 +163,12 @@ func (e *Exporter) ExportSpan(data *trace.SpanData) {
 			SpanId:      bytesToInt64(link.SpanID[:]),
 		})
 	}
-	span := &gen.Span{
+	return &gen.Span{
 		TraceIdHigh:   bytesToInt64(data.TraceID[0:8]),
 		TraceIdLow:    bytesToInt64(data.TraceID[8:16]),
 		SpanId:        bytesToInt64(data.SpanID[:]),
 		ParentSpanId:  bytesToInt64(data.ParentSpanID[:]),
-		OperationName: data.Name,
+		OperationName: name(data),
 		Flags:         int32(data.TraceOptions),
 		StartTime:     data.StartTime.UnixNano() / 1000,
 		Duration:      data.EndTime.Sub(data.StartTime).Nanoseconds() / 1000,
@@ -148,8 +176,17 @@ func (e *Exporter) ExportSpan(data *trace.SpanData) {
 		Logs:          logs,
 		References:    refs,
 	}
-	e.bundler.Add(span, 1)
-	// TODO(jbd): Handle oversized bundlers.
+}
+
+func name(sd *trace.SpanData) string {
+	n := sd.Name
+	switch sd.SpanKind {
+	case trace.SpanKindClient:
+		n = "Sent." + n
+	case trace.SpanKindServer:
+		n = "Recv." + n
+	}
+	return n
 }
 
 func attributeToTag(key string, a interface{}) *gen.Tag {
@@ -159,16 +196,26 @@ func attributeToTag(key string, a interface{}) *gen.Tag {
 		tag = &gen.Tag{
 			Key:   key,
 			VBool: &value,
+			VType: gen.TagType_BOOL,
 		}
 	case string:
 		tag = &gen.Tag{
-			Key:  key,
-			VStr: &value,
+			Key:   key,
+			VStr:  &value,
+			VType: gen.TagType_STRING,
 		}
 	case int64:
 		tag = &gen.Tag{
 			Key:   key,
 			VLong: &value,
+			VType: gen.TagType_LONG,
+		}
+	case int32:
+		v := int64(value)
+		tag = &gen.Tag{
+			Key:   key,
+			VLong: &v,
+			VType: gen.TagType_LONG,
 		}
 	}
 	return tag
@@ -188,6 +235,17 @@ func (e *Exporter) upload(spans []*gen.Span) error {
 			ServiceName: e.service,
 		},
 	}
+	if e.endpoint != "" {
+		return e.uploadCollector(batch)
+	}
+	return e.uploadAgent(batch)
+}
+
+func (e *Exporter) uploadAgent(batch *gen.Batch) error {
+	return e.client.EmitBatch(batch)
+}
+
+func (e *Exporter) uploadCollector(batch *gen.Batch) error {
 	body, err := serialize(batch)
 	if err != nil {
 		return err

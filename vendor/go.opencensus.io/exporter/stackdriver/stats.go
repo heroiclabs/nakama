@@ -22,7 +22,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -265,17 +264,17 @@ func (e *statsExporter) createMeasure(ctx context.Context, vd *view.Data) error 
 	var metricKind metricpb.MetricDescriptor_MetricKind
 	var valueType metricpb.MetricDescriptor_ValueType
 
-	switch agg.(type) {
-	case view.CountAggregation:
+	switch agg.Type {
+	case view.AggTypeCount:
 		valueType = metricpb.MetricDescriptor_INT64
-	case view.SumAggregation:
+	case view.AggTypeSum:
 		valueType = metricpb.MetricDescriptor_DOUBLE
-	case view.MeanAggregation:
+	case view.AggTypeMean:
 		valueType = metricpb.MetricDescriptor_DISTRIBUTION
-	case view.DistributionAggregation:
+	case view.AggTypeDistribution:
 		valueType = metricpb.MetricDescriptor_DISTRIBUTION
 	default:
-		return fmt.Errorf("unsupported aggregation type: %T", agg)
+		return fmt.Errorf("unsupported aggregation type: %s", agg.Type.String())
 	}
 
 	metricKind = metricpb.MetricDescriptor_CUMULATIVE
@@ -347,7 +346,6 @@ func newTypedValue(vd *view.View, r *view.Row) *monitoringpb.TypedValue {
 			},
 		}}
 	case *view.DistributionData:
-		bounds := vd.Aggregation.(view.DistributionAggregation)
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DistributionValue{
 			DistributionValue: &distributionpb.Distribution{
 				Count: v.Count,
@@ -361,7 +359,7 @@ func newTypedValue(vd *view.View, r *view.Row) *monitoringpb.TypedValue {
 				BucketOptions: &distributionpb.Distribution_BucketOptions{
 					Options: &distributionpb.Distribution_BucketOptions_ExplicitBuckets{
 						ExplicitBuckets: &distributionpb.Distribution_BucketOptions_Explicit{
-							Bounds: []float64(bounds),
+							Bounds: vd.Aggregation.Buckets,
 						},
 					},
 				},
@@ -406,23 +404,19 @@ func newLabelDescriptors(keys []tag.Key) []*labelpb.LabelDescriptor {
 	return labelDescriptors
 }
 
-func equalAggTagKeys(md *metricpb.MetricDescriptor, agg view.Aggregation, keys []tag.Key) error {
-	aggType := reflect.TypeOf(agg)
-	if aggType.Kind() == reflect.Ptr { // if pointer, find out the concrete type
-		aggType = reflect.ValueOf(agg).Elem().Type()
-	}
+func equalAggTagKeys(md *metricpb.MetricDescriptor, agg *view.Aggregation, keys []tag.Key) error {
 	var aggTypeMatch bool
 	switch md.ValueType {
 	case metricpb.MetricDescriptor_INT64:
-		aggTypeMatch = aggType == reflect.TypeOf(view.CountAggregation{})
+		aggTypeMatch = agg.Type == view.AggTypeCount
 	case metricpb.MetricDescriptor_DOUBLE:
-		aggTypeMatch = aggType == reflect.TypeOf(view.SumAggregation{})
+		aggTypeMatch = agg.Type == view.AggTypeSum
 	case metricpb.MetricDescriptor_DISTRIBUTION:
-		aggTypeMatch = aggType == reflect.TypeOf(view.MeanAggregation{}) || aggType == reflect.TypeOf(view.DistributionAggregation{})
+		aggTypeMatch = agg.Type == view.AggTypeMean || agg.Type == view.AggTypeDistribution
 	}
 
 	if !aggTypeMatch {
-		return fmt.Errorf("stackdriver metric descriptor was not created with aggregation type %T", aggType)
+		return fmt.Errorf("stackdriver metric descriptor was not created with aggregation type %T", agg.Type)
 	}
 
 	if len(md.Labels) != len(keys)+1 {

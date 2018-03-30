@@ -33,7 +33,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func newView(measureName string, agg view.Aggregation) *view.View {
+func newView(measureName string, agg *view.Aggregation) *view.View {
 	m, err := stats.Int64(measureName, "bytes", stats.UnitBytes)
 	if err != nil {
 		log.Fatal(err)
@@ -59,13 +59,13 @@ func TestOnlyCumulativeWindowSupported(t *testing.T) {
 	}{
 		0: {
 			vds: &view.Data{
-				View: newView("TestOnlyCumulativeWindowSupported/m1", view.CountAggregation{}),
+				View: newView("TestOnlyCumulativeWindowSupported/m1", view.Count()),
 			},
 			want: 0, // no rows present
 		},
 		1: {
 			vds: &view.Data{
-				View: newView("TestOnlyCumulativeWindowSupported/m2", view.CountAggregation{}),
+				View: newView("TestOnlyCumulativeWindowSupported/m2", view.Count()),
 				Rows: []*view.Row{
 					{Data: &count1},
 				},
@@ -74,7 +74,7 @@ func TestOnlyCumulativeWindowSupported(t *testing.T) {
 		},
 		2: {
 			vds: &view.Data{
-				View: newView("TestOnlyCumulativeWindowSupported/m3", view.MeanAggregation{}),
+				View: newView("TestOnlyCumulativeWindowSupported/m3", view.Mean()),
 				Rows: []*view.Row{
 					{Data: &mean1},
 				},
@@ -146,8 +146,8 @@ func TestCollectNonRacy(t *testing.T) {
 			count1 := view.CountData(1)
 			mean1 := &view.MeanData{Mean: 4.5, Count: 5}
 			vds := []*view.Data{
-				{View: newView(fmt.Sprintf("TestCollectNonRacy/m1-%d", i), view.MeanAggregation{}), Rows: []*view.Row{{Data: mean1}}},
-				{View: newView(fmt.Sprintf("TestCollectNonRacy/m2-%d", i), view.CountAggregation{}), Rows: []*view.Row{{Data: &count1}}},
+				{View: newView(fmt.Sprintf("TestCollectNonRacy/m1-%d", i), view.Mean()), Rows: []*view.Row{{Data: mean1}}},
+				{View: newView(fmt.Sprintf("TestCollectNonRacy/m2-%d", i), view.Count()), Rows: []*view.Row{{Data: &count1}}},
 			}
 			for _, v := range vds {
 				exp.ExportView(v)
@@ -207,7 +207,7 @@ type vCreator struct {
 	err error
 }
 
-func (vc *vCreator) createAndSubscribe(name, description string, keys []tag.Key, measure stats.Measure, agg view.Aggregation) {
+func (vc *vCreator) createAndSubscribe(name, description string, keys []tag.Key, measure stats.Measure, agg *view.Aggregation) {
 	vc.v, vc.err = view.New(name, description, keys, measure, agg)
 	if err := vc.v.Subscribe(); err != nil {
 		vc.err = err
@@ -234,7 +234,7 @@ func TestMetricsEndpointOutput(t *testing.T) {
 
 	vc := &vCreator{}
 	for _, m := range measures {
-		vc.createAndSubscribe(m.Name(), m.Description(), nil, m, view.CountAggregation{})
+		vc.createAndSubscribe(m.Name(), m.Description(), nil, m, view.Count())
 	}
 	if vc.err != nil {
 		t.Fatalf("failed to create views: %v", err)

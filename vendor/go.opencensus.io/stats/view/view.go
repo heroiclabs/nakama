@@ -43,11 +43,11 @@ type View struct {
 	Measure stats.Measure
 
 	// Aggregation is the aggregation function tp apply to the set of Measurements.
-	Aggregation Aggregation
+	Aggregation *Aggregation
 }
 
 // Deprecated: Use &View{}.
-func New(name, description string, keys []tag.Key, measure stats.Measure, agg Aggregation) (*View, error) {
+func New(name, description string, keys []tag.Key, measure stats.Measure, agg *Aggregation) (*View, error) {
 	if measure == nil {
 		panic("measure may not be nil")
 	}

@@ -51,7 +51,7 @@ var UptimeCheckRegion_value = map[string]int32{
 func (x UptimeCheckRegion) String() string {
 	return proto.EnumName(UptimeCheckRegion_name, int32(x))
 }
-func (UptimeCheckRegion) EnumDescriptor() ([]byte, []int) { return fileDescriptor5, []int{0} }
+func (UptimeCheckRegion) EnumDescriptor() ([]byte, []int) { return fileDescriptor10, []int{0} }
 
 // The supported resource types that can be used as values of
 // group_resource.resource_type. gae_app and uptime_url are not allowed
@@ -81,7 +81,7 @@ var GroupResourceType_value = map[string]int32{
 func (x GroupResourceType) String() string {
 	return proto.EnumName(GroupResourceType_name, int32(x))
 }
-func (GroupResourceType) EnumDescriptor() ([]byte, []int) { return fileDescriptor5, []int{1} }
+func (GroupResourceType) EnumDescriptor() ([]byte, []int) { return fileDescriptor10, []int{1} }
 
 // This message configures which resources and services to monitor for
 // availability.
@@ -136,7 +136,7 @@ type UptimeCheckConfig struct {
 func (m *UptimeCheckConfig) Reset()                    { *m = UptimeCheckConfig{} }
 func (m *UptimeCheckConfig) String() string            { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig) ProtoMessage()               {}
-func (*UptimeCheckConfig) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{0} }
+func (*UptimeCheckConfig) Descriptor() ([]byte, []int) { return fileDescriptor10, []int{0} }
 
 type isUptimeCheckConfig_Resource interface {
 	isUptimeCheckConfig_Resource()
@@ -391,7 +391,7 @@ func (m *UptimeCheckConfig_ResourceGroup) Reset()         { *m = UptimeCheckConf
 func (m *UptimeCheckConfig_ResourceGroup) String() string { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig_ResourceGroup) ProtoMessage()    {}
 func (*UptimeCheckConfig_ResourceGroup) Descriptor() ([]byte, []int) {
-	return fileDescriptor5, []int{0, 0}
+	return fileDescriptor10, []int{0, 0}
 }
 
 func (m *UptimeCheckConfig_ResourceGroup) GetGroupId() string {
@@ -443,7 +443,7 @@ type UptimeCheckConfig_HttpCheck struct {
 func (m *UptimeCheckConfig_HttpCheck) Reset()                    { *m = UptimeCheckConfig_HttpCheck{} }
 func (m *UptimeCheckConfig_HttpCheck) String() string            { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig_HttpCheck) ProtoMessage()               {}
-func (*UptimeCheckConfig_HttpCheck) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{0, 1} }
+func (*UptimeCheckConfig_HttpCheck) Descriptor() ([]byte, []int) { return fileDescriptor10, []int{0, 1} }
 
 func (m *UptimeCheckConfig_HttpCheck) GetUseSsl() bool {
 	if m != nil {
@@ -505,7 +505,7 @@ func (m *UptimeCheckConfig_HttpCheck_BasicAuthentication) String() string {
 }
 func (*UptimeCheckConfig_HttpCheck_BasicAuthentication) ProtoMessage() {}
 func (*UptimeCheckConfig_HttpCheck_BasicAuthentication) Descriptor() ([]byte, []int) {
-	return fileDescriptor5, []int{0, 1, 0}
+	return fileDescriptor10, []int{0, 1, 0}
 }
 
 func (m *UptimeCheckConfig_HttpCheck_BasicAuthentication) GetUsername() string {
@@ -533,7 +533,7 @@ type UptimeCheckConfig_TcpCheck struct {
 func (m *UptimeCheckConfig_TcpCheck) Reset()                    { *m = UptimeCheckConfig_TcpCheck{} }
 func (m *UptimeCheckConfig_TcpCheck) String() string            { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig_TcpCheck) ProtoMessage()               {}
-func (*UptimeCheckConfig_TcpCheck) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{0, 2} }
+func (*UptimeCheckConfig_TcpCheck) Descriptor() ([]byte, []int) { return fileDescriptor10, []int{0, 2} }
 
 func (m *UptimeCheckConfig_TcpCheck) GetPort() int32 {
 	if m != nil {
@@ -554,7 +554,7 @@ func (m *UptimeCheckConfig_ContentMatcher) Reset()         { *m = UptimeCheckCon
 func (m *UptimeCheckConfig_ContentMatcher) String() string { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig_ContentMatcher) ProtoMessage()    {}
 func (*UptimeCheckConfig_ContentMatcher) Descriptor() ([]byte, []int) {
-	return fileDescriptor5, []int{0, 3}
+	return fileDescriptor10, []int{0, 3}
 }
 
 func (m *UptimeCheckConfig_ContentMatcher) GetContent() string {
@@ -583,7 +583,7 @@ func (m *UptimeCheckConfig_InternalChecker) Reset()         { *m = UptimeCheckCo
 func (m *UptimeCheckConfig_InternalChecker) String() string { return proto.CompactTextString(m) }
 func (*UptimeCheckConfig_InternalChecker) ProtoMessage()    {}
 func (*UptimeCheckConfig_InternalChecker) Descriptor() ([]byte, []int) {
-	return fileDescriptor5, []int{0, 4}
+	return fileDescriptor10, []int{0, 4}
 }
 
 func (m *UptimeCheckConfig_InternalChecker) GetProjectId() string {
@@ -641,7 +641,7 @@ type UptimeCheckIp struct {
 func (m *UptimeCheckIp) Reset()                    { *m = UptimeCheckIp{} }
 func (m *UptimeCheckIp) String() string            { return proto.CompactTextString(m) }
 func (*UptimeCheckIp) ProtoMessage()               {}
-func (*UptimeCheckIp) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{1} }
+func (*UptimeCheckIp) Descriptor() ([]byte, []int) { return fileDescriptor10, []int{1} }
 
 func (m *UptimeCheckIp) GetRegion() UptimeCheckRegion {
 	if m != nil {
@@ -677,9 +677,9 @@ func init() {
 	proto.RegisterEnum("google.monitoring.v3.GroupResourceType", GroupResourceType_name, GroupResourceType_value)
 }
 
-func init() { proto.RegisterFile("google/monitoring/v3/uptime.proto", fileDescriptor5) }
+func init() { proto.RegisterFile("google/monitoring/v3/uptime.proto", fileDescriptor10) }
 
-var fileDescriptor5 = []byte{
+var fileDescriptor10 = []byte{
 	// 1021 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x56, 0xdd, 0x4e, 0xe3, 0x46,
 	0x14, 0x5e, 0x13, 0xc8, 0xcf, 0x21, 0xb0, 0x66, 0x4a, 0xdb, 0x60, 0x89, 0x15, 0xbb, 0xbd, 0x28,

@@ -34,6 +34,12 @@ const (
 	TypeCode_FLOAT64 TypeCode = 3
 	// Encoded as `string` in RFC 3339 timestamp format. The time zone
 	// must be present, and must be `"Z"`.
+	//
+	// If the schema has the column option
+	// `allow_commit_timestamp=true`, the placeholder string
+	// `"spanner.commit_timestamp()"` can be used to instruct the system
+	// to insert the commit timestamp associated with the transaction
+	// commit.
 	TypeCode_TIMESTAMP TypeCode = 4
 	// Encoded as `string` in RFC 3339 date format.
 	TypeCode_DATE TypeCode = 5

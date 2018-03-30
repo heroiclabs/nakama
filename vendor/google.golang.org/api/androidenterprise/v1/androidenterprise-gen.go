@@ -1524,6 +1524,41 @@ func (s *LocalizedText) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// MaintenanceWindow: Maintenance window for managed Google Play
+// Accounts. This allows Play store to update the apps on the foreground
+// in the designated window.
+type MaintenanceWindow struct {
+	// DurationMs: Duration of the maintenance window, in milliseconds. The
+	// duration must be between 30 minutes and 24 hours (inclusive).
+	DurationMs int64 `json:"durationMs,omitempty,string"`
+
+	// StartTimeAfterMidnightMs: Start time of the maintenance window, in
+	// milliseconds after midnight on the device. Windows can span midnight.
+	StartTimeAfterMidnightMs int64 `json:"startTimeAfterMidnightMs,omitempty,string"`
+
+	// ForceSendFields is a list of field names (e.g. "DurationMs") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "DurationMs") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *MaintenanceWindow) MarshalJSON() ([]byte, error) {
+	type NoMethod MaintenanceWindow
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // ManagedConfiguration: A managed configuration resource contains the
 // set of managed properties defined by the app developer in the app's
 // managed configurations schema, as well as any configuration variables
@@ -2104,6 +2139,11 @@ type Policy struct {
 	// auto updates. "wifiOnly" enables auto updates only when the device is
 	// connected to wifi.
 	AutoUpdatePolicy string `json:"autoUpdatePolicy,omitempty"`
+
+	// MaintenanceWindow: The maintenance window defining when apps running
+	// in the foreground should be updated. This feature is only supported
+	// on fully managed devices.
+	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
 
 	// ProductAvailabilityPolicy: The availability granted to the device for
 	// the specified products. "all" gives the device access to all

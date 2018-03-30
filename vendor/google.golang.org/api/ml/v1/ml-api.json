@@ -992,7 +992,7 @@
       }
     }
   },
-  "revision": "20180315",
+  "revision": "20180327",
   "rootUrl": "https://ml.googleapis.com/",
   "schemas": {
     "GoogleApi__HttpBody": {
@@ -1651,7 +1651,7 @@
       "type": "object"
     },
     "GoogleCloudMlV1__TrainingInput": {
-      "description": "Represents input parameters for a training job. When using the\ngcloud command to submit your training job, you can specify\nthe input parameters as command-line arguments and/or in a YAML configuration\nfile referenced from the --config command-line argument. For\ndetails, see the guide to\n\u003ca href=\"/ml-engine/docs/training-jobs\"\u003esubmitting a training job\u003c/a\u003e.",
+      "description": "Represents input parameters for a training job. When using the\ngcloud command to submit your training job, you can specify\nthe input parameters as command-line arguments and/or in a YAML configuration\nfile referenced from the --config command-line argument. For\ndetails, see the guide to\n\u003ca href=\"/ml-engine/docs/training-jobs\"\u003esubmitting a training job\u003c/a\u003e.\nNext ID: 22",
       "id": "GoogleCloudMlV1__TrainingInput",
       "properties": {
         "args": {
@@ -1791,7 +1791,7 @@
           "type": "string"
         },
         "framework": {
-          "description": "The ML framework used to train this version of the model. If not specified,\ndefaults to `TENSORFLOW`",
+          "description": "Optional. The machine learning framework Cloud ML Engine uses to train\nthis version of the model. Valid values are `TENSORFLOW`, `SCIKIT_LEARN`,\nand `XGBOOST`. If you do not specify a framework, Cloud ML Engine uses\nTensorFlow. If you choose `SCIKIT_LEARN` or `XGBOOST`, you must also set\nthe runtime version of the model to 1.4 or greater.",
           "enum": [
             "FRAMEWORK_UNSPECIFIED",
             "TENSORFLOW",

@@ -406,7 +406,7 @@ type DataSource struct {
 	// Disables backfilling and manual run scheduling
 	// for the data source.
 	ManualRunsDisabled bool `protobuf:"varint,17,opt,name=manual_runs_disabled,json=manualRunsDisabled" json:"manual_runs_disabled,omitempty"`
-	// The minimum interval between two consecutive scheduled runs.
+	// The minimum interval for scheduler to schedule runs.
 	MinimumScheduleInterval *google_protobuf4.Duration `protobuf:"bytes,18,opt,name=minimum_schedule_interval,json=minimumScheduleInterval" json:"minimum_schedule_interval,omitempty"`
 }
 
@@ -640,10 +640,8 @@ func (m *ListDataSourcesResponse) GetNextPageToken() string {
 type CreateTransferConfigRequest struct {
 	// The BigQuery project id where the transfer configuration should be created.
 	// Must be in the format /projects/{project_id}/locations/{location_id}
-	// or
-	// /projects/{project_id}/locations/-
-	// In case when '-' is specified as location_id, location is infered from
-	// the destination dataset region.
+	// If specified location and location of the destination bigquery dataset
+	// do not match - the request will fail.
 	Parent string `protobuf:"bytes,1,opt,name=parent" json:"parent,omitempty"`
 	// Data transfer configuration to create.
 	TransferConfig *TransferConfig `protobuf:"bytes,2,opt,name=transfer_config,json=transferConfig" json:"transfer_config,omitempty"`
@@ -1230,7 +1228,7 @@ type DataTransferServiceClient interface {
 	GetTransferConfig(ctx context.Context, in *GetTransferConfigRequest, opts ...grpc.CallOption) (*TransferConfig, error)
 	// Returns information about all data transfers in the project.
 	ListTransferConfigs(ctx context.Context, in *ListTransferConfigsRequest, opts ...grpc.CallOption) (*ListTransferConfigsResponse, error)
-	// Creates transfer runs for a time range [range_start_time, range_end_time].
+	// Creates transfer runs for a time range [start_time, end_time].
 	// For each date - or whatever granularity the data source supports - in the
 	// range, one transfer run is created.
 	// Note that runs are created per UTC time in the time range.
@@ -1398,7 +1396,7 @@ type DataTransferServiceServer interface {
 	GetTransferConfig(context.Context, *GetTransferConfigRequest) (*TransferConfig, error)
 	// Returns information about all data transfers in the project.
 	ListTransferConfigs(context.Context, *ListTransferConfigsRequest) (*ListTransferConfigsResponse, error)
-	// Creates transfer runs for a time range [range_start_time, range_end_time].
+	// Creates transfer runs for a time range [start_time, end_time].
 	// For each date - or whatever granularity the data source supports - in the
 	// range, one transfer run is created.
 	// Note that runs are created per UTC time in the time range.

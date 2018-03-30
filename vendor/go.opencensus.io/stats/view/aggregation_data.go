@@ -31,7 +31,7 @@ type AggregationData interface {
 
 const epsilon = 1e-9
 
-// CountData is the aggregated data for a CountAggregation.
+// CountData is the aggregated data for the Count aggregation.
 // A count aggregation processes data and counts the recordings.
 //
 // Most users won't directly access count data.
@@ -61,7 +61,7 @@ func (a *CountData) equal(other AggregationData) bool {
 	return int64(*a) == int64(*a2)
 }
 
-// SumData is the aggregated data for a SumAggregation.
+// SumData is the aggregated data for the Sum aggregation.
 // A sum aggregation processes data and sums up the recordings.
 //
 // Most users won't directly access sum data.
@@ -90,7 +90,7 @@ func (a *SumData) equal(other AggregationData) bool {
 	return math.Pow(float64(*a)-float64(*a2), 2) < epsilon
 }
 
-// MeanData is the aggregated data for a MeanAggregation.
+// MeanData is the aggregated data for the Mean aggregation.
 // A mean aggregation processes data and maintains the mean value.
 //
 // Most users won't directly access mean data.
@@ -132,8 +132,8 @@ func (a *MeanData) equal(other AggregationData) bool {
 	return a.Count == a2.Count && math.Pow(a.Mean-a2.Mean, 2) < epsilon
 }
 
-// DistributionData is the aggregated data for an
-// DistributionAggregation.
+// DistributionData is the aggregated data for the
+// Distribution aggregation.
 //
 // Most users won't directly access distribution data.
 type DistributionData struct {

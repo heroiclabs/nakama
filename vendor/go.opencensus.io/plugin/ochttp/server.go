@@ -38,9 +38,6 @@ import (
 //
 // Incoming propagation mechanism is determined by the given HTTP propagators.
 type Handler struct {
-	// NoStats may be set to disable recording of stats.
-	NoStats bool
-
 	// Propagation defines how traces are propagated. If unspecified,
 	// B3 propagation will be used.
 	Propagation propagation.HTTPFormat
@@ -50,6 +47,9 @@ type Handler struct {
 
 	// StartOptions are applied to the span started by this Handler around each
 	// request.
+	//
+	// StartOptions.SpanKind will always be set to trace.SpanKindServer
+	// for spans started by this transport.
 	StartOptions trace.StartOptions
 
 	// IsPublicEndpoint should be set to true for publicly accessible HTTP(S)
@@ -60,14 +60,11 @@ type Handler struct {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var end func()
-	r, end = h.startTrace(w, r)
-	defer end()
-	if !h.NoStats {
-		var end func()
-		w, end = h.startStats(w, r)
-		defer end()
-	}
+	var traceEnd, statsEnd func()
+	r, traceEnd = h.startTrace(w, r)
+	defer traceEnd()
+	w, statsEnd = h.startStats(w, r)
+	defer statsEnd()
 
 	handler := h.Handler
 	if handler == nil {
@@ -77,15 +74,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) startTrace(w http.ResponseWriter, r *http.Request) (*http.Request, func()) {
-	name := spanNameFromURL("Recv", r.URL)
+	opts := trace.StartOptions{
+		Sampler:  h.StartOptions.Sampler,
+		SpanKind: trace.SpanKindServer,
+	}
+
+	name := spanNameFromURL(r.URL)
 	ctx := r.Context()
 	var span *trace.Span
 	sc, ok := h.extractSpanContext(r)
 	if ok && !h.IsPublicEndpoint {
-		span = trace.NewSpanWithRemoteParent(name, sc, h.StartOptions)
+		span = trace.NewSpanWithRemoteParent(name, sc, opts)
 		ctx = trace.WithSpan(ctx, span)
 	} else {
-		span = trace.NewSpan(name, nil, h.StartOptions)
+		span = trace.NewSpan(name, nil, opts)
 		if ok {
 			span.AddLink(trace.Link{
 				TraceID:    sc.TraceID,

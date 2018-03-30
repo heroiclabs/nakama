@@ -2546,7 +2546,7 @@
       }
     }
   },
-  "revision": "20180213",
+  "revision": "20180326",
   "rootUrl": "https://logging.googleapis.com/",
   "schemas": {
     "BucketOptions": {
@@ -2930,7 +2930,7 @@
         },
         "resource": {
           "$ref": "MonitoredResource",
-          "description": "Required. The monitored resource associated with this log entry. Example: a log entry that reports a database error would be associated with the monitored resource designating the particular database that reported the error."
+          "description": "Required. The primary monitored resource associated with this log entry. Example: a log entry that reports a database error would be associated with the monitored resource designating the particular database that reported the error."
         },
         "severity": {
           "description": "Optional. The severity of the log entry. The default value is LogSeverity.DEFAULT.",

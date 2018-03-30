@@ -64,7 +64,7 @@ func (d *DummySession) Logger() *zap.Logger {
 	return logger
 }
 func (d *DummySession) ID() uuid.UUID {
-	return uuid.NewV4()
+	return uuid.Must(uuid.NewV4())
 }
 func (d *DummySession) UserID() uuid.UUID {
 	return d.uid

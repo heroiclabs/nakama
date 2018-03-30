@@ -2,7 +2,6 @@ package grifts
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,11 +11,11 @@ import (
 )
 
 var _ = Add("release", func(c *Context) error {
-	cmd := exec.Command("git", "tag", "--list")
+	cmd := exec.Command("git", "tag", "--sort", "-creatordate")
 	if b, err := cmd.CombinedOutput(); err == nil {
-		lines := bytes.Split(b, []byte("\n"))
-		for _, l := range lines[len(lines)-6:] {
-			fmt.Println(string(l))
+		lines := strings.Split(string(b), "\n")
+		for _, l := range lines[:5] {
+			fmt.Println(l)
 		}
 	}
 

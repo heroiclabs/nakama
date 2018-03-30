@@ -121,18 +121,18 @@ func Test_Worker_ViewSubscription(t *testing.T) {
 				"v1ID": {
 					Name:        "VF1",
 					Measure:     mf1,
-					Aggregation: &CountAggregation{},
+					Aggregation: Count(),
 				},
 				"v1SameNameID": {
 					Name:        "VF1",
 					Description: "desc duplicate name VF1",
 					Measure:     mf1,
-					Aggregation: &SumAggregation{},
+					Aggregation: Sum(),
 				},
 				"v2ID": {
 					Name:        "VF2",
 					Measure:     mf2,
-					Aggregation: &CountAggregation{},
+					Aggregation: Count(),
 				},
 				"vNilID": nil,
 			}
@@ -167,8 +167,8 @@ func Test_Worker_RecordFloat64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	v1 := &View{"VF1", "desc VF1", []tag.Key{k1, k2}, m, CountAggregation{}}
-	v2 := &View{"VF2", "desc VF2", []tag.Key{k1, k2}, m, CountAggregation{}}
+	v1 := &View{"VF1", "desc VF1", []tag.Key{k1, k2}, m, Count()}
+	v2 := &View{"VF2", "desc VF2", []tag.Key{k1, k2}, m, Count()}
 
 	type want struct {
 		v    *View
@@ -306,12 +306,12 @@ func TestReportUsage(t *testing.T) {
 	}{
 		{
 			name:         "cum",
-			view:         &View{Name: "cum1", Measure: m, Aggregation: CountAggregation{}},
+			view:         &View{Name: "cum1", Measure: m, Aggregation: Count()},
 			wantMaxCount: 8,
 		},
 		{
 			name:         "cum2",
-			view:         &View{Name: "cum1", Measure: m, Aggregation: CountAggregation{}},
+			view:         &View{Name: "cum1", Measure: m, Aggregation: Count()},
 			wantMaxCount: 8,
 		},
 	}
@@ -378,7 +378,7 @@ func TestWorkerStarttime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stats.Int64() = %v", err)
 	}
-	v, _ := New("testview", "", nil, m, CountAggregation{})
+	v, _ := New("testview", "", nil, m, Count())
 
 	SetReportingPeriod(25 * time.Millisecond)
 	if err := v.Subscribe(); err != nil {

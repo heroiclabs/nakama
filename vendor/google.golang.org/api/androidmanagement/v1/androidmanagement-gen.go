@@ -429,6 +429,21 @@ type Command struct {
 	// duration.
 	Duration string `json:"duration,omitempty"`
 
+	// ErrorCode: If the command failed, an error code explaining the
+	// failure. This is not set when the command is cancelled by the caller.
+	//
+	// Possible values:
+	//   "COMMAND_ERROR_CODE_UNSPECIFIED" - There was no error.
+	//   "UNKNOWN" - An unknown error occurred.
+	//   "API_LEVEL" - The API level of the device does not support this
+	// command.
+	//   "MANAGEMENT_MODE" - The management mode (profile owner, device
+	// owner, etc.) does not support the command.
+	//   "INVALID_VALUE" - The command has an invalid parameter value.
+	//   "UNSUPPORTED" - The device doesn't support the command. Updating
+	// Android Device Policy to the latest version may resolve the issue.
+	ErrorCode string `json:"errorCode,omitempty"`
+
 	// NewPassword: For commands of type RESET_PASSWORD, optionally
 	// specifies the new password.
 	NewPassword string `json:"newPassword,omitempty"`
@@ -1959,13 +1974,12 @@ type Policy struct {
 	//   "BETA" - The beta track, which provides the latest beta release.
 	AndroidDevicePolicyTracks []string `json:"androidDevicePolicyTracks,omitempty"`
 
-	// AppAutoUpdatePolicy: The auto update policy value. Specifies whether
-	// the user is given a choice to configure the app update policy, or
-	// otherwise contains the enforced update policy
+	// AppAutoUpdatePolicy: The app auto update policy, which controls when
+	// automatic app updates can be applied.
 	//
 	// Possible values:
 	//   "APP_AUTO_UPDATE_POLICY_UNSPECIFIED" - The auto-update policy is
-	// not set. Same as giving auto-update policy choice to the user.
+	// not set. Equivalent to CHOICE_TO_THE_USER.
 	//   "CHOICE_TO_THE_USER" - The user can control auto-updates.
 	//   "NEVER" - Apps are never auto-updated.
 	//   "WIFI_ONLY" - Apps are auto-updated over Wi-Fi only.
@@ -2038,6 +2052,21 @@ type Policy struct {
 	//   "DENY" - Automatically deny a permission.
 	DefaultPermissionPolicy string `json:"defaultPermissionPolicy,omitempty"`
 
+	// DeviceOwnerLockScreenInfo: The device owner information to be shown
+	// on the lock screen.
+	DeviceOwnerLockScreenInfo *UserFacingMessage `json:"deviceOwnerLockScreenInfo,omitempty"`
+
+	// EncryptionPolicy: Whether encryption is enabled
+	//
+	// Possible values:
+	//   "ENCRYPTION_POLICY_UNSPECIFIED" - This value is ignored, i.e. no
+	// encryption required
+	//   "ENABLED_WITHOUT_PASSWORD" - Encryption required but no password
+	// required to boot
+	//   "ENABLED_WITH_PASSWORD" - Encryption required with password
+	// required to boot
+	EncryptionPolicy string `json:"encryptionPolicy,omitempty"`
+
 	// EnsureVerifyAppsEnabled: Whether app verification is force-enabled.
 	EnsureVerifyAppsEnabled bool `json:"ensureVerifyAppsEnabled,omitempty"`
 
@@ -2095,6 +2124,20 @@ type Policy struct {
 	// recommended to also use status_bar_disabled to block access to device
 	// settings.
 	KioskCustomLauncherEnabled bool `json:"kioskCustomLauncherEnabled,omitempty"`
+
+	// LocationMode: The degree of location detection enabled. The user may
+	// change the value unless the user is otherwise blocked from accessing
+	// device settings.
+	//
+	// Possible values:
+	//   "LOCATION_MODE_UNSPECIFIED" - The current device value is not
+	// modified.
+	//   "HIGH_ACCURACY" - All location detection methods are enabled,
+	// including GPS, networks, and other sensors.
+	//   "SENSORS_ONLY" - Only GPS and other sensors are enabled.
+	//   "BATTERY_SAVING" - Only the network location provider is enabled.
+	//   "OFF" - Location detection is disabled.
+	LocationMode string `json:"locationMode,omitempty"`
 
 	// LongSupportMessage: A message displayed to the user in the device
 	// administators settings screen.
@@ -2180,9 +2223,18 @@ type Policy struct {
 	// SetWallpaperDisabled: Whether changing the wallpaper is disabled.
 	SetWallpaperDisabled bool `json:"setWallpaperDisabled,omitempty"`
 
+	// ShareLocationDisabled: Whether location sharing is disabled.
+	ShareLocationDisabled bool `json:"shareLocationDisabled,omitempty"`
+
 	// ShortSupportMessage: A message displayed to the user in the settings
 	// screen wherever functionality has been disabled by the admin.
 	ShortSupportMessage *UserFacingMessage `json:"shortSupportMessage,omitempty"`
+
+	// SkipFirstUseHintsEnabled: Flag to skip hints on the first use.
+	// Enterprise admin can enable the system recommendation for apps to
+	// skip their user tutorial and other introductory hints on first
+	// start-up.
+	SkipFirstUseHintsEnabled bool `json:"skipFirstUseHintsEnabled,omitempty"`
 
 	// SmsDisabled: Whether sending and receiving SMS messages is disabled.
 	SmsDisabled bool `json:"smsDisabled,omitempty"`
@@ -2227,6 +2279,10 @@ type Policy struct {
 	// UsbFileTransferDisabled: Whether transferring files over USB is
 	// disabled.
 	UsbFileTransferDisabled bool `json:"usbFileTransferDisabled,omitempty"`
+
+	// UsbMassStorageEnabled: Allows admins to toggle whether USB storge is
+	// enabled or disabled on user's devices. Next ID: 113
+	UsbMassStorageEnabled bool `json:"usbMassStorageEnabled,omitempty"`
 
 	// Version: The version of the policy. This is a read-only field. The
 	// version is incremented each time the policy is updated.

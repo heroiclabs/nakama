@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"crypto/tls"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -38,6 +39,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -62,11 +64,15 @@ type ApiServer struct {
 }
 
 func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
-	grpcServer := grpc.NewServer(
+	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
 		grpc.UnaryInterceptor(interceptorFunc(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)),
-	)
+	}
+	if config.GetSocket().TLSCert != nil {
+		serverOpts = append(serverOpts, grpc.Creds(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
+	}
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ApiServer{
 		logger:        logger,
@@ -99,12 +105,16 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port)
-	opts := []grpc.DialOption{
+	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
-		grpc.WithInsecure(),
 	}
-	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, opts); err != nil {
+	if config.GetSocket().TLSCert != nil {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithInsecure())
+	}
+	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		multiLogger.Fatal("API server gateway registration failed", zap.Error(err))
 	}
 
@@ -134,6 +144,9 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
 		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
 		Handler:      handlerWithCORS,
+	}
+	if config.GetSocket().TLSCert != nil {
+		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}
 	}
 
 	multiLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port-1))

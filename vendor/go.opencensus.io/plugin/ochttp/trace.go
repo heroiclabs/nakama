@@ -18,7 +18,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"go.opencensus.io/plugin/ochttp/propagation/b3"
 	"go.opencensus.io/trace"
@@ -51,7 +50,7 @@ type traceTransport struct {
 // The created span can follow a parent span, if a parent is presented in
 // the request's context.
 func (t *traceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	name := spanNameFromURL("Sent", req.URL)
+	name := spanNameFromURL(req.URL)
 	// TODO(jbd): Discuss whether we want to prefix
 	// outgoing requests with Sent.
 	parent := trace.FromContext(req.Context())
@@ -71,37 +70,36 @@ func (t *traceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	span.AddAttributes(responseAttrs(resp)...)
+	span.SetStatus(status(resp.StatusCode))
 
 	// span.End() will be invoked after
 	// a read from resp.Body returns io.EOF or when
 	// resp.Body.Close() is invoked.
-	resp.Body = &spanEndBody{rc: resp.Body, span: span}
+	resp.Body = &bodyTracker{rc: resp.Body, span: span}
 	return resp, err
 }
 
-// spanEndBody wraps a response.Body and invokes
+// bodyTracker wraps a response.Body and invokes
 // trace.EndSpan on encountering io.EOF on reading
 // the body of the original response.
-type spanEndBody struct {
+type bodyTracker struct {
 	rc   io.ReadCloser
 	span *trace.Span
-
-	endSpanOnce sync.Once
 }
 
-var _ io.ReadCloser = (*spanEndBody)(nil)
+var _ io.ReadCloser = (*bodyTracker)(nil)
 
-func (seb *spanEndBody) Read(b []byte) (int, error) {
-	n, err := seb.rc.Read(b)
+func (bt *bodyTracker) Read(b []byte) (int, error) {
+	n, err := bt.rc.Read(b)
 
 	switch err {
 	case nil:
 		return n, nil
 	case io.EOF:
-		seb.endSpan()
+		bt.span.End()
 	default:
 		// For all other errors, set the span status
-		seb.span.SetStatus(trace.Status{
+		bt.span.SetStatus(trace.Status{
 			// Code 2 is the error code for Internal server error.
 			Code:    2,
 			Message: err.Error(),
@@ -110,19 +108,12 @@ func (seb *spanEndBody) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// endSpan invokes trace.EndSpan exactly once
-func (seb *spanEndBody) endSpan() {
-	seb.endSpanOnce.Do(func() {
-		seb.span.End()
-	})
-}
-
-func (seb *spanEndBody) Close() error {
+func (bt *bodyTracker) Close() error {
 	// Invoking endSpan on Close will help catch the cases
 	// in which a read returned a non-nil error, we set the
 	// span status but didn't end the span.
-	seb.endSpan()
-	return seb.rc.Close()
+	bt.span.End()
+	return bt.rc.Close()
 }
 
 // CancelRequest cancels an in-flight request by closing its connection.
@@ -135,13 +126,8 @@ func (t *traceTransport) CancelRequest(req *http.Request) {
 	}
 }
 
-func spanNameFromURL(prefix string, u *url.URL) string {
-	host := u.Hostname()
-	port := ":" + u.Port()
-	if port == ":" || port == ":80" || port == ":443" {
-		port = ""
-	}
-	return prefix + "." + host + port + u.Path
+func spanNameFromURL(u *url.URL) string {
+	return u.Path
 }
 
 func requestAttrs(r *http.Request) []trace.Attribute {
@@ -157,4 +143,73 @@ func responseAttrs(resp *http.Response) []trace.Attribute {
 	return []trace.Attribute{
 		trace.Int64Attribute(StatusCodeAttribute, int64(resp.StatusCode)),
 	}
+}
+
+func status(statusCode int) trace.Status {
+	var code int32
+	if statusCode < 200 || statusCode >= 400 {
+		code = codeUnknown
+	}
+	switch statusCode {
+	case 499:
+		code = codeCancelled
+	case http.StatusBadRequest:
+		code = codeInvalidArgument
+	case http.StatusGatewayTimeout:
+		code = codeDeadlineExceeded
+	case http.StatusNotFound:
+		code = codeNotFound
+	case http.StatusForbidden:
+		code = codePermissionDenied
+	case http.StatusUnauthorized: // 401 is actually unauthenticated.
+		code = codeUnathenticated
+	case http.StatusTooManyRequests:
+		code = codeResourceExhausted
+	case http.StatusNotImplemented:
+		code = codeUnimplemented
+	case http.StatusServiceUnavailable:
+		code = codeUnavailable
+	}
+	return trace.Status{Code: code, Message: codeToStr[code]}
+}
+
+// TODO(jbd): Provide status codes from trace package.
+const (
+	codeOK                 = 0
+	codeCancelled          = 1
+	codeUnknown            = 2
+	codeInvalidArgument    = 3
+	codeDeadlineExceeded   = 4
+	codeNotFound           = 5
+	codeAlreadyExists      = 6
+	codePermissionDenied   = 7
+	codeResourceExhausted  = 8
+	codeFailedPrecondition = 9
+	codeAborted            = 10
+	codeOutOfRange         = 11
+	codeUnimplemented      = 12
+	codeInternal           = 13
+	codeUnavailable        = 14
+	codeDataLoss           = 15
+	codeUnathenticated     = 16
+)
+
+var codeToStr = map[int32]string{
+	codeOK:                 `"OK"`,
+	codeCancelled:          `"CANCELLED"`,
+	codeUnknown:            `"UNKNOWN"`,
+	codeInvalidArgument:    `"INVALID_ARGUMENT"`,
+	codeDeadlineExceeded:   `"DEADLINE_EXCEEDED"`,
+	codeNotFound:           `"NOT_FOUND"`,
+	codeAlreadyExists:      `"ALREADY_EXISTS"`,
+	codePermissionDenied:   `"PERMISSION_DENIED"`,
+	codeResourceExhausted:  `"RESOURCE_EXHAUSTED"`,
+	codeFailedPrecondition: `"FAILED_PRECONDITION"`,
+	codeAborted:            `"ABORTED"`,
+	codeOutOfRange:         `"OUT_OF_RANGE"`,
+	codeUnimplemented:      `"UNIMPLEMENTED"`,
+	codeInternal:           `"INTERNAL"`,
+	codeUnavailable:        `"UNAVAILABLE"`,
+	codeDataLoss:           `"DATA_LOSS"`,
+	codeUnathenticated:     `"UNAUTHENTICATED"`,
 }

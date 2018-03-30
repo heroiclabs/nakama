@@ -57,13 +57,13 @@ func main() {
 			Name:        "video_count",
 			Description: "number of videos processed over time",
 			Measure:     videoCount,
-			Aggregation: &view.CountAggregation{},
+			Aggregation: view.Count(),
 		},
 		&view.View{
 			Name:        "video_size",
 			Description: "processed video size over time",
 			Measure:     videoSize,
-			Aggregation: view.DistributionAggregation{0, 1 << 16, 1 << 32},
+			Aggregation: view.Distribution(0, 1<<16, 1<<32),
 		},
 	); err != nil {
 		log.Fatalf("Cannot subscribe to the view: %v", err)

@@ -70,7 +70,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.Exec(query, userID, username, customID)
 	if err != nil {
@@ -141,7 +141,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	fnErr := Transact(logger, db, func(tx *sql.Tx) error {
 		query := `
 INSERT INTO users (id, username, create_time, update_time)
@@ -235,7 +235,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.Exec(query, userID, username, email, hashedPassword)
 	if err != nil {
@@ -301,7 +301,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.Exec(query, userID, username, facebookProfile.ID)
 	if err != nil {
@@ -367,7 +367,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.Exec(query, userID, username, playerID)
 	if err != nil {
@@ -433,7 +433,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.Exec(query, userID, username, googleProfile.Sub)
 	if err != nil {
@@ -500,7 +500,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	}
 
 	// Create a new account.
-	userID := uuid.NewV4().String()
+	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.Exec(query, userID, username, steamID)
 	if err != nil {
@@ -694,7 +694,7 @@ AND EXISTS
 		subject := "Your friend has just joined the game"
 		for _, friendUserID := range friendUserIDs {
 			notifications[friendUserID] = []*api.Notification{&api.Notification{
-				Id:         uuid.NewV4().String(),
+				Id:         uuid.Must(uuid.NewV4()).String(),
 				Subject:    subject,
 				Content:    string(content),
 				SenderId:   userID.String(),

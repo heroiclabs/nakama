@@ -2476,6 +2476,10 @@ type WorkflowMetadata struct {
 	// Graph: Output only. The workflow graph.
 	Graph *WorkflowGraph `json:"graph,omitempty"`
 
+	// Parameters: Map from parameter names to values that were used for
+	// those parameters.
+	Parameters map[string]string `json:"parameters,omitempty"`
+
 	// State: Output only. The workflow state.
 	//
 	// Possible values:

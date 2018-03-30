@@ -175,8 +175,7 @@ func (m *EntityType_Entity) GetSynonyms() []string {
 	return nil
 }
 
-// The request message for
-// [EntityTypes.ListEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.ListEntityTypes].
+// The request message for [EntityTypes.ListEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.ListEntityTypes].
 type ListEntityTypesRequest struct {
 	// Required. The agent to list all entity types from.
 	// Format: `projects/<Project ID>/agent`.
@@ -227,8 +226,7 @@ func (m *ListEntityTypesRequest) GetPageToken() string {
 	return ""
 }
 
-// The response message for
-// [EntityTypes.ListEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.ListEntityTypes].
+// The response message for [EntityTypes.ListEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.ListEntityTypes].
 type ListEntityTypesResponse struct {
 	// The list of agent entity types. There will be a maximum number of items
 	// returned based on the page_size field in the request.
@@ -257,8 +255,7 @@ func (m *ListEntityTypesResponse) GetNextPageToken() string {
 	return ""
 }
 
-// The request message for
-// [EntityTypes.GetEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.GetEntityType].
+// The request message for [EntityTypes.GetEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.GetEntityType].
 type GetEntityTypeRequest struct {
 	// Required. The name of the entity type.
 	// Format: `projects/<Project ID>/agent/entityTypes/<EntityType ID>`.
@@ -290,8 +287,7 @@ func (m *GetEntityTypeRequest) GetLanguageCode() string {
 	return ""
 }
 
-// The request message for
-// [EntityTypes.CreateEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.CreateEntityType].
+// The request message for [EntityTypes.CreateEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.CreateEntityType].
 type CreateEntityTypeRequest struct {
 	// Required. The agent to create a entity type for.
 	// Format: `projects/<Project ID>/agent`.
@@ -332,8 +328,7 @@ func (m *CreateEntityTypeRequest) GetLanguageCode() string {
 	return ""
 }
 
-// The request message for
-// [EntityTypes.UpdateEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.UpdateEntityType].
+// The request message for [EntityTypes.UpdateEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.UpdateEntityType].
 type UpdateEntityTypeRequest struct {
 	// Required. The entity type to update.
 	// Format: `projects/<Project ID>/agent/entityTypes/<EntityType ID>`.
@@ -374,8 +369,7 @@ func (m *UpdateEntityTypeRequest) GetUpdateMask() *google_protobuf3.FieldMask {
 	return nil
 }
 
-// The request message for
-// [EntityTypes.DeleteEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.DeleteEntityType].
+// The request message for [EntityTypes.DeleteEntityType][google.cloud.dialogflow.v2beta1.EntityTypes.DeleteEntityType].
 type DeleteEntityTypeRequest struct {
 	// Required. The name of the entity type to delete.
 	// Format: `projects/<Project ID>/agent/entityTypes/<EntityType ID>`.
@@ -394,8 +388,7 @@ func (m *DeleteEntityTypeRequest) GetName() string {
 	return ""
 }
 
-// The request message for
-// [EntityTypes.BatchUpdateEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchUpdateEntityTypes].
+// The request message for [EntityTypes.BatchUpdateEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchUpdateEntityTypes].
 type BatchUpdateEntityTypesRequest struct {
 	// Required. The name of the agent to update or create entity types in.
 	// Format: `projects/<Project ID>/agent`.
@@ -553,8 +546,7 @@ func _BatchUpdateEntityTypesRequest_OneofSizer(msg proto.Message) (n int) {
 	return n
 }
 
-// The response message for
-// [EntityTypes.BatchUpdateEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchUpdateEntityTypes].
+// The response message for [EntityTypes.BatchUpdateEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchUpdateEntityTypes].
 type BatchUpdateEntityTypesResponse struct {
 	// The collection of updated or created entity types.
 	EntityTypes []*EntityType `protobuf:"bytes,1,rep,name=entity_types,json=entityTypes" json:"entity_types,omitempty"`
@@ -572,8 +564,7 @@ func (m *BatchUpdateEntityTypesResponse) GetEntityTypes() []*EntityType {
 	return nil
 }
 
-// The request message for
-// [EntityTypes.BatchDeleteEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchDeleteEntityTypes].
+// The request message for [EntityTypes.BatchDeleteEntityTypes][google.cloud.dialogflow.v2beta1.EntityTypes.BatchDeleteEntityTypes].
 type BatchDeleteEntityTypesRequest struct {
 	// Required. The name of the agent to delete all entities types for. Format:
 	// `projects/<Project ID>/agent`.
@@ -602,8 +593,7 @@ func (m *BatchDeleteEntityTypesRequest) GetEntityTypeNames() []string {
 	return nil
 }
 
-// The request message for
-// [EntityTypes.BatchCreateEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchCreateEntities].
+// The request message for [EntityTypes.BatchCreateEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchCreateEntities].
 type BatchCreateEntitiesRequest struct {
 	// Required. The name of the entity type to create entities in. Format:
 	// `projects/<Project ID>/agent/entityTypes/<Entity Type ID>`.
@@ -644,8 +634,7 @@ func (m *BatchCreateEntitiesRequest) GetLanguageCode() string {
 	return ""
 }
 
-// The response message for
-// [EntityTypes.BatchCreateEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchCreateEntities].
+// The response message for [EntityTypes.BatchCreateEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchCreateEntities].
 type BatchUpdateEntitiesRequest struct {
 	// Required. The name of the entity type to update the entities in. Format:
 	// `projects/<Project ID>/agent/entityTypes/<Entity Type ID>`.
@@ -695,8 +684,7 @@ func (m *BatchUpdateEntitiesRequest) GetUpdateMask() *google_protobuf3.FieldMask
 	return nil
 }
 
-// The request message for
-// [EntityTypes.BatchDeleteEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchDeleteEntities].
+// The request message for [EntityTypes.BatchDeleteEntities][google.cloud.dialogflow.v2beta1.EntityTypes.BatchDeleteEntities].
 type BatchDeleteEntitiesRequest struct {
 	// Required. The name of the entity type to delete entries for. Format:
 	// `projects/<Project ID>/agent/entityTypes/<Entity Type ID>`.
@@ -800,8 +788,7 @@ type EntityTypesClient interface {
 	DeleteEntityType(ctx context.Context, in *DeleteEntityTypeRequest, opts ...grpc.CallOption) (*google_protobuf2.Empty, error)
 	// Updates/Creates multiple entity types in the specified agent.
 	//
-	// Operation <response:
-	// [BatchUpdateEntityTypesResponse][google.cloud.dialogflow.v2beta1.BatchUpdateEntityTypesResponse],
+	// Operation <response: [BatchUpdateEntityTypesResponse][google.cloud.dialogflow.v2beta1.BatchUpdateEntityTypesResponse],
 	//            metadata: [google.protobuf.Struct][google.protobuf.Struct]>
 	BatchUpdateEntityTypes(ctx context.Context, in *BatchUpdateEntityTypesRequest, opts ...grpc.CallOption) (*google_longrunning.Operation, error)
 	// Deletes entity types in the specified agent.
@@ -940,8 +927,7 @@ type EntityTypesServer interface {
 	DeleteEntityType(context.Context, *DeleteEntityTypeRequest) (*google_protobuf2.Empty, error)
 	// Updates/Creates multiple entity types in the specified agent.
 	//
-	// Operation <response:
-	// [BatchUpdateEntityTypesResponse][google.cloud.dialogflow.v2beta1.BatchUpdateEntityTypesResponse],
+	// Operation <response: [BatchUpdateEntityTypesResponse][google.cloud.dialogflow.v2beta1.BatchUpdateEntityTypesResponse],
 	//            metadata: [google.protobuf.Struct][google.protobuf.Struct]>
 	BatchUpdateEntityTypes(context.Context, *BatchUpdateEntityTypesRequest) (*google_longrunning.Operation, error)
 	// Deletes entity types in the specified agent.

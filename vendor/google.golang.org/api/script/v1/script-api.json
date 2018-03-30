@@ -753,7 +753,7 @@
       }
     }
   },
-  "revision": "20180305",
+  "revision": "20180323",
   "rootUrl": "https://script.googleapis.com/",
   "schemas": {
     "Content": {
@@ -1573,6 +1573,6 @@
     }
   },
   "servicePath": "",
-  "title": "Google Apps Script API",
+  "title": "Apps Script API",
   "version": "v1"
 }

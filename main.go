@@ -28,12 +28,18 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/heroiclabs/nakama/ga"
 	"github.com/heroiclabs/nakama/migrate"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"io/ioutil"
+	"path/filepath"
 )
+
+const cookieFilename = ".cookie"
 
 var (
 	version  string = "2.0.0"
@@ -111,6 +117,13 @@ func main() {
 	metrics := server.NewMetrics(multiLogger, config)
 	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
+	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
+	cookie := newOrLoadCookie(config)
+	gacode := "UA-89792135-1"
+	if gaenabled {
+		runTelemetry(jsonLogger, http.DefaultClient, gacode, cookie)
+	}
+
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -127,6 +140,10 @@ func main() {
 	matchRegistry.Stop()
 	tracker.Stop()
 	sessionRegistry.Stop()
+
+	if gaenabled {
+		ga.SendSessionStop(http.DefaultClient, gacode, cookie)
+	}
 
 	os.Exit(0)
 }
@@ -155,9 +172,6 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	if err != nil {
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
-	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
-	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
-	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
 
 	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
 	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
@@ -169,4 +183,47 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	}
 
 	return db, dbVersion
+}
+
+// Help improve Nakama by sending anonymous usage statistics.
+//
+// You can disable the telemetry completely before server start by setting the
+// environment variable "NAKAMA_TELEMETRY" - i.e. NAKAMA_TELEMETRY=0 nakama
+//
+// These properties are collected:
+// * A unique UUID v4 random identifier which is generated.
+// * Version of Nakama being used which includes build metadata.
+// * Amount of time the server ran for.
+//
+// This information is sent via Google Analytics which allows the Nakama team to
+// analyze usage patterns and errors in order to help improve the server.
+func runTelemetry(logger *zap.Logger, httpc *http.Client, gacode string, cookie string) {
+	err := ga.SendSessionStart(httpc, gacode, cookie)
+	if err != nil {
+		logger.Debug("Send start session event failed.", zap.Error(err))
+		return
+	}
+
+	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "version", Ea: fmt.Sprintf("%s+%s", version, commitID)})
+	if err != nil {
+		logger.Debug("Send event failed.", zap.Error(err))
+		return
+	}
+
+	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
+	if err != nil {
+		logger.Debug("Send event failed.", zap.Error(err))
+		return
+	}
+}
+
+func newOrLoadCookie(config server.Config) string {
+	filePath := filepath.FromSlash(config.GetDataDir() + "/" + cookieFilename)
+	b, err := ioutil.ReadFile(filePath)
+	cookie := uuid.FromBytesOrNil(b)
+	if err != nil || cookie == uuid.Nil {
+		cookie = uuid.Must(uuid.NewV4())
+		ioutil.WriteFile(filePath, cookie.Bytes(), 0644)
+	}
+	return cookie.String()
 }
