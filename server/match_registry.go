@@ -107,7 +107,7 @@ func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, social
 }
 
 func (r *LocalMatchRegistry) NewMatch(name string, params interface{}) (*MatchHandler, error) {
-	id := uuid.NewV4()
+	id := uuid.Must(uuid.NewV4())
 	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name, params)
 	if err != nil {
 		return nil, err

@@ -741,7 +741,7 @@
       }
     }
   },
-  "revision": "20180124",
+  "revision": "20180321",
   "rootUrl": "https://firestore.googleapis.com/",
   "schemas": {
     "ArrayValue": {
@@ -956,7 +956,7 @@
           "type": "string"
         },
         "updateTime": {
-          "description": "Output only. The time at which the document was last changed.\n\nThis value is initally set to the `create_time` then increases\nmonotonically with each change to the document. It can also be\ncompared to values from other documents and the `read_time` of a query.",
+          "description": "Output only. The time at which the document was last changed.\n\nThis value is initially set to the `create_time` then increases\nmonotonically with each change to the document. It can also be\ncompared to values from other documents and the `read_time` of a query.",
           "format": "google-datetime",
           "type": "string"
         }

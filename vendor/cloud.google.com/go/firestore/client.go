@@ -29,6 +29,7 @@ import (
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 
 	"github.com/golang/protobuf/ptypes"
+	tspb "github.com/golang/protobuf/ptypes/timestamp"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/metadata"
@@ -152,7 +153,12 @@ func (c *Client) getAll(ctx context.Context, docRefs []*DocumentRef, tid []byte)
 	}
 
 	// Read results from the stream and add them to a map.
-	docMap := map[string]*pb.Document{}
+	type result struct {
+		doc      *pb.Document
+		readTime *tspb.Timestamp
+	}
+
+	docMap := map[string]result{}
 	for {
 		res, err := streamClient.Recv()
 		if err == io.EOF {
@@ -163,13 +169,13 @@ func (c *Client) getAll(ctx context.Context, docRefs []*DocumentRef, tid []byte)
 		}
 		switch x := res.Result.(type) {
 		case *pb.BatchGetDocumentsResponse_Found:
-			docMap[x.Found.Name] = x.Found
+			docMap[x.Found.Name] = result{x.Found, res.ReadTime}
 
 		case *pb.BatchGetDocumentsResponse_Missing:
-			if docMap[x.Missing] != nil {
-				return nil, fmt.Errorf("firestore: %q both missing and present", x.Missing)
+			if _, ok := docMap[x.Missing]; ok {
+				return nil, fmt.Errorf("firestore: %q seen twice", x.Missing)
 			}
-			docMap[x.Missing] = nil
+			docMap[x.Missing] = result{nil, res.ReadTime}
 		default:
 			return nil, errors.New("firestore: unknown BatchGetDocumentsResponse result type")
 		}
@@ -179,12 +185,12 @@ func (c *Client) getAll(ctx context.Context, docRefs []*DocumentRef, tid []byte)
 	// DocumentRefs.
 	docs := make([]*DocumentSnapshot, len(docNames))
 	for i, name := range docNames {
-		pbDoc, ok := docMap[name]
+		r, ok := docMap[name]
 		if !ok {
 			return nil, fmt.Errorf("firestore: passed %q to BatchGetDocuments but never saw response", name)
 		}
-		if pbDoc != nil {
-			doc, err := newDocumentSnapshot(docRefs[i], pbDoc, c)
+		if r.doc != nil {
+			doc, err := newDocumentSnapshot(docRefs[i], r.doc, c, r.readTime)
 			if err != nil {
 				return nil, err
 			}

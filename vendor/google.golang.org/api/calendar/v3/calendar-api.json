@@ -17,7 +17,7 @@
   "description": "Manipulates events and other calendar data.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/google-apps/calendar/firstapp",
-  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/yCy5sb24vtyNhrLP2aRyDfx5GsY\"",
+  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/kSq0jkvZ-MPIEPJItiswQ2txlEk\"",
   "icons": {
     "x16": "http://www.google.com/images/icons/product/calendar-16.png",
     "x32": "http://www.google.com/images/icons/product/calendar-32.png"
@@ -1604,7 +1604,7 @@
       }
     }
   },
-  "revision": "20180130",
+  "revision": "20180325",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Acl": {
@@ -2566,7 +2566,7 @@
         },
         "resource": {
           "default": "false",
-          "description": "Whether the attendee is a resource. Read-only. The default is False.",
+          "description": "Whether the attendee is a resource. Can only be set when the attendee is added to the event for the first time. Subsequent modifications are ignored. Optional. The default is False.",
           "type": "boolean"
         },
         "responseStatus": {

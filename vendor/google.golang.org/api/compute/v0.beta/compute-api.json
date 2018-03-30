@@ -29,7 +29,7 @@
   "description": "Creates and runs virtual machines on Google Cloud Platform.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/compute/docs/reference/latest/",
-  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/rbLFk9Clb6vab1hqkKH1aK-_W6I\"",
+  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/daIK3TPc7g4vSYPDdeU4jy_NNhw\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/compute_engine-16.png",
     "x32": "https://www.google.com/images/icons/product/compute_engine-32.png"
@@ -14383,7 +14383,7 @@
           ]
         },
         "patch": {
-          "description": "Patches the specified subnetwork with the data included in the request. Only the following fields within the subnetwork resource can be specified in the request: secondary_ip_range and allow_subnet_cidr_routes_overlap. It is also mandatory to specify the current fingeprint of the subnetwork resource being patched.",
+          "description": "Patches the specified subnetwork with the data included in the request. Only the following fields within the subnetwork resource can be specified in the request: secondary_ip_range, allow_subnet_cidr_routes_overlap and role. It is also mandatory to specify the current fingeprint of the subnetwork resource being patched.",
           "httpMethod": "PATCH",
           "id": "compute.subnetworks.patch",
           "parameterOrder": [
@@ -17875,7 +17875,7 @@
       }
     }
   },
-  "revision": "20180314",
+  "revision": "20180312",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "AcceleratorConfig": {
@@ -19789,6 +19789,13 @@
         "creationTimestamp": {
           "description": "[Output Only] Creation timestamp in RFC3339 text format.",
           "type": "string"
+        },
+        "customRequestHeaders": {
+          "description": "Headers that the HTTP/S load balancer should add to proxied requests.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "description": {
           "description": "An optional description of this resource. Provide this property when you create the resource.",

@@ -406,7 +406,7 @@ func (n *NakamaModule) sqlQuery(l *lua.LState) int {
 }
 
 func (n *NakamaModule) uuidV4(l *lua.LState) int {
-	l.Push(lua.LString(uuid.NewV4().String()))
+	l.Push(lua.LString(uuid.Must(uuid.NewV4()).String()))
 	return 1
 }
 
@@ -2059,7 +2059,7 @@ func (n *NakamaModule) notificationSend(l *lua.LState) int {
 	persistent := l.OptBool(6, false)
 
 	nots := []*api.Notification{{
-		Id:         base64.RawURLEncoding.EncodeToString(uuid.NewV4().Bytes()),
+		Id:         uuid.Must(uuid.NewV4()).String(),
 		Subject:    subject,
 		Content:    content,
 		Code:       int32(code),
@@ -2208,7 +2208,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 			return
 		}
 
-		notification.Id = uuid.NewV4().String()
+		notification.Id = uuid.Must(uuid.NewV4()).String()
 		notification.CreateTime = &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()}
 		notification.SenderId = senderID.String()
 

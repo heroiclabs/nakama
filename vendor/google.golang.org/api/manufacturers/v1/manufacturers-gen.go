@@ -43,7 +43,7 @@ var _ = ctxhttp.Do
 const apiId = "manufacturers:v1"
 const apiName = "manufacturers"
 const apiVersion = "v1"
-const basePath = "https://manufacturers.googleapis.com/"
+const basePath = "https://content-manufacturers.googleapis.com/"
 
 // OAuth2 scopes used by this API.
 const (

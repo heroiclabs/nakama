@@ -3475,8 +3475,7 @@ func (r *ProjectsLocationsRegistriesDevicesService) Patch(name string, device *D
 // The field mask must not be empty, and it must not contain fields
 // that
 // are immutable or only set by the server.
-// Mutable top-level fields: `credentials`, `enabled_state`, and
-// `metadata`
+// Mutable top-level fields: `credentials`, `blocked`, and `metadata`
 func (c *ProjectsLocationsRegistriesDevicesPatchCall) UpdateMask(updateMask string) *ProjectsLocationsRegistriesDevicesPatchCall {
 	c.urlParams_.Set("updateMask", updateMask)
 	return c
@@ -3584,7 +3583,7 @@ func (c *ProjectsLocationsRegistriesDevicesPatchCall) Do(opts ...googleapi.CallO
 	//       "type": "string"
 	//     },
 	//     "updateMask": {
-	//       "description": "Only updates the `device` fields indicated by this mask.\nThe field mask must not be empty, and it must not contain fields that\nare immutable or only set by the server.\nMutable top-level fields: `credentials`, `enabled_state`, and `metadata`",
+	//       "description": "Only updates the `device` fields indicated by this mask.\nThe field mask must not be empty, and it must not contain fields that\nare immutable or only set by the server.\nMutable top-level fields: `credentials`, `blocked`, and `metadata`",
 	//       "format": "google-fieldmask",
 	//       "location": "query",
 	//       "type": "string"

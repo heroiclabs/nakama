@@ -29,9 +29,6 @@ import (
 // present but the SpanContext isn't sampled, then a new trace may be started
 // (as determined by Sampler).
 type ServerHandler struct {
-	// NoStats may be set to true to disable recording OpenCensus stats for RPCs.
-	NoStats bool
-
 	// IsPublicEndpoint may be set to true to always start a new trace around
 	// each RPC. Any SpanContext in the RPC metadata will be added as a linked
 	// span instead of making it the parent of the span created around the
@@ -48,7 +45,11 @@ type ServerHandler struct {
 	// present on the inbound RPC but the SpanContext is not sampled. This
 	// ensures that each service has some opportunity to be traced. If you would
 	// like to not add any additional traces for this gRPC service, set:
+	//
 	//   StartOptions.Sampler = trace.ProbabilitySampler(0.0)
+	//
+	// StartOptions.SpanKind will always be set to trace.SpanKindServer
+	// for spans started by this handler.
 	StartOptions trace.StartOptions
 }
 
@@ -68,16 +69,12 @@ func (s *ServerHandler) TagConn(ctx context.Context, cti *stats.ConnTagInfo) con
 // HandleRPC implements per-RPC tracing and stats instrumentation.
 func (s *ServerHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
 	traceHandleRPC(ctx, rs)
-	if !s.NoStats {
-		s.statsHandleRPC(ctx, rs)
-	}
+	s.statsHandleRPC(ctx, rs)
 }
 
 // TagRPC implements per-RPC context management.
 func (s *ServerHandler) TagRPC(ctx context.Context, rti *stats.RPCTagInfo) context.Context {
 	ctx = s.traceTagRPC(ctx, rti)
-	if !s.NoStats {
-		ctx = s.statsTagRPC(ctx, rti)
-	}
+	ctx = s.statsTagRPC(ctx, rti)
 	return ctx
 }

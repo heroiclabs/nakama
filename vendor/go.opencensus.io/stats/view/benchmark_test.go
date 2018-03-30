@@ -36,7 +36,7 @@ var (
 	k8, _ = tag.NewKey("k8")
 	view  = &View{
 		Measure:     m,
-		Aggregation: DistributionAggregation{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		Aggregation: Distribution(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
 		TagKeys:     []tag.Key{k1, k2},
 	}
 )

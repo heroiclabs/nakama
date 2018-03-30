@@ -1630,7 +1630,7 @@
       }
     }
   },
-  "revision": "20180312",
+  "revision": "20180320",
   "rootUrl": "https://dataproc.googleapis.com/",
   "schemas": {
     "AcceleratorConfig": {
@@ -3009,6 +3009,13 @@
         "graph": {
           "$ref": "WorkflowGraph",
           "description": "Output only. The workflow graph."
+        },
+        "parameters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map from parameter names to values that were used for those parameters.",
+          "type": "object"
         },
         "state": {
           "description": "Output only. The workflow state.",

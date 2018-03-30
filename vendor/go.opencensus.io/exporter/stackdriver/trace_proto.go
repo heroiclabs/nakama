@@ -52,10 +52,18 @@ func protoFromSpanData(s *trace.SpanData, projectID string) *tracepb.Span {
 	traceIDString := s.SpanContext.TraceID.String()
 	spanIDString := s.SpanContext.SpanID.String()
 
+	name := s.Name
+	switch s.SpanKind {
+	case trace.SpanKindClient:
+		name = "Sent." + name
+	case trace.SpanKindServer:
+		name = "Recv." + name
+	}
+
 	sp := &tracepb.Span{
 		Name:                    "projects/" + projectID + "/traces/" + traceIDString + "/spans/" + spanIDString,
 		SpanId:                  spanIDString,
-		DisplayName:             trunc(s.Name, 128),
+		DisplayName:             trunc(name, 128),
 		StartTime:               timestampProto(s.StartTime),
 		EndTime:                 timestampProto(s.EndTime),
 		SameProcessAsParentSpan: &wrapperspb.BoolValue{Value: !s.HasRemoteParent},

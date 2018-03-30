@@ -7,8 +7,8 @@ import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
 import _ "google.golang.org/genproto/googleapis/api/annotations"
-import google_protobuf4 "github.com/golang/protobuf/ptypes/empty"
-import google_protobuf5 "google.golang.org/genproto/protobuf/field_mask"
+import google_protobuf5 "github.com/golang/protobuf/ptypes/empty"
+import google_protobuf6 "google.golang.org/genproto/protobuf/field_mask"
 
 import (
 	context "golang.org/x/net/context"
@@ -40,7 +40,7 @@ type ListUptimeCheckConfigsRequest struct {
 func (m *ListUptimeCheckConfigsRequest) Reset()                    { *m = ListUptimeCheckConfigsRequest{} }
 func (m *ListUptimeCheckConfigsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListUptimeCheckConfigsRequest) ProtoMessage()               {}
-func (*ListUptimeCheckConfigsRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{0} }
+func (*ListUptimeCheckConfigsRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{0} }
 
 func (m *ListUptimeCheckConfigsRequest) GetParent() string {
 	if m != nil {
@@ -78,7 +78,7 @@ type ListUptimeCheckConfigsResponse struct {
 func (m *ListUptimeCheckConfigsResponse) Reset()                    { *m = ListUptimeCheckConfigsResponse{} }
 func (m *ListUptimeCheckConfigsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListUptimeCheckConfigsResponse) ProtoMessage()               {}
-func (*ListUptimeCheckConfigsResponse) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{1} }
+func (*ListUptimeCheckConfigsResponse) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{1} }
 
 func (m *ListUptimeCheckConfigsResponse) GetUptimeCheckConfigs() []*UptimeCheckConfig {
 	if m != nil {
@@ -105,7 +105,7 @@ type GetUptimeCheckConfigRequest struct {
 func (m *GetUptimeCheckConfigRequest) Reset()                    { *m = GetUptimeCheckConfigRequest{} }
 func (m *GetUptimeCheckConfigRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetUptimeCheckConfigRequest) ProtoMessage()               {}
-func (*GetUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{2} }
+func (*GetUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{2} }
 
 func (m *GetUptimeCheckConfigRequest) GetName() string {
 	if m != nil {
@@ -127,7 +127,7 @@ type CreateUptimeCheckConfigRequest struct {
 func (m *CreateUptimeCheckConfigRequest) Reset()                    { *m = CreateUptimeCheckConfigRequest{} }
 func (m *CreateUptimeCheckConfigRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateUptimeCheckConfigRequest) ProtoMessage()               {}
-func (*CreateUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{3} }
+func (*CreateUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{3} }
 
 func (m *CreateUptimeCheckConfigRequest) GetParent() string {
 	if m != nil {
@@ -149,7 +149,7 @@ type UpdateUptimeCheckConfigRequest struct {
 	// configuration are updated with values from the new configuration. If this
 	// field is empty, then the current configuration is completely replaced with
 	// the new configuration.
-	UpdateMask *google_protobuf5.FieldMask `protobuf:"bytes,2,opt,name=update_mask,json=updateMask" json:"update_mask,omitempty"`
+	UpdateMask *google_protobuf6.FieldMask `protobuf:"bytes,2,opt,name=update_mask,json=updateMask" json:"update_mask,omitempty"`
 	// Required. If an `"updateMask"` has been specified, this field gives
 	// the values for the set of fields mentioned in the `"updateMask"`. If an
 	// `"updateMask"` has not been given, this uptime check configuration replaces
@@ -163,9 +163,9 @@ type UpdateUptimeCheckConfigRequest struct {
 func (m *UpdateUptimeCheckConfigRequest) Reset()                    { *m = UpdateUptimeCheckConfigRequest{} }
 func (m *UpdateUptimeCheckConfigRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateUptimeCheckConfigRequest) ProtoMessage()               {}
-func (*UpdateUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{4} }
+func (*UpdateUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{4} }
 
-func (m *UpdateUptimeCheckConfigRequest) GetUpdateMask() *google_protobuf5.FieldMask {
+func (m *UpdateUptimeCheckConfigRequest) GetUpdateMask() *google_protobuf6.FieldMask {
 	if m != nil {
 		return m.UpdateMask
 	}
@@ -190,7 +190,7 @@ type DeleteUptimeCheckConfigRequest struct {
 func (m *DeleteUptimeCheckConfigRequest) Reset()                    { *m = DeleteUptimeCheckConfigRequest{} }
 func (m *DeleteUptimeCheckConfigRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteUptimeCheckConfigRequest) ProtoMessage()               {}
-func (*DeleteUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{5} }
+func (*DeleteUptimeCheckConfigRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{5} }
 
 func (m *DeleteUptimeCheckConfigRequest) GetName() string {
 	if m != nil {
@@ -217,7 +217,7 @@ type ListUptimeCheckIpsRequest struct {
 func (m *ListUptimeCheckIpsRequest) Reset()                    { *m = ListUptimeCheckIpsRequest{} }
 func (m *ListUptimeCheckIpsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListUptimeCheckIpsRequest) ProtoMessage()               {}
-func (*ListUptimeCheckIpsRequest) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{6} }
+func (*ListUptimeCheckIpsRequest) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{6} }
 
 func (m *ListUptimeCheckIpsRequest) GetPageSize() int32 {
 	if m != nil {
@@ -250,7 +250,7 @@ type ListUptimeCheckIpsResponse struct {
 func (m *ListUptimeCheckIpsResponse) Reset()                    { *m = ListUptimeCheckIpsResponse{} }
 func (m *ListUptimeCheckIpsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListUptimeCheckIpsResponse) ProtoMessage()               {}
-func (*ListUptimeCheckIpsResponse) Descriptor() ([]byte, []int) { return fileDescriptor6, []int{7} }
+func (*ListUptimeCheckIpsResponse) Descriptor() ([]byte, []int) { return fileDescriptor11, []int{7} }
 
 func (m *ListUptimeCheckIpsResponse) GetUptimeCheckIps() []*UptimeCheckIp {
 	if m != nil {
@@ -303,7 +303,7 @@ type UptimeCheckServiceClient interface {
 	// Deletes an uptime check configuration. Note that this method will fail
 	// if the uptime check configuration is referenced by an alert policy or
 	// other dependent configs that would be rendered invalid by the deletion.
-	DeleteUptimeCheckConfig(ctx context.Context, in *DeleteUptimeCheckConfigRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error)
+	DeleteUptimeCheckConfig(ctx context.Context, in *DeleteUptimeCheckConfigRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error)
 	// Returns the list of IPs that checkers run from
 	ListUptimeCheckIps(ctx context.Context, in *ListUptimeCheckIpsRequest, opts ...grpc.CallOption) (*ListUptimeCheckIpsResponse, error)
 }
@@ -352,8 +352,8 @@ func (c *uptimeCheckServiceClient) UpdateUptimeCheckConfig(ctx context.Context, 
 	return out, nil
 }
 
-func (c *uptimeCheckServiceClient) DeleteUptimeCheckConfig(ctx context.Context, in *DeleteUptimeCheckConfigRequest, opts ...grpc.CallOption) (*google_protobuf4.Empty, error) {
-	out := new(google_protobuf4.Empty)
+func (c *uptimeCheckServiceClient) DeleteUptimeCheckConfig(ctx context.Context, in *DeleteUptimeCheckConfigRequest, opts ...grpc.CallOption) (*google_protobuf5.Empty, error) {
+	out := new(google_protobuf5.Empty)
 	err := grpc.Invoke(ctx, "/google.monitoring.v3.UptimeCheckService/DeleteUptimeCheckConfig", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -388,7 +388,7 @@ type UptimeCheckServiceServer interface {
 	// Deletes an uptime check configuration. Note that this method will fail
 	// if the uptime check configuration is referenced by an alert policy or
 	// other dependent configs that would be rendered invalid by the deletion.
-	DeleteUptimeCheckConfig(context.Context, *DeleteUptimeCheckConfigRequest) (*google_protobuf4.Empty, error)
+	DeleteUptimeCheckConfig(context.Context, *DeleteUptimeCheckConfigRequest) (*google_protobuf5.Empty, error)
 	// Returns the list of IPs that checkers run from
 	ListUptimeCheckIps(context.Context, *ListUptimeCheckIpsRequest) (*ListUptimeCheckIpsResponse, error)
 }
@@ -538,9 +538,9 @@ var _UptimeCheckService_serviceDesc = grpc.ServiceDesc{
 	Metadata: "google/monitoring/v3/uptime_service.proto",
 }
 
-func init() { proto.RegisterFile("google/monitoring/v3/uptime_service.proto", fileDescriptor6) }
+func init() { proto.RegisterFile("google/monitoring/v3/uptime_service.proto", fileDescriptor11) }
 
-var fileDescriptor6 = []byte{
+var fileDescriptor11 = []byte{
 	// 735 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xdf, 0x4e, 0x13, 0x4f,
 	0x14, 0xce, 0xb4, 0xfc, 0x08, 0x1c, 0xf2, 0xf3, 0xcf, 0xd8, 0x40, 0x5d, 0xa4, 0xa9, 0x35, 0x51,

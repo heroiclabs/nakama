@@ -1947,7 +1947,7 @@
       }
     }
   },
-  "revision": "20180308",
+  "revision": "20180326",
   "rootUrl": "https://adexchangebuyer.googleapis.com/",
   "schemas": {
     "AbsoluteDateRange": {
@@ -2839,24 +2839,6 @@
             "A placeholder for an undefined environment; indicates that no environment\nfilter will be applied.",
             "The ad impression appears on the web.",
             "The ad impression appears in an app."
-          ],
-          "type": "string"
-        },
-        "format": {
-          "description": "DEPRECATED: use repeated formats field instead.\nThe format on which to filter; optional.",
-          "enum": [
-            "FORMAT_UNSPECIFIED",
-            "NATIVE_DISPLAY",
-            "NATIVE_VIDEO",
-            "NON_NATIVE_DISPLAY",
-            "NON_NATIVE_VIDEO"
-          ],
-          "enumDescriptions": [
-            "A placeholder for an undefined format; indicates that no format filter\nwill be applied.",
-            "The ad impression is a native ad, and display (i.e. image) format.",
-            "The ad impression is a native ad, and video format.",
-            "The ad impression is not a native ad, and display (i.e. image) format.",
-            "The ad impression is not a native ad, and video format."
           ],
           "type": "string"
         },

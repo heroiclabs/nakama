@@ -553,7 +553,7 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 
 	apiserver, _ := NewAPIServer(t, rp)
 	defer apiserver.Stop()
-	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
 	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -590,7 +590,7 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 
 	apiserver, _ := NewAPIServer(t, rp)
 	defer apiserver.Stop()
-	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
 	_, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -624,7 +624,7 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 
 	apiserver, _ := NewAPIServer(t, rp)
 	defer apiserver.Stop()
-	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
 	acks, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
@@ -671,7 +671,7 @@ nakama.register_rt_before(before_match_create, "MatchCreate")
 
 	apiserver, pipeline := NewAPIServer(t, rp)
 	defer apiserver.Stop()
-	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
 	userID, err := UserIDFromSession(s)
@@ -722,7 +722,7 @@ nakama.register_rt_after(after_match_create, "MatchCreate")
 
 	apiserver, pipeline := NewAPIServer(t, rp)
 	defer apiserver.Stop()
-	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.NewV4().String())
+	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
 	userID, err := UserIDFromSession(s)

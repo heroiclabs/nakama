@@ -1545,20 +1545,11 @@ func TestInvalidHeaderField(t *testing.T) {
 	}
 	p := make([]byte, http2MaxFrameLen)
 	_, err = s.trReader.(*transportReader).Read(p)
-	if se, ok := err.(StreamError); !ok || se.Code != codes.FailedPrecondition || !strings.Contains(err.Error(), expectedInvalidHeaderField) {
-		t.Fatalf("Read got error %v, want error with code %s and contains %q", err, codes.FailedPrecondition, expectedInvalidHeaderField)
+	if se, ok := err.(StreamError); !ok || se.Code != codes.Internal || !strings.Contains(err.Error(), expectedInvalidHeaderField) {
+		t.Fatalf("Read got error %v, want error with code %s and contains %q", err, codes.Internal, expectedInvalidHeaderField)
 	}
 	ct.Close()
 	server.stop()
-}
-
-func TestStreamContext(t *testing.T) {
-	expectedStream := &Stream{}
-	ctx := newContextWithStream(context.Background(), expectedStream)
-	s, ok := StreamFromContext(ctx)
-	if !ok || expectedStream != s {
-		t.Fatalf("GetStreamFromContext(%v) = %v, %t, want: %v, true", ctx, s, ok, expectedStream)
-	}
 }
 
 func TestIsReservedHeader(t *testing.T) {

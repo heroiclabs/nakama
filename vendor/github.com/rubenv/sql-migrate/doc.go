@@ -16,7 +16,7 @@ Installation
 
 To install the library and command line program, use the following:
 
-	go get github.com/rubenv/sql-migrate/...
+	go get -v github.com/rubenv/sql-migrate/...
 
 Command-line tool
 
@@ -27,6 +27,7 @@ The main command is called sql-migrate.
 
 	Available commands are:
 		down      Undo a database migration
+		new       Create a new migration
 		redo      Reapply the last migration
 		status    Show migration status
 		up        Migrates the database to the most recent version available
@@ -75,6 +76,18 @@ Use the status command to see the state of the applied migrations:
 	| 1_initial.sql | 2014-09-13 08:19:06.788354925 +0000 UTC |
 	| 2_record.sql  | no                                      |
 	+---------------+-----------------------------------------+
+
+MySQL Caveat
+
+If you are using MySQL, you must append ?parseTime=true to the datasource configuration. For example:
+
+	production:
+		dialect: mysql
+		datasource: root@/dbname?parseTime=true
+		dir: migrations/mysql
+		table: migrations
+
+See https://github.com/go-sql-driver/mysql#parsetime for more information.
 
 Library
 
@@ -170,9 +183,28 @@ Normally each migration is run within a transaction in order to guarantee that i
 	-- +migrate Down
 	DROP INDEX people_unique_id_idx;
 
+Embedding migrations with packr
+
+If you like your Go applications self-contained (that is: a single binary): use packr (https://github.com/gobuffalo/packr) to embed the migration files.
+
+Just write your migration files as usual, as a set of SQL files in a folder.
+
+Use the PackrMigrationSource in your application to find the migrations:
+
+	migrations := &migrate.PackrMigrationSource{
+		Box: packr.NewBox("./migrations"),
+	}
+
+If you already have a box and would like to use a subdirectory:
+
+	migrations := &migrate.PackrMigrationSource{
+		Box: myBox,
+		Dir: "./migrations",
+	}
+
 Embedding migrations with bindata
 
-If you like your Go applications self-contained (that is: a single binary): use bindata (https://github.com/jteeuwen/go-bindata) to embed the migration files.
+As an alternative, but slightly less maintained, you can use bindata (https://github.com/shuLhan/go-bindata) to embed the migration files.
 
 Just write your migration files as usual, as a set of SQL files in a folder.
 

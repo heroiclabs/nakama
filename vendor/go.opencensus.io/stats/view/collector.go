@@ -28,7 +28,7 @@ type collector struct {
 	signatures map[string]AggregationData
 	// Aggregation is the description of the aggregation to perform for this
 	// view.
-	a Aggregation
+	a *Aggregation
 }
 
 func (c *collector) addSample(s string, v float64) {

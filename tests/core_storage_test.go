@@ -72,11 +72,11 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	u0 := uuid.NewV4()
+	u0 := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, u0)
-	u1 := uuid.NewV4()
+	u1 := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, u1)
-	u2 := uuid.NewV4()
+	u2 := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, u2)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -329,7 +329,7 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -355,7 +355,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -472,7 +472,7 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -527,7 +527,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -551,7 +551,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -594,7 +594,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -639,7 +639,7 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -667,7 +667,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -710,7 +710,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -843,7 +843,7 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -916,7 +916,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 		Collection: "testcollection",
 		Key:        key,
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.NewV4(), ids)
+	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -929,7 +929,7 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -970,7 +970,7 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1018,7 +1018,7 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1065,7 +1065,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1094,7 +1094,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.NewV4(), ids)
+	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1106,7 +1106,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1136,7 +1136,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.NewV4(), ids)
+	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1156,7 +1156,7 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 
 	record1 := GenerateString()
 	record2 := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1201,7 +1201,7 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 			UserId:     uid.String(),
 		},
 	}
-	readData, err := server.StorageReadObjects(logger, db, uuid.NewV4(), ids)
+	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1295,7 +1295,7 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1334,7 +1334,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1383,7 +1383,7 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1422,7 +1422,7 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 	defer db.Close()
 
 	key := GenerateString()
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1555,7 +1555,7 @@ func TestStorageListRuntimeUser(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 
 	data := map[uuid.UUID][]*api.WriteStorageObject{
@@ -1601,7 +1601,7 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 	collection := GenerateString()
 
@@ -1650,7 +1650,7 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
-	uid := uuid.NewV4()
+	uid := uuid.Must(uuid.NewV4())
 	InsertUser(t, db, uid)
 	collection := GenerateString()
 
@@ -1684,7 +1684,7 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 	assert.NotNil(t, acks, "acks was nil")
 	assert.Len(t, acks.Acks, 3, "acks length was not 3")
 
-	values, code, err := server.StorageListObjects(logger, db, uuid.NewV4(), uid, collection, 10, "")
+	values, code, err := server.StorageListObjects(logger, db, uuid.Must(uuid.NewV4()), uid, collection, 10, "")
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")

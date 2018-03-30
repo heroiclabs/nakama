@@ -50,6 +50,7 @@ func TestExport(t *testing.T) {
 					TraceOptions: 1,
 				},
 				Name:      "name",
+				SpanKind:  trace.SpanKindClient,
 				StartTime: now,
 				EndTime:   now.Add(24 * time.Hour),
 				Attributes: map[string]interface{}{

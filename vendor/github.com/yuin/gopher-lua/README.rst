@@ -55,7 +55,7 @@ Installation
 
    go get github.com/yuin/gopher-lua
 
-GopherLua supports >= Go1.7.
+GopherLua supports >= Go1.8.
 
 ----------------------------------------------------------------
 Usage
@@ -505,11 +505,11 @@ With coroutines
 	co, cocancel := L.NewThread()
 	defer cocancel()
 	fn := L.GetGlobal("coro").(*LFunction)
-    
+
 	_, err, values := L.Resume(co, fn) // err is nil
-    
+
 	cancel() // cancel the parent context
-    
+
 	_, err, values = L.Resume(co, fn) // err is NOT nil : child context was canceled
 
 **Note that using a context causes performance degradation.**
@@ -784,6 +784,7 @@ Libraries for GopherLua
 - `gluaxmlpath <https://github.com/ailncode/gluaxmlpath>`_ : An xmlpath module for gopher-lua
 - `gluasocket <https://github.com/BixData/gluasocket>`_ : A LuaSocket library for the GopherLua VM
 - `gluabit32 <https://github.com/BixData/gluabit32>`_ : A native Go implementation of bit32 for the GopherLua VM.
+- `gmoonscript <https://github.com/rucuriousyet/gmoonscript>`_ : Moonscript Compiler for the Gopher Lua VM
 
 ----------------------------------------------------------------
 Donation

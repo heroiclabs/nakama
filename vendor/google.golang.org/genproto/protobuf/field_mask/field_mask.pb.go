@@ -228,12 +228,6 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 //
 // Note that oneof type names ("test_oneof" in this case) cannot be used in
 // paths.
-//
-// ## Field Mask Verification
-//
-// The implementation of the all the API methods, which have any FieldMask type
-// field in the request, should verify the included field paths, and return
-// `INVALID_ARGUMENT` error if any path is duplicated or unmappable.
 type FieldMask struct {
 	// The set of field mask paths.
 	Paths []string `protobuf:"bytes,1,rep,name=paths" json:"paths,omitempty"`

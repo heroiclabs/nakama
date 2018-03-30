@@ -1,4 +1,4 @@
-// Package vision provides access to the Google Cloud Vision API.
+// Package vision provides access to the Cloud Vision API.
 //
 // See https://cloud.google.com/vision/
 //
@@ -1559,8 +1559,7 @@ type GoogleCloudVisionV1p2beta1ImageContext struct {
 	// [supported languages](/vision/docs/languages).
 	LanguageHints []string `json:"languageHints,omitempty"`
 
-	// LatLongRect: lat/long rectangle that specifies the location of the
-	// image.
+	// LatLongRect: Not used.
 	LatLongRect *GoogleCloudVisionV1p2beta1LatLongRect `json:"latLongRect,omitempty"`
 
 	// WebDetectionParams: Parameters for web detection.

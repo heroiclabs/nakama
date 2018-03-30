@@ -66,7 +66,7 @@ func main() {
 		Name:        "my.org/views/video_size_cum",
 		Description: "processed video size over time",
 		Measure:     videoSize,
-		Aggregation: view.DistributionAggregation{0, 1 << 16, 1 << 32},
+		Aggregation: view.Distribution(0, 1<<16, 1<<32),
 	}); err != nil {
 		log.Fatalf("Cannot subscribe to the view: %v", err)
 	}

@@ -1,4 +1,4 @@
-// Package dlp provides access to the Cloud DLP API.
+// Package dlp provides access to the Cloud Data Loss Prevention (DLP) API.
 //
 // See https://cloud.google.com/dlp/docs/
 //

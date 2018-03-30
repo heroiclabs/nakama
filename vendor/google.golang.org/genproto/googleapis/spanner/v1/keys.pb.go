@@ -30,6 +30,11 @@ It has these top-level messages:
 	ListSessionsResponse
 	DeleteSessionRequest
 	ExecuteSqlRequest
+	PartitionOptions
+	PartitionQueryRequest
+	PartitionReadRequest
+	Partition
+	PartitionResponse
 	ReadRequest
 	BeginTransactionRequest
 	CommitRequest

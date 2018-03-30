@@ -21,12 +21,25 @@ import (
 	"go.opencensus.io/trace"
 )
 
-func Example() {
+func ExampleNewExporter_collector() {
 	// Register the Jaeger exporter to be able to retrieve
 	// the collected spans.
 	exporter, err := jaeger.NewExporter(jaeger.Options{
 		Endpoint:    "http://localhost:14268",
 		ServiceName: "trace-demo",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	trace.RegisterExporter(exporter)
+}
+
+func ExampleNewExporter_agent() {
+	// Register the Jaeger exporter to be able to retrieve
+	// the collected spans.
+	exporter, err := jaeger.NewExporter(jaeger.Options{
+		AgentEndpoint: "localhost:6831",
+		ServiceName:   "trace-demo",
 	})
 	if err != nil {
 		log.Fatal(err)

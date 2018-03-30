@@ -15,7 +15,7 @@
   "description": "Manages product items, inventory, and Merchant Center accounts for Google Shopping.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/shopping-content",
-  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/QMVTzP4sO9_JHyigCiKlZqLj3Hc\"",
+  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/GzeGhrgiJKQlQpHAXI2VovJdlQo\"",
   "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
     "x32": "https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png"
@@ -792,7 +792,7 @@
       }
     }
   },
-  "revision": "20180205",
+  "revision": "20180316",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Error": {
@@ -1011,7 +1011,7 @@
       "id": "OrderCustomer",
       "properties": {
         "email": {
-          "description": "Email address of the customer.",
+          "description": "Email address that should be used for order related communications. In certain cases this might not be a real users email, but a proxy email.",
           "type": "string"
         },
         "explicitMarketingPreference": {

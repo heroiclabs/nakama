@@ -9,7 +9,7 @@
     }
   },
   "basePath": "",
-  "baseUrl": "https://content-storagetransfer.googleapis.com/",
+  "baseUrl": "https://storagetransfer.googleapis.com/",
   "batchPath": "batch",
   "description": "Transfers data from external data sources to a Google Cloud Storage bucket or between Google Cloud Storage buckets.",
   "discoveryVersion": "v1",
@@ -430,8 +430,8 @@
       }
     }
   },
-  "revision": "20180308",
-  "rootUrl": "https://content-storagetransfer.googleapis.com/",
+  "revision": "20180319",
+  "rootUrl": "https://storagetransfer.googleapis.com/",
   "schemas": {
     "AwsAccessKey": {
       "description": "AWS access key (see\n[AWS Security Credentials](http://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html)).",

@@ -43,7 +43,7 @@ var _ = ctxhttp.Do
 const apiId = "storagetransfer:v1"
 const apiName = "storagetransfer"
 const apiVersion = "v1"
-const basePath = "https://content-storagetransfer.googleapis.com/"
+const basePath = "https://storagetransfer.googleapis.com/"
 
 // OAuth2 scopes used by this API.
 const (

@@ -40,10 +40,10 @@ func statsExamples() {
 	}
 
 	// START aggs
-	distAgg := view.DistributionAggregation{0, 1 << 32, 2 << 32, 3 << 32}
-	countAgg := view.CountAggregation{}
-	sumAgg := view.SumAggregation{}
-	meanAgg := view.MeanAggregation{}
+	distAgg := view.Distribution(0, 1<<32, 2<<32, 3<<32)
+	countAgg := view.Count()
+	sumAgg := view.Sum()
+	meanAgg := view.Mean()
 	// END aggs
 
 	_, _, _, _ = distAgg, countAgg, sumAgg, meanAgg
@@ -53,7 +53,7 @@ func statsExamples() {
 		Name:        "my.org/video_size_distribution",
 		Description: "distribution of processed video size over time",
 		Measure:     videoSize,
-		Aggregation: view.DistributionAggregation([]float64{0, 1 << 32, 2 << 32, 3 << 32}),
+		Aggregation: view.Distribution(0, 1<<32, 2<<32, 3<<32),
 	}); err != nil {
 		log.Fatalf("Failed to subscribe to view: %v", err)
 	}

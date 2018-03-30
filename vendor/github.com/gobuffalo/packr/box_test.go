@@ -123,3 +123,29 @@ func Test_Virtual_Directory_Not_Found(t *testing.T) {
 	_, err = virtualBox.find("does-not-exist")
 	r.Error(err)
 }
+
+func Test_AddString(t *testing.T) {
+	r := require.New(t)
+
+	_, err := virtualBox.find("string")
+	r.Error(err)
+
+	virtualBox.AddString("string", "hello")
+
+	_, err = virtualBox.find("string")
+	r.NoError(err)
+	r.Equal("hello", virtualBox.String("string"))
+}
+
+func Test_AddBytes(t *testing.T) {
+	r := require.New(t)
+
+	_, err := virtualBox.find("bytes")
+	r.Error(err)
+
+	virtualBox.AddBytes("bytes", []byte("hello"))
+
+	_, err = virtualBox.find("bytes")
+	r.NoError(err)
+	r.Equal("hello", virtualBox.String("bytes"))
+}

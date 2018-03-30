@@ -15,7 +15,7 @@
   "description": "Reads and publishes results from Firebase Test Lab.",
   "discoveryVersion": "v1",
   "documentationLink": "https://firebase.google.com/docs/test-lab/",
-  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/sJzr-VHukEDcn1f0lcyTX-wUtPE\"",
+  "etag": "\"-iA1DTNe4s-I6JZXPt1t1Ypy8IU/2jJRzbiUma3M3ST-TMvZSfvHtoo\"",
   "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
     "x32": "https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png"
@@ -1161,7 +1161,7 @@
       }
     }
   },
-  "revision": "20180315",
+  "revision": "20180322",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "AndroidAppInfo": {
@@ -2289,7 +2289,9 @@
           "enum": [
             "anr",
             "compatibleWithOrchestrator",
+            "completeRoboScriptExecution",
             "fatalException",
+            "incompleteRoboScriptExecution",
             "launcherActivityNotFound",
             "nativeCrash",
             "startActivityNotFound",
@@ -2297,6 +2299,8 @@
             "unusedRoboDirective"
           ],
           "enumDescriptions": [
+            "",
+            "",
             "",
             "",
             "",

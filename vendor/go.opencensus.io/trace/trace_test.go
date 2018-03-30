@@ -236,14 +236,15 @@ func TestStartSpanWithRemoteParent(t *testing.T) {
 }
 
 // startSpan returns a context with a new Span that is recording events and will be exported.
-func startSpan() *Span {
+func startSpan(o StartOptions) *Span {
 	return NewSpanWithRemoteParent("span0",
 		SpanContext{
 			TraceID:      tid,
 			SpanID:       sid,
 			TraceOptions: 1,
 		},
-		StartOptions{})
+		o,
+	)
 }
 
 type testExporter struct {
@@ -295,8 +296,77 @@ func checkTime(x *time.Time) bool {
 	return true
 }
 
+func TestSpanKind(t *testing.T) {
+	tests := []struct {
+		name         string
+		startOptions StartOptions
+		want         *SpanData
+	}{
+		{
+			name:         "zero StartOptions",
+			startOptions: StartOptions{},
+			want: &SpanData{
+				SpanContext: SpanContext{
+					TraceID:      tid,
+					SpanID:       SpanID{},
+					TraceOptions: 0x1,
+				},
+				ParentSpanID:    sid,
+				Name:            "span0",
+				SpanKind:        SpanKindUnspecified,
+				HasRemoteParent: true,
+			},
+		},
+		{
+			name: "client span",
+			startOptions: StartOptions{
+				SpanKind: SpanKindClient,
+			},
+			want: &SpanData{
+				SpanContext: SpanContext{
+					TraceID:      tid,
+					SpanID:       SpanID{},
+					TraceOptions: 0x1,
+				},
+				ParentSpanID:    sid,
+				Name:            "span0",
+				SpanKind:        SpanKindClient,
+				HasRemoteParent: true,
+			},
+		},
+		{
+			name: "server span",
+			startOptions: StartOptions{
+				SpanKind: SpanKindServer,
+			},
+			want: &SpanData{
+				SpanContext: SpanContext{
+					TraceID:      tid,
+					SpanID:       SpanID{},
+					TraceOptions: 0x1,
+				},
+				ParentSpanID:    sid,
+				Name:            "span0",
+				SpanKind:        SpanKindServer,
+				HasRemoteParent: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		span := startSpan(tt.startOptions)
+		got, err := endSpan(span)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("exporting span: got %#v want %#v", got, tt.want)
+		}
+	}
+}
+
 func TestSetSpanAttributes(t *testing.T) {
-	span := startSpan()
+	span := startSpan(StartOptions{})
 	span.AddAttributes(StringAttribute("key1", "value1"))
 	got, err := endSpan(span)
 	if err != nil {
@@ -320,7 +390,7 @@ func TestSetSpanAttributes(t *testing.T) {
 }
 
 func TestAnnotations(t *testing.T) {
-	span := startSpan()
+	span := startSpan(StartOptions{})
 	span.Annotatef([]Attribute{StringAttribute("key1", "value1")}, "%f", 1.5)
 	span.Annotate([]Attribute{StringAttribute("key2", "value2")}, "Annotate")
 	got, err := endSpan(span)
@@ -354,7 +424,7 @@ func TestAnnotations(t *testing.T) {
 }
 
 func TestMessageEvents(t *testing.T) {
-	span := startSpan()
+	span := startSpan(StartOptions{})
 	span.AddMessageReceiveEvent(3, 400, 300)
 	span.AddMessageSendEvent(1, 200, 100)
 	got, err := endSpan(span)
@@ -388,7 +458,7 @@ func TestMessageEvents(t *testing.T) {
 }
 
 func TestSetSpanStatus(t *testing.T) {
-	span := startSpan()
+	span := startSpan(StartOptions{})
 	span.SetStatus(Status{Code: int32(1), Message: "request failed"})
 	got, err := endSpan(span)
 	if err != nil {
@@ -412,7 +482,7 @@ func TestSetSpanStatus(t *testing.T) {
 }
 
 func TestAddLink(t *testing.T) {
-	span := startSpan()
+	span := startSpan(StartOptions{})
 	span.AddLink(Link{
 		TraceID:    tid,
 		SpanID:     sid,
@@ -450,7 +520,7 @@ func TestUnregisterExporter(t *testing.T) {
 	RegisterExporter(&te)
 	UnregisterExporter(&te)
 
-	ctx := startSpan()
+	ctx := startSpan(StartOptions{})
 	endSpan(ctx)
 	if len(te.spans) != 0 {
 		t.Error("unregistered Exporter was called")

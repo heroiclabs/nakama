@@ -286,6 +286,8 @@ type Mutation_Delete struct {
 	// Required. The table whose rows will be deleted.
 	Table string `protobuf:"bytes,1,opt,name=table" json:"table,omitempty"`
 	// Required. The primary keys of the rows within [table][google.spanner.v1.Mutation.Delete.table] to delete.
+	// Delete is idempotent. The transaction will succeed even if some or all
+	// rows do not exist.
 	KeySet *KeySet `protobuf:"bytes,2,opt,name=key_set,json=keySet" json:"key_set,omitempty"`
 }
 

@@ -32,15 +32,15 @@ type Transport struct {
 	// the returned round tripper will be cancelable.
 	Base http.RoundTripper
 
-	// NoStats may be set to disable recording of stats.
-	NoStats bool
-
 	// Propagation defines how traces are propagated. If unspecified, a default
 	// (currently B3 format) will be used.
 	Propagation propagation.HTTPFormat
 
 	// StartOptions are applied to the span started by this Transport around each
 	// request.
+	//
+	// StartOptions.SpanKind will always be set to trace.SpanKindClient
+	// for spans started by this transport.
 	StartOptions trace.StartOptions
 
 	// TODO: Implement tag propagation for HTTP.
@@ -55,15 +55,14 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		format = defaultFormat
 	}
 	rt = &traceTransport{
-		base:         rt,
-		format:       format,
-		startOptions: t.StartOptions,
+		base:   rt,
+		format: format,
+		startOptions: trace.StartOptions{
+			Sampler:  t.StartOptions.Sampler,
+			SpanKind: trace.SpanKindClient,
+		},
 	}
-	if !t.NoStats {
-		rt = statsTransport{
-			base: rt,
-		}
-	}
+	rt = statsTransport{base: rt}
 	return rt.RoundTrip(req)
 }
 

@@ -45,6 +45,10 @@ type LoadConfig struct {
 
 	// Custom encryption configuration (e.g., Cloud KMS keys).
 	DestinationEncryptionConfig *EncryptionConfig
+
+	// SchemaUpdateOptions allows the schema of the destination table to be
+	// updated as a side effect of the load job.
+	SchemaUpdateOptions []string
 }
 
 func (l *LoadConfig) toBQ() (*bq.JobConfiguration, io.Reader) {
@@ -56,6 +60,7 @@ func (l *LoadConfig) toBQ() (*bq.JobConfiguration, io.Reader) {
 			DestinationTable:                   l.Dst.toBQ(),
 			TimePartitioning:                   l.TimePartitioning.toBQ(),
 			DestinationEncryptionConfiguration: l.DestinationEncryptionConfig.toBQ(),
+			SchemaUpdateOptions:                l.SchemaUpdateOptions,
 		},
 	}
 	media := l.Src.populateLoadConfig(config.Load)
@@ -70,6 +75,7 @@ func bqToLoadConfig(q *bq.JobConfiguration, c *Client) *LoadConfig {
 		Dst:                         bqToTable(q.Load.DestinationTable, c),
 		TimePartitioning:            bqToTimePartitioning(q.Load.TimePartitioning),
 		DestinationEncryptionConfig: bqToEncryptionConfig(q.Load.DestinationEncryptionConfiguration),
+		SchemaUpdateOptions:         q.Load.SchemaUpdateOptions,
 	}
 	var fc *FileConfig
 	if len(q.Load.SourceUris) == 0 {
@@ -125,7 +131,7 @@ func (l *Loader) Run(ctx context.Context) (*Job, error) {
 func (l *Loader) newJob() (*bq.Job, io.Reader) {
 	config, media := l.LoadConfig.toBQ()
 	return &bq.Job{
-		JobReference:  l.JobIDConfig.createJobRef(l.c.projectID),
+		JobReference:  l.JobIDConfig.createJobRef(l.c),
 		Configuration: config,
 	}, media
 }

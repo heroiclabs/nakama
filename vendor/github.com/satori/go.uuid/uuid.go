@@ -92,14 +92,17 @@ func (u UUID) Version() byte {
 // Variant returns UUID layout variant.
 func (u UUID) Variant() byte {
 	switch {
-	case (u[8] & 0x80) == 0x00:
+	case (u[8] >> 7) == 0x00:
 		return VariantNCS
-	case (u[8]&0xc0)|0x80 == 0x80:
+	case (u[8] >> 6) == 0x02:
 		return VariantRFC4122
-	case (u[8]&0xe0)|0xc0 == 0xc0:
+	case (u[8] >> 5) == 0x06:
 		return VariantMicrosoft
+	case (u[8] >> 5) == 0x07:
+		fallthrough
+	default:
+		return VariantFuture
 	}
-	return VariantFuture
 }
 
 // Bytes returns bytes slice representation of UUID.
@@ -130,9 +133,20 @@ func (u *UUID) SetVersion(v byte) {
 	u[6] = (u[6] & 0x0f) | (v << 4)
 }
 
-// SetVariant sets variant bits as described in RFC 4122.
-func (u *UUID) SetVariant() {
-	u[8] = (u[8] & 0xbf) | 0x80
+// SetVariant sets variant bits.
+func (u *UUID) SetVariant(v byte) {
+	switch v {
+	case VariantNCS:
+		u[8] = (u[8]&(0xff>>1) | (0x00 << 7))
+	case VariantRFC4122:
+		u[8] = (u[8]&(0xff>>2) | (0x02 << 6))
+	case VariantMicrosoft:
+		u[8] = (u[8]&(0xff>>3) | (0x06 << 5))
+	case VariantFuture:
+		fallthrough
+	default:
+		u[8] = (u[8]&(0xff>>3) | (0x07 << 5))
+	}
 }
 
 // Must is a helper that wraps a call to a function returning (UUID, error)

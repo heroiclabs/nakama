@@ -33,6 +33,31 @@ make backwards-incompatible changes.
 
 ## News
 
+_March 22, 2018_
+
+*v0.20.*
+
+- bigquery: Support SchemaUpdateOptions for load jobs.
+
+- bigtable:
+  - Add SampleRowKeys.
+  - cbt: Support union, intersection GCPolicy.
+  - Retry admin RPCS.
+  - Add trace spans to retries.
+  
+- datastore: Add OpenCensus tracing.
+
+- firestore:
+  - Fix queries involving Null and NaN.
+  - Allow Timestamp protobuffers for time values.
+
+- logging: Add a WriteTimeout option.
+
+- spanner: Support Batch API.
+
+- storage: Add OpenCensus tracing.
+  
+
 _February 26, 2018_
 
 *v0.19.0*

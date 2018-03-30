@@ -9,7 +9,7 @@
     }
   },
   "basePath": "",
-  "baseUrl": "https://manufacturers.googleapis.com/",
+  "baseUrl": "https://content-manufacturers.googleapis.com/",
   "batchPath": "batch",
   "canonicalName": "Manufacturer Center",
   "description": "Public API for managing Manufacturer Center related data.",
@@ -261,8 +261,8 @@
       }
     }
   },
-  "revision": "20180219",
-  "rootUrl": "https://manufacturers.googleapis.com/",
+  "revision": "20180316",
+  "rootUrl": "https://content-manufacturers.googleapis.com/",
   "schemas": {
     "Attributes": {
       "description": "Attributes of the product. For more information, see\nhttps://support.google.com/manufacturers/answer/6124116.",

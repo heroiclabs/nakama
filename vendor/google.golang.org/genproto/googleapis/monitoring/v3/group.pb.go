@@ -61,7 +61,7 @@ type Group struct {
 func (m *Group) Reset()                    { *m = Group{} }
 func (m *Group) String() string            { return proto.CompactTextString(m) }
 func (*Group) ProtoMessage()               {}
-func (*Group) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
+func (*Group) Descriptor() ([]byte, []int) { return fileDescriptor3, []int{0} }
 
 func (m *Group) GetName() string {
 	if m != nil {
@@ -102,9 +102,9 @@ func init() {
 	proto.RegisterType((*Group)(nil), "google.monitoring.v3.Group")
 }
 
-func init() { proto.RegisterFile("google/monitoring/v3/group.proto", fileDescriptor1) }
+func init() { proto.RegisterFile("google/monitoring/v3/group.proto", fileDescriptor3) }
 
-var fileDescriptor1 = []byte{
+var fileDescriptor3 = []byte{
 	// 261 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x90, 0xcf, 0x4a, 0x2b, 0x31,
 	0x14, 0x87, 0x49, 0xef, 0xed, 0x60, 0x4f, 0x5d, 0x0d, 0x22, 0x83, 0x20, 0x8e, 0xae, 0xba, 0xca,

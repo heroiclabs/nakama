@@ -9,14 +9,14 @@
     "monitoring/apiv3",
     "trace/apiv2"
   ]
-  revision = "20d4028b8a750c2aca76bf9fefa8ed2d0109b573"
-  version = "v0.19.0"
+  revision = "4b98a6370e36d7a85192e7bad08a4ebd82eac2a8"
+  version = "v0.20.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
-  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
+  revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -33,12 +33,13 @@
 [[projects]]
   name = "github.com/go-yaml/yaml"
   packages = ["."]
-  revision = "c95af922eae69f190717a0b7148960af8c55a072"
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[projects]]
   name = "github.com/gobuffalo/packr"
   packages = ["."]
-  revision = "6434a292ac52e6964adebfdce3f9ce6d9f16be01"
+  revision = "3402a167bccf1bdd5c93ca820be9f27bba46261e"
+  version = "v1.10.7"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -89,7 +90,7 @@
 [[projects]]
   name = "github.com/gorilla/websocket"
   packages = ["."]
-  revision = "292fd08b2560ad524ee37396253d71570339a821"
+  revision = "eb925808374e5ca90c83401a40d711dc08c0c0f6"
 
 [[projects]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
@@ -108,7 +109,7 @@
     ".",
     "oid"
   ]
-  revision = "83612a56d3dd153a94a629cd64925371c9adad78"
+  revision = "d34b9ff171c21ad295489235aec8b6626023cd04"
 
 [[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
@@ -150,7 +151,7 @@
     "internal/bitbucket.org/ww/goautoneg",
     "model"
   ]
-  revision = "e4aa40a9169a88835b849a6efb71e05dc04b88f0"
+  revision = "38c53a9f4bfcd932d1b00bfc65e256a7fba6b37a"
 
 [[projects]]
   branch = "master"
@@ -161,7 +162,7 @@
     "nfs",
     "xfs"
   ]
-  revision = "54d17b57dd7d4a3aa092476596b3f8a933bde349"
+  revision = "780932d4fbbe0e69b84c34c20f5c8d0981e109ea"
 
 [[projects]]
   name = "github.com/rubenv/sql-migrate"
@@ -169,18 +170,18 @@
     ".",
     "sqlparse"
   ]
-  revision = "6edbfbd6a369ee82463312ec67b2c92f97a1d4dc"
+  revision = "081fe17d19ff4e2dd9f5a0c1158e6bcf74da6906"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
-  revision = "063359185d32c6b045fa171ad7033ea545864fa1"
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
 
 [[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert"]
-  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
-  version = "v1.1.4"
+  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
+  version = "v1.2.1"
 
 [[projects]]
   name = "github.com/yuin/gopher-lua"
@@ -190,30 +191,28 @@
     "parse",
     "pm"
   ]
-  revision = "7d7bc8747e3f614c5c587729a341fe7d8903cdb8"
+  revision = "84ea3a3c79b3c4b3b39606cc96f255cd63635ce0"
 
 [[projects]]
   name = "go.opencensus.io"
   packages = [
     "exporter/prometheus",
     "exporter/stackdriver",
+    "exporter/stackdriver/propagation",
     "internal",
     "internal/tagencoding",
     "plugin/ocgrpc",
     "plugin/ochttp",
     "plugin/ochttp/propagation/b3",
-    "plugin/ochttp/propagation/google",
     "stats",
     "stats/internal",
     "stats/view",
     "tag",
     "trace",
-    "trace/propagation",
-    "zpages",
-    "zpages/internal"
+    "trace/propagation"
   ]
-  revision = "983446b8dae3871316dc8610f7aa61e160b50b31"
-  version = "v0.5.0"
+  revision = "6e3f034057826b530038d93267906ec3c012183f"
+  version = "v0.6.0"
 
 [[projects]]
   name = "go.uber.org/atomic"
@@ -246,7 +245,7 @@
     "bcrypt",
     "blowfish"
   ]
-  revision = "1875d0a70c90e57f11972aefd42276df65e895b9"
+  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
 
 [[projects]]
   branch = "master"
@@ -261,7 +260,7 @@
     "lex/httplex",
     "trace"
   ]
-  revision = "2fb46b16b8dda405028c50f7c7f0f9dd1fa6bfb1"
+  revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
 
 [[projects]]
   branch = "master"
@@ -282,7 +281,6 @@
   revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
-  branch = "master"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -300,7 +298,8 @@
     "unicode/norm",
     "unicode/rangetable"
   ]
-  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
   branch = "master"
@@ -315,7 +314,7 @@
     "transport/grpc",
     "transport/http"
   ]
-  revision = "55e9fb4044f4757138d4273ace23060d022d18f9"
+  revision = "dbbc13f71100fa6ece308335445fca6bb0dd5c2f"
 
 [[projects]]
   name = "google.golang.org/appengine"
@@ -350,7 +349,7 @@
     "googleapis/rpc/status",
     "protobuf/field_mask"
   ]
-  revision = "4eb30f4778eed4c258ba66527a0d4f9ec8a36c45"
+  revision = "ab0870e398d5dd054b868c0db1481ab029b9a9f2"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -381,8 +380,8 @@
     "tap",
     "transport"
   ]
-  revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
-  version = "v1.10.0"
+  revision = "1e2570b1b19ade82d8dbb31bba4e65e9f9ef5b34"
+  version = "v1.11.1"
 
 [[projects]]
   name = "gopkg.in/gorp.v1"
@@ -393,6 +392,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d34f7dd83d8d4cdaa558556d02455ac16c463f0e61afdd76ecce2729e2486235"
+  inputs-digest = "c9cf37873849b7c9ea30ef66151a1540afde6e0a518de051f8aef425e2e92f77"
   solver-name = "gps-cdcl"
   solver-version = 1

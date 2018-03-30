@@ -34,8 +34,12 @@ const traceContextKey = "grpc-trace-bin"
 // It returns ctx with the new trace span added and a serialization of the
 // SpanContext added to the outgoing gRPC metadata.
 func (c *ClientHandler) traceTagRPC(ctx context.Context, rti *stats.RPCTagInfo) context.Context {
-	name := "Sent" + strings.Replace(rti.FullMethodName, "/", ".", -1)
-	span := trace.NewSpan(name, trace.FromContext(ctx), c.StartOptions) // span is ended by traceHandleRPC
+	name := strings.TrimPrefix(rti.FullMethodName, "/")
+	name = strings.Replace(name, "/", ".", -1)
+	span := trace.NewSpan(name, trace.FromContext(ctx), trace.StartOptions{
+		Sampler:  c.StartOptions.Sampler,
+		SpanKind: trace.SpanKindClient,
+	}) // span is ended by traceHandleRPC
 	ctx = trace.WithSpan(ctx, span)
 	traceContextBinary := propagation.Binary(span.SpanContext())
 	return metadata.AppendToOutgoingContext(ctx, traceContextKey, string(traceContextBinary))
@@ -48,8 +52,14 @@ func (c *ClientHandler) traceTagRPC(ctx context.Context, rti *stats.RPCTagInfo) 
 //
 // It returns ctx, with the new trace span added.
 func (s *ServerHandler) traceTagRPC(ctx context.Context, rti *stats.RPCTagInfo) context.Context {
+	opts := trace.StartOptions{
+		Sampler:  s.StartOptions.Sampler,
+		SpanKind: trace.SpanKindServer,
+	}
+
 	md, _ := metadata.FromIncomingContext(ctx)
-	name := "Recv" + strings.Replace(rti.FullMethodName, "/", ".", -1)
+	name := strings.TrimPrefix(rti.FullMethodName, "/")
+	name = strings.Replace(name, "/", ".", -1)
 	traceContext := md[traceContextKey]
 	var (
 		parent     trace.SpanContext
@@ -62,11 +72,11 @@ func (s *ServerHandler) traceTagRPC(ctx context.Context, rti *stats.RPCTagInfo) 
 		traceContextBinary := []byte(traceContext[0])
 		parent, haveParent = propagation.FromBinary(traceContextBinary)
 		if haveParent && !s.IsPublicEndpoint {
-			span := trace.NewSpanWithRemoteParent(name, parent, s.StartOptions)
+			span := trace.NewSpanWithRemoteParent(name, parent, opts)
 			return trace.WithSpan(ctx, span)
 		}
 	}
-	span := trace.NewSpan(name, nil, s.StartOptions)
+	span := trace.NewSpan(name, nil, opts)
 	if haveParent {
 		span.AddLink(trace.Link{TraceID: parent.TraceID, SpanID: parent.SpanID, Type: trace.LinkTypeChild})
 	}

@@ -21,7 +21,7 @@ Using [modl](https://github.com/jmoiron/modl)? Check out [modl-migrate](https://
 To install the library and command line program, use the following:
 
 ```bash
-go get github.com/rubenv/sql-migrate/...
+go get -v github.com/rubenv/sql-migrate/...
 ```
 
 ## Usage
@@ -134,6 +134,11 @@ migrations := &migrate.FileMigrationSource{
     Dir: "db/migrations",
 }
 
+// OR: Use migrations from a packr box
+migrations := &migrate.PackrMigrationSource{
+    Box: packr.NewBox("./migrations"),
+}
+
 // OR: Use migrations from bindata:
 migrations := &migrate.AssetMigrationSource{
     Asset:    Asset,
@@ -216,9 +221,32 @@ CREATE UNIQUE INDEX people_unique_id_idx CONCURRENTLY ON people (id);
 DROP INDEX people_unique_id_idx;
 ```
 
-## Embedding migrations with [bindata](https://github.com/jteeuwen/go-bindata)
+## Embedding migrations with [packr](https://github.com/gobuffalo/packr)
 
-If you like your Go applications self-contained (that is: a single binary): use [bindata](https://github.com/jteeuwen/go-bindata) to embed the migration files.
+If you like your Go applications self-contained (that is: a single binary): use [packr](https://github.com/gobuffalo/packr) to embed the migration files.
+
+Just write your migration files as usual, as a set of SQL files in a folder.
+
+Use the `PackrMigrationSource` in your application to find the migrations:
+
+```go
+migrations := &migrate.PackrMigrationSource{
+    Box: packr.NewBox("./migrations"),
+}
+```
+
+If you already have a box and would like to use a subdirectory:
+
+```go
+migrations := &migrate.PackrMigrationSource{
+    Box: myBox,
+    Dir: "./migrations",
+}
+```
+
+## Embedding migrations with [bindata](https://github.com/shuLhan/go-bindata)
+
+As an alternative, but slightly less maintained, you can use [bindata](https://github.com/shuLhan/go-bindata) to embed the migration files.
 
 Just write your migration files as usual, as a set of SQL files in a folder.
 

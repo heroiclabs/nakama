@@ -120,7 +120,7 @@
         "locations": {
           "methods": {
             "get": {
-              "description": "Get information about a location.",
+              "description": "Gets information about a location.",
               "flatPath": "v1/projects/{projectsId}/locations/{locationsId}",
               "httpMethod": "GET",
               "id": "cloudkms.projects.locations.get",
@@ -855,7 +855,7 @@
       }
     }
   },
-  "revision": "20180303",
+  "revision": "20180316",
   "rootUrl": "https://cloudkms.googleapis.com/",
   "schemas": {
     "AuditConfig": {

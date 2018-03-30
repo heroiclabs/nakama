@@ -165,7 +165,7 @@
       }
     }
   },
-  "revision": "20180221",
+  "revision": "20180327",
   "rootUrl": "https://vision.googleapis.com/",
   "schemas": {
     "Color": {
@@ -971,7 +971,7 @@
         },
         "latLongRect": {
           "$ref": "GoogleCloudVisionV1p2beta1LatLongRect",
-          "description": "lat/long rectangle that specifies the location of the image."
+          "description": "Not used."
         },
         "webDetectionParams": {
           "$ref": "GoogleCloudVisionV1p2beta1WebDetectionParams",
@@ -1684,7 +1684,7 @@
     }
   },
   "servicePath": "",
-  "title": "Google Cloud Vision API",
+  "title": "Cloud Vision API",
   "version": "v1p2beta1",
   "version_module": true
 }

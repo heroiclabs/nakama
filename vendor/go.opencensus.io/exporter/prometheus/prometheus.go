@@ -230,25 +230,21 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *collector) toMetric(desc *prometheus.Desc, v *view.View, row *view.Row) (prometheus.Metric, error) {
-	switch agg := v.Aggregation.(type) {
-	case view.CountAggregation:
-		data := row.Data.(*view.CountData)
+	switch data := row.Data.(type) {
+	case *view.CountData:
 		return prometheus.NewConstMetric(desc, prometheus.CounterValue, float64(*data), tagValues(row.Tags)...)
 
-	case view.DistributionAggregation:
-		data := row.Data.(*view.DistributionData)
+	case *view.DistributionData:
 		points := make(map[float64]uint64)
-		for i, b := range agg {
+		for i, b := range v.Aggregation.Buckets {
 			points[b] = uint64(data.CountPerBucket[i])
 		}
 		return prometheus.NewConstHistogram(desc, uint64(data.Count), data.Sum(), points, tagValues(row.Tags)...)
 
-	case view.MeanAggregation:
-		data := row.Data.(*view.MeanData)
+	case *view.MeanData:
 		return prometheus.NewConstSummary(desc, uint64(data.Count), data.Sum(), make(map[float64]float64), tagValues(row.Tags)...)
 
-	case view.SumAggregation:
-		data := row.Data.(*view.SumData)
+	case *view.SumData:
 		return prometheus.NewConstMetric(desc, prometheus.UntypedValue, float64(*data), tagValues(row.Tags)...)
 
 	default:

@@ -24,8 +24,8 @@ import (
 
 	"github.com/heroiclabs/nakama/flags"
 
+	"crypto/tls"
 	"github.com/go-yaml/yaml"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -44,7 +44,7 @@ type Config interface {
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
 	// Parse args to get path to a config file if passed in.
-	configFilePath := NewConfig()
+	configFilePath := NewConfig(logger)
 	configFileFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
 	configFileFlagMaker := flags.NewFlagMakerFlagSet(&flags.FlagMakingOptions{
 		UseLowerCase: true,
@@ -58,7 +58,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 
 	// Parse config file if path is set.
-	mainConfig := NewConfig()
+	mainConfig := NewConfig(logger)
 	if configFilePath.Config != "" {
 		data, err := ioutil.ReadFile(configFilePath.Config)
 		if err != nil {
@@ -113,6 +113,23 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
 	}
 
+	// Log warnings for SSL usage.
+	if mainConfig.GetSocket().SSLCertificate != "" && mainConfig.GetSocket().SSLPrivateKey == "" {
+		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_certificate"))
+	}
+	if mainConfig.GetSocket().SSLCertificate == "" && mainConfig.GetSocket().SSLPrivateKey != "" {
+		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_private_key"))
+	}
+	if mainConfig.GetSocket().SSLCertificate != "" && mainConfig.GetSocket().SSLPrivateKey != "" {
+		logger.Warn("WARNING: enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!")
+		cert, err := tls.LoadX509KeyPair(mainConfig.GetSocket().SSLCertificate, mainConfig.GetSocket().SSLPrivateKey)
+		if err != nil {
+			logger.Fatal("Error loading SSL certificate", zap.Error(err))
+		}
+		logger.Info("SSL mode enabled")
+		mainConfig.Socket.TLSCert = []tls.Certificate{cert}
+	}
+
 	return mainConfig
 }
 
@@ -151,13 +168,14 @@ type config struct {
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
-func NewConfig() *config {
-	cwd, _ := os.Getwd()
-	dataDirectory := filepath.Join(cwd, "data")
-	nodeName := "nakama-" + strings.Split(uuid.NewV4().String(), "-")[3]
+func NewConfig(logger *zap.Logger) *config {
+	cwd, err := os.Getwd()
+	if err != nil {
+		logger.Fatal("Error getting current working directory.", zap.Error(err))
+	}
 	return &config{
-		Name:     nodeName,
-		Datadir:  dataDirectory,
+		Name:     "nakama",
+		Datadir:  filepath.Join(cwd, "data"),
 		Log:      NewLogConfig(),
 		Metrics:  NewMetricsConfig(),
 		Session:  NewSessionConfig(),
@@ -257,18 +275,19 @@ func NewSessionConfig() *SessionConfig {
 
 // SocketConfig is configuration relevant to the transport socket and protocol.
 type SocketConfig struct {
-	ServerKey           string `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
-	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
-	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
-	ReadTimeoutMs       int    `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
-	WriteTimeoutMs      int    `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
-	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
-	WriteWaitMs         int    `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data. Used for real-time connections."`
-	PongWaitMs          int    `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client. Used for real-time connections."`
-	PingPeriodMs        int    `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms. Used for real-time connections."`
-	OutgoingQueueSize   int    `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
-	SSLCertificate      string `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key"`
-	SSLPrivateKey       string `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate"`
+	ServerKey           string            `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
+	Port                int               `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
+	MaxMessageSizeBytes int64             `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
+	ReadTimeoutMs       int               `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
+	WriteTimeoutMs      int               `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
+	IdleTimeoutMs       int               `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
+	WriteWaitMs         int               `yaml:"write_wait_ms" json:"write_wait_ms" usage:"Time in milliseconds to wait for an ack from the client when writing data. Used for real-time connections."`
+	PongWaitMs          int               `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client. Used for real-time connections."`
+	PingPeriodMs        int               `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms. Used for real-time connections."`
+	OutgoingQueueSize   int               `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
+	SSLCertificate      string            `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key. NOT recommended for production use."`
+	SSLPrivateKey       string            `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate. NOT recommended for production use."`
+	TLSCert             []tls.Certificate // Created by processing SSLCertificate and SSLPrivateKey, not set from input args directly.
 }
 
 // NewTransportConfig creates a new TransportConfig struct.

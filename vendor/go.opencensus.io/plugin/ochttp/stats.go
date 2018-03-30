@@ -56,8 +56,8 @@ var (
 
 // Default distributions used by views in this package.
 var (
-	DefaultSizeDistribution    = view.DistributionAggregation{0, 1024, 2048, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864, 268435456, 1073741824, 4294967296}
-	DefaultLatencyDistribution = view.DistributionAggregation{0, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 65, 80, 100, 130, 160, 200, 250, 300, 400, 500, 650, 800, 1000, 2000, 5000, 10000, 20000, 50000, 100000}
+	DefaultSizeDistribution    = view.Distribution(0, 1024, 2048, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864, 268435456, 1073741824, 4294967296)
+	DefaultLatencyDistribution = view.Distribution(0, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 65, 80, 100, 130, 160, 200, 250, 300, 400, 500, 650, 800, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
 )
 
 // Package ochttp provides some convenience views.
@@ -67,7 +67,7 @@ var (
 		Name:        "opencensus.io/http/client/request_count",
 		Description: "Count of HTTP requests started",
 		Measure:     ClientRequestCount,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ClientRequestBytesView = &view.View{
@@ -96,7 +96,7 @@ var (
 		Description: "Client request count by HTTP method",
 		TagKeys:     []tag.Key{Method},
 		Measure:     ClientRequestCount,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ClientResponseCountByStatusCode = &view.View{
@@ -104,14 +104,14 @@ var (
 		Description: "Client response count by status code",
 		TagKeys:     []tag.Key{StatusCode},
 		Measure:     ClientLatency,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ServerRequestCountView = &view.View{
 		Name:        "opencensus.io/http/server/request_count",
 		Description: "Count of HTTP requests started",
 		Measure:     ServerRequestCount,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ServerRequestBytesView = &view.View{
@@ -140,7 +140,7 @@ var (
 		Description: "Server request count by HTTP method",
 		TagKeys:     []tag.Key{Method},
 		Measure:     ServerRequestCount,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 
 	ServerResponseCountByStatusCode = &view.View{
@@ -148,7 +148,7 @@ var (
 		Description: "Server response count by status code",
 		TagKeys:     []tag.Key{StatusCode},
 		Measure:     ServerLatency,
-		Aggregation: view.CountAggregation{},
+		Aggregation: view.Count(),
 	}
 )
 

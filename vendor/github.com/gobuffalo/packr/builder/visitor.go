@@ -85,6 +85,9 @@ func (v *visitor) eval(node ast.Node) error {
 			}
 		}
 	case *ast.FuncDecl:
+		if t.Body == nil {
+			return nil
+		}
 		for _, b := range t.Body.List {
 			if err := v.evalStmt(b); err != nil {
 				return errors.WithStack(err)

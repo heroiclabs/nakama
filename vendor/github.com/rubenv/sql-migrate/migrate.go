@@ -256,6 +256,60 @@ func (a AssetMigrationSource) FindMigrations() ([]*Migration, error) {
 	return migrations, nil
 }
 
+// Avoids pulling in the packr library for everyone, mimicks the bits of
+// packr.Box that we need.
+type PackrBox interface {
+	List() []string
+	Bytes(name string) []byte
+}
+
+// Migrations from a packr box.
+type PackrMigrationSource struct {
+	Box PackrBox
+
+	// Path in the box to use.
+	Dir string
+}
+
+var _ MigrationSource = (*PackrMigrationSource)(nil)
+
+func (p PackrMigrationSource) FindMigrations() ([]*Migration, error) {
+	migrations := make([]*Migration, 0)
+	items := p.Box.List()
+
+	prefix := ""
+	dir := path.Clean(p.Dir)
+	if dir != "." {
+		prefix = fmt.Sprintf("%s/", dir)
+	}
+
+	for _, item := range items {
+		if !strings.HasPrefix(item, prefix) {
+			continue
+		}
+		name := strings.TrimPrefix(item, prefix)
+		if strings.Contains(name, "/") {
+			continue
+		}
+
+		if strings.HasSuffix(name, ".sql") {
+			file := p.Box.Bytes(item)
+
+			migration, err := ParseMigration(name, bytes.NewReader(file))
+			if err != nil {
+				return nil, err
+			}
+
+			migrations = append(migrations, migration)
+		}
+	}
+
+	// Make sure migrations are sorted
+	sort.Sort(byId(migrations))
+
+	return migrations, nil
+}
+
 // Migration parsing
 func ParseMigration(id string, r io.ReadSeeker) (*Migration, error) {
 	m := &Migration{
@@ -429,6 +483,55 @@ func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationD
 	}
 
 	return result, dbMap, nil
+}
+
+// Skip a set of migrations
+//
+// Will skip at most `max` migrations. Pass 0 for no limit.
+//
+// Returns the number of skipped migrations.
+func SkipMax(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, max int) (int, error) {
+	migrations, dbMap, err := PlanMigration(db, dialect, m, dir, max)
+	if err != nil {
+		return 0, err
+	}
+
+	// Skip migrations
+	applied := 0
+	for _, migration := range migrations {
+		var executor SqlExecutor
+
+		if migration.DisableTransaction {
+			executor = dbMap
+		} else {
+			executor, err = dbMap.Begin()
+			if err != nil {
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		err = executor.Insert(&MigrationRecord{
+			Id:        migration.Id,
+			AppliedAt: time.Now(),
+		})
+		if err != nil {
+			if trans, ok := executor.(*gorp.Transaction); ok {
+				trans.Rollback()
+			}
+
+			return applied, newTxError(migration, err)
+		}
+
+		if trans, ok := executor.(*gorp.Transaction); ok {
+			if err := trans.Commit(); err != nil {
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		applied++
+	}
+
+	return applied, nil
 }
 
 // Filter a slice of migrations into ones that should be applied.

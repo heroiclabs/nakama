@@ -3671,6 +3671,10 @@ type BackendService struct {
 	// format.
 	CreationTimestamp string `json:"creationTimestamp,omitempty"`
 
+	// CustomRequestHeaders: Headers that the HTTP/S load balancer should
+	// add to proxied requests.
+	CustomRequestHeaders []string `json:"customRequestHeaders,omitempty"`
+
 	// Description: An optional description of this resource. Provide this
 	// property when you create the resource.
 	Description string `json:"description,omitempty"`
@@ -86689,9 +86693,10 @@ type SubnetworksPatchCall struct {
 
 // Patch: Patches the specified subnetwork with the data included in the
 // request. Only the following fields within the subnetwork resource can
-// be specified in the request: secondary_ip_range and
-// allow_subnet_cidr_routes_overlap. It is also mandatory to specify the
-// current fingeprint of the subnetwork resource being patched.
+// be specified in the request: secondary_ip_range,
+// allow_subnet_cidr_routes_overlap and role. It is also mandatory to
+// specify the current fingeprint of the subnetwork resource being
+// patched.
 func (r *SubnetworksService) Patch(project string, region string, subnetwork string, subnetwork2 *Subnetwork) *SubnetworksPatchCall {
 	c := &SubnetworksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.project = project
@@ -86808,7 +86813,7 @@ func (c *SubnetworksPatchCall) Do(opts ...googleapi.CallOption) (*Operation, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Patches the specified subnetwork with the data included in the request. Only the following fields within the subnetwork resource can be specified in the request: secondary_ip_range and allow_subnet_cidr_routes_overlap. It is also mandatory to specify the current fingeprint of the subnetwork resource being patched.",
+	//   "description": "Patches the specified subnetwork with the data included in the request. Only the following fields within the subnetwork resource can be specified in the request: secondary_ip_range, allow_subnet_cidr_routes_overlap and role. It is also mandatory to specify the current fingeprint of the subnetwork resource being patched.",
 	//   "httpMethod": "PATCH",
 	//   "id": "compute.subnetworks.patch",
 	//   "parameterOrder": [

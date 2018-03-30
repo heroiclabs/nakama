@@ -31,7 +31,7 @@ import (
 
 func openCensusOptions() []option.ClientOption {
 	return []option.ClientOption{
-		option.WithGRPCDialOption(grpc.WithStatsHandler(ocgrpc.NewClientStatsHandler())),
+		option.WithGRPCDialOption(grpc.WithStatsHandler(&ocgrpc.ClientHandler{})),
 	}
 }
 
@@ -144,7 +144,7 @@ func mustNewMeasure(name, desc string) *stats.Int64Measure {
 
 func mustNewView(m *stats.Int64Measure) *view.View {
 	v, err := view.New(m.Name(), "cumulative "+m.Description(),
-		[]tag.Key{subscriptionKey}, m, view.SumAggregation{})
+		[]tag.Key{subscriptionKey}, m, view.Sum())
 	if err != nil {
 		log.Fatalf("creating view for %q: %v", m.Name(), err)
 	}

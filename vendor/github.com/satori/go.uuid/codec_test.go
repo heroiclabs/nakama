@@ -61,7 +61,8 @@ func (s *codecTestSuite) TestMarshalBinary(c *C) {
 }
 
 func (s *codecTestSuite) BenchmarkMarshalBinary(c *C) {
-	u := NewV4()
+	u, err := NewV4()
+	c.Assert(err, IsNil)
 	for i := 0; i < c.N; i++ {
 		u.MarshalBinary()
 	}
@@ -209,7 +210,8 @@ func (s *codecTestSuite) TestMarshalText(c *C) {
 }
 
 func (s *codecTestSuite) BenchmarkMarshalText(c *C) {
-	u := NewV4()
+	u, err := NewV4()
+	c.Assert(err, IsNil)
 	for i := 0; i < c.N; i++ {
 		u.MarshalText()
 	}
@@ -241,7 +243,8 @@ func (s *codecTestSuite) BenchmarkUnmarshalText(c *C) {
 var sink string
 
 func (s *codecTestSuite) BenchmarkMarshalToString(c *C) {
-	u := NewV4()
+	u, err := NewV4()
+	c.Assert(err, IsNil)
 	for i := 0; i < c.N; i++ {
 		sink = u.String()
 	}
