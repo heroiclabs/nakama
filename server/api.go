@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"crypto/tls"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -88,9 +89,9 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 
 	// Register and start GRPC server.
 	api.RegisterNakamaServer(grpcServer, s)
-	multiLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port))
+	multiLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
-		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port))
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port-1))
 		if err != nil {
 			multiLogger.Fatal("API server listener failed to start", zap.Error(err))
 		}
@@ -104,7 +105,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 	// Should start after GRPC server itself because RegisterNakamaHandlerFromEndpoint below tries to dial GRPC.
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
-	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port)
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-1)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
@@ -139,7 +140,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.GetSocket().Port-1),
+		Addr:         fmt.Sprintf(":%d", config.GetSocket().Port),
 		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
 		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
@@ -149,7 +150,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}
 	}
 
-	multiLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port-1))
+	multiLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port))
 	go func() {
 		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			multiLogger.Fatal("API server gateway listener failed", zap.Error(err))
