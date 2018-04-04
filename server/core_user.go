@@ -102,6 +102,15 @@ WHERE`
 	return users, nil
 }
 
+func DeleteUser(db *sql.DB, userID uuid.UUID) (int64, error) {
+	res, err := db.Exec("DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected()
+}
+
 func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var id string
 	var displayName sql.NullString

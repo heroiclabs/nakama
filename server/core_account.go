@@ -90,6 +90,11 @@ WHERE id = $1`
 		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}
 
+	online := false
+	if tracker != nil {
+		online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID})
+	}
+
 	return &api.Account{
 		User: &api.User{
 			Id:           userID.String(),
@@ -107,7 +112,7 @@ WHERE id = $1`
 			EdgeCount:    int32(edge_count),
 			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
+			Online:       online,
 		},
 		Wallet:     wallet.String,
 		Email:      email.String,

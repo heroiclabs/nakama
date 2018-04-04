@@ -28,6 +28,47 @@ import (
 	"go.uber.org/zap"
 )
 
+func GetFriendIDs(logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Friends, error) {
+	query := `
+SELECT id, state
+FROM users, user_edge WHERE id = destination_id AND source_id = $1`
+
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		logger.Error("Error retrieving friends.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	friends := make([]*api.Friend, 0)
+
+	for rows.Next() {
+		var id string
+		var state sql.NullInt64
+
+		if err = rows.Scan(&id, &state); err != nil {
+			logger.Error("Error retrieving friend IDs.", zap.Error(err))
+			return nil, err
+		}
+
+		friendID := uuid.FromStringOrNil(id)
+		user := &api.User{
+			Id: friendID.String(),
+		}
+
+		friends = append(friends, &api.Friend{
+			User:  user,
+			State: int32(state.Int64),
+		})
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Error retrieving friend IDs.", zap.Error(err))
+		return nil, err
+	}
+
+	return &api.Friends{Friends: friends}, nil
+}
+
 func GetFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Friends, error) {
 	query := `
 SELECT id, username, display_name, avatar_url,
@@ -63,6 +104,11 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		}
 
 		friendID := uuid.FromStringOrNil(id)
+		online := false
+		if tracker != nil {
+			online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: friendID})
+		}
+
 		user := &api.User{
 			Id:          friendID.String(),
 			Username:    username.String,
@@ -74,7 +120,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 			Metadata:    string(metadata),
 			CreateTime:  &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:      tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: friendID}),
+			Online:      online,
 		}
 
 		friends = append(friends, &api.Friend{

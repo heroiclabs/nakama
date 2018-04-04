@@ -168,7 +168,15 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
   update_time    TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_tombstone (
+  PRIMARY KEY (create_time, user_id),
+
+  user_id        UUID        NOT NULL,
+  create_time    TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
 -- +migrate Down
+DROP TABLE IF EXISTS user_tombstone;
 DROP TABLE IF EXISTS wallet_ledger;
 DROP TABLE IF EXISTS leaderboard_record;
 DROP TABLE IF EXISTS leaderboard;

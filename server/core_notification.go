@@ -81,7 +81,14 @@ func NotificationSend(logger *zap.Logger, db *sql.DB, messageRouter MessageRoute
 }
 
 func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
-	params := []interface{}{userID, limit}
+	params := []interface{}{userID}
+
+	limitQuery := " "
+	if limit > 0 {
+		params = append(params, limit)
+		limitQuery = " LIMIT $2"
+	}
+
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3, $4::UUID)"
@@ -92,8 +99,7 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 SELECT id, subject, content, code, sender_id, create_time
 FROM notification
 WHERE user_id = $1`+cursorQuery+`
-ORDER BY create_time ASC
-LIMIT $2`, params...)
+ORDER BY create_time ASC`+limitQuery, params...)
 
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
