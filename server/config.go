@@ -25,6 +25,7 @@ import (
 	"github.com/heroiclabs/nakama/flags"
 
 	"crypto/tls"
+
 	"github.com/go-yaml/yaml"
 	"go.uber.org/zap"
 )
@@ -40,6 +41,7 @@ type Config interface {
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
+	GetConsole() *ConsoleConfig
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -165,6 +167,7 @@ type config struct {
 	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings."`
 	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
 	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Console  *ConsoleConfig  `yaml:"console" json:"console" usage:"Console settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -183,6 +186,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Database: NewDatabaseConfig(),
 		Social:   NewSocialConfig(),
 		Runtime:  NewRuntimeConfig(),
+		Console:  NewConsoleConfig(),
 	}
 }
 
@@ -220,6 +224,10 @@ func (c *config) GetSocial() *SocialConfig {
 
 func (c *config) GetRuntime() *RuntimeConfig {
 	return c.Runtime
+}
+
+func (c *config) GetConsole() *ConsoleConfig {
+	return c.Console
 }
 
 // LogConfig is configuration relevant to logging levels and output.
@@ -362,5 +370,21 @@ func NewRuntimeConfig() *RuntimeConfig {
 		Env:         make([]string, 0),
 		Path:        "",
 		HTTPKey:     "defaultkey",
+	}
+}
+
+// ConsoleConfig is configuration relevant to the embedded console.
+type ConsoleConfig struct {
+	Port     int    `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
+	Username string `yaml:"username" json:"username" usage:"Username for the embedded console."`
+	Password string `yaml:"password" json:"password" usage:"Password for the embedded console."`
+}
+
+// NewConsoleConfig creates a new ConsoleConfig struct.
+func NewConsoleConfig() *ConsoleConfig {
+	return &ConsoleConfig{
+		Port:     7351,
+		Username: "admin",
+		Password: "password",
 	}
 }

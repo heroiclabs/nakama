@@ -74,8 +74,14 @@ service Console {
 message AccountExport {
   // The user's account details.
   nakama.api.Account account = 1;
+  // The user's storage.
+  repeated nakama.api.StorageObject objects = 2;
+  // The user's friends.
+  repeated nakama.api.Friend friends = 3;
   // The user's groups.
-  repeated nakama.api.Group groups = 2;
+  repeated nakama.api.Group groups = 4;
+  // The user's notifications.
+  repeated nakama.api.Notification notifications = 5;
 }
 
 /**
