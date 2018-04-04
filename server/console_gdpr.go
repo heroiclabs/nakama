@@ -40,7 +40,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountId
 		return &empty.Empty{}, nil
 	}
 
-	if _, err = s.db.Exec(`INSERT INTO user_tombstone (id) VALUES ($1) ON CONFLICT DO NOTHING`, userID); err != nil {
+	if _, err = s.db.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
 		s.logger.Error("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}

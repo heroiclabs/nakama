@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
 CREATE TABLE IF NOT EXISTS user_tombstone (
   PRIMARY KEY (create_time, user_id),
 
-  user_id        UUID        NOT NULL,
+  user_id        UUID        UNIQUE NOT NULL,
   create_time    TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 

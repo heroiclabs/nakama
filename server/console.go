@@ -150,7 +150,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 
-		return ctx, nil
+		return handler(ctx, req)
 	}
 }
 
