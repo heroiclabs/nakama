@@ -27,6 +27,9 @@ import (
 	"syscall"
 	"time"
 
+	"io/ioutil"
+	"path/filepath"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/ga"
 	"github.com/heroiclabs/nakama/migrate"
@@ -35,8 +38,6 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"io/ioutil"
-	"path/filepath"
 )
 
 const cookieFilename = ".cookie"
@@ -115,6 +116,8 @@ func main() {
 	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	metrics := server.NewMetrics(multiLogger, config)
+
+	consoleServer := server.StartConsoleServer(jsonLogger, multiLogger, config, db)
 	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
@@ -136,6 +139,7 @@ func main() {
 
 	// Gracefully stop server components.
 	apiServer.Stop()
+	consoleServer.Stop()
 	metrics.Stop(jsonLogger)
 	matchRegistry.Stop()
 	tracker.Stop()

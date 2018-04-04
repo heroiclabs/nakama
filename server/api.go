@@ -68,7 +68,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(interceptorFunc(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)),
+		grpc.UnaryInterceptor(apiInterceptorFunc(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)),
 	}
 	if config.GetSocket().TLSCert != nil {
 		serverOpts = append(serverOpts, grpc.Creds(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
@@ -173,7 +173,7 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 	return &empty.Empty{}, nil
 }
 
-func interceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
 		if err != nil {

@@ -142,6 +142,21 @@
       },
       "description": "Send a device to the server. Used with authenticate/link/unlink and user."
     },
+    "apiFriend": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The friend status."
+        }
+      },
+      "description": "A friend of a user."
+    },
     "apiGroup": {
       "type": "object",
       "properties": {
@@ -195,6 +210,89 @@
         }
       },
       "description": "A group in the server."
+    },
+    "apiNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the Notification."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the notification."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content of the notification in JSON."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Category code for this notification."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "ID of the sender, if a user. Otherwise 'null'."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the notification was created."
+        },
+        "persistent": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if this notification was persisted to the database."
+        }
+      },
+      "description": "A notification in the server."
+    },
+    "apiStorageObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was last updated."
+        }
+      },
+      "description": "An object within the storage engine."
     },
     "apiUser": {
       "type": "object",
@@ -277,12 +375,33 @@
           "$ref": "#/definitions/apiAccount",
           "description": "The user's account details."
         },
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiStorageObject"
+          },
+          "description": "The user's storage."
+        },
+        "friends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiFriend"
+          },
+          "description": "The user's friends."
+        },
         "groups": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiGroup"
           },
           "description": "The user's groups."
+        },
+        "notifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiNotification"
+          },
+          "description": "The user's notifications."
         }
       },
       "description": "*\nAn export of all information stored for a user account."
