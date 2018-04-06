@@ -236,7 +236,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 
 	payload := "\"Hello World\""
 	client := &http.Client{}
-	request, _ := http.NewRequest("POST", "http://localhost:7349/v2/rpc/helloworld?http_key=defaultkey", strings.NewReader(payload))
+	request, _ := http.NewRequest("POST", "http://localhost:7350/v2/rpc/helloworld?http_key=defaultkey", strings.NewReader(payload))
 	request.Header.Add("Content-Type", "Application/JSON")
 	res, err := client.Do(request)
 	if err != nil {
@@ -483,6 +483,11 @@ nk.notification_send(user_id, subject, content, code, "", false)
 
 func TestRuntimeWalletWrite(t *testing.T) {
 	modules := new(sync.Map)
+
+	db := NewDB(t)
+	uid := uuid.FromStringOrNil("95f05d94-cc66-445a-b4d1-9e262662cf79")
+	InsertUser(t, db, uid)
+
 	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
@@ -491,7 +496,7 @@ local content = {
 }
 local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 
-nk.wallet_write(user_id, content)
+nk.wallet_update(user_id, content)
 `)
 
 	rp := vm(t, modules)
@@ -614,7 +619,7 @@ func TestRuntimeReqAfterHook(t *testing.T) {
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function after_storage_write(ctx, payload)
-	nakama.wallet_write(ctx.user_id, {gem = 10})
+	nakama.wallet_update(ctx.user_id, {gem = 10})
 	return payload
 end
 nakama.register_req_after(after_storage_write, "WriteStorageObjects")
@@ -661,7 +666,7 @@ func TestRuntimeRTBeforeHook(t *testing.T) {
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
-	nakama.wallet_write(ctx.user_id, {gem = 20})
+	nakama.wallet_update(ctx.user_id, {gem = 20})
 	return payload
 end
 nakama.register_rt_before(before_match_create, "MatchCreate")
@@ -712,7 +717,7 @@ end
 nakama.register_rt_before(before_match_create, "MatchCreate")
 
 function after_match_create(ctx, payload)
-	nakama.wallet_write(ctx.user_id, {gem = 30})
+	nakama.wallet_update(ctx.user_id, {gem = 30})
 	return payload
 end
 nakama.register_rt_after(after_match_create, "MatchCreate")
