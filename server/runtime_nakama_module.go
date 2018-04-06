@@ -152,7 +152,6 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"match_list":                  n.matchList,
 		"notification_send":           n.notificationSend,
 		"notifications_send":          n.notificationsSend,
-		"wallet_write":                n.walletWrite,
 		"wallet_update":               n.walletUpdate,
 		"wallets_update":              n.walletsUpdate,
 		"wallet_ledger_update":        n.walletLedgerUpdate,
@@ -2315,39 +2314,6 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 
 	if err := NotificationSend(n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
-	}
-
-	return 0
-}
-
-func (n *NakamaModule) walletWrite(l *lua.LState) int {
-	uid := l.CheckString(1)
-	if uid == "" {
-		l.ArgError(1, "expects a valid user id")
-		return 0
-	}
-
-	userID, err := uuid.FromString(uid)
-	if err != nil {
-		l.ArgError(1, "expects a valid user id")
-		return 0
-	}
-
-	walletTable := l.CheckTable(2)
-	if walletTable == nil {
-		l.ArgError(2, "expects a table as wallet value")
-		return 0
-	}
-
-	walletMap := ConvertLuaTable(walletTable)
-	walletBytes, err := json.Marshal(walletMap)
-	if err != nil {
-		l.ArgError(2, fmt.Sprintf("failed to convert content: %s", err.Error()))
-		return 0
-	}
-
-	if err = WriteWallet(n.logger, n.db, userID, string(walletBytes)); err != nil {
-		l.RaiseError(fmt.Sprintf("failed to write user wallet: %s", err.Error()))
 	}
 
 	return 0

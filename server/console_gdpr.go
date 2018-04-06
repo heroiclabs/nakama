@@ -54,7 +54,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
-	account, err := GetAccount(s.db, s.logger, nil, userID)
+	account, err := GetAccount(s.logger, s.db, nil, userID)
 	if err != nil {
 		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")

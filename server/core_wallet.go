@@ -41,15 +41,6 @@ type walletLedger struct {
 	UpdateTime int64
 }
 
-func WriteWallet(logger *zap.Logger, db *sql.DB, userID uuid.UUID, wallet string) error {
-	query := "UPDATE users SET wallet = $2 WHERE id = $1::UUID"
-	_, err := db.Exec(query, userID, wallet)
-	if err != nil {
-		logger.Error("Could not write user's wallet.", zap.Error(err), zap.String("user_id", userID.String()), zap.String("wallet", wallet))
-	}
-	return err
-}
-
 func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) error {
 	if len(updates) == 0 {
 		return nil
