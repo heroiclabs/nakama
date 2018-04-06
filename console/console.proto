@@ -51,18 +51,18 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 service Console {
   // Delete all information stored for a user account.
   rpc DeleteAccount (AccountIdRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/account/{id}";
+    option (google.api.http).delete = "/v2/console/account/{id}";
   }
 
   // Export all information stored about a user account.
   rpc ExportAccount (AccountIdRequest) returns (AccountExport) {
-    option (google.api.http).get = "/v2/account/{id}/export";
+    option (google.api.http).get = "/v2/console/account/{id}/export";
   }
 
   // Authenticate a user with username+password.
   rpc Login (AuthenticateRequest) returns (Session) {
     option (google.api.http) = {
-      post: "/v2/account/authenticate",
+      post: "/v2/console/authenticate",
       body: "*"
     };
   }

@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetAccount(db *sql.DB, logger *zap.Logger, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
+func GetAccount(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
@@ -209,13 +209,4 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 	}
 
 	return nil
-}
-
-func UpdateWallet(db *sql.DB, logger *zap.Logger, userID uuid.UUID, wallet string) error {
-	query := "UPDATE users SET wallet = $2 WHERE id = $1::UUID"
-	_, err := db.Exec(query, userID, wallet)
-	if err != nil {
-		logger.Error("Could not update user's wallet.", zap.Error(err), zap.String("user_id", userID.String()), zap.String("wallet", wallet))
-	}
-	return err
 }

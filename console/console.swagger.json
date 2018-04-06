@@ -19,34 +19,7 @@
     "application/json"
   ],
   "paths": {
-    "/v2/account/authenticate": {
-      "post": {
-        "summary": "Authenticate a user with username+password.",
-        "operationId": "Login",
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/nakamaconsoleSession"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/consoleAuthenticateRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
-    "/v2/account/{id}": {
+    "/v2/console/account/{id}": {
       "delete": {
         "summary": "Delete all information stored for a user account.",
         "operationId": "DeleteAccount",
@@ -71,7 +44,7 @@
         ]
       }
     },
-    "/v2/account/{id}/export": {
+    "/v2/console/account/{id}/export": {
       "get": {
         "summary": "Export all information stored about a user account.",
         "operationId": "ExportAccount",
@@ -89,6 +62,33 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/authenticate": {
+      "post": {
+        "summary": "Authenticate a user with username+password.",
+        "operationId": "Login",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAuthenticateRequest"
+            }
           }
         ],
         "tags": [
