@@ -37,8 +37,8 @@ import (
 )
 
 var (
-	config          = server.NewConfig()
 	logger          = server.NewConsoleLogger(os.Stdout, true)
+	config          = server.NewConfig(logger)
 	jsonpbMarshaler = &jsonpb.Marshaler{
 		EnumsAsInts:  true,
 		EmitDefaults: false,
@@ -133,7 +133,7 @@ func NewSession(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClie
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("defaultkey:")),
 	}))
-	conn, err := grpc.DialContext(outgoingCtx, "localhost:7350", grpc.WithInsecure())
+	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn,
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Bearer " + session.Token,
 	}))
-	conn, err := grpc.DialContext(outgoingCtx, "localhost:7350", grpc.WithInsecure())
+	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)
 	}
