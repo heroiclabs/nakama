@@ -105,6 +105,12 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
 
 	// Log warnings for insecure default parameter values.
+	if mainConfig.GetConsole().Username == "admin" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.username"))
+	}
+	if mainConfig.GetConsole().Password == "password" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
+	}
 	if mainConfig.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 	}
