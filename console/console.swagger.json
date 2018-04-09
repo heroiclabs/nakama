@@ -211,6 +211,63 @@
       },
       "description": "A group in the server."
     },
+    "apiLeaderboardRecord": {
+      "type": "object",
+      "properties": {
+        "leaderboard_id": {
+          "type": "string",
+          "description": "The ID of the leaderboard this score belongs to."
+        },
+        "owner_id": {
+          "type": "string",
+          "description": "The ID of the score owner, usually a user or group."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the score owner, if the owner is a user."
+        },
+        "score": {
+          "type": "string",
+          "format": "int64",
+          "description": "The score value."
+        },
+        "subscore": {
+          "type": "string",
+          "format": "int64",
+          "description": "An optional subscore value."
+        },
+        "num_score": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of submissions to this score record."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record was updated."
+        },
+        "expiry_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record expires."
+        },
+        "rank": {
+          "type": "string",
+          "format": "int64",
+          "description": "The rank of this record."
+        }
+      },
+      "description": "Represents a complete leaderboard record with all scores and associated metadata."
+    },
     "apiNotification": {
       "type": "object",
       "properties": {
@@ -396,12 +453,26 @@
           },
           "description": "The user's groups."
         },
+        "leaderboard_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "The user's leaderboard records."
+        },
         "notifications": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiNotification"
           },
           "description": "The user's notifications."
+        },
+        "wallet_ledgers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleWalletLedger"
+          },
+          "description": "The user's wallet ledger items."
         }
       },
       "description": "*\nAn export of all information stored for a user account."
@@ -420,6 +491,38 @@
       },
       "description": "*\nAuthenticate against the server with username+password."
     },
+    "consoleWalletLedger": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique ID of the change."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user ID this change belongs to."
+        },
+        "changeset": {
+          "type": "string",
+          "description": "The changes to the wallet."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the wallet ledger item was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the wallet ledger item was updated."
+        }
+      },
+      "description": "*\nA wallet ledger item representing a change to the user's wallet."
+    },
     "nakamaconsoleSession": {
       "type": "object",
       "properties": {
@@ -434,6 +537,16 @@
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufStringValue": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The string value."
+        }
+      },
+      "description": "Wrapper message for `string`.\n\nThe JSON representation for `StringValue` is JSON string."
     }
   },
   "externalDocs": {

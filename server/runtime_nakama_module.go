@@ -67,6 +67,7 @@ type NakamaModule struct {
 	db               *sql.DB
 	config           Config
 	socialClient     *social.Client
+	leaderboardCache LeaderboardCache
 	sessionRegistry  *SessionRegistry
 	matchRegistry    MatchRegistry
 	tracker          Tracker
@@ -76,7 +77,7 @@ type NakamaModule struct {
 	client           *http.Client
 }
 
-func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceCallback func(ExecutionMode, string)) *NakamaModule {
+func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, announceCallback func(ExecutionMode, string)) *NakamaModule {
 	l.SetContext(context.WithValue(context.Background(), CALLBACKS, &Callbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -87,6 +88,7 @@ func NewNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		db:               db,
 		config:           config,
 		socialClient:     socialClient,
+		leaderboardCache: leaderboardCache,
 		sessionRegistry:  sessionRegistry,
 		matchRegistry:    matchRegistry,
 		tracker:          tracker,
@@ -160,6 +162,12 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"storage_read":                n.storageRead,
 		"storage_write":               n.storageWrite,
 		"storage_delete":              n.storageDelete,
+		"leaderboard_create":          n.leaderboardCreate,
+		"leaderboard_delete":          n.leaderboardDelete,
+		"leaderboard_records_list":    n.leaderboardRecordsList,
+		"leaderboard_records_read":    n.leaderboardRecordsRead,
+		"leaderboard_record_write":    n.leaderboardRecordWrite,
+		"leaderboard_record_delete":   n.leaderboardRecordDelete,
 	}
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
 
@@ -2452,7 +2460,6 @@ func (n *NakamaModule) walletsUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	n.logger.Warn("ANY", zap.Any("updates", updates))
 	if err := UpdateWallets(n.logger, n.db, updates); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
@@ -2485,10 +2492,24 @@ func (n *NakamaModule) walletLedgerUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UpdateWalletLedger(n.logger, n.db, itemID, string(metadataBytes)); err != nil {
+	item, err := UpdateWalletLedger(n.logger, n.db, itemID, string(metadataBytes))
+	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet ledger: %s", err.Error()))
 	}
-	return 0
+
+	itemTable := l.CreateTable(0, 6)
+	itemTable.RawSetString("id", lua.LString(id))
+	itemTable.RawSetString("user_id", lua.LString(item.UserID))
+	itemTable.RawSetString("create_time", lua.LNumber(item.CreateTime))
+	itemTable.RawSetString("update_time", lua.LNumber(item.UpdateTime))
+
+	changesetTable := ConvertMap(l, item.Changeset)
+	itemTable.RawSetString("changeset", changesetTable)
+
+	itemTable.RawSetString("metadata", metadataTable)
+
+	l.Push(itemTable)
+	return 1
 }
 
 func (n *NakamaModule) walletLedgerList(l *lua.LState) int {
@@ -3015,5 +3036,326 @@ func (n *NakamaModule) storageDelete(l *lua.LState) int {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 
+	return 0
+}
+
+func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	authoritative := l.OptBool(2, false)
+
+	sortOrder := l.OptString(3, "desc")
+	var sortOrderNumber int
+	switch sortOrder {
+	case "asc":
+		sortOrderNumber = LeaderboardSortOrderAscending
+	case "desc":
+		sortOrderNumber = LeaderboardSortOrderDescending
+	default:
+		l.ArgError(3, "expects sort order to be 'asc' or 'desc'")
+		return 0
+	}
+
+	operator := l.OptString(4, "best")
+	var operatorNumber int
+	switch operator {
+	case "best":
+		operatorNumber = LeaderboardOperatorBest
+	case "set":
+		operatorNumber = LeaderboardOperatorSet
+	case "incr":
+		operatorNumber = LeaderboardOperatorIncrement
+	case "decr":
+		operatorNumber = LeaderboardOperatorDecrement
+	default:
+		l.ArgError(4, "expects sort order to be 'best', 'set', 'incr', or 'decr'")
+		return 0
+	}
+
+	resetSchedule := l.OptString(5, "")
+	if resetSchedule != "" {
+		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			l.ArgError(5, "expects reset schedule to be a valid CRON expression")
+			return 0
+		}
+	}
+
+	metadata := l.OptTable(6, nil)
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataMap := ConvertLuaTable(metadata)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	if err := n.leaderboardCache.Create(id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+		l.RaiseError("error creating leaderboard: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *NakamaModule) leaderboardDelete(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	if err := n.leaderboardCache.Delete(id); err != nil {
+		l.RaiseError("error deleting leaderboard: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	limit := l.OptInt(2, 1)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects limit to be 1-100")
+		return 0
+	}
+
+	cursor := l.OptString(3, "")
+
+	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, limit, cursor)
+	if err != nil {
+		l.RaiseError("error listing leaderboard records: %v", err.Error())
+		return 0
+	}
+
+	recordsTable := l.CreateTable(len(records.Records), 0)
+	for i, record := range records.Records {
+		recordTable := l.CreateTable(0, 11)
+		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
+		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
+		if record.Username != nil {
+			recordTable.RawSetString("username", lua.LString(record.Username.Value))
+		} else {
+			recordTable.RawSetString("username", lua.LNil)
+		}
+		recordTable.RawSetString("score", lua.LNumber(record.Score))
+		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
+		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		recordTable.RawSetString("metadata", metadataTable)
+
+		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
+		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
+		recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+
+		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
+
+		recordsTable.RawSetInt(i+1, recordTable)
+	}
+
+	l.Push(recordsTable)
+	if records.NextCursor != "" {
+		l.Push(lua.LString(records.NextCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	if records.PrevCursor != "" {
+		l.Push(lua.LString(records.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 3
+}
+
+func (n *NakamaModule) leaderboardRecordsRead(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	owners := l.OptTable(2, nil)
+	if owners == nil {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+	size := owners.Len()
+	if size == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	ownerIds := make([]string, 0, size)
+	conversionError := false
+	owners.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		if v.Type() != lua.LTString {
+			conversionError = true
+			l.ArgError(1, "expects each owner ID to be string")
+			return
+		}
+		s := v.String()
+		if _, err := uuid.FromString(s); err != nil {
+			conversionError = true
+			l.ArgError(1, "expects each owner ID to be a valid identifier")
+			return
+		}
+		ownerIds = append(ownerIds, s)
+	})
+	if conversionError {
+		return 0
+	}
+
+	records, err := LeaderboardRecordsRead(n.logger, n.db, n.leaderboardCache, id, ownerIds)
+	if err != nil {
+		l.RaiseError("error reading leaderboard records: %v", err.Error())
+		return 0
+	}
+
+	recordsTable := l.CreateTable(len(records.Records), 0)
+	for i, record := range records.Records {
+		recordTable := l.CreateTable(0, 11)
+		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
+		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
+		if record.Username != nil {
+			recordTable.RawSetString("username", lua.LString(record.Username.Value))
+		} else {
+			recordTable.RawSetString("username", lua.LNil)
+		}
+		recordTable.RawSetString("score", lua.LNumber(record.Score))
+		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
+		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		recordTable.RawSetString("metadata", metadataTable)
+
+		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
+		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
+		recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+
+		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
+
+		recordsTable.RawSetInt(i+1, recordTable)
+	}
+
+	l.Push(recordsTable)
+	return 1
+}
+
+func (n *NakamaModule) leaderboardRecordWrite(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	ownerId := l.CheckString(2)
+	if _, err := uuid.FromString(ownerId); err != nil {
+		l.ArgError(2, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.OptString(3, "")
+
+	score := l.OptInt64(4, 0)
+	if score < 0 {
+		l.ArgError(4, "expects score to be >= 0")
+		return 0
+	}
+
+	subscore := l.OptInt64(5, 0)
+	if subscore < 0 {
+		l.ArgError(4, "expects subscore to be >= 0")
+		return 0
+	}
+
+	metadata := l.OptTable(6, nil)
+	metadataStr := ""
+	if metadata != nil {
+		metadataMap := ConvertLuaTable(metadata)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	record, err := LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
+	if err != nil {
+		l.RaiseError("error writing leaderboard record: %v", err.Error())
+		return 0
+	}
+
+	recordTable := l.CreateTable(0, 10)
+	recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
+	recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
+	if record.Username != nil {
+		recordTable.RawSetString("username", lua.LString(record.Username.Value))
+	} else {
+		recordTable.RawSetString("username", lua.LNil)
+	}
+	recordTable.RawSetString("score", lua.LNumber(record.Score))
+	recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
+	recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		return 0
+	}
+	metadataTable := ConvertMap(l, metadataMap)
+	recordTable.RawSetString("metadata", metadataTable)
+
+	recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
+	recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
+	recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+
+	l.Push(recordTable)
+	return 1
+}
+
+func (n *NakamaModule) leaderboardRecordDelete(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	ownerId := l.CheckString(2)
+	if _, err := uuid.FromString(ownerId); err != nil {
+		l.ArgError(2, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	if err := LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerId); err != nil {
+		l.RaiseError("error deleting leaderboard record: %v", err.Error())
+	}
 	return 0
 }

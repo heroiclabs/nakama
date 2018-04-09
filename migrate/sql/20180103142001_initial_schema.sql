@@ -128,12 +128,11 @@ CREATE TABLE IF NOT EXISTS leaderboard (
 
   id             VARCHAR(128) NOT NULL,
   authoritative  BOOLEAN      DEFAULT FALSE,
-  cached_count   BIGINT       DEFAULT 0 CHECK (cached_count >= 0) NOT NULL,
   sort_order     SMALLINT     DEFAULT 1 NOT NULL, -- asc(0), desc(1)
+  operator       SMALLINT     DEFAULT 0 NOT NULL, -- best(0), set(1), increment(2), decrement(3)
   reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
   metadata       JSONB        DEFAULT '{}' NOT NULL,
-  create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
-  update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL
+  create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_record (
@@ -145,13 +144,11 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
   username       VARCHAR(128),
   score          BIGINT       DEFAULT 0 CHECK (score >= 0) NOT NULL,
   subscore       BIGINT       DEFAULT 0 CHECK (subscore >= 0) NOT NULL,
-  rank_value     BIGINT       DEFAULT 0 CHECK (rank_value >= 0) NOT NULL,
-  num_score      INT          DEFAULT 0 CHECK (num_score >= 0) NOT NULL,
+  num_score      INT          DEFAULT 1 CHECK (num_score >= 0) NOT NULL,
   metadata       JSONB        DEFAULT '{}' NOT NULL,
   create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
   update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
   expiry_time    TIMESTAMPTZ  DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
-  rank_time      TIMESTAMPTZ  DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
 
   UNIQUE (owner_id, leaderboard_id, expiry_time)
 );

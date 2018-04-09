@@ -91,7 +91,7 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 	return stdLibs, modules, nil
 }
 
-func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
+func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
 	regCallbacks := &RegCallbacks{
 		RPC:    make(map[string]interface{}),
 		Before: make(map[string]interface{}),
@@ -99,7 +99,7 @@ func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config 
 	}
 
 	multiLogger.Info("Evaluating modules")
-	r, err := newVM(logger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
+	r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
 		switch execMode {
 		case RPC:
 			regCallbacks.RPC[id] = struct{}{}
