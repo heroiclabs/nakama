@@ -510,3 +510,13 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 
 	return records, nil
 }
+
+func LeaderboardRecordsDeleteAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) error {
+	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
+	_, err := db.Exec(query, userID.String())
+	if err != nil {
+		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
+		return err
+	}
+	return nil
+}
