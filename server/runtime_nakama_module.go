@@ -3198,7 +3198,11 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 
 		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
 		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
-		recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		if record.ExpiryTime != nil {
+			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		} else {
+			recordTable.RawSetString("expiry_time", lua.LNil)
+		}
 
 		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
 
@@ -3230,7 +3234,11 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 
 		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
 		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
-		recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		if record.ExpiryTime != nil {
+			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		} else {
+			recordTable.RawSetString("expiry_time", lua.LNil)
+		}
 
 		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
 
@@ -3320,7 +3328,11 @@ func (n *NakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 
 	recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
 	recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
-	recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+	if record.ExpiryTime != nil {
+		recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+	} else {
+		recordTable.RawSetString("expiry_time", lua.LNil)
+	}
 
 	l.Push(recordTable)
 	return 1

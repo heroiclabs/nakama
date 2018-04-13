@@ -166,11 +166,13 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 				Metadata:      dbMetadata,
 				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-				ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
 				Rank:          rank,
 			}
 			if dbUsername.Valid {
 				record.Username = &wrappers.StringValue{Value: dbUsername.String}
+			}
+			if expiryTime != 0 {
+				record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
 			}
 
 			records = append(records, record)
@@ -259,10 +261,12 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 				Metadata:      dbMetadata,
 				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-				ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
 			}
 			if dbUsername.Valid {
 				record.Username = &wrappers.StringValue{Value: dbUsername.String}
+			}
+			if expiryTime != 0 {
+				record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
 			}
 
 			ownerRecords = append(ownerRecords, record)
@@ -415,10 +419,12 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		Metadata:      dbMetadata,
 		CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 		UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-		ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
 	}
 	if dbUsername.Valid {
 		record.Username = &wrappers.StringValue{Value: dbUsername.String}
+	}
+	if expiryTime != 0 {
+		record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
 	}
 
 	return record, nil
@@ -486,10 +492,12 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 			Metadata:      dbMetadata,
 			CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 			UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			ExpiryTime:    &timestamp.Timestamp{Seconds: dbExpiryTime.Time.Unix()},
 		}
 		if dbUsername.Valid {
 			record.Username = &wrappers.StringValue{Value: dbUsername.String}
+		}
+		if expiryTime := dbExpiryTime.Time.Unix(); expiryTime != 0 {
+			record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
 		}
 
 		records = append(records, record)
