@@ -861,7 +861,7 @@ func request_Nakama_WriteLeaderboardRecord_0(ctx context.Context, marshaler runt
 	var metadata runtime.ServerMetadata
 
 	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.Record); err != nil {
 			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
 	}

@@ -380,7 +380,7 @@ service Nakama {
   rpc WriteLeaderboardRecord (WriteLeaderboardRecordRequest) returns (LeaderboardRecord) {
     option (google.api.http) = {
       post: "/v2/leaderboard/{leaderboard_id}",
-      body: "*"
+      body: "record"
     };
   }
 
@@ -759,12 +759,12 @@ message LinkFacebookRequest {
 message ListLeaderboardRecordsRequest {
   // The ID of the leaderboard to list for.
   string leaderboard_id = 1;
-  // Max number of records to return. Between 1 and 100.
-  google.protobuf.Int32Value limit = 2;
-  // A next or previous page cursor.
-  string cursor = 3;
   // One or more owners to retrieve records for.
-  repeated string owner_ids = 4;
+  repeated string owner_ids = 2;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
+  // A next or previous page cursor.
+  string cursor = 4;
 }
 
 // List realtime matches.
@@ -995,14 +995,20 @@ message Users {
 
 // A request to submit a score to a leaderboard.
 message WriteLeaderboardRecordRequest {
+  // Record values to write.
+  message LeaderboardRecordWrite {
+    // The score value to submit.
+    int64 score = 1;
+    // An optional secondary value.
+    int64 subscore = 2;
+    // Optional record metadata.
+    string metadata = 3;
+  }
+
   // The ID of the leaderboard to write to.
   string leaderboard_id = 1;
-  // The score value to submit.
-  int64 score = 2;
-  // An optional secondary value.
-  int64 subscore = 3;
-  // Optional record metadata.
-  string metadata = 4;
+  // Record data.
+  LeaderboardRecordWrite record = 2;
 }
 
 // The object to store.

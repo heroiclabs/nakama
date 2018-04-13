@@ -82,13 +82,15 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error) {
 	if in.LeaderboardId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
-	} else if in.Score < 0 {
+	} else if in.Record == nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
+	} else if in.Record.Score < 0 {
 		return nil, status.Error(codes.InvalidArgument, "Invalid score value, must be >= 0.")
-	} else if in.Subscore < 0 {
+	} else if in.Record.Subscore < 0 {
 		return nil, status.Error(codes.InvalidArgument, "Invalid subscore value, must be >= 0.")
-	} else if in.Metadata != "" {
+	} else if in.Record.Metadata != "" {
 		var maybeJSON map[string]interface{}
-		if json.Unmarshal([]byte(in.Metadata), &maybeJSON) != nil {
+		if json.Unmarshal([]byte(in.Record.Metadata), &maybeJSON) != nil {
 			return nil, status.Error(codes.InvalidArgument, "Metadata value must be JSON, if provided.")
 		}
 	}
@@ -96,7 +98,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
-	record, err := LeaderboardRecordWrite(s.logger, s.db, s.leaderboardCache, userID, in.LeaderboardId, userID.String(), username, in.Score, in.Subscore, in.Metadata)
+	record, err := LeaderboardRecordWrite(s.logger, s.db, s.leaderboardCache, userID, in.LeaderboardId, userID.String(), username, in.Record.Score, in.Record.Subscore, in.Record.Metadata)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardAuthoritative {

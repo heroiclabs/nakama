@@ -3121,20 +3121,8 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	limitNumber := l.OptInt(2, 0)
-	if limitNumber < 0 || limitNumber > 100 {
-		l.ArgError(2, "expects limit to be 1-100")
-		return 0
-	}
-	var limit *wrappers.Int32Value
-	if limitNumber != 0 {
-		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
-	}
-
-	cursor := l.OptString(3, "")
-
 	var ownerIds []string
-	owners := l.OptTable(4, nil)
+	owners := l.OptTable(2, nil)
 	if owners != nil {
 		size := owners.Len()
 		if size == 0 {
@@ -3151,13 +3139,13 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "expects each owner ID to be string")
+				l.ArgError(2, "expects each owner ID to be string")
 				return
 			}
 			s := v.String()
 			if _, err := uuid.FromString(s); err != nil {
 				conversionError = true
-				l.ArgError(4, "expects each owner ID to be a valid identifier")
+				l.ArgError(2, "expects each owner ID to be a valid identifier")
 				return
 			}
 			ownerIds = append(ownerIds, s)
@@ -3166,6 +3154,18 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 			return 0
 		}
 	}
+
+	limitNumber := l.OptInt(3, 0)
+	if limitNumber < 0 || limitNumber > 100 {
+		l.ArgError(3, "expects limit to be 1-100")
+		return 0
+	}
+	var limit *wrappers.Int32Value
+	if limitNumber != 0 {
+		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+	}
+
+	cursor := l.OptString(4, "")
 
 	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, limit, cursor, ownerIds)
 	if err != nil {

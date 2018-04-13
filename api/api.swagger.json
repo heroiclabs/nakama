@@ -783,6 +783,16 @@
             "type": "string"
           },
           {
+            "name": "owner_ids",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "description": "Max number of records to return. Between 1 and 100.",
             "in": "query",
@@ -796,16 +806,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "owner_ids",
-            "description": "One or more owners to retrieve records for.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -858,7 +858,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiWriteLeaderboardRecordRequest"
+              "$ref": "#/definitions/WriteLeaderboardRecordRequestLeaderboardRecordWrite"
             }
           }
         ],
@@ -1297,6 +1297,26 @@
         }
       },
       "description": "A group to create."
+    },
+    "WriteLeaderboardRecordRequestLeaderboardRecordWrite": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "string",
+          "format": "int64",
+          "description": "The score value to submit."
+        },
+        "subscore": {
+          "type": "string",
+          "format": "int64",
+          "description": "An optional secondary value."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Optional record metadata."
+        }
+      },
+      "description": "Record values to write."
     },
     "apiAccount": {
       "type": "object",
@@ -2037,30 +2057,6 @@
         }
       },
       "description": "A collection of zero or more users."
-    },
-    "apiWriteLeaderboardRecordRequest": {
-      "type": "object",
-      "properties": {
-        "leaderboard_id": {
-          "type": "string",
-          "description": "The ID of the leaderboard to write to."
-        },
-        "score": {
-          "type": "string",
-          "format": "int64",
-          "description": "The score value to submit."
-        },
-        "subscore": {
-          "type": "string",
-          "format": "int64",
-          "description": "An optional secondary value."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Optional record metadata."
-        }
-      },
-      "description": "A request to submit a score to a leaderboard."
     },
     "apiWriteStorageObject": {
       "type": "object",
