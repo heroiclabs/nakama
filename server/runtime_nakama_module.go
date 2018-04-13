@@ -165,7 +165,6 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_create":          n.leaderboardCreate,
 		"leaderboard_delete":          n.leaderboardDelete,
 		"leaderboard_records_list":    n.leaderboardRecordsList,
-		"leaderboard_records_read":    n.leaderboardRecordsRead,
 		"leaderboard_record_write":    n.leaderboardRecordWrite,
 		"leaderboard_record_delete":   n.leaderboardRecordDelete,
 	}
@@ -3122,15 +3121,53 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	limit := l.OptInt(2, 1)
-	if limit < 1 || limit > 100 {
+	limitNumber := l.OptInt(2, 0)
+	if limitNumber < 0 || limitNumber > 100 {
 		l.ArgError(2, "expects limit to be 1-100")
 		return 0
+	}
+	var limit *wrappers.Int32Value
+	if limitNumber != 0 {
+		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
 	}
 
 	cursor := l.OptString(3, "")
 
-	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, limit, cursor)
+	var ownerIds []string
+	owners := l.OptTable(4, nil)
+	if owners != nil {
+		size := owners.Len()
+		if size == 0 {
+			l.Push(l.CreateTable(0, 0))
+			return 1
+		}
+
+		ownerIds = make([]string, 0, size)
+		conversionError := false
+		owners.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(4, "expects each owner ID to be string")
+				return
+			}
+			s := v.String()
+			if _, err := uuid.FromString(s); err != nil {
+				conversionError = true
+				l.ArgError(4, "expects each owner ID to be a valid identifier")
+				return
+			}
+			ownerIds = append(ownerIds, s)
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, limit, cursor, ownerIds)
 	if err != nil {
 		l.RaiseError("error listing leaderboard records: %v", err.Error())
 		return 0
@@ -3168,71 +3205,8 @@ func (n *NakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		recordsTable.RawSetInt(i+1, recordTable)
 	}
 
-	l.Push(recordsTable)
-	if records.NextCursor != "" {
-		l.Push(lua.LString(records.NextCursor))
-	} else {
-		l.Push(lua.LNil)
-	}
-	if records.PrevCursor != "" {
-		l.Push(lua.LString(records.PrevCursor))
-	} else {
-		l.Push(lua.LNil)
-	}
-
-	return 3
-}
-
-func (n *NakamaModule) leaderboardRecordsRead(l *lua.LState) int {
-	id := l.CheckString(1)
-	if id == "" {
-		l.ArgError(1, "expects a leaderboard ID string")
-		return 0
-	}
-
-	owners := l.OptTable(2, nil)
-	if owners == nil {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-	size := owners.Len()
-	if size == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-
-	ownerIds := make([]string, 0, size)
-	conversionError := false
-	owners.ForEach(func(k, v lua.LValue) {
-		if conversionError {
-			return
-		}
-
-		if v.Type() != lua.LTString {
-			conversionError = true
-			l.ArgError(1, "expects each owner ID to be string")
-			return
-		}
-		s := v.String()
-		if _, err := uuid.FromString(s); err != nil {
-			conversionError = true
-			l.ArgError(1, "expects each owner ID to be a valid identifier")
-			return
-		}
-		ownerIds = append(ownerIds, s)
-	})
-	if conversionError {
-		return 0
-	}
-
-	records, err := LeaderboardRecordsRead(n.logger, n.db, n.leaderboardCache, id, ownerIds)
-	if err != nil {
-		l.RaiseError("error reading leaderboard records: %v", err.Error())
-		return 0
-	}
-
-	recordsTable := l.CreateTable(len(records.Records), 0)
-	for i, record := range records.Records {
+	ownerRecordsTable := l.CreateTable(len(records.OwnerRecords), 0)
+	for i, record := range records.OwnerRecords {
 		recordTable := l.CreateTable(0, 11)
 		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
 		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
@@ -3260,11 +3234,22 @@ func (n *NakamaModule) leaderboardRecordsRead(l *lua.LState) int {
 
 		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
 
-		recordsTable.RawSetInt(i+1, recordTable)
+		ownerRecordsTable.RawSetInt(i+1, recordTable)
 	}
 
 	l.Push(recordsTable)
-	return 1
+	l.Push(ownerRecordsTable)
+	if records.NextCursor != "" {
+		l.Push(lua.LString(records.NextCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	if records.PrevCursor != "" {
+		l.Push(lua.LString(records.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	return 4
 }
 
 func (n *NakamaModule) leaderboardRecordWrite(l *lua.LState) int {

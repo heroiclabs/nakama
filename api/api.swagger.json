@@ -771,7 +771,7 @@
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/apiLeaderboardRecords"
+              "$ref": "#/definitions/apiLeaderboardRecordList"
             }
           }
         },
@@ -796,6 +796,16 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "owner_ids",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1613,7 +1623,7 @@
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."
     },
-    "apiLeaderboardRecords": {
+    "apiLeaderboardRecordList": {
       "type": "object",
       "properties": {
         "records": {
@@ -1622,6 +1632,13 @@
             "$ref": "#/definitions/apiLeaderboardRecord"
           },
           "description": "A list of leaderboard records."
+        },
+        "owner_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A batched set of leaderobard records belonging to specified owners."
         },
         "next_cursor": {
           "type": "string",
@@ -1724,23 +1741,6 @@
         }
       },
       "description": "A collection of zero or more notifications."
-    },
-    "apiReadLeaderboardRecordsRequest": {
-      "type": "object",
-      "properties": {
-        "leaderboard_id": {
-          "type": "string",
-          "description": "The leaderboard ID to read from."
-        },
-        "owner_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "One or more owners to retrieve records for."
-        }
-      },
-      "description": "Read a batch of one or more leaderboard records from the same leaderboard."
     },
     "apiReadStorageObjectId": {
       "type": "object",

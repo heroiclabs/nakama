@@ -50,7 +50,7 @@ type leaderboardRecordsListCursor struct {
 	Rank          int64
 }
 
-func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, leaderboardId string, limit int, cursor string) (*api.LeaderboardRecords, error) {
+func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string) (*api.LeaderboardRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -61,267 +61,254 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
 	}
 
-	var incomingCursor *leaderboardRecordsListCursor
-	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
-			return nil, ErrLeaderboardInvalidCursor
-		} else {
-			incomingCursor = &leaderboardRecordsListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+	records := make([]*api.LeaderboardRecord, 0)
+	ownerRecords := make([]*api.LeaderboardRecord, 0)
+	var nextCursorStr, prevCursorStr string
+
+	if limit != nil {
+		limitNumber := int(limit.Value)
+		var incomingCursor *leaderboardRecordsListCursor
+		if cursor != "" {
+			if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+				return nil, ErrLeaderboardInvalidCursor
+			} else {
+				incomingCursor = &leaderboardRecordsListCursor{}
+				if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+					return nil, ErrLeaderboardInvalidCursor
+				}
+			}
+
+			if leaderboardId != incomingCursor.LeaderboardId {
+				// Cursor is for a different leaderboard.
+				return nil, ErrLeaderboardInvalidCursor
+			} else if expiryTime != incomingCursor.ExpiryTime {
+				// Leaderboard expiry has rolled over since this cursor was generated.
 				return nil, ErrLeaderboardInvalidCursor
 			}
 		}
 
-		if leaderboardId != incomingCursor.LeaderboardId {
-			// Cursor is for a different leaderboard.
-			return nil, ErrLeaderboardInvalidCursor
-		} else if expiryTime != incomingCursor.ExpiryTime {
-			// Leaderboard expiry has rolled over since this cursor was generated.
-			return nil, ErrLeaderboardInvalidCursor
-		}
-	}
-
-	query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ)"
-	if incomingCursor == nil {
-		// Ascending doesn't need an ordering clause.
-		if leaderboard.SortOrder == LeaderboardSortOrderDescending {
-			query += " ORDER BY score DESC, subscore DESC, owner_id DESC"
-		}
-	} else {
-		if (leaderboard.SortOrder == LeaderboardSortOrderAscending && incomingCursor.IsNext) || (leaderboard.SortOrder == LeaderboardSortOrderDescending && !incomingCursor.IsNext) {
-			// Ascending and next page == descending and previous page.
-			query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6)"
+		query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ)"
+		if incomingCursor == nil {
+			// Ascending doesn't need an ordering clause.
+			if leaderboard.SortOrder == LeaderboardSortOrderDescending {
+				query += " ORDER BY score DESC, subscore DESC, owner_id DESC"
+			}
 		} else {
-			// Ascending and previous page == descending and next page.
-			query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) < ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6) ORDER BY score DESC, subscore DESC, owner_id DESC"
+			if (leaderboard.SortOrder == LeaderboardSortOrderAscending && incomingCursor.IsNext) || (leaderboard.SortOrder == LeaderboardSortOrderDescending && !incomingCursor.IsNext) {
+				// Ascending and next page == descending and previous page.
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6)"
+			} else {
+				// Ascending and previous page == descending and next page.
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) < ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6) ORDER BY score DESC, subscore DESC, owner_id DESC"
+			}
 		}
-	}
-	query += " LIMIT $3"
-	params := make([]interface{}, 0, 6)
-	params = append(params, leaderboardId, expiryTime, limit+1)
-	if incomingCursor != nil {
-		params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
-	}
+		query += " LIMIT $3"
+		params := make([]interface{}, 0, 6)
+		params = append(params, leaderboardId, expiryTime, limitNumber+1)
+		if incomingCursor != nil {
+			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
+		}
 
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		logger.Error("Error listing leaderboard records", zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			logger.Error("Error listing leaderboard records", zap.Error(err))
+			return nil, err
+		}
+		defer rows.Close()
 
-	rank := int64(0)
-	if incomingCursor != nil {
-		rank = incomingCursor.Rank
-	}
-	records := make([]*api.LeaderboardRecord, 0, limit)
-	var nextCursor, prevCursor *leaderboardRecordsListCursor
+		rank := int64(0)
+		if incomingCursor != nil {
+			rank = incomingCursor.Rank
+		}
+		records = make([]*api.LeaderboardRecord, 0, limitNumber)
+		var nextCursor, prevCursor *leaderboardRecordsListCursor
 
-	var dbOwnerId string
-	var dbUsername sql.NullString
-	var dbScore int64
-	var dbSubscore int64
-	var dbNumScore int32
-	var dbMetadata string
-	var dbCreateTime pq.NullTime
-	var dbUpdateTime pq.NullTime
-	for rows.Next() {
-		if len(records) >= limit {
-			nextCursor = &leaderboardRecordsListCursor{
-				IsNext:        true,
+		var dbOwnerId string
+		var dbUsername sql.NullString
+		var dbScore int64
+		var dbSubscore int64
+		var dbNumScore int32
+		var dbMetadata string
+		var dbCreateTime pq.NullTime
+		var dbUpdateTime pq.NullTime
+		for rows.Next() {
+			if len(records) >= limitNumber {
+				nextCursor = &leaderboardRecordsListCursor{
+					IsNext:        true,
+					LeaderboardId: leaderboardId,
+					ExpiryTime:    expiryTime,
+					Score:         dbScore,
+					Subscore:      dbSubscore,
+					OwnerId:       dbOwnerId,
+					Rank:          rank,
+				}
+				break
+			}
+
+			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+			if err != nil {
+				logger.Error("Error parsing listed leaderboard records", zap.Error(err))
+				return nil, err
+			}
+
+			if incomingCursor != nil && !incomingCursor.IsNext {
+				rank--
+			} else {
+				rank++
+			}
+
+			record := &api.LeaderboardRecord{
 				LeaderboardId: leaderboardId,
-				ExpiryTime:    expiryTime,
+				OwnerId:       dbOwnerId,
 				Score:         dbScore,
 				Subscore:      dbSubscore,
-				OwnerId:       dbOwnerId,
+				NumScore:      dbNumScore,
+				Metadata:      dbMetadata,
+				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+				ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
 				Rank:          rank,
 			}
-			break
-		}
+			if dbUsername.Valid {
+				record.Username = &wrappers.StringValue{Value: dbUsername.String}
+			}
 
-		err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
-		if err != nil {
-			logger.Error("Error parsing listed leaderboard records", zap.Error(err))
-			return nil, err
+			records = append(records, record)
+
+			// There can only be a previous page if this is a paginated listing.
+			if incomingCursor != nil && prevCursor == nil {
+				prevCursor = &leaderboardRecordsListCursor{
+					IsNext:        false,
+					LeaderboardId: leaderboardId,
+					ExpiryTime:    expiryTime,
+					Score:         dbScore,
+					Subscore:      dbSubscore,
+					OwnerId:       dbOwnerId,
+					Rank:          rank,
+				}
+			}
 		}
 
 		if incomingCursor != nil && !incomingCursor.IsNext {
-			rank--
-		} else {
-			rank++
+			// If this was a previous page listing, flip the results to their normal order and swap the cursors.
+			nextCursor, nextCursor.IsNext, nextCursor.Rank, prevCursor, prevCursor.IsNext, prevCursor.Rank = prevCursor, prevCursor.IsNext, prevCursor.Rank, nextCursor, nextCursor.IsNext, nextCursor.Rank
+
+			for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
+				records[i], records[i].Rank, records[j], records[j].Rank = records[j], records[j].Rank, records[i], records[i].Rank
+			}
 		}
 
-		record := &api.LeaderboardRecord{
-			LeaderboardId: leaderboardId,
-			OwnerId:       dbOwnerId,
-			Score:         dbScore,
-			Subscore:      dbSubscore,
-			NumScore:      dbNumScore,
-			Metadata:      dbMetadata,
-			CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
-			Rank:          rank,
+		if nextCursor != nil {
+			cursorBuf := new(bytes.Buffer)
+			if gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+				logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
+				return nil, err
+			}
+			nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 		}
-		if dbUsername.Valid {
-			record.Username = &wrappers.StringValue{Value: dbUsername.String}
+		if prevCursor != nil {
+			cursorBuf := new(bytes.Buffer)
+			if gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+				logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
+				return nil, err
+			}
+			prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		}
+	}
+
+	if len(ownerIds) != 0 {
+		params := make([]interface{}, 0, len(ownerIds)+2)
+		params = append(params, leaderboardId, expiryTime)
+		statements := make([]string, len(ownerIds))
+		for i, ownerId := range ownerIds {
+			params = append(params, ownerId)
+			statements[i] = "$" + strconv.Itoa(i+3)
 		}
 
-		records = append(records, record)
+		query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ) AND owner_id IN (" + strings.Join(statements, ", ") + ")"
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			logger.Error("Error reading leaderboard records", zap.Error(err))
+			return nil, err
+		}
+		defer rows.Close()
 
-		// There can only be a previous page if this is a paginated listing.
-		if incomingCursor != nil && prevCursor == nil {
-			prevCursor = &leaderboardRecordsListCursor{
-				IsNext:        false,
+		ownerRecords = make([]*api.LeaderboardRecord, 0, len(ownerIds))
+
+		var dbOwnerId string
+		var dbUsername sql.NullString
+		var dbScore int64
+		var dbSubscore int64
+		var dbNumScore int32
+		var dbMetadata string
+		var dbCreateTime pq.NullTime
+		var dbUpdateTime pq.NullTime
+		for rows.Next() {
+			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+			if err != nil {
+				logger.Error("Error parsing read leaderboard records", zap.Error(err))
+				return nil, err
+			}
+
+			record := &api.LeaderboardRecord{
 				LeaderboardId: leaderboardId,
-				ExpiryTime:    expiryTime,
+				OwnerId:       dbOwnerId,
 				Score:         dbScore,
 				Subscore:      dbSubscore,
-				OwnerId:       dbOwnerId,
-				Rank:          rank,
+				NumScore:      dbNumScore,
+				Metadata:      dbMetadata,
+				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+				ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
 			}
-		}
-	}
+			if dbUsername.Valid {
+				record.Username = &wrappers.StringValue{Value: dbUsername.String}
+			}
 
-	if incomingCursor != nil && !incomingCursor.IsNext {
-		// If this was a previous page listing, flip the results to their normal order and swap the cursors.
-		nextCursor, nextCursor.IsNext, nextCursor.Rank, prevCursor, prevCursor.IsNext, prevCursor.Rank = prevCursor, prevCursor.IsNext, prevCursor.Rank, nextCursor, nextCursor.IsNext, nextCursor.Rank
-
-		for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
-			records[i], records[i].Rank, records[j], records[j].Rank = records[j], records[j].Rank, records[i], records[i].Rank
-		}
-	}
-
-	var nextCursorStr, prevCursorStr string
-	if nextCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
-			logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
-			return nil, err
-		}
-		nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-	}
-	if prevCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
-			logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
-			return nil, err
-		}
-		prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-	}
-
-	return &api.LeaderboardRecords{
-		Records:    records,
-		NextCursor: nextCursorStr,
-		PrevCursor: prevCursorStr,
-	}, nil
-}
-
-func LeaderboardRecordsRead(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, leaderboardId string, ownerIds []string) (*api.LeaderboardRecords, error) {
-	leaderboard := leaderboardCache.Get(leaderboardId)
-	if leaderboard == nil {
-		return nil, ErrLeaderboardNotFound
-	}
-
-	if len(ownerIds) == 0 {
-		return &api.LeaderboardRecords{
-			Records: make([]*api.LeaderboardRecord, 0),
-		}, nil
-	}
-
-	expiryTime := int64(0)
-	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
-	}
-
-	params := make([]interface{}, 0, len(ownerIds)+2)
-	params = append(params, leaderboardId, expiryTime)
-	statements := make([]string, len(ownerIds))
-	for i, ownerId := range ownerIds {
-		params = append(params, ownerId)
-		statements[i] = "$" + strconv.Itoa(i+3)
-	}
-
-	query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ) AND owner_id IN (" + strings.Join(statements, ", ") + ")"
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		logger.Error("Error reading leaderboard records", zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
-
-	records := make([]*api.LeaderboardRecord, 0, len(ownerIds))
-
-	var dbOwnerId string
-	var dbUsername sql.NullString
-	var dbScore int64
-	var dbSubscore int64
-	var dbNumScore int32
-	var dbMetadata string
-	var dbCreateTime pq.NullTime
-	var dbUpdateTime pq.NullTime
-	for rows.Next() {
-		err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
-		if err != nil {
-			logger.Error("Error parsing read leaderboard records", zap.Error(err))
-			return nil, err
+			ownerRecords = append(ownerRecords, record)
 		}
 
-		record := &api.LeaderboardRecord{
-			LeaderboardId: leaderboardId,
-			OwnerId:       dbOwnerId,
-			Score:         dbScore,
-			Subscore:      dbSubscore,
-			NumScore:      dbNumScore,
-			Metadata:      dbMetadata,
-			CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			ExpiryTime:    &timestamp.Timestamp{Seconds: expiryTime},
-		}
-		if dbUsername.Valid {
-			record.Username = &wrappers.StringValue{Value: dbUsername.String}
-		}
-
-		records = append(records, record)
-	}
-
-	sort.Slice(records, func(i, j int) bool {
-		iRecord := records[i]
-		jRecord := records[j]
-		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
-			if iRecord.Score < jRecord.Score {
-				return true
-			} else if iRecord.Score == jRecord.Score {
-				if iRecord.Subscore < jRecord.Subscore {
+		sort.Slice(ownerRecords, func(i, j int) bool {
+			iRecord := ownerRecords[i]
+			jRecord := ownerRecords[j]
+			if leaderboard.SortOrder == LeaderboardSortOrderAscending {
+				if iRecord.Score < jRecord.Score {
 					return true
-				} else if iRecord.Subscore == jRecord.Subscore {
-					if iRecord.OwnerId < jRecord.OwnerId {
+				} else if iRecord.Score == jRecord.Score {
+					if iRecord.Subscore < jRecord.Subscore {
 						return true
+					} else if iRecord.Subscore == jRecord.Subscore {
+						if iRecord.OwnerId < jRecord.OwnerId {
+							return true
+						}
 					}
 				}
-			}
-			return false
-		} else {
-			if iRecord.Score > jRecord.Score {
-				return true
-			} else if iRecord.Score == jRecord.Score {
-				if iRecord.Subscore > jRecord.Subscore {
+				return false
+			} else {
+				if iRecord.Score > jRecord.Score {
 					return true
-				} else if iRecord.Subscore == jRecord.Subscore {
-					if iRecord.OwnerId > jRecord.OwnerId {
+				} else if iRecord.Score == jRecord.Score {
+					if iRecord.Subscore > jRecord.Subscore {
 						return true
+					} else if iRecord.Subscore == jRecord.Subscore {
+						if iRecord.OwnerId > jRecord.OwnerId {
+							return true
+						}
 					}
 				}
+				return false
 			}
-			return false
+		})
+		for i, record := range ownerRecords {
+			record.Rank = int64(i + 1)
 		}
-	})
-	for i, record := range records {
-		record.Rank = int64(i + 1)
 	}
 
-	return &api.LeaderboardRecords{
-		Records: records,
+	return &api.LeaderboardRecordList{
+		Records:      records,
+		OwnerRecords: ownerRecords,
+		NextCursor:   nextCursorStr,
+		PrevCursor:   prevCursorStr,
 	}, nil
 }
 

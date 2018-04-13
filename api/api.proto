@@ -269,7 +269,7 @@ service Nakama {
   }
 
   // List leaderboard records
-  rpc ListLeaderboardRecords (ListLeaderboardRecordsRequest) returns (LeaderboardRecords) {
+  rpc ListLeaderboardRecords (ListLeaderboardRecordsRequest) returns (LeaderboardRecordList) {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}";
   }
 
@@ -290,14 +290,6 @@ service Nakama {
       additional_bindings {
         get: "/v2/storage/{collection}/{user_id}"
       }
-    };
-  }
-
-  // Read a batch of leaderboard records.
-  rpc ReadLeaderboardRecords (ReadLeaderboardRecordsRequest) returns (LeaderboardRecords) {
-    option (google.api.http) = {
-      post: "/v2/leaderboard/{leaderboard_id}",
-      body: "*"
     };
   }
 
@@ -744,13 +736,15 @@ message LeaderboardRecord {
 }
 
 // A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records.
-message LeaderboardRecords {
+message LeaderboardRecordList {
   // A list of leaderboard records.
   repeated LeaderboardRecord records = 1;
+  // A batched set of leaderobard records belonging to specified owners.
+  repeated LeaderboardRecord owner_records = 2;
   // The cursor to send when retireving the next page, if any.
-  string next_cursor = 2;
+  string next_cursor = 3;
   // The cursor to send when retrieving the previous page, if any.
-  string prev_cursor = 3;
+  string prev_cursor = 4;
 }
 
 // Link Facebook to the current user's account.
@@ -769,6 +763,8 @@ message ListLeaderboardRecordsRequest {
   google.protobuf.Int32Value limit = 2;
   // A next or previous page cursor.
   string cursor = 3;
+  // One or more owners to retrieve records for.
+  repeated string owner_ids = 4;
 }
 
 // List realtime matches.
@@ -847,14 +843,6 @@ message NotificationList {
   repeated Notification notifications = 1;
   // Use this cursor to paginate notifications. Cache this to catch up to new notifications.
   string cacheable_cursor = 2;
-}
-
-// Read a batch of one or more leaderboard records from the same leaderboard.
-message ReadLeaderboardRecordsRequest {
-  // The leaderboard ID to read from.
-  string leaderboard_id = 1;
-  // One or more owners to retrieve records for.
-  repeated string owner_ids = 2;
 }
 
 // Storage objects to get.

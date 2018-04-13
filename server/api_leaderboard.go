@@ -17,6 +17,7 @@ package server
 import (
 	"encoding/json"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
@@ -43,43 +44,30 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecords, error) {
+func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
 	if in.LeaderboardId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}
 
-	limit := 1
+	var limit *wrappers.Int32Value
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
-		limit = int(in.GetLimit().Value)
+		limit = in.GetLimit()
+	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
+		limit = &wrappers.Int32Value{Value: 1}
 	}
 
-	records, err := LeaderboardRecordsList(s.logger, s.db, s.leaderboardCache, in.LeaderboardId, limit, in.Cursor)
-	if err == ErrLeaderboardNotFound {
-		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
-	} else if err == ErrLeaderboardInvalidCursor {
-		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
-	} else if err != nil {
-		return nil, status.Error(codes.Internal, "Error listing records from leaderboard.")
-	}
-
-	return records, nil
-}
-
-func (s *ApiServer) ReadLeaderboardRecords(ctx context.Context, in *api.ReadLeaderboardRecordsRequest) (*api.LeaderboardRecords, error) {
-	if in.LeaderboardId == "" {
-		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
-	}
-
-	for _, ownerId := range in.OwnerIds {
-		if _, err := uuid.FromString(ownerId); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
+	if len(in.GetOwnerIds()) != 0 {
+		for _, ownerId := range in.OwnerIds {
+			if _, err := uuid.FromString(ownerId); err != nil {
+				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
+			}
 		}
 	}
 
-	records, err := LeaderboardRecordsRead(s.logger, s.db, s.leaderboardCache, in.LeaderboardId, in.OwnerIds)
+	records, err := LeaderboardRecordsList(s.logger, s.db, s.leaderboardCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardInvalidCursor {
