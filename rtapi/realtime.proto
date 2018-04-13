@@ -19,6 +19,7 @@ syntax = "proto3";
 
 package nakama.realtime;
 
+import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "github.com/heroiclabs/nakama/api/api.proto";
 
@@ -36,31 +37,131 @@ option objc_class_prefix = "NKPB";
 message Envelope {
   string cid = 1;
   oneof message {
+    // A response fron a channel join operation.
+    Channel channel = 2;
+    // Join a realtime chat channel.
+    ChannelJoin channel_join = 3;
+    // Leave a realtime chat channel.
+    ChannelLeave channel_leave = 4;
+    // An incoming message on a realtime chat channel.
+    api.ChannelMessage channel_message = 5;
+    // An acknowledgement received in response to sending a message on a chat channel.
+    ChannelMessageAck channel_message_ack = 6;
+    // Send a message to a realtime chat channel.
+    ChannelMessageSend channel_message_send = 7;
+    // Update a message previously sent to a realtime chat channel.
+    ChannelMessageUpdate channel_message_update = 8;
+    // Presence update for a particular realtime chat channel.
+    ChannelPresenceEvent channel_presence_event = 9;
     // Describes an error which occurred on the server.
-    Error error = 2;
+    Error error = 10;
     // Incoming information about a realtime match.
-    Match match = 3;
+    Match match = 11;
     // A client to server request to create a realtime match.
-    MatchCreate match_create = 4;
+    MatchCreate match_create = 12;
     // Incoming realtime match data delivered from the server.
-    MatchData match_data = 5;
+    MatchData match_data = 13;
     // A client to server request to send data to a realtime match.
-    MatchDataSend match_data_send = 6;
+    MatchDataSend match_data_send = 14;
     // A client to server request to join a realtime match.
-    MatchJoin match_join = 7;
+    MatchJoin match_join = 15;
     // A client to server request to leave a realtime match.
-    MatchLeave match_leave = 8;
+    MatchLeave match_leave = 16;
     // Presence update for a particular realtime match.
-    MatchPresenceEvent match_presence_event = 9;
+    MatchPresenceEvent match_presence_event = 17;
     // Notifications send by the server.
-    Notifications notifications = 10;
+    Notifications notifications = 18;
     // RPC call or response.
-    api.Rpc rpc = 11;
+    api.Rpc rpc = 19;
     // A data message delivered over a stream.
-    StreamData stream_data = 12;
+    StreamData stream_data = 20;
     // Presence update for a particular stream.
-    StreamPresenceEvent stream_presence_event = 13;
+    StreamPresenceEvent stream_presence_event = 21;
   }
+}
+
+// A realtime chat channel.
+message Channel {
+  // The ID of the channel.
+  string channel_id = 1;
+  // The users currently in the channel.
+  repeated UserPresence presences = 2;
+  // A reference to the current user's presence in the channel.
+  UserPresence self = 3;
+}
+
+// Join operation for a realtime chat channel.
+message ChannelJoin {
+  // The type of chat channel.
+  enum Type {
+    // Default case. Assumed as ROOM type.
+    TYPE_UNSPECIFIED = 0;
+    // A room which anyone can join to chat.
+    ROOM = 1;
+    // A private channel for 1-on-1 chat.
+    DIRECT_MESSAGE = 2;
+    // A channel for group chat.
+    GROUP = 3;
+  }
+
+  // The identifier for the realtime channel.
+  string id = 1;
+  // The type of the chat channel.
+  int32 type = 2; // one of "ChannelId.Type".
+  // Whether messages sent on this channel should be persistent.
+  google.protobuf.BoolValue persistence = 3;
+  // Whether the user should appear in the channel's presence list and events.
+  google.protobuf.BoolValue hidden = 4;
+}
+
+// Leave a realtime channel.
+message ChannelLeave {
+  // The ID of the channel to leave.
+  string channel_id = 1;
+}
+
+// A receipt reply from a channel message send operation.
+message ChannelMessageAck {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The unique ID assigned to the message.
+  string message_id = 2;
+  // Username of the message sender.
+  string username = 3;
+  // The UNIX time when the message was created.
+  google.protobuf.Timestamp create_time = 4;
+  // The UNIX time when the message was last updated.
+  google.protobuf.Timestamp update_time = 5;
+  // True if the message was persisted to the channel's history, false otherwise.
+  bool persistent = 6;
+}
+
+// Send a message to a realtime channel.
+message ChannelMessageSend {
+  // The channel to sent to.
+  string channel_id = 1;
+  // Message content.
+  string content = 2;
+}
+
+// Update a message previously sent to a realtime channel.
+message ChannelMessageUpdate {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The ID assigned to the message to update.
+  string message_id = 2;
+  // New message content.
+  string content = 3;
+}
+
+// A set of joins and leaves on a particular channel.
+message ChannelPresenceEvent {
+  // The
+  string channel_id = 1;
+  // Presences joining the channel as part of this event, if any.
+  repeated UserPresence joins = 2;
+  // Presences leaving the channel as part of this event, if any.
+  repeated UserPresence leaves = 3;
 }
 
 // A logical error which may occur on the server.
@@ -104,9 +205,9 @@ message Match {
   // The number of users currently in the match.
   int32 size = 4;
   // The users currently in the match.
-  repeated StreamPresence presences = 5;
+  repeated UserPresence presences = 5;
   // A reference to the current user's presence in the match.
-  StreamPresence self = 6;
+  UserPresence self = 6;
 }
 
 // Create a new realtime match.
@@ -117,7 +218,7 @@ message MatchData {
   // The match unique ID.
   string match_id = 1;
   // A reference to the user presence that sent this data, if any.
-  StreamPresence presence = 2;
+  UserPresence presence = 2;
   // Op code value.
   int64 op_code = 3;
   // Data payload, if any.
@@ -133,7 +234,7 @@ message MatchDataSend {
   // Data payload, if any.
   bytes data = 3;
   // List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
-  repeated StreamPresence presences = 4;
+  repeated UserPresence presences = 4;
 }
 
 // Join an existing realtime match.
@@ -157,9 +258,9 @@ message MatchPresenceEvent {
   // The match unique ID.
   string match_id = 1;
   // User presences that have just joined the match.
-  repeated StreamPresence joins = 2;
+  repeated UserPresence joins = 2;
   // User presences that have just left the match.
-  repeated StreamPresence leaves = 3;
+  repeated UserPresence leaves = 3;
 }
 
 // A collection of zero or more notifications.
@@ -185,13 +286,23 @@ message StreamData {
   // The stream this data message relates to.
   Stream stream = 1;
   // The sender, if any.
-  StreamPresence sender = 2;
+  UserPresence sender = 2;
   // Arbitrary contents of the data message.
   string data = 3;
 }
 
-// A user session associated to a stream, usually through a list operation or a join/leave event.
-message StreamPresence {
+// A set of joins and leaves on a particular stream.
+message StreamPresenceEvent {
+  // The stream this event relates to.
+  Stream stream = 1;
+  // Presences joining the stream as part of this event, if any.
+  repeated UserPresence joins = 2;
+  // Presences leaving the stream as part of this event, if any.
+  repeated UserPresence leaves = 3;
+}
+
+// A user session associated to a stream, match, or channel. Usually received through a list operation or a join/leave event.
+message UserPresence {
   // The user this presence belongs to.
   string user_id = 1;
   // A unique session ID identifying the particular connection, because the user may have many.
@@ -202,14 +313,4 @@ message StreamPresence {
   bool persistence = 4;
   // A user-set status message for this stream, if applicable.
   string status = 5;
-}
-
-// A set of joins and leaves on a particular stream.
-message StreamPresenceEvent {
-  // The stream this event relates to.
-  Stream stream = 1;
-  // Presences joining the stream as part of this event, if any.
-  repeated StreamPresence joins = 2;
-  // Presences leaving the stream as part of this event, if any.
-  repeated StreamPresence leaves = 3;
 }

@@ -38,7 +38,7 @@ var (
 	ErrLeaderboardInvalidCursor = errors.New("leaderboard cursor invalid")
 )
 
-type leaderboardRecordsListCursor struct {
+type leaderboardRecordListCursor struct {
 	// Query hint.
 	IsNext bool
 	// ID fields.
@@ -67,12 +67,12 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 	if limit != nil {
 		limitNumber := int(limit.Value)
-		var incomingCursor *leaderboardRecordsListCursor
+		var incomingCursor *leaderboardRecordListCursor
 		if cursor != "" {
 			if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
 				return nil, ErrLeaderboardInvalidCursor
 			} else {
-				incomingCursor = &leaderboardRecordsListCursor{}
+				incomingCursor = &leaderboardRecordListCursor{}
 				if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
 					return nil, ErrLeaderboardInvalidCursor
 				}
@@ -121,7 +121,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			rank = incomingCursor.Rank
 		}
 		records = make([]*api.LeaderboardRecord, 0, limitNumber)
-		var nextCursor, prevCursor *leaderboardRecordsListCursor
+		var nextCursor, prevCursor *leaderboardRecordListCursor
 
 		var dbOwnerId string
 		var dbUsername sql.NullString
@@ -133,7 +133,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		var dbUpdateTime pq.NullTime
 		for rows.Next() {
 			if len(records) >= limitNumber {
-				nextCursor = &leaderboardRecordsListCursor{
+				nextCursor = &leaderboardRecordListCursor{
 					IsNext:        true,
 					LeaderboardId: leaderboardId,
 					ExpiryTime:    expiryTime,
@@ -179,7 +179,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 			// There can only be a previous page if this is a paginated listing.
 			if incomingCursor != nil && prevCursor == nil {
-				prevCursor = &leaderboardRecordsListCursor{
+				prevCursor = &leaderboardRecordListCursor{
 					IsNext:        false,
 					LeaderboardId: leaderboardId,
 					ExpiryTime:    expiryTime,

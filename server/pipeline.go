@@ -116,6 +116,14 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	}
 
 	switch envelope.Message.(type) {
+	case *rtapi.Envelope_ChannelJoin:
+		p.channelJoin(logger, session, envelope)
+	case *rtapi.Envelope_ChannelLeave:
+		p.channelLeave(logger, session, envelope)
+	case *rtapi.Envelope_ChannelMessageSend:
+		p.channelMessageSend(logger, session, envelope)
+	case *rtapi.Envelope_ChannelMessageUpdate:
+		p.channelMessageUpdate(logger, session, envelope)
 	case *rtapi.Envelope_MatchCreate:
 		p.matchCreate(logger, session, envelope)
 	case *rtapi.Envelope_MatchDataSend:

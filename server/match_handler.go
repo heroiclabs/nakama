@@ -570,9 +570,9 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	}
 
 	sender := l.OptTable(4, nil)
-	var presence *rtapi.StreamPresence
+	var presence *rtapi.UserPresence
 	if sender != nil {
-		presence := &rtapi.StreamPresence{}
+		presence := &rtapi.UserPresence{}
 		conversionError := false
 		sender.ForEach(func(k, v lua.LValue) {
 			switch k.String() {
