@@ -76,39 +76,41 @@ type MatchRegistry interface {
 
 type LocalMatchRegistry struct {
 	sync.RWMutex
-	logger          *zap.Logger
-	db              *sql.DB
-	config          Config
-	socialClient    *social.Client
-	sessionRegistry *SessionRegistry
-	tracker         Tracker
-	router          MessageRouter
-	stdLibs         map[string]lua.LGFunction
-	modules         *sync.Map
-	once            *sync.Once
-	node            string
-	matches         map[uuid.UUID]*MatchHandler
+	logger           *zap.Logger
+	db               *sql.DB
+	config           Config
+	socialClient     *social.Client
+	leaderboardCache LeaderboardCache
+	sessionRegistry  *SessionRegistry
+	tracker          Tracker
+	router           MessageRouter
+	stdLibs          map[string]lua.LGFunction
+	modules          *sync.Map
+	once             *sync.Once
+	node             string
+	matches          map[uuid.UUID]*MatchHandler
 }
 
-func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, node string) MatchRegistry {
 	return &LocalMatchRegistry{
-		logger:          logger,
-		db:              db,
-		config:          config,
-		socialClient:    socialClient,
-		sessionRegistry: sessionRegistry,
-		tracker:         tracker,
-		router:          router,
-		stdLibs:         stdLibs,
-		once:            once,
-		node:            node,
-		matches:         make(map[uuid.UUID]*MatchHandler),
+		logger:           logger,
+		db:               db,
+		config:           config,
+		socialClient:     socialClient,
+		leaderboardCache: leaderboardCache,
+		sessionRegistry:  sessionRegistry,
+		tracker:          tracker,
+		router:           router,
+		stdLibs:          stdLibs,
+		once:             once,
+		node:             node,
+		matches:          make(map[uuid.UUID]*MatchHandler),
 	}
 }
 
 func (r *LocalMatchRegistry) NewMatch(name string, params interface{}) (*MatchHandler, error) {
 	id := uuid.Must(uuid.NewV4())
-	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name, params)
+	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.leaderboardCache, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name, params)
 	if err != nil {
 		return nil, err
 	}

@@ -56,6 +56,7 @@ type ApiServer struct {
 	db                *sql.DB
 	config            Config
 	socialClient      *social.Client
+	leaderboardCache  LeaderboardCache
 	matchRegistry     MatchRegistry
 	tracker           Tracker
 	router            MessageRouter
@@ -64,7 +65,7 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -76,15 +77,16 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ApiServer{
-		logger:        logger,
-		db:            db,
-		config:        config,
-		socialClient:  socialClient,
-		matchRegistry: matchRegistry,
-		tracker:       tracker,
-		router:        router,
-		runtimePool:   runtimePool,
-		grpcServer:    grpcServer,
+		logger:           logger,
+		db:               db,
+		config:           config,
+		socialClient:     socialClient,
+		leaderboardCache: leaderboardCache,
+		matchRegistry:    matchRegistry,
+		tracker:          tracker,
+		router:           router,
+		runtimePool:      runtimePool,
+		grpcServer:       grpcServer,
 	}
 
 	// Register and start GRPC server.

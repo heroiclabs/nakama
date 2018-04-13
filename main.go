@@ -105,20 +105,21 @@ func main() {
 	if err != nil {
 		multiLogger.Fatal("Failed reading runtime modules", zap.Error(err))
 	}
-	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	leaderboardCache := server.NewLocalLeaderboardCache(jsonLogger, multiLogger, db)
+	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, leaderboardCache, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	// Separate module evaluation/validation from module loading.
 	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
-	regCallbacks, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
+	regCallbacks, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
+	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, tracker, router, runtimePool)
 	metrics := server.NewMetrics(multiLogger, config)
 
 	consoleServer := server.StartConsoleServer(jsonLogger, multiLogger, config, db)
-	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)

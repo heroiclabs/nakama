@@ -35,6 +35,7 @@ type walletUpdate struct {
 // Not an API entity, only used to send data to Lua environment.
 type walletLedger struct {
 	ID         string
+	UserID     string
 	Changeset  map[string]interface{}
 	Metadata   map[string]interface{}
 	CreateTime int64
@@ -99,18 +100,32 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 	})
 }
 
-func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) error {
+func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {
 	// Metadata is expected to already be a valid JSON string.
-	query := "UPDATE wallet_ledger SET update_time = now(), metadata = $2 WHERE id = $1::UUID"
-	res, err := db.Exec(query, id, metadata)
+	var userId string
+	var changeset sql.NullString
+	var createTime pq.NullTime
+	var updateTime pq.NullTime
+	query := "UPDATE wallet_ledger SET update_time = now(), metadata = $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
+	err := db.QueryRow(query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
 	if err != nil {
 		logger.Error("Error updating user wallet ledger.", zap.String("id", id.String()), zap.Error(err))
-		return err
+		return nil, err
 	}
-	if rowsAffectedCount, _ := res.RowsAffected(); rowsAffectedCount != 1 {
-		return errors.New("wallet ledger id not found")
+
+	var changesetMap map[string]interface{}
+	err = json.Unmarshal([]byte(changeset.String), &changesetMap)
+	if err != nil {
+		logger.Error("Error converting user wallet ledger changeset after update.", zap.String("id", id.String()), zap.Error(err))
+		return nil, err
 	}
-	return nil
+
+	return &walletLedger{
+		UserID:     userId,
+		Changeset:  changesetMap,
+		CreateTime: createTime.Time.Unix(),
+		UpdateTime: updateTime.Time.Unix(),
+	}, nil
 }
 
 func ListWalletLedger(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*walletLedger, error) {

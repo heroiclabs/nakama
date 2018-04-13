@@ -17,7 +17,9 @@ package server
 import (
 	"context"
 
+	"encoding/json"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/console"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -40,6 +42,11 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountId
 		return &empty.Empty{}, nil
 	}
 
+	err = LeaderboardRecordsDeleteAll(s.logger, s.db, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
+	}
+
 	if _, err = s.db.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
 		s.logger.Error("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
@@ -54,36 +61,77 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
+	// Core user account.
 	account, err := GetAccount(s.logger, s.db, nil, userID)
 	if err != nil {
 		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
+	// Friends.
 	friends, err := GetFriendIDs(s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch friend IDs", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
+	// Leaderboard records.
+	leaderboardRecords, err := LeaderboardRecordReadAll(s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch leaderboard records", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	// Notifications.
 	notifications, err := NotificationList(s.logger, s.db, userID, 0, "", nil)
 	if err != nil {
 		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
+	// Storage objects where user is the owner.
 	storageObjects, err := StorageReadAllUserObjects(s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
-	// TODO(mo, zyro) add wallet, groups, chat messages, leaderboard and leaderboard records
+	// History of user's wallet.
+	walletLedgers, err := ListWalletLedger(s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+	wl := make([]*console.WalletLedger, len(walletLedgers))
+	for i, w := range walletLedgers {
+		changeset, err := json.Marshal(w.Changeset)
+		if err != nil {
+			s.logger.Error("Could not fetch wallet ledger items, error encoding changeset", zap.Error(err), zap.String("user_id", in.Id))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		}
+		metadata, err := json.Marshal(w.Metadata)
+		if err != nil {
+			s.logger.Error("Could not fetch wallet ledger items, error encoding metadata", zap.Error(err), zap.String("user_id", in.Id))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		}
+		wl[i] = &console.WalletLedger{
+			Id:         w.ID,
+			UserId:     w.UserID,
+			Changeset:  string(changeset),
+			Metadata:   string(metadata),
+			CreateTime: &timestamp.Timestamp{Seconds: w.CreateTime},
+			UpdateTime: &timestamp.Timestamp{Seconds: w.UpdateTime},
+		}
+	}
+
+	// TODO(mo, zyro) add groups, chat messages
 	export := &console.AccountExport{
-		Account:       account,
-		Objects:       storageObjects,
-		Friends:       friends.GetFriends(),
-		Notifications: notifications.GetNotifications(),
+		Account:            account,
+		Objects:            storageObjects,
+		Friends:            friends.GetFriends(),
+		LeaderboardRecords: leaderboardRecords,
+		Notifications:      notifications.GetNotifications(),
+		WalletLedgers:      wl,
 	}
 
 	return export, nil

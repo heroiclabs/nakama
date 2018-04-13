@@ -22,6 +22,7 @@ package nakama.console;
 import "github.com/heroiclabs/nakama/api/api.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "protoc-gen-swagger/options/annotations.proto";
 
 option go_package = "console";
@@ -80,8 +81,12 @@ message AccountExport {
   repeated nakama.api.Friend friends = 3;
   // The user's groups.
   repeated nakama.api.Group groups = 4;
+  // The user's leaderboard records.
+  repeated nakama.api.LeaderboardRecord leaderboard_records = 5;
   // The user's notifications.
-  repeated nakama.api.Notification notifications = 5;
+  repeated nakama.api.Notification notifications = 6;
+  // The user's wallet ledger items.
+  repeated WalletLedger wallet_ledgers = 7;
 }
 
 /**
@@ -108,4 +113,22 @@ message AuthenticateRequest {
 message Session {
   // Authentication credentials.
   string token = 1;
+}
+
+/**
+ * A wallet ledger item representing a change to the user's wallet.
+ */
+message WalletLedger {
+  // The unique ID of the change.
+  string id = 1;
+  // The user ID this change belongs to.
+  string user_id = 2;
+  // The changes to the wallet.
+  string changeset = 3;
+  // Metadata.
+  string metadata = 4;
+  // The UNIX time when the wallet ledger item was created.
+  google.protobuf.Timestamp create_time = 8;
+  // The UNIX time when the wallet ledger item was updated.
+  google.protobuf.Timestamp update_time = 9;
 }

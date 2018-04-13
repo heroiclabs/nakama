@@ -46,12 +46,12 @@ func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 	db := NewDB(t)
 	once := &sync.Once{}
 	router := &DummyMessageRouter{}
-	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, once)
+	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, once)
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
 	}
 
-	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
+	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -231,7 +231,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 
 	db := NewDB(t)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, pipeline, rp)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
