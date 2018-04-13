@@ -763,6 +763,110 @@
         ]
       }
     },
+    "/v2/leaderboard/{leaderboard_id}": {
+      "get": {
+        "summary": "List leaderboard records",
+        "operationId": "ListLeaderboardRecords",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecordList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboard_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "owner_ids",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "A next or previous page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a leaderboard record.",
+        "operationId": "DeleteLeaderboardRecord",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboard_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "post": {
+        "summary": "Write a record to a leaderboard.",
+        "operationId": "WriteLeaderboardRecord",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecord"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboard_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/WriteLeaderboardRecordRequestLeaderboardRecordWrite"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/match": {
       "get": {
         "summary": "Fetch list of running matches.",
@@ -1194,6 +1298,26 @@
       },
       "description": "A group to create."
     },
+    "WriteLeaderboardRecordRequestLeaderboardRecordWrite": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "string",
+          "format": "int64",
+          "description": "The score value to submit."
+        },
+        "subscore": {
+          "type": "string",
+          "format": "int64",
+          "description": "An optional secondary value."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Optional record metadata."
+        }
+      },
+      "description": "Record values to write."
+    },
     "apiAccount": {
       "type": "object",
       "properties": {
@@ -1461,6 +1585,91 @@
         }
       },
       "description": "A collection of zero or more groups."
+    },
+    "apiLeaderboardRecord": {
+      "type": "object",
+      "properties": {
+        "leaderboard_id": {
+          "type": "string",
+          "description": "The ID of the leaderboard this score belongs to."
+        },
+        "owner_id": {
+          "type": "string",
+          "description": "The ID of the score owner, usually a user or group."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the score owner, if the owner is a user."
+        },
+        "score": {
+          "type": "string",
+          "format": "int64",
+          "description": "The score value."
+        },
+        "subscore": {
+          "type": "string",
+          "format": "int64",
+          "description": "An optional subscore value."
+        },
+        "num_score": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of submissions to this score record."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record was updated."
+        },
+        "expiry_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard record expires."
+        },
+        "rank": {
+          "type": "string",
+          "format": "int64",
+          "description": "The rank of this record."
+        }
+      },
+      "description": "Represents a complete leaderboard record with all scores and associated metadata."
+    },
+    "apiLeaderboardRecordList": {
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A list of leaderboard records."
+        },
+        "owner_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A batched set of leaderobard records belonging to specified owners."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retireving the next page, if any."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
     },
     "apiMatch": {
       "type": "object",

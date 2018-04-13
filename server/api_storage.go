@@ -107,7 +107,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 			}
 		}
 
-		var maybeJSON interface{}
+		var maybeJSON map[string]interface{}
 		if json.Unmarshal([]byte(object.GetValue()), &maybeJSON) != nil {
 			return nil, status.Error(codes.InvalidArgument, "Object value must be JSON.")
 		}

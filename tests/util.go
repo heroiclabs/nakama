@@ -124,7 +124,7 @@ func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) (*server.ApiSer
 	router := &DummyMessageRouter{}
 	tracker := &server.LocalTracker{}
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, tracker, router, pipeline, runtimePool)
 	return apiServer, pipeline
 }
 

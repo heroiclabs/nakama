@@ -79,3 +79,18 @@ local function print_env(context, _)
   return nk.json_encode(response)
 end
 nk.register_rpc(print_env, "clientrpc.print_env")
+
+local function create_leaderboard(context, payload)
+  local decoded = nk.json_decode(payload)
+  local id = nk.uuid_v4()
+  local status, result = pcall(nk.leaderboard_create, id, false, "desc", decoded.operator)
+  if (not status) then
+    nk.logger_error(result)
+  end
+
+  local response = {
+    leaderboard_id = id
+  }
+  return nk.json_encode(response)
+end
+nk.register_rpc(create_leaderboard, "clientrpc.create_leaderboard")

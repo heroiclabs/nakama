@@ -166,6 +166,11 @@ service Nakama {
     option (google.api.http).delete = "/v2/friend";
   }
 
+  // Delete a leaderboard record.
+  rpc DeleteLeaderboardRecord (DeleteLeaderboardRecordRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/leaderboard/{leaderboard_id}";
+  }
+
   // Delete one or more users by ID or username.
   rpc DeleteNotifications (DeleteNotificationsRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/notification";
@@ -261,6 +266,11 @@ service Nakama {
   // List all friends for the current user.
   rpc ListFriends (google.protobuf.Empty) returns (Friends) {
     option (google.api.http).get = "/v2/friend";
+  }
+
+  // List leaderboard records
+  rpc ListLeaderboardRecords (ListLeaderboardRecordsRequest) returns (LeaderboardRecordList) {
+    option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}";
   }
 
   // Fetch list of running matches.
@@ -363,6 +373,14 @@ service Nakama {
     option (google.api.http) = {
       put: "/v2/account",
       body: "*"
+    };
+  }
+
+  // Write a record to a leaderboard.
+  rpc WriteLeaderboardRecord (WriteLeaderboardRecordRequest) returns (LeaderboardRecord) {
+    option (google.api.http) = {
+      post: "/v2/leaderboard/{leaderboard_id}",
+      body: "record"
     };
   }
 
@@ -585,6 +603,12 @@ message DeleteFriendsRequest {
   repeated string usernames = 2;
 }
 
+// Delete a leaderboard record.
+message DeleteLeaderboardRecordRequest {
+  // The leaderboard ID to delete from.
+  string leaderboard_id = 1;
+}
+
 // Delete one or more notifications for the current user.
 message DeleteNotificationsRequest {
   // The id of notifications.
@@ -685,6 +709,44 @@ message ImportFacebookFriendsRequest {
   google.protobuf.BoolValue reset = 2;
 }
 
+// Represents a complete leaderboard record with all scores and associated metadata.
+message LeaderboardRecord {
+  // The ID of the leaderboard this score belongs to.
+  string leaderboard_id = 1;
+  // The ID of the score owner, usually a user or group.
+  string owner_id = 2;
+  // The username of the score owner, if the owner is a user.
+  google.protobuf.StringValue username = 3;
+  // The score value.
+  int64 score = 4;
+  // An optional subscore value.
+  int64 subscore = 5;
+  // The number of submissions to this score record.
+  int32 num_score = 6;
+  // Metadata.
+  string metadata = 7;
+  // The UNIX time when the leaderboard record was created.
+  google.protobuf.Timestamp create_time = 8;
+  // The UNIX time when the leaderboard record was updated.
+  google.protobuf.Timestamp update_time = 9;
+  // The UNIX time when the leaderboard record expires.
+  google.protobuf.Timestamp expiry_time = 10;
+  // The rank of this record.
+  int64 rank = 11;
+}
+
+// A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records.
+message LeaderboardRecordList {
+  // A list of leaderboard records.
+  repeated LeaderboardRecord records = 1;
+  // A batched set of leaderobard records belonging to specified owners.
+  repeated LeaderboardRecord owner_records = 2;
+  // The cursor to send when retireving the next page, if any.
+  string next_cursor = 3;
+  // The cursor to send when retrieving the previous page, if any.
+  string prev_cursor = 4;
+}
+
 // Link Facebook to the current user's account.
 message LinkFacebookRequest {
   // The Facebook account details.
@@ -693,6 +755,19 @@ message LinkFacebookRequest {
   google.protobuf.BoolValue import = 4;
 }
 
+// List leaderboard records from a given leaderboard.
+message ListLeaderboardRecordsRequest {
+  // The ID of the leaderboard to list for.
+  string leaderboard_id = 1;
+  // One or more owners to retrieve records for.
+  repeated string owner_ids = 2;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
+  // A next or previous page cursor.
+  string cursor = 4;
+}
+
+// List realtime matches.
 message ListMatchesRequest {
   // Limit the number of returned matches.
   google.protobuf.Int32Value limit = 1;
@@ -916,6 +991,24 @@ message User {
 message Users {
   // The User objects.
   repeated User users = 1;
+}
+
+// A request to submit a score to a leaderboard.
+message WriteLeaderboardRecordRequest {
+  // Record values to write.
+  message LeaderboardRecordWrite {
+    // The score value to submit.
+    int64 score = 1;
+    // An optional secondary value.
+    int64 subscore = 2;
+    // Optional record metadata.
+    string metadata = 3;
+  }
+
+  // The ID of the leaderboard to write to.
+  string leaderboard_id = 1;
+  // Record data.
+  LeaderboardRecordWrite record = 2;
 }
 
 // The object to store.
