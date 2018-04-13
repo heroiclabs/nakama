@@ -577,14 +577,14 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 	// Group joins/leaves by stream to allow batching.
 	// Convert to wire representation at the same time.
-	streamJoins := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
-	streamLeaves := make(map[PresenceStream][]*rtapi.StreamPresence, 0)
+	streamJoins := make(map[PresenceStream][]*rtapi.UserPresence, 0)
+	streamLeaves := make(map[PresenceStream][]*rtapi.UserPresence, 0)
 
 	// Track grouped authoritative match leaves separately from client-bound events.
 	matchLeaves := make(map[uuid.UUID][]*MatchPresence, 0)
 
 	for _, p := range e.Joins {
-		pWire := &rtapi.StreamPresence{
+		pWire := &rtapi.UserPresence{
 			UserId:      p.UserID.String(),
 			SessionId:   p.ID.SessionID.String(),
 			Username:    p.Meta.Username,
@@ -594,11 +594,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		if j, ok := streamJoins[p.Stream]; ok {
 			streamJoins[p.Stream] = append(j, pWire)
 		} else {
-			streamJoins[p.Stream] = []*rtapi.StreamPresence{pWire}
+			streamJoins[p.Stream] = []*rtapi.UserPresence{pWire}
 		}
 	}
 	for _, p := range e.Leaves {
-		pWire := &rtapi.StreamPresence{
+		pWire := &rtapi.UserPresence{
 			UserId:      p.UserID.String(),
 			SessionId:   p.ID.SessionID.String(),
 			Username:    p.Meta.Username,
@@ -608,7 +608,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		if l, ok := streamLeaves[p.Stream]; ok {
 			streamLeaves[p.Stream] = append(l, pWire)
 		} else {
-			streamLeaves[p.Stream] = []*rtapi.StreamPresence{pWire}
+			streamLeaves[p.Stream] = []*rtapi.UserPresence{pWire}
 		}
 
 		// We only care about authoritative match leaves where the match host is the current node.
@@ -632,7 +632,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		t.matchLeaveListener(matchID, leaves)
 	}
 
-	// Send joins, together with any leaves for the same topic.
+	// Send joins, together with any leaves for the same stream.
 	for stream, joins := range streamJoins {
 		leaves, ok := streamLeaves[stream]
 		if ok {
@@ -660,6 +660,22 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
+		case StreamModeChannel:
+			fallthrough
+		case StreamModeGroup:
+			fallthrough
+		case StreamModeDM:
+			channelId, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelId,
+				Joins:     joins,
+				Leaves:    leaves,
+			}}}
 		case StreamModeMatchRelayed:
 			fallthrough
 		case StreamModeMatchAuthoritative:
@@ -715,6 +731,22 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
+		case StreamModeChannel:
+			fallthrough
+		case StreamModeGroup:
+			fallthrough
+		case StreamModeDM:
+			channelId, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelId,
+				// No joins.
+				Leaves: leaves,
+			}}}
 		case StreamModeMatchRelayed:
 			fallthrough
 		case StreamModeMatchAuthoritative:

@@ -42,7 +42,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	self := &rtapi.StreamPresence{
+	self := &rtapi.UserPresence{
 		UserId:    session.UserID().String(),
 		SessionId: session.ID().String(),
 		Username:  username,
@@ -53,7 +53,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 		Authoritative: false,
 		// No label.
 		Size:      1,
-		Presences: []*rtapi.StreamPresence{self},
+		Presences: []*rtapi.UserPresence{self},
 		Self:      self,
 	}}})
 }
@@ -169,15 +169,15 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 
 	// Whether the user has just (successfully) joined the match or was already a member, return the match info anyway.
 	ps := p.tracker.ListByStream(stream)
-	presences := make([]*rtapi.StreamPresence, 0, len(ps))
+	presences := make([]*rtapi.UserPresence, 0, len(ps))
 	for _, p := range ps {
-		presences = append(presences, &rtapi.StreamPresence{
+		presences = append(presences, &rtapi.UserPresence{
 			UserId:    p.UserID.String(),
 			SessionId: p.ID.SessionID.String(),
 			Username:  p.Meta.Username,
 		})
 	}
-	self := &rtapi.StreamPresence{
+	self := &rtapi.UserPresence{
 		UserId:    session.UserID().String(),
 		SessionId: session.ID().String(),
 		Username:  meta.Username,
@@ -320,7 +320,7 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 
 	outgoing := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
 		MatchId: incoming.MatchId,
-		Presence: &rtapi.StreamPresence{
+		Presence: &rtapi.UserPresence{
 			UserId:    session.UserID().String(),
 			SessionId: session.ID().String(),
 			Username:  session.Username(),
