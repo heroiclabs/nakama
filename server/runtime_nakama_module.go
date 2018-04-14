@@ -1509,7 +1509,7 @@ func (n *NakamaModule) streamUserList(l *lua.LState) int {
 		return 0
 	}
 
-	presences := n.tracker.ListByStream(stream)
+	presences := n.tracker.ListByStream(stream, true)
 
 	presencesTable := l.CreateTable(len(presences), 0)
 	for i, p := range presences {
