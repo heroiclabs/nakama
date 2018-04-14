@@ -177,7 +177,8 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	presences := p.tracker.ListByStream(stream)
+	// List current presences, not including hidden ones.
+	presences := p.tracker.ListByStream(stream, false)
 
 	// If the topic join is a DM check if we should notify the other user.
 	// Only new presences are allowed to send notifications to avoid duplicates.

@@ -168,7 +168,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 	}
 
 	// Whether the user has just (successfully) joined the match or was already a member, return the match info anyway.
-	ps := p.tracker.ListByStream(stream)
+	ps := p.tracker.ListByStream(stream, true)
 	presences := make([]*rtapi.UserPresence, 0, len(ps))
 	for _, p := range ps {
 		presences = append(presences, &rtapi.UserPresence{

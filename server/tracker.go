@@ -96,8 +96,8 @@ type Tracker interface {
 	CountByStreamModeFilter(modes map[uint8]*uint8) map[*PresenceStream]int32
 	// Check if a single presence on the current node exists.
 	GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta
-	// List presences by stream.
-	ListByStream(stream PresenceStream) []*Presence
+	// List presences by stream, optionally include hidden ones.
+	ListByStream(stream PresenceStream, includeHidden bool) []*Presence
 
 	// Fast lookup of local session IDs to use for message delivery.
 	ListLocalSessionIDByStream(stream PresenceStream) []uuid.UUID
@@ -505,7 +505,7 @@ func (t *LocalTracker) GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stre
 	return &meta
 }
 
-func (t *LocalTracker) ListByStream(stream PresenceStream) []*Presence {
+func (t *LocalTracker) ListByStream(stream PresenceStream, includeHidden bool) []*Presence {
 	t.RLock()
 	byStream, anyTracked := t.presencesByStream[stream.Mode][stream]
 	if !anyTracked {
@@ -514,7 +514,9 @@ func (t *LocalTracker) ListByStream(stream PresenceStream) []*Presence {
 	}
 	ps := make([]*Presence, 0, len(byStream))
 	for pc, meta := range byStream {
-		ps = append(ps, &Presence{ID: pc.ID, Stream: stream, UserID: pc.UserID, Meta: meta})
+		if !meta.Hidden || includeHidden {
+			ps = append(ps, &Presence{ID: pc.ID, Stream: stream, UserID: pc.UserID, Meta: meta})
+		}
 	}
 	t.RUnlock()
 	return ps
