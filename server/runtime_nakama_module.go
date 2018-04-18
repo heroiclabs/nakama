@@ -186,6 +186,10 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 	id = strings.ToLower(id)
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if _, ok := rc.RPC[id]; ok {
+		l.RaiseError("rpc id already registered")
+		return 0
+	}
 	rc.RPC[id] = fn
 	if n.announceCallback != nil {
 		n.announceCallback(RPC, id)
@@ -205,6 +209,10 @@ func (n *NakamaModule) registerReqBefore(l *lua.LState) int {
 	id = strings.ToLower(API_PREFIX + id)
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if _, ok := rc.Before[id]; ok {
+		l.RaiseError("before id already registered")
+		return 0
+	}
 	rc.Before[id] = fn
 	if n.announceCallback != nil {
 		n.announceCallback(BEFORE, id)
@@ -224,6 +232,10 @@ func (n *NakamaModule) registerReqAfter(l *lua.LState) int {
 	id = strings.ToLower(API_PREFIX + id)
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if _, ok := rc.After[id]; ok {
+		l.RaiseError("after id already registered")
+		return 0
+	}
 	rc.After[id] = fn
 	if n.announceCallback != nil {
 		n.announceCallback(AFTER, id)
@@ -243,6 +255,10 @@ func (n *NakamaModule) registerRTBefore(l *lua.LState) int {
 	id = strings.ToLower(RTAPI_PREFIX + id)
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if _, ok := rc.Before[id]; ok {
+		l.RaiseError("before id already registered")
+		return 0
+	}
 	rc.Before[id] = fn
 	if n.announceCallback != nil {
 		n.announceCallback(BEFORE, id)
@@ -262,6 +278,10 @@ func (n *NakamaModule) registerRTAfter(l *lua.LState) int {
 	id = strings.ToLower(RTAPI_PREFIX + id)
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if _, ok := rc.After[id]; ok {
+		l.RaiseError("before id already registered")
+		return 0
+	}
 	rc.After[id] = fn
 	if n.announceCallback != nil {
 		n.announceCallback(AFTER, id)
