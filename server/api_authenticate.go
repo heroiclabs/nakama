@@ -43,7 +43,6 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -73,7 +72,6 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -110,7 +108,6 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	cleanEmail := strings.ToLower(email.Email)
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -136,7 +133,6 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -179,7 +175,6 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -205,7 +200,6 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
@@ -235,7 +229,6 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	}
 
 	username := in.Username
-	username = strings.ToLower(username)
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {

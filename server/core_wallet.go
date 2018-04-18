@@ -106,7 +106,7 @@ func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata s
 	var changeset sql.NullString
 	var createTime pq.NullTime
 	var updateTime pq.NullTime
-	query := "UPDATE wallet_ledger SET update_time = now(), metadata = $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
+	query := "UPDATE wallet_ledger SET update_time = now(), metadata = metadata || $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
 	err := db.QueryRow(query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
 	if err != nil {
 		logger.Error("Error updating user wallet ledger.", zap.String("id", id.String()), zap.Error(err))

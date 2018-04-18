@@ -130,57 +130,60 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 	params := make([]interface{}, 0)
 
 	if username != "" {
+		if invalidCharsRegex.MatchString(username) {
+			return errors.New("Username invalid, no spaces or control characters allowed.")
+		}
 		statements = append(statements, "username = $"+strconv.Itoa(index))
-		params = append(params, strings.ToLower(username))
+		params = append(params, username)
 		index++
 	}
 
 	if displayName != nil {
-		if displayName.GetValue() == "" {
+		if d := displayName.GetValue(); d == "" {
 			statements = append(statements, "display_name = NULL")
 		} else {
 			statements = append(statements, "display_name = $"+strconv.Itoa(index))
-			params = append(params, displayName.GetValue())
+			params = append(params, d)
 			index++
 		}
 	}
 
 	if timezone != nil {
-		if timezone.GetValue() == "" {
+		if t := timezone.GetValue(); t == "" {
 			statements = append(statements, "timezone = NULL")
 		} else {
 			statements = append(statements, "timezone = $"+strconv.Itoa(index))
-			params = append(params, timezone.GetValue())
+			params = append(params, t)
 			index++
 		}
 	}
 
 	if location != nil {
-		if location.GetValue() == "" {
+		if l := location.GetValue(); l == "" {
 			statements = append(statements, "location = NULL")
 		} else {
 			statements = append(statements, "location = $"+strconv.Itoa(index))
-			params = append(params, location.GetValue())
+			params = append(params, l)
 			index++
 		}
 	}
 
 	if langTag != nil {
-		if langTag.GetValue() == "" {
+		if l := langTag.GetValue(); l == "" {
 			statements = append(statements, "lang_tag = NULL")
 		} else {
 			statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
-			params = append(params, langTag.GetValue())
+			params = append(params, l)
 			index++
 		}
 	}
 
 	if avatarURL != nil {
-		if avatarURL.GetValue() == "" {
+		if a := avatarURL.GetValue(); a == "" {
 			statements = append(statements, "avatar_url = NULL")
 		} else {
 			statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
-			params = append(params, avatarURL.GetValue())
+			params = append(params, a)
 			index++
 		}
 	}
