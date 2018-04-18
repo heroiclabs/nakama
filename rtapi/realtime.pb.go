@@ -9,6 +9,13 @@ It is generated from these files:
 
 It has these top-level messages:
 	Envelope
+	Channel
+	ChannelJoin
+	ChannelLeave
+	ChannelMessageAck
+	ChannelMessageSend
+	ChannelMessageUpdate
+	ChannelPresenceEvent
 	Error
 	Match
 	MatchCreate
@@ -20,15 +27,16 @@ It has these top-level messages:
 	Notifications
 	Stream
 	StreamData
-	StreamPresence
 	StreamPresenceEvent
+	UserPresence
 */
 package rtapi
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import google_protobuf "github.com/golang/protobuf/ptypes/wrappers"
+import google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
+import google_protobuf1 "github.com/golang/protobuf/ptypes/wrappers"
 import nakama_api "github.com/heroiclabs/nakama/api"
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -41,6 +49,38 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+
+// The type of chat channel.
+type ChannelJoin_Type int32
+
+const (
+	// Default case. Assumed as ROOM type.
+	ChannelJoin_TYPE_UNSPECIFIED ChannelJoin_Type = 0
+	// A room which anyone can join to chat.
+	ChannelJoin_ROOM ChannelJoin_Type = 1
+	// A private channel for 1-on-1 chat.
+	ChannelJoin_DIRECT_MESSAGE ChannelJoin_Type = 2
+	// A channel for group chat.
+	ChannelJoin_GROUP ChannelJoin_Type = 3
+)
+
+var ChannelJoin_Type_name = map[int32]string{
+	0: "TYPE_UNSPECIFIED",
+	1: "ROOM",
+	2: "DIRECT_MESSAGE",
+	3: "GROUP",
+}
+var ChannelJoin_Type_value = map[string]int32{
+	"TYPE_UNSPECIFIED": 0,
+	"ROOM":             1,
+	"DIRECT_MESSAGE":   2,
+	"GROUP":            3,
+}
+
+func (x ChannelJoin_Type) String() string {
+	return proto.EnumName(ChannelJoin_Type_name, int32(x))
+}
+func (ChannelJoin_Type) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{2, 0} }
 
 // The selection of possible error codes.
 type Error_Code int32
@@ -88,12 +128,20 @@ var Error_Code_value = map[string]int32{
 func (x Error_Code) String() string {
 	return proto.EnumName(Error_Code_name, int32(x))
 }
-func (Error_Code) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1, 0} }
+func (Error_Code) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{8, 0} }
 
 // An envelope for a realtime message.
 type Envelope struct {
 	Cid string `protobuf:"bytes,1,opt,name=cid" json:"cid,omitempty"`
 	// Types that are valid to be assigned to Message:
+	//	*Envelope_Channel
+	//	*Envelope_ChannelJoin
+	//	*Envelope_ChannelLeave
+	//	*Envelope_ChannelMessage
+	//	*Envelope_ChannelMessageAck
+	//	*Envelope_ChannelMessageSend
+	//	*Envelope_ChannelMessageUpdate
+	//	*Envelope_ChannelPresenceEvent
 	//	*Envelope_Error
 	//	*Envelope_Match
 	//	*Envelope_MatchCreate
@@ -118,55 +166,87 @@ type isEnvelope_Message interface {
 	isEnvelope_Message()
 }
 
+type Envelope_Channel struct {
+	Channel *Channel `protobuf:"bytes,2,opt,name=channel,oneof"`
+}
+type Envelope_ChannelJoin struct {
+	ChannelJoin *ChannelJoin `protobuf:"bytes,3,opt,name=channel_join,json=channelJoin,oneof"`
+}
+type Envelope_ChannelLeave struct {
+	ChannelLeave *ChannelLeave `protobuf:"bytes,4,opt,name=channel_leave,json=channelLeave,oneof"`
+}
+type Envelope_ChannelMessage struct {
+	ChannelMessage *nakama_api.ChannelMessage `protobuf:"bytes,5,opt,name=channel_message,json=channelMessage,oneof"`
+}
+type Envelope_ChannelMessageAck struct {
+	ChannelMessageAck *ChannelMessageAck `protobuf:"bytes,6,opt,name=channel_message_ack,json=channelMessageAck,oneof"`
+}
+type Envelope_ChannelMessageSend struct {
+	ChannelMessageSend *ChannelMessageSend `protobuf:"bytes,7,opt,name=channel_message_send,json=channelMessageSend,oneof"`
+}
+type Envelope_ChannelMessageUpdate struct {
+	ChannelMessageUpdate *ChannelMessageUpdate `protobuf:"bytes,8,opt,name=channel_message_update,json=channelMessageUpdate,oneof"`
+}
+type Envelope_ChannelPresenceEvent struct {
+	ChannelPresenceEvent *ChannelPresenceEvent `protobuf:"bytes,9,opt,name=channel_presence_event,json=channelPresenceEvent,oneof"`
+}
 type Envelope_Error struct {
-	Error *Error `protobuf:"bytes,2,opt,name=error,oneof"`
+	Error *Error `protobuf:"bytes,10,opt,name=error,oneof"`
 }
 type Envelope_Match struct {
-	Match *Match `protobuf:"bytes,3,opt,name=match,oneof"`
+	Match *Match `protobuf:"bytes,11,opt,name=match,oneof"`
 }
 type Envelope_MatchCreate struct {
-	MatchCreate *MatchCreate `protobuf:"bytes,4,opt,name=match_create,json=matchCreate,oneof"`
+	MatchCreate *MatchCreate `protobuf:"bytes,12,opt,name=match_create,json=matchCreate,oneof"`
 }
 type Envelope_MatchData struct {
-	MatchData *MatchData `protobuf:"bytes,5,opt,name=match_data,json=matchData,oneof"`
+	MatchData *MatchData `protobuf:"bytes,13,opt,name=match_data,json=matchData,oneof"`
 }
 type Envelope_MatchDataSend struct {
-	MatchDataSend *MatchDataSend `protobuf:"bytes,6,opt,name=match_data_send,json=matchDataSend,oneof"`
+	MatchDataSend *MatchDataSend `protobuf:"bytes,14,opt,name=match_data_send,json=matchDataSend,oneof"`
 }
 type Envelope_MatchJoin struct {
-	MatchJoin *MatchJoin `protobuf:"bytes,7,opt,name=match_join,json=matchJoin,oneof"`
+	MatchJoin *MatchJoin `protobuf:"bytes,15,opt,name=match_join,json=matchJoin,oneof"`
 }
 type Envelope_MatchLeave struct {
-	MatchLeave *MatchLeave `protobuf:"bytes,8,opt,name=match_leave,json=matchLeave,oneof"`
+	MatchLeave *MatchLeave `protobuf:"bytes,16,opt,name=match_leave,json=matchLeave,oneof"`
 }
 type Envelope_MatchPresenceEvent struct {
-	MatchPresenceEvent *MatchPresenceEvent `protobuf:"bytes,9,opt,name=match_presence_event,json=matchPresenceEvent,oneof"`
+	MatchPresenceEvent *MatchPresenceEvent `protobuf:"bytes,17,opt,name=match_presence_event,json=matchPresenceEvent,oneof"`
 }
 type Envelope_Notifications struct {
-	Notifications *Notifications `protobuf:"bytes,10,opt,name=notifications,oneof"`
+	Notifications *Notifications `protobuf:"bytes,18,opt,name=notifications,oneof"`
 }
 type Envelope_Rpc struct {
-	Rpc *nakama_api.Rpc `protobuf:"bytes,11,opt,name=rpc,oneof"`
+	Rpc *nakama_api.Rpc `protobuf:"bytes,19,opt,name=rpc,oneof"`
 }
 type Envelope_StreamData struct {
-	StreamData *StreamData `protobuf:"bytes,12,opt,name=stream_data,json=streamData,oneof"`
+	StreamData *StreamData `protobuf:"bytes,20,opt,name=stream_data,json=streamData,oneof"`
 }
 type Envelope_StreamPresenceEvent struct {
-	StreamPresenceEvent *StreamPresenceEvent `protobuf:"bytes,13,opt,name=stream_presence_event,json=streamPresenceEvent,oneof"`
+	StreamPresenceEvent *StreamPresenceEvent `protobuf:"bytes,21,opt,name=stream_presence_event,json=streamPresenceEvent,oneof"`
 }
 
-func (*Envelope_Error) isEnvelope_Message()               {}
-func (*Envelope_Match) isEnvelope_Message()               {}
-func (*Envelope_MatchCreate) isEnvelope_Message()         {}
-func (*Envelope_MatchData) isEnvelope_Message()           {}
-func (*Envelope_MatchDataSend) isEnvelope_Message()       {}
-func (*Envelope_MatchJoin) isEnvelope_Message()           {}
-func (*Envelope_MatchLeave) isEnvelope_Message()          {}
-func (*Envelope_MatchPresenceEvent) isEnvelope_Message()  {}
-func (*Envelope_Notifications) isEnvelope_Message()       {}
-func (*Envelope_Rpc) isEnvelope_Message()                 {}
-func (*Envelope_StreamData) isEnvelope_Message()          {}
-func (*Envelope_StreamPresenceEvent) isEnvelope_Message() {}
+func (*Envelope_Channel) isEnvelope_Message()              {}
+func (*Envelope_ChannelJoin) isEnvelope_Message()          {}
+func (*Envelope_ChannelLeave) isEnvelope_Message()         {}
+func (*Envelope_ChannelMessage) isEnvelope_Message()       {}
+func (*Envelope_ChannelMessageAck) isEnvelope_Message()    {}
+func (*Envelope_ChannelMessageSend) isEnvelope_Message()   {}
+func (*Envelope_ChannelMessageUpdate) isEnvelope_Message() {}
+func (*Envelope_ChannelPresenceEvent) isEnvelope_Message() {}
+func (*Envelope_Error) isEnvelope_Message()                {}
+func (*Envelope_Match) isEnvelope_Message()                {}
+func (*Envelope_MatchCreate) isEnvelope_Message()          {}
+func (*Envelope_MatchData) isEnvelope_Message()            {}
+func (*Envelope_MatchDataSend) isEnvelope_Message()        {}
+func (*Envelope_MatchJoin) isEnvelope_Message()            {}
+func (*Envelope_MatchLeave) isEnvelope_Message()           {}
+func (*Envelope_MatchPresenceEvent) isEnvelope_Message()   {}
+func (*Envelope_Notifications) isEnvelope_Message()        {}
+func (*Envelope_Rpc) isEnvelope_Message()                  {}
+func (*Envelope_StreamData) isEnvelope_Message()           {}
+func (*Envelope_StreamPresenceEvent) isEnvelope_Message()  {}
 
 func (m *Envelope) GetMessage() isEnvelope_Message {
 	if m != nil {
@@ -180,6 +260,62 @@ func (m *Envelope) GetCid() string {
 		return m.Cid
 	}
 	return ""
+}
+
+func (m *Envelope) GetChannel() *Channel {
+	if x, ok := m.GetMessage().(*Envelope_Channel); ok {
+		return x.Channel
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelJoin() *ChannelJoin {
+	if x, ok := m.GetMessage().(*Envelope_ChannelJoin); ok {
+		return x.ChannelJoin
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelLeave() *ChannelLeave {
+	if x, ok := m.GetMessage().(*Envelope_ChannelLeave); ok {
+		return x.ChannelLeave
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelMessage() *nakama_api.ChannelMessage {
+	if x, ok := m.GetMessage().(*Envelope_ChannelMessage); ok {
+		return x.ChannelMessage
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelMessageAck() *ChannelMessageAck {
+	if x, ok := m.GetMessage().(*Envelope_ChannelMessageAck); ok {
+		return x.ChannelMessageAck
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelMessageSend() *ChannelMessageSend {
+	if x, ok := m.GetMessage().(*Envelope_ChannelMessageSend); ok {
+		return x.ChannelMessageSend
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelMessageUpdate() *ChannelMessageUpdate {
+	if x, ok := m.GetMessage().(*Envelope_ChannelMessageUpdate); ok {
+		return x.ChannelMessageUpdate
+	}
+	return nil
+}
+
+func (m *Envelope) GetChannelPresenceEvent() *ChannelPresenceEvent {
+	if x, ok := m.GetMessage().(*Envelope_ChannelPresenceEvent); ok {
+		return x.ChannelPresenceEvent
+	}
+	return nil
 }
 
 func (m *Envelope) GetError() *Error {
@@ -269,6 +405,14 @@ func (m *Envelope) GetStreamPresenceEvent() *StreamPresenceEvent {
 // XXX_OneofFuncs is for the internal use of the proto package.
 func (*Envelope) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
 	return _Envelope_OneofMarshaler, _Envelope_OneofUnmarshaler, _Envelope_OneofSizer, []interface{}{
+		(*Envelope_Channel)(nil),
+		(*Envelope_ChannelJoin)(nil),
+		(*Envelope_ChannelLeave)(nil),
+		(*Envelope_ChannelMessage)(nil),
+		(*Envelope_ChannelMessageAck)(nil),
+		(*Envelope_ChannelMessageSend)(nil),
+		(*Envelope_ChannelMessageUpdate)(nil),
+		(*Envelope_ChannelPresenceEvent)(nil),
 		(*Envelope_Error)(nil),
 		(*Envelope_Match)(nil),
 		(*Envelope_MatchCreate)(nil),
@@ -288,63 +432,103 @@ func _Envelope_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 	m := msg.(*Envelope)
 	// message
 	switch x := m.Message.(type) {
-	case *Envelope_Error:
+	case *Envelope_Channel:
 		b.EncodeVarint(2<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Channel); err != nil {
+			return err
+		}
+	case *Envelope_ChannelJoin:
+		b.EncodeVarint(3<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelJoin); err != nil {
+			return err
+		}
+	case *Envelope_ChannelLeave:
+		b.EncodeVarint(4<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelLeave); err != nil {
+			return err
+		}
+	case *Envelope_ChannelMessage:
+		b.EncodeVarint(5<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelMessage); err != nil {
+			return err
+		}
+	case *Envelope_ChannelMessageAck:
+		b.EncodeVarint(6<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelMessageAck); err != nil {
+			return err
+		}
+	case *Envelope_ChannelMessageSend:
+		b.EncodeVarint(7<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelMessageSend); err != nil {
+			return err
+		}
+	case *Envelope_ChannelMessageUpdate:
+		b.EncodeVarint(8<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelMessageUpdate); err != nil {
+			return err
+		}
+	case *Envelope_ChannelPresenceEvent:
+		b.EncodeVarint(9<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ChannelPresenceEvent); err != nil {
+			return err
+		}
+	case *Envelope_Error:
+		b.EncodeVarint(10<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Error); err != nil {
 			return err
 		}
 	case *Envelope_Match:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
+		b.EncodeVarint(11<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Match); err != nil {
 			return err
 		}
 	case *Envelope_MatchCreate:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
+		b.EncodeVarint(12<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchCreate); err != nil {
 			return err
 		}
 	case *Envelope_MatchData:
-		b.EncodeVarint(5<<3 | proto.WireBytes)
+		b.EncodeVarint(13<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchData); err != nil {
 			return err
 		}
 	case *Envelope_MatchDataSend:
-		b.EncodeVarint(6<<3 | proto.WireBytes)
+		b.EncodeVarint(14<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchDataSend); err != nil {
 			return err
 		}
 	case *Envelope_MatchJoin:
-		b.EncodeVarint(7<<3 | proto.WireBytes)
+		b.EncodeVarint(15<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchJoin); err != nil {
 			return err
 		}
 	case *Envelope_MatchLeave:
-		b.EncodeVarint(8<<3 | proto.WireBytes)
+		b.EncodeVarint(16<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchLeave); err != nil {
 			return err
 		}
 	case *Envelope_MatchPresenceEvent:
-		b.EncodeVarint(9<<3 | proto.WireBytes)
+		b.EncodeVarint(17<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.MatchPresenceEvent); err != nil {
 			return err
 		}
 	case *Envelope_Notifications:
-		b.EncodeVarint(10<<3 | proto.WireBytes)
+		b.EncodeVarint(18<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Notifications); err != nil {
 			return err
 		}
 	case *Envelope_Rpc:
-		b.EncodeVarint(11<<3 | proto.WireBytes)
+		b.EncodeVarint(19<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Rpc); err != nil {
 			return err
 		}
 	case *Envelope_StreamData:
-		b.EncodeVarint(12<<3 | proto.WireBytes)
+		b.EncodeVarint(20<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.StreamData); err != nil {
 			return err
 		}
 	case *Envelope_StreamPresenceEvent:
-		b.EncodeVarint(13<<3 | proto.WireBytes)
+		b.EncodeVarint(21<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.StreamPresenceEvent); err != nil {
 			return err
 		}
@@ -358,7 +542,71 @@ func _Envelope_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
 	m := msg.(*Envelope)
 	switch tag {
-	case 2: // message.error
+	case 2: // message.channel
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Channel)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_Channel{msg}
+		return true, err
+	case 3: // message.channel_join
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelJoin)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelJoin{msg}
+		return true, err
+	case 4: // message.channel_leave
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelLeave)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelLeave{msg}
+		return true, err
+	case 5: // message.channel_message
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(nakama_api.ChannelMessage)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelMessage{msg}
+		return true, err
+	case 6: // message.channel_message_ack
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelMessageAck)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelMessageAck{msg}
+		return true, err
+	case 7: // message.channel_message_send
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelMessageSend)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelMessageSend{msg}
+		return true, err
+	case 8: // message.channel_message_update
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelMessageUpdate)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelMessageUpdate{msg}
+		return true, err
+	case 9: // message.channel_presence_event
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ChannelPresenceEvent)
+		err := b.DecodeMessage(msg)
+		m.Message = &Envelope_ChannelPresenceEvent{msg}
+		return true, err
+	case 10: // message.error
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -366,7 +614,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Error{msg}
 		return true, err
-	case 3: // message.match
+	case 11: // message.match
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -374,7 +622,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Match{msg}
 		return true, err
-	case 4: // message.match_create
+	case 12: // message.match_create
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -382,7 +630,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchCreate{msg}
 		return true, err
-	case 5: // message.match_data
+	case 13: // message.match_data
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -390,7 +638,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchData{msg}
 		return true, err
-	case 6: // message.match_data_send
+	case 14: // message.match_data_send
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -398,7 +646,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchDataSend{msg}
 		return true, err
-	case 7: // message.match_join
+	case 15: // message.match_join
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -406,7 +654,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchJoin{msg}
 		return true, err
-	case 8: // message.match_leave
+	case 16: // message.match_leave
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -414,7 +662,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchLeave{msg}
 		return true, err
-	case 9: // message.match_presence_event
+	case 17: // message.match_presence_event
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -422,7 +670,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_MatchPresenceEvent{msg}
 		return true, err
-	case 10: // message.notifications
+	case 18: // message.notifications
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -430,7 +678,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Notifications{msg}
 		return true, err
-	case 11: // message.rpc
+	case 19: // message.rpc
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -438,7 +686,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_Rpc{msg}
 		return true, err
-	case 12: // message.stream_data
+	case 20: // message.stream_data
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -446,7 +694,7 @@ func _Envelope_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffe
 		err := b.DecodeMessage(msg)
 		m.Message = &Envelope_StreamData{msg}
 		return true, err
-	case 13: // message.stream_presence_event
+	case 21: // message.stream_presence_event
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -463,64 +711,104 @@ func _Envelope_OneofSizer(msg proto.Message) (n int) {
 	m := msg.(*Envelope)
 	// message
 	switch x := m.Message.(type) {
+	case *Envelope_Channel:
+		s := proto.Size(x.Channel)
+		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelJoin:
+		s := proto.Size(x.ChannelJoin)
+		n += proto.SizeVarint(3<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelLeave:
+		s := proto.Size(x.ChannelLeave)
+		n += proto.SizeVarint(4<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelMessage:
+		s := proto.Size(x.ChannelMessage)
+		n += proto.SizeVarint(5<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelMessageAck:
+		s := proto.Size(x.ChannelMessageAck)
+		n += proto.SizeVarint(6<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelMessageSend:
+		s := proto.Size(x.ChannelMessageSend)
+		n += proto.SizeVarint(7<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelMessageUpdate:
+		s := proto.Size(x.ChannelMessageUpdate)
+		n += proto.SizeVarint(8<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *Envelope_ChannelPresenceEvent:
+		s := proto.Size(x.ChannelPresenceEvent)
+		n += proto.SizeVarint(9<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
 	case *Envelope_Error:
 		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += proto.SizeVarint(10<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_Match:
 		s := proto.Size(x.Match)
-		n += proto.SizeVarint(3<<3 | proto.WireBytes)
+		n += proto.SizeVarint(11<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchCreate:
 		s := proto.Size(x.MatchCreate)
-		n += proto.SizeVarint(4<<3 | proto.WireBytes)
+		n += proto.SizeVarint(12<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchData:
 		s := proto.Size(x.MatchData)
-		n += proto.SizeVarint(5<<3 | proto.WireBytes)
+		n += proto.SizeVarint(13<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchDataSend:
 		s := proto.Size(x.MatchDataSend)
-		n += proto.SizeVarint(6<<3 | proto.WireBytes)
+		n += proto.SizeVarint(14<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchJoin:
 		s := proto.Size(x.MatchJoin)
-		n += proto.SizeVarint(7<<3 | proto.WireBytes)
+		n += proto.SizeVarint(15<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchLeave:
 		s := proto.Size(x.MatchLeave)
-		n += proto.SizeVarint(8<<3 | proto.WireBytes)
+		n += proto.SizeVarint(16<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_MatchPresenceEvent:
 		s := proto.Size(x.MatchPresenceEvent)
-		n += proto.SizeVarint(9<<3 | proto.WireBytes)
+		n += proto.SizeVarint(17<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_Notifications:
 		s := proto.Size(x.Notifications)
-		n += proto.SizeVarint(10<<3 | proto.WireBytes)
+		n += proto.SizeVarint(18<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_Rpc:
 		s := proto.Size(x.Rpc)
-		n += proto.SizeVarint(11<<3 | proto.WireBytes)
+		n += proto.SizeVarint(19<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_StreamData:
 		s := proto.Size(x.StreamData)
-		n += proto.SizeVarint(12<<3 | proto.WireBytes)
+		n += proto.SizeVarint(20<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case *Envelope_StreamPresenceEvent:
 		s := proto.Size(x.StreamPresenceEvent)
-		n += proto.SizeVarint(13<<3 | proto.WireBytes)
+		n += proto.SizeVarint(21<<3 | proto.WireBytes)
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case nil:
@@ -528,6 +816,267 @@ func _Envelope_OneofSizer(msg proto.Message) (n int) {
 		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
 	}
 	return n
+}
+
+// A realtime chat channel.
+type Channel struct {
+	// The ID of the channel.
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+	// The users currently in the channel.
+	Presences []*UserPresence `protobuf:"bytes,2,rep,name=presences" json:"presences,omitempty"`
+	// A reference to the current user's presence in the channel.
+	Self *UserPresence `protobuf:"bytes,3,opt,name=self" json:"self,omitempty"`
+}
+
+func (m *Channel) Reset()                    { *m = Channel{} }
+func (m *Channel) String() string            { return proto.CompactTextString(m) }
+func (*Channel) ProtoMessage()               {}
+func (*Channel) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *Channel) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+func (m *Channel) GetPresences() []*UserPresence {
+	if m != nil {
+		return m.Presences
+	}
+	return nil
+}
+
+func (m *Channel) GetSelf() *UserPresence {
+	if m != nil {
+		return m.Self
+	}
+	return nil
+}
+
+// Join operation for a realtime chat channel.
+type ChannelJoin struct {
+	// The identifier for the realtime channel.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// The type of the chat channel.
+	Type int32 `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
+	// Whether messages sent on this channel should be persistent.
+	Persistence *google_protobuf1.BoolValue `protobuf:"bytes,3,opt,name=persistence" json:"persistence,omitempty"`
+	// Whether the user should appear in the channel's presence list and events.
+	Hidden *google_protobuf1.BoolValue `protobuf:"bytes,4,opt,name=hidden" json:"hidden,omitempty"`
+}
+
+func (m *ChannelJoin) Reset()                    { *m = ChannelJoin{} }
+func (m *ChannelJoin) String() string            { return proto.CompactTextString(m) }
+func (*ChannelJoin) ProtoMessage()               {}
+func (*ChannelJoin) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *ChannelJoin) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *ChannelJoin) GetType() int32 {
+	if m != nil {
+		return m.Type
+	}
+	return 0
+}
+
+func (m *ChannelJoin) GetPersistence() *google_protobuf1.BoolValue {
+	if m != nil {
+		return m.Persistence
+	}
+	return nil
+}
+
+func (m *ChannelJoin) GetHidden() *google_protobuf1.BoolValue {
+	if m != nil {
+		return m.Hidden
+	}
+	return nil
+}
+
+// Leave a realtime channel.
+type ChannelLeave struct {
+	// The ID of the channel to leave.
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+}
+
+func (m *ChannelLeave) Reset()                    { *m = ChannelLeave{} }
+func (m *ChannelLeave) String() string            { return proto.CompactTextString(m) }
+func (*ChannelLeave) ProtoMessage()               {}
+func (*ChannelLeave) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+func (m *ChannelLeave) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+// A receipt reply from a channel message send operation.
+type ChannelMessageAck struct {
+	// The channel the message was sent to.
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+	// The unique ID assigned to the message.
+	MessageId string `protobuf:"bytes,2,opt,name=message_id,json=messageId" json:"message_id,omitempty"`
+	// Username of the message sender.
+	Username string `protobuf:"bytes,3,opt,name=username" json:"username,omitempty"`
+	// The UNIX time when the message was created.
+	CreateTime *google_protobuf.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime" json:"create_time,omitempty"`
+	// The UNIX time when the message was last updated.
+	UpdateTime *google_protobuf.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime" json:"update_time,omitempty"`
+	// True if the message was persisted to the channel's history, false otherwise.
+	Persistent bool `protobuf:"varint,6,opt,name=persistent" json:"persistent,omitempty"`
+}
+
+func (m *ChannelMessageAck) Reset()                    { *m = ChannelMessageAck{} }
+func (m *ChannelMessageAck) String() string            { return proto.CompactTextString(m) }
+func (*ChannelMessageAck) ProtoMessage()               {}
+func (*ChannelMessageAck) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+func (m *ChannelMessageAck) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+func (m *ChannelMessageAck) GetMessageId() string {
+	if m != nil {
+		return m.MessageId
+	}
+	return ""
+}
+
+func (m *ChannelMessageAck) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
+func (m *ChannelMessageAck) GetCreateTime() *google_protobuf.Timestamp {
+	if m != nil {
+		return m.CreateTime
+	}
+	return nil
+}
+
+func (m *ChannelMessageAck) GetUpdateTime() *google_protobuf.Timestamp {
+	if m != nil {
+		return m.UpdateTime
+	}
+	return nil
+}
+
+func (m *ChannelMessageAck) GetPersistent() bool {
+	if m != nil {
+		return m.Persistent
+	}
+	return false
+}
+
+// Send a message to a realtime channel.
+type ChannelMessageSend struct {
+	// The channel to sent to.
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+	// Message content.
+	Content string `protobuf:"bytes,2,opt,name=content" json:"content,omitempty"`
+}
+
+func (m *ChannelMessageSend) Reset()                    { *m = ChannelMessageSend{} }
+func (m *ChannelMessageSend) String() string            { return proto.CompactTextString(m) }
+func (*ChannelMessageSend) ProtoMessage()               {}
+func (*ChannelMessageSend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+func (m *ChannelMessageSend) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+func (m *ChannelMessageSend) GetContent() string {
+	if m != nil {
+		return m.Content
+	}
+	return ""
+}
+
+// Update a message previously sent to a realtime channel.
+type ChannelMessageUpdate struct {
+	// The channel the message was sent to.
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+	// The ID assigned to the message to update.
+	MessageId string `protobuf:"bytes,2,opt,name=message_id,json=messageId" json:"message_id,omitempty"`
+	// New message content.
+	Content string `protobuf:"bytes,3,opt,name=content" json:"content,omitempty"`
+}
+
+func (m *ChannelMessageUpdate) Reset()                    { *m = ChannelMessageUpdate{} }
+func (m *ChannelMessageUpdate) String() string            { return proto.CompactTextString(m) }
+func (*ChannelMessageUpdate) ProtoMessage()               {}
+func (*ChannelMessageUpdate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+func (m *ChannelMessageUpdate) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+func (m *ChannelMessageUpdate) GetMessageId() string {
+	if m != nil {
+		return m.MessageId
+	}
+	return ""
+}
+
+func (m *ChannelMessageUpdate) GetContent() string {
+	if m != nil {
+		return m.Content
+	}
+	return ""
+}
+
+// A set of joins and leaves on a particular channel.
+type ChannelPresenceEvent struct {
+	// The
+	ChannelId string `protobuf:"bytes,1,opt,name=channel_id,json=channelId" json:"channel_id,omitempty"`
+	// Presences joining the channel as part of this event, if any.
+	Joins []*UserPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
+	// Presences leaving the channel as part of this event, if any.
+	Leaves []*UserPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
+}
+
+func (m *ChannelPresenceEvent) Reset()                    { *m = ChannelPresenceEvent{} }
+func (m *ChannelPresenceEvent) String() string            { return proto.CompactTextString(m) }
+func (*ChannelPresenceEvent) ProtoMessage()               {}
+func (*ChannelPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+func (m *ChannelPresenceEvent) GetChannelId() string {
+	if m != nil {
+		return m.ChannelId
+	}
+	return ""
+}
+
+func (m *ChannelPresenceEvent) GetJoins() []*UserPresence {
+	if m != nil {
+		return m.Joins
+	}
+	return nil
+}
+
+func (m *ChannelPresenceEvent) GetLeaves() []*UserPresence {
+	if m != nil {
+		return m.Leaves
+	}
+	return nil
 }
 
 // A logical error which may occur on the server.
@@ -543,7 +1092,7 @@ type Error struct {
 func (m *Error) Reset()                    { *m = Error{} }
 func (m *Error) String() string            { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()               {}
-func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 func (m *Error) GetCode() int32 {
 	if m != nil {
@@ -573,19 +1122,19 @@ type Match struct {
 	// True if it's an server-managed authoritative match, false otherwise.
 	Authoritative bool `protobuf:"varint,2,opt,name=authoritative" json:"authoritative,omitempty"`
 	// Match label, if any.
-	Label *google_protobuf.StringValue `protobuf:"bytes,3,opt,name=label" json:"label,omitempty"`
+	Label *google_protobuf1.StringValue `protobuf:"bytes,3,opt,name=label" json:"label,omitempty"`
 	// The number of users currently in the match.
 	Size int32 `protobuf:"varint,4,opt,name=size" json:"size,omitempty"`
 	// The users currently in the match.
-	Presences []*StreamPresence `protobuf:"bytes,5,rep,name=presences" json:"presences,omitempty"`
+	Presences []*UserPresence `protobuf:"bytes,5,rep,name=presences" json:"presences,omitempty"`
 	// A reference to the current user's presence in the match.
-	Self *StreamPresence `protobuf:"bytes,6,opt,name=self" json:"self,omitempty"`
+	Self *UserPresence `protobuf:"bytes,6,opt,name=self" json:"self,omitempty"`
 }
 
 func (m *Match) Reset()                    { *m = Match{} }
 func (m *Match) String() string            { return proto.CompactTextString(m) }
 func (*Match) ProtoMessage()               {}
-func (*Match) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*Match) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *Match) GetMatchId() string {
 	if m != nil {
@@ -601,7 +1150,7 @@ func (m *Match) GetAuthoritative() bool {
 	return false
 }
 
-func (m *Match) GetLabel() *google_protobuf.StringValue {
+func (m *Match) GetLabel() *google_protobuf1.StringValue {
 	if m != nil {
 		return m.Label
 	}
@@ -615,14 +1164,14 @@ func (m *Match) GetSize() int32 {
 	return 0
 }
 
-func (m *Match) GetPresences() []*StreamPresence {
+func (m *Match) GetPresences() []*UserPresence {
 	if m != nil {
 		return m.Presences
 	}
 	return nil
 }
 
-func (m *Match) GetSelf() *StreamPresence {
+func (m *Match) GetSelf() *UserPresence {
 	if m != nil {
 		return m.Self
 	}
@@ -636,14 +1185,14 @@ type MatchCreate struct {
 func (m *MatchCreate) Reset()                    { *m = MatchCreate{} }
 func (m *MatchCreate) String() string            { return proto.CompactTextString(m) }
 func (*MatchCreate) ProtoMessage()               {}
-func (*MatchCreate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*MatchCreate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 // Realtime match data received from the server.
 type MatchData struct {
 	// The match unique ID.
 	MatchId string `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
 	// A reference to the user presence that sent this data, if any.
-	Presence *StreamPresence `protobuf:"bytes,2,opt,name=presence" json:"presence,omitempty"`
+	Presence *UserPresence `protobuf:"bytes,2,opt,name=presence" json:"presence,omitempty"`
 	// Op code value.
 	OpCode int64 `protobuf:"varint,3,opt,name=op_code,json=opCode" json:"op_code,omitempty"`
 	// Data payload, if any.
@@ -653,7 +1202,7 @@ type MatchData struct {
 func (m *MatchData) Reset()                    { *m = MatchData{} }
 func (m *MatchData) String() string            { return proto.CompactTextString(m) }
 func (*MatchData) ProtoMessage()               {}
-func (*MatchData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (*MatchData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 func (m *MatchData) GetMatchId() string {
 	if m != nil {
@@ -662,7 +1211,7 @@ func (m *MatchData) GetMatchId() string {
 	return ""
 }
 
-func (m *MatchData) GetPresence() *StreamPresence {
+func (m *MatchData) GetPresence() *UserPresence {
 	if m != nil {
 		return m.Presence
 	}
@@ -692,13 +1241,13 @@ type MatchDataSend struct {
 	// Data payload, if any.
 	Data []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	// List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
-	Presences []*StreamPresence `protobuf:"bytes,4,rep,name=presences" json:"presences,omitempty"`
+	Presences []*UserPresence `protobuf:"bytes,4,rep,name=presences" json:"presences,omitempty"`
 }
 
 func (m *MatchDataSend) Reset()                    { *m = MatchDataSend{} }
 func (m *MatchDataSend) String() string            { return proto.CompactTextString(m) }
 func (*MatchDataSend) ProtoMessage()               {}
-func (*MatchDataSend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*MatchDataSend) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 func (m *MatchDataSend) GetMatchId() string {
 	if m != nil {
@@ -721,7 +1270,7 @@ func (m *MatchDataSend) GetData() []byte {
 	return nil
 }
 
-func (m *MatchDataSend) GetPresences() []*StreamPresence {
+func (m *MatchDataSend) GetPresences() []*UserPresence {
 	if m != nil {
 		return m.Presences
 	}
@@ -739,7 +1288,7 @@ type MatchJoin struct {
 func (m *MatchJoin) Reset()                    { *m = MatchJoin{} }
 func (m *MatchJoin) String() string            { return proto.CompactTextString(m) }
 func (*MatchJoin) ProtoMessage()               {}
-func (*MatchJoin) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*MatchJoin) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
 type isMatchJoin_Id interface {
 	isMatchJoin_Id()
@@ -851,7 +1400,7 @@ type MatchLeave struct {
 func (m *MatchLeave) Reset()                    { *m = MatchLeave{} }
 func (m *MatchLeave) String() string            { return proto.CompactTextString(m) }
 func (*MatchLeave) ProtoMessage()               {}
-func (*MatchLeave) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*MatchLeave) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
 func (m *MatchLeave) GetMatchId() string {
 	if m != nil {
@@ -865,15 +1414,15 @@ type MatchPresenceEvent struct {
 	// The match unique ID.
 	MatchId string `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
 	// User presences that have just joined the match.
-	Joins []*StreamPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
+	Joins []*UserPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
 	// User presences that have just left the match.
-	Leaves []*StreamPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
+	Leaves []*UserPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
 }
 
 func (m *MatchPresenceEvent) Reset()                    { *m = MatchPresenceEvent{} }
 func (m *MatchPresenceEvent) String() string            { return proto.CompactTextString(m) }
 func (*MatchPresenceEvent) ProtoMessage()               {}
-func (*MatchPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*MatchPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
 func (m *MatchPresenceEvent) GetMatchId() string {
 	if m != nil {
@@ -882,14 +1431,14 @@ func (m *MatchPresenceEvent) GetMatchId() string {
 	return ""
 }
 
-func (m *MatchPresenceEvent) GetJoins() []*StreamPresence {
+func (m *MatchPresenceEvent) GetJoins() []*UserPresence {
 	if m != nil {
 		return m.Joins
 	}
 	return nil
 }
 
-func (m *MatchPresenceEvent) GetLeaves() []*StreamPresence {
+func (m *MatchPresenceEvent) GetLeaves() []*UserPresence {
 	if m != nil {
 		return m.Leaves
 	}
@@ -905,7 +1454,7 @@ type Notifications struct {
 func (m *Notifications) Reset()                    { *m = Notifications{} }
 func (m *Notifications) String() string            { return proto.CompactTextString(m) }
 func (*Notifications) ProtoMessage()               {}
-func (*Notifications) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (*Notifications) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
 
 func (m *Notifications) GetNotifications() []*nakama_api.Notification {
 	if m != nil {
@@ -929,7 +1478,7 @@ type Stream struct {
 func (m *Stream) Reset()                    { *m = Stream{} }
 func (m *Stream) String() string            { return proto.CompactTextString(m) }
 func (*Stream) ProtoMessage()               {}
-func (*Stream) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (*Stream) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *Stream) GetMode() int32 {
 	if m != nil {
@@ -964,7 +1513,7 @@ type StreamData struct {
 	// The stream this data message relates to.
 	Stream *Stream `protobuf:"bytes,1,opt,name=stream" json:"stream,omitempty"`
 	// The sender, if any.
-	Sender *StreamPresence `protobuf:"bytes,2,opt,name=sender" json:"sender,omitempty"`
+	Sender *UserPresence `protobuf:"bytes,2,opt,name=sender" json:"sender,omitempty"`
 	// Arbitrary contents of the data message.
 	Data string `protobuf:"bytes,3,opt,name=data" json:"data,omitempty"`
 }
@@ -972,7 +1521,7 @@ type StreamData struct {
 func (m *StreamData) Reset()                    { *m = StreamData{} }
 func (m *StreamData) String() string            { return proto.CompactTextString(m) }
 func (*StreamData) ProtoMessage()               {}
-func (*StreamData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*StreamData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
 
 func (m *StreamData) GetStream() *Stream {
 	if m != nil {
@@ -981,7 +1530,7 @@ func (m *StreamData) GetStream() *Stream {
 	return nil
 }
 
-func (m *StreamData) GetSender() *StreamPresence {
+func (m *StreamData) GetSender() *UserPresence {
 	if m != nil {
 		return m.Sender
 	}
@@ -995,8 +1544,44 @@ func (m *StreamData) GetData() string {
 	return ""
 }
 
-// A user session associated to a stream, usually through a list operation or a join/leave event.
-type StreamPresence struct {
+// A set of joins and leaves on a particular stream.
+type StreamPresenceEvent struct {
+	// The stream this event relates to.
+	Stream *Stream `protobuf:"bytes,1,opt,name=stream" json:"stream,omitempty"`
+	// Presences joining the stream as part of this event, if any.
+	Joins []*UserPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
+	// Presences leaving the stream as part of this event, if any.
+	Leaves []*UserPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
+}
+
+func (m *StreamPresenceEvent) Reset()                    { *m = StreamPresenceEvent{} }
+func (m *StreamPresenceEvent) String() string            { return proto.CompactTextString(m) }
+func (*StreamPresenceEvent) ProtoMessage()               {}
+func (*StreamPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+
+func (m *StreamPresenceEvent) GetStream() *Stream {
+	if m != nil {
+		return m.Stream
+	}
+	return nil
+}
+
+func (m *StreamPresenceEvent) GetJoins() []*UserPresence {
+	if m != nil {
+		return m.Joins
+	}
+	return nil
+}
+
+func (m *StreamPresenceEvent) GetLeaves() []*UserPresence {
+	if m != nil {
+		return m.Leaves
+	}
+	return nil
+}
+
+// A user session associated to a stream, match, or channel. Usually received through a list operation or a join/leave event.
+type UserPresence struct {
 	// The user this presence belongs to.
 	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId" json:"user_id,omitempty"`
 	// A unique session ID identifying the particular connection, because the user may have many.
@@ -1009,84 +1594,55 @@ type StreamPresence struct {
 	Status string `protobuf:"bytes,5,opt,name=status" json:"status,omitempty"`
 }
 
-func (m *StreamPresence) Reset()                    { *m = StreamPresence{} }
-func (m *StreamPresence) String() string            { return proto.CompactTextString(m) }
-func (*StreamPresence) ProtoMessage()               {}
-func (*StreamPresence) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+func (m *UserPresence) Reset()                    { *m = UserPresence{} }
+func (m *UserPresence) String() string            { return proto.CompactTextString(m) }
+func (*UserPresence) ProtoMessage()               {}
+func (*UserPresence) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
 
-func (m *StreamPresence) GetUserId() string {
+func (m *UserPresence) GetUserId() string {
 	if m != nil {
 		return m.UserId
 	}
 	return ""
 }
 
-func (m *StreamPresence) GetSessionId() string {
+func (m *UserPresence) GetSessionId() string {
 	if m != nil {
 		return m.SessionId
 	}
 	return ""
 }
 
-func (m *StreamPresence) GetUsername() string {
+func (m *UserPresence) GetUsername() string {
 	if m != nil {
 		return m.Username
 	}
 	return ""
 }
 
-func (m *StreamPresence) GetPersistence() bool {
+func (m *UserPresence) GetPersistence() bool {
 	if m != nil {
 		return m.Persistence
 	}
 	return false
 }
 
-func (m *StreamPresence) GetStatus() string {
+func (m *UserPresence) GetStatus() string {
 	if m != nil {
 		return m.Status
 	}
 	return ""
 }
 
-// A set of joins and leaves on a particular stream.
-type StreamPresenceEvent struct {
-	// The stream this event relates to.
-	Stream *Stream `protobuf:"bytes,1,opt,name=stream" json:"stream,omitempty"`
-	// Presences joining the stream as part of this event, if any.
-	Joins []*StreamPresence `protobuf:"bytes,2,rep,name=joins" json:"joins,omitempty"`
-	// Presences leaving the stream as part of this event, if any.
-	Leaves []*StreamPresence `protobuf:"bytes,3,rep,name=leaves" json:"leaves,omitempty"`
-}
-
-func (m *StreamPresenceEvent) Reset()                    { *m = StreamPresenceEvent{} }
-func (m *StreamPresenceEvent) String() string            { return proto.CompactTextString(m) }
-func (*StreamPresenceEvent) ProtoMessage()               {}
-func (*StreamPresenceEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
-
-func (m *StreamPresenceEvent) GetStream() *Stream {
-	if m != nil {
-		return m.Stream
-	}
-	return nil
-}
-
-func (m *StreamPresenceEvent) GetJoins() []*StreamPresence {
-	if m != nil {
-		return m.Joins
-	}
-	return nil
-}
-
-func (m *StreamPresenceEvent) GetLeaves() []*StreamPresence {
-	if m != nil {
-		return m.Leaves
-	}
-	return nil
-}
-
 func init() {
 	proto.RegisterType((*Envelope)(nil), "nakama.realtime.Envelope")
+	proto.RegisterType((*Channel)(nil), "nakama.realtime.Channel")
+	proto.RegisterType((*ChannelJoin)(nil), "nakama.realtime.ChannelJoin")
+	proto.RegisterType((*ChannelLeave)(nil), "nakama.realtime.ChannelLeave")
+	proto.RegisterType((*ChannelMessageAck)(nil), "nakama.realtime.ChannelMessageAck")
+	proto.RegisterType((*ChannelMessageSend)(nil), "nakama.realtime.ChannelMessageSend")
+	proto.RegisterType((*ChannelMessageUpdate)(nil), "nakama.realtime.ChannelMessageUpdate")
+	proto.RegisterType((*ChannelPresenceEvent)(nil), "nakama.realtime.ChannelPresenceEvent")
 	proto.RegisterType((*Error)(nil), "nakama.realtime.Error")
 	proto.RegisterType((*Match)(nil), "nakama.realtime.Match")
 	proto.RegisterType((*MatchCreate)(nil), "nakama.realtime.MatchCreate")
@@ -1098,86 +1654,114 @@ func init() {
 	proto.RegisterType((*Notifications)(nil), "nakama.realtime.Notifications")
 	proto.RegisterType((*Stream)(nil), "nakama.realtime.Stream")
 	proto.RegisterType((*StreamData)(nil), "nakama.realtime.StreamData")
-	proto.RegisterType((*StreamPresence)(nil), "nakama.realtime.StreamPresence")
 	proto.RegisterType((*StreamPresenceEvent)(nil), "nakama.realtime.StreamPresenceEvent")
+	proto.RegisterType((*UserPresence)(nil), "nakama.realtime.UserPresence")
+	proto.RegisterEnum("nakama.realtime.ChannelJoin_Type", ChannelJoin_Type_name, ChannelJoin_Type_value)
 	proto.RegisterEnum("nakama.realtime.Error_Code", Error_Code_name, Error_Code_value)
 }
 
 func init() { proto.RegisterFile("rtapi/realtime.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 1153 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0x4d, 0x6f, 0x1a, 0x47,
-	0x18, 0x66, 0x81, 0x05, 0xf6, 0xc5, 0xc4, 0x74, 0xfc, 0xb5, 0x25, 0xa9, 0x6b, 0x6d, 0x22, 0x35,
-	0xea, 0x01, 0x24, 0x47, 0x55, 0xab, 0x44, 0x89, 0x6a, 0x60, 0x1d, 0x70, 0xe3, 0x05, 0x8d, 0x71,
-	0x3f, 0x7c, 0x41, 0xc3, 0x32, 0xb6, 0x37, 0x66, 0x3f, 0xb4, 0x3b, 0xb8, 0x75, 0xcf, 0x3d, 0xf5,
-	0xd4, 0x53, 0x8f, 0xad, 0xd4, 0x63, 0x4f, 0x3d, 0xf5, 0x3f, 0xf4, 0x3f, 0xf5, 0x50, 0xcd, 0xcc,
-	0x2e, 0x5f, 0x06, 0x3b, 0xb9, 0xf4, 0xc4, 0xbc, 0x33, 0xcf, 0xf3, 0xce, 0xcb, 0x33, 0xef, 0x3c,
-	0xb3, 0xb0, 0x19, 0x32, 0x12, 0x38, 0xb5, 0x90, 0x92, 0x11, 0x73, 0x5c, 0x5a, 0x0d, 0x42, 0x9f,
-	0xf9, 0x68, 0xdd, 0x23, 0x57, 0xc4, 0x25, 0xd5, 0x64, 0xba, 0xb2, 0x7b, 0xe1, 0xfb, 0x17, 0x23,
-	0x5a, 0x13, 0xcb, 0x83, 0xf1, 0x79, 0xed, 0xfb, 0x90, 0x04, 0x01, 0x0d, 0x23, 0x49, 0xa8, 0x7c,
-	0x7a, 0xe1, 0xb0, 0xcb, 0xf1, 0xa0, 0x6a, 0xfb, 0x6e, 0xed, 0x92, 0x86, 0xbe, 0x63, 0x8f, 0xc8,
-	0x20, 0xaa, 0xc9, 0x34, 0x35, 0xbe, 0x03, 0x09, 0x1c, 0x89, 0x35, 0xfe, 0xca, 0x41, 0xc1, 0xf4,
-	0xae, 0xe9, 0xc8, 0x0f, 0x28, 0x2a, 0x43, 0xc6, 0x76, 0x86, 0xba, 0xb2, 0xa7, 0x3c, 0xd5, 0x30,
-	0x1f, 0xa2, 0x2a, 0xa8, 0x34, 0x0c, 0xfd, 0x50, 0x4f, 0xef, 0x29, 0x4f, 0x8b, 0xfb, 0xdb, 0xd5,
-	0x85, 0x5a, 0xaa, 0x26, 0x5f, 0x6d, 0xa5, 0xb0, 0x84, 0x71, 0xbc, 0x4b, 0x98, 0x7d, 0xa9, 0x67,
-	0x56, 0xe0, 0x8f, 0xf9, 0x2a, 0xc7, 0x0b, 0x18, 0x3a, 0x80, 0x35, 0x31, 0xe8, 0xdb, 0x21, 0x25,
-	0x8c, 0xea, 0x59, 0x41, 0x7b, 0xb4, 0x9c, 0xd6, 0x10, 0x98, 0x56, 0x0a, 0x17, 0xdd, 0x69, 0x88,
-	0x5e, 0x00, 0xc8, 0x14, 0x43, 0xc2, 0x88, 0xae, 0x8a, 0x04, 0x95, 0xe5, 0x09, 0x9a, 0x84, 0x91,
-	0x56, 0x0a, 0x6b, 0x6e, 0x12, 0xa0, 0x16, 0xac, 0x4f, 0xc9, 0xfd, 0x88, 0x7a, 0x43, 0x3d, 0x27,
-	0x32, 0xec, 0xae, 0xce, 0x70, 0x42, 0xbd, 0x61, 0x2b, 0x85, 0x4b, 0xee, 0xec, 0xc4, 0xb4, 0x8c,
-	0xb7, 0xbe, 0xe3, 0xe9, 0xf9, 0xbb, 0xca, 0x38, 0xf2, 0x1d, 0x6f, 0x52, 0x06, 0x0f, 0xd0, 0x2b,
-	0x90, 0x7f, 0xa9, 0x3f, 0xa2, 0xe4, 0x9a, 0xea, 0x05, 0xc1, 0x7e, 0xb8, 0x9c, 0xfd, 0x86, 0x43,
-	0x5a, 0x29, 0x2c, 0xb7, 0x13, 0x11, 0xfa, 0x06, 0x36, 0x25, 0x3f, 0x08, 0x69, 0x44, 0x3d, 0x9b,
-	0xf6, 0xe9, 0x35, 0xf5, 0x98, 0xae, 0x89, 0x44, 0x8f, 0x97, 0x27, 0xea, 0xc6, 0x58, 0x93, 0x43,
-	0x5b, 0x29, 0x8c, 0xdc, 0x5b, 0xb3, 0xe8, 0x10, 0x4a, 0x9e, 0xcf, 0x9c, 0x73, 0xc7, 0x26, 0xcc,
-	0xf1, 0xbd, 0x48, 0x87, 0x15, 0xea, 0x58, 0xb3, 0x28, 0xae, 0xce, 0x1c, 0x0d, 0x3d, 0x86, 0x4c,
-	0x18, 0xd8, 0x7a, 0x51, 0xb0, 0xd7, 0x13, 0x36, 0x6f, 0x43, 0x1c, 0xd8, 0xad, 0x14, 0xe6, 0xab,
-	0x5c, 0x85, 0x88, 0x85, 0x94, 0xb8, 0xf2, 0x28, 0xd7, 0x56, 0xa8, 0x70, 0x22, 0x30, 0xf1, 0x59,
-	0x42, 0x34, 0x89, 0xd0, 0x19, 0x6c, 0xc5, 0xfc, 0x05, 0x19, 0x4a, 0x22, 0xd3, 0x93, 0x15, 0x99,
-	0x16, 0x75, 0xd8, 0x88, 0x6e, 0x4f, 0xd7, 0x35, 0xc8, 0xbb, 0x34, 0x8a, 0xc8, 0x05, 0x35, 0xfe,
-	0x4d, 0x83, 0x2a, 0xda, 0x1e, 0x21, 0xc8, 0xda, 0xfe, 0x90, 0x8a, 0x0b, 0xa3, 0x62, 0x31, 0x46,
-	0xfa, 0x04, 0x28, 0xee, 0x8c, 0x86, 0x93, 0x10, 0xbd, 0x84, 0xbc, 0xed, 0x7b, 0x8c, 0xfe, 0xc0,
-	0xf4, 0xcc, 0x5e, 0x66, 0xe9, 0xb9, 0x88, 0xb4, 0xd5, 0x86, 0x44, 0x99, 0x1e, 0x0b, 0x6f, 0x70,
-	0xc2, 0xa9, 0x3c, 0x87, 0xb5, 0xd9, 0x05, 0x7e, 0x59, 0xaf, 0xe8, 0x4d, 0x72, 0x59, 0xaf, 0xe8,
-	0x0d, 0xda, 0x04, 0xf5, 0x9a, 0x8c, 0xc6, 0xc9, 0xc6, 0x32, 0x78, 0x9e, 0xfe, 0x42, 0x31, 0xfe,
-	0x51, 0x20, 0xdb, 0xe0, 0xd5, 0x6d, 0xc1, 0x07, 0xf8, 0xd4, 0xea, 0xb5, 0x8f, 0xcd, 0xbe, 0xf9,
-	0x6d, 0xc3, 0xec, 0xf6, 0xda, 0x1d, 0xab, 0x9c, 0x42, 0x3a, 0x6c, 0x9e, 0x5a, 0xd8, 0x6c, 0x74,
-	0x5e, 0x5b, 0xed, 0x33, 0xb3, 0xd9, 0xef, 0x1e, 0x7c, 0xf7, 0xa6, 0x73, 0xd0, 0x2c, 0x2b, 0x68,
-	0x03, 0xd6, 0x8f, 0xdb, 0x27, 0x27, 0x6d, 0xeb, 0xf5, 0x64, 0x32, 0x8d, 0x4a, 0xa0, 0xd5, 0x0f,
-	0x9a, 0xfd, 0xb6, 0xd5, 0x3d, 0xed, 0x95, 0x33, 0x02, 0x73, 0xd0, 0x6b, 0xb4, 0xfa, 0x56, 0xa7,
-	0xd7, 0x3f, 0xec, 0x9c, 0x5a, 0xcd, 0x72, 0x16, 0xed, 0xc0, 0x86, 0x9c, 0x3c, 0xea, 0xb4, 0xad,
-	0x3e, 0x36, 0x8f, 0xcc, 0x46, 0xcf, 0x6c, 0x96, 0x55, 0xb4, 0x0b, 0x95, 0xa4, 0x84, 0xc3, 0x53,
-	0xab, 0xc1, 0x2b, 0x98, 0x21, 0xe6, 0x96, 0xae, 0x4f, 0x6b, 0xcd, 0x1b, 0x3f, 0xa5, 0x41, 0x15,
-	0xfd, 0x8b, 0x3e, 0x84, 0x82, 0xec, 0xfa, 0x89, 0x67, 0xe5, 0x45, 0xdc, 0x1e, 0xa2, 0x27, 0x50,
-	0x22, 0x63, 0x76, 0xe9, 0x87, 0x0e, 0x23, 0xcc, 0xb9, 0x96, 0x92, 0x14, 0xf0, 0xfc, 0x24, 0xda,
-	0x07, 0x75, 0x44, 0x06, 0x74, 0x14, 0xbb, 0xd5, 0xa3, 0xaa, 0x34, 0xd6, 0x6a, 0x62, 0xac, 0xbc,
-	0x41, 0x1c, 0xef, 0xe2, 0x6b, 0xae, 0x23, 0x96, 0x50, 0x7e, 0xe6, 0x91, 0xf3, 0xa3, 0x74, 0x2a,
-	0x15, 0x8b, 0x31, 0x7a, 0x09, 0x5a, 0xd2, 0x71, 0x91, 0xae, 0x8a, 0xb3, 0xfd, 0xf8, 0x9e, 0x66,
-	0xc3, 0x53, 0x06, 0x7a, 0x06, 0xd9, 0x88, 0x8e, 0xce, 0x63, 0xe7, 0xb9, 0x97, 0x29, 0xc0, 0x46,
-	0x09, 0x8a, 0x33, 0xa6, 0x68, 0xfc, 0xa2, 0x80, 0x36, 0x71, 0xa8, 0xbb, 0x94, 0x79, 0x01, 0x85,
-	0x64, 0xe7, 0xd8, 0xd4, 0xef, 0xdd, 0x70, 0x42, 0x40, 0x3b, 0x90, 0xf7, 0x83, 0xbe, 0xe8, 0x79,
-	0x2e, 0x59, 0x06, 0xe7, 0xfc, 0x40, 0xf4, 0x15, 0x82, 0xac, 0xb8, 0xb3, 0x5c, 0x95, 0x35, 0x2c,
-	0xc6, 0xc6, 0xaf, 0x0a, 0x94, 0xe6, 0x4c, 0xf3, 0xae, 0xb2, 0x66, 0x32, 0xa7, 0x97, 0x66, 0xce,
-	0x4c, 0x33, 0xcf, 0xeb, 0x9d, 0x7d, 0x5f, 0xbd, 0x8d, 0xc3, 0x58, 0x2a, 0x61, 0xbd, 0x0f, 0x17,
-	0x6b, 0x6a, 0xa5, 0xa6, 0x55, 0x6d, 0x83, 0xca, 0xfc, 0x2b, 0xea, 0xc9, 0x1b, 0xc5, 0x9f, 0x2d,
-	0x11, 0xd6, 0xb3, 0x90, 0x76, 0x86, 0xc6, 0x27, 0x00, 0x53, 0x47, 0xbe, 0xe3, 0xcf, 0x19, 0xbf,
-	0x2b, 0x80, 0x6e, 0x5b, 0xee, 0x5d, 0x72, 0x7c, 0x06, 0x2a, 0x7f, 0x47, 0x22, 0x3d, 0xfd, 0x6e,
-	0xff, 0x4e, 0xa2, 0xd1, 0xe7, 0x90, 0x13, 0x2f, 0x48, 0x14, 0x3b, 0xcc, 0xbd, 0xbc, 0x18, 0x6e,
-	0x74, 0xa0, 0x34, 0xe7, 0xe0, 0xe8, 0xd5, 0xa2, 0xf1, 0x2b, 0x22, 0xa1, 0x3e, 0x6b, 0xdd, 0xb3,
-	0x8c, 0x05, 0xc3, 0x37, 0x46, 0x90, 0x93, 0x5b, 0xf1, 0x03, 0x74, 0x67, 0x4c, 0xd2, 0x8d, 0x4d,
-	0x32, 0x1a, 0x0f, 0xde, 0x52, 0x9b, 0x25, 0x26, 0x19, 0x87, 0x68, 0x17, 0x60, 0x48, 0x23, 0x3b,
-	0x74, 0x02, 0xe6, 0x87, 0xe2, 0xd0, 0x35, 0x3c, 0x33, 0xc3, 0x3d, 0x4e, 0x5e, 0xd9, 0xac, 0xf4,
-	0x38, 0x11, 0x18, 0x3f, 0x2b, 0x00, 0xd3, 0x67, 0x01, 0xd5, 0x20, 0x27, 0x3d, 0x5c, 0x6c, 0x5a,
-	0xdc, 0xdf, 0x59, 0x21, 0x03, 0x8e, 0x61, 0x5c, 0x37, 0xfe, 0xf6, 0xd3, 0xf0, 0x5d, 0xaf, 0x44,
-	0x0c, 0x9f, 0xeb, 0x4e, 0x2d, 0xee, 0xfb, 0xdf, 0x14, 0x78, 0x30, 0x0f, 0xe7, 0xdd, 0x3d, 0x8e,
-	0x68, 0x38, 0x3d, 0xe8, 0x1c, 0x0f, 0xdb, 0x43, 0xf4, 0x11, 0x40, 0x44, 0xa3, 0xc8, 0xf1, 0x3d,
-	0xbe, 0x26, 0xb5, 0xd0, 0xe2, 0x99, 0xf6, 0x10, 0x55, 0xa0, 0xc0, 0x81, 0x1e, 0x71, 0x69, 0xbc,
-	0xc5, 0x24, 0x46, 0x7b, 0x50, 0xe4, 0xdf, 0x7c, 0x4e, 0xc4, 0xc4, 0x5d, 0xce, 0x0a, 0x83, 0x9b,
-	0x9d, 0x42, 0xdb, 0x5c, 0x06, 0xc2, 0xc6, 0x91, 0xf8, 0x2a, 0xd2, 0x70, 0x1c, 0x19, 0x7f, 0x2b,
-	0xb0, 0xb1, 0xe4, 0xe9, 0x7b, 0x7f, 0xd9, 0xfe, 0xe7, 0x2e, 0xad, 0x7f, 0x09, 0x5b, 0xb6, 0xef,
-	0x56, 0xa7, 0xdf, 0xb4, 0x31, 0xb1, 0xfe, 0xc0, 0x12, 0xbf, 0x38, 0xe6, 0x77, 0x95, 0x33, 0x55,
-	0x7c, 0x4a, 0xff, 0x91, 0xce, 0x5a, 0x5f, 0x75, 0xeb, 0x7f, 0xa6, 0x73, 0x12, 0x30, 0xc8, 0x09,
-	0x6b, 0x7f, 0xf6, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x3c, 0xab, 0xb4, 0x6f, 0x6a, 0x0b, 0x00,
-	0x00,
+	// 1589 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x58, 0xcd, 0x6f, 0x1b, 0xd5,
+	0x16, 0xf7, 0xd8, 0x1e, 0x7f, 0x1c, 0xc7, 0x89, 0x73, 0xe3, 0xa4, 0xf3, 0xd2, 0xd7, 0xbc, 0x68,
+	0xda, 0xa7, 0x57, 0x3d, 0x09, 0x47, 0xa4, 0x20, 0x41, 0x0b, 0x15, 0x89, 0x3d, 0x89, 0x5d, 0x1a,
+	0xdb, 0xba, 0xb6, 0x29, 0xad, 0x84, 0xac, 0xc9, 0xf8, 0x36, 0x99, 0xc6, 0xf3, 0xa1, 0x99, 0x71,
+	0x20, 0xac, 0xd8, 0xc1, 0x8a, 0x15, 0x0b, 0x24, 0xd8, 0x00, 0x3b, 0x96, 0xfc, 0x17, 0xfc, 0x2b,
+	0xfc, 0x0d, 0x2c, 0xd0, 0xfd, 0x18, 0x7b, 0xc6, 0xf1, 0x47, 0x0a, 0x52, 0x57, 0xb9, 0xf7, 0xdc,
+	0xdf, 0xf9, 0x9d, 0x33, 0xe7, 0xde, 0xf3, 0xe1, 0x40, 0xd9, 0x0b, 0x74, 0xd7, 0xdc, 0xf3, 0x88,
+	0x3e, 0x0c, 0x4c, 0x8b, 0x54, 0x5c, 0xcf, 0x09, 0x1c, 0xb4, 0x66, 0xeb, 0x17, 0xba, 0xa5, 0x57,
+	0x42, 0xf1, 0xf6, 0x7f, 0xce, 0x1c, 0xe7, 0x6c, 0x48, 0xf6, 0xd8, 0xf1, 0xe9, 0xe8, 0xe5, 0x1e,
+	0x95, 0xfa, 0x81, 0x6e, 0xb9, 0x5c, 0x63, 0x7b, 0x67, 0x1a, 0xf0, 0xb9, 0xa7, 0xbb, 0x2e, 0xf1,
+	0x7c, 0x71, 0xfe, 0xff, 0x33, 0x33, 0x38, 0x1f, 0x9d, 0x56, 0x0c, 0xc7, 0xda, 0x3b, 0x27, 0x9e,
+	0x63, 0x1a, 0x43, 0xfd, 0xd4, 0xdf, 0xe3, 0x76, 0xf6, 0xa8, 0x0b, 0xba, 0x6b, 0x72, 0xac, 0xfa,
+	0x4b, 0x01, 0x72, 0x9a, 0x7d, 0x49, 0x86, 0x8e, 0x4b, 0x50, 0x09, 0x52, 0x86, 0x39, 0x50, 0xa4,
+	0x5d, 0xe9, 0x7e, 0x1e, 0xd3, 0x25, 0x7a, 0x07, 0xb2, 0xc6, 0xb9, 0x6e, 0xdb, 0x64, 0xa8, 0x24,
+	0x77, 0xa5, 0xfb, 0x85, 0x7d, 0xa5, 0x32, 0xe5, 0x6e, 0xa5, 0xca, 0xcf, 0xeb, 0x09, 0x1c, 0x42,
+	0xd1, 0x01, 0xac, 0x88, 0x65, 0xff, 0x95, 0x63, 0xda, 0x4a, 0x8a, 0xa9, 0xfe, 0x7b, 0x9e, 0xea,
+	0x13, 0xc7, 0xb4, 0xeb, 0x09, 0x5c, 0x30, 0x26, 0x5b, 0x54, 0x83, 0x62, 0x48, 0x31, 0x24, 0xfa,
+	0x25, 0x51, 0xd2, 0x8c, 0xe3, 0xce, 0x3c, 0x8e, 0xa7, 0x14, 0x54, 0x4f, 0xe0, 0xd0, 0x30, 0xdb,
+	0x23, 0x0d, 0xd6, 0x42, 0x16, 0x8b, 0xf8, 0xbe, 0x7e, 0x46, 0x14, 0x99, 0xf1, 0x6c, 0x87, 0x3c,
+	0x34, 0x12, 0x82, 0xe2, 0x84, 0x23, 0xea, 0x09, 0xbc, 0x6a, 0xc4, 0x24, 0xa8, 0x0b, 0x1b, 0x53,
+	0x34, 0x7d, 0xdd, 0xb8, 0x50, 0x32, 0x8c, 0x4a, 0x9d, 0xe7, 0x92, 0xd0, 0x3e, 0x30, 0x2e, 0xea,
+	0x09, 0xbc, 0x6e, 0x4c, 0x0b, 0xd1, 0x33, 0x28, 0x4f, 0xb3, 0xfa, 0xc4, 0x1e, 0x28, 0x59, 0x46,
+	0x7b, 0x77, 0x09, 0x6d, 0x87, 0xd8, 0x83, 0x7a, 0x02, 0x23, 0xe3, 0x9a, 0x14, 0x7d, 0x06, 0x5b,
+	0xd3, 0xc4, 0x23, 0x77, 0xa0, 0x07, 0x44, 0xc9, 0x31, 0xea, 0xff, 0x2e, 0xa1, 0xee, 0x31, 0x70,
+	0x3d, 0x81, 0xcb, 0xc6, 0x0c, 0x79, 0x94, 0xde, 0xf5, 0x88, 0x4f, 0x6c, 0x83, 0xf4, 0xc9, 0x25,
+	0xb1, 0x03, 0x25, 0xbf, 0x98, 0xbe, 0x2d, 0xd0, 0x1a, 0x05, 0x47, 0xe8, 0x63, 0x72, 0x54, 0x01,
+	0x99, 0x78, 0x9e, 0xe3, 0x29, 0xc0, 0xd8, 0xb6, 0xae, 0xb1, 0x69, 0xf4, 0xb4, 0x9e, 0xc0, 0x1c,
+	0x46, 0xf1, 0x96, 0x1e, 0x18, 0xe7, 0x4a, 0x61, 0x0e, 0xfe, 0x84, 0x9e, 0x52, 0x3c, 0x83, 0xd1,
+	0xc7, 0xc9, 0x16, 0x7d, 0xc3, 0x23, 0x34, 0x26, 0x2b, 0x73, 0x1e, 0x27, 0x53, 0xab, 0x32, 0x0c,
+	0x7d, 0x9c, 0xd6, 0x64, 0x8b, 0x1e, 0x01, 0x70, 0x8a, 0x81, 0x1e, 0xe8, 0x4a, 0x31, 0xfe, 0xa2,
+	0xe2, 0x04, 0x35, 0x3d, 0xd0, 0xeb, 0x09, 0x9c, 0xb7, 0xc2, 0x0d, 0xaa, 0xc3, 0xda, 0x44, 0x99,
+	0xdf, 0xf8, 0x2a, 0x63, 0xd8, 0x99, 0xcf, 0x20, 0x2e, 0xbb, 0x68, 0x45, 0x05, 0x13, 0x37, 0x58,
+	0x92, 0xad, 0x2d, 0x72, 0x43, 0xa4, 0x18, 0x77, 0x83, 0x25, 0xd8, 0x63, 0xe0, 0x9f, 0x24, 0xd2,
+	0xab, 0xc4, 0xb4, 0x6f, 0xcf, 0xd6, 0x0e, 0x93, 0x8b, 0x9b, 0xe3, 0xa9, 0xf5, 0x0c, 0xca, 0x5c,
+	0x7f, 0xea, 0x0d, 0xac, 0xcf, 0x79, 0xbd, 0x8c, 0x68, 0xfa, 0x05, 0x20, 0xeb, 0x9a, 0x14, 0x1d,
+	0x41, 0xd1, 0x76, 0x02, 0xf3, 0xa5, 0x69, 0xe8, 0x81, 0xe9, 0xd8, 0xbe, 0x82, 0xe6, 0x44, 0xa7,
+	0x19, 0x45, 0xd1, 0xe8, 0xc4, 0xd4, 0xd0, 0x5d, 0x48, 0x79, 0xae, 0xa1, 0x6c, 0x30, 0xed, 0xb5,
+	0x68, 0xbe, 0x63, 0xd7, 0xa8, 0x27, 0x30, 0x3d, 0xa5, 0x51, 0xf0, 0x03, 0x8f, 0xe8, 0x16, 0xbf,
+	0xca, 0xf2, 0x9c, 0x28, 0x74, 0x18, 0x46, 0xdc, 0x25, 0xf8, 0xe3, 0x1d, 0x7a, 0x01, 0x9b, 0x42,
+	0x7f, 0x2a, 0x0c, 0x9b, 0x8c, 0xe9, 0xde, 0x1c, 0xa6, 0xe9, 0x38, 0x6c, 0xf8, 0xd7, 0xc5, 0x87,
+	0x79, 0xc8, 0x8a, 0xf4, 0x55, 0xbf, 0x97, 0x20, 0x2b, 0x92, 0x08, 0xdd, 0x01, 0x08, 0xd3, 0x6f,
+	0x5c, 0xab, 0xf3, 0x42, 0xd2, 0xa0, 0x8f, 0x22, 0x1f, 0xba, 0xe2, 0x2b, 0xc9, 0xdd, 0xd4, 0xcc,
+	0xa2, 0xd9, 0xf3, 0x89, 0x17, 0x1a, 0xc3, 0x13, 0x3c, 0x7a, 0x1b, 0xd2, 0x3e, 0x19, 0xbe, 0x14,
+	0x05, 0x7b, 0x89, 0x1e, 0x83, 0xaa, 0x7f, 0x48, 0x50, 0x88, 0xd4, 0x71, 0xb4, 0x0a, 0xc9, 0xb1,
+	0x5b, 0x49, 0x73, 0x80, 0x10, 0xa4, 0x83, 0x2b, 0x97, 0xb0, 0xf6, 0x21, 0x63, 0xb6, 0x46, 0x1f,
+	0x40, 0x81, 0xb6, 0x2b, 0xd3, 0x0f, 0x28, 0x91, 0xb0, 0xb6, 0x5d, 0xe1, 0x6d, 0xad, 0x12, 0xb6,
+	0xb5, 0xca, 0xa1, 0xe3, 0x0c, 0x3f, 0xd1, 0x87, 0x23, 0x82, 0xa3, 0x70, 0xb4, 0x0f, 0x99, 0x73,
+	0x73, 0x30, 0x20, 0xb6, 0xe8, 0x09, 0x8b, 0x14, 0x05, 0x52, 0xd5, 0x20, 0xdd, 0xa5, 0x96, 0xcb,
+	0x50, 0xea, 0x3e, 0x6f, 0x6b, 0xfd, 0x5e, 0xb3, 0xd3, 0xd6, 0xaa, 0x8d, 0xa3, 0x86, 0x56, 0x2b,
+	0x25, 0x50, 0x0e, 0xd2, 0xb8, 0xd5, 0x3a, 0x29, 0x49, 0x08, 0xc1, 0x6a, 0xad, 0x81, 0xb5, 0x6a,
+	0xb7, 0x7f, 0xa2, 0x75, 0x3a, 0x07, 0xc7, 0x5a, 0x29, 0x89, 0xf2, 0x20, 0x1f, 0xe3, 0x56, 0xaf,
+	0x5d, 0x4a, 0xa9, 0x6f, 0xc1, 0x4a, 0xb4, 0xdf, 0x2c, 0xb9, 0x0b, 0xf5, 0xeb, 0x24, 0xac, 0x5f,
+	0x6b, 0x06, 0xcb, 0x2e, 0xf0, 0x0e, 0x40, 0x58, 0xb5, 0xcd, 0x01, 0x0b, 0x5b, 0x1e, 0xe7, 0x85,
+	0xa4, 0x31, 0x40, 0xdb, 0x90, 0x1b, 0xf9, 0xc4, 0xb3, 0x75, 0x8b, 0x07, 0x2e, 0x8f, 0xc7, 0x7b,
+	0xf4, 0x08, 0x0a, 0xbc, 0xa8, 0xf5, 0xe9, 0x6d, 0xcd, 0x0d, 0x4f, 0x37, 0x9c, 0x27, 0x30, 0x70,
+	0x38, 0x15, 0x50, 0x65, 0xde, 0x25, 0xb8, 0xb2, 0xbc, 0x5c, 0x99, 0xc3, 0x99, 0xf2, 0x0e, 0xc0,
+	0xf8, 0x8a, 0x02, 0xd6, 0x18, 0x73, 0x38, 0x22, 0x51, 0x4f, 0x00, 0x5d, 0x6f, 0x5f, 0xcb, 0x22,
+	0xa1, 0x40, 0xd6, 0x70, 0x6c, 0xc6, 0xc8, 0xc3, 0x10, 0x6e, 0x55, 0x1b, 0xca, 0xb3, 0x5a, 0xd6,
+	0x3f, 0x0c, 0x6d, 0xc4, 0x5e, 0x2a, 0x6e, 0xef, 0x27, 0x69, 0x6c, 0x30, 0x5e, 0xac, 0x96, 0x18,
+	0x7c, 0x00, 0x32, 0xad, 0xcd, 0x37, 0x4c, 0x44, 0x8e, 0x45, 0xef, 0x42, 0x86, 0xd5, 0x64, 0x5f,
+	0x49, 0xdd, 0x44, 0x4b, 0x80, 0xd5, 0x3f, 0x93, 0x20, 0xb3, 0xd6, 0x48, 0x53, 0xce, 0x70, 0x06,
+	0x84, 0xb9, 0x23, 0x63, 0xb6, 0xa6, 0xdf, 0x16, 0x4e, 0x40, 0x22, 0x96, 0x62, 0x8b, 0x3e, 0x14,
+	0x5f, 0xfd, 0x45, 0x20, 0xec, 0xdd, 0x9d, 0xdd, 0x71, 0x2b, 0x55, 0x8e, 0xd2, 0xec, 0xc0, 0xbb,
+	0xc2, 0xa1, 0xce, 0xf6, 0x43, 0x58, 0x89, 0x1e, 0xd0, 0x19, 0xf2, 0x82, 0x5c, 0x85, 0x33, 0xe4,
+	0x05, 0xb9, 0x42, 0x65, 0x90, 0x2f, 0x69, 0x32, 0x0a, 0xc3, 0x7c, 0xf3, 0x30, 0xf9, 0x9e, 0xa4,
+	0xfe, 0x2e, 0x41, 0xba, 0x4a, 0xbd, 0xdb, 0x84, 0x75, 0xdc, 0x6b, 0x76, 0x1b, 0x27, 0x5a, 0x5f,
+	0xfb, 0xb4, 0xaa, 0xb5, 0xbb, 0x8d, 0x56, 0xb3, 0x94, 0x40, 0x0a, 0x94, 0x7b, 0x4d, 0xac, 0x55,
+	0x5b, 0xc7, 0xcd, 0xc6, 0x0b, 0xad, 0xd6, 0x6f, 0x1f, 0x3c, 0x7f, 0xda, 0x3a, 0xa8, 0x95, 0x24,
+	0xb4, 0x01, 0x6b, 0x27, 0x8d, 0x4e, 0xa7, 0xd1, 0x3c, 0x1e, 0x0b, 0x93, 0xa8, 0x08, 0xf9, 0xc3,
+	0x83, 0x5a, 0xbf, 0xd1, 0x6c, 0xf7, 0xba, 0xa5, 0x14, 0xc3, 0x1c, 0x74, 0xab, 0xf5, 0x7e, 0xb3,
+	0xd5, 0xed, 0x1f, 0xb5, 0x7a, 0xcd, 0x5a, 0x29, 0x8d, 0x6e, 0xc1, 0x06, 0x17, 0x3e, 0x69, 0x35,
+	0x9a, 0x7d, 0xac, 0x3d, 0xd1, 0xaa, 0x5d, 0xad, 0x56, 0x92, 0xd1, 0x0e, 0x6c, 0x87, 0x2e, 0x1c,
+	0xf5, 0x9a, 0x55, 0xea, 0x41, 0x44, 0x31, 0x33, 0xf3, 0x7c, 0xe2, 0x6b, 0x56, 0xfd, 0x2a, 0x09,
+	0x32, 0xeb, 0x71, 0xe8, 0x5f, 0x90, 0xe3, 0x9d, 0x71, 0xfc, 0x22, 0xb2, 0x6c, 0xdf, 0x18, 0xa0,
+	0x7b, 0x50, 0xd4, 0x47, 0xc1, 0xb9, 0xe3, 0x99, 0x81, 0x1e, 0x98, 0x97, 0x3c, 0x24, 0x39, 0x1c,
+	0x17, 0xa2, 0x7d, 0x90, 0x87, 0xfa, 0x29, 0x19, 0x8e, 0xe7, 0xe6, 0xe9, 0x1c, 0xec, 0x04, 0x9e,
+	0x69, 0x9f, 0xf1, 0x0a, 0xc7, 0xa1, 0xf4, 0xce, 0x7d, 0xf3, 0x4b, 0x9e, 0xf3, 0x32, 0x66, 0xeb,
+	0x78, 0x2b, 0x90, 0xff, 0x66, 0x2b, 0xc8, 0xdc, 0xbc, 0x15, 0x14, 0xa1, 0x10, 0x19, 0x9a, 0xd4,
+	0x6f, 0x25, 0xc8, 0x8f, 0x27, 0x98, 0x45, 0x51, 0x79, 0x1f, 0x72, 0xa1, 0x5d, 0xf1, 0x2b, 0x63,
+	0x89, 0xb9, 0x31, 0x1c, 0xdd, 0x82, 0xac, 0xe3, 0xf6, 0xd9, 0x6b, 0xa7, 0xc1, 0x4a, 0xe1, 0x8c,
+	0xe3, 0xb2, 0x17, 0x85, 0x20, 0xcd, 0x3a, 0x3a, 0x8d, 0xc7, 0x0a, 0x66, 0x6b, 0xf5, 0x3b, 0x09,
+	0x8a, 0xb1, 0x91, 0x6a, 0x91, 0x53, 0x11, 0xe6, 0xe4, 0x4c, 0xe6, 0xd4, 0x84, 0x39, 0x1e, 0xe9,
+	0xf4, 0xeb, 0x45, 0x5a, 0x3d, 0x12, 0x61, 0x62, 0xed, 0xf3, 0xf6, 0xb4, 0x47, 0xf4, 0x77, 0x55,
+	0xe8, 0xd3, 0x16, 0xc8, 0x81, 0x73, 0x41, 0x6c, 0x9e, 0x49, 0x74, 0xa4, 0x65, 0xdb, 0xc3, 0x34,
+	0xed, 0xb9, 0xea, 0xff, 0x00, 0x26, 0xd3, 0xda, 0x82, 0x4f, 0x53, 0x7f, 0x90, 0x00, 0x5d, 0x1f,
+	0xc7, 0x16, 0x05, 0xe3, 0x4d, 0xd6, 0xb1, 0x16, 0x14, 0x63, 0x93, 0x1d, 0x7a, 0x3c, 0x3d, 0x10,
+	0x4a, 0x8c, 0x4e, 0x89, 0x8e, 0x74, 0x51, 0x8d, 0xa9, 0x41, 0x50, 0x1d, 0x42, 0x86, 0x4f, 0x5d,
+	0xf4, 0xea, 0xac, 0x48, 0x61, 0xb4, 0x44, 0x61, 0xf4, 0x47, 0xa7, 0xaf, 0x88, 0x31, 0x6e, 0x32,
+	0x62, 0x4b, 0x7b, 0xda, 0x80, 0xf8, 0x86, 0x67, 0xba, 0x81, 0xe3, 0x89, 0x8e, 0x10, 0x91, 0xd0,
+	0xba, 0xc6, 0xd3, 0x34, 0xcd, 0xeb, 0x1a, 0xdb, 0xa8, 0xdf, 0x48, 0x00, 0x93, 0x71, 0x11, 0xed,
+	0x41, 0x86, 0xcf, 0x76, 0xcc, 0x68, 0x61, 0xff, 0xd6, 0x9c, 0x89, 0x10, 0x0b, 0x18, 0x8d, 0x1a,
+	0xfd, 0x4d, 0x40, 0xbc, 0x9b, 0xa5, 0x82, 0x00, 0xc7, 0x5e, 0x65, 0x5e, 0xbc, 0xf7, 0xdf, 0x24,
+	0xd8, 0x98, 0x31, 0x6f, 0xbe, 0xbe, 0x4f, 0x6f, 0xf2, 0xfa, 0x7f, 0x94, 0x60, 0x25, 0x7a, 0x40,
+	0x13, 0x91, 0x0e, 0x38, 0x93, 0x57, 0x99, 0xa1, 0x5b, 0xde, 0xcd, 0x7d, 0xe2, 0xfb, 0xa6, 0x63,
+	0x47, 0xba, 0xb9, 0x90, 0x2c, 0x19, 0x94, 0x76, 0xe3, 0x03, 0x68, 0x9a, 0x55, 0xe1, 0xd8, 0x90,
+	0xb9, 0x45, 0x63, 0xa4, 0x07, 0x23, 0x9f, 0x0d, 0x42, 0x79, 0x2c, 0x76, 0x87, 0x1f, 0xc1, 0xa6,
+	0xe1, 0x58, 0x95, 0xc9, 0xbf, 0x55, 0xc4, 0x57, 0x1d, 0xae, 0x36, 0xd9, 0x5f, 0x2c, 0x3e, 0xae,
+	0x2d, 0xbd, 0x90, 0xd9, 0xbf, 0x7b, 0x7e, 0x4e, 0xa6, 0x9b, 0x1f, 0xb7, 0x0f, 0x7f, 0x4d, 0x66,
+	0x38, 0xe0, 0x34, 0xc3, 0xca, 0xf8, 0x83, 0xbf, 0x02, 0x00, 0x00, 0xff, 0xff, 0xb5, 0x83, 0x2e,
+	0xfa, 0x0e, 0x12, 0x00, 0x00,
 }

@@ -263,6 +263,11 @@ service Nakama {
     };
   }
 
+  // List a channel's message history.
+  rpc ListChannelMessages (ListChannelMessagesRequest) returns (ChannelMessageList) {
+    option (google.api.http).get = "/v2/channel";
+  }
+
   // List all friends for the current user.
   rpc ListFriends (google.protobuf.Empty) returns (Friends) {
     option (google.api.http).get = "/v2/friend";
@@ -553,24 +558,38 @@ message BlockFriendsRequest {
   repeated string usernames = 2;
 }
 
-// An identifier for a realtime chat channel.
-message ChannelId {
-  // The type of chat channel.
-  enum Type {
-    // Default case. Assumed as ROOM type.
-    TYPE_UNSPECIFIED = 0;
-    // A room which anyone can join to chat.
-    ROOM = 1;
-    // A private channel for 1-on-1 chat.
-    DIRECT_MESSAGE = 2;
-    // A channel for group chat.
-    GROUP = 3;
-  }
+// A message sent on a channel.
+message ChannelMessage {
+  // The channel this message belongs to.
+  string channel_id = 1;
+  // The unique ID of this message.
+  string message_id = 2;
+  // The code representing a message type or category.
+  int32 code = 3;
+  // Message sender, usually a user ID.
+  string sender_id = 4;
+  // The username of the message sender, if any.
+  string username = 5;
+  // The content payload.
+  string content = 6;
+  // Another message ID reference, if any.
+  string reference_id = 7;
+  // The UNIX time when the message was created.
+  google.protobuf.Timestamp create_time = 8;
+  // The UNIX time when the message was last updated.
+  google.protobuf.Timestamp update_time = 9;
+  // True if the message was persisted to the channel's history, false otherwise.
+  bool persistent = 10;
+}
 
-  // The identifier for the realtime channel.
-  string id = 1;
-  // The type of the chat channel.
-  int32 type = 2; // one of "ChannelId.Type".
+// A list of channel messages, usually a result of a list operation.
+message ChannelMessageList {
+  // A list of messages.
+  repeated ChannelMessage messages = 1;
+  // The cursor to send when retireving the next page, if any.
+  string next_cursor = 2;
+  // The cursor to send when retrieving the previous page, if any.
+  string prev_cursor = 3;
 }
 
 // Create one or more groups with the current user as owner.
@@ -753,6 +772,18 @@ message LinkFacebookRequest {
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue import = 4;
+}
+
+// List a channel's message history.
+message ListChannelMessagesRequest {
+  // The channel ID to list from.
+  string channel_id = 1;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 2;
+  // True if listing should be older messages to newer, false if reverse.
+  google.protobuf.BoolValue forward = 3;
+  // A pagination cursor, if any.
+  string cursor = 4;
 }
 
 // List leaderboard records from a given leaderboard.

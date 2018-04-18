@@ -111,6 +111,19 @@ func DeleteUser(db *sql.DB, userID uuid.UUID) (int64, error) {
 	return res.RowsAffected()
 }
 
+func UserExistsAndDoesNotBlock(db *sql.DB, checkUserID, blocksUserID uuid.UUID) (bool, error) {
+	var count int
+	err := db.QueryRow(`
+SELECT COUNT(id) FROM users
+WHERE id = $1 AND NOT EXISTS (
+	SELECT state FROM user_edge
+	WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 3
+)
+`, checkUserID, blocksUserID).Scan(&count)
+
+	return count != 0, err
+}
+
 func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var id string
 	var displayName sql.NullString

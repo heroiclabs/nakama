@@ -645,6 +645,55 @@
         ]
       }
     },
+    "/v2/channel": {
+      "get": {
+        "summary": "List a channel's message history.",
+        "operationId": "ListChannelMessages",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiChannelMessageList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "channel_id",
+            "description": "The channel ID to list from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "forward",
+            "description": "True if listing should be older messages to newer, false if reverse.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "cursor",
+            "description": "A pagination cursor, if any.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/friend": {
       "get": {
         "summary": "List all friends for the current user.",
@@ -1446,6 +1495,77 @@
         }
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
+    },
+    "apiChannelMessage": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "description": "The channel this message belongs to."
+        },
+        "message_id": {
+          "type": "string",
+          "description": "The unique ID of this message."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The code representing a message type or category."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "Message sender, usually a user ID."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the message sender, if any."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content payload."
+        },
+        "reference_id": {
+          "type": "string",
+          "description": "Another message ID reference, if any."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the message was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the message was last updated."
+        },
+        "persistent": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if the message was persisted to the channel's history, false otherwise."
+        }
+      },
+      "description": "A message sent on a channel."
+    },
+    "apiChannelMessageList": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiChannelMessage"
+          },
+          "description": "A list of messages."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retireving the next page, if any."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A list of channel messages, usually a result of a list operation."
     },
     "apiCreateGroupsRequest": {
       "type": "object",
