@@ -18,6 +18,8 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"strconv"
+	"strings"
 )
 
 func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -30,7 +32,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	userIDs := make([]uuid.UUID, 0, len(incoming.UserIds))
+	uniqueUserIDs := make(map[uuid.UUID]struct{}, len(incoming.UserIds))
 	for _, uid := range incoming.UserIds {
 		userID, err := uuid.FromString(uid)
 		if err != nil {
@@ -40,13 +42,41 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			}}})
 			return
 		}
+		uniqueUserIDs[userID] = struct{}{}
+	}
+
+	userIDs := make([]interface{}, 0, len(uniqueUserIDs))
+	statements := make([]string, 0, len(uniqueUserIDs))
+	index := 1
+	for userID, _ := range uniqueUserIDs {
 		userIDs = append(userIDs, userID)
+		statements = append(statements, "$"+strconv.Itoa(index)+"::UUID")
+		index++
+	}
+
+	query := "SELECT COUNT(id) FROM users WHERE id IN (" + strings.Join(statements, ", ") + ")"
+	var dbCount int
+	err := p.db.QueryRow(query, userIDs...).Scan(&dbCount)
+	if err != nil {
+		logger.Error("Error checking users in status follow", zap.Error(err))
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+			Message: "Could not check users",
+		}}})
+		return
+	}
+	if dbCount != len(userIDs) {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "One or more users do not exist",
+		}}})
+		return
 	}
 
 	presences := make([]*rtapi.UserPresence, 0, len(userIDs))
-	for _, userID := range userIDs {
+	for userID, _ := range uniqueUserIDs {
 		stream := PresenceStream{Mode: StreamModeStatus, Subject: userID}
-		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{}, false)
+		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
 		if !success {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -117,14 +147,16 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	if !p.tracker.Update(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
+	success := p.tracker.Update(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   incoming.Status.Value,
-	}, false) {
+	}, false)
+
+	if !success {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-			Message: "Error updating status",
+			Message: "Error tracking status update",
 		}}})
 		return
 	}

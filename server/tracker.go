@@ -365,11 +365,12 @@ func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID
 			}
 		}
 		var leaves []Presence
-		if !previousMeta.Hidden {
+		if alreadyTracked && !previousMeta.Hidden {
 			leaves = []Presence{
 				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: previousMeta},
 			}
 		}
+		// Guaranteed joins and/or leaves are not empty or we wouldn't be inside this block.
 		t.queueEvent(
 			joins,
 			leaves,
