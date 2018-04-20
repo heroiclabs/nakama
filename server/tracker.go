@@ -76,7 +76,8 @@ type Tracker interface {
 	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool)
 	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID)
-	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
+	// Update returns success true/false - will only fail if the user has no presence and allowIfFirstForSession is false, otherwise is an upsert.
+	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
 
 	// Remove all presences on a stream, effectively closing it.
 	UntrackByStream(stream PresenceStream)
@@ -319,30 +320,44 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
 	}
 }
 
-func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
+func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
 
 	bySession, anyTracked := t.presencesBySession[sessionID]
 	if !anyTracked {
-		// Nothing tracked for the session.
-		t.Unlock()
-		return false
-	}
-	previousMeta, found := bySession[pc]
-	if !found {
-		// The session had other presences, but not for this stream.
-		t.Unlock()
-		return false
+		if !allowIfFirstForSession {
+			// Nothing tracked for the session and not allowed to track as first presence.
+			t.Unlock()
+			return false
+		}
+
+		bySession = make(map[presenceCompact]PresenceMeta)
+		t.presencesBySession[sessionID] = bySession
 	}
 
-	// Update the tracking for session.
+	// Update tracking for session, but capture any previous meta in case a leave event is required.
+	previousMeta, alreadyTracked := bySession[pc]
 	bySession[pc] = meta
-	// Update the tracking for stream.
-	t.presencesByStream[stream.Mode][stream][pc] = meta
+
+	// Update tracking for stream.
+	byStreamMode, ok := t.presencesByStream[stream.Mode]
+	if !ok {
+		byStreamMode = make(map[PresenceStream]map[presenceCompact]PresenceMeta)
+		t.presencesByStream[stream.Mode] = byStreamMode
+	}
+
+	if byStream, ok := byStreamMode[stream]; !ok {
+		byStream = make(map[presenceCompact]PresenceMeta)
+		byStream[pc] = meta
+		byStreamMode[stream] = byStream
+	} else {
+		byStream[pc] = meta
+	}
 
 	t.Unlock()
-	if !meta.Hidden || !previousMeta.Hidden {
+
+	if !meta.Hidden || (alreadyTracked && !previousMeta.Hidden) {
 		var joins []Presence
 		if !meta.Hidden {
 			joins = []Presence{
@@ -662,6 +677,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
+		case StreamModeStatus:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StatusPresenceEvent{StatusPresenceEvent: &rtapi.StatusPresenceEvent{
+				Joins:  joins,
+				Leaves: leaves,
+			}}}
 		case StreamModeChannel:
 			fallthrough
 		case StreamModeGroup:
@@ -733,6 +753,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
+		case StreamModeStatus:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StatusPresenceEvent{StatusPresenceEvent: &rtapi.StatusPresenceEvent{
+				// No joins.
+				Leaves: leaves,
+			}}}
 		case StreamModeChannel:
 			fallthrough
 		case StreamModeGroup:
