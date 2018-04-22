@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+## [1.4.2] - 2018-04-22
+### Changed
+- Improve handling of transactional retries.
+
 ## [1.4.1] - 2018-03-30
 ### Added
 - Allow the server to handle SSL termination of client connections although NOT recommended in production.
