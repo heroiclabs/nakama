@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"context"
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
@@ -143,7 +145,14 @@ func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, use
 	}
 
 	notificationToSend := make(map[string]bool)
-	if err := Transact(logger, db, func(tx *sql.Tx) error {
+
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for id := range uniqueFriendIDs {
 			isFriendAccept, addFriendErr := addFriend(logger, tx, userID, id)
 			if addFriendErr == nil {
@@ -275,7 +284,13 @@ func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	err := Transact(logger, db, func(tx *sql.Tx) error {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	return crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for id := range uniqueFriendIDs {
 			if deleteFriendErr := deleteFriend(logger, tx, currentUser, id); deleteFriendErr != nil {
 				return deleteFriendErr
@@ -283,8 +298,6 @@ func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []
 		}
 		return nil
 	})
-
-	return err
 }
 
 func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
@@ -321,7 +334,13 @@ func BlockFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []s
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	return Transact(logger, db, func(tx *sql.Tx) error {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	return crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for id := range uniqueFriendIDs {
 			if blockFriendErr := blockFriend(logger, tx, currentUser, id); blockFriendErr != nil {
 				return blockFriendErr

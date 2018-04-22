@@ -15,10 +15,10 @@
 package server
 
 import (
-	"database/sql"
 	"strconv"
 	"strings"
 
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"go.uber.org/zap"
@@ -61,7 +61,13 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 		return nil, status.Error(codes.InvalidArgument, "A device ID must be supplied.")
 	}
 
-	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		s.logger.Error("Could not begin database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Could not unlink Device ID.")
+	}
+
+	err = crdb.ExecuteInTx(ctx, tx, func() error {
 		userID := ctx.Value(ctxUserIDKey{})
 
 		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
@@ -77,26 +83,30 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 		res, err := tx.Exec(query, userID, in.Id)
 		if err != nil {
 			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
-			return status.Error(codes.Internal, "Could not unlink Device ID.")
+			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
-			return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+			return StatusError(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.", ErrRowsAffectedCount)
 		}
 
 		res, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
-			return status.Error(codes.Internal, "Could not unlink Device ID.")
+			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
-			return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+			return StatusError(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.", ErrRowsAffectedCount)
 		}
 
 		return nil
 	})
 
-	if fnErr != nil {
-		return nil, fnErr
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return nil, e.Status()
+		}
+		s.logger.Error("Error in database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Could not unlink device ID.")
 	}
 
 	return &empty.Empty{}, nil

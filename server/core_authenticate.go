@@ -24,6 +24,8 @@ import (
 
 	"errors"
 
+	"context"
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
@@ -142,7 +144,14 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	fnErr := Transact(logger, db, func(tx *sql.Tx) error {
+
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		query := `
 INSERT INTO users (id, username, create_time, update_time)
 SELECT $1 AS id,
@@ -159,35 +168,39 @@ WHERE NOT EXISTS
 			if err == sql.ErrNoRows {
 				// A concurrent write has inserted this device ID.
 				logger.Debug("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-				return status.Error(codes.Internal, "Error finding or creating user account.")
+				return StatusError(codes.Internal, "Error finding or creating user account.", err)
 			} else if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-				return status.Error(codes.AlreadyExists, "Username is already in use.")
+				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
 			}
 			logger.Error("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return status.Error(codes.Internal, "Error finding or creating user account.")
+			return err
 		}
 
 		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-			return status.Error(codes.Internal, "Error finding or creating user account.")
+			return StatusError(codes.Internal, "Error finding or creating user account.", ErrRowsAffectedCount)
 		}
 
 		query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
 		result, err = tx.Exec(query, deviceID, userID)
 		if err != nil {
 			logger.Error("Cannot add device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return status.Error(codes.Internal, "Error finding or creating user account.")
+			return err
 		}
 
 		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-			return status.Error(codes.Internal, "Error finding or creating user account.")
+			return StatusError(codes.Internal, "Error finding or creating user account.", ErrRowsAffectedCount)
 		}
 
 		return nil
 	})
-	if fnErr != nil {
-		return "", "", false, fnErr
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return "", "", false, e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	return userID, username, true, nil
@@ -541,7 +554,13 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 	position := time.Now().UTC().Unix()
 	friendUserIDs := make([]uuid.UUID, 0)
 
-	err = Transact(logger, db, func(tx *sql.Tx) error {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing Facebook friends.")
+	}
+
+	err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		if reset {
 			// Reset all friends for the current user, replacing them entirely with their Facebook friends.
 			// Note: will NOT remove blocked users.
