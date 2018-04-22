@@ -12,6 +12,12 @@
   revision = "97c69685293dce4c0a2d0b19535179bbc976e4d2"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/cockroachdb/cockroach-go"
+  packages = ["crdb"]
+  revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
@@ -41,7 +47,12 @@
 
 [[projects]]
   name = "github.com/gogo/protobuf"
-  packages = ["jsonpb","proto","sortkeys","types"]
+  packages = [
+    "jsonpb",
+    "proto",
+    "sortkeys",
+    "types"
+  ]
   revision = "100ba4e885062801d56799d78530b73b178a78f3"
   version = "v0.4"
 
@@ -82,7 +93,10 @@
 
 [[projects]]
   name = "github.com/lib/pq"
-  packages = [".","oid"]
+  packages = [
+    ".",
+    "oid"
+  ]
   revision = "22cb3e4c487ce6242e2b03369219e5631eed1221"
 
 [[projects]]
@@ -92,7 +106,10 @@
 
 [[projects]]
   name = "github.com/rubenv/sql-migrate"
-  packages = [".","sqlparse"]
+  packages = [
+    ".",
+    "sqlparse"
+  ]
   revision = "a3ed23a40ebd39f82bf2a36768ed7d595f2bdc1e"
 
 [[projects]]
@@ -114,7 +131,12 @@
 
 [[projects]]
   name = "github.com/yuin/gopher-lua"
-  packages = [".","ast","parse","pm"]
+  packages = [
+    ".",
+    "ast",
+    "parse",
+    "pm"
+  ]
   revision = "2243d714d6c94951d8ccca8c851836ff47d401c9"
 
 [[projects]]
@@ -125,28 +147,62 @@
 
 [[projects]]
   name = "go.uber.org/zap"
-  packages = [".","buffer","internal/bufferpool","internal/color","internal/exit","internal/multierror","zapcore"]
+  packages = [
+    ".",
+    "buffer",
+    "internal/bufferpool",
+    "internal/color",
+    "internal/exit",
+    "internal/multierror",
+    "zapcore"
+  ]
   revision = "9cabc84638b70e564c3dab2766efcb1ded2aac9f"
   version = "v1.4.1"
 
 [[projects]]
   name = "golang.org/x/crypto"
-  packages = ["bcrypt","blowfish","chacha20poly1305","chacha20poly1305/internal/chacha20","poly1305"]
+  packages = [
+    "bcrypt",
+    "blowfish",
+    "chacha20poly1305",
+    "chacha20poly1305/internal/chacha20",
+    "poly1305"
+  ]
   revision = "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp"]
+  packages = [
+    "context",
+    "context/ctxhttp"
+  ]
   revision = "69d4b8aa71caaaa75c3dfc11211d1be495abec7c"
 
 [[projects]]
   name = "golang.org/x/oauth2"
-  packages = [".","google","internal","jws","jwt"]
+  packages = [
+    ".",
+    "google",
+    "internal",
+    "jws",
+    "jwt"
+  ]
   revision = "cce311a261e6fcf29de72ca96827bdb0b7d9c9e6"
 
 [[projects]]
   name = "google.golang.org/appengine"
-  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/urlfetch","urlfetch"]
+  packages = [
+    ".",
+    "internal",
+    "internal/app_identity",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/modules",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch"
+  ]
   revision = "ad2570cd3913654e00c5f0183b39d2f998e54046"
 
 [[projects]]
@@ -158,6 +214,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "35278ed3991c30453da43a354426a228439d974e91cb9dd5f6992f71681f7306"
+  inputs-digest = "fb1120d629db08a0def85cdcc7fc257216e137c50ca001a2b03ae090629f5e7f"
   solver-name = "gps-cdcl"
   solver-version = 1
