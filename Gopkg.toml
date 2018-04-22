@@ -68,3 +68,6 @@
 
 [[constraint]]
   name = "github.com/wirepair/netcode"
+
+[[constraint]]
+  name = "github.com/cockroachdb/cockroach-go"
