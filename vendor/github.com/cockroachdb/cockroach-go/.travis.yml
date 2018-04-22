@@ -1,0 +1,20 @@
+language: go
+
+go:
+- 1.x
+- 1.8.x
+
+script:
+  - go test -p 1       -v ./...
+  - go test -p 1 -race -v ./...
+
+after_script:
+  - gofmt -s -d -l .
+  - go get -u github.com/cockroachdb/crlfmt && crlftm -tab 2 .
+  - ! go tool vet -all -shadow 2>&1 | grep -vF 'declaration of "err" shadows declaration at'
+  - ! git grep -lE '^// Author' -- '*.go'
+  - ! git grep -LE '^// Copyright' -- '*.go'
+  - go get -u github.com/kisielk/errcheck && errcheck ./...
+  - go get -u github.com/golang/lint/golint && golint ./...
+  - go get -u github.com/mdempsky/unconvert && unconvert ./...
+  - go get -u go get honnef.co/go/tools/cmd/megacheck && megacheck ./...

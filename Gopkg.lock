@@ -19,6 +19,11 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  name = "github.com/cockroachdb/cockroach-go"
+  packages = ["crdb"]
+  revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -392,6 +397,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "92727e62a718744c1d17c1a4e2c19e4979ccc4d50296bb91c11f5f40b28a6e34"
+  inputs-digest = "2bfb07763f890649c350608b5262df72b50c5e2c8e8552d2d147d45b59c3e586"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -15,9 +15,11 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
@@ -47,7 +49,13 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 		return nil
 	}
 
-	return Transact(logger, db, func(tx *sql.Tx) error {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	return crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for _, update := range updates {
 			var wallet sql.NullString
 			query := "SELECT wallet FROM users WHERE id = $1::UUID"
