@@ -15,9 +15,7 @@
 package server
 
 import (
-	"database/sql"
-
-	"go.uber.org/zap"
+	"errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -26,28 +24,32 @@ const (
 	dbErrorUniqueViolation = "23505"
 )
 
-func Transact(logger *zap.Logger, db *sql.DB, txFunc func(*sql.Tx) error) (err error) {
-	tx, err := db.Begin()
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return
-	}
+var ErrRowsAffectedCount = errors.New("rows_affected_count")
 
-	fnErr := txFunc(tx)
+// A type that wraps an outgoing client-facing error together with an underlying cause error.
+type statusError struct {
+	status error
+	cause  error
+}
 
-	if p := recover(); p != nil {
-		if err = tx.Rollback(); err != nil {
-			logger.Error("Could not rollback database transaction.", zap.Error(err))
-		}
-	} else if fnErr != nil {
-		if err = tx.Rollback(); err != nil {
-			logger.Error("Could not rollback database transaction.", zap.Error(err))
-		}
-	} else {
-		if err = tx.Commit(); err != nil {
-			logger.Error("Could not commit database transaction.", zap.Error(err))
-			return status.Error(codes.Internal, "Could not complete operation.")
-		}
+// Implement the error interface.
+func (s *statusError) Error() string {
+	return s.status.Error()
+}
+
+// Implement the crdb.ErrorCauser interface to allow the crdb.ExecuteInTx wrapper to figure out whether to retry or not.
+func (s *statusError) Cause() error {
+	return s.cause
+}
+
+func (s *statusError) Status() error {
+	return s.status
+}
+
+// Helper function for creating status errors that wrap underlying causes, usually DB errors.
+func StatusError(code codes.Code, msg string, cause error) error {
+	return &statusError{
+		status: status.Error(code, msg),
+		cause:  cause,
 	}
-	return fnErr
 }

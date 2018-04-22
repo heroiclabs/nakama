@@ -15,10 +15,10 @@
 package server
 
 import (
-	"database/sql"
 	"strconv"
 	"strings"
 
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
@@ -72,37 +72,47 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
 	}
 
-	fnErr := Transact(s.logger, s.db, func(tx *sql.Tx) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		s.logger.Error("Could not begin database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error linking Device ID.")
+	}
+
+	err = crdb.ExecuteInTx(ctx, tx, func() error {
 		userID := ctx.Value(ctxUserIDKey{})
 
 		var dbDeviceIdLinkedUser int64
 		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
 			s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
-			return status.Error(codes.Internal, "Error linking Device ID.")
+			return err
 		}
 
 		if dbDeviceIdLinkedUser == 0 {
 			_, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 			if err != nil {
 				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
-					return status.Error(codes.AlreadyExists, "Device ID already in use.")
+					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
 				}
 				s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
-				return status.Error(codes.Internal, "Error linking Device ID.")
+				return err
 			}
 		}
 
 		_, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Error("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
-			return status.Error(codes.Internal, "Error linking Device ID.")
+			return err
 		}
 		return nil
 	})
 
-	if fnErr != nil {
-		return nil, fnErr
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return nil, e.Status()
+		}
+		s.logger.Error("Error in database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error linking Device ID.")
 	}
 
 	return &empty.Empty{}, nil

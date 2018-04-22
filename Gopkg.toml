@@ -61,3 +61,7 @@
 [[constraint]]
   name = "github.com/stretchr/testify"
   version = "~1.2.1"
+
+[[constraint]]
+  name = "github.com/cockroachdb/cockroach-go"
+  revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"

@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 
+	"context"
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
@@ -342,10 +344,16 @@ WHERE
 }
 
 func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
-	returnCode := codes.OK
+	returnCode := codes.Internal
 	acks := &api.StorageObjectAcks{}
 
-	if err := Transact(logger, db, func(tx *sql.Tx) error {
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return nil, codes.Internal, err
+	}
+
+	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for ownerID, userObjects := range objects {
 			for _, object := range userObjects {
 				ack, writeErr := storageWriteObject(logger, tx, authoritativeWrite, ownerID, object)
@@ -364,15 +372,10 @@ func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool
 		}
 		return nil
 	}); err != nil {
-		// in case it is a commit/rollback error
-		if _, ok := err.(pq.Error); ok {
-			return nil, codes.Internal, err
-		}
-
 		return nil, returnCode, err
 	}
 
-	return acks, returnCode, nil
+	return acks, codes.OK, nil
 }
 
 func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID uuid.UUID, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
@@ -488,8 +491,15 @@ RETURNING collection, key, version`
 }
 
 func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
-	returnCode := codes.OK
-	if err := Transact(logger, db, func(tx *sql.Tx) error {
+	returnCode := codes.Internal
+
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return codes.Internal, err
+	}
+
+	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for ownerID, objectIDs := range userObjectIDs {
 			for _, objectID := range objectIDs {
 				params := []interface{}{objectID.GetCollection(), objectID.GetKey(), ownerID}
@@ -519,10 +529,6 @@ func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bo
 		}
 		return nil
 	}); err != nil {
-		// in case it is a commit/rollback error
-		if _, ok := err.(pq.Error); ok {
-			return codes.Internal, err
-		}
 		return returnCode, err
 	}
 
