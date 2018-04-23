@@ -73,10 +73,20 @@ message Envelope {
     Notifications notifications = 18;
     // RPC call or response.
     api.Rpc rpc = 19;
+    // An incoming status snapshot for some set of users.
+    Status status = 20;
+    // Start following some set of users to receive their status updates.
+    StatusFollow status_follow = 21;
+    // An incoming status update.
+    StatusPresenceEvent status_presence_event = 22;
+    // Stop following some set of users to no longer receive their status updates.
+    StatusUnfollow status_unfollow = 23;
+    // Set the user's own status.
+    StatusUpdate status_update = 24;
     // A data message delivered over a stream.
-    StreamData stream_data = 20;
+    StreamData stream_data = 25;
     // Presence update for a particular stream.
-    StreamPresenceEvent stream_presence_event = 21;
+    StreamPresenceEvent stream_presence_event = 26;
   }
 }
 
@@ -267,6 +277,38 @@ message MatchPresenceEvent {
 message Notifications {
   // Collection of notifications.
   repeated api.Notification notifications = 1;
+}
+
+// A snapshot of statuses for some set of users.
+message Status {
+  // User statuses.
+  repeated UserPresence presences = 1;
+}
+
+// Start receiving status updates for some set of users.
+message StatusFollow {
+  // Users to follow.
+  repeated string user_ids = 1;
+}
+
+// A batch of status updates for a given user.
+message StatusPresenceEvent {
+  // New statuses for the user.
+  repeated UserPresence joins = 2;
+  // Previous statuses for the user.
+  repeated UserPresence leaves = 3;
+}
+
+// Stop receiving status updates for some set of users.
+message StatusUnfollow {
+  // Users to unfollow.
+  repeated string user_ids = 1;
+}
+
+// Set the user's own status.
+message StatusUpdate {
+  // Status string to set, if not present the user will appear offline.
+  google.protobuf.StringValue status = 1;
 }
 
 // Represents identifying information for a stream.

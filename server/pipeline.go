@@ -134,6 +134,12 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		p.matchLeave(logger, session, envelope)
 	case *rtapi.Envelope_Rpc:
 		p.rpc(logger, session, envelope)
+	case *rtapi.Envelope_StatusFollow:
+		p.statusFollow(logger, session, envelope)
+	case *rtapi.Envelope_StatusUnfollow:
+		p.statusUnfollow(logger, session, envelope)
+	case *rtapi.Envelope_StatusUpdate:
+		p.statusUpdate(logger, session, envelope)
 	default:
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
