@@ -31,13 +31,14 @@ type Pipeline struct {
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 	sessionRegistry   *SessionRegistry
 	matchRegistry     MatchRegistry
+	matchmaker        Matchmaker
 	tracker           Tracker
 	router            MessageRouter
 	runtimePool       *RuntimePool
 	node              string
 }
 
-func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *Pipeline {
+func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *Pipeline {
 	return &Pipeline{
 		config:            config,
 		db:                db,
@@ -45,6 +46,7 @@ func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, j
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 		sessionRegistry:   sessionRegistry,
 		matchRegistry:     matchRegistry,
+		matchmaker:        matchmaker,
 		tracker:           tracker,
 		router:            router,
 		runtimePool:       runtimePool,
@@ -132,6 +134,10 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		p.matchJoin(logger, session, envelope)
 	case *rtapi.Envelope_MatchLeave:
 		p.matchLeave(logger, session, envelope)
+	case *rtapi.Envelope_MatchmakerAdd:
+		p.matchmakerAdd(logger, session, envelope)
+	case *rtapi.Envelope_MatchmakerRemove:
+		p.matchmakerRemove(logger, session, envelope)
 	case *rtapi.Envelope_Rpc:
 		p.rpc(logger, session, envelope)
 	default:

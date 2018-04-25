@@ -57,9 +57,10 @@ const API_PREFIX = "/nakama.api.Nakama/"
 const RTAPI_PREFIX = "*rtapi.Envelope_"
 
 type Callbacks struct {
-	RPC    map[string]*lua.LFunction
-	Before map[string]*lua.LFunction
-	After  map[string]*lua.LFunction
+	RPC        map[string]*lua.LFunction
+	Before     map[string]*lua.LFunction
+	After      map[string]*lua.LFunction
+	Matchmaker *lua.LFunction
 }
 
 type NakamaModule struct {
@@ -108,6 +109,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_req_after":          n.registerReqAfter,
 		"register_rt_before":          n.registerRTBefore,
 		"register_rt_after":           n.registerRTAfter,
+		"register_matchmaker_matched": n.registerMatchmakerMatched,
 		"run_once":                    n.runOnce,
 		"cron_next":                   n.cronNext,
 		"sql_exec":                    n.sqlExec,
@@ -192,7 +194,7 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 	}
 	rc.RPC[id] = fn
 	if n.announceCallback != nil {
-		n.announceCallback(RPC, id)
+		n.announceCallback(ExecutionModeRPC, id)
 	}
 	return 0
 }
@@ -215,7 +217,7 @@ func (n *NakamaModule) registerReqBefore(l *lua.LState) int {
 	}
 	rc.Before[id] = fn
 	if n.announceCallback != nil {
-		n.announceCallback(BEFORE, id)
+		n.announceCallback(ExecutionModeBefore, id)
 	}
 	return 0
 }
@@ -238,7 +240,7 @@ func (n *NakamaModule) registerReqAfter(l *lua.LState) int {
 	}
 	rc.After[id] = fn
 	if n.announceCallback != nil {
-		n.announceCallback(AFTER, id)
+		n.announceCallback(ExecutionModeAfter, id)
 	}
 	return 0
 }
@@ -261,7 +263,7 @@ func (n *NakamaModule) registerRTBefore(l *lua.LState) int {
 	}
 	rc.Before[id] = fn
 	if n.announceCallback != nil {
-		n.announceCallback(BEFORE, id)
+		n.announceCallback(ExecutionModeBefore, id)
 	}
 	return 0
 }
@@ -284,7 +286,22 @@ func (n *NakamaModule) registerRTAfter(l *lua.LState) int {
 	}
 	rc.After[id] = fn
 	if n.announceCallback != nil {
-		n.announceCallback(AFTER, id)
+		n.announceCallback(ExecutionModeAfter, id)
+	}
+	return 0
+}
+
+func (n *NakamaModule) registerMatchmakerMatched(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	rc := l.Context().Value(CALLBACKS).(*Callbacks)
+	if rc.Matchmaker != nil {
+		l.RaiseError("matchmaker matched already registered")
+		return 0
+	}
+	rc.Matchmaker = fn
+	if n.announceCallback != nil {
+		n.announceCallback(ExecutionModeMatchmaker, "")
 	}
 	return 0
 }
@@ -297,7 +314,7 @@ func (n *NakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), RunOnce, "", "", 0, "")
+		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), ExecutionModeRunOnce, "", "", 0, "")
 
 		l.Push(LSentinel)
 		l.Push(fn)

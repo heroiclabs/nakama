@@ -65,7 +65,7 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -124,7 +124,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 	grpcGatewayRouter := mux.NewRouter()
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
-	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
+	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
 	// TODO restore when admin endpoints are available.
 	//grpcGatewayRouter.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Content-Type", "text/html; charset=utf-8")

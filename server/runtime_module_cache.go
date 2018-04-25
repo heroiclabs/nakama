@@ -28,9 +28,10 @@ import (
 )
 
 type RegCallbacks struct {
-	RPC    map[string]interface{}
-	Before map[string]interface{}
-	After  map[string]interface{}
+	RPC        map[string]interface{}
+	Before     map[string]interface{}
+	After      map[string]interface{}
+	Matchmaker interface{}
 }
 
 func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
@@ -101,15 +102,18 @@ func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config 
 	multiLogger.Info("Evaluating modules")
 	r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
 		switch execMode {
-		case RPC:
+		case ExecutionModeRPC:
 			regCallbacks.RPC[id] = struct{}{}
 			logger.Info("Registered RPC function invocation", zap.String("id", id))
-		case BEFORE:
+		case ExecutionModeBefore:
 			regCallbacks.Before[id] = struct{}{}
 			logger.Info("Registered Before function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
-		case AFTER:
+		case ExecutionModeAfter:
 			regCallbacks.After[id] = struct{}{}
 			logger.Info("Registered After function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
+		case ExecutionModeMatchmaker:
+			regCallbacks.Matchmaker = struct{}{}
+			logger.Info("Registered Matchmaker Matched function invocation")
 		}
 	})
 	if err != nil {

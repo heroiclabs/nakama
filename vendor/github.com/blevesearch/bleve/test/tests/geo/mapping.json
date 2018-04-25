@@ -1,0 +1,36 @@
+{
+  "types": {
+    "brewery": {
+      "properties": {
+        "name": {
+          "fields": [
+            {
+              "include_term_vectors": true,
+              "include_in_all": true,
+              "index": true,
+              "store": true,
+              "analyzer": "keyword",
+              "type": "text"
+            }
+          ],
+          "dynamic": true,
+          "enabled": true
+        },
+        "geo": {
+          "fields": [
+            {
+              "include_term_vectors": true,
+              "include_in_all": true,
+              "index": true,
+              "store": true,
+              "type": "geopoint"
+            }
+          ],
+          "dynamic": true,
+          "enabled": true
+        }
+      }
+    }
+  },
+  "default_type": "brewery"
+}

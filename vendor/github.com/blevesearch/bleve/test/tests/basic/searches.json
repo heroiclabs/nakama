@@ -1,0 +1,828 @@
+[
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"term": "marti"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"term": "noone"
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_phrase": "long name"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"term": "walking"
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"fuzziness": 0,
+				"prefix_length": 0,
+				"field": "name",
+				"match": "walking"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "c"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"prefix": "bobble"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"query": "+name:phone"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "age",
+				"max": 30
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "a"
+				},
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "age",
+				"max": 30,
+				"min": 20
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"conjuncts": [
+					{
+						"boost": 1,
+						"field": "age",
+						"min": 20
+					},
+					{
+						"boost": 1,
+						"field": "age",
+						"max": 30
+					}
+				]
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "birthday",
+				"start": "2010-01-01"
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "c"
+				},
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "birthday",
+				"end": "2010-01-01"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "tags",
+				"term": "gopher"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "tags",
+				"term": "belieber"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "tags",
+				"term": "notintagsarray"
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+	{
+		"comment": "with size 0, total should be 1, but hits empty",
+		"search": {
+			"from": 0,
+			"size": 0,
+			"query": {
+				"field": "name",
+				"term": "marti"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": []
+		}
+	},
+	{
+		"comment": "a search for doc a that includes tags field, verifies both values come back",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"fields": ["tags"],
+			"query": {
+				"field": "name",
+				"term": "marti"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a",
+					"fields": {
+						"tags": ["gopher", "belieber"]
+					}
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"term": "msrti",
+				"fuzziness": 1
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "highlight results",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"match": "long"
+			},
+			"highlight": {
+				"fields": ["name"]
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b",
+					"fragments": {
+						"name": ["steve has a <mark>long</mark> name"]
+					}
+				}
+			]
+		}
+	},
+	{
+		"comment": "highlight results without specifying fields",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"match": "long"
+			},
+			"highlight": {}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b",
+					"fragments": {
+						"name": ["steve has a <mark>long</mark> name"]
+					}
+				}
+			]
+		}
+	},
+	{
+		"comment": "request fields",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"fields": ["age","birthday"],
+			"query": {
+				"field": "name",
+				"match": "long"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b",
+					"fields": {
+						"age": 27,
+						"birthday": "2001-09-09T01:46:40Z"
+					}
+				}
+			]
+		}
+	},
+	{
+		"comment": "tests query string only containing MUST NOT clause, bug #193",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"query": "-title:mista"
+			}
+		},
+		"result": {
+			"total_hits": 3,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "c"
+				},
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"comment": "highlight results including non-matching field (which should be produced in its entirety, though unhighlighted)",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"match": "long"
+			},
+			"highlight": {
+				"fields": ["name", "title"]
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b",
+					"fragments": {
+						"name": ["steve has a <mark>long</mark> name"],
+						"title": ["missess"]
+					}
+				}
+			]
+		}
+	},
+	{
+		"comment": "search and highlight an array field",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "tags",
+				"match": "gopher"
+			},
+			"highlight": {
+				"fields": ["tags"]
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a",
+					"fragments": {
+						"tags": ["<mark>gopher</mark>"]
+					}
+				}
+			]
+		}
+	},
+	{
+		"comment": "reproduce bug in prefix search",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "title",
+				"prefix": "miss"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test match none",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_none": {}
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+	{
+		"comment": "test match all",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all": {}
+			}
+		},
+		"result": {
+			"total_hits": 4,
+			"hits": [
+				{
+					"id": "a"
+				},
+				{
+					"id": "b"
+				},
+				{
+					"id": "c"
+				},
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test doc id query",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"ids": ["b", "c"]
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "c"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test query string MUST and SHOULD",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"query": "+age:>20 missess"
+			}
+		},
+		"result": {
+			"total_hits": 3,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "c"
+				},
+				{
+					"id": "d"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test regexp matching term",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"regexp": "mar.*"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test regexp that should not match when properly anchored",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"regexp": "mar."
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+	{
+		"comment": "test wildcard matching term",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "name",
+				"wildcard": "mar*"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test boost - term query",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"disjuncts": [
+					{
+						"field": "name",
+						"term": "marti",
+						"boost": 1.0
+					},
+					{
+						"field": "name",
+						"term": "steve",
+						"boost": 5.0
+					}
+				]
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test boost - term query",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"disjuncts": [
+					{
+						"field": "name",
+						"term": "marti",
+						"boost": 1.0
+					},
+					{
+						"fuzziness": 1,
+						"field": "name",
+						"term": "steve",
+						"boost": 5.0
+					}
+				]
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test boost - numeric range query",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"disjuncts": [
+					{
+						"field": "name",
+						"term": "marti",
+						"boost": 1.0
+					},
+					{
+						"field": "age",
+						"min": 25,
+						"max": 29,
+						"boost": 50.0
+					}
+				]
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test boost - regexp query",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"disjuncts": [
+					{
+						"field": "name",
+						"term": "marti",
+						"boost": 1.0
+					},
+					{
+						"field": "name",
+						"regexp": "stev.*",
+						"boost": 5.0
+					}
+				]
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "b"
+				},
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test wildcard inside query string",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"query": "name:mar*"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test regexp inside query string",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"query": "name:/mar.*/"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"comment": "test term range",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "title",
+				"max": "miz",
+				"min": "mis"
+			}
+		},
+		"result": {
+			"total_hits": 2,
+			"hits": [
+				{
+					"id": "a"
+				},
+				{
+					"id": "b"
+				}
+			]
+		}
+	}
+]

@@ -1,0 +1,224 @@
+[
+  {
+    "comment": "breweries near the couchbase office",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "location": {
+          "lon": -122.107799,
+          "lat": 37.399285
+        },
+        "distance": "100mi",
+        "field": "geo"
+      },
+      "sort": [
+        {
+          "by": "geo_distance",
+          "field": "geo",
+          "unit": "mi",
+          "location": {
+            "lon": -122.107799,
+            "lat": 37.399285
+          }
+        }
+      ]
+    },
+    "result": {
+      "total_hits": 3,
+      "hits": [
+        {
+          "id": "firehouse_grill_brewery"
+        },
+        {
+          "id": "jack_s_brewing"
+        },
+        {
+          "id": "brewpub_on_the_green"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "breweries near the whitehouse",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "location": {
+          "lon": -77.0365,
+          "lat": 38.8977
+        },
+        "distance": "100mi",
+        "field": "geo"
+      },
+      "sort": [
+        {
+          "by": "geo_distance",
+          "field": "geo",
+          "unit": "mi",
+          "location": {
+            "lon": -77.0365,
+            "lat": 38.8977
+          }
+        }
+      ]
+    },
+    "result": {
+      "total_hits": 3,
+      "hits": [
+        {
+          "id": "capital_city_brewing_company"
+        },
+        {
+          "id": "hook_ladder_brewing_company"
+        },
+        {
+          "id": "sweet_water_tavern_and_brewery"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "bounding box of USA",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "top_left": {
+          "lon": -125.0011,
+          "lat": 49.5904
+        },
+        "bottom_right": {
+          "lon": -66.9326,
+          "lat": 24.9493
+        },
+        "field": "geo"
+      },
+      "sort": [
+        "name"
+      ]
+    },
+    "result": {
+      "total_hits": 6,
+      "hits": [
+        {
+          "id": "brewpub_on_the_green"
+        },
+        {
+          "id": "capital_city_brewing_company"
+        },
+        {
+          "id": "firehouse_grill_brewery"
+        },
+        {
+          "id": "hook_ladder_brewing_company"
+        },
+        {
+          "id": "jack_s_brewing"
+        },
+        {
+          "id": "sweet_water_tavern_and_brewery"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "bounding box around DC area",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "top_left": {
+          "lon": -78,
+          "lat": 39.5
+        },
+        "bottom_right": {
+          "lon": -76,
+          "lat": 38.5
+        },
+        "field": "geo"
+      },
+      "sort": [
+        "name"
+      ]
+    },
+    "result": {
+      "total_hits": 3,
+      "hits": [
+        {
+          "id": "capital_city_brewing_company"
+        },
+        {
+          "id": "hook_ladder_brewing_company"
+        },
+        {
+          "id": "sweet_water_tavern_and_brewery"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "breweries near the couchbase office, using GeoJSON style points",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "location": [-122.107799,37.399285],
+        "distance": "100mi",
+        "field": "geo"
+      },
+      "sort": [
+        {
+          "by": "geo_distance",
+          "field": "geo",
+          "unit": "mi",
+          "location": [-122.107799,37.399285]
+        }
+      ]
+    },
+    "result": {
+      "total_hits": 3,
+      "hits": [
+        {
+          "id": "firehouse_grill_brewery"
+        },
+        {
+          "id": "jack_s_brewing"
+        },
+        {
+          "id": "brewpub_on_the_green"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "bounding box around DC area, using GeoJSON style",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "top_left": [-78,39.5],
+        "bottom_right": [-76,38.5],
+        "field": "geo"
+      },
+      "sort": [
+        "name"
+      ]
+    },
+    "result": {
+      "total_hits": 3,
+      "hits": [
+        {
+          "id": "capital_city_brewing_company"
+        },
+        {
+          "id": "hook_ladder_brewing_company"
+        },
+        {
+          "id": "sweet_water_tavern_and_brewery"
+        }
+      ]
+    }
+  }
+]

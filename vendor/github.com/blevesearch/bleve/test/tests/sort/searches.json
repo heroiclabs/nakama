@@ -1,0 +1,443 @@
+[
+	{
+    "comment": "default order, all have same score, then by natural index order",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			}
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "a"
+				},
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "f"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by name, ascending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["name"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "c"
+				},
+        {
+          "id": "f"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "d"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by name, descending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["-name"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+        {
+          "id": "b"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "f"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "d"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by name, descending, missing first",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": [{"by":"field","field":"name","missing":"first","desc":true}]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+        {
+          "id": "d"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "f"
+        },
+        {
+          "id": "c"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by age, ascending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["age"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "f"
+				},
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "e"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by age, descending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["-age"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "d"
+				},
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "f"
+        },
+        {
+          "id": "e"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by age, descending, missing first",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": [{"by":"field","field":"age","missing":"first","desc":true}]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+        {
+          "id": "e"
+        },
+				{
+					"id": "d"
+				},
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "f"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by born, ascending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["born"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "c"
+				},
+        {
+          "id": "e"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "id": "f"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by born, descending",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["-born"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "a"
+				},
+        {
+          "id": "b"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "f"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort by born, descending, missing first",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": [{"by":"field","field":"born","missing":"first","desc":true}]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+        {
+          "id": "f"
+        },
+				{
+					"id": "a"
+				},
+        {
+          "id": "b"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "c"
+        }
+			]
+		}
+	},
+  {
+    "comment": "sort on multi-valued field",
+    "search": {
+      "from": 0,
+      "size": 10,
+      "query": {
+        "match_all":{}
+      },
+      "sort": [{"by":"field","field":"tags","mode":"min"}]
+    },
+    "result": {
+      "total_hits": 6,
+      "hits": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "e"
+        },
+        {
+          "id": "f"
+        }
+      ]
+    }
+  },
+  {
+    "comment": "multi-column sort by age, ascending, name, ascending (flips b and c which have same age)",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"match_all":{}
+			},
+      "sort": ["age", "name"]
+		},
+		"result": {
+			"total_hits": 6,
+			"hits": [
+				{
+					"id": "f"
+				},
+        {
+          "id": "a"
+        },
+        {
+          "id": "c"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "d"
+        },
+        {
+          "id": "e"
+        }
+			]
+		}
+	},
+  {
+      "comment": "sort by docid descending",
+  		"search": {
+  			"from": 0,
+  			"size": 10,
+  			"query": {
+  				"match_all":{}
+  			},
+        "sort": ["-_id"]
+  		},
+  		"result": {
+  			"total_hits": 6,
+  			"hits": [
+  				{
+  					"id": "f"
+  				},
+          {
+            "id": "e"
+          },
+          {
+            "id": "d"
+          },
+          {
+            "id": "c"
+          },
+          {
+            "id": "b"
+          },
+          {
+            "id": "a"
+          }
+  			]
+  		}
+  	}
+]

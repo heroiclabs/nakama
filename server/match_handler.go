@@ -99,7 +99,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	// Create the context to be used throughout this match.
 	ctx := vm.CreateTable(0, 6)
 	ctx.RawSetString(__CTX_ENV, ConvertMap(vm, config.GetRuntime().Environment))
-	ctx.RawSetString(__CTX_MODE, lua.LString(Match.String()))
+	ctx.RawSetString(__CTX_MODE, lua.LString(ExecutionModeMatch.String()))
 	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v:%v", id.String(), node)))
 	ctx.RawSetString(__CTX_MATCH_NODE, lua.LString(node))
 

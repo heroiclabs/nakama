@@ -98,6 +98,7 @@ func main() {
 	once := &sync.Once{}
 
 	// Start up server components.
+	matchmaker := server.NewLocalMatchmaker(multiLogger, config.GetName())
 	sessionRegistry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
@@ -115,11 +116,11 @@ func main() {
 		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, tracker, router, runtimePool)
+	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtimePool)
 	metrics := server.NewMetrics(multiLogger, config)
 
 	consoleServer := server.StartConsoleServer(jsonLogger, multiLogger, config, db)
-	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtimePool)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)

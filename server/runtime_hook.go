@@ -27,24 +27,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func invokeReqBeforeHook(logger *zap.Logger,
-	config Config,
-	runtimePool *RuntimePool,
-	jsonpbMarshaler *jsonpb.Marshaler,
-	jsonpbUnmarshaler *jsonpb.Unmarshaler,
-	sessionID string,
-	uid uuid.UUID,
-	username string,
-	expiry int64,
-	callbackID string,
-	req interface{}) (interface{}, error) {
+func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionID string, uid uuid.UUID, username string, expiry int64, callbackID string, req interface{}) (interface{}, error) {
 	id := strings.ToLower(callbackID)
-	if !runtimePool.HasCallback(BEFORE, id) {
+	if !runtimePool.HasCallback(ExecutionModeBefore, id) {
 		return req, nil
 	}
 
 	runtime := runtimePool.Get()
-	lf := runtime.GetCallback(BEFORE, id)
+	lf := runtime.GetCallback(ExecutionModeBefore, id)
 	if lf == nil {
 		runtimePool.Put(runtime)
 		logger.Error("Expected runtime Before function but didn't find it.", zap.String("id", id))
@@ -67,7 +57,7 @@ func invokeReqBeforeHook(logger *zap.Logger,
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	result, fnErr, code := runtime.InvokeFunction(BEFORE, lf, userID, username, expiry, sessionID, reqMap)
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeBefore, lf, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -107,26 +97,18 @@ func invokeReqBeforeHook(logger *zap.Logger,
 	return reqProto, nil
 }
 
-func invokeReqAfterHook(logger *zap.Logger,
-	config Config,
-	runtimePool *RuntimePool,
-	jsonpbMarshaler *jsonpb.Marshaler,
-	sessionID string,
-	uid uuid.UUID,
-	username string,
-	expiry int64,
-	callbackID string,
-	req interface{}) {
+func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, sessionID string, uid uuid.UUID, username string, expiry int64, callbackID string, req interface{}) {
 	id := strings.ToLower(callbackID)
-	if !runtimePool.HasCallback(AFTER, id) {
+	if !runtimePool.HasCallback(ExecutionModeAfter, id) {
 		return
 	}
 
 	runtime := runtimePool.Get()
-	lf := runtime.GetCallback(AFTER, id)
+	lf := runtime.GetCallback(ExecutionModeAfter, id)
 	if lf == nil {
 		runtimePool.Put(runtime)
 		logger.Error("Expected runtime After function but didn't find it.", zap.String("id", id))
+		return
 	}
 
 	reqProto := req.(proto.Message)
@@ -146,7 +128,7 @@ func invokeReqAfterHook(logger *zap.Logger,
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	_, fnErr, _ := runtime.InvokeFunction(AFTER, lf, userID, username, expiry, sessionID, reqMap)
+	_, fnErr, _ := runtime.InvokeFunction(ExecutionModeAfter, lf, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -164,4 +146,80 @@ func invokeReqAfterHook(logger *zap.Logger,
 			}
 		}
 	}
+}
+
+func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, entries []*MatchmakerEntry) (string, bool) {
+	if !runtimePool.HasCallback(ExecutionModeMatchmaker, "") {
+		return "", false
+	}
+
+	runtime := runtimePool.Get()
+	lf := runtime.GetCallback(ExecutionModeMatchmaker, "")
+	if lf == nil {
+		runtimePool.Put(runtime)
+		logger.Error("Expected runtime Matchmaker Matched function but didn't find it.")
+		return "", false
+	}
+
+	l, _ := runtime.NewStateThread()
+	defer l.Close()
+
+	ctx := NewLuaContext(l, runtime.luaEnv, ExecutionModeMatchmaker, "", "", 0, "")
+
+	entriesTable := l.CreateTable(len(entries), 0)
+	for i, entry := range entries {
+		presenceTable := l.CreateTable(0, 4)
+		presenceTable.RawSetString("user_id", lua.LString(entry.Presence.UserId))
+		presenceTable.RawSetString("session_id", lua.LString(entry.Presence.SessionId))
+		presenceTable.RawSetString("username", lua.LString(entry.Presence.Username))
+		presenceTable.RawSetString("node", lua.LString(entry.Presence.Node))
+
+		propertiesTable := l.CreateTable(0, len(entry.StringProperties)+len(entry.NumericProperties))
+		for k, v := range entry.StringProperties {
+			propertiesTable.RawSetString(k, lua.LString(v))
+		}
+		for k, v := range entry.NumericProperties {
+			propertiesTable.RawSetString(k, lua.LNumber(v))
+		}
+
+		entryTable := l.CreateTable(0, 2)
+		entryTable.RawSetString("presence", presenceTable)
+		entryTable.RawSetString("properties", propertiesTable)
+
+		entriesTable.RawSetInt(i+1, entryTable)
+	}
+
+	retValue, err, _ := runtime.invokeFunction(l, lf, ctx, entriesTable)
+	runtimePool.Put(runtime)
+	if err != nil {
+		logger.Error("Error running runtime Matchmaker Matched hook.", zap.Error(err))
+		return "", false
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value or hook decided not to return an authoritative match ID.
+		return "", false
+	}
+
+	if retValue.Type() == lua.LTString {
+		// Hook (maybe) returned an authoritative match ID.
+		matchIDString := retValue.String()
+
+		// Validate the match ID.
+		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
+		if len(matchIDComponents) != 2 {
+			logger.Error("Invalid return value from runtime Matchmaker Matched hook, not a valid match ID.")
+			return "", false
+		}
+		_, err = uuid.FromString(matchIDComponents[0])
+		if err != nil {
+			logger.Error("Invalid return value from runtime Matchmaker Matched hook, not a valid match ID.")
+			return "", false
+		}
+
+		return matchIDString, true
+	}
+
+	logger.Error("Unexpected return type from runtime Matchmaker Matched hook, must be string or nil.")
+	return "", false
 }

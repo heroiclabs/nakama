@@ -71,12 +71,14 @@ func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, 
 func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
 	ok := false
 	switch mode {
-	case RPC:
+	case ExecutionModeRPC:
 		_, ok = rp.regCallbacks.RPC[id]
-	case BEFORE:
+	case ExecutionModeBefore:
 		_, ok = rp.regCallbacks.Before[id]
-	case AFTER:
+	case ExecutionModeAfter:
 		_, ok = rp.regCallbacks.After[id]
+	case ExecutionModeMatchmaker:
+		ok = rp.regCallbacks.Matchmaker != nil
 	}
 
 	return ok
@@ -197,12 +199,14 @@ func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
 func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
 	cp := r.vm.Context().Value(CALLBACKS).(*Callbacks)
 	switch e {
-	case RPC:
+	case ExecutionModeRPC:
 		return cp.RPC[key]
-	case BEFORE:
+	case ExecutionModeBefore:
 		return cp.Before[key]
-	case AFTER:
+	case ExecutionModeAfter:
 		return cp.After[key]
+	case ExecutionModeMatchmaker:
+		return cp.Matchmaker
 	}
 
 	return nil

@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"crypto"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
@@ -59,15 +61,16 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 }
 
 func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
-	m := envelope.GetMatchJoin()
+	incoming := envelope.GetMatchJoin()
 	var err error
 	var matchID uuid.UUID
 	var node string
 	var matchIDString string
+	allowEmpty := false
 
-	switch m.Id.(type) {
+	switch incoming.Id.(type) {
 	case *rtapi.MatchJoin_MatchId:
-		matchIDString = m.GetMatchId()
+		matchIDString = incoming.GetMatchId()
 		// Validate the match ID.
 		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
 		if len(matchIDComponents) != 2 {
@@ -87,12 +90,47 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		}
 		node = matchIDComponents[1]
 	case *rtapi.MatchJoin_Token:
-		// TODO Restore token-based join behaviour when matchmaking is available.
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Token-based match join not available",
-		}}})
-		return
+		token, err := jwt.Parse(incoming.GetToken(), func(token *jwt.Token) (interface{}, error) {
+			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
+				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(p.config.GetSession().EncryptionKey), nil
+		})
+		if err != nil {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid match token",
+			}}})
+			return
+		}
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok || !token.Valid {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid match token",
+			}}})
+			return
+		}
+		matchIDString = claims["mid"].(string)
+		// Validate the match ID.
+		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
+		if len(matchIDComponents) != 2 {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid match token",
+			}}})
+			return
+		}
+		matchID, err = uuid.FromString(matchIDComponents[0])
+		if err != nil {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid match token",
+			}}})
+			return
+		}
+		node = matchIDComponents[1]
+		allowEmpty = true
 	case nil:
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -115,8 +153,8 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 
 	stream := PresenceStream{Mode: mode, Subject: matchID, Label: node}
 
-	if mode == StreamModeMatchRelayed && !p.tracker.StreamExists(stream) {
-		// Relayed matches must 'exist' by already having some members.
+	// Relayed matches must 'exist' by already having some members, unless they're being joined via a token.
+	if mode == StreamModeMatchRelayed && !allowEmpty && !p.tracker.StreamExists(stream) {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
 			Message: "Match not found",
