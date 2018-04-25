@@ -187,13 +187,13 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 		c.RUnlock()
 		c.Lock()
 		if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
-			certs := make(map[string]string, 2)
+			certs := make(map[string]string, 3)
 			err := c.request("google cert", "https://www.googleapis.com/oauth2/v1/certs", nil, &certs)
 			if err != nil {
 				c.Unlock()
 				return nil, err
 			}
-			newCerts := make([]*rsa.PublicKey, 0, 2)
+			newCerts := make([]*rsa.PublicKey, 0, 3)
 			var newRefreshAt int64
 			for _, data := range certs {
 				currentBlock, _ := pem.Decode([]byte(data))
@@ -207,13 +207,14 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 					continue
 				}
 				t := time.Now()
-				if currentCert.NotBefore.After(t) || currentCert.NotAfter.After(t) {
+				if currentCert.NotBefore.After(t) || currentCert.NotAfter.Before(t) {
 					// Certificate not yet valid or has already expired, skip it.
 					continue
 				}
 				pub, ok := currentCert.PublicKey.(*rsa.PublicKey)
 				if !ok {
-
+					// Certificate was not an RSA public key.
+					continue
 				}
 				newCerts = append(newCerts, pub)
 				if newRefreshAt == 0 || newRefreshAt > currentCert.NotAfter.UTC().Unix() {
