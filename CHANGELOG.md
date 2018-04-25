@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+## [1.4.3] - 2018-04-25
+### Changed
+- Improve storage remove transactional behaviour.
+
 ## [1.4.2] - 2018-04-22
 ### Changed
 - Improve handling of transactional retries.
