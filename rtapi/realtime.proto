@@ -278,7 +278,7 @@ message MatchmakerAdd {
   // Maximum total user count to match together.
   int32 max_count = 2;
   // Filter query used to identify suitable users.
-  string filter = 3;
+  string query = 3;
   // String properties.
   map<string, string> string_properties = 4;
   // Numeric properties.

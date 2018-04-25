@@ -42,7 +42,7 @@ type MatchmakerEntry struct {
 }
 
 type Matchmaker interface {
-	Add(session Session, filter string, minCount int, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*MatchmakerEntry, error)
+	Add(session Session, query string, minCount int, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*MatchmakerEntry, error)
 	Remove(sessionID uuid.UUID, ticket string) error
 	RemoveAll(sessionID uuid.UUID) error
 }
@@ -68,7 +68,7 @@ func NewLocalMatchmaker(multiLogger *zap.Logger, node string) Matchmaker {
 	}
 }
 
-func (m *LocalMatchmaker) Add(session Session, filter string, minCount int, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*MatchmakerEntry, error) {
+func (m *LocalMatchmaker) Add(session Session, query string, minCount int, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*MatchmakerEntry, error) {
 	// Merge incoming properties.
 	properties := make(map[string]interface{}, len(stringProperties)+len(numericProperties))
 	for k, v := range stringProperties {
@@ -78,8 +78,8 @@ func (m *LocalMatchmaker) Add(session Session, filter string, minCount int, maxC
 		properties[k] = v
 	}
 
-	query := bleve.NewQueryStringQuery(filter)
-	search := bleve.NewSearchRequestOptions(query, maxCount-1, 0, false)
+	indexQuery := bleve.NewQueryStringQuery(query)
+	search := bleve.NewSearchRequestOptions(indexQuery, maxCount-1, 0, false)
 	ticket := uuid.Must(uuid.NewV4()).String()
 	entry := &MatchmakerEntry{
 		Ticket: ticket,
@@ -103,7 +103,7 @@ func (m *LocalMatchmaker) Add(session Session, filter string, minCount int, maxC
 
 	// Check if we have enough results to return them, or if we just add a new entry to the matchmaker.
 	resultCount := result.Hits.Len()
-	if resultCount < minCount {
+	if resultCount < minCount-1 {
 		if err := m.index.Index(ticket, entry); err != nil {
 			m.Unlock()
 			return ticket, nil, err
