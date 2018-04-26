@@ -310,7 +310,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	if meta.Persistence {
 		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIMESTAMPTZ), CAST($10::BIGINT AS TIMESTAMPTZ))`
-		_, err := p.db.Exec(query, message.MessageId, message.Code, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
+		_, err := p.db.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
 		if err != nil {
 			logger.Error("Error persisting channel message", zap.Error(err))
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -410,7 +410,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 			// Insert update marker message.
 			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIMESTAMPTZ), CAST($10::BIGINT AS TIMESTAMPTZ))`
-			_, err = tx.Exec(query, message.MessageId, message.Code, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds, message.UpdateTime.Seconds)
+			_, err = tx.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
 			if err != nil {
 				return err
 			}
