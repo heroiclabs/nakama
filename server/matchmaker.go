@@ -92,6 +92,7 @@ func (m *LocalMatchmaker) Add(session Session, query string, minCount int, maxCo
 		Properties:        properties,
 		StringProperties:  stringProperties,
 		NumericProperties: numericProperties,
+		SessionID:         session.ID(),
 	}
 
 	m.Lock()
