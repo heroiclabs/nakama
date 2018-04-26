@@ -20,13 +20,15 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"fmt"
+	"strings"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var (
@@ -141,17 +143,22 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			return nil, err
 		}
 
+		var refId *wrappers.StringValue
+		if dbReferenceId.Valid {
+			refId = &wrappers.StringValue{Value: dbReferenceId.String}
+		}
+
 		messages = append(messages, &api.ChannelMessage{
 			ChannelId:   channelId,
 			MessageId:   dbId,
-			Code:        dbCode,
+			Code:        &wrappers.Int32Value{Value: dbCode},
 			SenderId:    dbSenderId,
 			Username:    dbUsername,
 			Content:     dbContent,
-			ReferenceId: dbReferenceId.String,
+			ReferenceId: refId,
 			CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 			UpdateTime:  &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			Persistent:  true,
+			Persistent:  &wrappers.BoolValue{Value: true},
 		})
 
 		// There can only be a previous page if this is a paginated listing.

@@ -133,7 +133,7 @@ message ChannelMessageAck {
   // The UNIX time when the message was last updated.
   google.protobuf.Timestamp update_time = 5;
   // True if the message was persisted to the channel's history, false otherwise.
-  bool persistent = 6;
+  google.protobuf.BoolValue persistent = 6;
 }
 
 // Send a message to a realtime channel.

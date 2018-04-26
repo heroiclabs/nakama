@@ -18,16 +18,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"time"
+	"unicode/utf8"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"regexp"
-	"time"
-	"unicode/utf8"
 )
 
 const (
@@ -295,20 +297,20 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	message := &api.ChannelMessage{
 		ChannelId: incoming.ChannelId,
 		MessageId: uuid.Must(uuid.NewV4()).String(),
-		Code:      ChannelMessageTypeChat,
+		Code:      &wrappers.Int32Value{Value: ChannelMessageTypeChat},
 		SenderId:  session.UserID().String(),
 		Username:  session.Username(),
 		Content:   incoming.Content,
 		// No reference ID.
 		CreateTime: &timestamp.Timestamp{Seconds: ts},
 		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: meta.Persistence,
+		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
 	}
 
 	if meta.Persistence {
 		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIMESTAMPTZ), CAST($10::BIGINT AS TIMESTAMPTZ))`
-		_, err := p.db.Exec(query, message.MessageId, message.Code, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds, message.UpdateTime.Seconds)
+		_, err := p.db.Exec(query, message.MessageId, message.Code, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
 		if err != nil {
 			logger.Error("Error persisting channel message", zap.Error(err))
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -373,14 +375,14 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 	message := &api.ChannelMessage{
 		ChannelId:   incoming.ChannelId,
 		MessageId:   uuid.Must(uuid.NewV4()).String(),
-		Code:        ChannelMessageTypeChatUpdate,
+		Code:        &wrappers.Int32Value{Value: ChannelMessageTypeChatUpdate},
 		SenderId:    session.UserID().String(),
 		Username:    session.Username(),
 		Content:     incoming.Content,
-		ReferenceId: incoming.MessageId,
+		ReferenceId: &wrappers.StringValue{Value: incoming.MessageId},
 		CreateTime:  &timestamp.Timestamp{Seconds: ts},
 		UpdateTime:  &timestamp.Timestamp{Seconds: ts},
-		Persistent:  meta.Persistence,
+		Persistent:  &wrappers.BoolValue{Value: meta.Persistence},
 	}
 
 	if meta.Persistence {

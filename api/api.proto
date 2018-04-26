@@ -565,7 +565,7 @@ message ChannelMessage {
   // The unique ID of this message.
   string message_id = 2;
   // The code representing a message type or category.
-  int32 code = 3;
+  google.protobuf.Int32Value code = 3;
   // Message sender, usually a user ID.
   string sender_id = 4;
   // The username of the message sender, if any.
@@ -573,13 +573,13 @@ message ChannelMessage {
   // The content payload.
   string content = 6;
   // Another message ID reference, if any.
-  string reference_id = 7;
+  google.protobuf.StringValue reference_id = 7;
   // The UNIX time when the message was created.
   google.protobuf.Timestamp create_time = 8;
   // The UNIX time when the message was last updated.
   google.protobuf.Timestamp update_time = 9;
   // True if the message was persisted to the channel's history, false otherwise.
-  bool persistent = 10;
+  google.protobuf.BoolValue persistent = 10;
 }
 
 // A list of channel messages, usually a result of a list operation.
