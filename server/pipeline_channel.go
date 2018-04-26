@@ -46,10 +46,10 @@ var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	incoming := envelope.GetChannelJoin()
 
-	if incoming.Id == "" {
+	if incoming.Target == "" {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Invalid channel identifier",
+			Message: "Invalid channel target",
 		}}})
 		return
 	}
@@ -63,32 +63,32 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		// Defaults to channel.
 		fallthrough
 	case int32(rtapi.ChannelJoin_ROOM):
-		if len(incoming.Id) < 1 || len(incoming.Id) > 64 {
+		if len(incoming.Target) < 1 || len(incoming.Target) > 64 {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Channel name is required and must be 1-64 chars",
 			}}})
 			return
 		}
-		if controlCharsRegex.MatchString(incoming.Id) {
+		if controlCharsRegex.MatchString(incoming.Target) {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Channel name must not contain control chars",
 			}}})
 			return
 		}
-		if !utf8.ValidString(incoming.Id) {
+		if !utf8.ValidString(incoming.Target) {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Channel name must only contain valid UTF-8 bytes",
 			}}})
 			return
 		}
-		stream.Label = incoming.Id
+		stream.Label = incoming.Target
 		// Channel mode is already set by default above.
 	case int32(rtapi.ChannelJoin_DIRECT_MESSAGE):
 		// Check if user ID is valid.
-		uid, err := uuid.FromString(incoming.Id)
+		uid, err := uuid.FromString(incoming.Target)
 		if err != nil {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
@@ -233,7 +233,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Channel{Channel: &rtapi.Channel{
-		ChannelId: channelId,
+		Id:        channelId,
 		Presences: userPresences,
 		Self: &rtapi.UserPresence{
 			UserId:      session.UserID().String(),

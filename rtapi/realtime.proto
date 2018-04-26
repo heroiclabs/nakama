@@ -83,7 +83,7 @@ message Envelope {
 // A realtime chat channel.
 message Channel {
   // The ID of the channel.
-  string channel_id = 1;
+  string id = 1;
   // The users currently in the channel.
   repeated UserPresence presences = 2;
   // A reference to the current user's presence in the channel.
@@ -104,8 +104,8 @@ message ChannelJoin {
     GROUP = 3;
   }
 
-  // The identifier for the realtime channel.
-  string id = 1;
+  // The user ID to DM with, group ID to chat with, or room channel name to join.
+  string target = 1;
   // The type of the chat channel.
   int32 type = 2; // one of "ChannelId.Type".
   // Whether messages sent on this channel should be persistent.
@@ -156,7 +156,7 @@ message ChannelMessageUpdate {
 
 // A set of joins and leaves on a particular channel.
 message ChannelPresenceEvent {
-  // The
+  // The channel identifier this event is for.
   string channel_id = 1;
   // Presences joining the channel as part of this event, if any.
   repeated UserPresence joins = 2;
