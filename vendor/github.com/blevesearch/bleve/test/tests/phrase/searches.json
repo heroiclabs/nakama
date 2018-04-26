@@ -1,0 +1,395 @@
+[
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty Thousand"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty Thousand Leagues"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty Thousand Leagues Under"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty Thousand Leagues Under the"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Twenty Thousand Leagues Under the Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Thousand"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Thousand Leagues"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Thousand Leagues Under"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Thousand Leagues Under the"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Thousand Leagues Under the Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Leagues"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Leagues Under"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Leagues Under the"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Leagues Under the Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+ 	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Under the Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "the Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "Sea"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "bad call"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "defenseless receiver"
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "b"
+				}
+			]
+		}
+	},
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"match_phrase": "bad receiver"
+			}
+		},
+		"result": {
+			"total_hits": 0,
+			"hits": []
+		}
+	},
+  {
+    "comment": "multi-phrase terms",
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "body",
+				"terms": [["twenti","thirti"],["thousand"]]
+			}
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "a"
+				}
+			]
+		}
+	}
+]

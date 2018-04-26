@@ -33,7 +33,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	id := strings.ToLower(in.Id)
 
-	if !s.runtimePool.HasCallback(RPC, id) {
+	if !s.runtimePool.HasCallback(ExecutionModeRPC, id) {
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
@@ -51,13 +51,13 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	}
 
 	runtime := s.runtimePool.Get()
-	lf := runtime.GetCallback(RPC, id)
+	lf := runtime.GetCallback(ExecutionModeRPC, id)
 	if lf == nil {
 		s.runtimePool.Put(runtime)
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr, code := runtime.InvokeFunction(RPC, lf, uid, username, expiry, "", in.Payload)
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, uid, username, expiry, "", in.Payload)
 	s.runtimePool.Put(runtime)
 
 	if fnErr != nil {

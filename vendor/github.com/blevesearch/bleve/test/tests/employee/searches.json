@@ -1,0 +1,39 @@
+[
+	{
+		"search": {
+			"from": 0,
+			"size": 10,
+			"query": {
+				"field": "manages.reports",
+				"term": "julián"
+			},
+            "includeLocations": true
+		},
+		"result": {
+			"total_hits": 1,
+			"hits": [
+				{
+					"id": "emp10508560",
+					"locations": {
+						"manages.reports": {
+							"julián": [
+								{
+									"pos": 2,
+									"start": 7,
+									"end": 14,
+									"array_positions":[0]
+								},
+								{
+									"pos": 2,
+									"start": 8,
+									"end": 15,
+									"array_positions":[3]
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	}
+]

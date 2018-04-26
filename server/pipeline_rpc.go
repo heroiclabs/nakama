@@ -35,7 +35,7 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 
 	id := strings.ToLower(rpcMessage.Id)
 
-	if !p.runtimePool.HasCallback(RPC, id) {
+	if !p.runtimePool.HasCallback(ExecutionModeRPC, id) {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
 			Message: "RPC function not found",
@@ -44,7 +44,7 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 	}
 
 	runtime := p.runtimePool.Get()
-	lf := runtime.GetCallback(RPC, id)
+	lf := runtime.GetCallback(ExecutionModeRPC, id)
 	if lf == nil {
 		p.runtimePool.Put(runtime)
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -54,7 +54,7 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 		return
 	}
 
-	result, fnErr, _ := runtime.InvokeFunction(RPC, lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
+	result, fnErr, _ := runtime.InvokeFunction(ExecutionModeRPC, lf, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), rpcMessage.Payload)
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))

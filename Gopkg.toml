@@ -65,3 +65,7 @@
 [[constraint]]
   name = "github.com/cockroachdb/cockroach-go"
   revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"
+
+[[constraint]]
+  name = "github.com/blevesearch/bleve"
+  version = "~0.7.0"

@@ -64,7 +64,7 @@ func (r *SessionRegistry) Stop() {
 	for sessionID, session := range r.sessions {
 		delete(r.sessions, sessionID)
 		// Send graceful close messages to client connections.
-		// No need to clean up presences because we only expect to be here on server shutdown.
+		// No need to clean up presences or matchmaker entries because we only expect to be here on server shutdown.
 		session.Close()
 	}
 	r.Unlock()

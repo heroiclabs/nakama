@@ -23,25 +23,28 @@ import (
 type ExecutionMode int
 
 const (
-	RunOnce ExecutionMode = iota
-	RPC
-	BEFORE
-	AFTER
-	Match
+	ExecutionModeRunOnce ExecutionMode = iota
+	ExecutionModeRPC
+	ExecutionModeBefore
+	ExecutionModeAfter
+	ExecutionModeMatch
+	ExecutionModeMatchmaker
 )
 
 func (e ExecutionMode) String() string {
 	switch e {
-	case RunOnce:
+	case ExecutionModeRunOnce:
 		return "run_once"
-	case RPC:
+	case ExecutionModeRPC:
 		return "rpc"
-	case BEFORE:
+	case ExecutionModeBefore:
 		return "before"
-	case AFTER:
+	case ExecutionModeAfter:
 		return "after"
-	case Match:
+	case ExecutionModeMatch:
 		return "match"
+	case ExecutionModeMatchmaker:
+		return "matchmaker"
 	}
 
 	return ""

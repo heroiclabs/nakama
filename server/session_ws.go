@@ -46,6 +46,7 @@ type sessionWS struct {
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 
 	sessionRegistry *SessionRegistry
+	matchmaker      Matchmaker
 	tracker         Tracker
 
 	stopped        bool
@@ -55,7 +56,7 @@ type sessionWS struct {
 	outgoingStopCh chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, tracker Tracker) Session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -73,6 +74,7 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 
 		sessionRegistry: sessionRegistry,
+		matchmaker:      matchmaker,
 		tracker:         tracker,
 
 		stopped:        false,
@@ -263,6 +265,7 @@ func (s *sessionWS) cleanupClosedConnection() {
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
 	s.sessionRegistry.remove(s.id)
+	s.matchmaker.RemoveAll(s.id)
 	s.tracker.UntrackAll(s.id)
 
 	// Clean up internals.

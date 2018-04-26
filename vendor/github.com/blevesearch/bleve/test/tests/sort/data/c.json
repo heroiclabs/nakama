@@ -1,0 +1,8 @@
+{
+	"id": "c",
+	"name": "aster",
+	"age": 21,
+  "born": "1954-02-02",
+	"title": "blogger",
+	"tags": ["red", "blue", "green"]
+}

@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -52,7 +52,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		}
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, tracker)
+		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
 
 		// Add to the session registry.
 		sessionRegistry.add(s)
