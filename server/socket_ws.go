@@ -43,6 +43,11 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 			return
 		}
 
+		status := true
+		if r.URL.Query().Get("status") == "false" {
+			status = false
+		}
+
 		// Upgrade to WebSocket.
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -59,6 +64,9 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 
 		// Register initial presences for this session.
 		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username(), Hidden: true}, true)
+		if status {
+			tracker.Track(s.ID(), PresenceStream{Mode: StreamModeStatus, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username(), Status: ""}, false)
+		}
 
 		// Allow the server to begin processing incoming messages from this session.
 		s.Consume(pipeline.ProcessRequest)
