@@ -126,6 +126,8 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		p.channelMessageSend(logger, session, envelope)
 	case *rtapi.Envelope_ChannelMessageUpdate:
 		p.channelMessageUpdate(logger, session, envelope)
+	case *rtapi.Envelope_ChannelMessageRemove:
+		p.channelMessageRemove(logger, session, envelope)
 	case *rtapi.Envelope_MatchCreate:
 		p.matchCreate(logger, session, envelope)
 	case *rtapi.Envelope_MatchDataSend:

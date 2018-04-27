@@ -1524,10 +1524,6 @@
           "type": "string",
           "description": "The content payload."
         },
-        "reference_id": {
-          "type": "string",
-          "description": "Another message ID reference, if any."
-        },
         "create_time": {
           "type": "string",
           "format": "date-time",

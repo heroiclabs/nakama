@@ -572,14 +572,12 @@ message ChannelMessage {
   string username = 5;
   // The content payload.
   string content = 6;
-  // Another message ID reference, if any.
-  google.protobuf.StringValue reference_id = 7;
   // The UNIX time when the message was created.
-  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp create_time = 7;
   // The UNIX time when the message was last updated.
-  google.protobuf.Timestamp update_time = 9;
+  google.protobuf.Timestamp update_time = 8;
   // True if the message was persisted to the channel's history, false otherwise.
-  google.protobuf.BoolValue persistent = 10;
+  google.protobuf.BoolValue persistent = 9;
 }
 
 // A list of channel messages, usually a result of a list operation.

@@ -82,7 +82,7 @@ func ChannelMessagesList(logger *zap.Logger, db *sql.DB, stream PresenceStream, 
 		}
 	}
 
-	query := `SELECT id, code, sender_id, username, content, reference_id, create_time, update_time FROM message
+	query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
 WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
 	if incomingCursor == nil {
 		// Ascending doesn't need an ordering clause.
@@ -119,7 +119,6 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	var dbSenderId string
 	var dbUsername string
 	var dbContent string
-	var dbReferenceId sql.NullString
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	for rows.Next() {
@@ -137,28 +136,22 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			break
 		}
 
-		err = rows.Scan(&dbId, &dbCode, &dbSenderId, &dbUsername, &dbContent, &dbReferenceId, &dbCreateTime, &dbUpdateTime)
+		err = rows.Scan(&dbId, &dbCode, &dbSenderId, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
 			logger.Error("Error parsing listed channel messages", zap.Error(err))
 			return nil, err
 		}
 
-		var refId *wrappers.StringValue
-		if dbReferenceId.Valid {
-			refId = &wrappers.StringValue{Value: dbReferenceId.String}
-		}
-
 		messages = append(messages, &api.ChannelMessage{
-			ChannelId:   channelId,
-			MessageId:   dbId,
-			Code:        &wrappers.Int32Value{Value: dbCode},
-			SenderId:    dbSenderId,
-			Username:    dbUsername,
-			Content:     dbContent,
-			ReferenceId: refId,
-			CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime:  &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			Persistent:  &wrappers.BoolValue{Value: true},
+			ChannelId:  channelId,
+			MessageId:  dbId,
+			Code:       &wrappers.Int32Value{Value: dbCode},
+			SenderId:   dbSenderId,
+			Username:   dbUsername,
+			Content:    dbContent,
+			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+			UpdateTime: &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			Persistent: &wrappers.BoolValue{Value: true},
 		})
 
 		// There can only be a previous page if this is a paginated listing.

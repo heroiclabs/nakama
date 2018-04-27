@@ -51,40 +51,42 @@ message Envelope {
     ChannelMessageSend channel_message_send = 7;
     // Update a message previously sent to a realtime chat channel.
     ChannelMessageUpdate channel_message_update = 8;
+    // Remove a message previously sent to a realtime chat channel.
+    ChannelMessageRemove channel_message_remove = 9;
     // Presence update for a particular realtime chat channel.
-    ChannelPresenceEvent channel_presence_event = 9;
+    ChannelPresenceEvent channel_presence_event = 10;
     // Describes an error which occurred on the server.
-    Error error = 10;
+    Error error = 11;
     // Incoming information about a realtime match.
-    Match match = 11;
+    Match match = 12;
     // A client to server request to create a realtime match.
-    MatchCreate match_create = 12;
+    MatchCreate match_create = 13;
     // Incoming realtime match data delivered from the server.
-    MatchData match_data = 13;
+    MatchData match_data = 14;
     // A client to server request to send data to a realtime match.
-    MatchDataSend match_data_send = 14;
+    MatchDataSend match_data_send = 15;
     // A client to server request to join a realtime match.
-    MatchJoin match_join = 15;
+    MatchJoin match_join = 16;
     // A client to server request to leave a realtime match.
-    MatchLeave match_leave = 16;
+    MatchLeave match_leave = 17;
     // Presence update for a particular realtime match.
-    MatchPresenceEvent match_presence_event = 17;
+    MatchPresenceEvent match_presence_event = 18;
     // Submit a new matchmaking process request.
-    MatchmakerAdd matchmaker_add = 18;
+    MatchmakerAdd matchmaker_add = 19;
     // A successful matchmaking result.
-    MatchmakerMatched matchmaker_matched = 19;
+    MatchmakerMatched matchmaker_matched = 20;
     // Cancel a matchmaking process using a ticket.
-    MatchmakerRemove matchmaker_remove = 20;
+    MatchmakerRemove matchmaker_remove = 21;
     // A response from starting a new matchmaking process.
-    MatchmakerTicket matchmaker_ticket = 21;
+    MatchmakerTicket matchmaker_ticket = 22;
     // Notifications send by the server.
-    Notifications notifications = 22;
+    Notifications notifications = 23;
     // RPC call or response.
-    api.Rpc rpc = 23;
+    api.Rpc rpc = 24;
     // A data message delivered over a stream.
-    StreamData stream_data = 24;
+    StreamData stream_data = 25;
     // Presence update for a particular stream.
-    StreamPresenceEvent stream_presence_event = 25;
+    StreamPresenceEvent stream_presence_event = 26;
   }
 }
 
@@ -134,14 +136,16 @@ message ChannelMessageAck {
   string channel_id = 1;
   // The unique ID assigned to the message.
   string message_id = 2;
+  // The code representing a message type or category.
+  google.protobuf.Int32Value code = 3;
   // Username of the message sender.
-  string username = 3;
+  string username = 4;
   // The UNIX time when the message was created.
-  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp create_time = 5;
   // The UNIX time when the message was last updated.
-  google.protobuf.Timestamp update_time = 5;
+  google.protobuf.Timestamp update_time = 6;
   // True if the message was persisted to the channel's history, false otherwise.
-  google.protobuf.BoolValue persistent = 6;
+  google.protobuf.BoolValue persistent = 7;
 }
 
 // Send a message to a realtime channel.
@@ -160,6 +164,14 @@ message ChannelMessageUpdate {
   string message_id = 2;
   // New message content.
   string content = 3;
+}
+
+// Remove a message previously sent to a realtime channel.
+message ChannelMessageRemove {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The ID assigned to the message to update.
+  string message_id = 2;
 }
 
 // A set of joins and leaves on a particular channel.

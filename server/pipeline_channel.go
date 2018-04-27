@@ -15,18 +15,18 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
 	"unicode/utf8"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
+	"database/sql"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -35,6 +35,7 @@ import (
 const (
 	ChannelMessageTypeChat int32 = iota
 	ChannelMessageTypeChatUpdate
+	ChannelMessageTypeChatRemove
 	ChannelMessageTypeGroupJoin
 	ChannelMessageTypeGroupAdd
 	ChannelMessageTypeGroupKick
@@ -295,13 +296,12 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 
 	ts := time.Now().Unix()
 	message := &api.ChannelMessage{
-		ChannelId: incoming.ChannelId,
-		MessageId: uuid.Must(uuid.NewV4()).String(),
-		Code:      &wrappers.Int32Value{Value: ChannelMessageTypeChat},
-		SenderId:  session.UserID().String(),
-		Username:  session.Username(),
-		Content:   incoming.Content,
-		// No reference ID.
+		ChannelId:  incoming.ChannelId,
+		MessageId:  uuid.Must(uuid.NewV4()).String(),
+		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChat},
+		SenderId:   session.UserID().String(),
+		Username:   session.Username(),
+		Content:    incoming.Content,
 		CreateTime: &timestamp.Timestamp{Seconds: ts},
 		UpdateTime: &timestamp.Timestamp{Seconds: ts},
 		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
@@ -324,6 +324,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIME
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: &rtapi.ChannelMessageAck{
 		ChannelId:  message.ChannelId,
 		MessageId:  message.MessageId,
+		Code:       message.Code,
 		Username:   message.Username,
 		CreateTime: message.CreateTime,
 		UpdateTime: message.UpdateTime,
@@ -373,52 +374,24 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 
 	ts := time.Now().Unix()
 	message := &api.ChannelMessage{
-		ChannelId:   incoming.ChannelId,
-		MessageId:   uuid.Must(uuid.NewV4()).String(),
-		Code:        &wrappers.Int32Value{Value: ChannelMessageTypeChatUpdate},
-		SenderId:    session.UserID().String(),
-		Username:    session.Username(),
-		Content:     incoming.Content,
-		ReferenceId: &wrappers.StringValue{Value: incoming.MessageId},
-		CreateTime:  &timestamp.Timestamp{Seconds: ts},
-		UpdateTime:  &timestamp.Timestamp{Seconds: ts},
-		Persistent:  &wrappers.BoolValue{Value: meta.Persistence},
+		ChannelId:  incoming.ChannelId,
+		MessageId:  incoming.MessageId,
+		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChatUpdate},
+		SenderId:   session.UserID().String(),
+		Username:   session.Username(),
+		Content:    incoming.Content,
+		CreateTime: &timestamp.Timestamp{Seconds: ts},
+		UpdateTime: &timestamp.Timestamp{Seconds: ts},
+		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
 	}
 
 	if meta.Persistence {
-		tx, err := p.db.Begin()
+		// First find and update the referenced message.
+		var dbCreateTime pq.NullTime
+		query := "UPDATE message SET update_time = CAST($5::BIGINT AS TIMESTAMPTZ), username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
+		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId, message.Content, message.Username, message.UpdateTime.Seconds).Scan(&dbCreateTime)
 		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Could not persist message update to channel history",
-			}}})
-			return
-		}
-
-		err = crdb.ExecuteInTx(context.Background(), tx, func() error {
-			// First find and update the referenced message.
-			query := "UPDATE message SET update_time = CAST($5::BIGINT AS TIMESTAMPTZ), username = $4, content = $3 WHERE id = $1 AND sender_id = $2"
-			result, err := tx.Exec(query, incoming.MessageId, message.SenderId, message.Content, message.Username, message.UpdateTime.Seconds)
-			if err != nil {
-				return err
-			}
-			if rowsAffected, _ := result.RowsAffected(); rowsAffected != 1 {
-				return ErrChannelMessageUpdateNotFound
-			}
-
-			// Insert update marker message.
-			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIMESTAMPTZ), CAST($10::BIGINT AS TIMESTAMPTZ))`
-			_, err = tx.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		})
-		if err != nil {
-			if err == ErrChannelMessageUpdateNotFound {
+			if err == sql.ErrNoRows {
 				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_BAD_INPUT),
 					Message: "Could not find message to update in channel history",
@@ -433,11 +406,94 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIME
 				return
 			}
 		}
+		// Replace the message create time with the real one from DB.
+		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: &rtapi.ChannelMessageAck{
 		ChannelId:  message.ChannelId,
 		MessageId:  message.MessageId,
+		Code:       message.Code,
+		Username:   message.Username,
+		CreateTime: message.CreateTime,
+		UpdateTime: message.UpdateTime,
+		Persistent: message.Persistent,
+	}}})
+
+	p.router.SendToStream(logger, streamConversionResult.Stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}})
+}
+
+func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+	incoming := envelope.GetChannelMessageRemove()
+
+	if _, err := uuid.FromString(incoming.MessageId); err != nil {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid message identifier",
+		}}})
+		return
+	}
+
+	streamConversionResult, err := ChannelIdToStream(incoming.ChannelId)
+	if err != nil {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid channel identifier",
+		}}})
+		return
+	}
+
+	meta := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), streamConversionResult.Stream, session.UserID())
+	if meta == nil {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Must join channel before removing messages",
+		}}})
+		return
+	}
+
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  incoming.ChannelId,
+		MessageId:  incoming.MessageId,
+		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChatRemove},
+		SenderId:   session.UserID().String(),
+		Username:   session.Username(),
+		Content:    "{}",
+		CreateTime: &timestamp.Timestamp{Seconds: ts},
+		UpdateTime: &timestamp.Timestamp{Seconds: ts},
+		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
+	}
+
+	if meta.Persistence {
+		// First find and remove the referenced message.
+		var dbCreateTime pq.NullTime
+		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time"
+		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId).Scan(&dbCreateTime)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+					Code:    int32(rtapi.Error_BAD_INPUT),
+					Message: "Could not find message to remove in channel history",
+				}}})
+				return
+			} else {
+				logger.Error("Error persisting channel message remove", zap.Error(err))
+				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+					Message: "Could not persist message remove to channel history",
+				}}})
+				return
+			}
+		}
+		// Replace the message create time with the real one from DB.
+		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}
+	}
+
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: &rtapi.ChannelMessageAck{
+		ChannelId:  message.ChannelId,
+		MessageId:  message.MessageId,
+		Code:       message.Code,
 		Username:   message.Username,
 		CreateTime: message.CreateTime,
 		UpdateTime: message.UpdateTime,

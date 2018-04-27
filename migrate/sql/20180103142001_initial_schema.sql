@@ -104,10 +104,9 @@ CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collectio
 CREATE TABLE IF NOT EXISTS message (
   PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
   FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE,
-  FOREIGN KEY (reference_id) REFERENCES message (id) ON DELETE CASCADE,
 
   id                UUID         UNIQUE NOT NULL,
-  -- chat(0), chat_update(1), group_join(2), group_add(3), group_leave(4), group_kick(5), group_promoted(6)
+  -- chat(0), chat_update(1), chat_remove(2), group_join(3), group_add(4), group_leave(5), group_kick(6), group_promoted(7)
   code              SMALLINT     DEFAULT 0 NOT NULL,
   sender_id         UUID         NOT NULL,
   username          VARCHAR(128) NOT NULL,
@@ -116,7 +115,6 @@ CREATE TABLE IF NOT EXISTS message (
   stream_descriptor UUID         NOT NULL,
   stream_label      VARCHAR(128) NOT NULL,
   content           JSONB        DEFAULT '{}' NOT NULL,
-  reference_id      UUID,
   create_time       TIMESTAMPTZ  DEFAULT now() NOT NULL,
   update_time       TIMESTAMPTZ  DEFAULT now() NOT NULL,
 
