@@ -55,7 +55,7 @@ func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, j
 }
 
 func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool {
-	if logger.Core().Enabled(zap.DebugLevel) {
+	if logger.Core().Enabled(zap.DebugLevel) { // remove extra heavy reflection processing
 		logger.Debug(fmt.Sprintf("Received %T message", envelope.Message), zap.Any("message", envelope.Message))
 	}
 

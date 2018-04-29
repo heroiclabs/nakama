@@ -65,7 +65,7 @@ type ApiServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -91,15 +91,15 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 
 	// Register and start GRPC server.
 	api.RegisterNakamaServer(grpcServer, s)
-	multiLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port-1))
+	startupLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port-1))
 		if err != nil {
-			multiLogger.Fatal("API server listener failed to start", zap.Error(err))
+			startupLogger.Fatal("API server listener failed to start", zap.Error(err))
 		}
 
 		if err := grpcServer.Serve(listener); err != nil {
-			multiLogger.Fatal("API server listener failed", zap.Error(err))
+			startupLogger.Fatal("API server listener failed", zap.Error(err))
 		}
 	}()
 
@@ -118,7 +118,7 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
 	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
-		multiLogger.Fatal("API server gateway registration failed", zap.Error(err))
+		startupLogger.Fatal("API server gateway registration failed", zap.Error(err))
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
@@ -152,10 +152,10 @@ func StartApiServer(logger *zap.Logger, multiLogger *zap.Logger, db *sql.DB, jso
 		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}
 	}
 
-	multiLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port))
+	startupLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port))
 	go func() {
 		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			multiLogger.Fatal("API server gateway listener failed", zap.Error(err))
+			startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
 		}
 	}()
 
@@ -177,6 +177,7 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 
 func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
 		ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
 		if err != nil {
 			return nil, err

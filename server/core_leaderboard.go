@@ -343,12 +343,6 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
-	case LeaderboardOperatorDecrement:
-		opSql = "score = leaderboard_record.score - $8::BIGINT, subscore = leaderboard_record.subscore - $9::BIGINT"
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = 0 - score
-		subscoreAbs = 0 - subscore
 	case LeaderboardOperatorSet:
 		opSql = "score = $8::BIGINT, subscore = $9::BIGINT"
 		scoreDelta = score

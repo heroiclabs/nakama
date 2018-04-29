@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"context"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -197,7 +198,7 @@ func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string
 	// Check to see if user has already blocked friend, if so ignore.
 	if _, err := tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID); err != nil {
 		if err == sql.ErrNoRows {
-			logger.Debug("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
+			logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
 			return false, sql.ErrNoRows
 		}
 		logger.Error("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
@@ -217,7 +218,7 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 
 	// If both edges were updated, it was accepting an invite was successful.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
-		logger.Debug("Accepting friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
+		logger.Info("Accepting friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return true, nil
 	}
 
@@ -270,11 +271,11 @@ AND EXISTS
 
 	// An invite was successfully added if both components were inserted.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 2 {
-		logger.Debug("Did not add new friend as friend connection already exists or user is blocked.", zap.String("user", userID.String()), zap.String("friend", friendID))
+		logger.Info("Did not add new friend as friend connection already exists or user is blocked.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, sql.ErrNoRows
 	}
 
-	logger.Debug("Added new friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
+	logger.Info("Added new friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
 	return false, nil
 }
 
@@ -308,7 +309,7 @@ func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID str
 	}
 
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-		logger.Debug("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
+		logger.Info("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return nil
 	} else if rowsAffected == 1 {
 		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID", userID); err != nil {
@@ -377,7 +378,7 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)`
 		}
 
 		if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-			logger.Debug("Could not block user as user may not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
+			logger.Info("Could not block user as user may not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
 			return nil
 		}
 

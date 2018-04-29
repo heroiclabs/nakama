@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"fmt"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
@@ -590,9 +591,7 @@ func (t *LocalTracker) queueEvent(joins, leaves []Presence) {
 }
 
 func (t *LocalTracker) processEvent(e *PresenceEvent) {
-	if t.logger.Core().Enabled(zap.DebugLevel) {
-		t.logger.Debug("Processing presence event", zap.Int("joins", len(e.Joins)), zap.Int("leaves", len(e.Leaves)))
-	}
+	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.Joins)), zap.Int("leaves", len(e.Leaves)))
 
 	// Group joins/leaves by stream to allow batching.
 	// Convert to wire representation at the same time.
@@ -732,7 +731,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		for _, sessionID := range sessionIDs {
 			if s := t.sessionRegistry.Get(sessionID); s != nil {
 				s.SendBytes(payloadByte)
-			} else if t.logger.Core().Enabled(zap.DebugLevel) {
+			} else {
 				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}
 		}
@@ -808,7 +807,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		for _, sessionID := range sessionIDs {
 			if s := t.sessionRegistry.Get(sessionID); s != nil {
 				s.SendBytes(payloadByte)
-			} else if t.logger.Core().Enabled(zap.DebugLevel) {
+			} else {
 				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}
 		}

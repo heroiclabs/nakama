@@ -66,7 +66,7 @@ func main() {
 	// Initialize the global random obj with customs seed.
 	rand.Seed(time.Now().UnixNano())
 
-	cmdLogger := server.NewJSONLogger(os.Stdout, true)
+	tmpLogger := server.NewJSONLogger(os.Stdout, "info")
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -74,23 +74,23 @@ func main() {
 			fmt.Println(semver)
 			return
 		case "migrate":
-			migrate.Parse(os.Args[2:], cmdLogger)
+			migrate.Parse(os.Args[2:], tmpLogger)
 		}
 	}
 
-	config := server.ParseArgs(cmdLogger, os.Args)
-	jsonLogger, multiLogger := server.SetupLogging(config)
+	config := server.ParseArgs(tmpLogger, os.Args)
+	logger, startupLogger := server.SetupLogging(config)
 
-	multiLogger.Info("Nakama starting")
-	multiLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
-	multiLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
-	multiLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
+	startupLogger.Info("Nakama starting")
+	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
+	startupLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
+	startupLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
 
-	db, dbVersion := dbConnect(multiLogger, config)
-	multiLogger.Info("Database information", zap.String("version", dbVersion))
+	db, dbVersion := dbConnect(startupLogger, config)
+	startupLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and fail fast if the schema has diverged.
-	migrate.StartupCheck(multiLogger, db)
+	migrate.StartupCheck(startupLogger, db)
 
 	// Access to social provider integrations.
 	socialClient := social.NewClient(5 * time.Second)
@@ -98,51 +98,51 @@ func main() {
 	once := &sync.Once{}
 
 	// Start up server components.
-	matchmaker := server.NewLocalMatchmaker(multiLogger, config.GetName())
+	matchmaker := server.NewLocalMatchmaker(startupLogger, config.GetName())
 	sessionRegistry := server.NewSessionRegistry()
-	tracker := server.StartLocalTracker(jsonLogger, sessionRegistry, jsonpbMarshaler, config.GetName())
+	tracker := server.StartLocalTracker(logger, sessionRegistry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
-	stdLibs, modules, err := server.LoadRuntimeModules(jsonLogger, multiLogger, config)
+	stdLibs, modules, err := server.LoadRuntimeModules(startupLogger, config)
 	if err != nil {
-		multiLogger.Fatal("Failed reading runtime modules", zap.Error(err))
+		startupLogger.Fatal("Failed reading runtime modules", zap.Error(err))
 	}
-	leaderboardCache := server.NewLocalLeaderboardCache(jsonLogger, multiLogger, db)
-	matchRegistry := server.NewLocalMatchRegistry(jsonLogger, db, config, socialClient, leaderboardCache, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
+	matchRegistry := server.NewLocalMatchRegistry(logger, db, config, socialClient, leaderboardCache, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	// Separate module evaluation/validation from module loading.
 	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
-	regCallbacks, err := server.ValidateRuntimeModules(jsonLogger, multiLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
+	regCallbacks, err := server.ValidateRuntimeModules(logger, startupLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
 	if err != nil {
-		multiLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
+		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	runtimePool := server.NewRuntimePool(jsonLogger, multiLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
+	runtimePool := server.NewRuntimePool(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
 	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtimePool)
-	metrics := server.NewMetrics(multiLogger, config)
+	metrics := server.NewMetrics(logger, startupLogger, config)
 
-	consoleServer := server.StartConsoleServer(jsonLogger, multiLogger, config, db)
-	apiServer := server.StartApiServer(jsonLogger, multiLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtimePool)
+	consoleServer := server.StartConsoleServer(logger, startupLogger, config, db)
+	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtimePool)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)
 	gacode := "UA-89792135-1"
 	if gaenabled {
-		runTelemetry(jsonLogger, http.DefaultClient, gacode, cookie)
+		runTelemetry(startupLogger, http.DefaultClient, gacode, cookie)
 	}
 
 	// Respect OS stop signals.
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	multiLogger.Info("Startup done")
+	startupLogger.Info("Startup done")
 
 	// Wait for a termination signal.
 	<-c
-	multiLogger.Info("Shutting down")
+	startupLogger.Info("Shutting down")
 
 	// Gracefully stop server components.
 	apiServer.Stop()
 	consoleServer.Stop()
-	metrics.Stop(jsonLogger)
+	metrics.Stop(logger)
 	matchRegistry.Stop()
 	tracker.Stop()
 	sessionRegistry.Stop()
@@ -203,22 +203,22 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 //
 // This information is sent via Google Analytics which allows the Nakama team to
 // analyze usage patterns and errors in order to help improve the server.
-func runTelemetry(logger *zap.Logger, httpc *http.Client, gacode string, cookie string) {
+func runTelemetry(startupLogger *zap.Logger, httpc *http.Client, gacode string, cookie string) {
 	err := ga.SendSessionStart(httpc, gacode, cookie)
 	if err != nil {
-		logger.Debug("Send start session event failed.", zap.Error(err))
+		startupLogger.Debug("Send start session event failed.", zap.Error(err))
 		return
 	}
 
 	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "version", Ea: fmt.Sprintf("%s+%s", version, commitID)})
 	if err != nil {
-		logger.Debug("Send event failed.", zap.Error(err))
+		startupLogger.Debug("Send event failed.", zap.Error(err))
 		return
 	}
 
 	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
 	if err != nil {
-		logger.Debug("Send event failed.", zap.Error(err))
+		startupLogger.Debug("Send event failed.", zap.Error(err))
 		return
 	}
 }

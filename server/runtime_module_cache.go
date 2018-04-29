@@ -34,7 +34,7 @@ type RegCallbacks struct {
 	Matchmaker interface{}
 }
 
-func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
+func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
 	runtimeConfig := config.GetRuntime()
 	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
 		return nil, nil, err
@@ -47,17 +47,17 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
-	logger.Info("Initialising modules", zap.String("path", lua.LuaLDir))
+	startupLogger.Info("Initialising runtime", zap.String("path", lua.LuaLDir))
 	modulePaths := make([]string, 0)
 	if err := filepath.Walk(lua.LuaLDir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
-			logger.Error("Could not read module", zap.Error(err))
+			startupLogger.Error("Could not read module", zap.Error(err))
 			return err
 		} else if !f.IsDir() {
 			if strings.ToLower(filepath.Ext(path)) == ".lua" {
 				var content []byte
 				if content, err = ioutil.ReadFile(path); err != nil {
-					logger.Error("Could not read module", zap.String("path", path), zap.Error(err))
+					startupLogger.Error("Could not read module", zap.String("path", path), zap.Error(err))
 					return err
 				}
 				relPath, _ := filepath.Rel(lua.LuaLDir, path)
@@ -74,7 +74,7 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 		}
 		return nil
 	}); err != nil {
-		logger.Error("Failed to list modules", zap.Error(err))
+		startupLogger.Error("Failed to list modules", zap.Error(err))
 		return nil, nil, err
 	}
 
@@ -87,19 +87,19 @@ func LoadRuntimeModules(logger, multiLogger *zap.Logger, config Config) (map[str
 		lua.MathLibName:   lua.OpenMath,
 	}
 
-	multiLogger.Info("Found modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
+	startupLogger.Info("Found runtime modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
 
 	return stdLibs, modules, nil
 }
 
-func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
+func ValidateRuntimeModules(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
 	regCallbacks := &RegCallbacks{
 		RPC:    make(map[string]interface{}),
 		Before: make(map[string]interface{}),
 		After:  make(map[string]interface{}),
 	}
 
-	multiLogger.Info("Evaluating modules")
+	startupLogger.Info("Evaluating runtime modules")
 	r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
 		switch execMode {
 		case ExecutionModeRPC:
@@ -119,7 +119,7 @@ func ValidateRuntimeModules(logger, multiLogger *zap.Logger, db *sql.DB, config 
 	if err != nil {
 		return nil, err
 	}
-	multiLogger.Info("Modules loaded")
+	startupLogger.Info("Runtime modules loaded")
 	r.Stop()
 
 	return regCallbacks, nil

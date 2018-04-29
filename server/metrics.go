@@ -33,21 +33,21 @@ type Metrics struct {
 	prometheusHTTPServer *http.Server
 }
 
-func NewMetrics(logger *zap.Logger, config Config) *Metrics {
+func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	m := &Metrics{}
 	view.SetReportingPeriod(time.Duration(config.GetMetrics().ReportingFreqSec) * time.Second)
 	if config.GetMetrics().StackdriverProjectID != "" {
-		m.initStackdriver(logger, config)
+		m.initStackdriver(logger, startupLogger, config)
 	}
 
 	if config.GetMetrics().PrometheusPort > 0 {
-		m.initPrometheus(logger, config)
+		m.initPrometheus(logger, startupLogger, config)
 	}
 
 	return m
 }
 
-func (m *Metrics) initStackdriver(logger *zap.Logger, config Config) {
+func (m *Metrics) initStackdriver(logger, startupLogger *zap.Logger, config Config) {
 	prefix := config.GetName()
 	if config.GetMetrics().Namespace != "" {
 		prefix += "-" + config.GetMetrics().Namespace
@@ -61,12 +61,12 @@ func (m *Metrics) initStackdriver(logger *zap.Logger, config Config) {
 		},
 	})
 	if err != nil {
-		logger.Fatal("Could not setup Stackdriver exporter", zap.Error(err))
+		startupLogger.Fatal("Could not setup Stackdriver exporter", zap.Error(err))
 	}
 	view.RegisterExporter(exporter)
 }
 
-func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
+func (m *Metrics) initPrometheus(logger, startupLogger *zap.Logger, config Config) {
 	prefix := config.GetName()
 	if config.GetMetrics().Namespace != "" {
 		prefix += "-" + config.GetMetrics().Namespace
@@ -81,7 +81,7 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 		},
 	})
 	if err != nil {
-		logger.Fatal("Could not setup Prometheus exporter", zap.Error(err))
+		startupLogger.Fatal("Could not setup Prometheus exporter", zap.Error(err))
 	}
 
 	view.RegisterExporter(exporter)
@@ -101,10 +101,10 @@ func (m *Metrics) initPrometheus(logger *zap.Logger, config Config) {
 		Handler:      handlerWithCORS,
 	}
 
-	logger.Info("Starting Prometheus server for metrics requests", zap.Int("port", config.GetMetrics().PrometheusPort))
+	startupLogger.Info("Starting Prometheus server for metrics requests", zap.Int("port", config.GetMetrics().PrometheusPort))
 	go func() {
 		if err := m.prometheusHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Prometheus listener failed", zap.Error(err))
+			startupLogger.Fatal("Prometheus listener failed", zap.Error(err))
 		}
 	}()
 }

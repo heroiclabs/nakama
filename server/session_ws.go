@@ -60,7 +60,7 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
-	sessionLogger.Debug("New WebSocket session connected")
+	sessionLogger.Info("New WebSocket session connected")
 
 	return &sessionWS{
 		logger:   sessionLogger,
@@ -260,7 +260,7 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.Unlock()
 
 	if s.logger.Core().Enabled(zap.DebugLevel) {
-		s.logger.Debug("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
+		s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	}
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
@@ -275,7 +275,7 @@ func (s *sessionWS) cleanupClosedConnection() {
 
 	// Close WebSocket.
 	s.conn.Close()
-	s.logger.Debug("Closed client connection")
+	s.logger.Info("Closed client connection")
 }
 
 func (s *sessionWS) Close() {
@@ -302,5 +302,5 @@ func (s *sessionWS) Close() {
 
 	// Close WebSocket.
 	s.conn.Close()
-	s.logger.Debug("Closed client connection")
+	s.logger.Info("Closed client connection")
 }

@@ -51,7 +51,7 @@ type RuntimePool struct {
 	pool         *sync.Pool
 }
 
-func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
+func NewRuntimePool(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
 	return &RuntimePool{
 		regCallbacks: regCallbacks,
 		modules:      modules,
@@ -59,7 +59,7 @@ func NewRuntimePool(logger, multiLogger *zap.Logger, db *sql.DB, config Config, 
 			New: func() interface{} {
 				r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, nil)
 				if err != nil {
-					multiLogger.Fatal("Failed initializing runtime.", zap.Error(err))
+					logger.Fatal("Failed initializing runtime.", zap.Error(err))
 				}
 				// TODO find a way to run r.Stop() when the pool discards this runtime.
 				return r
