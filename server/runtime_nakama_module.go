@@ -3105,10 +3105,8 @@ func (n *NakamaModule) leaderboardCreate(l *lua.LState) int {
 		operatorNumber = LeaderboardOperatorSet
 	case "incr":
 		operatorNumber = LeaderboardOperatorIncrement
-	case "decr":
-		operatorNumber = LeaderboardOperatorDecrement
 	default:
-		l.ArgError(4, "expects sort order to be 'best', 'set', 'incr', or 'decr'")
+		l.ArgError(4, "expects sort order to be 'best', 'set', or 'incr'")
 		return 0
 	}
 
