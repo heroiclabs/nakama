@@ -16,10 +16,11 @@ package server
 
 import (
 	"database/sql"
+	"sync"
+
 	"github.com/gorhill/cronexpr"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
-	"sync"
 )
 
 const (
@@ -57,7 +58,7 @@ type LocalLeaderboardCache struct {
 	leaderboards map[string]*Leaderboard
 }
 
-func NewLocalLeaderboardCache(logger, multiLogger *zap.Logger, db *sql.DB) LeaderboardCache {
+func NewLocalLeaderboardCache(logger, startupLogger *zap.Logger, db *sql.DB) LeaderboardCache {
 	l := &LocalLeaderboardCache{
 		logger:       logger,
 		db:           db,
@@ -67,7 +68,7 @@ func NewLocalLeaderboardCache(logger, multiLogger *zap.Logger, db *sql.DB) Leade
 	query := "SELECT id, authoritative, sort_order, operator, reset_schedule, metadata, create_time FROM leaderboard"
 	rows, err := db.Query(query)
 	if err != nil {
-		multiLogger.Fatal("Error loading leaderboard cache from database", zap.Error(err))
+		startupLogger.Fatal("Error loading leaderboard cache from database", zap.Error(err))
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -81,7 +82,7 @@ func NewLocalLeaderboardCache(logger, multiLogger *zap.Logger, db *sql.DB) Leade
 
 		err = rows.Scan(&id, &authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime)
 		if err != nil {
-			multiLogger.Fatal("Error parsing leaderboard cache from database", zap.Error(err))
+			startupLogger.Fatal("Error parsing leaderboard cache from database", zap.Error(err))
 		}
 
 		leaderboard := &Leaderboard{
@@ -96,7 +97,7 @@ func NewLocalLeaderboardCache(logger, multiLogger *zap.Logger, db *sql.DB) Leade
 		if resetSchedule.Valid {
 			expr, err := cronexpr.Parse(resetSchedule.String)
 			if err != nil {
-				multiLogger.Fatal("Error parsing leaderboard reset schedule from database", zap.Error(err))
+				startupLogger.Fatal("Error parsing leaderboard reset schedule from database", zap.Error(err))
 			}
 			leaderboard.ResetSchedule = expr
 		}

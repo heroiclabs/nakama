@@ -32,6 +32,7 @@ import (
 	"github.com/heroiclabs/nakama/server"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -93,6 +94,32 @@ func (d *DummySession) SendBytes(payload []byte) error {
 }
 
 func (d *DummySession) Close() {}
+
+type loggerEnabler struct{}
+
+func (l *loggerEnabler) Enabled(level zapcore.Level) bool {
+	return true
+}
+
+func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
+	consoleEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		EncodeLevel:    zapcore.CapitalColorLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	})
+
+	core := zapcore.NewCore(consoleEncoder, output, &loggerEnabler{})
+	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+
+	return zap.New(core, options...)
+}
 
 func NewDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("postgres", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")

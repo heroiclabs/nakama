@@ -15,11 +15,12 @@
 package server
 
 import (
+	"sync"
+
 	"github.com/blevesearch/bleve"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"sync"
 )
 
 var ErrMatchmakerTicketNotFound = errors.New("ticket not found")
@@ -54,11 +55,11 @@ type LocalMatchmaker struct {
 	index   bleve.Index
 }
 
-func NewLocalMatchmaker(multiLogger *zap.Logger, node string) Matchmaker {
+func NewLocalMatchmaker(startupLogger *zap.Logger, node string) Matchmaker {
 	mapping := bleve.NewIndexMapping()
 	index, err := bleve.NewMemOnly(mapping)
 	if err != nil {
-		multiLogger.Fatal("Failed to create matchmaker index", zap.Error(err))
+		startupLogger.Fatal("Failed to create matchmaker index", zap.Error(err))
 	}
 
 	return &LocalMatchmaker{

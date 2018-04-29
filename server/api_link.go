@@ -164,7 +164,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 
 	facebookProfile, err := s.socialClient.GetFacebookProfile(in.Account.Token)
 	if err != nil {
-		s.logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
+		s.logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
@@ -212,7 +212,7 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 
 	valid, err := s.socialClient.CheckGameCenterID(in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
 	if !valid || err != nil {
-		s.logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+		s.logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 
@@ -245,7 +245,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 
 	googleProfile, err := s.socialClient.CheckGoogleToken(in.Token)
 	if err != nil {
-		s.logger.Debug("Could not authenticate Google profile.", zap.Error(err))
+		s.logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 
@@ -282,7 +282,7 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 
 	steamProfile, err := s.socialClient.GetSteamProfile(s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
 	if err != nil {
-		s.logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
+		s.logger.Info("Could not authenticate Steam profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 

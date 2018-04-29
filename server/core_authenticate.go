@@ -25,6 +25,7 @@ import (
 	"errors"
 
 	"context"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -59,7 +60,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -82,7 +83,7 @@ func AuthenticateCustom(logger *zap.Logger, db *sql.DB, customID, username strin
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_custom_id_key") {
 				// A concurrent write has inserted this custom ID.
-				logger.Debug("Did not insert new user as custom ID already exists.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as custom ID already exists.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -130,7 +131,7 @@ func AuthenticateDevice(logger *zap.Logger, db *sql.DB, deviceID, username strin
 
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -167,7 +168,7 @@ WHERE NOT EXISTS
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// A concurrent write has inserted this device ID.
-				logger.Debug("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
 			} else if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
@@ -230,7 +231,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -258,7 +259,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_email_key") {
 				// A concurrent write has inserted this email.
-				logger.Debug("Did not insert new user as email already exists.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as email already exists.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -277,7 +278,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client, accessToken, username string, create bool) (string, string, bool, error) {
 	facebookProfile, err := client.GetFacebookProfile(accessToken)
 	if err != nil {
-		logger.Debug("Could not authenticate Facebook profile.", zap.Error(err))
+		logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
 		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 	found := true
@@ -301,7 +302,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -324,7 +325,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_facebook_id_key") {
 				// A concurrent write has inserted this Facebook ID.
-				logger.Debug("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -343,7 +344,7 @@ func AuthenticateFacebook(logger *zap.Logger, db *sql.DB, client *social.Client,
 func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Client, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error) {
 	valid, err := client.CheckGameCenterID(playerID, bundleID, timestamp, salt, signature, publicKeyUrl)
 	if !valid || err != nil {
-		logger.Debug("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+		logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
 		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 	found := true
@@ -367,7 +368,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -390,7 +391,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_gamecenter_id_key") {
 				// A concurrent write has inserted this GameCenter ID.
-				logger.Debug("Did not insert new user as GameCenter ID already exists.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as GameCenter ID already exists.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -409,7 +410,7 @@ func AuthenticateGameCenter(logger *zap.Logger, db *sql.DB, client *social.Clien
 func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, bool, error) {
 	googleProfile, err := client.CheckGoogleToken(idToken)
 	if err != nil {
-		logger.Debug("Could not authenticate Google profile.", zap.Error(err))
+		logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 	found := true
@@ -433,7 +434,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -456,7 +457,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_google_id_key") {
 				// A concurrent write has inserted this Google ID.
-				logger.Debug("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -475,7 +476,7 @@ func AuthenticateGoogle(logger *zap.Logger, db *sql.DB, client *social.Client, i
 func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, bool, error) {
 	steamProfile, err := client.GetSteamProfile(publisherKey, appID, token)
 	if err != nil {
-		logger.Debug("Could not authenticate Steam profile.", zap.Error(err))
+		logger.Info("Could not authenticate Steam profile.", zap.Error(err))
 		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
@@ -500,7 +501,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
-			logger.Debug("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
@@ -523,7 +524,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_steam_id_key") {
 				// A concurrent write has inserted this Steam ID.
-				logger.Debug("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
@@ -542,7 +543,7 @@ func AuthenticateSteam(logger *zap.Logger, db *sql.DB, client *social.Client, ap
 func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
 	facebookProfiles, err := client.GetFacebookFriends(token)
 	if err != nil {
-		logger.Debug("Could not import Facebook friends.", zap.Error(err))
+		logger.Info("Could not import Facebook friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 

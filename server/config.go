@@ -34,7 +34,7 @@ import (
 type Config interface {
 	GetName() string
 	GetDataDir() string
-	GetLog() *LogConfig
+	GetLogger() *LoggerConfig
 	GetMetrics() *MetricsConfig
 	GetSession() *SessionConfig
 	GetSocket() *SocketConfig
@@ -166,7 +166,7 @@ type config struct {
 	Name     string          `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
 	Config   string          `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
 	Datadir  string          `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Log      *LogConfig      `yaml:"log" json:"log" usage:"Log levels and output."`
+	Logger   *LoggerConfig   `yaml:"logger" json:"logger" usage:"Logger levels and output."`
 	Metrics  *MetricsConfig  `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
 	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings."`
 	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configuration."`
@@ -185,7 +185,7 @@ func NewConfig(logger *zap.Logger) *config {
 	return &config{
 		Name:     "nakama",
 		Datadir:  filepath.Join(cwd, "data"),
-		Log:      NewLogConfig(),
+		Logger:   NewLoggerConfig(),
 		Metrics:  NewMetricsConfig(),
 		Session:  NewSessionConfig(),
 		Socket:   NewSocketConfig(),
@@ -204,8 +204,8 @@ func (c *config) GetDataDir() string {
 	return c.Datadir
 }
 
-func (c *config) GetLog() *LogConfig {
-	return c.Log
+func (c *config) GetLogger() *LoggerConfig {
+	return c.Logger
 }
 
 func (c *config) GetMetrics() *MetricsConfig {
@@ -236,22 +236,19 @@ func (c *config) GetConsole() *ConsoleConfig {
 	return c.Console
 }
 
-// LogConfig is configuration relevant to logging levels and output.
-type LogConfig struct {
-	// By default, log all messages with Info and higher levels to a log file inside Data/Log/<name>.log file. The content will be in JSON.
-	// if --log.verbose is passed, log messages with Debug and higher levels.
-	// if --log.stdout is passed, logs are only printed to stdout.
-	// In all cases, Error and Fatal messages trigger the stacktrace to be dumped as well.
-
-	Verbose bool `yaml:"verbose" json:"verbose" usage:"Turn verbose logging on."`
-	Stdout  bool `yaml:"stdout" json:"stdout" usage:"Log to stdout instead of file."`
+// LoggerConfig is configuration relevant to logging levels and output.
+type LoggerConfig struct {
+	Level  string `yaml:"level" json:"level" usage:"Log level to set. Valid values are 'debug', 'info', 'warn', 'error'. "`
+	Stdout bool   `yaml:"stdout" json:"stdout" usage:"Log to standard console output (as well as to a file if set)."`
+	File   string `yaml:"file" json:"file" usage:"Log output to a file (as well as stdout if set). Make sure that the directory and the file is writable."`
 }
 
-// NewLogConfig creates a new LogConfig struct.
-func NewLogConfig() *LogConfig {
-	return &LogConfig{
-		Verbose: false,
-		Stdout:  false,
+// NewLogConfig creates a new LoggerConfig struct.
+func NewLoggerConfig() *LoggerConfig {
+	return &LoggerConfig{
+		Level:  "info",
+		Stdout: true,
+		File:   "",
 	}
 }
 

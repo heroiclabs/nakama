@@ -42,7 +42,7 @@ type ConsoleServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, multiLogger *zap.Logger, config Config, db *sql.DB) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB) *ConsoleServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -58,15 +58,15 @@ func StartConsoleServer(logger *zap.Logger, multiLogger *zap.Logger, config Conf
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
-	multiLogger.Info("Starting Console server for gRPC requests", zap.Int("port", config.GetSocket().Port-2))
+	startupLogger.Info("Starting Console server for gRPC requests", zap.Int("port", config.GetSocket().Port-2))
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-2))
 		if err != nil {
-			multiLogger.Fatal("Console server listener failed to start", zap.Error(err))
+			startupLogger.Fatal("Console server listener failed to start", zap.Error(err))
 		}
 
 		if err := grpcServer.Serve(listener); err != nil {
-			multiLogger.Fatal("Console server listener failed", zap.Error(err))
+			startupLogger.Fatal("Console server listener failed", zap.Error(err))
 		}
 	}()
 
@@ -80,7 +80,7 @@ func StartConsoleServer(logger *zap.Logger, multiLogger *zap.Logger, config Conf
 	}
 
 	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
-		multiLogger.Fatal("Console server gateway registration failed", zap.Error(err))
+		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
@@ -105,10 +105,10 @@ func StartConsoleServer(logger *zap.Logger, multiLogger *zap.Logger, config Conf
 		Handler:      handlerWithCORS,
 	}
 
-	multiLogger.Info("Starting Console server gateway for HTTP requests", zap.Int("port", config.GetConsole().Port))
+	startupLogger.Info("Starting Console server gateway for HTTP requests", zap.Int("port", config.GetConsole().Port))
 	go func() {
 		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			multiLogger.Fatal("Console server gateway listener failed", zap.Error(err))
+			startupLogger.Fatal("Console server gateway listener failed", zap.Error(err))
 		}
 	}()
 

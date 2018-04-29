@@ -21,6 +21,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,7 +63,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	if fnErr != nil {
 		s.logger.Error("Runtime RPC function caused an error", zap.String("id", in.Id), zap.Error(fnErr))
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !s.config.GetLog().Verbose {
+		if apiErr, ok := fnErr.(*lua.ApiError); ok && !s.logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
 				msg = msg[len(lf.Proto.SourceName):]

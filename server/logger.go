@@ -17,83 +17,42 @@ package server
 import (
 	"os"
 
-	"fmt"
-	"path/filepath"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-type loggerEnabler struct {
-	verbose bool
-}
+func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
+	consoleLogger := NewJSONLogger(os.Stdout, config.GetLogger().Level)
+	fileLogger := NewJSONFileLogger(consoleLogger, config.GetLogger().File, config.GetLogger().Level)
 
-func (l *loggerEnabler) Enabled(level zapcore.Level) bool {
-	return l.verbose || level > zapcore.DebugLevel
-}
+	if fileLogger != nil {
+		multiLogger := NewMultiLogger(consoleLogger, fileLogger)
 
-func NewLogger(config Config) *zap.Logger {
-	consoleLogger := NewJSONLogger(os.Stdout, true)
-
-	output := os.Stdout
-	if !config.GetLog().Stdout {
-		err := os.MkdirAll(filepath.FromSlash(config.GetDataDir()+"/log"), 0755)
-		if err != nil {
-			consoleLogger.Fatal("Could not create log directory", zap.Error(err))
-			return nil
-		}
-
-		output, err = os.Create(filepath.FromSlash(fmt.Sprintf("%v/log/%v.log", config.GetDataDir(), config.GetName())))
-		if err != nil {
-			consoleLogger.Fatal("Could not create log file", zap.Error(err))
-			return nil
+		if config.GetLogger().Stdout {
+			zap.RedirectStdLog(multiLogger)
+			return multiLogger, multiLogger
+		} else {
+			zap.RedirectStdLog(fileLogger)
+			return fileLogger, multiLogger
 		}
 	}
 
-	logger := NewJSONLogger(output, config.GetLog().Verbose)
-	logger = logger.With(zap.String("server", config.GetName()))
-
-	return logger
+	zap.RedirectStdLog(consoleLogger)
+	return consoleLogger, consoleLogger
 }
 
-func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
-	consoleEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.CapitalColorLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	})
+func NewJSONFileLogger(consoleLogger *zap.Logger, fpath string, level string) *zap.Logger {
+	if len(fpath) == 0 {
+		return nil
+	}
 
-	core := zapcore.NewCore(consoleEncoder, output, &loggerEnabler{verbose})
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	output, err := os.OpenFile(fpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		consoleLogger.Fatal("Could not create log file", zap.Error(err))
+		return nil
+	}
 
-	return zap.New(core, options...)
-}
-
-func NewJSONLogger(output *os.File, verbose bool) *zap.Logger {
-	jsonEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	})
-
-	core := zapcore.NewCore(jsonEncoder, output, &loggerEnabler{verbose})
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
-
-	return zap.New(core, options...)
+	return NewJSONLogger(output, level)
 }
 
 func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
@@ -107,15 +66,35 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 	return zap.New(teeCore, options...)
 }
 
-func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
-	consoleLogger := NewJSONLogger(os.Stdout, config.GetLog().Verbose)
-	jsonLogger := NewLogger(config)
-	zap.RedirectStdLog(jsonLogger)
-	multiLogger := consoleLogger
-	if !config.GetLog().Stdout {
-		// Multiplex entries if we aren't printing only to stdout.
-		multiLogger = NewMultiLogger(consoleLogger, jsonLogger)
+func NewJSONLogger(output *os.File, level string) *zap.Logger {
+	jsonEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	})
+
+	zapLevel := zapcore.InfoLevel
+	switch string(level) {
+	case "debug", "DEBUG":
+		zapLevel = zapcore.DebugLevel
+	case "info", "INFO":
+		zapLevel = zapcore.InfoLevel
+	case "warn", "WARN":
+		zapLevel = zapcore.WarnLevel
+	case "error", "ERROR":
+		zapLevel = zapcore.ErrorLevel
+	default:
+		zapLevel = zapcore.InfoLevel
 	}
 
-	return jsonLogger, multiLogger
+	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), zapLevel)
+	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	return zap.New(core, options...)
 }

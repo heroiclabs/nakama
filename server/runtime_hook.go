@@ -23,6 +23,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -62,7 +63,7 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 
 	if fnErr != nil {
 		logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !config.GetLog().Verbose {
+		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
 				msg = msg[len(lf.Proto.SourceName):]
@@ -133,7 +134,7 @@ func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimeP
 
 	if fnErr != nil {
 		logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !config.GetLog().Verbose {
+		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
 				msg = msg[len(lf.Proto.SourceName):]

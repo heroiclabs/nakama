@@ -21,6 +21,7 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -58,7 +59,7 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 	p.runtimePool.Put(runtime)
 	if fnErr != nil {
 		logger.Error("Runtime RPC function caused an error", zap.String("id", rpcMessage.Id), zap.Error(fnErr))
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !p.config.GetLog().Verbose {
+		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
 				msg = msg[len(lf.Proto.SourceName):]

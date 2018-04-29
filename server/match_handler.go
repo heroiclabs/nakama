@@ -259,7 +259,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		}
 	}()
 
-	mh.logger.Debug("Match started")
+	mh.logger.Info("Match started")
 
 	return mh, nil
 }
@@ -357,7 +357,7 @@ func loop(mh *MatchHandler) {
 	// Extract the resulting state.
 	state := mh.vm.Get(-1)
 	if state.Type() == lua.LTNil || state.Type() == LTSentinel {
-		mh.logger.Debug("Match loop returned nil or no state, stopping match")
+		mh.logger.Info("Match loop returned nil or no state, stopping match")
 		mh.Stop()
 		return
 	}
@@ -424,7 +424,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		// Extract the resulting state.
 		state := mh.vm.Get(-1)
 		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
-			mh.logger.Debug("Match join attempt returned nil or no state, stopping match")
+			mh.logger.Info("Match join attempt returned nil or no state, stopping match")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
@@ -483,7 +483,7 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 		// Extract the resulting state.
 		state := mh.vm.Get(-1)
 		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
-			mh.logger.Debug("Match leave returned nil or no state, stopping match")
+			mh.logger.Info("Match leave returned nil or no state, stopping match")
 			mh.Stop()
 			return
 		}
