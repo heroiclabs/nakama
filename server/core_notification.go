@@ -163,7 +163,9 @@ func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notifi
 		params = append(params, id)
 	}
 
-	_, err := db.Exec("DELETE FROM notification WHERE user_id = $1 AND id IN ("+strings.Join(statements, ", ")+")", params...)
+	query := "DELETE FROM notification WHERE user_id = $1 AND id IN (" + strings.Join(statements, ", ") + ")"
+	logger.Debug("Delete notification query", zap.String("query", query), zap.Any("params", params))
+	_, err := db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Could not delete notifications.", zap.Error(err))
 		return err
