@@ -75,6 +75,13 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
+	// Messages.
+	messages, err := GetChannelMessages(s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch messages", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
 	// Leaderboard records.
 	leaderboardRecords, err := LeaderboardRecordReadAll(s.logger, s.db, userID)
 	if err != nil {
@@ -124,11 +131,12 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		}
 	}
 
-	// TODO(mo, zyro) add groups, chat messages
+	// TODO(mo, zyro) add groups
 	export := &console.AccountExport{
 		Account:            account,
 		Objects:            storageObjects,
 		Friends:            friends.GetFriends(),
+		Messages:           messages,
 		LeaderboardRecords: leaderboardRecords,
 		Notifications:      notifications.GetNotifications(),
 		WalletLedgers:      wl,

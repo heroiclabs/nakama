@@ -55,20 +55,20 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 		return err
 	}
 
-	return crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for _, update := range updates {
 			var wallet sql.NullString
 			query := "SELECT wallet FROM users WHERE id = $1::UUID"
 			err := tx.QueryRow(query, update.UserID).Scan(&wallet)
 			if err != nil {
-				logger.Error("Error retrieving user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error retrieving user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 
 			var walletMap map[string]interface{}
 			err = json.Unmarshal([]byte(wallet.String), &walletMap)
 			if err != nil {
-				logger.Error("Error converting current user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error converting current user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 
@@ -80,32 +80,37 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 
 			walletData, err := json.Marshal(walletMap)
 			if err != nil {
-				logger.Error("Error converting new user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error converting new user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 
 			query = "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1::UUID"
 			_, err = tx.Exec(query, update.UserID, string(walletData))
 			if err != nil {
-				logger.Error("Error writing user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error writing user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 
 			changesetData, err := json.Marshal(update.Changeset)
 			if err != nil {
-				logger.Error("Error converting new user wallet changeset.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error converting new user wallet changeset.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 
 			query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1::UUID, $2::UUID, $3, $4)"
 			_, err = tx.Exec(query, uuid.Must(uuid.NewV4()), update.UserID, changesetData, update.Metadata)
 			if err != nil {
-				logger.Error("Error writing user wallet ledger.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+				logger.Debug("Error writing user wallet ledger.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		logger.Error("Error updating wallets.", zap.Error(err))
+		return err
+	}
+
+	return nil
 }
 
 func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {

@@ -154,7 +154,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 
 func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs []string) error {
 	statements := make([]string, 0, len(notificationIDs))
-	params := make([]interface{}, 0, len(notificationIDs))
+	params := make([]interface{}, 0, len(notificationIDs)+1)
 	params = append(params, userID)
 
 	for _, id := range notificationIDs {

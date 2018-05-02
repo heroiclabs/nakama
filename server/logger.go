@@ -19,11 +19,26 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"strings"
 )
 
-func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
-	consoleLogger := NewJSONLogger(os.Stdout, config.GetLogger().Level)
-	fileLogger := NewJSONFileLogger(consoleLogger, config.GetLogger().File, config.GetLogger().Level)
+func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logger) {
+	zapLevel := zapcore.InfoLevel
+	switch strings.ToLower(config.GetLogger().Level) {
+	case "debug":
+		zapLevel = zapcore.DebugLevel
+	case "info":
+		zapLevel = zapcore.InfoLevel
+	case "warn":
+		zapLevel = zapcore.WarnLevel
+	case "error":
+		zapLevel = zapcore.ErrorLevel
+	default:
+		tmpLogger.Fatal("Logger level invalid, must be one of: DEBUG, INFO, WARN, or ERROR")
+	}
+
+	consoleLogger := NewJSONLogger(os.Stdout, zapLevel)
+	fileLogger := NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel)
 
 	if fileLogger != nil {
 		multiLogger := NewMultiLogger(consoleLogger, fileLogger)
@@ -41,7 +56,7 @@ func SetupLogging(config Config) (*zap.Logger, *zap.Logger) {
 	return consoleLogger, consoleLogger
 }
 
-func NewJSONFileLogger(consoleLogger *zap.Logger, fpath string, level string) *zap.Logger {
+func NewJSONFileLogger(consoleLogger *zap.Logger, fpath string, level zapcore.Level) *zap.Logger {
 	if len(fpath) == 0 {
 		return nil
 	}
@@ -66,7 +81,7 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 	return zap.New(teeCore, options...)
 }
 
-func NewJSONLogger(output *os.File, level string) *zap.Logger {
+func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
 	jsonEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -80,21 +95,7 @@ func NewJSONLogger(output *os.File, level string) *zap.Logger {
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
 
-	zapLevel := zapcore.InfoLevel
-	switch string(level) {
-	case "debug", "DEBUG":
-		zapLevel = zapcore.DebugLevel
-	case "info", "INFO":
-		zapLevel = zapcore.InfoLevel
-	case "warn", "WARN":
-		zapLevel = zapcore.WarnLevel
-	case "error", "ERROR":
-		zapLevel = zapcore.ErrorLevel
-	default:
-		zapLevel = zapcore.InfoLevel
-	}
-
-	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), zapLevel)
+	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), level)
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
 	return zap.New(core, options...)
 }

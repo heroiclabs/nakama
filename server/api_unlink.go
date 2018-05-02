@@ -82,7 +82,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
 		res, err := tx.Exec(query, userID, in.Id)
 		if err != nil {
-			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -91,7 +91,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
 		res, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
-			s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {

@@ -81,12 +81,14 @@ message AccountExport {
   repeated nakama.api.Friend friends = 3;
   // The user's groups.
   repeated nakama.api.Group groups = 4;
+  // The user's chat messages.
+  repeated nakama.api.ChannelMessage messages = 5;
   // The user's leaderboard records.
-  repeated nakama.api.LeaderboardRecord leaderboard_records = 5;
+  repeated nakama.api.LeaderboardRecord leaderboard_records = 6;
   // The user's notifications.
-  repeated nakama.api.Notification notifications = 6;
+  repeated nakama.api.Notification notifications = 7;
   // The user's wallet ledger items.
-  repeated WalletLedger wallet_ledgers = 7;
+  repeated WalletLedger wallet_ledgers = 8;
 }
 
 /**

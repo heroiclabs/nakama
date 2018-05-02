@@ -84,7 +84,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 		var dbDeviceIdLinkedUser int64
 		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
-			s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
+			s.logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 
@@ -94,14 +94,14 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
 				}
-				s.logger.Error("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
+				s.logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
 				return err
 			}
 		}
 
 		_, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
-			s.logger.Error("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
+			s.logger.Debug("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 		return nil
