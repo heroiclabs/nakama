@@ -51,7 +51,7 @@ func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
 	}
 
-	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
+	return server.NewRuntimePool(logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
 }
 
 func writeLuaModule(modules *sync.Map, name, content string) {
@@ -195,10 +195,10 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetCallback(server.RPC, "helloworld")
+	fn := r.GetCallback(server.ExecutionModeRPC, "helloworld")
 	payload := "Hello World"
 
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -230,8 +230,8 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	rp := vm(t, modules)
 
 	db := NewDB(t)
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, pipeline, rp)
+	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, rp)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, pipeline, rp)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -269,8 +269,8 @@ nakama.register_rpc(test, "test")
 	r := rp.Get()
 	defer r.Stop()
 
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", "")
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -295,8 +295,8 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -321,8 +321,8 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -347,8 +347,8 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -373,8 +373,8 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -399,8 +399,8 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", payload)
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -427,8 +427,8 @@ nakama.register_rpc(test, "test")
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	fn := r.GetCallback(server.RPC, "test")
-	m, err, _ := r.InvokeFunction(server.RPC, fn, "", "", 0, "", string(hash))
+	fn := r.GetCallback(server.ExecutionModeRPC, "test")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -756,4 +756,40 @@ nakama.register_rt_after(after_match_create, "MatchCreate")
 	if account.Wallet != `{}` {
 		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
 	}
+}
+
+func TestRuntimeGroupTests(t *testing.T) {
+	modules := new(sync.Map)
+	writeLuaModule(modules, "test.lua", `
+local nk = require("nakama")
+
+local user_id = nk.uuid_v4()
+local group_name = nk.uuid_v4()
+local group_update_name = nk.uuid_v4()
+
+local group = nk.group_create(user_id, group_name)
+assert(not (group.id == nil or group.id == ''), "'group.id' must not be nil")
+assert((group.name == group_name), "'group.name' must be set")
+
+nk.group_update(group.id, group_update_name)
+
+local users = nk.group_users_list(group.id)
+for i, u in ipairs(users)
+do
+  assert(u.user.id == user_id, "'u.id' must be equal to user_id")
+	assert(u.state == 1, "'u.state' must be equal to 1 / superadmin")
+end
+
+local groups = nk.user_groups_list(user_id)
+for i, g in ipairs(groups)
+do
+	print(nk.json_encode(g))
+  assert(g.group.name == group_update_name, "'g.name' must be equal to group_update_name")
+	assert(g.state == 1, "'g.state' must be equal to 1 / superadmin")
+end
+
+nk.group_delete(group.id)
+`)
+
+	vm(t, modules)
 }

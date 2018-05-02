@@ -38,6 +38,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const cookieFilename = ".cookie"
@@ -66,7 +67,7 @@ func main() {
 	// Initialize the global random obj with customs seed.
 	rand.Seed(time.Now().UnixNano())
 
-	tmpLogger := server.NewJSONLogger(os.Stdout, "info")
+	tmpLogger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel)
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -79,7 +80,7 @@ func main() {
 	}
 
 	config := server.ParseArgs(tmpLogger, os.Args)
-	logger, startupLogger := server.SetupLogging(config)
+	logger, startupLogger := server.SetupLogging(tmpLogger, config)
 
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
@@ -170,6 +171,7 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 		parsedUrl.Path = "/nakama"
 	}
 
+	multiLogger.Debug("Complete database connection URL", zap.String("raw_url", parsedUrl.String()))
 	db, err := sql.Open("postgres", parsedUrl.String())
 	if err != nil {
 		multiLogger.Fatal("Error connecting to database", zap.Error(err))

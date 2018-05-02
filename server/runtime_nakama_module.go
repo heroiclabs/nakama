@@ -169,6 +169,11 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_records_list":    n.leaderboardRecordsList,
 		"leaderboard_record_write":    n.leaderboardRecordWrite,
 		"leaderboard_record_delete":   n.leaderboardRecordDelete,
+		"group_create":                n.groupCreate,
+		"group_update":                n.groupUpdate,
+		"group_delete":                n.groupDelete,
+		"group_users_list":            n.groupUsersList,
+		"user_groups_list":            n.userGroupsList,
 	}
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
 
@@ -2315,7 +2320,7 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 				}
 				sid, err := uuid.FromString(u)
 				if err != nil {
-					l.ArgError(1, "expects user_id to be a valid UUID")
+					l.ArgError(1, "expects sender_id to be a valid UUID")
 					return
 				}
 				senderID = sid
@@ -2327,16 +2332,16 @@ func (n *NakamaModule) notificationsSend(l *lua.LState) int {
 		}
 
 		if notification.Subject == "" {
-			l.ArgError(1, "expects subject to be non-empty")
+			l.ArgError(1, "expects subject to be provided and to be non-empty")
 			return
 		} else if len(notification.Content) == 0 {
-			l.ArgError(1, "expects content to be a valid JSON")
+			l.ArgError(1, "expects content to be provided and be valid JSON")
 			return
 		} else if uuid.Equal(uuid.Nil, userID) {
-			l.ArgError(1, "expects user_id to be a valid UUID")
+			l.ArgError(1, "expects user_id to be provided and be a valid UUID")
 			return
 		} else if notification.Code == 0 {
-			l.ArgError(1, "expects code to number above 0")
+			l.ArgError(1, "expects code to be provided and be a number above 0")
 			return
 		}
 
@@ -3390,4 +3395,294 @@ func (n *NakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0
+}
+
+func (n *NakamaModule) groupCreate(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	name := l.CheckString(2)
+	if name == "" {
+		l.ArgError(2, "expects group name not be empty")
+		return 0
+	}
+
+	creatorID, err := uuid.FromString(l.OptString(3, uuid.Nil.String()))
+	if err != nil {
+		l.ArgError(3, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	lang := l.OptString(4, "")
+	desc := l.OptString(5, "")
+	avatarURL := l.OptString(6, "")
+	open := l.OptBool(7, false)
+	metadata := l.OptTable(8, nil)
+	metadataStr := ""
+	if metadata != nil {
+		metadataMap := ConvertLuaTable(metadata)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadataStr = string(metadataBytes)
+	}
+	maxCount := l.OptInt(9, 0)
+	if maxCount < 0 || maxCount > 100 {
+		l.ArgError(9, "expects max_count to be > 0 and <= 100")
+		return 0
+	}
+
+	group, err := CreateGroup(n.logger, n.db, userID, creatorID, name, lang, desc, avatarURL, metadataStr, open, maxCount)
+	if err != nil {
+		l.RaiseError("error while trying to create group: %v", err.Error())
+		return 0
+	}
+
+	if group == nil {
+		l.RaiseError("did not create group as a group already exists with the same name")
+		return 0
+	}
+
+	groupTable := l.CreateTable(0, 12)
+	groupTable.RawSetString("id", lua.LString(group.Id))
+	groupTable.RawSetString("creator_id", lua.LString(group.CreatorId))
+	groupTable.RawSetString("name", lua.LString(group.Name))
+	groupTable.RawSetString("description", lua.LString(group.Description))
+	groupTable.RawSetString("avatar_url", lua.LString(group.AvatarUrl))
+	groupTable.RawSetString("lang_tag", lua.LString(group.LangTag))
+
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(group.Metadata), &metadataMap)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		return 0
+	}
+	metadataTable := ConvertMap(l, metadataMap)
+	groupTable.RawSetString("metadata", metadataTable)
+	groupTable.RawSetString("open", lua.LBool(group.Open.Value))
+	groupTable.RawSetString("edge_count", lua.LNumber(group.EdgeCount))
+	groupTable.RawSetString("max_count", lua.LNumber(group.MaxCount))
+	groupTable.RawSetString("create_time", lua.LNumber(group.CreateTime.Seconds))
+	groupTable.RawSetString("update_time", lua.LNumber(group.UpdateTime.Seconds))
+
+	l.Push(groupTable)
+	return 1
+}
+
+func (n *NakamaModule) groupUpdate(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	nameStr := l.OptString(2, "")
+	var name *wrappers.StringValue
+	if nameStr != "" {
+		name = &wrappers.StringValue{Value: nameStr}
+	}
+
+	creatorIDStr := l.OptString(3, "")
+	var creatorID []byte
+	if creatorIDStr != "" {
+		cuid, err := uuid.FromString(creatorIDStr)
+		if err != nil {
+			l.ArgError(3, "expects creator ID to be a valid identifier")
+			return 0
+		}
+		creatorID = cuid.Bytes()
+	}
+
+	langStr := l.OptString(4, "")
+	var lang *wrappers.StringValue
+	if langStr != "" {
+		lang = &wrappers.StringValue{Value: langStr}
+	}
+
+	descStr := l.OptString(5, "")
+	var desc *wrappers.StringValue
+	if descStr != "" {
+		desc = &wrappers.StringValue{Value: descStr}
+	}
+
+	avatarURLStr := l.OptString(6, "")
+	var avatarURL *wrappers.StringValue
+	if avatarURLStr != "" {
+		avatarURL = &wrappers.StringValue{Value: avatarURLStr}
+	}
+
+	openV := l.Get(7)
+	var open *wrappers.BoolValue
+	if openV != lua.LNil {
+		open = &wrappers.BoolValue{Value: l.OptBool(7, false)}
+	}
+
+	metadataTable := l.OptTable(8, nil)
+	var metadata *wrappers.StringValue
+	if metadataTable != nil {
+		metadataMap := ConvertLuaTable(metadataTable)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+	}
+
+	maxCountInt := l.OptInt(9, 0)
+	maxCount := 0
+	if maxCountInt > 0 && maxCountInt <= 100 {
+		maxCount = maxCountInt
+	}
+
+	updated, err := UpdateGroup(n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount)
+	if err != nil {
+		l.RaiseError("error while trying to update group: %v", err.Error())
+		return 0
+	}
+
+	if !updated {
+		l.RaiseError("did not update group - make sure group exists and name is unique")
+		return 0
+	}
+
+	return 0
+}
+
+func (n *NakamaModule) groupDelete(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	deleted, err := DeleteGroup(n.logger, n.db, groupID, uuid.Nil)
+	if err != nil {
+		l.RaiseError("error while trying to delete group: %v", err.Error())
+		return 0
+	}
+
+	if !deleted {
+		l.RaiseError("did not delete group - make sure group exists.")
+		return 0
+	}
+
+	return 0
+}
+
+func (n *NakamaModule) groupUsersList(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	res, err := ListGroupUsers(n.logger, n.db, n.tracker, groupID)
+	if err != nil {
+		l.RaiseError("error while trying to list users in a  group: %v", err.Error())
+		return 0
+	}
+
+	groupUsers := l.CreateTable(len(res.GroupUsers), 0)
+	for i, ug := range res.GroupUsers {
+		u := ug.User
+
+		ut := l.CreateTable(0, 16)
+		ut.RawSetString("user_id", lua.LString(u.Id))
+		ut.RawSetString("username", lua.LString(u.Username))
+		ut.RawSetString("display_name", lua.LString(u.DisplayName))
+		ut.RawSetString("avatar_url", lua.LString(u.AvatarUrl))
+		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
+		ut.RawSetString("location", lua.LString(u.Location))
+		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.FacebookId != "" {
+			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.GoogleId != "" {
+			ut.RawSetString("google_id", lua.LString(u.GoogleId))
+		}
+		if u.GamecenterId != "" {
+			ut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
+		}
+		if u.SteamId != "" {
+			ut.RawSetString("steam_id", lua.LString(u.SteamId))
+		}
+		ut.RawSetString("online", lua.LBool(u.Online))
+		ut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
+		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
+		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		ut.RawSetString("metadata", metadataTable)
+
+		gt := l.CreateTable(0, 2)
+		ut.RawSetString("user", ut)
+		ut.RawSetString("state", lua.LNumber(ug.State))
+
+		groupUsers.RawSetInt(i+1, gt)
+	}
+
+	l.Push(groupUsers)
+	return 1
+}
+
+func (n *NakamaModule) userGroupsList(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	res, err := ListUserGroups(n.logger, n.db, userID)
+	if err != nil {
+		l.RaiseError("error while trying to list groups for a user: %v", err.Error())
+		return 0
+	}
+
+	userGroups := l.CreateTable(len(res.UserGroups), 0)
+	for i, ug := range res.UserGroups {
+		g := ug.Group
+
+		gt := l.CreateTable(0, 12)
+		gt.RawSetString("id", lua.LString(g.Id))
+		gt.RawSetString("creator_id", lua.LString(g.CreatorId))
+		gt.RawSetString("name", lua.LString(g.Name))
+		gt.RawSetString("description", lua.LString(g.Description))
+		gt.RawSetString("avatar_url", lua.LString(g.AvatarUrl))
+		gt.RawSetString("lang_tag", lua.LString(g.LangTag))
+		gt.RawSetString("open", lua.LBool(g.Open.Value))
+		gt.RawSetString("edge_count", lua.LNumber(g.EdgeCount))
+		gt.RawSetString("max_count", lua.LNumber(g.MaxCount))
+		gt.RawSetString("create_time", lua.LNumber(g.CreateTime.Seconds))
+		gt.RawSetString("update_time", lua.LNumber(g.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := ConvertMap(l, metadataMap)
+		gt.RawSetString("metadata", metadataTable)
+
+		ugt := l.CreateTable(0, 2)
+		ugt.RawSetString("group", gt)
+		ugt.RawSetString("state", lua.LNumber(ug.State))
+
+		userGroups.RawSetInt(i+1, ugt)
+	}
+
+	l.Push(userGroups)
+	return 1
 }

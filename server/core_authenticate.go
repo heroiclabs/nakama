@@ -173,24 +173,24 @@ WHERE NOT EXISTS
 			} else if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
 			}
-			logger.Error("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			logger.Debug("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return err
 		}
 
 		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
-			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+			logger.Debug("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
 			return StatusError(codes.Internal, "Error finding or creating user account.", ErrRowsAffectedCount)
 		}
 
 		query = "INSERT INTO user_device (id, user_id) VALUES ($1, $2)"
 		result, err = tx.Exec(query, deviceID, userID)
 		if err != nil {
-			logger.Error("Cannot add device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
+			logger.Debug("Cannot add device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return err
 		}
 
 		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
-			logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+			logger.Debug("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
 			return StatusError(codes.Internal, "Error finding or creating user account.", ErrRowsAffectedCount)
 		}
 
@@ -552,7 +552,6 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 		return nil
 	}
 
-	position := time.Now().UTC().Unix()
 	friendUserIDs := make([]uuid.UUID, 0)
 
 	tx, err := db.Begin()
@@ -630,6 +629,7 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 
 		var id string
 		for rows.Next() {
+			position := time.Now().UTC().UnixNano()
 			err = rows.Scan(&id)
 			if err != nil {
 				// Error scanning the ID, try to skip this user and move on.
@@ -712,6 +712,7 @@ AND EXISTS
 		notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
 		content, _ := json.Marshal(map[string]interface{}{"username": username})
 		subject := "Your friend has just joined the game"
+		createTime := time.Now().UTC().Unix()
 		for _, friendUserID := range friendUserIDs {
 			notifications[friendUserID] = []*api.Notification{&api.Notification{
 				Id:         uuid.Must(uuid.NewV4()).String(),
@@ -720,7 +721,7 @@ AND EXISTS
 				SenderId:   userID.String(),
 				Code:       NOTIFICATION_FRIEND_JOIN_GAME,
 				Persistent: true,
-				CreateTime: &timestamp.Timestamp{Seconds: position},
+				CreateTime: &timestamp.Timestamp{Seconds: createTime},
 			}}
 		}
 		NotificationSend(logger, db, messageRouter, notifications)

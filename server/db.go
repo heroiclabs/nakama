@@ -28,6 +28,7 @@ var ErrRowsAffectedCount = errors.New("rows_affected_count")
 
 // A type that wraps an outgoing client-facing error together with an underlying cause error.
 type statusError struct {
+	code   codes.Code
 	status error
 	cause  error
 }
@@ -46,9 +47,14 @@ func (s *statusError) Status() error {
 	return s.status
 }
 
+func (s *statusError) Code() codes.Code {
+	return s.code
+}
+
 // Helper function for creating status errors that wrap underlying causes, usually DB errors.
 func StatusError(code codes.Code, msg string, cause error) error {
 	return &statusError{
+		code:   code,
 		status: status.Error(code, msg),
 		cause:  cause,
 	}

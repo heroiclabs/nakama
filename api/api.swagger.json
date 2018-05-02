@@ -645,7 +645,7 @@
         ]
       }
     },
-    "/v2/channel": {
+    "/v2/channel/{channel_id}": {
       "get": {
         "summary": "List a channel's message history.",
         "operationId": "ListChannelMessages",
@@ -660,9 +660,8 @@
         "parameters": [
           {
             "name": "channel_id",
-            "description": "The channel ID to list from.",
-            "in": "query",
-            "required": false,
+            "in": "path",
+            "required": true,
             "type": "string"
           },
           {
@@ -787,13 +786,13 @@
     },
     "/v2/group": {
       "post": {
-        "summary": "Create one or more new groups with the current user as the owner.",
+        "summary": "Create a new group with the current user as the owner.",
         "operationId": "CreateGroup",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/apiGroups"
+              "$ref": "#/definitions/apiGroup"
             }
           }
         },
@@ -803,8 +802,254 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiCreateGroupsRequest"
+              "$ref": "#/definitions/apiCreateGroupRequest"
             }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}": {
+      "delete": {
+        "summary": "Delete one or more groups by ID.",
+        "operationId": "DeleteGroup",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Update fields in a given group.",
+        "operationId": "UpdateGroup",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiUpdateGroupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/add": {
+      "post": {
+        "summary": "Add users to a group.",
+        "operationId": "AddGroupUsers",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAddGroupUsersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/join": {
+      "post": {
+        "summary": "Immediately join an open group, or request to join a closed one.",
+        "operationId": "JoinGroup",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJoinGroupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/kick": {
+      "post": {
+        "summary": "Kick a set of users from a group.",
+        "operationId": "KickGroupUsers",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiKickGroupUsersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/leave": {
+      "post": {
+        "summary": "Leave a group the user is a member of.",
+        "operationId": "LeaveGroup",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiLeaveGroupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/promote": {
+      "post": {
+        "summary": "Promote a set of users in a group to the next role up.",
+        "operationId": "PromoteGroupUsers",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiPromoteGroupUsersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/user": {
+      "get": {
+        "summary": "List all users that are part of a group.",
+        "operationId": "ListGroupUsers",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiGroupUserList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1313,39 +1558,63 @@
           "Nakama"
         ]
       }
+    },
+    "/v2/user/{user_id}/group": {
+      "get": {
+        "summary": "List groups the current user belongs to.",
+        "operationId": "ListUserGroups",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiUserGroupList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
     }
   },
   "definitions": {
-    "CreateGroupsRequestNewGroup": {
+    "GroupUserListGroupUser": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "A unique name for the group."
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "User."
         },
-        "description": {
-          "type": "string",
-          "description": "A description for the group."
-        },
-        "lang_tag": {
-          "type": "string",
-          "description": "The language expected to be a tag which follows the BCP-47 spec."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Additional information stored as a JSON object."
-        },
-        "avatar_url": {
-          "type": "string",
-          "description": "A URL for an avatar image."
-        },
-        "private": {
-          "type": "boolean",
-          "format": "boolean",
-          "description": "Mark a group as private where only admins can accept members."
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Their relationship to the group."
         }
       },
-      "description": "A group to create."
+      "description": "A single user-role pair."
+    },
+    "UserGroupListUserGroup": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/apiGroup",
+          "description": "Group."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The user's relationship to the group."
+        }
+      },
+      "description": "A single group-role pair."
     },
     "WriteLeaderboardRecordRequestLeaderboardRecordWrite": {
       "type": "object",
@@ -1496,6 +1765,23 @@
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
     },
+    "apiAddGroupUsersRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The group to add users to."
+        },
+        "user_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The users to add."
+        }
+      },
+      "description": "Add users to a group."
+    },
     "apiChannelMessage": {
       "type": "object",
       "properties": {
@@ -1563,18 +1849,32 @@
       },
       "description": "A list of channel messages, usually a result of a list operation."
     },
-    "apiCreateGroupsRequest": {
+    "apiCreateGroupRequest": {
       "type": "object",
       "properties": {
-        "groups": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/CreateGroupsRequestNewGroup"
-          },
-          "description": "The Group objects to create."
+        "name": {
+          "type": "string",
+          "description": "A unique name for the group."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description for the group."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "open": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Mark a group as open or not where only admins can accept members."
         }
       },
-      "description": "Create one or more groups with the current user as owner."
+      "description": "Create a group with the current user as owner."
     },
     "apiDeleteStorageObjectId": {
       "type": "object",
@@ -1666,15 +1966,20 @@
           "type": "string",
           "description": "A URL for an avatar image."
         },
-        "private": {
+        "open": {
           "type": "boolean",
           "format": "boolean",
-          "description": "Mark a group as private where only admins can accept members."
+          "description": "Anyone can join open groups, otherwise only admins can accept members."
         },
-        "count": {
+        "edge_count": {
           "type": "integer",
           "format": "int32",
           "description": "The current count of all members in the group."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of members allowed."
         },
         "create_time": {
           "type": "string",
@@ -1689,18 +1994,45 @@
       },
       "description": "A group in the server."
     },
-    "apiGroups": {
+    "apiGroupUserList": {
       "type": "object",
       "properties": {
-        "groups": {
+        "group_users": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/apiGroup"
+            "$ref": "#/definitions/GroupUserListGroupUser"
           },
-          "description": "The Group objects."
+          "description": "User-role pairs for a group."
         }
       },
-      "description": "A collection of zero or more groups."
+      "description": "A list of users belonging to a group, along with their role."
+    },
+    "apiJoinGroupRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The group ID to join."
+        }
+      },
+      "description": "Immediately join an open group, or request to join a closed one."
+    },
+    "apiKickGroupUsersRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The group ID to kick from."
+        },
+        "user_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The users to kick."
+        }
+      },
+      "description": "Kick a set of users from a group."
     },
     "apiLeaderboardRecord": {
       "type": "object",
@@ -1786,6 +2118,16 @@
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
+    },
+    "apiLeaveGroupRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The group ID to leave."
+        }
+      },
+      "description": "Leave a group."
     },
     "apiMatch": {
       "type": "object",
@@ -1877,6 +2219,23 @@
         }
       },
       "description": "A collection of zero or more notifications."
+    },
+    "apiPromoteGroupUsersRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The group ID to promote in."
+        },
+        "user_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The users to promote."
+        }
+      },
+      "description": "Promote a set of users in a group to the next role up."
     },
     "apiReadStorageObjectId": {
       "type": "object",
@@ -2087,6 +2446,37 @@
       },
       "description": "Update a user's account details."
     },
+    "apiUpdateGroupRequest": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The ID of the group to update."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description string."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Lang tag."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
+        }
+      },
+      "description": "Update fields in a given group."
+    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -2160,6 +2550,19 @@
         }
       },
       "description": "A user in the server."
+    },
+    "apiUserGroupList": {
+      "type": "object",
+      "properties": {
+        "user_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UserGroupListUserGroup"
+          },
+          "description": "Group-role pairs for a user."
+        }
+      },
+      "description": "A list of groups belonging to a user, along with the user's role in each group."
     },
     "apiUsers": {
       "type": "object",

@@ -204,6 +204,60 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	}, nil
 }
 
+func GetChannelMessages(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.ChannelMessage, error) {
+	query := "SELECT id, code, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time FROM message WHERE sender_id = $1::UUID"
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		logger.Error("Error listing channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	messages := make([]*api.ChannelMessage, 0, 100)
+	var dbId string
+	var dbCode int32
+	var dbUsername string
+	var dbStreamMode uint8
+	var dbStreamSubject string
+	var dbStreamDescriptor string
+	var dbStreamLabel string
+	var dbContent string
+	var dbCreateTime pq.NullTime
+	var dbUpdateTime pq.NullTime
+	for rows.Next() {
+		err = rows.Scan(&dbId, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamDescriptor, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
+		if err != nil {
+			logger.Error("Error parsing listed channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
+			return nil, err
+		}
+
+		channelId, err := StreamToChannelId(PresenceStream{
+			Mode:       dbStreamMode,
+			Subject:    uuid.FromStringOrNil(dbStreamSubject),
+			Descriptor: uuid.FromStringOrNil(dbStreamDescriptor),
+			Label:      dbStreamLabel,
+		})
+		if err != nil {
+			logger.Error("Error processing listed channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
+			return nil, err
+		}
+
+		messages = append(messages, &api.ChannelMessage{
+			ChannelId:  channelId,
+			MessageId:  dbId,
+			Code:       &wrappers.Int32Value{Value: dbCode},
+			SenderId:   userID.String(),
+			Username:   dbUsername,
+			Content:    dbContent,
+			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+			UpdateTime: &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			Persistent: &wrappers.BoolValue{Value: true},
+		})
+	}
+
+	return messages, nil
+}
+
 func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 	if channelId == "" {
 		return nil, ErrChannelIdInvalid

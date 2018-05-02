@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	logger          = server.NewConsoleLogger(os.Stdout, true)
+	logger          = NewConsoleLogger(os.Stdout, true)
 	config          = server.NewConfig(logger)
 	jsonpbMarshaler = &jsonpb.Marshaler{
 		EnumsAsInts:  true,
@@ -150,8 +150,8 @@ func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) (*server.ApiSer
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
 	tracker := &server.LocalTracker{}
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, tracker, router, pipeline, runtimePool)
+	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtimePool)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, tracker, router, pipeline, runtimePool)
 	return apiServer, pipeline
 }
 

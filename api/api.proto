@@ -90,6 +90,14 @@ service Nakama {
     option (google.api.http).post = "/v2/friend";
   }
 
+  // Add users to a group.
+  rpc AddGroupUsers (AddGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/group/{group_id}/add",
+      body: "*"
+    };
+  }
+
   // Authenticate a user with a custom id against the server.
   rpc AuthenticateCustom (AuthenticateCustomRequest) returns (Session) {
     option (google.api.http) = {
@@ -153,8 +161,8 @@ service Nakama {
     };
   }
 
-  // Create one or more new groups with the current user as the owner.
-  rpc CreateGroup (CreateGroupsRequest) returns (Groups) {
+  // Create a new group with the current user as the owner.
+  rpc CreateGroup (CreateGroupRequest) returns (Group) {
     option (google.api.http) = {
       post: "/v2/group",
       body: "*"
@@ -164,6 +172,11 @@ service Nakama {
   // Delete one or more users by ID or username.
   rpc DeleteFriends (DeleteFriendsRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/friend";
+  }
+
+  // Delete one or more groups by ID.
+  rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/group/{group_id}";
   }
 
   // Delete a leaderboard record.
@@ -204,6 +217,30 @@ service Nakama {
     option (google.api.http) = {
       post: "/v2/friend/facebook",
       body: "account"
+    };
+  }
+
+  // Immediately join an open group, or request to join a closed one.
+  rpc JoinGroup (JoinGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/group/{group_id}/join",
+      body: "*"
+    };
+  }
+
+  // Kick a set of users from a group.
+  rpc KickGroupUsers (KickGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/group/{group_id}/kick",
+      body: "*"
+    };
+  }
+
+  // Leave a group the user is a member of.
+  rpc LeaveGroup (LeaveGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/group/{group_id}/leave",
+      body: "*"
     };
   }
 
@@ -265,12 +302,17 @@ service Nakama {
 
   // List a channel's message history.
   rpc ListChannelMessages (ListChannelMessagesRequest) returns (ChannelMessageList) {
-    option (google.api.http).get = "/v2/channel";
+    option (google.api.http).get = "/v2/channel/{channel_id}";
   }
 
   // List all friends for the current user.
   rpc ListFriends (google.protobuf.Empty) returns (Friends) {
     option (google.api.http).get = "/v2/friend";
+  }
+
+  // List all users that are part of a group.
+  rpc ListGroupUsers (ListGroupUsersRequest) returns (GroupUserList) {
+    option (google.api.http).get = "/v2/group/{group_id}/user";
   }
 
   // List leaderboard records
@@ -295,6 +337,19 @@ service Nakama {
       additional_bindings {
         get: "/v2/storage/{collection}/{user_id}"
       }
+    };
+  }
+
+  // List groups the current user belongs to.
+  rpc ListUserGroups (ListUserGroupsRequest) returns (UserGroupList) {
+    option (google.api.http).get = "/v2/user/{user_id}/group";
+  }
+
+  // Promote a set of users in a group to the next role up.
+  rpc PromoteGroupUsers (PromoteGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/group/{group_id}/promote",
+      body: "*"
     };
   }
 
@@ -377,6 +432,14 @@ service Nakama {
   rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/account",
+      body: "*"
+    };
+  }
+
+  // Update fields in a given group.
+  rpc UpdateGroup (UpdateGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/group/{group_id}",
       body: "*"
     };
   }
@@ -476,6 +539,14 @@ message AddFriendsRequest {
   repeated string ids = 1;
   // The account username of a user.
   repeated string usernames = 2;
+}
+
+// Add users to a group.
+message AddGroupUsersRequest {
+  // The group to add users to.
+  string group_id = 1;
+  // The users to add.
+  repeated string user_ids = 2;
 }
 
 // Authenticate against the server with a custom ID.
@@ -590,26 +661,18 @@ message ChannelMessageList {
   string prev_cursor = 3;
 }
 
-// Create one or more groups with the current user as owner.
-message CreateGroupsRequest {
-  // A group to create.
-  message NewGroup {
-    // A unique name for the group.
-    string name = 1;
-    // A description for the group.
-    string description = 2;
-    // The language expected to be a tag which follows the BCP-47 spec.
-    string lang_tag = 3;
-    // Additional information stored as a JSON object.
-    string metadata = 4;
-    // A URL for an avatar image.
-    string avatar_url = 5;
-    // Mark a group as private where only admins can accept members.
-    bool private = 6;
-  }
-
-  // The Group objects to create.
-  repeated NewGroup groups = 1;
+// Create a group with the current user as owner.
+message CreateGroupRequest {
+  // A unique name for the group.
+  string name = 1;
+  // A description for the group.
+  string description = 2;
+  // The language expected to be a tag which follows the BCP-47 spec.
+  string lang_tag = 3;
+  // A URL for an avatar image.
+  string avatar_url = 4;
+  // Mark a group as open or not where only admins can accept members.
+  bool open = 5;
 }
 
 // Delete one or more friends for the current user.
@@ -618,6 +681,12 @@ message DeleteFriendsRequest {
   repeated string ids = 1;
   // The account username of a user.
   repeated string usernames = 2;
+}
+
+// Delete a group the user has access to.
+message DeleteGroupRequest {
+  // The id of a group.
+  string group_id = 1;
 }
 
 // Delete a leaderboard record.
@@ -702,20 +771,44 @@ message Group {
   string metadata = 6;
   // A URL for an avatar image.
   string avatar_url = 7;
-  // Mark a group as private where only admins can accept members.
-  bool private = 8;
+  // Anyone can join open groups, otherwise only admins can accept members.
+  google.protobuf.BoolValue open = 8;
   // The current count of all members in the group.
-  int32 count = 9;
+  int32 edge_count = 9;
+  // The maximum number of members allowed.
+  int32 max_count = 10;
   // The UNIX time when the group was created.
-  google.protobuf.Timestamp create_time = 10;
+  google.protobuf.Timestamp create_time = 11;
   // The UNIX time when the group was last updated.
-  google.protobuf.Timestamp update_time = 11;
+  google.protobuf.Timestamp update_time = 12;
 }
 
-// A collection of zero or more groups.
-message Groups {
-  // The Group objects.
-  repeated Group groups = 1;
+// A list of users belonging to a group, along with their role.
+message GroupUserList {
+  // A single user-role pair.
+  message GroupUser {
+    // The group role status.
+    enum State {
+      // Default case. Assumed as SUPERADMIN state.
+      STATE_UNSPECIFIED = 0;
+      // The user is a superadmin with full control of the group.
+      SUPERADMIN = 1;
+      // The user is an admin with additional privileges.
+      ADMIN = 2;
+      // The user is a regular member.
+      MEMBER = 3;
+      // The user has requested to join the group
+      JOIN_REQUEST = 4;
+    }
+
+    // User.
+    User user = 1;
+    // Their relationship to the group.
+    int32 state = 2;
+  }
+
+  // User-role pairs for a group.
+  repeated GroupUser group_users = 1;
 }
 
 // Import Facebook friends into the current user's account.
@@ -724,6 +817,20 @@ message ImportFacebookFriendsRequest {
   AccountFacebook account = 1;
   // Reset the current user's friends list.
   google.protobuf.BoolValue reset = 2;
+}
+
+// Immediately join an open group, or request to join a closed one.
+message JoinGroupRequest {
+  // The group ID to join.
+  string group_id = 1;
+}
+
+// Kick a set of users from a group.
+message KickGroupUsersRequest {
+  // The group ID to kick from.
+  string group_id = 1;
+  // The users to kick.
+  repeated string user_ids = 2;
 }
 
 // Represents a complete leaderboard record with all scores and associated metadata.
@@ -764,6 +871,12 @@ message LeaderboardRecordList {
   string prev_cursor = 4;
 }
 
+// Leave a group.
+message LeaveGroupRequest {
+  // The group ID to leave.
+  string group_id = 1;
+}
+
 // Link Facebook to the current user's account.
 message LinkFacebookRequest {
   // The Facebook account details.
@@ -782,6 +895,12 @@ message ListChannelMessagesRequest {
   google.protobuf.BoolValue forward = 3;
   // A pagination cursor, if any.
   string cursor = 4;
+}
+
+// List all users that are part of a group.
+message ListGroupUsersRequest {
+  // The group ID to list from.
+  string group_id = 1;
 }
 
 // List leaderboard records from a given leaderboard.
@@ -830,6 +949,12 @@ message ListStorageObjectsRequest {
   string cursor = 4; // value from StorageObjectList.cursor.
 }
 
+// List the groups a user is part of, and their relationship to each.
+message ListUserGroupsRequest {
+  // ID of the user.
+  string user_id = 1;
+}
+
 // Represents a realtime match.
 message Match {
   // The ID of the match, can be used to join.
@@ -872,6 +997,14 @@ message NotificationList {
   repeated Notification notifications = 1;
   // Use this cursor to paginate notifications. Cache this to catch up to new notifications.
   string cacheable_cursor = 2;
+}
+
+// Promote a set of users in a group to the next role up.
+message PromoteGroupUsersRequest {
+  // The group ID to promote in.
+  string group_id = 1;
+  // The users to promote.
+  repeated string user_ids = 2;
 }
 
 // Storage objects to get.
@@ -980,6 +1113,22 @@ message UpdateAccountRequest {
   google.protobuf.StringValue timezone = 6;
 }
 
+// Update fields in a given group.
+message UpdateGroupRequest {
+  // The ID of the group to update.
+  string group_id = 1;
+  // Name.
+  google.protobuf.StringValue name = 2;
+  // Description string.
+  google.protobuf.StringValue description = 3;
+  // Lang tag.
+  google.protobuf.StringValue lang_tag = 4;
+  // Avatar URL.
+  google.protobuf.StringValue avatar_url = 5;
+  // Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin.
+  google.protobuf.BoolValue open = 6;
+}
+
 // A user in the server.
 message User {
   // The id of the user's account.
@@ -1014,6 +1163,34 @@ message User {
   google.protobuf.Timestamp create_time = 15;
   // The UNIX time when the user was last updated.
   google.protobuf.Timestamp update_time = 16;
+}
+
+// A list of groups belonging to a user, along with the user's role in each group.
+message UserGroupList {
+  // A single group-role pair.
+  message UserGroup {
+    // The group role status.
+    enum State {
+      // Default case. Assumed as SUPERADMIN state.
+      STATE_UNSPECIFIED = 0;
+      // The user is a superadmin with full control of the group.
+      SUPERADMIN = 1;
+      // The user is an admin with additional privileges.
+      ADMIN = 2;
+      // The user is a regular member.
+      MEMBER = 3;
+      // The user has requested to join the group
+      JOIN_REQUEST = 4;
+    }
+
+    // Group.
+    Group group = 1;
+    // The user's relationship to the group.
+    int32 state = 2;
+  }
+
+  // Group-role pairs for a user.
+  repeated UserGroup user_groups = 1;
 }
 
 // A collection of zero or more users.

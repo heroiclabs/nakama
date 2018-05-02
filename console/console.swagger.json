@@ -142,6 +142,52 @@
       },
       "description": "Send a device to the server. Used with authenticate/link/unlink and user."
     },
+    "apiChannelMessage": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "description": "The channel this message belongs to."
+        },
+        "message_id": {
+          "type": "string",
+          "description": "The unique ID of this message."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The code representing a message type or category."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "Message sender, usually a user ID."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the message sender, if any."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content payload."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the message was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the message was last updated."
+        },
+        "persistent": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if the message was persisted to the channel's history, false otherwise."
+        }
+      },
+      "description": "A message sent on a channel."
+    },
     "apiFriend": {
       "type": "object",
       "properties": {
@@ -188,15 +234,20 @@
           "type": "string",
           "description": "A URL for an avatar image."
         },
-        "private": {
+        "open": {
           "type": "boolean",
           "format": "boolean",
-          "description": "Mark a group as private where only admins can accept members."
+          "description": "Anyone can join open groups, otherwise only admins can accept members."
         },
-        "count": {
+        "edge_count": {
           "type": "integer",
           "format": "int32",
           "description": "The current count of all members in the group."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of members allowed."
         },
         "create_time": {
           "type": "string",
@@ -453,6 +504,13 @@
           },
           "description": "The user's groups."
         },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiChannelMessage"
+          },
+          "description": "The user's chat messages."
+        },
         "leaderboard_records": {
           "type": "array",
           "items": {
@@ -533,10 +591,32 @@
       },
       "description": "*\nA user's session used to authenticate messages."
     },
+    "protobufBoolValue": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "The bool value."
+        }
+      },
+      "description": "Wrapper message for `bool`.\n\nThe JSON representation for `BoolValue` is JSON `true` and `false`."
+    },
     "protobufEmpty": {
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufInt32Value": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The int32 value."
+        }
+      },
+      "description": "Wrapper message for `int32`.\n\nThe JSON representation for `Int32Value` is JSON number."
     },
     "protobufStringValue": {
       "type": "object",

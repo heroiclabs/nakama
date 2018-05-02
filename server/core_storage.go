@@ -344,7 +344,6 @@ WHERE
 }
 
 func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
-	returnCode := codes.Internal
 	acks := &api.StorageObjectAcks{}
 
 	tx, err := db.Begin()
@@ -353,18 +352,17 @@ func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool
 		return nil, codes.Internal, err
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
 		for ownerID, userObjects := range objects {
 			for _, object := range userObjects {
 				ack, writeErr := storageWriteObject(logger, tx, authoritativeWrite, ownerID, object)
 				if writeErr != nil {
 					if writeErr == sql.ErrNoRows {
-						returnCode = codes.InvalidArgument
-						return errors.New("Storage write rejected - not found, version check failed, or permission denied.")
+						return StatusError(codes.InvalidArgument, "Storage write rejected.", errors.New("Storage write rejected - not found, version check failed, or permission denied."))
 					}
 
-					returnCode = codes.Internal
-					return writeErr
+					logger.Debug("Error writing storage objects.", zap.Error(err))
+					return err
 				}
 
 				acks.Acks = append(acks.Acks, ack)
@@ -372,7 +370,11 @@ func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool
 		}
 		return nil
 	}); err != nil {
-		return nil, returnCode, err
+		if e, ok := err.(*statusError); ok {
+			return nil, e.Code(), e.Cause()
+		}
+		logger.Error("Error writing storage objects.", zap.Error(err))
+		return nil, codes.Internal, err
 	}
 
 	return acks, codes.OK, nil
@@ -399,7 +401,7 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool,
 
 	if err := tx.QueryRow(query, params...).Scan(&ack.Collection, &ack.Key, &ack.Version); err != nil {
 		if err != sql.ErrNoRows {
-			logger.Error("Could not write storage object.", zap.Error(err), zap.String("query", query), zap.Any("object", object))
+			logger.Debug("Could not write storage object.", zap.Error(err), zap.String("query", query), zap.Any("object", object))
 		}
 
 		return nil, err
@@ -491,8 +493,6 @@ RETURNING collection, key, version`
 }
 
 func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
-	returnCode := codes.Internal
-
 	tx, err := db.Begin()
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
@@ -516,20 +516,22 @@ func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bo
 
 				result, err := tx.Exec(query, params...)
 				if err != nil {
-					returnCode = codes.Internal
-					logger.Error("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", objectID))
+					logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", objectID))
 					return err
 				}
 
 				if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
-					returnCode = codes.InvalidArgument
-					return errors.New("Storage delete rejected - not found, version check failed, or permission denied.")
+					return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
 				}
 			}
 		}
 		return nil
 	}); err != nil {
-		return returnCode, err
+		if e, ok := err.(*statusError); ok {
+			return e.Code(), e.Cause()
+		}
+		logger.Error("Error deleting storage objects.", zap.Error(err))
+		return codes.Internal, err
 	}
 
 	return codes.OK, nil
