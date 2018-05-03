@@ -110,7 +110,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-1)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
 	}
 	if config.GetSocket().TLSCert != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
@@ -124,15 +124,23 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcGatewayRouter := mux.NewRouter()
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
-	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline))
+	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
 	// TODO restore when admin endpoints are available.
 	//grpcGatewayRouter.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	//	zpages.WriteHTMLRpczPage(w)
 	//})
-	// Default to passing request to GRPC Gateway. Enable compression on gateway responses.
+	// Default to passing request to GRPC Gateway.
+	// Enable max size check on requests coming arriving the gateway.
+	// Enable compression on responses sent by the gateway.
 	handlerWithGzip := handlers.CompressHandler(grpcGateway)
-	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)
+	maxMessageSizeBytes := config.GetSocket().MaxMessageSizeBytes
+	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check max body size before decompressing incoming request body.
+		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)
+		handlerWithGzip.ServeHTTP(w, r)
+	})
+	grpcGatewayRouter.NewRoute().Handler(handlerWithMaxBody)
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
@@ -142,11 +150,12 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.GetSocket().Port),
-		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
-		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
-		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
-		Handler:      handlerWithCORS,
+		Addr:           fmt.Sprintf(":%d", config.GetSocket().Port),
+		ReadTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
+		WriteTimeout:   time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
+		IdleTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
+		MaxHeaderBytes: 5120,
+		Handler:        handlerWithCORS,
 	}
 	if config.GetSocket().TLSCert != nil {
 		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}

@@ -41,10 +41,6 @@ This release brings a large number of changes and new features to the server. It
 
 ---
 
-## [1.4.2] - 2018-04-22
-### Changed
-- Improve handling of transactional retries.
-
 ## [1.4.1] - 2018-03-30
 ### Added
 - Allow the server to handle SSL termination of client connections although NOT recommended in production.
