@@ -19,6 +19,11 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
@@ -26,10 +31,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var (
@@ -500,9 +501,9 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	return records, nil
 }
 
-func LeaderboardRecordsDeleteAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) error {
+func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
 	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
-	_, err := db.Exec(query, userID.String())
+	_, err := tx.Exec(query, userID.String())
 	if err != nil {
 		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return err

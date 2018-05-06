@@ -51,7 +51,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
-		MatchId:       fmt.Sprintf("%v:", matchID.String()),
+		MatchId:       fmt.Sprintf("%v.", matchID.String()),
 		Authoritative: false,
 		// No label.
 		Size:      1,
@@ -72,7 +72,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 	case *rtapi.MatchJoin_MatchId:
 		matchIDString = incoming.GetMatchId()
 		// Validate the match ID.
-		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
+		matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 		if len(matchIDComponents) != 2 {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
@@ -113,7 +113,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		}
 		matchIDString = claims["mid"].(string)
 		// Validate the match ID.
-		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
+		matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 		if len(matchIDComponents) != 2 {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
@@ -168,11 +168,12 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		username := session.Username()
 		found := true
 		allow := true
+		var reason string
 		var l string
 		// The user is not yet part of the match, attempt to join.
 		if mode == StreamModeMatchAuthoritative {
 			// If it's an authoritative match, ask the match handler if it will allow the join.
-			found, allow, l = p.matchRegistry.Join(matchID, node, session.UserID(), session.ID(), username, p.node)
+			found, allow, reason, l = p.matchRegistry.Join(matchID, node, session.UserID(), session.ID(), username, p.node)
 		}
 		if !found {
 			// Match did not exist.
@@ -183,10 +184,14 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			return
 		}
 		if !allow {
+			// Use the reject reason set by the match handler, if available.
+			if reason == "" {
+				reason = "Match join rejected"
+			}
 			// Match exists, but rejected the join.
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_MATCH_JOIN_REJECTED),
-				Message: "Match join rejected",
+				Message: reason,
 			}}})
 			return
 		}
@@ -233,7 +238,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 
 func (p *Pipeline) matchLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	// Validate the match ID.
-	matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ":", 2)
+	matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -268,7 +273,7 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 	incoming := envelope.GetMatchDataSend()
 
 	// Validate the match ID.
-	matchIDComponents := strings.SplitN(incoming.MatchId, ":", 2)
+	matchIDComponents := strings.SplitN(incoming.MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
 		return
 	}

@@ -63,7 +63,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 
 	switch incoming.Type {
 	case int32(rtapi.ChannelJoin_TYPE_UNSPECIFIED):
-		// Defaults to channel.
+		// Defaults to room channel.
 		fallthrough
 	case int32(rtapi.ChannelJoin_ROOM):
 		if len(incoming.Target) < 1 || len(incoming.Target) > 64 {
@@ -117,13 +117,15 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 			return
 		}
 		// Check if the other user exists and has not blocked this user.
-		if allowed, err := UserExistsAndDoesNotBlock(p.db, uid, userID); err != nil {
+		allowed, err := UserExistsAndDoesNotBlock(p.db, uid, userID)
+		if err != nil {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Failed to look up user ID",
 			}}})
 			return
-		} else if !allowed {
+		}
+		if !allowed {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "User ID not found",
@@ -140,13 +142,32 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		}
 		stream.Mode = StreamModeDM
 	case int32(rtapi.ChannelJoin_GROUP):
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Group chat channels not available",
-		}}})
-		return
-		// TODO restore when groups are available.
-		//stream.Mode = StreamModeGroup
+		// Check if group ID is valid.
+		gid, err := uuid.FromString(incoming.Target)
+		if err != nil {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid group ID in group channel join",
+			}}})
+			return
+		}
+		allowed, err := groupCheckUserPermission(logger, p.db, gid, session.UserID(), 2)
+		if err != nil {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Failed to look up group membership",
+			}}})
+			return
+		}
+		if !allowed {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Group not found",
+			}}})
+			return
+		}
+		stream.Subject = gid
+		stream.Mode = StreamModeGroup
 	default:
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),

@@ -34,6 +34,7 @@ import (
 var (
 	ErrChannelIdInvalid     = errors.New("invalid channel id")
 	ErrChannelCursorInvalid = errors.New("invalid channel cursor")
+	ErrChannelGroupNotFound = errors.New("group not found")
 )
 
 // Wrapper type to avoid allocating a stream struct when the input is invalid.
@@ -52,7 +53,7 @@ type channelMessageListCursor struct {
 	IsNext           bool
 }
 
-func ChannelMessagesList(logger *zap.Logger, db *sql.DB, stream PresenceStream, channelId string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
+func ChannelMessagesList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelId string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
 	if cursor != "" {
 		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
@@ -79,6 +80,17 @@ func ChannelMessagesList(logger *zap.Logger, db *sql.DB, stream PresenceStream, 
 		} else if stream.Label != incomingCursor.StreamLabel {
 			// Stream label does not match.
 			return nil, ErrChannelCursorInvalid
+		}
+	}
+
+	// If it's a group, check membership.
+	if !uuid.Equal(uuid.Nil, caller) && stream.Mode == StreamModeGroup {
+		allowed, err := groupCheckUserPermission(logger, db, stream.Subject, caller, 2)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, ErrChannelGroupNotFound
 		}
 	}
 
@@ -263,7 +275,7 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 		return nil, ErrChannelIdInvalid
 	}
 
-	components := strings.SplitN(channelId, ":", 4)
+	components := strings.SplitN(channelId, ".", 4)
 	if len(components) != 4 {
 		return nil, ErrChannelIdInvalid
 	}
@@ -275,33 +287,53 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 	// Parse and assign mode.
 	switch components[0] {
 	case "2":
-		// StreamModeChannel
+		// StreamModeChannel.
+		// Expect no subject or descriptor.
+		if components[1] != "" || components[2] != "" {
+			return nil, ErrChannelIdInvalid
+		}
+		// Label.
+		if l := len(components[3]); l < 1 || l > 64 {
+			return nil, ErrChannelIdInvalid
+		}
+		stream.Label = components[3]
 	case "3":
+		// Expect no descriptor or label.
+		if components[2] != "" || components[3] != "" {
+			return nil, ErrChannelIdInvalid
+		}
+		// Subject.
+		var err error
+		if components[1] != "" {
+			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
+				return nil, ErrChannelIdInvalid
+			}
+		}
+		// Mode.
 		stream.Mode = StreamModeGroup
 	case "4":
+		// Expect lo label.
+		if components[3] != "" {
+			return nil, ErrChannelIdInvalid
+		}
+		// Subject.
+		var err error
+		if components[1] != "" {
+			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
+				return nil, ErrChannelIdInvalid
+			}
+		}
+		// Descriptor.
+		if components[2] != "" {
+			if stream.Descriptor, err = uuid.FromString(components[2]); err != nil {
+				return nil, ErrChannelIdInvalid
+			}
+		}
+		// Mode.
 		stream.Mode = StreamModeDM
 	default:
 		return nil, ErrChannelIdInvalid
 	}
-
-	var err error
-
-	// Subject.
-	if components[1] != "" {
-		if stream.Subject, err = uuid.FromString(components[1]); err != nil {
-			return nil, ErrChannelIdInvalid
-		}
-	}
-
-	// Descriptor.
-	if components[2] != "" {
-		if stream.Descriptor, err = uuid.FromString(components[2]); err != nil {
-			return nil, ErrChannelIdInvalid
-		}
-	}
-
-	// Label.
-	stream.Label = components[3]
 
 	return &ChannelIdToStreamResult{Stream: stream}, nil
 }
@@ -320,5 +352,5 @@ func StreamToChannelId(stream PresenceStream) (string, error) {
 		descriptor = stream.Descriptor.String()
 	}
 
-	return fmt.Sprintf("%v:%v:%v:%v", stream.Mode, subject, descriptor, stream.Label), nil
+	return fmt.Sprintf("%v.%v.%v.%v", stream.Mode, subject, descriptor, stream.Label), nil
 }

@@ -16,6 +16,7 @@ package server
 
 import (
 	"github.com/heroiclabs/nakama/api"
+	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,9 +45,12 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 		return nil, status.Error(codes.InvalidArgument, "Invalid channel ID.")
 	}
 
-	messageList, err := ChannelMessagesList(s.logger, s.db, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	messageList, err := ChannelMessagesList(s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
 	if err == ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
+	} else if err == ErrChannelGroupNotFound {
+		return nil, status.Error(codes.InvalidArgument, "Group not found.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing messages from channel.")
 	}

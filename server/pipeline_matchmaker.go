@@ -72,7 +72,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	if !isMatchID {
 		// If there was no callback or it didn't return a valid match ID always return at least a token.
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"mid": fmt.Sprintf("%v:", uuid.Must(uuid.NewV4()).String()),
+			"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
 			"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
 		})
 		tokenOrMatchID, _ = token.SignedString([]byte(p.config.GetSession().EncryptionKey))

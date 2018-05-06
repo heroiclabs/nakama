@@ -709,7 +709,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			fallthrough
 		case StreamModeMatchAuthoritative:
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
-				MatchId: fmt.Sprintf("%v:%v", stream.Subject.String(), stream.Label),
+				MatchId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
 				Joins:   joins,
 				Leaves:  leaves,
 			}}}
@@ -785,7 +785,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			fallthrough
 		case StreamModeMatchAuthoritative:
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
-				MatchId: fmt.Sprintf("%v:%v", stream.Subject.String(), stream.Label),
+				MatchId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
 				// No joins.
 				Leaves: leaves,
 			}}}

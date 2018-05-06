@@ -102,8 +102,8 @@ WHERE`
 	return users, nil
 }
 
-func DeleteUser(db *sql.DB, userID uuid.UUID) (int64, error) {
-	res, err := db.Exec("DELETE FROM users WHERE id = $1", userID)
+func DeleteUser(tx *sql.Tx, userID uuid.UUID) (int64, error) {
+	res, err := tx.Exec("DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
 		return 0, err
 	}

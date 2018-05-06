@@ -18,8 +18,11 @@ import (
 	"context"
 
 	"encoding/json"
+
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/console"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
@@ -33,22 +36,41 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountId
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
-	count, err := DeleteUser(s.db, userID)
+	tx, err := s.db.Begin()
 	if err != nil {
-		s.logger.Error("Could not delete user", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
-	} else if count == 0 {
-		s.logger.Info("No user was found to delete. Skipping blacklist.", zap.String("user_id", in.Id))
-		return &empty.Empty{}, nil
-	}
-
-	err = LeaderboardRecordsDeleteAll(s.logger, s.db, userID)
-	if err != nil {
+		s.logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
 
-	if _, err = s.db.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
-		s.logger.Error("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", in.Id))
+	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+		count, err := DeleteUser(tx, userID)
+		if err != nil {
+			s.logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", in.Id))
+			return err
+		} else if count == 0 {
+			s.logger.Info("No user was found to delete. Skipping blacklist.", zap.String("user_id", in.Id))
+			return nil
+		}
+
+		err = LeaderboardRecordsDeleteAll(s.logger, tx, userID)
+		if err != nil {
+			s.logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", in.Id))
+			return err
+		}
+
+		err = GroupDeleteAll(s.logger, tx, userID)
+		if err != nil {
+			s.logger.Debug("Could not delete groups and relationships.", zap.Error(err), zap.String("user_id", in.Id))
+			return err
+		}
+
+		if _, err = tx.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
+			s.logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", in.Id))
+			return err
+		}
+		return nil
+	}); err != nil {
+		s.logger.Error("Error occurred while trying to delete the user.", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
 
@@ -87,6 +109,16 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	if err != nil {
 		s.logger.Error("Could not fetch leaderboard records", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	groups := make([]*api.Group, 0)
+	groupUsers, err := ListUserGroups(s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+	for _, g := range groupUsers.UserGroups {
+		groups = append(groups, g.Group)
 	}
 
 	// Notifications.
@@ -131,12 +163,12 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		}
 	}
 
-	// TODO(mo, zyro) add groups
 	export := &console.AccountExport{
 		Account:            account,
 		Objects:            storageObjects,
 		Friends:            friends.GetFriends(),
 		Messages:           messages,
+		Groups:             groups,
 		LeaderboardRecords: leaderboardRecords,
 		Notifications:      notifications.GetNotifications(),
 		WalletLedgers:      wl,

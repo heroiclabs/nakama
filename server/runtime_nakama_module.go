@@ -3540,14 +3540,8 @@ func (n *NakamaModule) groupUpdate(l *lua.LState) int {
 		maxCount = maxCountInt
 	}
 
-	updated, err := UpdateGroup(n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount)
-	if err != nil {
+	if err = UpdateGroup(n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
 		l.RaiseError("error while trying to update group: %v", err.Error())
-		return 0
-	}
-
-	if !updated {
-		l.RaiseError("did not update group - make sure group exists and name is unique")
 		return 0
 	}
 
@@ -3561,14 +3555,8 @@ func (n *NakamaModule) groupDelete(l *lua.LState) int {
 		return 0
 	}
 
-	deleted, err := DeleteGroup(n.logger, n.db, groupID, uuid.Nil)
-	if err != nil {
+	if err = DeleteGroup(n.logger, n.db, groupID, uuid.Nil); err != nil {
 		l.RaiseError("error while trying to delete group: %v", err.Error())
-		return 0
-	}
-
-	if !deleted {
-		l.RaiseError("did not delete group - make sure group exists.")
 		return 0
 	}
 

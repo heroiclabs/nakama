@@ -207,7 +207,7 @@ func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, e
 		matchIDString := retValue.String()
 
 		// Validate the match ID.
-		matchIDComponents := strings.SplitN(matchIDString, ":", 2)
+		matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 		if len(matchIDComponents) != 2 {
 			logger.Error("Invalid return value from runtime Matchmaker Matched hook, not a valid match ID.")
 			return "", false

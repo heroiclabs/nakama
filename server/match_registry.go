@@ -44,8 +44,9 @@ type MatchPresence struct {
 }
 
 type MatchJoinResult struct {
-	Allow bool
-	Label string
+	Allow  bool
+	Reason string
+	Label  string
 }
 
 type MatchRegistry interface {
@@ -62,8 +63,8 @@ type MatchRegistry interface {
 	// Stop the match registry and close all matches it's tracking.
 	Stop()
 
-	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, and the match label.
-	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string)
+	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
+	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string)
 	// Notify a match handler that a user has left or disconnected.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Leave(id uuid.UUID, presences []*MatchPresence)
@@ -173,7 +174,7 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 				continue
 			}
 
-			matchID := fmt.Sprintf("%v:", stream.Subject.String())
+			matchID := fmt.Sprintf("%v.", stream.Subject.String())
 			results = append(results, &api.Match{
 				MatchId:       matchID,
 				Authoritative: false,
@@ -266,9 +267,9 @@ func (r *LocalMatchRegistry) Stop() {
 	r.Unlock()
 }
 
-func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string) {
+func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string) {
 	if node != r.node {
-		return false, false, ""
+		return false, false, "", ""
 	}
 
 	var mh *MatchHandler
@@ -277,13 +278,13 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	mh, ok = r.matches[id]
 	r.RUnlock()
 	if !ok {
-		return false, false, ""
+		return false, false, "", ""
 	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
 	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode)) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
-		return true, false, ""
+		return true, false, "", ""
 	}
 
 	// Set up a limit to how long the call will wait, default is 10 seconds.
@@ -292,11 +293,11 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 	case <-ticker.C:
 		ticker.Stop()
 		// The join attempt has timed out, join is assumed to be rejected.
-		return true, false, ""
+		return true, false, "", ""
 	case r := <-resultCh:
 		ticker.Stop()
 		// The join attempt has returned a result.
-		return true, r.Allow, r.Label
+		return true, r.Allow, r.Reason, r.Label
 	}
 }
 

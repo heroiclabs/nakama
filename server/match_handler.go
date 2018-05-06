@@ -100,7 +100,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	ctx := vm.CreateTable(0, 6)
 	ctx.RawSetString(__CTX_ENV, ConvertMap(vm, config.GetRuntime().Environment))
 	ctx.RawSetString(__CTX_MODE, lua.LString(ExecutionModeMatch.String()))
-	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v:%v", id.String(), node)))
+	ctx.RawSetString(__CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v.%v", id.String(), node)))
 	ctx.RawSetString(__CTX_MATCH_NODE, lua.LString(node))
 
 	// Require the match module to load it (and its dependencies) and get its returned value.
@@ -203,7 +203,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 
 		ID:    id,
 		Node:  node,
-		IDStr: fmt.Sprintf("%v:%v", id.String(), node),
+		IDStr: fmt.Sprintf("%v.%v", id.String(), node),
 		Stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
@@ -407,20 +407,50 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 			return
 		}
 
+		allowFound := false
+		var allow bool
+		var reason string
+
 		// Extract the join attempt response.
-		allow := mh.vm.Get(-1)
-		if allow.Type() == LTSentinel {
-			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean")
+		allowOrReason := mh.vm.Get(-1)
+		if allowOrReason.Type() == LTSentinel {
+			mh.logger.Warn("Match join attempt returned too few values, stopping match - expected: state, join result boolean, optional reject reason string")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
-		} else if allow.Type() != lua.LTBool {
-			mh.logger.Warn("Match join attempt returned non-boolean join result, stopping match")
+		} else if allowOrReason.Type() == lua.LTString {
+			// This was the optional reject reason string.
+			reason = allowOrReason.String()
+		} else if allowOrReason.Type() == lua.LTBool {
+			// This was the required join result boolean, expect no reason as it was skipped.
+			allowFound = true
+			allow = lua.LVAsBool(allowOrReason)
+		} else {
+			mh.logger.Warn("Match join attempt returned non-boolean join result or non-string reject reason, stopping match")
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 		mh.vm.Pop(1)
+
+		if !allowFound {
+			// The previous parameter was the optional reject reason string, now look for the required join result boolean.
+			allowRequired := mh.vm.Get(-1)
+			if allowRequired.Type() == LTSentinel {
+				mh.logger.Warn("Match join attempt returned incorrect or too few values, stopping match - expected: state, join result boolean, optional reject reason string")
+				mh.Stop()
+				resultCh <- &MatchJoinResult{Allow: false}
+				return
+			} else if allowRequired.Type() != lua.LTBool {
+				mh.logger.Warn("Match join attempt returned non-boolean join result, stopping match")
+				mh.Stop()
+				resultCh <- &MatchJoinResult{Allow: false}
+				return
+			}
+			allow = lua.LVAsBool(allowRequired)
+			mh.vm.Pop(1)
+		}
+
 		// Extract the resulting state.
 		state := mh.vm.Get(-1)
 		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
@@ -440,7 +470,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		mh.vm.Pop(1)
 
 		mh.state = state
-		resultCh <- &MatchJoinResult{Allow: lua.LVAsBool(allow), Label: mh.Label}
+		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label}
 	}
 }
 

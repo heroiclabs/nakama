@@ -32,11 +32,10 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 
 	group, err := CreateGroup(s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), -1)
 	if err != nil {
+		if err == ErrGroupNameInUse {
+			return nil, status.Error(codes.InvalidArgument, "Group name is in use.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to create group.")
-	}
-
-	if group == nil {
-		return nil, status.Error(codes.InvalidArgument, "Did not create group as a group already exists with the same name.")
 	}
 
 	return group, nil
@@ -65,13 +64,16 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	updated, err := UpdateGroup(s.logger, s.db, groupID, userID, nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
+	err = UpdateGroup(s.logger, s.db, groupID, userID, nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
 	if err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
+		} else if err == ErrGroupNoUpdateOps {
+			return nil, status.Error(codes.InvalidArgument, "Specify at least one field to update.")
+		} else if err == ErrGroupNotUpdated {
+			return nil, status.Error(codes.InvalidArgument, "No new fields in group update.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to update group.")
-	}
-
-	if !updated {
-		return nil, status.Error(codes.InvalidArgument, "Did not update group - Make sure that group exists, group name is unique and you have the correct permissions.")
 	}
 
 	return &empty.Empty{}, nil
@@ -88,13 +90,12 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	deleted, err := DeleteGroup(s.logger, s.db, groupID, userID)
+	err = DeleteGroup(s.logger, s.db, groupID, userID)
 	if err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.InvalidArgument, "Group not found or you're not allowed to delete.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to delete group.")
-	}
-
-	if !deleted {
-		return nil, status.Error(codes.InvalidArgument, "Did not delete group - Make sure that group exists and you have the correct permissions.")
 	}
 
 	return &empty.Empty{}, nil
@@ -112,14 +113,14 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
-	joined, err := JoinGroup(s.logger, s.db, groupID, userID)
-
+	err = JoinGroup(s.logger, s.db, groupID, userID)
 	if err != nil {
+		if err == ErrGroupNotFound {
+			return nil, status.Error(codes.NotFound, "Group not found.")
+		} else if err == ErrGroupFull {
+			return nil, status.Error(codes.InvalidArgument, "Group is full.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to join group.")
-	}
-
-	if !joined {
-		return nil, status.Error(codes.InvalidArgument, "Did not join group - Make sure that group exists and maximum count has not been reached.")
 	}
 
 	return &empty.Empty{}, nil
@@ -136,14 +137,12 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	left, err := LeaveGroup(s.logger, s.db, groupID, userID)
-
+	err = LeaveGroup(s.logger, s.db, groupID, userID)
 	if err != nil {
+		if err == ErrGroupLastSuperadmin {
+			return nil, status.Error(codes.InvalidArgument, "Cannot leave group when you are the last superadmin.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to leave group.")
-	}
-
-	if !left {
-		return nil, status.Error(codes.InvalidArgument, "Did not leave group - Make sure that group exists and you have the correct permissions.")
 	}
 
 	return &empty.Empty{}, nil
@@ -173,14 +172,14 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	done, err := AddGroupUsers(s.logger, s.db, userID, groupID, userIDs)
-
+	err = AddGroupUsers(s.logger, s.db, userID, groupID, userIDs)
 	if err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		} else if err == ErrGroupFull {
+			return nil, status.Error(codes.InvalidArgument, "Group is full.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to add users to a group.")
-	}
-
-	if !done {
-		return nil, status.Error(codes.InvalidArgument, "Did not add users to group - Make sure that group exists, you have correct permissions, and maximum member count is not reached.")
 	}
 
 	return &empty.Empty{}, nil
@@ -211,6 +210,9 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	if err = KickGroupUsers(s.logger, s.db, userID, groupID, userIDs); err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to kick users from a group.")
 	}
 
@@ -241,13 +243,12 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	}
 
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	promoted, err := PromoteGroupUsers(s.logger, s.db, userID, groupID, userIDs)
+	err = PromoteGroupUsers(s.logger, s.db, userID, groupID, userIDs)
 	if err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
-	}
-
-	if !promoted {
-		return nil, status.Error(codes.InvalidArgument, "Did not promote users to group - Make sure that group exists and you have correct permissions.")
 	}
 
 	return &empty.Empty{}, nil
