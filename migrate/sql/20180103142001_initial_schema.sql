@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS user_tombstone (
 );
 
 CREATE TABLE IF NOT EXISTS groups (
-  PRIMARY KEY (lang_tag, edge_count, id, disable_time),
+  PRIMARY KEY (disable_time, lang_tag, edge_count, id),
 
   id           UUID          UNIQUE NOT NULL,
   creator_id   UUID          NOT NULL,
@@ -189,8 +189,8 @@ CREATE TABLE IF NOT EXISTS groups (
   update_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
   disable_time TIMESTAMPTZ   DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS edge_count_update_time_id_idx ON groups (edge_count, update_time, id, disable_time);
-CREATE INDEX IF NOT EXISTS create_time_edge_count_id_idx ON groups (create_time, edge_count, id, disable_time);
+CREATE INDEX IF NOT EXISTS edge_count_update_time_id_idx ON groups (disable_time, edge_count, update_time, id);
+CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time, update_time, edge_count, id);
 
 CREATE TABLE IF NOT EXISTS group_edge (
   PRIMARY KEY (source_id, state, position),
