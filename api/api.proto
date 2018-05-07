@@ -310,6 +310,11 @@ service Nakama {
     option (google.api.http).get = "/v2/friend";
   }
 
+  // List groups based on given filters.
+  rpc ListGroups (ListGroupsRequest) returns (GroupList) {
+    option (google.api.http).get = "/v2/group";
+  }
+
   // List all users that are part of a group.
   rpc ListGroupUsers (ListGroupUsersRequest) returns (GroupUserList) {
     option (google.api.http).get = "/v2/group/{group_id}/user";
@@ -783,6 +788,14 @@ message Group {
   google.protobuf.Timestamp update_time = 12;
 }
 
+// One or more groups returned from a listing operation.
+message GroupList {
+  // One or more groups.
+  repeated Group groups = 1;
+  // A cursor used to get the next page.
+  string cursor = 2;
+}
+
 // A list of users belonging to a group, along with their role.
 message GroupUserList {
   // A single user-role pair.
@@ -895,6 +908,16 @@ message ListChannelMessagesRequest {
   google.protobuf.BoolValue forward = 3;
   // A pagination cursor, if any.
   string cursor = 4;
+}
+
+// List groups based on given filters.
+message ListGroupsRequest {
+  // List groups that contain this value in their names.
+  string name = 1;
+  // Optional pagination cursor.
+  string cursor = 2;
+  // Max number of groups to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
 }
 
 // List all users that are part of a group.

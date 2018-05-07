@@ -289,3 +289,20 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 
 	return userGroups, nil
 }
+
+func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (*api.GroupList, error) {
+	limit := 1
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
+	}
+
+	groups, err := ListGroups(s.logger, s.db, in.GetName(), limit, in.GetCursor())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to list groups.")
+	}
+
+	return groups, nil
+}

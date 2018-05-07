@@ -785,6 +785,45 @@
       }
     },
     "/v2/group": {
+      "get": {
+        "summary": "List groups based on given filters.",
+        "operationId": "ListGroups",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiGroupList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "description": "List groups that contain this value in their names.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Optional pagination cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of groups to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
       "post": {
         "summary": "Create a new group with the current user as the owner.",
         "operationId": "CreateGroup",
@@ -1993,6 +2032,23 @@
         }
       },
       "description": "A group in the server."
+    },
+    "apiGroupList": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGroup"
+          },
+          "description": "One or more groups."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "A cursor used to get the next page."
+        }
+      },
+      "description": "One or more groups returned from a listing operation."
     },
     "apiGroupUserList": {
       "type": "object",
