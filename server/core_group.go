@@ -32,6 +32,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -869,9 +871,23 @@ WHERE group_edge.destination_id = $1 AND disable_time::INT = 0`
 	return &api.UserGroupList{UserGroups: userGroups}, nil
 }
 
-func ListGroups(logger *zap.Logger, db *sql.DB, name string, limit int, cursor *groupListCursor) (*api.GroupList, error) {
+func ListGroups(logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
 	params := []interface{}{limit}
 	query := ""
+
+	var cursor *groupListCursor = nil
+	if cursorStr != "" {
+		cursor = &groupListCursor{}
+		if cb, err := base64.RawURLEncoding.DecodeString(cursorStr); err != nil {
+			logger.Warn("Could not base64 decode group listing cursor.", zap.String("cursor", cursorStr))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		} else {
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+				logger.Warn("Could not decode group listing cursor.", zap.String("cursor", cursorStr))
+				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+			}
+		}
+	}
 
 	if name == "" {
 		query = `

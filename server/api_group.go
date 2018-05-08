@@ -15,14 +15,9 @@
 package server
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/gob"
-
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -304,22 +299,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 		limit = int(in.GetLimit().Value)
 	}
 
-	cursorStr := in.GetCursor()
-	var cursor *groupListCursor = nil
-	if cursorStr != "" {
-		cursor = &groupListCursor{}
-		if cb, err := base64.RawURLEncoding.DecodeString(cursorStr); err != nil {
-			s.logger.Warn("Could not base64 decode group listing cursor.", zap.String("cursor", cursorStr))
-			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-				s.logger.Warn("Could not decode group listing cursor.", zap.String("cursor", cursorStr))
-				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-			}
-		}
-	}
-
-	groups, err := ListGroups(s.logger, s.db, in.GetName(), limit, cursor)
+	groups, err := ListGroups(s.logger, s.db, in.GetName(), limit, in.GetCursor())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to list groups.")
 	}
