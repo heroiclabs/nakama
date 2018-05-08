@@ -916,6 +916,8 @@ message ListGroupsRequest {
   string name = 1;
   // Optional pagination cursor.
   string cursor = 2;
+  // Max number of groups to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
 }
 
 // List all users that are part of a group.

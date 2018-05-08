@@ -810,6 +810,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of groups to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
