@@ -43,9 +43,9 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 			return
 		}
 
-		status := true
-		if r.URL.Query().Get("status") == "false" {
-			status = false
+		status := false
+		if r.URL.Query().Get("status") == "true" {
+			status = true
 		}
 
 		// Upgrade to WebSocket.
