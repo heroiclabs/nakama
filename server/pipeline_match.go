@@ -179,7 +179,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			// Match did not exist.
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
-				Message: "Match join rejected",
+				Message: "Match not found",
 			}}})
 			return
 		}
