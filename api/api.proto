@@ -35,33 +35,6 @@ option csharp_namespace = "Nakama";
 
 option objc_class_prefix = "NKPB";
 
-// NOTE: we will no longer return server time.
-// NOTE: we will implement a logout message later.
-// NOTE: unlink will behave exactly like link/register now.
-// NOTE: last_online_at is now online in user messages.
-// NOTE: metadata will not be modifiable in user, self, and group messages.
-// NOTE: group state will become an enum. Join will now be JOIN_REQUEST.
-// NOTE: topic will now be known as channel.
-// NOTE: we will flatten realtime messages to be simpler as JSON inputs.
-// NOTE: remove bucket field and concept from server.
-// NOTE: remove expires_at field and concept from server.
-// NOTE: leaderboard sort field will become an enum.
-// NOTE: we will use plural to describe batched results and list to describe results with a cursor.
-// NOTE: TLeaderboardsRecordsFetch should return the current user's records from 1+ leaderboard ids.
-// NOTE: add conditional get support to storage fetch operations.
-// NOTE: record field in storage objects will be renamed to id. We should also refer to them as "storage objects" in docs.
-// NOTE: a user's handle will now be called "username" (and "nickname" will be non-unique).
-// NOTE: user records will now contain device messages which will store device specific details.
-// NOTE: all timestamps will use UNIX time (i.e. in seconds).
-// NOTE: we'll use a healthcheck on a separate port for GCLB with our GRPC server.
-// NOTE: we'll add nk.timemillis() as a helper for millisecond resolution to Lua runtime.
-// NOTE: Facebook, (and maybe Google, Game Center, and Steam) will belong on a user not the self message.
-// NOTE: self message will now be called account.
-// NOTE: add batch friend operations.
-// NOTE: all batch operations will be limited to 100 results.
-// NOTE: all list operations will return 1 by default and start at 1 up to 100 results.
-// NOTE: before/after hook names will not be downcased by default.
-
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   info: {
     title: "Nakama API v2";
@@ -72,6 +45,7 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
       email: "hello@heroiclabs.com";
     };
   };
+  host: "127.0.0.1:7350";
   external_docs: {
     url: "https://heroiclabs.com/docs";
     description: "Nakama server documentation";
@@ -79,6 +53,36 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   schemes: HTTP;
   consumes: "application/json";
   produces: "application/json";
+  security_definitions: {
+    security: {
+      key: "BasicAuth";
+      value: {
+        type: TYPE_BASIC;
+      }
+    }
+    security: {
+      // Made up security so we can apply "Bearer <JWT_TOKEN>"
+      key: "BearerJwt";
+      value: {
+        type: TYPE_INVALID;
+      }
+    }
+    security: {
+      key: "HttpKeyAuth";
+      value: {
+        type: TYPE_API_KEY;
+        in: IN_HEADER;
+        name: "http_key";
+      }
+    }
+  }
+  // Default security definition.
+  security: {
+    security_requirement: {
+      key: "BearerJwt";
+      value: {};
+    }
+  }
 };
 
 /**
@@ -104,6 +108,14 @@ service Nakama {
       post: "/v2/account/authenticate/custom",
       body: "account"
     };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
   }
 
   // Authenticate a user with a device id against the server.
@@ -111,6 +123,14 @@ service Nakama {
     option (google.api.http) = {
       post: "/v2/account/authenticate/device",
       body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
     };
   }
 
@@ -120,6 +140,14 @@ service Nakama {
       post: "/v2/account/authenticate/email",
       body: "account"
     };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
   }
 
   // Authenticate a user with a Facebook OAuth token against the server.
@@ -127,6 +155,14 @@ service Nakama {
     option (google.api.http) = {
       post: "/v2/account/authenticate/facebook",
       body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
     };
   }
 
@@ -136,6 +172,14 @@ service Nakama {
       post: "/v2/account/authenticate/gamecenter",
       body: "account"
     };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
   }
 
   // Authenticate a user with Google against the server.
@@ -144,6 +188,14 @@ service Nakama {
       post: "/v2/account/authenticate/google",
       body: "account"
     };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
   }
 
   // Authenticate a user with Steam against the server.
@@ -151,6 +203,14 @@ service Nakama {
     option (google.api.http) = {
       post: "/v2/account/authenticate/steam",
       body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
     };
   }
 
@@ -184,7 +244,7 @@ service Nakama {
     option (google.api.http).delete = "/v2/leaderboard/{leaderboard_id}";
   }
 
-  // Delete one or more users by ID or username.
+  // Delete one or more notifications for the current user.
   rpc DeleteNotifications (DeleteNotificationsRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/notification";
   }
@@ -373,6 +433,19 @@ service Nakama {
       body: "payload",
       additional_bindings {
         get: "/v2/rpc/{id}"
+      }
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      // Either HTTP key in query param or Bearer authentication.
+      security: {
+        security_requirement: {
+          key: "HttpKeyAuth";
+          value: {};
+        }
+        security_requirement: {
+          key: "BearerJwt";
+          value: {};
+        }
       }
     };
   }

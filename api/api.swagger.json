@@ -9,6 +9,7 @@
       "email": "hello@heroiclabs.com"
     }
   },
+  "host": "127.0.0.1:7350",
   "schemes": [
     "http"
   ],
@@ -102,6 +103,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -129,6 +135,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -156,6 +167,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -183,6 +199,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -210,6 +231,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -237,6 +263,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -264,6 +295,11 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -720,6 +756,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1292,7 +1350,7 @@
         ]
       },
       "delete": {
-        "summary": "Delete one or more users by ID or username.",
+        "summary": "Delete one or more notifications for the current user.",
         "operationId": "DeleteNotifications",
         "responses": {
           "200": {
@@ -1302,6 +1360,18 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The id of notifications.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1343,6 +1413,12 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BearerJwt": [],
+            "HttpKeyAuth": []
+          }
         ]
       },
       "post": {
@@ -1374,6 +1450,12 @@
         ],
         "tags": [
           "Nakama"
+        ],
+        "security": [
+          {
+            "BearerJwt": [],
+            "HttpKeyAuth": []
+          }
         ]
       }
     },
@@ -2678,44 +2760,30 @@
       },
       "description": "Write objects to the storage engine."
     },
-    "protobufBoolValue": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "boolean",
-          "format": "boolean",
-          "description": "The bool value."
-        }
-      },
-      "description": "Wrapper message for `bool`.\n\nThe JSON representation for `BoolValue` is JSON `true` and `false`."
-    },
     "protobufEmpty": {
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
-    },
-    "protobufInt32Value": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The int32 value."
-        }
-      },
-      "description": "Wrapper message for `int32`.\n\nThe JSON representation for `Int32Value` is JSON number."
-    },
-    "protobufStringValue": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string",
-          "description": "The string value."
-        }
-      },
-      "description": "Wrapper message for `string`.\n\nThe JSON representation for `StringValue` is JSON string."
     }
   },
+  "securityDefinitions": {
+    "BasicAuth": {
+      "type": "basic"
+    },
+    "BearerJwt": {
+      "type": ""
+    },
+    "HttpKeyAuth": {
+      "type": "apiKey",
+      "name": "http_key",
+      "in": "header"
+    }
+  },
+  "security": [
+    {
+      "BearerJwt": []
+    }
+  ],
   "externalDocs": {
     "description": "Nakama server documentation",
     "url": "https://heroiclabs.com/docs"

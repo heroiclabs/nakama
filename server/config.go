@@ -306,7 +306,7 @@ func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:           "defaultkey",
 		Port:                7350,
-		MaxMessageSizeBytes: 2048,
+		MaxMessageSizeBytes: 4096,
 		ReadTimeoutMs:       10 * 1000,
 		WriteTimeoutMs:      10 * 1000,
 		IdleTimeoutMs:       60 * 1000,
@@ -330,7 +330,7 @@ type DatabaseConfig struct {
 // NewDatabaseConfig creates a new DatabaseConfig struct.
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		Addresses:         []string{"root@localhost:26257"},
+		Addresses:         []string{"root@127.0.0.1:26257"},
 		ConnMaxLifetimeMs: 0,
 		MaxOpenConns:      0,
 		MaxIdleConns:      100,
