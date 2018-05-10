@@ -591,42 +591,10 @@
       },
       "description": "*\nA user's session used to authenticate messages."
     },
-    "protobufBoolValue": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "boolean",
-          "format": "boolean",
-          "description": "The bool value."
-        }
-      },
-      "description": "Wrapper message for `bool`.\n\nThe JSON representation for `BoolValue` is JSON `true` and `false`."
-    },
     "protobufEmpty": {
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
-    },
-    "protobufInt32Value": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The int32 value."
-        }
-      },
-      "description": "Wrapper message for `int32`.\n\nThe JSON representation for `Int32Value` is JSON number."
-    },
-    "protobufStringValue": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string",
-          "description": "The string value."
-        }
-      },
-      "description": "Wrapper message for `string`.\n\nThe JSON representation for `StringValue` is JSON string."
     }
   },
   "externalDocs": {
