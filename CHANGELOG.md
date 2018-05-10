@@ -29,6 +29,7 @@ This release brings a large number of changes and new features to the server. It
 - Startup messages are more concise.
 - Log messages have been updated to be more useful in development.
 - Stdlib for the code runtime uses "snake_case" consistently across variables and function names.
+- The base image for our Docker images now uses Alpine Linux.
 
 ### Fixed
 - Build dependencies are now vendored and build system is simplified.
