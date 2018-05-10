@@ -194,7 +194,7 @@ func (n *NakamaModule) registerRPC(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if _, ok := rc.RPC[id]; ok {
-		l.RaiseError("rpc id already registered")
+		//l.RaiseError("rpc id already registered")
 		return 0
 	}
 	rc.RPC[id] = fn
@@ -217,7 +217,7 @@ func (n *NakamaModule) registerReqBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if _, ok := rc.Before[id]; ok {
-		l.RaiseError("before id already registered")
+		//l.RaiseError("before id already registered")
 		return 0
 	}
 	rc.Before[id] = fn
@@ -240,7 +240,7 @@ func (n *NakamaModule) registerReqAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if _, ok := rc.After[id]; ok {
-		l.RaiseError("after id already registered")
+		//l.RaiseError("after id already registered")
 		return 0
 	}
 	rc.After[id] = fn
@@ -263,7 +263,7 @@ func (n *NakamaModule) registerRTBefore(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if _, ok := rc.Before[id]; ok {
-		l.RaiseError("before id already registered")
+		//l.RaiseError("before id already registered")
 		return 0
 	}
 	rc.Before[id] = fn
@@ -286,7 +286,7 @@ func (n *NakamaModule) registerRTAfter(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if _, ok := rc.After[id]; ok {
-		l.RaiseError("before id already registered")
+		//l.RaiseError("before id already registered")
 		return 0
 	}
 	rc.After[id] = fn
@@ -301,7 +301,7 @@ func (n *NakamaModule) registerMatchmakerMatched(l *lua.LState) int {
 
 	rc := l.Context().Value(CALLBACKS).(*Callbacks)
 	if rc.Matchmaker != nil {
-		l.RaiseError("matchmaker matched already registered")
+		//l.RaiseError("matchmaker matched already registered")
 		return 0
 	}
 	rc.Matchmaker = fn
