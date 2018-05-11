@@ -86,6 +86,9 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	// Core user account.
 	account, err := GetAccount(s.logger, s.db, nil, userID)
 	if err != nil {
+		if err == ErrAccountNotFound {
+			return nil, status.Error(codes.NotFound, "Account not found.")
+		}
 		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}

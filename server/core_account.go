@@ -28,6 +28,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var ErrAccountNotFound = errors.New("account not found")
+
 func GetAccount(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
@@ -55,8 +57,10 @@ SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadat
 FROM users
 WHERE id = $1`
 
-	if err := db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata,
-		&wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
+	if err := db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrAccountNotFound
+		}
 		logger.Error("Error retrieving user account.", zap.Error(err))
 		return nil, err
 	}
