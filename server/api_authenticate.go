@@ -38,8 +38,8 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, no spaces or control characters allowed.")
-	} else if len(in.Account.Id) < 10 || len(in.Account.Id) > 128 {
-		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, must be 10-128 bytes.")
+	} else if len(in.Account.Id) < 6 || len(in.Account.Id) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, must be 6-128 bytes.")
 	}
 
 	username := in.Username

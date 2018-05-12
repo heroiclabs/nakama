@@ -854,8 +854,8 @@ func (n *NakamaModule) authenticateCustom(l *lua.LState) int {
 	} else if invalidCharsRegex.MatchString(id) {
 		l.ArgError(1, "expects id to be valid, no spaces or control characters allowed")
 		return 0
-	} else if len(id) < 10 || len(id) > 128 {
-		l.ArgError(1, "expects id to be valid, must be 10-128 bytes")
+	} else if len(id) < 6 || len(id) > 128 {
+		l.ArgError(1, "expects id to be valid, must be 6-128 bytes")
 		return 0
 	}
 

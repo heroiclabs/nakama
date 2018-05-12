@@ -36,8 +36,8 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(customID) {
 		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, no spaces or control characters allowed.")
-	} else if len(customID) < 10 || len(customID) > 128 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, must be 10-128 bytes.")
+	} else if len(customID) < 6 || len(customID) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, must be 6-128 bytes.")
 	}
 
 	userID := ctx.Value(ctxUserIDKey{})
