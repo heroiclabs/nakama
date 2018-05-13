@@ -440,7 +440,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
 	}
 
-	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3 AS TIMESTAMPTZ)"
+	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
 	_, err := db.Exec(query, leaderboardId, ownerId, expiryTime)
 	if err != nil {
 		logger.Error("Error deleting leaderboard record", zap.Error(err))
