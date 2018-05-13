@@ -143,6 +143,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"logger_warn":                 n.loggerWarn,
 		"logger_error":                n.loggerError,
 		"account_get_id":              n.accountGetId,
+		"account_update_id":           n.accountUpdateId,
 		"users_get_id":                n.usersGetId,
 		"users_get_username":          n.usersGetUsername,
 		"stream_user_list":            n.streamUserList,
@@ -3673,4 +3674,63 @@ func (n *NakamaModule) userGroupsList(l *lua.LState) int {
 
 	l.Push(userGroups)
 	return 1
+}
+
+func (n *NakamaModule) accountUpdateId(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	metadataTable := l.OptTable(2, nil)
+	var metadata *wrappers.StringValue
+	if metadataTable != nil {
+		metadataMap := ConvertLuaTable(metadataTable)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+	}
+
+	username := l.OptString(3, "")
+
+	displayNameL := l.Get(4)
+	var displayName *wrappers.StringValue
+	if displayNameL != nil {
+		displayName = &wrappers.StringValue{Value: l.OptString(4, "")}
+	}
+
+	timezoneL := l.Get(5)
+	var timezone *wrappers.StringValue
+	if timezoneL != nil {
+		timezone = &wrappers.StringValue{Value: l.OptString(5, "")}
+	}
+
+	locationL := l.Get(6)
+	var location *wrappers.StringValue
+	if locationL != nil {
+		location = &wrappers.StringValue{Value: l.OptString(6, "")}
+	}
+
+	langL := l.Get(7)
+	var lang *wrappers.StringValue
+	if langL != nil {
+		lang = &wrappers.StringValue{Value: l.OptString(7, "")}
+	}
+
+	avatarL := l.Get(8)
+	var avatar *wrappers.StringValue
+	if avatarL != nil {
+		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
+	}
+
+	if err = UpdateAccount(n.db, n.logger, userID, username, displayName, timezone, location, lang, avatar, metadata); err != nil {
+		l.RaiseError("error while trying to update user: %v", err.Error())
+		return 0
+	}
+
+	return 0
 }

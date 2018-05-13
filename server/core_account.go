@@ -127,7 +127,7 @@ WHERE id = $1`
 }
 
 func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username string,
-	displayName, timezone, location, langTag, avatarURL *wrappers.StringValue) error {
+	displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {
 
 	index := 1
 	statements := make([]string, 0)
@@ -190,6 +190,12 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 			params = append(params, a)
 			index++
 		}
+	}
+
+	if metadata != nil {
+		statements = append(statements, "metadata = $"+strconv.Itoa(index))
+		params = append(params, metadata.GetValue())
+		index++
 	}
 
 	if len(statements) == 0 {
