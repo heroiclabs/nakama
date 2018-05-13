@@ -187,8 +187,12 @@ func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
 	query := "SELECT id FROM users WHERE username IN (" + strings.Join(statements, ", ") + ")"
 	rows, err := db.Query(query, params...)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return ids, nil
+		}
 		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var id string
