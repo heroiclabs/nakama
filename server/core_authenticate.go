@@ -209,7 +209,6 @@ WHERE NOT EXISTS
 
 func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, bool, error) {
 	found := true
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
 	// Look for an existing account.
 	query := "SELECT id, username, password, disable_time FROM users WHERE email = $1"
@@ -250,6 +249,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.Exec(query, userID, username, email, hashedPassword)
 	if err != nil {
