@@ -108,7 +108,8 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	}
 
 	if len(userIDs)+len(in.GetIds()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "No valid ID or username was provided.")
+		s.logger.Info("No valid ID or username was provided.")
+		return &empty.Empty{}, nil
 	}
 
 	allIDs := make([]string, 0, len(in.GetIds())+len(userIDs))
