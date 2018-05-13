@@ -215,7 +215,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 	query := "SELECT id, username, password, disable_time FROM users WHERE email = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbPassword string
+	var dbPassword []byte
 	var dbDisableTime pq.NullTime
 	err := db.QueryRow(query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
@@ -235,7 +235,7 @@ func AuthenticateEmail(logger *zap.Logger, db *sql.DB, email, password, username
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
+		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 		if err != nil {
 			return "", "", false, status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
