@@ -128,7 +128,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 
 		friends = append(friends, &api.Friend{
 			User:  user,
-			State: int32(state.Int64),
+			State: int32(state.Int64) + 1,
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -197,7 +197,8 @@ func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, use
 // Returns "true" if accepting an invite, otherwise false
 func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
 	// Check to see if user has already blocked friend, if so ignore.
-	if _, err := tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID); err != nil {
+	rows, err := tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
 			return false, sql.ErrNoRows
@@ -205,6 +206,8 @@ func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string
 		logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
 	}
+	// We don't need the result, it only matters if there was one.
+	rows.Close()
 
 	// Mark an invite as accepted, if one was in place.
 	res, err := tx.Exec(`
