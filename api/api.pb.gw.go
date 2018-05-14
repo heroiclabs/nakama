@@ -46,15 +46,13 @@ func request_Nakama_AddFriends_0(ctx context.Context, marshaler runtime.Marshale
 
 }
 
+var (
+	filter_Nakama_AddGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+)
+
 func request_Nakama_AddGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq AddGroupUsersRequest
 	var metadata runtime.ServerMetadata
-
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-	}
 
 	var (
 		val string
@@ -72,6 +70,10 @@ func request_Nakama_AddGroupUsers_0(ctx context.Context, marshaler runtime.Marsh
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "group_id", err)
+	}
+
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AddGroupUsers_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	msg, err := client.AddGroupUsers(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -437,12 +439,6 @@ func request_Nakama_JoinGroup_0(ctx context.Context, marshaler runtime.Marshaler
 	var protoReq JoinGroupRequest
 	var metadata runtime.ServerMetadata
 
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-	}
-
 	var (
 		val string
 		ok  bool
@@ -466,15 +462,13 @@ func request_Nakama_JoinGroup_0(ctx context.Context, marshaler runtime.Marshaler
 
 }
 
+var (
+	filter_Nakama_KickGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+)
+
 func request_Nakama_KickGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq KickGroupUsersRequest
 	var metadata runtime.ServerMetadata
-
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-	}
 
 	var (
 		val string
@@ -494,6 +488,10 @@ func request_Nakama_KickGroupUsers_0(ctx context.Context, marshaler runtime.Mars
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "group_id", err)
 	}
 
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_KickGroupUsers_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
 	msg, err := client.KickGroupUsers(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
@@ -502,12 +500,6 @@ func request_Nakama_KickGroupUsers_0(ctx context.Context, marshaler runtime.Mars
 func request_Nakama_LeaveGroup_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq LeaveGroupRequest
 	var metadata runtime.ServerMetadata
-
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-	}
 
 	var (
 		val string
@@ -910,15 +902,13 @@ func request_Nakama_ListUserGroups_0(ctx context.Context, marshaler runtime.Mars
 
 }
 
+var (
+	filter_Nakama_PromoteGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+)
+
 func request_Nakama_PromoteGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq PromoteGroupUsersRequest
 	var metadata runtime.ServerMetadata
-
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-	}
 
 	var (
 		val string
@@ -936,6 +926,10 @@ func request_Nakama_PromoteGroupUsers_0(ctx context.Context, marshaler runtime.M
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "group_id", err)
+	}
+
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_PromoteGroupUsers_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	msg, err := client.PromoteGroupUsers(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))

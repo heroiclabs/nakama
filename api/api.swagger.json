@@ -982,14 +982,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiAddGroupUsersRequest"
-            }
           }
         ],
         "tags": [
@@ -1015,14 +1007,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiJoinGroupRequest"
-            }
           }
         ],
         "tags": [
@@ -1048,14 +1032,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiKickGroupUsersRequest"
-            }
           }
         ],
         "tags": [
@@ -1081,14 +1057,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiLeaveGroupRequest"
-            }
           }
         ],
         "tags": [
@@ -1114,14 +1082,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiPromoteGroupUsersRequest"
-            }
           }
         ],
         "tags": [
@@ -1886,23 +1846,6 @@
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
     },
-    "apiAddGroupUsersRequest": {
-      "type": "object",
-      "properties": {
-        "group_id": {
-          "type": "string",
-          "description": "The group to add users to."
-        },
-        "user_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The users to add."
-        }
-      },
-      "description": "Add users to a group."
-    },
     "apiChannelMessage": {
       "type": "object",
       "properties": {
@@ -2145,33 +2088,6 @@
       },
       "description": "A list of users belonging to a group, along with their role."
     },
-    "apiJoinGroupRequest": {
-      "type": "object",
-      "properties": {
-        "group_id": {
-          "type": "string",
-          "description": "The group ID to join."
-        }
-      },
-      "description": "Immediately join an open group, or request to join a closed one."
-    },
-    "apiKickGroupUsersRequest": {
-      "type": "object",
-      "properties": {
-        "group_id": {
-          "type": "string",
-          "description": "The group ID to kick from."
-        },
-        "user_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The users to kick."
-        }
-      },
-      "description": "Kick a set of users from a group."
-    },
     "apiLeaderboardRecord": {
       "type": "object",
       "properties": {
@@ -2256,16 +2172,6 @@
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
-    },
-    "apiLeaveGroupRequest": {
-      "type": "object",
-      "properties": {
-        "group_id": {
-          "type": "string",
-          "description": "The group ID to leave."
-        }
-      },
-      "description": "Leave a group."
     },
     "apiMatch": {
       "type": "object",
@@ -2357,23 +2263,6 @@
         }
       },
       "description": "A collection of zero or more notifications."
-    },
-    "apiPromoteGroupUsersRequest": {
-      "type": "object",
-      "properties": {
-        "group_id": {
-          "type": "string",
-          "description": "The group ID to promote in."
-        },
-        "user_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The users to promote."
-        }
-      },
-      "description": "Promote a set of users in a group to the next role up."
     },
     "apiReadStorageObjectId": {
       "type": "object",

@@ -96,10 +96,7 @@ service Nakama {
 
   // Add users to a group.
   rpc AddGroupUsers (AddGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/add",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/add";
   }
 
   // Authenticate a user with a custom id against the server.
@@ -282,26 +279,17 @@ service Nakama {
 
   // Immediately join an open group, or request to join a closed one.
   rpc JoinGroup (JoinGroupRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/join",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/join";
   }
 
   // Kick a set of users from a group.
   rpc KickGroupUsers (KickGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/kick",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/kick";
   }
 
   // Leave a group the user is a member of.
   rpc LeaveGroup (LeaveGroupRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/leave",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/leave";
   }
 
   // Add a custom ID to the social profiles on the current user's account.
@@ -412,10 +400,7 @@ service Nakama {
 
   // Promote a set of users in a group to the next role up.
   rpc PromoteGroupUsers (PromoteGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/promote",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/promote";
   }
 
   // Get storage objects.
