@@ -57,8 +57,8 @@ You can run the servers with native binaries for your platform.
 
 When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/install-configuration).
 
-> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Node","name":"nakama","version":"2.0.0+7e18b09","runtime":"go1.10.1","cpu":4}
-> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Database connections","dsns":["root@127.0.0.1:26257"]}
+> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Node","name":"nakama","version":"2.0.0+7e18b09","runtime":"go1.10.1","cpu":4} <br/>
+> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Database connections","dsns":["root@127.0.0.1:26257"]} <br/>
 > ...
 
 ## Usage
@@ -75,8 +75,8 @@ curl "http://127.0.0.1:7350/v2/account/authenticate/custom?create=true&username=
 
 Response:
 
-> {
->     "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1MjQ5OTU2NDksInVpZCI6Ijk5Y2Q1YzUyLWE5ODgtNGI2NC04YThhLTVmMTM5YTg4MTgxMiIsInVzbiI6InhBb1RxTUVSdFgifQ.-3_rXNYx3Q4jKuS7RkxeMWBzMNAm0vl93QxzRI8p_IY"
+> { <br>
+>     "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1MjQ5OTU2NDksInVpZCI6Ijk5Y2Q1YzUyLWE5ODgtNGI2NC04YThhLTVmMTM5YTg4MTgxMiIsInVzbiI6InhBb1RxTUVSdFgifQ.-3_rXNYx3Q4jKuS7RkxeMWBzMNAm0vl93QxzRI8p_IY" <br>
 > }
 
 There's a number of official [client libraries](https://github.com/heroiclabs) available on GitHub with [documentation](https://heroiclabs.com/docs). The current platform/language support includes: .NET (in C#), Unity engine, JavaScript, Java (with Android), Unreal engine, and Swift (with iOS). If you'd like to contribute a client or request one let us know.
