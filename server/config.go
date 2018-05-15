@@ -313,7 +313,7 @@ func NewSocketConfig() *SocketConfig {
 		WriteWaitMs:         5000,
 		PongWaitMs:          10000,
 		PingPeriodMs:        8000,
-		OutgoingQueueSize:   16,
+		OutgoingQueueSize:   64,
 		SSLCertificate:      "",
 		SSLPrivateKey:       "",
 	}
