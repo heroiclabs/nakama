@@ -894,14 +894,14 @@ func ListGroups(logger *zap.Logger, db *sql.DB, name string, limit int, cursorSt
 	if name == "" {
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups 
-WHERE disable_time::INT 0
+FROM groups
+WHERE disable_time::INT = 0
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups 
+FROM groups
 WHERE
 	(disable_time::INT = 0)
 AND
@@ -912,19 +912,19 @@ LIMIT $1`
 		params = append(params, name)
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups 
-WHERE 
-	(disable_time::INT = 0) 
-AND 
-	(name LIKE $2) 
+FROM groups
+WHERE
+	(disable_time::INT = 0)
+AND
+	(name LIKE $2)
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE 
-	(disable_time::INT = 0) 
+WHERE
+	(disable_time::INT = 0)
 AND
 	(name LIKE $2)
 AND
