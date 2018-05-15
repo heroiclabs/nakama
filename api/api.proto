@@ -231,7 +231,7 @@ service Nakama {
     option (google.api.http).delete = "/v2/friend";
   }
 
-  // Delete one or more groups by ID.
+  // Delete a group by ID.
   rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/group/{group_id}";
   }
