@@ -113,6 +113,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 			logger.Debug("Could not create group.", zap.Error(err))
 			return err
 		}
+		// Rows closed in groupConvertRows()
 
 		groups, err := groupConvertRows(rows)
 		if err != nil {
@@ -292,6 +293,7 @@ WHERE (id = $1) AND (disable_time::INT = 0)`
 		logger.Error("Could not look up group while trying to join it.", zap.Error(err))
 		return err
 	}
+	// Rows closed in groupConvertRows()
 
 	groups, err := groupConvertRows(rows)
 	if err != nil {
@@ -940,6 +942,7 @@ LIMIT $1`
 		logger.Error("Could not list groups.", zap.Error(err), zap.String("name", name))
 		return nil, err
 	}
+	// Rows closed in groupConvertRows()
 
 	groups, err := groupConvertRows(rows)
 	if err != nil {

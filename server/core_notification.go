@@ -105,6 +105,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
 		return nil, err
 	}
+	defer rows.Close()
 
 	notifications := make([]*api.Notification, 0)
 	for rows.Next() {

@@ -101,6 +101,7 @@ LIMIT $2`
 			return nil, err
 		}
 	}
+	defer rows.Close()
 
 	objects, err := storageListObjects(rows, cursor)
 	if err != nil {
@@ -133,6 +134,7 @@ LIMIT $3`
 			return nil, err
 		}
 	}
+	defer rows.Close()
 
 	objects, err := storageListObjects(rows, cursor)
 	if err != nil {
@@ -173,8 +175,8 @@ LIMIT $3`
 			return nil, err
 		}
 	}
-
 	defer rows.Close()
+
 	objects, err := storageListObjects(rows, cursor)
 	if err != nil {
 		logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
@@ -198,8 +200,8 @@ WHERE user_id = $1`
 			return nil, err
 		}
 	}
-
 	defer rows.Close()
+
 	objects := make([]*api.StorageObject, 0)
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
