@@ -30,7 +30,7 @@ The server is simple to setup and run for local development and can be deployed 
 
 The fastest way to run the server and the database is with Docker. Setup Docker and start the daemon.
 
-1. Download [this](https://github.com/heroiclabs/nakama/blob/master/install/docker/docker-compose.yml) `"docker-compose"` file and place it in a folder for your project.
+1. Set up a [docker-compose file](https://heroiclabs.com/docs/install-docker-quickstart/#using-docker-compose) and place it in a folder for your project.
 2. Run `docker-compose -f ./docker-compose.yml up` to download container images and run the servers.
 
 For more detailed instructions have a look at our [Docker quickstart](https://heroiclabs.com/docs/install-docker-quickstart) guide.
