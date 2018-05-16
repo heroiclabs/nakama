@@ -111,6 +111,7 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"register_rt_after":           n.registerRTAfter,
 		"register_matchmaker_matched": n.registerMatchmakerMatched,
 		"run_once":                    n.runOnce,
+		"time":                        n.time,
 		"cron_next":                   n.cronNext,
 		"sql_exec":                    n.sqlExec,
 		"sql_query":                   n.sqlQuery,
@@ -341,6 +342,29 @@ func (n *NakamaModule) runOnce(l *lua.LState) int {
 	})
 
 	return 0
+}
+
+func (n *NakamaModule) time(l *lua.LState) int {
+	if l.GetTop() == 0 {
+		l.Push(lua.LNumber(time.Now().UTC().UnixNano() / int64(time.Millisecond)))
+	} else {
+		tbl := l.CheckTable(1)
+		msec := getIntField(l, tbl, "msec", 0)
+		sec := getIntField(l, tbl, "sec", 0)
+		min := getIntField(l, tbl, "min", 0)
+		hour := getIntField(l, tbl, "hour", 12)
+		day := getIntField(l, tbl, "day", -1)
+		month := getIntField(l, tbl, "month", -1)
+		year := getIntField(l, tbl, "year", -1)
+		isdst := getBoolField(l, tbl, "isdst", false)
+		t := time.Date(year, time.Month(month), day, hour, min, sec, msec*int(time.Millisecond), time.UTC)
+		// TODO dst
+		if false {
+			print(isdst)
+		}
+		l.Push(lua.LNumber(t.UTC().UnixNano() / int64(time.Millisecond)))
+	}
+	return 1
 }
 
 func (n *NakamaModule) cronNext(l *lua.LState) int {
