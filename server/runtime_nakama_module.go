@@ -532,6 +532,10 @@ func (n *NakamaModule) httpRequest(l *lua.LState) int {
 		return 0
 	}
 
+	// Set a custom timeout if one is provided, or use the default.
+	timeoutMs := l.OptInt64(5, 5000)
+	n.client.Timeout = time.Duration(timeoutMs) * time.Millisecond
+
 	// Prepare request body, if any.
 	var requestBody io.Reader
 	if body != "" {
