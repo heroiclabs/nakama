@@ -730,7 +730,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Deliver event.
 		for _, sessionID := range sessionIDs {
 			if s := t.sessionRegistry.Get(sessionID); s != nil {
-				s.SendBytes(payloadByte)
+				s.SendBytes(true, stream.Mode, payloadByte)
 			} else {
 				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}
@@ -806,7 +806,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Deliver event.
 		for _, sessionID := range sessionIDs {
 			if s := t.sessionRegistry.Get(sessionID); s != nil {
-				s.SendBytes(payloadByte)
+				s.SendBytes(true, stream.Mode, payloadByte)
 			} else {
 				t.logger.Debug("Could not deliver presence event, no session", zap.String("sid", sessionID.String()))
 			}

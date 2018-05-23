@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - New timeout option to HTTP request function in the code runtime.
+- QoS settings on client outgoing message queue.
 
 
 ## [2.0.0] - 2018-05-14

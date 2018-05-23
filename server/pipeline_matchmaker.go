@@ -29,7 +29,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	// Minimum count.
 	minCount := int(incoming.MinCount)
 	if minCount < 2 {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid minimum count, must be >= 2",
 		}}})
@@ -39,7 +39,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	// Maximum count, must be at least minimum count.
 	maxCount := int(incoming.MaxCount)
 	if maxCount < minCount {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid maximum count, must be >= minimum count",
 		}}})
@@ -50,7 +50,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	ticket, entries, err := p.matchmaker.Add(session, incoming.Query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
 	if err != nil {
 		logger.Error("Error adding to matchmaker", zap.Error(err))
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error adding to matchmaker",
 		}}})
@@ -58,7 +58,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	}
 
 	// Return the ticket first whether or not matchmaking was successful.
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_MatchmakerTicket{MatchmakerTicket: &rtapi.MatchmakerTicket{
+	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_MatchmakerTicket{MatchmakerTicket: &rtapi.MatchmakerTicket{
 		Ticket: ticket,
 	}}})
 
@@ -108,7 +108,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
 
 		// Route outgoing message.
-		p.router.SendToPresenceIDs(logger, []*PresenceID{&PresenceID{Node: entry.Presence.Node, SessionID: entry.SessionID}}, outgoing)
+		p.router.SendToPresenceIDs(logger, []*PresenceID{&PresenceID{Node: entry.Presence.Node, SessionID: entry.SessionID}}, false, 0, outgoing)
 	}
 }
 
@@ -117,7 +117,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 
 	// Ticket is required.
 	if incoming.Ticket == "" {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid matchmaker ticket",
 		}}})
@@ -127,7 +127,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 	// Run matchmaker remove.
 	if err := p.matchmaker.Remove(session.ID(), incoming.Ticket); err != nil {
 		if err == ErrMatchmakerTicketNotFound {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Matchmaker ticket not found",
 			}}})
@@ -135,12 +135,12 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 		}
 
 		logger.Error("Error removing matchmaker ticket", zap.Error(err))
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error removing matchmaker ticket",
 		}}})
 		return
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid})
+	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
 }

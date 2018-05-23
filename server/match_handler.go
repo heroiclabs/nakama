@@ -680,7 +680,7 @@ func (mh *MatchHandler) broadcastMessage(l *lua.LState) int {
 	if presenceIDs == nil {
 		mh.router.SendToStream(mh.logger, mh.Stream, msg)
 	} else {
-		mh.router.SendToPresenceIDs(mh.logger, presenceIDs, msg)
+		mh.router.SendToPresenceIDs(mh.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
 	}
 
 	return 0

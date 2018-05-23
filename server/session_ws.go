@@ -42,8 +42,9 @@ type sessionWS struct {
 	username *atomic.String
 	expiry   int64
 
-	jsonpbMarshaler   *jsonpb.Marshaler
-	jsonpbUnmarshaler *jsonpb.Unmarshaler
+	jsonpbMarshaler        *jsonpb.Marshaler
+	jsonpbUnmarshaler      *jsonpb.Unmarshaler
+	queuePriorityThreshold int
 
 	sessionRegistry *SessionRegistry
 	matchmaker      Matchmaker
@@ -70,8 +71,9 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		username: atomic.NewString(username),
 		expiry:   expiry,
 
-		jsonpbMarshaler:   jsonpbMarshaler,
-		jsonpbUnmarshaler: jsonpbUnmarshaler,
+		jsonpbMarshaler:        jsonpbMarshaler,
+		jsonpbUnmarshaler:      jsonpbUnmarshaler,
+		queuePriorityThreshold: (config.GetSocket().OutgoingQueueSize / 3) * 2,
 
 		sessionRegistry: sessionRegistry,
 		matchmaker:      matchmaker,
@@ -209,7 +211,7 @@ func (s *sessionWS) Format() SessionFormat {
 	return SessionFormatJson
 }
 
-func (s *sessionWS) Send(envelope *rtapi.Envelope) error {
+func (s *sessionWS) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
 	payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
 	if err != nil {
 		s.logger.Warn("Could not marshal to json", zap.Error(err))
@@ -225,16 +227,34 @@ func (s *sessionWS) Send(envelope *rtapi.Envelope) error {
 		}
 	}
 
-	return s.SendBytes([]byte(payload))
+	return s.SendBytes(isStream, mode, []byte(payload))
 }
 
-func (s *sessionWS) SendBytes(payload []byte) error {
+func (s *sessionWS) SendBytes(isStream bool, mode uint8, payload []byte) error {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
 		return nil
 	}
 
+	if isStream {
+		switch mode {
+		case StreamModeChannel:
+			fallthrough
+		case StreamModeGroup:
+			fallthrough
+		case StreamModeDM:
+			// Chat messages are only allowed if the current outgoing queue size is below the threshold to
+			// ensure there is always room to queue higher priority messages.
+			if len(s.outgoingCh) < s.queuePriorityThreshold {
+				s.outgoingCh <- payload
+			}
+			s.Unlock()
+			return nil
+		}
+	}
+
+	// By default attempt to queue messages and observe failures.
 	select {
 	case s.outgoingCh <- payload:
 		s.Unlock()

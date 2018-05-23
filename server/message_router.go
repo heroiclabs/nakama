@@ -22,7 +22,7 @@ import (
 
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
-	SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope)
+	SendToPresenceIDs(*zap.Logger, []*PresenceID, bool, uint8, *rtapi.Envelope)
 	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope)
 }
 
@@ -40,7 +40,7 @@ func NewLocalMessageRouter(sessionRegistry *SessionRegistry, tracker Tracker, js
 	}
 }
 
-func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs []*PresenceID, envelope *rtapi.Envelope) {
+func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs []*PresenceID, isStream bool, mode uint8, envelope *rtapi.Envelope) {
 	if len(presenceIDs) == 0 {
 		return
 	}
@@ -57,7 +57,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 			logger.Debug("No session to route to", zap.String("sid", presenceID.SessionID.String()))
 			continue
 		}
-		if err := session.SendBytes(payloadBytes); err != nil {
+		if err := session.SendBytes(isStream, mode, payloadBytes); err != nil {
 			logger.Error("Failed to route to", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
 		}
 	}
@@ -65,5 +65,5 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 
 func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, envelope *rtapi.Envelope) {
 	presenceIDs := r.tracker.ListPresenceIDByStream(stream)
-	r.SendToPresenceIDs(logger, presenceIDs, envelope)
+	r.SendToPresenceIDs(logger, presenceIDs, true, stream.Mode, envelope)
 }

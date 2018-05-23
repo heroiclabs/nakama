@@ -41,8 +41,8 @@ type Session interface {
 	Consume(func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool)
 
 	Format() SessionFormat
-	Send(envelope *rtapi.Envelope) error
-	SendBytes(payload []byte) error
+	Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error
+	SendBytes(isStream bool, mode uint8, payload []byte) error
 
 	Close()
 }

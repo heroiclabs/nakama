@@ -60,7 +60,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	}
 
 	if envelope.Message == nil {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_MISSING_PAYLOAD),
 			Message: "Missing message.",
 		}}})
@@ -90,7 +90,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, sessionID, uid, username, expiry, messageName, envelope)
 
 		if hookErr != nil {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 				Message: hookErr.Error(),
 			}}})
@@ -98,7 +98,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		} else if hookResult == nil {
 			// if result is nil, requested resource is disabled.
 			logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 				Message: "Requested resource was not found.",
 			}}})
@@ -108,7 +108,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		resultCast, ok := hookResult.(*rtapi.Envelope)
 		if !ok {
 			logger.Error("Invalid runtime Before function result. Make sure that the result matches the structure of the payload.", zap.Any("payload", envelope), zap.Any("result", hookResult))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 				Message: "Invalid runtime Before function result.",
 			}}})
@@ -152,7 +152,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
 		logger.Error("Unrecognizable payload received.", zap.Any("payload", envelope))
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 			Message: "Unrecognized message.",
 		}}})
