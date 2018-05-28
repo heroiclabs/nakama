@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     id            UUID          NOT NULL,
     username      VARCHAR(128)  CONSTRAINT users_username_key UNIQUE NOT NULL,
     display_name  VARCHAR(255),
-    avatar_url    VARCHAR(255),
+    avatar_url    VARCHAR(512),
     -- https://tools.ietf.org/html/bcp47
     lang_tag      VARCHAR(18)   DEFAULT 'en',
     location      VARCHAR(255), -- e.g. "San Francisco, CA"
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS groups (
   creator_id   UUID          NOT NULL,
   name         VARCHAR(255)  CONSTRAINT groups_name_key UNIQUE NOT NULL,
   description  VARCHAR(255),
-  avatar_url   VARCHAR(255),
+  avatar_url   VARCHAR(512),
   -- https://tools.ietf.org/html/bcp47
   lang_tag     VARCHAR(18)   DEFAULT 'en',
   metadata     JSONB         DEFAULT '{}' NOT NULL,

@@ -6,8 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - New timeout option to HTTP request function in the code runtime.
-- QoS settings on client outgoing message queue.
+- Set QoS settings on client outgoing message queue.
 
+### Changed
+- The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
 
 ## [2.0.0] - 2018-05-14
 
