@@ -124,7 +124,14 @@ func (rp *RuntimePool) Get() *Runtime {
 }
 
 func (rp *RuntimePool) Put(r *Runtime) {
-	rp.poolCh <- r
+	select {
+	case rp.poolCh <- r:
+		// Runtime is successfully returned to the pool.
+	default:
+		// The pool is over capacity. Should never happen but guard anyway.
+		// Safe to continue processing, the runtime is just discarded.
+		rp.logger.Warn("Runtime pool full, discarding runtime")
+	}
 }
 
 func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
