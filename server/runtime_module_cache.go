@@ -25,7 +25,13 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	"sort"
 )
+
+type ModuleCache struct {
+	Names   []string
+	Modules map[string]*RuntimeModule
+}
 
 type RegCallbacks struct {
 	RPC        map[string]interface{}
@@ -34,13 +40,16 @@ type RegCallbacks struct {
 	Matchmaker interface{}
 }
 
-func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *sync.Map, error) {
+func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lua.LGFunction, *ModuleCache, error) {
 	runtimeConfig := config.GetRuntime()
 	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
 		return nil, nil, err
 	}
 
-	modules := new(sync.Map)
+	moduleCache := &ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*RuntimeModule, 0),
+	}
 
 	// Override before Package library is invoked.
 	lua.LuaLDir = runtimeConfig.Path
@@ -64,11 +73,12 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 				// Make paths Lua friendly.
 				name = strings.Replace(name, "/", ".", -1)
-				modules.Store(name, &RuntimeModule{
+				moduleCache.Names = append(moduleCache.Names, name)
+				moduleCache.Modules[name] = &RuntimeModule{
 					Name:    name,
 					Path:    path,
 					Content: content,
-				})
+				}
 				modulePaths = append(modulePaths, relPath)
 			}
 		}
@@ -78,8 +88,11 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 		return nil, nil, err
 	}
 
+	// Ensure modules will be listed in ascending order of names.
+	sort.Strings(moduleCache.Names)
+
 	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:   OpenPackage(modules),
+		lua.LoadLibName:   OpenPackage(moduleCache),
 		lua.BaseLibName:   lua.OpenBase,
 		lua.TabLibName:    lua.OpenTable,
 		lua.OsLibName:     OpenOs,
@@ -89,10 +102,10 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 
 	startupLogger.Info("Found runtime modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
 
-	return stdLibs, modules, nil
+	return stdLibs, moduleCache, nil
 }
 
-func ValidateRuntimeModules(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once) (*RegCallbacks, error) {
+func ValidateRuntimeModules(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once) (*RegCallbacks, error) {
 	regCallbacks := &RegCallbacks{
 		RPC:    make(map[string]interface{}),
 		Before: make(map[string]interface{}),
@@ -100,7 +113,7 @@ func ValidateRuntimeModules(logger, startupLogger *zap.Logger, db *sql.DB, confi
 	}
 
 	startupLogger.Info("Evaluating runtime modules")
-	r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, func(execMode ExecutionMode, id string) {
+	r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, func(execMode ExecutionMode, id string) {
 		switch execMode {
 		case ExecutionModeRPC:
 			regCallbacks.RPC[id] = struct{}{}
