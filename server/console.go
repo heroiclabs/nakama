@@ -75,7 +75,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-2)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
 		grpc.WithInsecure(),
 	}
 
@@ -84,17 +84,17 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
-	grpcGatewayRouter.NewRoute().Handler(grpcGateway)
 	//TODO server HTML content here.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	// Enable compression on gateway responses.
-	handlerWithGzip := handlers.CompressHandler(grpcGatewayRouter)
+	handlerWithGzip := handlers.CompressHandler(grpcGateway)
+	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"})
-	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(handlerWithGzip)
+	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
