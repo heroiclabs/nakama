@@ -96,6 +96,15 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetSocket().PingPeriodMs >= mainConfig.GetSocket().PongWaitMs {
 		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", mainConfig.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", mainConfig.GetSocket().PongWaitMs))
 	}
+	if mainConfig.GetRuntime().MinCount < 0 {
+		logger.Fatal("Minimum runtime instance count must be >= 0", zap.Int("runtime.min_count", mainConfig.GetRuntime().MinCount))
+	}
+	if mainConfig.GetRuntime().MaxCount < 1 {
+		logger.Fatal("Maximum runtime instance count must be >= 1", zap.Int("runtime.max_count", mainConfig.GetRuntime().MaxCount))
+	}
+	if mainConfig.GetRuntime().MinCount > mainConfig.GetRuntime().MaxCount {
+		logger.Fatal("Minimum runtime instance count must be less than or equal to maximum runtime instance count", zap.Int("runtime.min_count", mainConfig.GetRuntime().MinCount), zap.Int("runtime.max_count", mainConfig.GetRuntime().MaxCount))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -364,6 +373,8 @@ type RuntimeConfig struct {
 	Env         []string `yaml:"env" json:"env"`
 	Path        string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
 	HTTPKey     string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	MinCount    int      `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
+	MaxCount    int      `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 65536."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
@@ -373,6 +384,8 @@ func NewRuntimeConfig() *RuntimeConfig {
 		Env:         make([]string, 0),
 		Path:        "",
 		HTTPKey:     "defaultkey",
+		MinCount:    16,
+		MaxCount:    65536,
 	}
 }
 

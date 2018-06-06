@@ -7,9 +7,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New timeout option to HTTP request function in the code runtime.
 - Set QoS settings on client outgoing message queue.
+- New runtime pool min/max size options.
 
 ### Changed
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
+- Runtime modules are now loaded in a consistent order.
 
 ## [2.0.0] - 2018-05-14
 

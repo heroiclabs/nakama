@@ -46,26 +46,45 @@ type RuntimeModule struct {
 }
 
 type RuntimePool struct {
+	sync.Mutex
+	logger       *zap.Logger
 	regCallbacks *RegCallbacks
-	modules      *sync.Map
-	pool         *sync.Pool
+	moduleCache  *ModuleCache
+	poolCh       chan *Runtime
+	maxCount     int
+	currentCount int
+	newFn        func() *Runtime
 }
 
-func NewRuntimePool(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
-	return &RuntimePool{
+func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
+	rp := &RuntimePool{
+		logger:       logger,
 		regCallbacks: regCallbacks,
-		modules:      modules,
-		pool: &sync.Pool{
-			New: func() interface{} {
-				r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once, nil)
-				if err != nil {
-					logger.Fatal("Failed initializing runtime.", zap.Error(err))
-				}
-				// TODO find a way to run r.Stop() when the pool discards this runtime.
-				return r
-			},
+		moduleCache:  moduleCache,
+		poolCh:       make(chan *Runtime, config.GetRuntime().MaxCount),
+		maxCount:     config.GetRuntime().MaxCount,
+		// Set the current count assuming we'll warm up the pool in a moment.
+		currentCount: config.GetRuntime().MinCount,
+		newFn: func() *Runtime {
+			r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, nil)
+			if err != nil {
+				logger.Fatal("Failed initializing runtime.", zap.Error(err))
+			}
+			return r
 		},
 	}
+
+	// Warm up the pool.
+	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", rp.currentCount))
+	if len(moduleCache.Names) > 0 {
+		// Only if there are runtime modules to load.
+		for i := 0; i < config.GetRuntime().MinCount; i++ {
+			rp.poolCh <- rp.newFn()
+		}
+	}
+	startupLogger.Info("Allocated minimum runtime pool")
+
+	return rp
 }
 
 func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
@@ -85,14 +104,37 @@ func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
 }
 
 func (rp *RuntimePool) Get() *Runtime {
-	return rp.pool.Get().(*Runtime)
+	select {
+	case r := <-rp.poolCh:
+		// Ideally use an available idle runtime.
+		return r
+	default:
+		// If there was no idle runtime, see if we can allocate a new one.
+		rp.Lock()
+		if rp.currentCount >= rp.maxCount {
+			rp.Unlock()
+			// If we've reached the max allowed allocation block on an available runtime.
+			return <-rp.poolCh
+		}
+		// Allocate a new runtime.
+		rp.currentCount++
+		rp.Unlock()
+		return rp.newFn()
+	}
 }
 
 func (rp *RuntimePool) Put(r *Runtime) {
-	rp.pool.Put(r)
+	select {
+	case rp.poolCh <- r:
+		// Runtime is successfully returned to the pool.
+	default:
+		// The pool is over capacity. Should never happen but guard anyway.
+		// Safe to continue processing, the runtime is just discarded.
+		rp.logger.Warn("Runtime pool full, discarding runtime")
+	}
 }
 
-func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, modules *sync.Map, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
+func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       1024,
@@ -113,13 +155,7 @@ func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.C
 		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
 	}
 
-	mods := make([]*RuntimeModule, 0)
-	modules.Range(func(key interface{}, value interface{}) bool {
-		mods = append(mods, value.(*RuntimeModule))
-		return true
-	})
-
-	return r, r.loadModules(mods)
+	return r, r.loadModules(moduleCache)
 }
 
 type Runtime struct {
@@ -128,7 +164,7 @@ type Runtime struct {
 	luaEnv *lua.LTable
 }
 
-func (r *Runtime) loadModules(modules []*RuntimeModule) error {
+func (r *Runtime) loadModules(moduleCache *ModuleCache) error {
 	// `DoFile(..)` only parses and evaluates modules. Calling it multiple times, will load and eval the file multiple times.
 	// So to make sure that we only load and evaluate modules once, regardless of whether there is dependency between files, we load them all into `preload`.
 	// This is to make sure that modules are only loaded and evaluated once as `doFile()` does not (always) update _LOADED table.
@@ -162,7 +198,11 @@ func (r *Runtime) loadModules(modules []*RuntimeModule) error {
 
 	preload := r.vm.GetField(r.vm.GetField(r.vm.Get(lua.EnvironIndex), "package"), "preload")
 	fns := make(map[string]*lua.LFunction)
-	for _, module := range modules {
+	for _, name := range moduleCache.Names {
+		module, ok := moduleCache.Modules[name]
+		if !ok {
+			r.logger.Fatal("Failed to find named module in cache", zap.String("name", name))
+		}
 		f, err := r.vm.Load(bytes.NewReader(module.Content), module.Path)
 		if err != nil {
 			r.logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
@@ -173,7 +213,11 @@ func (r *Runtime) loadModules(modules []*RuntimeModule) error {
 		}
 	}
 
-	for name, fn := range fns {
+	for _, name := range moduleCache.Names {
+		fn, ok := fns[name]
+		if !ok {
+			r.logger.Fatal("Failed to find named module in prepared functions", zap.String("name", name))
+		}
 		loaded := r.vm.GetField(r.vm.Get(lua.RegistryIndex), "_LOADED")
 		lv := r.vm.GetField(loaded, name)
 		if lua.LVAsBool(lv) {
