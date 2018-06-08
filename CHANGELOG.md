@@ -13,6 +13,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
 - Runtime modules are now loaded in a consistent order.
 
+### Fixed
+- Add ON DELETE CASCADE to foreign key user constraint on wallet ledger.
+
 ## [2.0.0] - 2018-05-14
 
 This release brings a large number of changes and new features to the server. It cannot be upgraded from v1.0 - reach out for help to upgrade.

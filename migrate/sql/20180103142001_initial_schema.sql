@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS user_device (
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          VARCHAR(128)    NOT NULL,
-    user_id     UUID            NOT NULL
+    id      VARCHAR(128) NOT NULL,
+    user_id UUID         NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_edge (
@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS user_edge (
     FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    source_id      UUID         NOT NULL,
-    position       BIGINT       NOT NULL, -- Used for sort order on rows.
-    update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
-    destination_id UUID         NOT NULL,
-    state          SMALLINT     DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
+    source_id      UUID        NOT NULL,
+    position       BIGINT      NOT NULL, -- Used for sort order on rows.
+    update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
+    destination_id UUID        NOT NULL,
+    state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
 
     UNIQUE (source_id, destination_id)
 );
@@ -74,28 +74,28 @@ CREATE TABLE IF NOT EXISTS notification (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          UUID            CONSTRAINT notification_id_key UNIQUE NOT NULL,
-    user_id     UUID            NOT NULL,
-    subject     VARCHAR(255)    NOT NULL,
-    content     JSONB           DEFAULT '{}' NOT NULL,
-    code        SMALLINT        NOT NULL, -- Negative values are system reserved.
-    sender_id   UUID            NOT NULL,
-    create_time TIMESTAMPTZ     DEFAULT now() NOT NULL
+    id          UUID         CONSTRAINT notification_id_key UNIQUE NOT NULL,
+    user_id     UUID         NOT NULL,
+    subject     VARCHAR(255) NOT NULL,
+    content     JSONB        DEFAULT '{}' NOT NULL,
+    code        SMALLINT     NOT NULL, -- Negative values are system reserved.
+    sender_id   UUID         NOT NULL,
+    create_time TIMESTAMPTZ  DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (collection, read, key, user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    collection  VARCHAR(128)    NOT NULL,
-    key         VARCHAR(128)    NOT NULL,
-    user_id     UUID            NOT NULL,
-    value       JSONB           DEFAULT '{}' NOT NULL,
-    version     VARCHAR(32)     NOT NULL, -- md5 hash of value object.
-    read        SMALLINT        DEFAULT 1 CHECK (read >= 0) NOT NULL,
-    write       SMALLINT        DEFAULT 1 CHECK (write >= 0) NOT NULL,
-    create_time TIMESTAMPTZ     DEFAULT now() NOT NULL,
-    update_time TIMESTAMPTZ     DEFAULT now() NOT NULL,
+    collection  VARCHAR(128) NOT NULL,
+    key         VARCHAR(128) NOT NULL,
+    user_id     UUID         NOT NULL,
+    value       JSONB        DEFAULT '{}' NOT NULL,
+    version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
+    read        SMALLINT     DEFAULT 1 CHECK (read >= 0) NOT NULL,
+    write       SMALLINT     DEFAULT 1 CHECK (write >= 0) NOT NULL,
+    create_time TIMESTAMPTZ  DEFAULT now() NOT NULL,
+    update_time TIMESTAMPTZ  DEFAULT now() NOT NULL,
 
     UNIQUE (collection, key, user_id)
 );
@@ -138,30 +138,30 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
   PRIMARY KEY (leaderboard_id, expiry_time, score, subscore, owner_id),
   FOREIGN KEY (leaderboard_id) REFERENCES leaderboard (id) ON DELETE CASCADE,
 
-  leaderboard_id VARCHAR(128) NOT NULL,
-  owner_id       UUID         NOT NULL,
+  leaderboard_id VARCHAR(128)  NOT NULL,
+  owner_id       UUID          NOT NULL,
   username       VARCHAR(128),
-  score          BIGINT       DEFAULT 0 CHECK (score >= 0) NOT NULL,
-  subscore       BIGINT       DEFAULT 0 CHECK (subscore >= 0) NOT NULL,
-  num_score      INT          DEFAULT 1 CHECK (num_score >= 0) NOT NULL,
-  metadata       JSONB        DEFAULT '{}' NOT NULL,
-  create_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
-  update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
-  expiry_time    TIMESTAMPTZ  DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
+  score          BIGINT        DEFAULT 0 CHECK (score >= 0) NOT NULL,
+  subscore       BIGINT        DEFAULT 0 CHECK (subscore >= 0) NOT NULL,
+  num_score      INT           DEFAULT 1 CHECK (num_score >= 0) NOT NULL,
+  metadata       JSONB         DEFAULT '{}' NOT NULL,
+  create_time    TIMESTAMPTZ   DEFAULT now() NOT NULL,
+  update_time    TIMESTAMPTZ   DEFAULT now() NOT NULL,
+  expiry_time    TIMESTAMPTZ   DEFAULT CAST(0 AS TIMESTAMPTZ) NOT NULL,
 
   UNIQUE (owner_id, leaderboard_id, expiry_time)
 );
 
 CREATE TABLE IF NOT EXISTS wallet_ledger (
   PRIMARY KEY (user_id, create_time, id),
-  FOREIGN KEY (user_id) REFERENCES users (id),
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-  id             UUID        UNIQUE NOT NULL,
-  user_id        UUID        NOT NULL,
-  changeset      JSONB       NOT NULL,
-  metadata       JSONB       NOT NULL,
-  create_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
-  update_time    TIMESTAMPTZ DEFAULT now() NOT NULL
+  id          UUID        UNIQUE NOT NULL,
+  user_id     UUID        NOT NULL,
+  changeset   JSONB       NOT NULL,
+  metadata    JSONB       NOT NULL,
+  create_time TIMESTAMPTZ DEFAULT now() NOT NULL,
+  update_time TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_tombstone (
@@ -195,11 +195,11 @@ CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time
 CREATE TABLE IF NOT EXISTS group_edge (
   PRIMARY KEY (source_id, state, position),
 
-  source_id      UUID         NOT NULL,
-  position       BIGINT       NOT NULL, -- Used for sort order on rows.
-  update_time    TIMESTAMPTZ  DEFAULT now() NOT NULL,
-  destination_id UUID         NOT NULL,
-  state          SMALLINT     DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3), archived(4)
+  source_id      UUID        NOT NULL,
+  position       BIGINT      NOT NULL, -- Used for sort order on rows.
+  update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
+  destination_id UUID        NOT NULL,
+  state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3), archived(4)
 
   UNIQUE (source_id, destination_id)
 );
