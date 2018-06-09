@@ -53,6 +53,7 @@ func (e ExecutionMode) String() string {
 const (
 	__CTX_ENV              = "env"
 	__CTX_MODE             = "execution_mode"
+	__CTX_QUERY_PARAMS     = "query_params"
 	__CTX_USER_ID          = "user_id"
 	__CTX_USERNAME         = "username"
 	__CTX_USER_SESSION_EXP = "user_session_exp"
@@ -63,8 +64,8 @@ const (
 	__CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid string, username string, sessionExpiry int64, sid string) *lua.LTable {
-	size := 2
+func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string) *lua.LTable {
+	size := 3
 	if uid != "" {
 		size += 3
 		if sid != "" {
@@ -75,6 +76,11 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, uid strin
 	lt := l.CreateTable(0, size)
 	lt.RawSetString(__CTX_ENV, env)
 	lt.RawSetString(__CTX_MODE, lua.LString(mode.String()))
+	if queryParams == nil {
+		lt.RawSetString(__CTX_QUERY_PARAMS, l.CreateTable(0, 0))
+	} else {
+		lt.RawSetString(__CTX_QUERY_PARAMS, ConvertValue(l, queryParams))
+	}
 
 	if uid != "" {
 		lt.RawSetString(__CTX_USER_ID, lua.LString(uid))
@@ -132,8 +138,20 @@ func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
 		return lua.LNumber(v)
 	case uint64:
 		return lua.LNumber(v)
+	case map[string][]string:
+		lt := l.CreateTable(0, len(v))
+		for k, v := range v {
+			lt.RawSetString(k, ConvertValue(l, v))
+		}
+		return lt
 	case map[string]interface{}:
 		return ConvertMap(l, v)
+	case []string:
+		lt := l.CreateTable(len(val.([]string)), 0)
+		for k, v := range v {
+			lt.RawSetInt(k+1, lua.LString(v))
+		}
+		return lt
 	case []interface{}:
 		lt := l.CreateTable(len(val.([]interface{})), 0)
 		for k, v := range v {
