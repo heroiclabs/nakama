@@ -111,6 +111,40 @@ func DeleteUser(tx *sql.Tx, userID uuid.UUID) (int64, error) {
 	return res.RowsAffected()
 }
 
+func BanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
+	statements := make([]string, 0, len(ids))
+	params := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		statements = append(statements, "$"+strconv.Itoa(i+1))
+		params = append(params, id)
+	}
+
+	query := "UPDATE users SET disable_time = now() WHERE id IN (" + strings.Join(statements, ", ") + ")"
+	_, err := db.Exec(query, params...)
+	if err != nil {
+		logger.Error("Error banning user accounts.", zap.Error(err), zap.Strings("ids", ids))
+		return err
+	}
+	return nil
+}
+
+func UnbanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
+	statements := make([]string, 0, len(ids))
+	params := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		statements = append(statements, "$"+strconv.Itoa(i+1))
+		params = append(params, id)
+	}
+
+	query := "UPDATE users SET disable_time = CAST(0 AS TIMESTAMPTZ) WHERE id IN (" + strings.Join(statements, ", ") + ")"
+	_, err := db.Exec(query, params...)
+	if err != nil {
+		logger.Error("Error unbanning user accounts.", zap.Error(err), zap.Strings("ids", ids))
+		return err
+	}
+	return nil
+}
+
 func UserExistsAndDoesNotBlock(db *sql.DB, checkUserID, blocksUserID uuid.UUID) (bool, error) {
 	var count int
 	err := db.QueryRow(`

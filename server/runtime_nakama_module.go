@@ -147,6 +147,8 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"account_update_id":           n.accountUpdateId,
 		"users_get_id":                n.usersGetId,
 		"users_get_username":          n.usersGetUsername,
+		"users_ban_id":                n.usersBanId,
+		"users_unban_id":              n.usersUnbanId,
 		"stream_user_list":            n.streamUserList,
 		"stream_user_get":             n.streamUserGet,
 		"stream_user_join":            n.streamUserJoin,
@@ -321,7 +323,7 @@ func (n *NakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), ExecutionModeRunOnce, "", "", 0, "")
+		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), ExecutionModeRunOnce, nil, "", "", 0, "")
 
 		l.Push(LSentinel)
 		l.Push(fn)
@@ -1506,6 +1508,92 @@ func (n *NakamaModule) usersGetUsername(l *lua.LState) int {
 
 	l.Push(usersTable)
 	return 1
+}
+
+func (n *NakamaModule) usersBanId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid user id list")
+		return 0
+	}
+	if input.Len() == 0 {
+		return 0
+	}
+	userIDs, ok := ConvertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user id data")
+		return 0
+	}
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	// Input individual ID validation.
+	userIDStrings := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each user id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each user id must be a valid id string")
+			return 0
+		} else {
+			userIDStrings = append(userIDStrings, ids)
+		}
+	}
+
+	// Ban the user accounts.
+	err := BanUsers(n.logger, n.db, userIDStrings)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to ban users: %s", err.Error()))
+		return 0
+	}
+
+	return 0
+}
+
+func (n *NakamaModule) usersUnbanId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid user id list")
+		return 0
+	}
+	if input.Len() == 0 {
+		return 0
+	}
+	userIDs, ok := ConvertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user id data")
+		return 0
+	}
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	// Input individual ID validation.
+	userIDStrings := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each user id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each user id must be a valid id string")
+			return 0
+		} else {
+			userIDStrings = append(userIDStrings, ids)
+		}
+	}
+
+	// Unban the user accounts.
+	err := UnbanUsers(n.logger, n.db, userIDStrings)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to unban users: %s", err.Error()))
+		return 0
+	}
+
+	return 0
 }
 
 func (n *NakamaModule) streamUserList(l *lua.LState) int {

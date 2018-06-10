@@ -58,7 +58,7 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	result, fnErr, code := runtime.InvokeFunction(ExecutionModeBefore, lf, userID, username, expiry, sessionID, reqMap)
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeBefore, lf, nil, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -129,7 +129,7 @@ func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimeP
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	_, fnErr, _ := runtime.InvokeFunction(ExecutionModeAfter, lf, userID, username, expiry, sessionID, reqMap)
+	_, fnErr, _ := runtime.InvokeFunction(ExecutionModeAfter, lf, nil, userID, username, expiry, sessionID, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -165,7 +165,7 @@ func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, e
 	l, _ := runtime.NewStateThread()
 	defer l.Close()
 
-	ctx := NewLuaContext(l, runtime.luaEnv, ExecutionModeMatchmaker, "", "", 0, "")
+	ctx := NewLuaContext(l, runtime.luaEnv, ExecutionModeMatchmaker, nil, "", "", 0, "")
 
 	entriesTable := l.CreateTable(len(entries), 0)
 	for i, entry := range entries {

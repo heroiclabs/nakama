@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -36,6 +37,18 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	if !s.runtimePool.HasCallback(ExecutionModeRPC, id) {
 		return nil, status.Error(codes.NotFound, "RPC function not found")
+	}
+
+	queryParams := make(map[string][]string, 0)
+	if md, ok := metadata.FromIncomingContext(ctx); !ok {
+		return nil, status.Error(codes.Internal, "RPC function could not get incoming context")
+	} else {
+		for k, vs := range md {
+			// Only process the keys representing custom query parameters.
+			if strings.HasPrefix(k, "q_") {
+				queryParams[k[2:]] = vs
+			}
+		}
 	}
 
 	uid := ""
@@ -58,7 +71,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, uid, username, expiry, "", in.Payload)
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, queryParams, uid, username, expiry, "", in.Payload)
 	s.runtimePool.Put(runtime)
 
 	if fnErr != nil {

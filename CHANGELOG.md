@@ -8,6 +8,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New timeout option to HTTP request function in the code runtime.
 - Set QoS settings on client outgoing message queue.
 - New runtime pool min/max size options.
+- New user ban and unban functions.
+- RPC functions triggered by HTTP GET requests now expose any custom query parameters.
 
 ### Changed
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.

@@ -256,11 +256,11 @@ func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
 	return nil
 }
 
-func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, uid string, username string, sessionExpiry int64, sid string, payload interface{}) (interface{}, error, codes.Code) {
+func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string, payload interface{}) (interface{}, error, codes.Code) {
 	l, _ := r.NewStateThread()
 	defer l.Close()
 
-	ctx := NewLuaContext(l, r.luaEnv, execMode, uid, username, sessionExpiry, sid)
+	ctx := NewLuaContext(l, r.luaEnv, execMode, queryParams, uid, username, sessionExpiry, sid)
 	var lv lua.LValue
 	if payload != nil {
 		lv = ConvertValue(l, payload)

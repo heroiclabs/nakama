@@ -106,7 +106,25 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Register and start GRPC Gateway server.
 	// Should start after GRPC server itself because RegisterNakamaHandlerFromEndpoint below tries to dial GRPC.
 	ctx := context.Background()
-	grpcGateway := runtime.NewServeMux()
+	grpcGateway := runtime.NewServeMux(
+		runtime.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
+			// For RPC GET operations pass through any custom query parameters.
+			if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/v2/rpc/") {
+				return metadata.MD{}
+			}
+
+			q := r.URL.Query()
+			p := make(map[string][]string, len(q))
+			for k, vs := range q {
+				if k == "http_key" {
+					// Skip Nakama's own query params, only process custom ones.
+					continue
+				}
+				p["q_"+k] = vs
+			}
+			return metadata.MD(p)
+		}),
+	)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-1)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
