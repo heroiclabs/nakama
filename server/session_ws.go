@@ -117,7 +117,6 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
 	s.conn.SetPongHandler(func(string) error {
 		s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
-		s.logger.Debug("Received WebSocket PONG")
 		return nil
 	})
 
@@ -205,7 +204,6 @@ func (s *sessionWS) pingNow() bool {
 		s.cleanupClosedConnection()
 		return false
 	}
-	s.logger.Debug("Sent WebSocket PING")
 	return true
 }
 
