@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime pool min/max size options.
 - New user ban and unban functions.
 - RPC functions triggered by HTTP GET requests now expose any custom query parameters.
+- Authoritative match messages now carry a receive timestamp field.
 
 ### Changed
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
