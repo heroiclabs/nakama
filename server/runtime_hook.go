@@ -42,14 +42,21 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 		return nil, status.Error(codes.NotFound, "Runtime Before function not found.")
 	}
 
-	reqProto := req.(proto.Message)
+	reqProto, ok := req.(proto.Message)
+	if !ok {
+		runtimePool.Put(runtime)
+		logger.Error("Could not cast request to message", zap.Any("request", req))
+		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
+	}
 	reqJSON, err := jsonpbMarshaler.MarshalToString(reqProto)
 	if err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not marshall request to JSON", zap.Any("request", req), zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
 	}
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
 	}
@@ -112,15 +119,22 @@ func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimeP
 		return
 	}
 
-	reqProto := req.(proto.Message)
+	reqProto, ok := req.(proto.Message)
+	if !ok {
+		runtimePool.Put(runtime)
+		logger.Error("Could not cast request to message", zap.Any("request", req))
+		return
+	}
 	reqJSON, err := jsonpbMarshaler.MarshalToString(reqProto)
 	if err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not marshall request to JSON", zap.Any("request", req), zap.Error(err))
 		return
 	}
 
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 		return
 	}

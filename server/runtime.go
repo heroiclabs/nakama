@@ -104,6 +104,7 @@ func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
 }
 
 func (rp *RuntimePool) Get() *Runtime {
+	//return rp.pool.Get().(*Runtime)
 	select {
 	case r := <-rp.poolCh:
 		// Ideally use an available idle runtime.
@@ -116,14 +117,24 @@ func (rp *RuntimePool) Get() *Runtime {
 			// If we've reached the max allowed allocation block on an available runtime.
 			return <-rp.poolCh
 		}
-		// Allocate a new runtime.
-		rp.currentCount++
-		rp.Unlock()
-		return rp.newFn()
+		// Inside the locked region now, last chance to use an available idle runtime.
+		// Note: useful in case a runtime becomes available while waiting to acquire lock.
+		select {
+		case r := <-rp.poolCh:
+			rp.Unlock()
+			return r
+		default:
+			// Allocate a new runtime.
+			rp.currentCount++
+			rp.logger.Warn("POOL COUNT", zap.Int("count", rp.currentCount))
+			rp.Unlock()
+			return rp.newFn()
+		}
 	}
 }
 
 func (rp *RuntimePool) Put(r *Runtime) {
+	//rp.pool.Put(r)
 	select {
 	case rp.poolCh <- r:
 		// Runtime is successfully returned to the pool.
@@ -137,8 +148,8 @@ func (rp *RuntimePool) Put(r *Runtime) {
 func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       1024,
-		RegistrySize:        1024,
+		CallStackSize:       128,
+		RegistrySize:        512,
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
@@ -237,7 +248,8 @@ func (r *Runtime) loadModules(moduleCache *ModuleCache) error {
 }
 
 func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
-	return r.vm.NewThread()
+	//return r.vm.NewThread()
+	return r.vm, nil
 }
 
 func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {

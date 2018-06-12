@@ -39,6 +39,7 @@ import (
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"runtime/pprof"
 )
 
 const cookieFilename = ".cookie"
@@ -151,6 +152,17 @@ func main() {
 	if gaenabled {
 		ga.SendSessionStop(http.DefaultClient, gacode, cookie)
 	}
+
+	// TODO
+	fm, err := os.Create("mem.prof")
+	if err != nil {
+		startupLogger.Fatal("could not create memory profile", zap.Error(err))
+	}
+	//runtime.GC() // get up-to-date statistics
+	if err := pprof.WriteHeapProfile(fm); err != nil {
+		startupLogger.Fatal("could not write memory profile", zap.Error(err))
+	}
+	fm.Close()
 
 	os.Exit(0)
 }
