@@ -34,12 +34,13 @@ const (
 )
 
 type MatchDataMessage struct {
-	UserID    uuid.UUID
-	SessionID uuid.UUID
-	Username  string
-	Node      string
-	OpCode    int64
-	Data      []byte
+	UserID      uuid.UUID
+	SessionID   uuid.UUID
+	Username    string
+	Node        string
+	OpCode      int64
+	Data        []byte
+	ReceiveTime int64
 }
 
 type MatchHandler struct {
@@ -326,7 +327,7 @@ func loop(mh *MatchHandler) {
 		presence.RawSetString("username", lua.LString(msg.Username))
 		presence.RawSetString("node", lua.LString(msg.Node))
 
-		in := mh.vm.CreateTable(0, 3)
+		in := mh.vm.CreateTable(0, 4)
 		in.RawSetString("sender", presence)
 		in.RawSetString("op_code", lua.LNumber(msg.OpCode))
 		if msg.Data != nil {
@@ -334,6 +335,7 @@ func loop(mh *MatchHandler) {
 		} else {
 			in.RawSetString("data", lua.LNil)
 		}
+		in.RawSetString("receive_time_ms", lua.LNumber(msg.ReceiveTime))
 
 		input.RawSetInt(i, in)
 	}

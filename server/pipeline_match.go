@@ -24,6 +24,7 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"time"
 )
 
 type matchDataFilter struct {
@@ -289,7 +290,7 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 			return
 		}
 
-		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data)
+		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data, time.Now().UTC().UnixNano()/int64(time.Millisecond))
 		return
 	}
 
