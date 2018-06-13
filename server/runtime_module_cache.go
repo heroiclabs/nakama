@@ -33,6 +33,14 @@ type ModuleCache struct {
 	Modules map[string]*RuntimeModule
 }
 
+func (mc *ModuleCache) Add(m *RuntimeModule) {
+	mc.Names = append(mc.Names, m.Name)
+	mc.Modules[m.Name] = m
+
+	// Ensure modules will be listed in ascending order of names.
+	sort.Strings(mc.Names)
+}
+
 type RegCallbacks struct {
 	RPC        map[string]interface{}
 	Before     map[string]interface{}
@@ -73,12 +81,11 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 				// Make paths Lua friendly.
 				name = strings.Replace(name, "/", ".", -1)
-				moduleCache.Names = append(moduleCache.Names, name)
-				moduleCache.Modules[name] = &RuntimeModule{
+				moduleCache.Add(&RuntimeModule{
 					Name:    name,
 					Path:    path,
 					Content: content,
-				}
+				})
 				modulePaths = append(modulePaths, relPath)
 			}
 		}
@@ -87,9 +94,6 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 		startupLogger.Error("Failed to list modules", zap.Error(err))
 		return nil, nil, err
 	}
-
-	// Ensure modules will be listed in ascending order of names.
-	sort.Strings(moduleCache.Names)
 
 	stdLibs := map[string]lua.LGFunction{
 		lua.LoadLibName:   OpenPackage(moduleCache),

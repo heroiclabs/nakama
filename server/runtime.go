@@ -24,6 +24,7 @@ import (
 
 	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
+	"go.opencensus.io/stats"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
@@ -54,9 +55,16 @@ type RuntimePool struct {
 	maxCount     int
 	currentCount int
 	newFn        func() *Runtime
+
+	statsCtx          context.Context
+	statsRuntimeCount *stats.Int64Measure
 }
 
 func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
+	statsRuntimeCount, err := stats.Int64("nakama.runtime.count", "Number of pooled runtime instances", stats.UnitNone)
+	if err != nil {
+		startupLogger.Fatal("Error creating stats entry for runtime count", zap.Error(err))
+	}
 	rp := &RuntimePool{
 		logger:       logger,
 		regCallbacks: regCallbacks,
@@ -72,6 +80,8 @@ func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config
 			}
 			return r
 		},
+		statsCtx:          context.Background(),
+		statsRuntimeCount: statsRuntimeCount,
 	}
 
 	// Warm up the pool.
@@ -81,6 +91,7 @@ func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config
 		for i := 0; i < config.GetRuntime().MinCount; i++ {
 			rp.poolCh <- rp.newFn()
 		}
+		stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(int64(config.GetRuntime().MinCount)))
 	}
 	startupLogger.Info("Allocated minimum runtime pool")
 
@@ -104,7 +115,6 @@ func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
 }
 
 func (rp *RuntimePool) Get() *Runtime {
-	//return rp.pool.Get().(*Runtime)
 	select {
 	case r := <-rp.poolCh:
 		// Ideally use an available idle runtime.
@@ -126,7 +136,7 @@ func (rp *RuntimePool) Get() *Runtime {
 		default:
 			// Allocate a new runtime.
 			rp.currentCount++
-			rp.logger.Warn("POOL COUNT", zap.Int("count", rp.currentCount))
+			stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(int64(rp.currentCount)))
 			rp.Unlock()
 			return rp.newFn()
 		}
@@ -134,7 +144,6 @@ func (rp *RuntimePool) Get() *Runtime {
 }
 
 func (rp *RuntimePool) Put(r *Runtime) {
-	//rp.pool.Put(r)
 	select {
 	case rp.poolCh <- r:
 		// Runtime is successfully returned to the pool.
@@ -248,7 +257,6 @@ func (r *Runtime) loadModules(moduleCache *ModuleCache) error {
 }
 
 func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
-	//return r.vm.NewThread()
 	return r.vm, nil
 }
 
@@ -269,16 +277,13 @@ func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
 }
 
 func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string, payload interface{}) (interface{}, error, codes.Code) {
-	l, _ := r.NewStateThread()
-	defer l.Close()
-
-	ctx := NewLuaContext(l, r.luaEnv, execMode, queryParams, uid, username, sessionExpiry, sid)
+	ctx := NewLuaContext(r.vm, r.luaEnv, execMode, queryParams, uid, username, sessionExpiry, sid)
 	var lv lua.LValue
 	if payload != nil {
-		lv = ConvertValue(l, payload)
+		lv = ConvertValue(r.vm, payload)
 	}
 
-	retValue, err, code := r.invokeFunction(l, fn, ctx, lv)
+	retValue, err, code := r.invokeFunction(r.vm, fn, ctx, lv)
 	if err != nil {
 		return nil, err, code
 	}

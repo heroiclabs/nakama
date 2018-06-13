@@ -20,7 +20,7 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 )
 
@@ -67,27 +67,15 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		return false
 	}
 
-	activateHooks := true
-	messageName := ""
-	uid := uuid.Nil
-	username := ""
-	expiry := int64(0)
-	sessionID := ""
+	var messageName string
 
 	switch envelope.Message.(type) {
 	case *rtapi.Envelope_Rpc:
-		activateHooks = false
+		// No before/after hooks on RPC.
 	default:
 		messageName = fmt.Sprintf("%T", envelope.Message)
-		uid = session.UserID()
-		username = session.Username()
-		expiry = session.Expiry()
-		sessionID = session.ID().String()
-	}
 
-	if activateHooks {
-
-		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, sessionID, uid, username, expiry, messageName, envelope)
+		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
 
 		if hookErr != nil {
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -117,37 +105,55 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		envelope = resultCast
 	}
 
+	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope)
+	var pipelineName string
+
 	switch envelope.Message.(type) {
 	case *rtapi.Envelope_ChannelJoin:
-		p.channelJoin(logger, session, envelope)
+		pipelineFn = p.channelJoin
+		pipelineName = "nakama.pipeline.channelJoin"
 	case *rtapi.Envelope_ChannelLeave:
-		p.channelLeave(logger, session, envelope)
+		pipelineFn = p.channelLeave
+		pipelineName = "nakama.pipeline.channelLeave"
 	case *rtapi.Envelope_ChannelMessageSend:
-		p.channelMessageSend(logger, session, envelope)
+		pipelineFn = p.channelMessageSend
+		pipelineName = "nakama.pipeline.channelMessageSend"
 	case *rtapi.Envelope_ChannelMessageUpdate:
-		p.channelMessageUpdate(logger, session, envelope)
+		pipelineFn = p.channelMessageUpdate
+		pipelineName = "nakama.pipeline.channelMessageUpdate"
 	case *rtapi.Envelope_ChannelMessageRemove:
-		p.channelMessageRemove(logger, session, envelope)
+		pipelineFn = p.channelMessageRemove
+		pipelineName = "nakama.pipeline.channelMessageRemove"
 	case *rtapi.Envelope_MatchCreate:
-		p.matchCreate(logger, session, envelope)
+		pipelineFn = p.matchCreate
+		pipelineName = "nakama.pipeline.matchCreate"
 	case *rtapi.Envelope_MatchDataSend:
-		p.matchDataSend(logger, session, envelope)
+		pipelineFn = p.matchDataSend
+		pipelineName = "nakama.pipeline.matchDataSend"
 	case *rtapi.Envelope_MatchJoin:
-		p.matchJoin(logger, session, envelope)
+		pipelineFn = p.matchJoin
+		pipelineName = "nakama.pipeline.matchJoin"
 	case *rtapi.Envelope_MatchLeave:
-		p.matchLeave(logger, session, envelope)
+		pipelineFn = p.matchLeave
+		pipelineName = "nakama.pipeline.matchLeave"
 	case *rtapi.Envelope_MatchmakerAdd:
-		p.matchmakerAdd(logger, session, envelope)
+		pipelineFn = p.matchmakerAdd
+		pipelineName = "nakama.pipeline.matchmakerAdd"
 	case *rtapi.Envelope_MatchmakerRemove:
-		p.matchmakerRemove(logger, session, envelope)
+		pipelineFn = p.matchmakerRemove
+		pipelineName = "nakama.pipeline.matchmakerRemove"
 	case *rtapi.Envelope_Rpc:
-		p.rpc(logger, session, envelope)
+		pipelineFn = p.rpc
+		pipelineName = fmt.Sprintf("nakama.pipeline.rpc.%v", envelope.GetRpc().Id)
 	case *rtapi.Envelope_StatusFollow:
-		p.statusFollow(logger, session, envelope)
+		pipelineFn = p.statusFollow
+		pipelineName = "nakama.pipeline.statusFollow"
 	case *rtapi.Envelope_StatusUnfollow:
-		p.statusUnfollow(logger, session, envelope)
+		pipelineFn = p.statusUnfollow
+		pipelineName = "nakama.pipeline.statusUnfollow"
 	case *rtapi.Envelope_StatusUpdate:
-		p.statusUpdate(logger, session, envelope)
+		pipelineFn = p.statusUpdate
+		pipelineName = "nakama.pipeline.statusUpdate"
 	default:
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
@@ -159,8 +165,12 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		return false
 	}
 
-	if activateHooks {
-		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, sessionID, uid, username, expiry, messageName, envelope)
+	span := trace.NewSpan(pipelineName, nil, trace.StartOptions{})
+	pipelineFn(logger, session, envelope)
+	span.End()
+
+	if messageName != "" {
+		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
 	}
 
 	return true

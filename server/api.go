@@ -36,6 +36,8 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -129,6 +131,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 	}
 	if config.GetSocket().TLSCert != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
@@ -144,14 +147,27 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
 	// TODO restore when admin endpoints are available.
-	//grpcGatewayRouter.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-	//	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	//	zpages.WriteHTMLRpczPage(w)
-	//})
+	grpcGatewayRouter.HandleFunc("/metrics-rpc", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		zpages.WriteHTMLRpczPage(w)
+	})
+	grpcGatewayRouter.HandleFunc("/metrics-summary", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		zpages.WriteHTMLTracezSummary(w)
+	})
+
+	// Enable stats recording on all request paths except:
+	// "/" is not tracked at all.
+	// "/ws" implements separate tracking.
+	handlerWithStats := &ochttp.Handler{
+		Handler:          grpcGateway,
+		IsPublicEndpoint: true,
+	}
+
 	// Default to passing request to GRPC Gateway.
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithGzip := handlers.CompressHandler(grpcGateway)
+	handlerWithGzip := handlers.CompressHandler(handlerWithStats)
 	maxMessageSizeBytes := config.GetSocket().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.

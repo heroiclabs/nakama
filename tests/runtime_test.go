@@ -33,9 +33,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
+func vm(t *testing.T, moduleCache *server.ModuleCache) *server.RuntimePool {
 	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:   server.OpenPackage(modules),
+		lua.LoadLibName:   server.OpenPackage(moduleCache),
 		lua.BaseLibName:   lua.OpenBase,
 		lua.TabLibName:    lua.OpenTable,
 		lua.OsLibName:     server.OpenOs,
@@ -46,23 +46,23 @@ func vm(t *testing.T, modules *sync.Map) *server.RuntimePool {
 	db := NewDB(t)
 	once := &sync.Once{}
 	router := &DummyMessageRouter{}
-	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, once)
+	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, moduleCache, once)
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
 	}
 
-	return server.NewRuntimePool(logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, modules, regCallbacks, once)
+	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, moduleCache, regCallbacks, once)
 }
 
-func writeLuaModule(modules *sync.Map, name, content string) {
-	modules.Store(name, &server.RuntimeModule{
+func writeLuaModule(modules *server.ModuleCache, name, content string) {
+	modules.Add(&server.RuntimeModule{
 		Name:    name,
 		Path:    fmt.Sprintf("%v.lua", name),
 		Content: []byte(content),
 	})
 }
 
-func writeStatsModule(modules *sync.Map) {
+func writeStatsModule(modules *server.ModuleCache) {
 	writeLuaModule(modules, "stats", `
 stats={}
 -- Get the mean value of a table
@@ -81,7 +81,7 @@ print("Stats Module Loaded")
 return stats`)
 }
 
-func writeTestModule(modules *sync.Map) {
+func writeTestModule(modules *server.ModuleCache) {
 	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
@@ -95,7 +95,10 @@ return test
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t, new(sync.Map))
+	rp := vm(t, &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	})
 	r := rp.Get()
 	defer r.Stop()
 
@@ -113,7 +116,10 @@ end`)
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t, new(sync.Map))
+	rp := vm(t, &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	})
 	r := rp.Get()
 	defer r.Stop()
 
@@ -137,7 +143,10 @@ file_exists "./"`)
 // Have a look at the stdout messages to see if the module was loaded multiple times
 // You should only see "Test Module Loaded" once
 func TestRuntimeRequireEval(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeTestModule(modules)
 	writeLuaModule(modules, "test-invoke", `
 local nakama = require("nakama")
@@ -149,7 +158,10 @@ test.printWorld()
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeStatsModule(modules)
 	writeLuaModule(modules, "local_test", `
 local stats = require("stats")
@@ -161,7 +173,10 @@ assert(stats.mean(t) > 0)
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeStatsModule(modules)
 	writeLuaModule(modules, "states-invoke", `
 local stats = require("stats")
@@ -173,7 +188,10 @@ print(stats.mean(t))
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
@@ -198,7 +216,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	fn := r.GetCallback(server.ExecutionModeRPC, "helloworld")
 	payload := "Hello World"
 
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -209,7 +227,10 @@ nakama.register_rpc(test.printWorld, "helloworld")
 }
 
 func TestRuntimeRegisterRPCWithPayloadEndToEnd(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 test={}
 -- Get the mean value of a table
@@ -255,7 +276,10 @@ nakama.register_rpc(test.printWorld, "helloworld")
 }
 
 func TestRuntimeHTTPRequest(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -270,7 +294,7 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", "")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -281,7 +305,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeJson(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -296,7 +323,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -307,7 +334,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBase64(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -322,7 +352,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -333,7 +363,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBase16(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -348,7 +381,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -359,7 +392,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeAes128(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -374,7 +410,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -385,7 +421,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBcryptHash(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -400,7 +439,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -412,7 +451,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeBcryptCompare(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function test(ctx, payload)
@@ -428,7 +470,7 @@ nakama.register_rpc(test, "test")
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, "", "", 0, "", string(hash))
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -439,7 +481,10 @@ nakama.register_rpc(test, "test")
 }
 
 func TestRuntimeNotificationsSend(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
@@ -462,7 +507,10 @@ nk.notifications_send(new_notifications)
 }
 
 func TestRuntimeNotificationSend(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nk = require("nakama")
 
@@ -482,7 +530,10 @@ nk.notification_send(user_id, subject, content, code, "", false)
 }
 
 func TestRuntimeWalletWrite(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 
 	db := NewDB(t)
 	uid := uuid.FromStringOrNil("95f05d94-cc66-445a-b4d1-9e262662cf79")
@@ -505,7 +556,10 @@ nk.wallet_update(user_id, content)
 }
 
 func TestRuntimeStorageWrite(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test.lua", `
 local nk = require("nakama")
 
@@ -524,7 +578,10 @@ nk.storage_write(new_objects)
 }
 
 func TestRuntimeStorageRead(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test.lua", `
 local nk = require("nakama")
 local object_ids = {
@@ -545,7 +602,10 @@ end
 }
 
 func TestRuntimeReqBeforeHook(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_storage_write(ctx, payload)
@@ -582,7 +642,10 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeReqBeforeHookDisallowed(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_storage_write(ctx, payload)
@@ -615,7 +678,10 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeReqAfterHook(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function after_storage_write(ctx, payload)
@@ -662,7 +728,10 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeRTBeforeHook(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
@@ -708,7 +777,10 @@ nakama.register_rt_before(before_match_create, "MatchCreate")
 }
 
 func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test", `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
@@ -759,7 +831,10 @@ nakama.register_rt_after(after_match_create, "MatchCreate")
 }
 
 func TestRuntimeGroupTests(t *testing.T) {
-	modules := new(sync.Map)
+	modules := &server.ModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*server.RuntimeModule, 0),
+	}
 	writeLuaModule(modules, "test.lua", `
 local nk = require("nakama")
 
