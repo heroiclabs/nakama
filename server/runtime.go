@@ -65,6 +65,7 @@ func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config
 	if err != nil {
 		startupLogger.Fatal("Error creating stats entry for runtime count", zap.Error(err))
 	}
+
 	rp := &RuntimePool{
 		logger:       logger,
 		regCallbacks: regCallbacks,
@@ -136,8 +137,8 @@ func (rp *RuntimePool) Get() *Runtime {
 		default:
 			// Allocate a new runtime.
 			rp.currentCount++
-			stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(int64(rp.currentCount)))
 			rp.Unlock()
+			stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(1))
 			return rp.newFn()
 		}
 	}
