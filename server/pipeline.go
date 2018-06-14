@@ -67,6 +67,66 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		return false
 	}
 
+	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope)
+	var pipelineName string
+
+	switch envelope.Message.(type) {
+	case *rtapi.Envelope_ChannelJoin:
+		pipelineFn = p.channelJoin
+		pipelineName = "channelJoin"
+	case *rtapi.Envelope_ChannelLeave:
+		pipelineFn = p.channelLeave
+		pipelineName = "channelLeave"
+	case *rtapi.Envelope_ChannelMessageSend:
+		pipelineFn = p.channelMessageSend
+		pipelineName = "channelMessageSend"
+	case *rtapi.Envelope_ChannelMessageUpdate:
+		pipelineFn = p.channelMessageUpdate
+		pipelineName = "channelMessageUpdate"
+	case *rtapi.Envelope_ChannelMessageRemove:
+		pipelineFn = p.channelMessageRemove
+		pipelineName = "channelMessageRemove"
+	case *rtapi.Envelope_MatchCreate:
+		pipelineFn = p.matchCreate
+		pipelineName = "matchCreate"
+	case *rtapi.Envelope_MatchDataSend:
+		pipelineFn = p.matchDataSend
+		pipelineName = "matchDataSend"
+	case *rtapi.Envelope_MatchJoin:
+		pipelineFn = p.matchJoin
+		pipelineName = "matchJoin"
+	case *rtapi.Envelope_MatchLeave:
+		pipelineFn = p.matchLeave
+		pipelineName = "matchLeave"
+	case *rtapi.Envelope_MatchmakerAdd:
+		pipelineFn = p.matchmakerAdd
+		pipelineName = "matchmakerAdd"
+	case *rtapi.Envelope_MatchmakerRemove:
+		pipelineFn = p.matchmakerRemove
+		pipelineName = "matchmakerRemove"
+	case *rtapi.Envelope_Rpc:
+		pipelineFn = p.rpc
+		pipelineName = fmt.Sprintf("rpc.%v", envelope.GetRpc().Id)
+	case *rtapi.Envelope_StatusFollow:
+		pipelineFn = p.statusFollow
+		pipelineName = "statusFollow"
+	case *rtapi.Envelope_StatusUnfollow:
+		pipelineFn = p.statusUnfollow
+		pipelineName = "statusUnfollow"
+	case *rtapi.Envelope_StatusUpdate:
+		pipelineFn = p.statusUpdate
+		pipelineName = "statusUpdate"
+	default:
+		// If we reached this point the envelope was valid but the contents are missing or unknown.
+		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
+		logger.Error("Unrecognizable payload received.", zap.Any("payload", envelope))
+		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+			Message: "Unrecognized message.",
+		}}})
+		return false
+	}
+
 	var messageName string
 
 	switch envelope.Message.(type) {
@@ -75,7 +135,9 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	default:
 		messageName = fmt.Sprintf("%T", envelope.Message)
 
+		span := trace.NewSpan(fmt.Sprintf("nakama.rtapi-before.%v", pipelineName), nil, trace.StartOptions{})
 		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+		span.End()
 
 		if hookErr != nil {
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -105,72 +167,14 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		envelope = resultCast
 	}
 
-	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope)
-	var pipelineName string
-
-	switch envelope.Message.(type) {
-	case *rtapi.Envelope_ChannelJoin:
-		pipelineFn = p.channelJoin
-		pipelineName = "nakama.pipeline.channelJoin"
-	case *rtapi.Envelope_ChannelLeave:
-		pipelineFn = p.channelLeave
-		pipelineName = "nakama.pipeline.channelLeave"
-	case *rtapi.Envelope_ChannelMessageSend:
-		pipelineFn = p.channelMessageSend
-		pipelineName = "nakama.pipeline.channelMessageSend"
-	case *rtapi.Envelope_ChannelMessageUpdate:
-		pipelineFn = p.channelMessageUpdate
-		pipelineName = "nakama.pipeline.channelMessageUpdate"
-	case *rtapi.Envelope_ChannelMessageRemove:
-		pipelineFn = p.channelMessageRemove
-		pipelineName = "nakama.pipeline.channelMessageRemove"
-	case *rtapi.Envelope_MatchCreate:
-		pipelineFn = p.matchCreate
-		pipelineName = "nakama.pipeline.matchCreate"
-	case *rtapi.Envelope_MatchDataSend:
-		pipelineFn = p.matchDataSend
-		pipelineName = "nakama.pipeline.matchDataSend"
-	case *rtapi.Envelope_MatchJoin:
-		pipelineFn = p.matchJoin
-		pipelineName = "nakama.pipeline.matchJoin"
-	case *rtapi.Envelope_MatchLeave:
-		pipelineFn = p.matchLeave
-		pipelineName = "nakama.pipeline.matchLeave"
-	case *rtapi.Envelope_MatchmakerAdd:
-		pipelineFn = p.matchmakerAdd
-		pipelineName = "nakama.pipeline.matchmakerAdd"
-	case *rtapi.Envelope_MatchmakerRemove:
-		pipelineFn = p.matchmakerRemove
-		pipelineName = "nakama.pipeline.matchmakerRemove"
-	case *rtapi.Envelope_Rpc:
-		pipelineFn = p.rpc
-		pipelineName = fmt.Sprintf("nakama.pipeline.rpc.%v", envelope.GetRpc().Id)
-	case *rtapi.Envelope_StatusFollow:
-		pipelineFn = p.statusFollow
-		pipelineName = "nakama.pipeline.statusFollow"
-	case *rtapi.Envelope_StatusUnfollow:
-		pipelineFn = p.statusUnfollow
-		pipelineName = "nakama.pipeline.statusUnfollow"
-	case *rtapi.Envelope_StatusUpdate:
-		pipelineFn = p.statusUpdate
-		pipelineName = "nakama.pipeline.statusUpdate"
-	default:
-		// If we reached this point the envelope was valid but the contents are missing or unknown.
-		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
-		logger.Error("Unrecognizable payload received.", zap.Any("payload", envelope))
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
-			Message: "Unrecognized message.",
-		}}})
-		return false
-	}
-
-	span := trace.NewSpan(pipelineName, nil, trace.StartOptions{})
+	span := trace.NewSpan(fmt.Sprintf("nakama.rtapi.%v", pipelineName), nil, trace.StartOptions{})
 	pipelineFn(logger, session, envelope)
 	span.End()
 
 	if messageName != "" {
+		span := trace.NewSpan(fmt.Sprintf("nakama.rtapi-after.%v", pipelineName), nil, trace.StartOptions{})
 		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+		span.End()
 	}
 
 	return true

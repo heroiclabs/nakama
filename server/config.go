@@ -105,6 +105,12 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetRuntime().MinCount > mainConfig.GetRuntime().MaxCount {
 		logger.Fatal("Minimum runtime instance count must be less than or equal to maximum runtime instance count", zap.Int("runtime.min_count", mainConfig.GetRuntime().MinCount), zap.Int("runtime.max_count", mainConfig.GetRuntime().MaxCount))
 	}
+	if mainConfig.GetRuntime().CallStackSize < 1 {
+		logger.Fatal("Runtime instance call stack size must be >= 1", zap.Int("runtime.call_stack_size", mainConfig.GetRuntime().CallStackSize))
+	}
+	if mainConfig.GetRuntime().RegistrySize < 128 {
+		logger.Fatal("Runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", mainConfig.GetRuntime().RegistrySize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -369,23 +375,27 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment map[string]interface{}
-	Env         []string `yaml:"env" json:"env"`
-	Path        string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
-	HTTPKey     string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
-	MinCount    int      `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
-	MaxCount    int      `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 65536."`
+	Environment   map[string]interface{}
+	Env           []string `yaml:"env" json:"env"`
+	Path          string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
+	HTTPKey       string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	MinCount      int      `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
+	MaxCount      int      `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 256."`
+	CallStackSize int      `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
+	RegistrySize  int      `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment: make(map[string]interface{}, 0),
-		Env:         make([]string, 0),
-		Path:        "",
-		HTTPKey:     "defaultkey",
-		MinCount:    16,
-		MaxCount:    65536,
+		Environment:   make(map[string]interface{}, 0),
+		Env:           make([]string, 0),
+		Path:          "",
+		HTTPKey:       "defaultkey",
+		MinCount:      16,
+		MaxCount:      256,
+		CallStackSize: 128,
+		RegistrySize:  512,
 	}
 }
 

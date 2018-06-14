@@ -37,6 +37,7 @@ import (
 	"github.com/satori/go.uuid"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/trace"
 	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -243,7 +244,15 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 			expiry = ctx.Value(ctxExpiryKey{}).(int64)
 		}
 
+		// Method name to use for before/after stats.
+		var methodName string
+		if parts := strings.SplitN(info.FullMethod, "/", 3); len(parts) == 3 {
+			methodName = parts[2]
+		}
+
+		span := trace.NewSpan(fmt.Sprintf("nakama.api-before.Nakama.%v", methodName), nil, trace.StartOptions{})
 		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
+		span.End()
 		if hookErr != nil {
 			return nil, hookErr
 		} else if beforeHookResult == nil {
@@ -257,7 +266,9 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 
 		handlerResult, handlerErr := handler(ctx, beforeHookResult)
 		if handlerErr == nil {
+			span := trace.NewSpan(fmt.Sprintf("nakama.api-after.Nakama.%v", methodName), nil, trace.StartOptions{})
 			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, handlerResult)
+			span.End()
 		}
 		return handlerResult, handlerErr
 	}

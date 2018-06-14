@@ -61,7 +61,7 @@ type RuntimePool struct {
 }
 
 func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
-	statsRuntimeCount, err := stats.Int64("nakama.runtime.count", "Number of pooled runtime instances", stats.UnitNone)
+	statsRuntimeCount, err := stats.Int64("nakama.runtime.count", "Number of pooled runtime instances.", stats.UnitNone)
 	if err != nil {
 		startupLogger.Fatal("Error creating stats entry for runtime count", zap.Error(err))
 	}
@@ -158,8 +158,8 @@ func (rp *RuntimePool) Put(r *Runtime) {
 func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       128,
-		RegistrySize:        512,
+		CallStackSize:       config.GetRuntime().CallStackSize,
+		RegistrySize:        config.GetRuntime().RegistrySize,
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})

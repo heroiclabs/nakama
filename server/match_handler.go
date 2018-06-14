@@ -84,8 +84,8 @@ type MatchHandler struct {
 func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, id uuid.UUID, node string, name string, params interface{}) (*MatchHandler, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       1024,
-		RegistrySize:        1024,
+		CallStackSize:       config.GetRuntime().CallStackSize,
+		RegistrySize:        config.GetRuntime().RegistrySize,
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
