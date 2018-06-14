@@ -38,7 +38,6 @@ import (
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
-	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -148,14 +147,15 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
 	// TODO restore when admin endpoints are available.
-	grpcGatewayRouter.HandleFunc("/metrics-rpc", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		zpages.WriteHTMLRpczPage(w)
-	})
-	grpcGatewayRouter.HandleFunc("/metrics-summary", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		zpages.WriteHTMLTracezSummary(w)
-	})
+	//grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
+	//})
+	//grpcGatewayRouter.HandleFunc("/tracez", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
+	//})
+	//grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
+	//})
 
 	// Enable stats recording on all request paths except:
 	// "/" is not tracked at all.
