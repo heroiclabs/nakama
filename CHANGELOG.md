@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
 ## [2.0.1] - 2018-06-15
 ### Added
 - New timeout option to HTTP request function in the code runtime.
@@ -13,7 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Authoritative match messages now carry a receive timestamp field.
 - Track new metrics for function calls, before/after hooks, and internal components.
 
-### Changed
+### Changed
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
 - Runtime modules are now loaded in a deterministic order.
 
