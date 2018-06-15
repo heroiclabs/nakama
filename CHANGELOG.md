@@ -3,22 +3,22 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.0.1] - 2018-06-15
 ### Added
 - New timeout option to HTTP request function in the code runtime.
 - Set QoS settings on client outgoing message queue.
 - New runtime pool min/max size options.
 - New user ban and unban functions.
-- RPC functions triggered by HTTP GET requests now expose any custom query parameters.
+- RPC functions triggered by HTTP GET requests now include any custom query parameters.
 - Authoritative match messages now carry a receive timestamp field.
-- Track additional metrics for function calls, before/after hooks, and internal components.
+- Track new metrics for function calls, before/after hooks, and internal components.
 
 ### Changed
 - The avatar URL fields in various domain objects now support up to 512 characters for FBIG.
-- Runtime modules are now loaded in a consistent order.
+- Runtime modules are now loaded in a deterministic order.
 
 ### Fixed
-- Add ON DELETE CASCADE to foreign key user constraint on wallet ledger.
+- Add "ON DELETE CASCADE" to foreign key user constraint on wallet ledger.
 
 ## [2.0.0] - 2018-05-14
 
