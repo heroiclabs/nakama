@@ -42,14 +42,21 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 		return nil, status.Error(codes.NotFound, "Runtime Before function not found.")
 	}
 
-	reqProto := req.(proto.Message)
+	reqProto, ok := req.(proto.Message)
+	if !ok {
+		runtimePool.Put(runtime)
+		logger.Error("Could not cast request to message", zap.Any("request", req))
+		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
+	}
 	reqJSON, err := jsonpbMarshaler.MarshalToString(reqProto)
 	if err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not marshall request to JSON", zap.Any("request", req), zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
 	}
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not run runtime Before function.")
 	}
@@ -112,15 +119,22 @@ func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimeP
 		return
 	}
 
-	reqProto := req.(proto.Message)
+	reqProto, ok := req.(proto.Message)
+	if !ok {
+		runtimePool.Put(runtime)
+		logger.Error("Could not cast request to message", zap.Any("request", req))
+		return
+	}
 	reqJSON, err := jsonpbMarshaler.MarshalToString(reqProto)
 	if err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not marshall request to JSON", zap.Any("request", req), zap.Error(err))
 		return
 	}
 
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
+		runtimePool.Put(runtime)
 		logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 		return
 	}
@@ -162,20 +176,17 @@ func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, e
 		return "", false
 	}
 
-	l, _ := runtime.NewStateThread()
-	defer l.Close()
+	ctx := NewLuaContext(runtime.vm, runtime.luaEnv, ExecutionModeMatchmaker, nil, "", "", 0, "")
 
-	ctx := NewLuaContext(l, runtime.luaEnv, ExecutionModeMatchmaker, nil, "", "", 0, "")
-
-	entriesTable := l.CreateTable(len(entries), 0)
+	entriesTable := runtime.vm.CreateTable(len(entries), 0)
 	for i, entry := range entries {
-		presenceTable := l.CreateTable(0, 4)
+		presenceTable := runtime.vm.CreateTable(0, 4)
 		presenceTable.RawSetString("user_id", lua.LString(entry.Presence.UserId))
 		presenceTable.RawSetString("session_id", lua.LString(entry.Presence.SessionId))
 		presenceTable.RawSetString("username", lua.LString(entry.Presence.Username))
 		presenceTable.RawSetString("node", lua.LString(entry.Presence.Node))
 
-		propertiesTable := l.CreateTable(0, len(entry.StringProperties)+len(entry.NumericProperties))
+		propertiesTable := runtime.vm.CreateTable(0, len(entry.StringProperties)+len(entry.NumericProperties))
 		for k, v := range entry.StringProperties {
 			propertiesTable.RawSetString(k, lua.LString(v))
 		}
@@ -183,14 +194,14 @@ func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, e
 			propertiesTable.RawSetString(k, lua.LNumber(v))
 		}
 
-		entryTable := l.CreateTable(0, 2)
+		entryTable := runtime.vm.CreateTable(0, 2)
 		entryTable.RawSetString("presence", presenceTable)
 		entryTable.RawSetString("properties", propertiesTable)
 
 		entriesTable.RawSetInt(i+1, entryTable)
 	}
 
-	retValue, err, _ := runtime.invokeFunction(l, lf, ctx, entriesTable)
+	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, entriesTable)
 	runtimePool.Put(runtime)
 	if err != nil {
 		logger.Error("Error running runtime Matchmaker Matched hook.", zap.Error(err))

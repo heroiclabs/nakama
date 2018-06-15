@@ -19,6 +19,7 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 )
 
@@ -56,6 +57,9 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 			return
 		}
 
+		// Mark the start of the session.
+		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
+
 		// Wrap the connection for application handling.
 		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
 
@@ -70,5 +74,8 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 
 		// Allow the server to begin processing incoming messages from this session.
 		s.Consume(pipeline.ProcessRequest)
+
+		// Mark the end of the session.
+		span.End()
 	}
 }

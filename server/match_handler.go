@@ -34,12 +34,13 @@ const (
 )
 
 type MatchDataMessage struct {
-	UserID    uuid.UUID
-	SessionID uuid.UUID
-	Username  string
-	Node      string
-	OpCode    int64
-	Data      []byte
+	UserID      uuid.UUID
+	SessionID   uuid.UUID
+	Username    string
+	Node        string
+	OpCode      int64
+	Data        []byte
+	ReceiveTime int64
 }
 
 type MatchHandler struct {
@@ -83,8 +84,8 @@ type MatchHandler struct {
 func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, id uuid.UUID, node string, name string, params interface{}) (*MatchHandler, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       1024,
-		RegistrySize:        1024,
+		CallStackSize:       config.GetRuntime().CallStackSize,
+		RegistrySize:        config.GetRuntime().RegistrySize,
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
@@ -326,7 +327,7 @@ func loop(mh *MatchHandler) {
 		presence.RawSetString("username", lua.LString(msg.Username))
 		presence.RawSetString("node", lua.LString(msg.Node))
 
-		in := mh.vm.CreateTable(0, 3)
+		in := mh.vm.CreateTable(0, 4)
 		in.RawSetString("sender", presence)
 		in.RawSetString("op_code", lua.LNumber(msg.OpCode))
 		if msg.Data != nil {
@@ -334,6 +335,7 @@ func loop(mh *MatchHandler) {
 		} else {
 			in.RawSetString("data", lua.LNil)
 		}
+		in.RawSetString("receive_time_ms", lua.LNumber(msg.ReceiveTime))
 
 		input.RawSetInt(i, in)
 	}

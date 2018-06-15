@@ -72,7 +72,7 @@ type MatchRegistry interface {
 	Kick(stream PresenceStream, presences []*MatchPresence)
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
-	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte)
+	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, receiveTime int64)
 }
 
 type LocalMatchRegistry struct {
@@ -324,7 +324,7 @@ func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPrese
 	}
 }
 
-func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte) {
+func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, receiveTime int64) {
 	if node != r.node {
 		return
 	}
@@ -339,11 +339,12 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 	}
 
 	mh.QueueData(&MatchDataMessage{
-		UserID:    userID,
-		SessionID: sessionID,
-		Username:  username,
-		Node:      node,
-		OpCode:    opCode,
-		Data:      data,
+		UserID:      userID,
+		SessionID:   sessionID,
+		Username:    username,
+		Node:        node,
+		OpCode:      opCode,
+		Data:        data,
+		ReceiveTime: receiveTime,
 	})
 }

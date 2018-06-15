@@ -36,6 +36,8 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	"github.com/satori/go.uuid"
 	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -129,6 +131,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 	}
 	if config.GetSocket().TLSCert != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
@@ -144,14 +147,28 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
 	// TODO restore when admin endpoints are available.
-	//grpcGatewayRouter.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-	//	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	//	zpages.WriteHTMLRpczPage(w)
+	//grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
 	//})
+	//grpcGatewayRouter.HandleFunc("/tracez", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
+	//})
+	//grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
+	//	zpages.Handler.ServeHTTP(w, r)
+	//})
+
+	// Enable stats recording on all request paths except:
+	// "/" is not tracked at all.
+	// "/ws" implements its own separate tracking.
+	handlerWithStats := &ochttp.Handler{
+		Handler:          grpcGateway,
+		IsPublicEndpoint: true,
+	}
+
 	// Default to passing request to GRPC Gateway.
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithGzip := handlers.CompressHandler(grpcGateway)
+	handlerWithGzip := handlers.CompressHandler(handlerWithStats)
 	maxMessageSizeBytes := config.GetSocket().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
@@ -227,7 +244,15 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 			expiry = ctx.Value(ctxExpiryKey{}).(int64)
 		}
 
+		// Method name to use for before/after stats.
+		var methodName string
+		if parts := strings.SplitN(info.FullMethod, "/", 3); len(parts) == 3 {
+			methodName = parts[2]
+		}
+
+		span := trace.NewSpan(fmt.Sprintf("nakama.api-before.Nakama.%v", methodName), nil, trace.StartOptions{})
 		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
+		span.End()
 		if hookErr != nil {
 			return nil, hookErr
 		} else if beforeHookResult == nil {
@@ -241,7 +266,9 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 
 		handlerResult, handlerErr := handler(ctx, beforeHookResult)
 		if handlerErr == nil {
+			span := trace.NewSpan(fmt.Sprintf("nakama.api-after.Nakama.%v", methodName), nil, trace.StartOptions{})
 			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, handlerResult)
+			span.End()
 		}
 		return handlerResult, handlerErr
 	}
