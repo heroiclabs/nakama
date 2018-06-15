@@ -159,7 +159,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 
 	// Enable stats recording on all request paths except:
 	// "/" is not tracked at all.
-	// "/ws" implements separate tracking.
+	// "/ws" implements its own separate tracking.
 	handlerWithStats := &ochttp.Handler{
 		Handler:          grpcGateway,
 		IsPublicEndpoint: true,
