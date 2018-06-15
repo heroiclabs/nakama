@@ -136,7 +136,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 				// Ignore underlying connection being shut down while read is waiting for data.
 				if e, ok := err.(*net.OpError); !ok || e.Err.Error() != "use of closed network connection" {
-					s.logger.Warn("Error reading message from client", zap.Error(err))
+					s.logger.Debug("Error reading message from client", zap.Error(err))
 				}
 			}
 			break
