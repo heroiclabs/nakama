@@ -45,19 +45,17 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	self := &rtapi.UserPresence{
-		UserId:    session.UserID().String(),
-		SessionId: session.ID().String(),
-		Username:  username,
-	}
-
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
 		MatchId:       fmt.Sprintf("%v.", matchID.String()),
 		Authoritative: false,
 		// No label.
-		Size:      1,
-		Presences: []*rtapi.UserPresence{self},
-		Self:      self,
+		Size: 1,
+		// No presences.
+		Self: &rtapi.UserPresence{
+			UserId:    session.UserID().String(),
+			SessionId: session.ID().String(),
+			Username:  username,
+		},
 	}}})
 }
 
@@ -165,7 +163,8 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 
 	var label *wrappers.StringValue
 	meta := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), stream, session.UserID())
-	if meta == nil {
+	isNew := meta == nil
+	if isNew {
 		username := session.Username()
 		found := true
 		allow := true
@@ -215,16 +214,16 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 	ps := p.tracker.ListByStream(stream, true)
 	presences := make([]*rtapi.UserPresence, 0, len(ps))
 	for _, p := range ps {
+		if isNew && p.UserID == session.UserID() && p.ID.SessionID == session.ID() {
+			// Ensure the user themselves does not appear in the list of existing match presences.
+			// Only for new joins, not if the user is joining a match they're already part of.
+			continue
+		}
 		presences = append(presences, &rtapi.UserPresence{
 			UserId:    p.UserID.String(),
 			SessionId: p.ID.SessionID.String(),
 			Username:  p.Meta.Username,
 		})
-	}
-	self := &rtapi.UserPresence{
-		UserId:    session.UserID().String(),
-		SessionId: session.ID().String(),
-		Username:  meta.Username,
 	}
 
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
@@ -233,7 +232,11 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		Label:         label,
 		Size:          int32(len(presences)),
 		Presences:     presences,
-		Self:          self,
+		Self: &rtapi.UserPresence{
+			UserId:    session.UserID().String(),
+			SessionId: session.ID().String(),
+			Username:  meta.Username,
+		},
 	}}})
 }
 

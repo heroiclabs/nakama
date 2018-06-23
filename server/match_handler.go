@@ -28,11 +28,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	InputQueueSize = 128
-	CallQueueSize  = 128
-)
-
 type MatchDataMessage struct {
 	UserID      uuid.UUID
 	SessionID   uuid.UUID
@@ -220,9 +215,9 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		ctx:           ctx,
 		// Dispatcher below.
 
-		inputCh: make(chan *MatchDataMessage, InputQueueSize),
+		inputCh: make(chan *MatchDataMessage, config.GetMatch().InputQueueSize),
 		// Ticker below.
-		callCh:  make(chan func(mh *MatchHandler), CallQueueSize),
+		callCh:  make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
 		stopCh:  make(chan struct{}),
 		stopped: false,
 

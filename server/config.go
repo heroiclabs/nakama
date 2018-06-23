@@ -41,6 +41,7 @@ type Config interface {
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
+	GetMatch() *MatchConfig
 	GetConsole() *ConsoleConfig
 }
 
@@ -110,6 +111,12 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 	if mainConfig.GetRuntime().RegistrySize < 128 {
 		logger.Fatal("Runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", mainConfig.GetRuntime().RegistrySize))
+	}
+	if mainConfig.GetMatch().InputQueueSize < 1 {
+		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", mainConfig.GetMatch().InputQueueSize))
+	}
+	if mainConfig.GetMatch().CallQueueSize < 1 {
+		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", mainConfig.GetMatch().CallQueueSize))
 	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
@@ -188,6 +195,7 @@ type config struct {
 	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings."`
 	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
 	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match    *MatchConfig    `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
 	Console  *ConsoleConfig  `yaml:"console" json:"console" usage:"Console settings."`
 }
 
@@ -207,6 +215,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Database: NewDatabaseConfig(),
 		Social:   NewSocialConfig(),
 		Runtime:  NewRuntimeConfig(),
+		Match:    NewMatchConfig(),
 		Console:  NewConsoleConfig(),
 	}
 }
@@ -245,6 +254,10 @@ func (c *config) GetSocial() *SocialConfig {
 
 func (c *config) GetRuntime() *RuntimeConfig {
 	return c.Runtime
+}
+
+func (c *config) GetMatch() *MatchConfig {
+	return c.Match
 }
 
 func (c *config) GetConsole() *ConsoleConfig {
@@ -396,6 +409,20 @@ func NewRuntimeConfig() *RuntimeConfig {
 		MaxCount:      256,
 		CallStackSize: 128,
 		RegistrySize:  512,
+	}
+}
+
+// MatchConfig is configuration relevant to authoritative realtime multiplayer matches.
+type MatchConfig struct {
+	InputQueueSize int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the match client data buffer. Default 128."`
+	CallQueueSize  int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the match call buffer. Default 128."`
+}
+
+// NewMatchConfig creates a new MatchConfig struct.
+func NewMatchConfig() *MatchConfig {
+	return &MatchConfig{
+		InputQueueSize: 128,
+		CallQueueSize:  128,
 	}
 }
 

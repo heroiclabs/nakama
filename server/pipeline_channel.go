@@ -246,14 +246,19 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		}
 	}
 
-	userPresences := make([]*rtapi.UserPresence, len(presences))
-	for i := 0; i < len(presences); i++ {
-		userPresences[i] = &rtapi.UserPresence{
-			UserId:      presences[i].UserID.String(),
-			SessionId:   presences[i].ID.SessionID.String(),
-			Username:    presences[i].Meta.Username,
-			Persistence: presences[i].Meta.Persistence,
+	userPresences := make([]*rtapi.UserPresence, 0, len(presences))
+	for _, presence := range presences {
+		if isNew && presence.UserID == session.UserID() && presence.ID.SessionID == session.ID() {
+			// Ensure the user themselves does not appear in the list of existing channel presences.
+			// Only for new joins, not if the user is joining a channel they're already part of.
+			continue
 		}
+		userPresences = append(userPresences, &rtapi.UserPresence{
+			UserId:      presence.UserID.String(),
+			SessionId:   presence.ID.SessionID.String(),
+			Username:    presence.Meta.Username,
+			Persistence: presence.Meta.Persistence,
+		})
 	}
 
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Channel{Channel: &rtapi.Channel{
