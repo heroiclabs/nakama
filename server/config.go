@@ -414,8 +414,8 @@ func NewRuntimeConfig() *RuntimeConfig {
 
 // MatchConfig is configuration relevant to authoritative realtime multiplayer matches.
 type MatchConfig struct {
-	InputQueueSize int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the match client data buffer. Default 128."`
-	CallQueueSize  int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the match call buffer. Default 128."`
+	InputQueueSize int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
+	CallQueueSize  int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
