@@ -109,6 +109,7 @@ func main() {
 	}
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
 	matchRegistry := server.NewLocalMatchRegistry(logger, db, config, socialClient, leaderboardCache, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	// Separate module evaluation/validation from module loading.
 	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.

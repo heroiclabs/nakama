@@ -56,6 +56,7 @@ type MatchHandler struct {
 	vm            *lua.LState
 	initFn        lua.LValue
 	joinAttemptFn lua.LValue
+	joinFn        lua.LValue
 	leaveFn       lua.LValue
 	loopFn        lua.LValue
 	ctx           *lua.LTable
@@ -120,6 +121,10 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 	joinAttemptFn := tab.RawGet(lua.LString("match_join_attempt"))
 	if joinAttemptFn.Type() != lua.LTFunction {
 		return nil, errors.New("match_join_attempt not found or not a function")
+	}
+	joinFn := tab.RawGet(lua.LString("match_join"))
+	if joinFn.Type() != lua.LTFunction {
+		return nil, errors.New("match_join not found or not a function")
 	}
 	leaveFn := tab.RawGet(lua.LString("match_leave"))
 	if leaveFn.Type() != lua.LTFunction {
@@ -210,6 +215,7 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		vm:            vm,
 		initFn:        initFn,
 		joinAttemptFn: joinAttemptFn,
+		joinFn:        joinFn,
 		leaveFn:       leaveFn,
 		loopFn:        loopFn,
 		ctx:           ctx,
@@ -468,6 +474,62 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 
 		mh.state = state
 		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label}
+	}
+}
+
+func Join(joins []*MatchPresence) func(mh *MatchHandler) {
+	return func(mh *MatchHandler) {
+		mh.Lock()
+		if mh.stopped {
+			mh.Unlock()
+			return
+		}
+		mh.Unlock()
+
+		presences := mh.vm.CreateTable(len(joins), 0)
+		for i, p := range joins {
+			presence := mh.vm.CreateTable(0, 4)
+			presence.RawSetString("user_id", lua.LString(p.UserID.String()))
+			presence.RawSetString("session_id", lua.LString(p.SessionID.String()))
+			presence.RawSetString("username", lua.LString(p.Username))
+			presence.RawSetString("node", lua.LString(p.Node))
+
+			presences.RawSetInt(i+1, presence)
+		}
+
+		// Execute the match_leave call.
+		mh.vm.Push(LSentinel)
+		mh.vm.Push(mh.joinFn)
+		mh.vm.Push(mh.ctx)
+		mh.vm.Push(mh.dispatcher)
+		mh.vm.Push(mh.tick)
+		mh.vm.Push(mh.state)
+		mh.vm.Push(presences)
+
+		err := mh.vm.PCall(5, lua.MultRet, nil)
+		if err != nil {
+			mh.Stop()
+			mh.logger.Warn("Stopping match after error from match_join execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
+			return
+		}
+
+		// Extract the resulting state.
+		state := mh.vm.Get(-1)
+		if state.Type() == lua.LTNil || state.Type() == LTSentinel {
+			mh.logger.Info("Match join returned nil or no state, stopping match")
+			mh.Stop()
+			return
+		}
+		mh.vm.Pop(1)
+		// Check for and remove the sentinel value, will fail if there are any extra return values.
+		if sentinel := mh.vm.Get(-1); sentinel.Type() != LTSentinel {
+			mh.logger.Warn("Match join returned too many values, stopping match")
+			mh.Stop()
+			return
+		}
+		mh.vm.Pop(1)
+
+		mh.state = state
 	}
 }
 

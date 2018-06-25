@@ -71,6 +71,7 @@ type PresenceEvent struct {
 }
 
 type Tracker interface {
+	SetMatchJoinListener(func(id uuid.UUID, joins []*MatchPresence))
 	SetMatchLeaveListener(func(id uuid.UUID, leaves []*MatchPresence))
 	Stop()
 
@@ -117,6 +118,7 @@ type presenceCompact struct {
 type LocalTracker struct {
 	sync.RWMutex
 	logger             *zap.Logger
+	matchJoinListener  func(id uuid.UUID, leaves []*MatchPresence)
 	matchLeaveListener func(id uuid.UUID, leaves []*MatchPresence)
 	sessionRegistry    *SessionRegistry
 	jsonpbMarshaler    *jsonpb.Marshaler
@@ -150,6 +152,10 @@ func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jso
 		}
 	}()
 	return t
+}
+
+func (t *LocalTracker) SetMatchJoinListener(f func(id uuid.UUID, joins []*MatchPresence)) {
+	t.matchJoinListener = f
 }
 
 func (t *LocalTracker) SetMatchLeaveListener(f func(id uuid.UUID, leaves []*MatchPresence)) {
@@ -598,7 +604,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	streamJoins := make(map[PresenceStream][]*rtapi.UserPresence, 0)
 	streamLeaves := make(map[PresenceStream][]*rtapi.UserPresence, 0)
 
-	// Track grouped authoritative match leaves separately from client-bound events.
+	// Track grouped authoritative match joins and leaves separately from client-bound events.
+	matchJoins := make(map[uuid.UUID][]*MatchPresence, 0)
 	matchLeaves := make(map[uuid.UUID][]*MatchPresence, 0)
 
 	for _, p := range e.Joins {
@@ -616,6 +623,21 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			streamJoins[p.Stream] = append(j, pWire)
 		} else {
 			streamJoins[p.Stream] = []*rtapi.UserPresence{pWire}
+		}
+
+		// We only care about authoritative match joins where the match host is the current node.
+		if p.Stream.Mode == StreamModeMatchAuthoritative && p.Stream.Label == t.name {
+			mp := &MatchPresence{
+				Node:      p.ID.Node,
+				UserID:    p.UserID,
+				SessionID: p.ID.SessionID,
+				Username:  p.Meta.Username,
+			}
+			if j, ok := matchJoins[p.Stream.Subject]; ok {
+				matchJoins[p.Stream.Subject] = append(j, mp)
+			} else {
+				matchJoins[p.Stream.Subject] = []*MatchPresence{mp}
+			}
 		}
 	}
 	for _, p := range e.Leaves {
@@ -651,7 +673,10 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 	}
 
-	// Notify locally hosted authoritative matches of leave events.
+	// Notify locally hosted authoritative matches of join and leave events.
+	for matchID, joins := range matchJoins {
+		t.matchJoinListener(matchID, joins)
+	}
 	for matchID, leaves := range matchLeaves {
 		t.matchLeaveListener(matchID, leaves)
 	}

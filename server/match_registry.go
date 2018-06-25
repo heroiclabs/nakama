@@ -64,8 +64,11 @@ type MatchRegistry interface {
 	Stop()
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
-	Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string)
-	// Notify a match handler that a user has left or disconnected.
+	JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string)
+	// Notify a match handler that one or more users have successfully joined the match.
+	// Expects that the caller has already determined the match is hosted on the current node.
+	Join(id uuid.UUID, presences []*MatchPresence)
+	// Notify a match handler that one or more users have left or disconnected.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Leave(id uuid.UUID, presences []*MatchPresence)
 	// Called by match handlers to request the removal fo a match participant.
@@ -267,7 +270,7 @@ func (r *LocalMatchRegistry) Stop() {
 	r.Unlock()
 }
 
-func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string) {
+func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string) {
 	if node != r.node {
 		return false, false, "", ""
 	}
@@ -299,6 +302,20 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, node string, userID, sessionID u
 		// The join attempt has returned a result.
 		return true, r.Allow, r.Reason, r.Label
 	}
+}
+
+func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
+	var mh *MatchHandler
+	var ok bool
+	r.RLock()
+	mh, ok = r.matches[id]
+	r.RUnlock()
+	if !ok {
+		return
+	}
+
+	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
+	mh.QueueCall(Join(presences))
 }
 
 func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {

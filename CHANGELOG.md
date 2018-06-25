@@ -10,7 +10,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Presence list in match join responses no longer contains the user's own presence. 
-- Presence list in channel join responses no longer contains the user's own presence. 
+- Presence list in channel join responses no longer contains the user's own presence.
+- Authoritative match modules now require a `match_join` callback that triggers when users have completed their join process.
 
 ## [2.0.1] - 2018-06-15
 ### Added
