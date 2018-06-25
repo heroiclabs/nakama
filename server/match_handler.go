@@ -123,8 +123,8 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		return nil, errors.New("match_join_attempt not found or not a function")
 	}
 	joinFn := tab.RawGet(lua.LString("match_join"))
-	if joinFn.Type() != lua.LTFunction {
-		return nil, errors.New("match_join not found or not a function")
+	if joinFn == nil || joinFn.Type() != lua.LTFunction {
+		joinFn = nil
 	}
 	leaveFn := tab.RawGet(lua.LString("match_leave"))
 	if leaveFn.Type() != lua.LTFunction {
@@ -479,6 +479,10 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 
 func Join(joins []*MatchPresence) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
+		if mh.joinFn == nil {
+			return
+		}
+
 		mh.Lock()
 		if mh.stopped {
 			mh.Unlock()
