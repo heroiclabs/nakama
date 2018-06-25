@@ -314,7 +314,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
 		return
 	}
 
-	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
+	// Doesn't matter if the call queue was full here. If the match is being closed then joins don't matter anyway.
 	mh.QueueCall(Join(presences))
 }
 
