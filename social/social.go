@@ -297,7 +297,7 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) (bool, error) {
 	pub, err := url.Parse(publicKeyURL)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("gamecenter check error: invalid public key url: %v", err.Error())
 	} else if pub.Scheme != "https" {
 		return false, errors.New("gamecenter check error: invalid public key url scheme")
 	} else if pub.Path == "" || pub.Path == "/" {
@@ -307,11 +307,11 @@ func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp i
 	}
 	slt, err := base64.StdEncoding.DecodeString(salt)
 	if err != nil {
-		return false, err
+		return false, errors.New("gamecenter check error: error decoding salt")
 	}
 	sig, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return false, err
+		return false, errors.New("gamecenter check error: error decoding signature")
 	}
 
 	body, err := c.requestRaw("apple public key url", publicKeyURL, nil)
@@ -320,24 +320,27 @@ func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp i
 	}
 
 	// Parse the public key, check issuer, check signature.
-	pubBlock, _ := pem.Decode([]byte(body))
+	pubBlock, rest := pem.Decode([]byte(body))
 	if pubBlock == nil {
-		return false, errors.New("gamecenter check error: error decoding public key")
+		pubBlock, rest = pem.Decode([]byte("\n-----BEGIN CERTIFICATE-----\n" + base64.StdEncoding.EncodeToString(rest) + "\n-----END CERTIFICATE-----"))
+		if pubBlock == nil {
+			return false, errors.New("gamecenter check error: error decoding public key")
+		}
 	}
 	pubCert, err := x509.ParseCertificate(pubBlock.Bytes)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("gamecenter check error: error parsing public block: %v", err.Error())
 	}
 	err = pubCert.CheckSignatureFrom(c.gamecenterCaCert)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("gamecenter check error: bad public key signature: %v", err.Error())
 	}
 	ts := make([]byte, 8)
-	binary.LittleEndian.PutUint64(ts, uint64(timestamp))
+	binary.BigEndian.PutUint64(ts, uint64(timestamp))
 	payload := [][]byte{[]byte(playerID), []byte(bundleID), ts, slt}
-	err = pubCert.CheckSignature(x509.SHA256WithRSA, bytes.Join(payload, make([]byte, 0)), sig)
+	err = pubCert.CheckSignature(x509.SHA256WithRSA, bytes.Join(payload, []byte{}), sig)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("gamecenter check error: signature mismatch: %v", err.Error())
 	}
 	return true, nil
 }
