@@ -72,7 +72,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt or match_leave.
+calls to match_join_attempt, match_join, or match_leave.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -93,6 +93,58 @@ local function match_join_attempt(context, dispatcher, tick, state, presence)
     print("match join attempt:\n" .. du.print_r(presence))
   end
   return state, true
+end
+
+--[[
+Called when one or more users have successfully completed the match join process after their match_join_attempt returns
+`true`. When their presences are sent to this function the users are ready to receive match data messages and can be
+targets for the dispatcher's `broadcast_message` function.
+
+Context represents information about the match and server, for information purposes. Format:
+{
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  execution_mode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match",
+  match_label = "the label string returned from match_init",
+  match_tick_rate = 1 -- the tick rate returned by match_init
+}
+
+Dispatcher exposes useful functions to the match. Format:
+{
+  broadcast_message = function(op_code, data, presences, sender),
+    -- numeric message op code
+    -- a data payload string, or nil
+    -- list of presences (a subset of match participants) to use as message targets, or nil to send to the whole match
+    -- a presence to tag on the message as the 'sender', or nil
+  match_kick = function(presences)
+    -- a list of presences to remove from the match
+}
+
+Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
+calls to match_join_attempt, match_join, or match_leave.
+
+State is the current in-memory match state, may be any Lua term except nil.
+
+Presences is a list of users that have joined the match. Format:
+{
+  {
+    user_id: "user unique ID",
+    session_id: "session ID of the user's current connection",
+    username: "user's unique username",
+    node: "name of the Nakama node the user is connected to"
+  },
+  ...
+}
+
+Expected return these values (all required) in order:
+1. An (optionally) updated state. May be any non-nil Lua term, or nil to end the match.
+--]]
+local function match_join(context, dispatcher, tick, state, presences)
+  if state.debug then
+    print("match join:\n" .. du.print_r(presences))
+  end
+  return state
 end
 
 --[[
@@ -120,7 +172,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt or match_leave.
+calls to match_join_attempt, match_join, or match_leave.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -170,7 +222,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt or match_leave.
+calls to match_join_attempt, match_join, or match_leave.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -206,6 +258,7 @@ end
 return {
   match_init = match_init,
   match_join_attempt = match_join_attempt,
+  match_join = match_join,
   match_leave = match_leave,
   match_loop = match_loop
 }
