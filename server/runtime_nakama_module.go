@@ -1856,6 +1856,8 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 	hidden := l.OptBool(4, false)
 	// By default persistence is enabled, if the stream supports it.
 	persistence := l.OptBool(5, true)
+	// By default no status is set.
+	status := l.OptString(6, "")
 
 	// Look up the session.
 	session := n.sessionRegistry.Get(sessionID)
@@ -1869,6 +1871,7 @@ func (n *NakamaModule) streamUserJoin(l *lua.LState) int {
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
+		Status:      status,
 	}, false)
 	if !success {
 		l.RaiseError("tracker rejected new presence, session is closing")

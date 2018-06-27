@@ -185,7 +185,6 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
-		Addr:           fmt.Sprintf(":%d", config.GetSocket().Port),
 		ReadTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout:   time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
 		IdleTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
@@ -198,7 +197,12 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 
 	startupLogger.Info("Starting API server gateway for HTTP requests", zap.Int("port", config.GetSocket().Port))
 	go func() {
-		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		listener, err := net.Listen(config.GetSocket().Protocol, fmt.Sprintf("%v:%d", config.GetSocket().Address, config.GetSocket().Port))
+		if err != nil {
+			startupLogger.Fatal("API server gateway listener failed to start", zap.Error(err))
+		}
+
+		if err := s.grpcGatewayServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
 		}
 	}()
@@ -207,11 +211,11 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 }
 
 func (s *ApiServer) Stop() {
-	// 1. Stop GRPC Gateway server first as it sits above GRPC server.
+	// 1. Stop GRPC Gateway server first as it sits above GRPC server. This also closes the underlying listener.
 	if err := s.grpcGatewayServer.Shutdown(context.Background()); err != nil {
 		s.logger.Error("API server gateway listener shutdown failed", zap.Error(err))
 	}
-	// 2. Stop GRPC server.
+	// 2. Stop GRPC server. This also closes the underlying listener.
 	s.grpcServer.GracefulStop()
 }
 
