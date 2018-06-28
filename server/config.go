@@ -94,6 +94,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if l := len(mainConfig.Name); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
+	if p := mainConfig.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
+		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", mainConfig.GetSocket().Protocol))
+	}
 	if mainConfig.GetSocket().PingPeriodMs >= mainConfig.GetSocket().PongWaitMs {
 		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", mainConfig.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", mainConfig.GetSocket().PongWaitMs))
 	}
@@ -315,7 +318,9 @@ func NewSessionConfig() *SessionConfig {
 // SocketConfig is configuration relevant to the transport socket and protocol.
 type SocketConfig struct {
 	ServerKey           string            `yaml:"server_key" json:"server_key" usage:"Server key to use to establish a connection to the server."`
-	Port                int               `yaml:"port" json:"port" usage:"The port for accepting connections from the client, listening on all interfaces."`
+	Port                int               `yaml:"port" json:"port" usage:"The port for accepting connections from the client for the given interface(s), address(es), and protocol(s). Default 7350."`
+	Address             string            `yaml:"address" json:"address" usage:"The IP address of the interface to listen for client traffic on. Default listen on all available addresses/interfaces."`
+	Protocol            string            `yaml:"protocol" json:"protocol" usage:"The network protocol to listen for traffic on. Possible values are 'tcp' for both IPv4 and IPv6, 'tcp4' for IPv4 only, or 'tcp6' for IPv6 only. Default 'tcp'."`
 	MaxMessageSizeBytes int64             `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
 	ReadTimeoutMs       int               `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
 	WriteTimeoutMs      int               `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
@@ -334,6 +339,8 @@ func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:           "defaultkey",
 		Port:                7350,
+		Address:             "",
+		Protocol:            "tcp",
 		MaxMessageSizeBytes: 4096,
 		ReadTimeoutMs:       10 * 1000,
 		WriteTimeoutMs:      10 * 1000,
