@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Config option to adjust authoritative match call queue size.
 - Config options to allow listening on IPv4/6 and a particular network interface.
 - Authoritative match modules now allow a `match_join` callback that triggers when users have completed their join process.
+- New stream API function to upsert a user presence.
 
 ### Changed
 - Presence list in match join responses no longer contains the user's own presence. 
