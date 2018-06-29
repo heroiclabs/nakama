@@ -77,8 +77,8 @@ type GoogleProfile struct {
 	Sub string `json:"sub"`
 	Azp string `json:"azp"`
 	Aud string `json:"aud"`
-	Iat string `json:"iat"`
-	Exp string `json:"exp"`
+	Iat int64  `json:"iat"`
+	Exp int64  `json:"exp"`
 	// Fields available only if the user granted the "profile" and "email" OAuth scopes.
 	Email         string `json:"email"`
 	EmailVerified string `json:"email_verified"`
@@ -260,37 +260,109 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
-	profile := GoogleProfile{
-		Iss: claims["iss"].(string),
-		Sub: claims["sub"].(string),
-		Azp: claims["azp"].(string),
-		Aud: claims["aud"].(string),
-		Iat: claims["iat"].(string),
-		Exp: claims["exp"].(string),
+	profile := &GoogleProfile{}
+	if v, ok := claims["iss"]; ok {
+		if profile.Iss, ok = v.(string); !ok {
+			return nil, errors.New("google id token iss field invalid")
+		}
+	} else {
+		return nil, errors.New("google id token iss field missing")
+	}
+	if v, ok := claims["sub"]; ok {
+		if profile.Sub, ok = v.(string); !ok {
+			return nil, errors.New("google id token sub field invalid")
+		}
+	} else {
+		return nil, errors.New("google id token sub field missing")
+	}
+	if v, ok := claims["azp"]; ok {
+		if profile.Azp, ok = v.(string); !ok {
+			return nil, errors.New("google id token azp field invalid")
+		}
+	} else {
+		return nil, errors.New("google id token azp field missing")
+	}
+	if v, ok := claims["aud"]; ok {
+		if profile.Aud, ok = v.(string); !ok {
+			return nil, errors.New("google id token aud field invalid")
+		}
+	} else {
+		return nil, errors.New("google id token aud field missing")
+	}
+	if v, ok := claims["iat"]; ok {
+		switch v.(type) {
+		case string:
+			if vi, err := strconv.Atoi(v.(string)); err != nil {
+				return nil, errors.New("google id token iat field invalid")
+			} else {
+				profile.Iat = int64(vi)
+			}
+		case float64:
+			profile.Iat = int64(v.(float64))
+		case int64:
+			profile.Iat = v.(int64)
+		default:
+			return nil, errors.New("google id token iat field unknown")
+		}
+	}
+	if v, ok := claims["exp"]; ok {
+		switch v.(type) {
+		case string:
+			if vi, err := strconv.Atoi(v.(string)); err != nil {
+				return nil, errors.New("google id token exp field invalid")
+			} else {
+				profile.Exp = int64(vi)
+			}
+		case float64:
+			profile.Exp = int64(v.(float64))
+		case int64:
+			profile.Exp = v.(int64)
+		default:
+			return nil, errors.New("google id token exp field unknown")
+		}
 	}
 	if v, ok := claims["email"]; ok {
-		profile.Email = v.(string)
+		if profile.Email, ok = v.(string); !ok {
+			return nil, errors.New("google id token email field invalid")
+		}
 	}
 	if v, ok := claims["email_verified"]; ok {
-		profile.EmailVerified = v.(string)
+		if profile.EmailVerified, ok = v.(string); !ok {
+			return nil, errors.New("google id token email verified field invalid")
+		}
 	}
 	if v, ok := claims["name"]; ok {
-		profile.Name = v.(string)
+		if profile.Name, ok = v.(string); !ok {
+			return nil, errors.New("google id token name field invalid")
+		}
 	}
 	if v, ok := claims["picture"]; ok {
-		profile.Picture = v.(string)
+		if profile.Picture, ok = v.(string); !ok {
+			return nil, errors.New("google id token picture field invalid")
+		}
 	}
 	if v, ok := claims["given_name"]; ok {
-		profile.GivenName = v.(string)
+		if profile.GivenName, ok = v.(string); !ok {
+			return nil, errors.New("google id token given name field invalid")
+		}
 	}
 	if v, ok := claims["family_name"]; ok {
-		profile.FamilyName = v.(string)
+		if profile.FamilyName, ok = v.(string); !ok {
+			return nil, errors.New("google id token family name field invalid")
+		}
 	}
 	if v, ok := claims["locale"]; ok {
-		profile.Locale = v.(string)
+		if profile.Locale, ok = v.(string); !ok {
+			return nil, errors.New("google id token locale field invalid")
+		}
 	}
 
-	return &profile, nil
+	// Check token has not expired.
+	if profile.Exp != 0 && profile.Exp < time.Now().UTC().Unix() {
+		return nil, errors.New("google id token expired")
+	}
+
+	return profile, nil
 }
 
 // CheckGameCenterID checks to see validity of the GameCenter playerID
