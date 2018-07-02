@@ -29,6 +29,7 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
+	"strings"
 )
 
 var (
@@ -159,9 +160,9 @@ func (m *Metrics) initStackdriver(logger, startupLogger *zap.Logger, config Conf
 }
 
 func (m *Metrics) initPrometheus(logger, startupLogger *zap.Logger, config Config) {
-	prefix := config.GetName()
+	prefix := strings.Replace(config.GetName(), "-", "_", -1)
 	if config.GetMetrics().Namespace != "" {
-		prefix += "-" + config.GetMetrics().Namespace
+		prefix += "_" + strings.Replace(config.GetMetrics().Namespace, "-", "_", -1)
 	}
 
 	exporter, err := ocprometheus.NewExporter(ocprometheus.Options{
