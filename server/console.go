@@ -27,6 +27,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/heroiclabs/nakama/console"
 	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -86,6 +87,15 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	grpcGatewayRouter := mux.NewRouter()
 	//TODO server HTML content here.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
+	grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
+		zpages.Handler.ServeHTTP(w, r)
+	})
+	grpcGatewayRouter.HandleFunc("/tracez", func(w http.ResponseWriter, r *http.Request) {
+		zpages.Handler.ServeHTTP(w, r)
+	})
+	grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
+		zpages.Handler.ServeHTTP(w, r)
+	})
 	// Enable compression on gateway responses.
 	handlerWithGzip := handlers.CompressHandler(grpcGateway)
 	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)

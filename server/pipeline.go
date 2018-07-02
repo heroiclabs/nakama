@@ -18,10 +18,15 @@ import (
 	"database/sql"
 	"fmt"
 
+	"context"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"strings"
+	"time"
 )
 
 type Pipeline struct {
@@ -106,7 +111,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		pipelineName = "matchmakerRemove"
 	case *rtapi.Envelope_Rpc:
 		pipelineFn = p.rpc
-		pipelineName = fmt.Sprintf("rpc.%v", envelope.GetRpc().Id)
+		pipelineName = fmt.Sprintf("rpc.%v", strings.ToLower(envelope.GetRpc().Id))
 	case *rtapi.Envelope_StatusFollow:
 		pipelineFn = p.statusFollow
 		pipelineName = "statusFollow"
@@ -135,9 +140,18 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	default:
 		messageName = fmt.Sprintf("%T", envelope.Message)
 
-		span := trace.NewSpan(fmt.Sprintf("nakama.rtapi-before.%v", pipelineName), nil, trace.StartOptions{})
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("nakama.rtapi-before.%v", pipelineName)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Actual before hook function execution.
 		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+
+		// Stats measurement end boundary.
 		span.End()
+		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 
 		if hookErr != nil {
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -167,14 +181,32 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		envelope = resultCast
 	}
 
-	span := trace.NewSpan(fmt.Sprintf("nakama.rtapi.%v", pipelineName), nil, trace.StartOptions{})
+	// Stats measurement start boundary.
+	name := fmt.Sprintf("nakama.rtapi.%v", pipelineName)
+	statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+	startNanos := time.Now().UTC().UnixNano()
+	span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+	// Actual function execution.
 	pipelineFn(logger, session, envelope)
+
+	// Stats measurement end boundary.
 	span.End()
+	stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 
 	if messageName != "" {
-		span := trace.NewSpan(fmt.Sprintf("nakama.rtapi-after.%v", pipelineName), nil, trace.StartOptions{})
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("nakama.rtapi-after.%v", pipelineName)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Actual after hook function execution.
 		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+
+		// Stats measurement end boundary.
 		span.End()
+		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 	}
 
 	return true

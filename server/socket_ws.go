@@ -17,11 +17,16 @@ package server
 import (
 	"net/http"
 
+	"context"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
+	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"time"
 )
+
+var SocketWsStatsCtx = context.Background()
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
@@ -58,6 +63,8 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		}
 
 		// Mark the start of the session.
+		startNanos := time.Now().UTC().UnixNano()
+		stats.Record(SocketWsStatsCtx, MetricsSocketWsOpenCount.M(1))
 		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
 
 		// Wrap the connection for application handling.
@@ -77,5 +84,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 
 		// Mark the end of the session.
 		span.End()
+		stats.Record(SocketWsStatsCtx, MetricsSocketWsTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsSocketWsCloseCount.M(1))
 	}
 }

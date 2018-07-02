@@ -56,16 +56,10 @@ type RuntimePool struct {
 	currentCount int
 	newFn        func() *Runtime
 
-	statsCtx          context.Context
-	statsRuntimeCount *stats.Int64Measure
+	statsCtx context.Context
 }
 
 func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
-	statsRuntimeCount, err := stats.Int64("nakama.runtime.count", "Number of pooled runtime instances.", stats.UnitNone)
-	if err != nil {
-		startupLogger.Fatal("Error creating stats entry for runtime count", zap.Error(err))
-	}
-
 	rp := &RuntimePool{
 		logger:       logger,
 		regCallbacks: regCallbacks,
@@ -81,8 +75,7 @@ func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config
 			}
 			return r
 		},
-		statsCtx:          context.Background(),
-		statsRuntimeCount: statsRuntimeCount,
+		statsCtx: context.Background(),
 	}
 
 	// Warm up the pool.
@@ -92,7 +85,7 @@ func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config
 		for i := 0; i < config.GetRuntime().MinCount; i++ {
 			rp.poolCh <- rp.newFn()
 		}
-		stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(int64(config.GetRuntime().MinCount)))
+		stats.Record(rp.statsCtx, MetricsRuntimeCount.M(int64(config.GetRuntime().MinCount)))
 	}
 	startupLogger.Info("Allocated minimum runtime pool")
 
@@ -138,7 +131,7 @@ func (rp *RuntimePool) Get() *Runtime {
 			// Allocate a new runtime.
 			rp.currentCount++
 			rp.Unlock()
-			stats.Record(rp.statsCtx, rp.statsRuntimeCount.M(1))
+			stats.Record(rp.statsCtx, MetricsRuntimeCount.M(1))
 			return rp.newFn()
 		}
 	}

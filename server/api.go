@@ -37,6 +37,8 @@ import (
 	"github.com/satori/go.uuid"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -146,16 +148,6 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
-	// TODO restore when admin endpoints are available.
-	//grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
-	//	zpages.Handler.ServeHTTP(w, r)
-	//})
-	//grpcGatewayRouter.HandleFunc("/tracez", func(w http.ResponseWriter, r *http.Request) {
-	//	zpages.Handler.ServeHTTP(w, r)
-	//})
-	//grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
-	//	zpages.Handler.ServeHTTP(w, r)
-	//})
 
 	// Enable stats recording on all request paths except:
 	// "/" is not tracked at all.
@@ -254,9 +246,19 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 			methodName = parts[2]
 		}
 
-		span := trace.NewSpan(fmt.Sprintf("nakama.api-before.Nakama.%v", methodName), nil, trace.StartOptions{})
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("nakama.api-before.Nakama.%v", methodName)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Actual before hook function execution.
 		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
+
+		// Stats measurement end boundary.
 		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+
 		if hookErr != nil {
 			return nil, hookErr
 		} else if beforeHookResult == nil {
@@ -270,9 +272,18 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 
 		handlerResult, handlerErr := handler(ctx, beforeHookResult)
 		if handlerErr == nil {
-			span := trace.NewSpan(fmt.Sprintf("nakama.api-after.Nakama.%v", methodName), nil, trace.StartOptions{})
+			// Stats measurement start boundary.
+			name := fmt.Sprintf("nakama.api-after.Nakama.%v", methodName)
+			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+			startNanos := time.Now().UTC().UnixNano()
+			span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+			// Actual after hook function execution.
 			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, handlerResult)
+
+			// Stats measurement end boundary.
 			span.End()
+			stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
 		}
 		return handlerResult, handlerErr
 	}
