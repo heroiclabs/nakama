@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"database/sql"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
@@ -119,6 +120,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		// Check if the other user exists and has not blocked this user.
 		allowed, err := UserExistsAndDoesNotBlock(p.db, uid, userID)
 		if err != nil {
+			logger.Warn("Failed to execute query to check user and friend block state", zap.Error(err), zap.String("uid", userID.String()), zap.String("friend", uid.String()))
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Failed to look up user ID",

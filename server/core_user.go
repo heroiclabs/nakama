@@ -149,7 +149,7 @@ func UserExistsAndDoesNotBlock(db *sql.DB, checkUserID, blocksUserID uuid.UUID) 
 	var count int
 	err := db.QueryRow(`
 SELECT COUNT(id) FROM users
-WHERE id = $1 AND NOT EXISTS (
+WHERE id = $1::UUID AND NOT EXISTS (
 	SELECT state FROM user_edge
 	WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 3
 )
