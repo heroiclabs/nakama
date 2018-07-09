@@ -81,7 +81,7 @@ type GoogleProfile struct {
 	Exp int64  `json:"exp"`
 	// Fields available only if the user granted the "profile" and "email" OAuth scopes.
 	Email         string `json:"email"`
-	EmailVerified string `json:"email_verified"`
+	EmailVerified bool   `json:"email_verified"`
 	Name          string `json:"name"`
 	Picture       string `json:"picture"`
 	GivenName     string `json:"given_name"`
@@ -327,8 +327,17 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 		}
 	}
 	if v, ok := claims["email_verified"]; ok {
-		if profile.EmailVerified, ok = v.(string); !ok {
-			return nil, errors.New("google id token email verified field invalid")
+		switch v.(type) {
+		case bool:
+			profile.EmailVerified = v.(bool)
+		case string:
+			if vb, err := strconv.ParseBool(v.(string)); err != nil {
+				return nil, errors.New("google id token email_verified field invalid")
+			} else {
+				profile.EmailVerified = vb
+			}
+		default:
+			return nil, errors.New("google id token email_verified field unknown")
 		}
 	}
 	if v, ok := claims["name"]; ok {

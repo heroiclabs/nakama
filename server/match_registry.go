@@ -201,13 +201,17 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 			}
 
 			mh := r.GetMatch(stream.Subject)
-			if mh == nil || (label != nil && label.Value != mh.Label) {
+			if mh == nil {
+				continue
+			}
+			mhLabel := mh.Label.Load()
+			if label != nil && label.Value != mhLabel {
 				continue
 			}
 			results = append(results, &api.Match{
 				MatchId:       mh.IDStr,
 				Authoritative: true,
-				Label:         &wrappers.StringValue{Value: mh.Label},
+				Label:         &wrappers.StringValue{Value: mhLabel},
 				Size:          size,
 			})
 			if len(results) == limit {
@@ -233,7 +237,8 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 			// Already checked and discarded this match for failing a filter, skip it.
 			continue
 		}
-		if label != nil && label.Value != mh.Label {
+		mhLabel := mh.Label.Load()
+		if label != nil && label.Value != mhLabel {
 			// Label mismatch.
 			continue
 		}
@@ -249,7 +254,7 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 		results = append(results, &api.Match{
 			MatchId:       mh.IDStr,
 			Authoritative: true,
-			Label:         &wrappers.StringValue{Value: mh.Label},
+			Label:         &wrappers.StringValue{Value: mhLabel},
 			Size:          size,
 		})
 		if len(results) == limit {

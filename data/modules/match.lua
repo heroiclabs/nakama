@@ -69,6 +69,8 @@ Dispatcher exposes useful functions to the match. Format:
     -- a presence to tag on the message as the 'sender', or nil
   match_kick = function(presences)
     -- a list of presences to remove from the match
+  match_label_update = function(label)
+    -- a new label to set for the match
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
@@ -119,6 +121,8 @@ Dispatcher exposes useful functions to the match. Format:
     -- a presence to tag on the message as the 'sender', or nil
   match_kick = function(presences)
     -- a list of presences to remove from the match
+  match_label_update = function(label)
+    -- a new label to set for the match
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
@@ -169,6 +173,8 @@ Dispatcher exposes useful functions to the match. Format:
     -- a presence to tag on the message as the 'sender', or nil
   match_kick = function(presences)
     -- a list of presences to remove from the match
+  match_label_update = function(label)
+    -- a new label to set for the match
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
@@ -219,6 +225,8 @@ Dispatcher exposes useful functions to the match. Format:
     -- a presence to tag on the message as the 'sender', or nil
   match_kick = function(presences)
     -- a list of presences to remove from the match
+  match_label_update = function(label)
+    -- a new label to set for the match
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with

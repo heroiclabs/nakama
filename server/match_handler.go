@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +40,6 @@ type MatchDataMessage struct {
 }
 
 type MatchHandler struct {
-	sync.Mutex
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
 	tracker       Tracker
@@ -67,10 +67,10 @@ type MatchHandler struct {
 	ticker  *time.Ticker
 	callCh  chan func(*MatchHandler)
 	stopCh  chan struct{}
-	stopped bool
+	stopped *atomic.Bool
 
-	// Immutable configuration set by match init.
-	Label string
+	// Configuration set by match init.
+	Label *atomic.String
 	Rate  int
 
 	// Match state.
@@ -225,18 +225,19 @@ func NewMatchHandler(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		// Ticker below.
 		callCh:  make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
 		stopCh:  make(chan struct{}),
-		stopped: false,
+		stopped: atomic.NewBool(false),
 
-		Label: labelStr,
+		Label: atomic.NewString(labelStr),
 		Rate:  rateInt,
 
 		state: state,
 	}
 
 	// Set up the dispatcher that exposes control functions to the match loop.
-	mh.dispatcher = vm.SetFuncs(vm.CreateTable(0, 2), map[string]lua.LGFunction{
-		"broadcast_message": mh.broadcastMessage,
-		"match_kick":        mh.matchKick,
+	mh.dispatcher = vm.SetFuncs(vm.CreateTable(0, 3), map[string]lua.LGFunction{
+		"broadcast_message":  mh.broadcastMessage,
+		"match_kick":         mh.matchKick,
+		"match_label_update": mh.matchLabelUpdate,
 	})
 
 	// Set up the ticker that governs the match loop.
@@ -274,13 +275,9 @@ func (mh *MatchHandler) Stop() {
 
 // Used when the match is closed externally.
 func (mh *MatchHandler) Close() {
-	mh.Lock()
-	if mh.stopped {
-		mh.Unlock()
+	if !mh.stopped.CAS(false, true) {
 		return
 	}
-	mh.stopped = true
-	mh.Unlock()
 	close(mh.stopCh)
 	mh.ticker.Stop()
 }
@@ -309,12 +306,9 @@ func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
 }
 
 func loop(mh *MatchHandler) {
-	mh.Lock()
-	if mh.stopped {
-		mh.Unlock()
+	if mh.stopped.Load() {
 		return
 	}
-	mh.Unlock()
 
 	// Drain the input queue into a Lua table.
 	size := len(mh.inputCh)
@@ -379,13 +373,10 @@ func loop(mh *MatchHandler) {
 
 func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
-		mh.Lock()
-		if mh.stopped {
-			mh.Unlock()
+		if mh.stopped.Load() {
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
-		mh.Unlock()
 
 		presence := mh.vm.CreateTable(0, 4)
 		presence.RawSetString("user_id", lua.LString(userID.String()))
@@ -473,7 +464,7 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		mh.vm.Pop(1)
 
 		mh.state = state
-		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label}
+		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label.Load()}
 	}
 }
 
@@ -483,12 +474,9 @@ func Join(joins []*MatchPresence) func(mh *MatchHandler) {
 			return
 		}
 
-		mh.Lock()
-		if mh.stopped {
-			mh.Unlock()
+		if mh.stopped.Load() {
 			return
 		}
-		mh.Unlock()
 
 		presences := mh.vm.CreateTable(len(joins), 0)
 		for i, p := range joins {
@@ -539,12 +527,9 @@ func Join(joins []*MatchPresence) func(mh *MatchHandler) {
 
 func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
-		mh.Lock()
-		if mh.stopped {
-			mh.Unlock()
+		if mh.stopped.Load() {
 			return
 		}
-		mh.Unlock()
 
 		presences := mh.vm.CreateTable(len(leaves), 0)
 		for i, p := range leaves {
@@ -812,5 +797,14 @@ func (mh *MatchHandler) matchKick(l *lua.LState) int {
 	}
 
 	mh.matchRegistry.Kick(mh.Stream, presences)
+	return 0
+}
+
+func (mh *MatchHandler) matchLabelUpdate(l *lua.LState) int {
+	input := l.OptString(1, "")
+
+	mh.Label.Store(input)
+	// This must be executed from inside a match call so safe to update here.
+	mh.ctx.RawSetString(__CTX_MATCH_LABEL, lua.LString(input))
 	return 0
 }

@@ -30,8 +30,8 @@ var SocketWsStatsCtx = context.Background()
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+		ReadBufferSize:  int(config.GetSocket().MaxMessageSizeBytes),
+		WriteBufferSize: int(config.GetSocket().MaxMessageSizeBytes),
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 

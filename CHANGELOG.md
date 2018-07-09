@@ -11,10 +11,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Authoritative match modules now allow a `match_join` callback that triggers when users have completed their join process.
 - New stream API function to upsert a user presence.
 - Extended validation of Google tokens to account for different token payloads.
+- Authoritative match labels can now be updated using the dispatcher's `match_label_update` function.
 
 ### Changed
 - Presence list in match join responses no longer contains the user's own presence. 
 - Presence list in channel join responses no longer contains the user's own presence.
+- Socket read/write buffer sizes are now set based on the `socket.max_message_size_bytes` config value.
+- Console GRPC port now set relative to `console.port` config value.
 
 ## [2.0.1] - 2018-06-15
 ### Added

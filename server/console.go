@@ -59,9 +59,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
-	startupLogger.Info("Starting Console server for gRPC requests", zap.Int("port", config.GetSocket().Port-2))
+	startupLogger.Info("Starting Console server for gRPC requests", zap.Int("port", config.GetConsole().Port-3))
 	go func() {
-		listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-2))
+		listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3))
 		if err != nil {
 			startupLogger.Fatal("Console server listener failed to start", zap.Error(err))
 		}
@@ -73,7 +73,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
-	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-2)
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
