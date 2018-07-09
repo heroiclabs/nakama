@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [2.0.2] - 2018-07-09
 ### Added
 - New configuration option to adjust authoritative match data input queue size. 
