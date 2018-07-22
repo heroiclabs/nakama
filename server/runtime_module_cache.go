@@ -102,6 +102,7 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 		lua.OsLibName:     OpenOs,
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
+		Bit32LibName:      OpenBit32,
 	}
 
 	startupLogger.Info("Found runtime modules", zap.Int("count", len(modulePaths)), zap.Strings("modules", modulePaths))
