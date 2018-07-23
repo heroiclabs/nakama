@@ -4,7 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New `bit32` module available in the code runtime.
+- New code runtime function to create MD5 hashes.
+- New code runtime function to create SHA256 hashes.
 
+### Changed
+- Reduce the frequency of socket checks on known active connections.
 
 ## [2.0.2] - 2018-07-09
 ### Added

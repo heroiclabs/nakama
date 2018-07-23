@@ -128,7 +128,7 @@ func main() {
 	cookie := newOrLoadCookie(config)
 	gacode := "UA-89792135-1"
 	if gaenabled {
-		runTelemetry(startupLogger, http.DefaultClient, gacode, cookie)
+		runTelemetry(http.DefaultClient, gacode, cookie)
 	}
 
 	// Respect OS stop signals.
@@ -206,24 +206,14 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 //
 // This information is sent via Google Analytics which allows the Nakama team to
 // analyze usage patterns and errors in order to help improve the server.
-func runTelemetry(startupLogger *zap.Logger, httpc *http.Client, gacode string, cookie string) {
-	err := ga.SendSessionStart(httpc, gacode, cookie)
-	if err != nil {
-		startupLogger.Debug("Send start session event failed.", zap.Error(err))
+func runTelemetry(httpc *http.Client, gacode string, cookie string) {
+	if ga.SendSessionStart(httpc, gacode, cookie) != nil {
 		return
 	}
-
-	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "version", Ea: fmt.Sprintf("%s+%s", version, commitID)})
-	if err != nil {
-		startupLogger.Debug("Send event failed.", zap.Error(err))
+	if ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "version", Ea: fmt.Sprintf("%s+%s", version, commitID)}) != nil {
 		return
 	}
-
-	err = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
-	if err != nil {
-		startupLogger.Debug("Send event failed.", zap.Error(err))
-		return
-	}
+	ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
 }
 
 func newOrLoadCookie(config server.Config) string {

@@ -45,16 +45,20 @@ type sessionWS struct {
 	jsonpbMarshaler        *jsonpb.Marshaler
 	jsonpbUnmarshaler      *jsonpb.Unmarshaler
 	queuePriorityThreshold int
+	pingPeriodDuration     time.Duration
+	pongWaitDuration       time.Duration
+	writeWaitDuration      time.Duration
 
 	sessionRegistry *SessionRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
 
-	stopped        bool
-	conn           *websocket.Conn
-	pingTicker     *time.Ticker
-	outgoingCh     chan []byte
-	outgoingStopCh chan struct{}
+	stopped                bool
+	conn                   *websocket.Conn
+	receivedMessageCounter int
+	pingTimer              *time.Timer
+	outgoingCh             chan []byte
+	outgoingStopCh         chan struct{}
 }
 
 func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
@@ -74,16 +78,20 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		jsonpbMarshaler:        jsonpbMarshaler,
 		jsonpbUnmarshaler:      jsonpbUnmarshaler,
 		queuePriorityThreshold: (config.GetSocket().OutgoingQueueSize / 3) * 2,
+		pingPeriodDuration:     time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
+		pongWaitDuration:       time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
+		writeWaitDuration:      time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
 		matchmaker:      matchmaker,
 		tracker:         tracker,
 
-		stopped:        false,
-		conn:           conn,
-		pingTicker:     time.NewTicker(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
-		outgoingCh:     make(chan []byte, config.GetSocket().OutgoingQueueSize),
-		outgoingStopCh: make(chan struct{}),
+		stopped: false,
+		conn:    conn,
+		receivedMessageCounter: config.GetSocket().PingBackoffThreshold,
+		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
+		outgoingCh:             make(chan []byte, config.GetSocket().OutgoingQueueSize),
+		outgoingStopCh:         make(chan struct{}),
 	}
 }
 
@@ -114,17 +122,12 @@ func (s *sessionWS) Expiry() int64 {
 func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool) {
 	defer s.cleanupClosedConnection()
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
-	s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
+	s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
 	s.conn.SetPongHandler(func(string) error {
-		s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.GetSocket().PongWaitMs) * time.Millisecond))
+		s.pingTimer.Reset(s.pingPeriodDuration)
+		s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
 		return nil
 	})
-
-	// Send an initial ping immediately.
-	if !s.pingNow() {
-		// If the first ping fails abort the rest of the consume sequence immediately.
-		return
-	}
 
 	// Start a routine to process outbound messages.
 	go s.processOutgoing()
@@ -142,6 +145,13 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 			break
 		}
 
+		s.receivedMessageCounter--
+		if s.receivedMessageCounter <= 0 {
+			s.receivedMessageCounter = s.config.GetSocket().PingBackoffThreshold
+			s.pingTimer.Reset(s.pingPeriodDuration)
+			s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
+		}
+
 		request := &rtapi.Envelope{}
 		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
@@ -149,9 +159,16 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 			break
 		} else {
 			// TODO Add session-global context here to cancel in-progress operations when the session is closed.
-			requestLogger := s.logger.With(zap.String("cid", request.Cid))
-			if !processRequest(requestLogger, s, request) {
-				break
+			switch request.Cid {
+			case "":
+				if !processRequest(s.logger, s, request) {
+					break
+				}
+			default:
+				requestLogger := s.logger.With(zap.String("cid", request.Cid))
+				if !processRequest(requestLogger, s, request) {
+					break
+				}
 			}
 		}
 	}
@@ -163,7 +180,7 @@ func (s *sessionWS) processOutgoing() {
 		case <-s.outgoingStopCh:
 			// Session is closing, close the outgoing process routine.
 			return
-		case <-s.pingTicker.C:
+		case <-s.pingTimer.C:
 			// Periodically send pings.
 			if !s.pingNow() {
 				// If ping fails the session will be stopped, clean up the loop.
@@ -178,7 +195,7 @@ func (s *sessionWS) processOutgoing() {
 				return
 			}
 			// Process the outgoing message queue.
-			s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
+			s.conn.SetWriteDeadline(time.Now().Add(s.writeWaitDuration))
 			if err := s.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
 				s.Unlock()
 				s.logger.Warn("Could not write message", zap.Error(err))
@@ -195,8 +212,9 @@ func (s *sessionWS) pingNow() bool {
 		s.Unlock()
 		return false
 	}
-	s.conn.SetWriteDeadline(time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs) * time.Millisecond))
-	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
+	t := time.Now()
+	s.conn.SetWriteDeadline(t.Add(s.writeWaitDuration))
+	err := s.conn.WriteMessage(websocket.BinaryMessage, []byte{})
 	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping, closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
@@ -204,6 +222,9 @@ func (s *sessionWS) pingNow() bool {
 		s.cleanupClosedConnection()
 		return false
 	}
+	s.pingTimer.Reset(s.pingPeriodDuration)
+	// Workaround for poor behaviour in some WebSocket clients.
+	s.conn.SetReadDeadline(t.Add(s.pongWaitDuration))
 	return true
 }
 
@@ -289,7 +310,7 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.tracker.UntrackAll(s.id)
 
 	// Clean up internals.
-	s.pingTicker.Stop()
+	s.pingTimer.Stop()
 	close(s.outgoingStopCh)
 	close(s.outgoingCh)
 
@@ -310,12 +331,12 @@ func (s *sessionWS) Close() {
 	// Expect the caller of this session.Close() to clean up external resources (like presences) separately.
 
 	// Clean up internals.
-	s.pingTicker.Stop()
+	s.pingTimer.Stop()
 	close(s.outgoingStopCh)
 	close(s.outgoingCh)
 
 	// Send close message.
-	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Duration(s.config.GetSocket().WriteWaitMs)*time.Millisecond))
+	err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(s.writeWaitDuration))
 	if err != nil {
 		s.logger.Warn("Could not send close message, closing prematurely", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 	}

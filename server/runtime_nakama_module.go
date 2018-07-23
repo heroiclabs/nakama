@@ -40,6 +40,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 
+	"crypto/md5"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/gorhill/cronexpr"
@@ -129,6 +130,8 @@ func (n *NakamaModule) Loader(l *lua.LState) int {
 		"base16_decode":               n.base16Decode,
 		"aes128_encrypt":              n.aes128Encrypt,
 		"aes128_decrypt":              n.aes128Decrypt,
+		"md5_hash":                    n.md5Hash,
+		"sha256_hash":                 n.sha256Hash,
 		"hmac_sha256_hash":            n.hmacSHA256Hash,
 		"bcrypt_hash":                 n.bcryptHash,
 		"bcrypt_compare":              n.bcryptCompare,
@@ -809,6 +812,32 @@ func (n *NakamaModule) aes128Decrypt(l *lua.LState) int {
 	stream.XORKeyStream(cipherText, cipherText)
 
 	l.Push(lua.LString(cipherText))
+	return 1
+}
+
+func (n *NakamaModule) md5Hash(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects input string")
+		return 0
+	}
+
+	hash := fmt.Sprintf("%x", md5.Sum([]byte(input)))
+
+	l.Push(lua.LString(hash))
+	return 1
+}
+
+func (n *NakamaModule) sha256Hash(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects input string")
+		return 0
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
+
+	l.Push(lua.LString(hash))
 	return 1
 }
 
