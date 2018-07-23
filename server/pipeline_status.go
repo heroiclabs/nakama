@@ -86,7 +86,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			return
 		}
 
-		ps := p.tracker.ListByStream(stream, false)
+		ps := p.tracker.ListByStream(stream, false, true)
 		for _, p := range ps {
 			presences = append(presences, &rtapi.UserPresence{
 				UserId:    p.UserID.String(),

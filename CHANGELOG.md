@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New `bit32` module available in the code runtime.
 - New code runtime function to create MD5 hashes.
 - New code runtime function to create SHA256 hashes.
+- Runtime stream user list function now allows filtering hidden presences.
 
 ### Changed
 - Reduce the frequency of socket checks on known active connections.
