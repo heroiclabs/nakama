@@ -428,7 +428,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, caller uuid.UUID, leaderboardId, ownerId string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
-		return ErrLeaderboardNotFound
+		return nil
 	}
 
 	if leaderboard.Authoritative && caller != uuid.Nil {

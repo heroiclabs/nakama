@@ -9,9 +9,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New code runtime function to create MD5 hashes.
 - New code runtime function to create SHA256 hashes.
 - Runtime stream user list function now allows filtering hidden presences.
+- Allow optional request body compression on all API requests.
 
 ### Changed
 - Reduce the frequency of socket checks on known active connections.
+- Deleting a record from a leaderboard that does not exist now succeeds.
+- Notification listings now use more accurate time in cacheable cursors.
 
 ## [2.0.2] - 2018-07-09
 ### Added

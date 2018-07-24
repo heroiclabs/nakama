@@ -28,6 +28,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
+	"time"
 )
 
 const (
@@ -91,8 +92,8 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
-		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, CAST($3::BIGINT AS TIMESTAMPTZ), $4::UUID)"
-		params = append(params, nc.CreateTime, uuid.FromBytesOrNil(nc.NotificationID))
+		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
+		params = append(params, pq.NullTime{Time: time.Unix(0, nc.CreateTime), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.Query(`
@@ -108,6 +109,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 	defer rows.Close()
 
 	notifications := make([]*api.Notification, 0)
+	var lastCreateTime int64
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
 		var createTime pq.NullTime
@@ -116,6 +118,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 			return nil, err
 		}
 
+		lastCreateTime = createTime.Time.UnixNano()
 		no.CreateTime.Seconds = createTime.Time.Unix()
 		if no.SenderId == uuid.Nil.String() {
 			no.SenderId = ""
@@ -140,7 +143,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		lastNotification := notifications[len(notifications)-1]
 		newCursor := &notificationCacheableCursor{
 			NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
-			CreateTime:     lastNotification.CreateTime.Seconds,
+			CreateTime:     lastCreateTime,
 		}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Could not create new cursor.", zap.Error(err))
