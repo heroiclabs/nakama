@@ -1678,7 +1678,12 @@ func (n *NakamaModule) streamUserList(l *lua.LState) int {
 		return 0
 	}
 
-	presences := n.tracker.ListByStream(stream, true)
+	// Optional argument to include hidden presences in the list or not, default true.
+	includeHidden := l.OptBool(2, true)
+	// Optional argument to include not hidden presences in the list or not, default true.
+	includeNotHidden := l.OptBool(3, true)
+
+	presences := n.tracker.ListByStream(stream, includeHidden, includeNotHidden)
 
 	presencesTable := l.CreateTable(len(presences), 0)
 	for i, p := range presences {

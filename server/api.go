@@ -26,6 +26,8 @@ import (
 
 	"crypto/tls"
 
+	"compress/flate"
+	"compress/gzip"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -160,12 +162,14 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Default to passing request to GRPC Gateway.
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithGzip := handlers.CompressHandler(handlerWithStats)
+	// Enable decompression on requests received by the gateway.
+	handlerWithDecompressRequest := decompressHandler(logger, handlerWithStats)
+	handlerWithCompressResponse := handlers.CompressHandler(handlerWithDecompressRequest)
 	maxMessageSizeBytes := config.GetSocket().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
 		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)
-		handlerWithGzip.ServeHTTP(w, r)
+		handlerWithCompressResponse.ServeHTTP(w, r)
 	})
 	grpcGatewayRouter.NewRoute().Handler(handlerWithMaxBody)
 
@@ -451,4 +455,23 @@ func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, us
 		return
 	}
 	return userID, claims["usn"].(string), int64(claims["exp"].(float64)), true
+}
+
+func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Header.Get("Content-Encoding") {
+		case "gzip":
+			gr, err := gzip.NewReader(r.Body)
+			if err != nil {
+				logger.Debug("Error processing gzip request body, attempting to read uncompressed", zap.Error(err))
+				break
+			}
+			r.Body = gr
+		case "deflate":
+			r.Body = flate.NewReader(r.Body)
+		default:
+			// No request compression.
+		}
+		h.ServeHTTP(w, r)
+	})
 }
