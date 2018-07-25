@@ -121,7 +121,7 @@ the_count 0
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
 	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message:\n%s\nwant log mesage:\n%s\n", got, wantMsg)
+		t.Errorf("got log message:\n%s\nwant log message:\n%s\n", got, wantMsg)
 	}
 	if got := writer.Body.String(); got != wantErrorBody {
 		t.Errorf("got body:\n%s\nwant body:\n%s\n", got, wantErrorBody)

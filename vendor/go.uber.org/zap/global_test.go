@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"go.uber.org/zap/internal/exit"
+	"go.uber.org/zap/internal/ztest"
 
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +52,7 @@ func TestReplaceGlobals(t *testing.T) {
 		S().Info("captured")
 		expected := observer.LoggedEntry{
 			Entry:   zapcore.Entry{Message: "captured"},
-			Context: []zapcore.Field{},
+			Context: []Field{},
 		}
 		assert.Equal(
 			t,
@@ -89,7 +89,7 @@ func TestGlobalsConcurrentUse(t *testing.T) {
 		}()
 	}
 
-	zaptest.Sleep(100 * time.Millisecond)
+	ztest.Sleep(100 * time.Millisecond)
 	stop.Toggle()
 	wg.Wait()
 }
@@ -157,7 +157,7 @@ func TestRedirectStdLog(t *testing.T) {
 
 		assert.Equal(t, []observer.LoggedEntry{{
 			Entry:   zapcore.Entry{Message: "redirected"},
-			Context: []zapcore.Field{},
+			Context: []Field{},
 		}}, logs.AllUntimed(), "Unexpected global log output.")
 	})
 
@@ -175,10 +175,101 @@ func TestRedirectStdLogCaller(t *testing.T) {
 	})
 }
 
+func TestRedirectStdLogAt(t *testing.T) {
+	initialFlags := log.Flags()
+	initialPrefix := log.Prefix()
+
+	// include DPanicLevel here, but do not include Development in options
+	levels := []zapcore.Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel, DPanicLevel}
+	for _, level := range levels {
+		withLogger(t, DebugLevel, nil, func(l *Logger, logs *observer.ObservedLogs) {
+			restore, err := RedirectStdLogAt(l, level)
+			require.NoError(t, err, "Unexpected error.")
+			defer restore()
+			log.Print("redirected")
+
+			assert.Equal(t, []observer.LoggedEntry{{
+				Entry:   zapcore.Entry{Level: level, Message: "redirected"},
+				Context: []Field{},
+			}}, logs.AllUntimed(), "Unexpected global log output.")
+		})
+	}
+
+	assert.Equal(t, initialFlags, log.Flags(), "Expected to reset initial flags.")
+	assert.Equal(t, initialPrefix, log.Prefix(), "Expected to reset initial prefix.")
+}
+
+func TestRedirectStdLogAtCaller(t *testing.T) {
+	// include DPanicLevel here, but do not include Development in options
+	levels := []zapcore.Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel, DPanicLevel}
+	for _, level := range levels {
+		withLogger(t, DebugLevel, []Option{AddCaller()}, func(l *Logger, logs *observer.ObservedLogs) {
+			restore, err := RedirectStdLogAt(l, level)
+			require.NoError(t, err, "Unexpected error.")
+			defer restore()
+			log.Print("redirected")
+			entries := logs.All()
+			require.Len(t, entries, 1, "Unexpected number of logs.")
+			assert.Contains(t, entries[0].Entry.Caller.File, "global_test.go", "Unexpected caller annotation.")
+		})
+	}
+}
+
+func TestRedirectStdLogAtPanics(t *testing.T) {
+	initialFlags := log.Flags()
+	initialPrefix := log.Prefix()
+
+	// include DPanicLevel here and enable Development in options
+	levels := []zapcore.Level{DPanicLevel, PanicLevel}
+	for _, level := range levels {
+		withLogger(t, DebugLevel, []Option{AddCaller(), Development()}, func(l *Logger, logs *observer.ObservedLogs) {
+			restore, err := RedirectStdLogAt(l, level)
+			require.NoError(t, err, "Unexpected error.")
+			defer restore()
+			assert.Panics(t, func() { log.Print("redirected") }, "Expected log to panic.")
+			checkStdLogMessage(t, "redirected", logs)
+		})
+	}
+
+	assert.Equal(t, initialFlags, log.Flags(), "Expected to reset initial flags.")
+	assert.Equal(t, initialPrefix, log.Prefix(), "Expected to reset initial prefix.")
+}
+
+func TestRedirectStdLogAtFatal(t *testing.T) {
+	initialFlags := log.Flags()
+	initialPrefix := log.Prefix()
+
+	withLogger(t, DebugLevel, []Option{AddCaller()}, func(l *Logger, logs *observer.ObservedLogs) {
+		stub := exit.WithStub(func() {
+			restore, err := RedirectStdLogAt(l, FatalLevel)
+			require.NoError(t, err, "Unexpected error.")
+			defer restore()
+			log.Print("redirected")
+			checkStdLogMessage(t, "redirected", logs)
+		})
+		assert.True(t, true, stub.Exited, "Expected Fatal logger call to terminate process.")
+		stub.Unstub()
+	})
+
+	assert.Equal(t, initialFlags, log.Flags(), "Expected to reset initial flags.")
+	assert.Equal(t, initialPrefix, log.Prefix(), "Expected to reset initial prefix.")
+}
+
+func TestRedirectStdLogAtInvalid(t *testing.T) {
+	restore, err := RedirectStdLogAt(NewNop(), zapcore.Level(99))
+	defer func() {
+		if restore != nil {
+			restore()
+		}
+	}()
+	require.Error(t, err, "Expected to get error.")
+	assert.Contains(t, err.Error(), "99", "Expected level code in error message")
+}
+
 func checkStdLogMessage(t *testing.T, msg string, logs *observer.ObservedLogs) {
 	require.Equal(t, 1, logs.Len(), "Expected exactly one entry to be logged")
 	entry := logs.AllUntimed()[0]
-	assert.Equal(t, []zapcore.Field{}, entry.Context, "Unexpected entry context.")
+	assert.Equal(t, []Field{}, entry.Context, "Unexpected entry context.")
 	assert.Equal(t, "redirected", entry.Entry.Message, "Unexpected entry message.")
 	assert.Regexp(
 		t,

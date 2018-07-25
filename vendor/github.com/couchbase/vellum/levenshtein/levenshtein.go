@@ -22,7 +22,7 @@ import (
 const StateLimit = 10000
 
 // ErrTooManyStates is returned if you attempt to build a Levenshtein
-// automaton which requries too many states.
+// automaton which requires too many states.
 var ErrTooManyStates = fmt.Errorf("dfa contains more than %d states", StateLimit)
 
 // Levenshtein implements the vellum.Automaton interface for matching

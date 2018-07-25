@@ -31,14 +31,12 @@ func TestClientHandler(t *testing.T) {
 	ctx := context.Background()
 	te := &traceExporter{}
 	trace.RegisterExporter(te)
-	if err := ClientRequestCountView.Subscribe(); err != nil {
+	if err := view.Register(ClientSentMessagesPerRPCView); err != nil {
 		t.Fatal(err)
 	}
+	defer view.Unregister(ClientSentMessagesPerRPCView)
 
-	span := trace.NewSpan("/foo", nil, trace.StartOptions{
-		Sampler: trace.AlwaysSample(),
-	})
-	ctx = trace.WithSpan(ctx, span)
+	ctx, _ = trace.StartSpan(ctx, "/foo", trace.WithSampler(trace.AlwaysSample()))
 
 	var handler ClientHandler
 	ctx = handler.TagRPC(ctx, &stats.RPCTagInfo{
@@ -53,7 +51,7 @@ func TestClientHandler(t *testing.T) {
 		EndTime: time.Now(),
 	})
 
-	stats, err := view.RetrieveData(ClientRequestCountView.Name)
+	stats, err := view.RetrieveData(ClientSentMessagesPerRPCView.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,9 +63,6 @@ func TestClientHandler(t *testing.T) {
 	if got, want := len(traces), 1; got != want {
 		t.Errorf("Got %v traces; want %v", got, want)
 	}
-
-	// Cleanup.
-	view.Unsubscribe(ClientErrorCountView)
 }
 
 func TestServerHandler(t *testing.T) {
@@ -94,7 +89,7 @@ func TestServerHandler(t *testing.T) {
 
 			te := &traceExporter{}
 			trace.RegisterExporter(te)
-			if err := ServerRequestCountView.Subscribe(); err != nil {
+			if err := view.Register(ServerCompletedRPCsView); err != nil {
 				t.Fatal(err)
 			}
 
@@ -112,7 +107,7 @@ func TestServerHandler(t *testing.T) {
 				EndTime: time.Now(),
 			})
 
-			rows, err := view.RetrieveData(ServerRequestCountView.Name)
+			rows, err := view.RetrieveData(ServerCompletedRPCsView.Name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -126,7 +121,7 @@ func TestServerHandler(t *testing.T) {
 			}
 
 			// Cleanup.
-			view.Unsubscribe(ServerRequestCountView)
+			view.Unregister(ServerCompletedRPCsView)
 		})
 	}
 }

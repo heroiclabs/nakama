@@ -94,6 +94,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The custom account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -126,6 +127,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The device account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -158,6 +160,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The email account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -190,6 +193,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -222,6 +226,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Game Center account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -254,6 +259,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Google account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -286,6 +292,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Steam account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -399,6 +406,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -696,6 +704,7 @@
         "parameters": [
           {
             "name": "channel_id",
+            "description": "The channel ID to list from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -830,6 +839,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -910,7 +920,7 @@
     },
     "/v2/group/{group_id}": {
       "delete": {
-        "summary": "Delete one or more groups by ID.",
+        "summary": "Delete a group by ID.",
         "operationId": "DeleteGroup",
         "responses": {
           "200": {
@@ -923,6 +933,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The id of a group.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -946,6 +957,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The ID of the group to update.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -979,6 +991,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group to add users to.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1004,6 +1017,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to join.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1029,6 +1043,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to kick from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1054,6 +1069,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to leave.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1079,6 +1095,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to promote in.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1104,6 +1121,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to list from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1129,6 +1147,7 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The ID of the leaderboard to list for.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1177,6 +1196,7 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The leaderboard ID to delete from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1200,12 +1220,14 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The ID of the leaderboard to write to.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "Record data.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1352,6 +1374,7 @@
         "parameters": [
           {
             "name": "id",
+            "description": "The identifier of the function.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1395,12 +1418,14 @@
         "parameters": [
           {
             "name": "id",
+            "description": "The identifier of the function.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "The payload of the function which must be a JSON object.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1513,6 +1538,7 @@
         "parameters": [
           {
             "name": "collection",
+            "description": "The collection which stores the object.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1560,12 +1586,14 @@
         "parameters": [
           {
             "name": "collection",
+            "description": "The collection which stores the object.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "user_id",
+            "description": "ID of the user.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1655,6 +1683,7 @@
         "parameters": [
           {
             "name": "user_id",
+            "description": "ID of the user.",
             "in": "path",
             "required": true,
             "type": "string"

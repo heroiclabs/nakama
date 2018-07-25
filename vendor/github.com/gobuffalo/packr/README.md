@@ -116,14 +116,12 @@ func main() {
 
 When it comes time to build, or install, your Go binary, simply use `packr build` or `packr install` just as you would `go build` or `go install`. All flags for the `go` tool are supported and everything works the way you expect, the only difference is your static assets are now bundled in the generated binary. If you want more control over how this happens, looking at the following section on building binaries (the hard way).
 
-### Building a Binary (the hard way)
+## Building a Binary (the hard way)
 
 Before you build your Go binary, run the `packr` command first. It will look for all the boxes in your code and then generate `.go` files that pack the static files into bytes that can be bundled into the Go binary.
 
 ```
 $ packr
---> packing foo/foo-packr.go
---> packing example-packr.go
 ```
 
 Then run your `go build command` like normal.
@@ -136,8 +134,12 @@ When you're done it is recommended that you run the `packr clean` command. This 
 
 ```
 $ packr clean
-----> cleaning up example-packr.go
-----> cleaning up foo/foo-packr.go
 ```
 
 Why do you want to do this? Packr first looks to the information stored in these generated files, if the information isn't there it looks to disk. This makes it easy to work with in development.
+
+---
+
+## Debugging
+
+The `packr` command passes all arguments down to the underlying `go` command, this includes the `-v` flag to print out `go build` information. Packr looks for the `-v` flag, and will turn on its own verbose logging. This is very useful for trying to understand what the `packr` command is doing when it is run.

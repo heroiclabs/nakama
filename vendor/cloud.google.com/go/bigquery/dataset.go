@@ -1,4 +1,4 @@
-// Copyright 2015 Google Inc. All Rights Reserved.
+// Copyright 2015 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/internal/optional"
+	"cloud.google.com/go/internal/trace"
 
 	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
@@ -85,7 +86,10 @@ func (c *Client) DatasetInProject(projectID, datasetID string) *Dataset {
 
 // Create creates a dataset in the BigQuery service. An error will be returned if the
 // dataset already exists. Pass in a DatasetMetadata value to configure the dataset.
-func (d *Dataset) Create(ctx context.Context, md *DatasetMetadata) error {
+func (d *Dataset) Create(ctx context.Context, md *DatasetMetadata) (err error) {
+	ctx = trace.StartSpan(ctx, "cloud.google.com/go/bigquery.Dataset.Create")
+	defer func() { trace.EndSpan(ctx, err) }()
+
 	ds, err := md.toBQ()
 	if err != nil {
 		return err
@@ -143,15 +147,30 @@ func accessListToBQ(a []*AccessEntry) ([]*bq.DatasetAccess, error) {
 	return q, nil
 }
 
-// Delete deletes the dataset.
-func (d *Dataset) Delete(ctx context.Context) error {
-	call := d.c.bqs.Datasets.Delete(d.ProjectID, d.DatasetID).Context(ctx)
+// Delete deletes the dataset.  Delete will fail if the dataset is not empty.
+func (d *Dataset) Delete(ctx context.Context) (err error) {
+	return d.deleteInternal(ctx, false)
+}
+
+// DeleteWithContents deletes the dataset, as well as contained resources.
+func (d *Dataset) DeleteWithContents(ctx context.Context) (err error) {
+	return d.deleteInternal(ctx, true)
+}
+
+func (d *Dataset) deleteInternal(ctx context.Context, deleteContents bool) (err error) {
+	ctx = trace.StartSpan(ctx, "cloud.google.com/go/bigquery.Dataset.Delete")
+	defer func() { trace.EndSpan(ctx, err) }()
+
+	call := d.c.bqs.Datasets.Delete(d.ProjectID, d.DatasetID).Context(ctx).DeleteContents(deleteContents)
 	setClientHeader(call.Header())
 	return call.Do()
 }
 
 // Metadata fetches the metadata for the dataset.
-func (d *Dataset) Metadata(ctx context.Context) (*DatasetMetadata, error) {
+func (d *Dataset) Metadata(ctx context.Context) (md *DatasetMetadata, err error) {
+	ctx = trace.StartSpan(ctx, "cloud.google.com/go/bigquery.Dataset.Metadata")
+	defer func() { trace.EndSpan(ctx, err) }()
+
 	call := d.c.bqs.Datasets.Get(d.ProjectID, d.DatasetID).Context(ctx)
 	setClientHeader(call.Header())
 	var ds *bq.Dataset
@@ -190,7 +209,10 @@ func bqToDatasetMetadata(d *bq.Dataset) (*DatasetMetadata, error) {
 // To perform a read-modify-write that protects against intervening reads,
 // set the etag argument to the DatasetMetadata.ETag field from the read.
 // Pass the empty string for etag for a "blind write" that will always succeed.
-func (d *Dataset) Update(ctx context.Context, dm DatasetMetadataToUpdate, etag string) (*DatasetMetadata, error) {
+func (d *Dataset) Update(ctx context.Context, dm DatasetMetadataToUpdate, etag string) (md *DatasetMetadata, err error) {
+	ctx = trace.StartSpan(ctx, "cloud.google.com/go/bigquery.Dataset.Update")
+	defer func() { trace.EndSpan(ctx, err) }()
+
 	ds, err := dm.toBQ()
 	if err != nil {
 		return nil, err
@@ -323,6 +345,9 @@ func (it *TableIterator) fetch(pageSize int, pageToken string) (string, error) {
 }
 
 func bqToTable(tr *bq.TableReference, c *Client) *Table {
+	if tr == nil {
+		return nil
+	}
 	return &Table{
 		ProjectID: tr.ProjectId,
 		DatasetID: tr.DatasetId,

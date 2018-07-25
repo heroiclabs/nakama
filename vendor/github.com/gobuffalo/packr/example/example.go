@@ -6,6 +6,8 @@ import (
 
 var a = packr.NewBox("./foo")
 
+const constString = "./constant"
+
 type S struct{}
 
 func (S) f(packr.Box) {}
@@ -13,8 +15,17 @@ func (S) f(packr.Box) {}
 func init() {
 	// packr.NewBox("../idontexists")
 
-	b := "./baz"
-	packr.NewBox(b) // won't work, no variables allowed, only strings
+	b := "./variable"
+	packr.NewBox(b)
+
+	packr.NewBox(constString)
+
+	// Cannot work from a function
+	packr.NewBox(strFromFunc())
+
+	// This variable should not be added
+	fromFunc := strFromFunc()
+	packr.NewBox(fromFunc)
 
 	foo("/templates", packr.NewBox("./templates"))
 	packr.NewBox("./assets")
@@ -23,6 +34,10 @@ func init() {
 
 	s := S{}
 	s.f(packr.NewBox("./sf"))
+}
+
+func strFromFunc() string {
+	return "./fromFunc"
 }
 
 func foo(s string, box packr.Box) {}

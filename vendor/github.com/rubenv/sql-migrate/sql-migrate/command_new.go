@@ -86,9 +86,9 @@ func CreateMigration(name string) error {
 	defer f.Close()
 
 	if err := tpl.Execute(f, nil); err != nil {
-		return err;
+		return err
 	}
 
 	ui.Output(fmt.Sprintf("Created migration %s", pathName))
-	return nil;
+	return nil
 }

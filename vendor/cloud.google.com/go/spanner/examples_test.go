@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -476,8 +476,36 @@ func ExampleNewStatement() {
 
 func ExampleNewStatement_structLiteral() {
 	stmt := spanner.Statement{
-		SQL:    "SELECT FirstName, LastName FROM SINGERS WHERE LastName >= @start",
-		Params: map[string]interface{}{"start": "Dylan"},
+		SQL: `SELECT FirstName, LastName FROM SINGERS WHERE LastName = ("Lea", "Martin")`,
+	}
+	_ = stmt // TODO: Use stmt in Query.
+}
+
+func ExampleStructParam() {
+	stmt := spanner.Statement{
+		SQL: "SELECT * FROM SINGERS WHERE (FirstName, LastName) = @singerinfo",
+		Params: map[string]interface{}{
+			"singerinfo": struct {
+				FirstName string
+				LastName  string
+			}{"Bob", "Dylan"},
+		},
+	}
+	_ = stmt // TODO: Use stmt in Query.
+}
+
+func ExampleArrayOfStructParam() {
+	stmt := spanner.Statement{
+		SQL: "SELECT * FROM SINGERS WHERE (FirstName, LastName) IN UNNEST(@singerinfo)",
+		Params: map[string]interface{}{
+			"singerinfo": []struct {
+				FirstName string
+				LastName  string
+			}{
+				{"Ringo", "Starr"},
+				{"John", "Lennon"},
+			},
+		},
 	}
 	_ = stmt // TODO: Use stmt in Query.
 }
@@ -604,4 +632,37 @@ func ExampleClient_BatchReadOnlyTransaction() {
 		}(i, p)
 	}
 	wg.Wait()
+}
+
+func ExampleCommitTimestamp() {
+	ctx := context.Background()
+	client, err := spanner.NewClient(ctx, myDB)
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	type account struct {
+		User     string
+		Creation spanner.NullTime // time.Time can also be used if column is NOT NULL
+	}
+
+	a := account{User: "Joe", Creation: spanner.NullTime{spanner.CommitTimestamp, true}}
+	m, err := spanner.InsertStruct("Accounts", a)
+	if err != nil {
+		// TODO: Handle error.
+	}
+	_, err = client.Apply(ctx, []*spanner.Mutation{m}, spanner.ApplyAtLeastOnce())
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	if r, e := client.Single().ReadRow(ctx, "Accounts", spanner.Key{"Joe"}, []string{"User", "Creation"}); e != nil {
+		// TODO: Handle error.
+	} else {
+		var got account
+		if err := r.ToStruct(&got); err != nil {
+			// TODO: Handle error.
+		}
+		_ = got // TODO: Process row.
+	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ package pubsub
 
 import (
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -101,14 +100,9 @@ func TestStopPublishOrder(t *testing.T) {
 
 func TestPublishTimeout(t *testing.T) {
 	ctx := context.Background()
-	serv := grpc.NewServer()
-	pubsubpb.RegisterPublisherServer(serv, &alwaysFailPublish{})
-	lis, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	go serv.Serve(lis)
-	conn, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure())
+	serv, err := testutil.NewServer()
+	pubsubpb.RegisterPublisherServer(serv.Gsrv, &alwaysFailPublish{})
+	conn, err := grpc.Dial(serv.Addr, grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)
 	}

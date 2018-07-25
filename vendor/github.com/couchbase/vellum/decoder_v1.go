@@ -219,7 +219,7 @@ func (f *fstStateV1) Final() bool {
 }
 
 func (f *fstStateV1) FinalOutput() uint64 {
-	if f.numTrans > 0 && f.final && f.outSize > 0 {
+	if f.final && f.outSize > 0 {
 		return readPackedUint(f.data[f.outFinal : f.outFinal+f.outSize])
 	}
 	return 0

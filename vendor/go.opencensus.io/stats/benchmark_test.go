@@ -16,7 +16,6 @@ package stats_test
 
 import (
 	"context"
-	"log"
 	"testing"
 
 	"go.opencensus.io/stats"
@@ -93,9 +92,5 @@ func BenchmarkRecord8_8Tags(b *testing.B) {
 }
 
 func makeMeasure() *stats.Int64Measure {
-	m, err := stats.Int64("m", "test measure", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	return m
+	return stats.Int64("m", "test measure", "")
 }

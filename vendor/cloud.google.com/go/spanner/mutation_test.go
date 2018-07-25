@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ func TestMutationToProto(t *testing.T) {
 						Table:   "t_foo",
 						Columns: []string{"col1", "col2"},
 						Values: []*proto3.ListValue{
-							&proto3.ListValue{
+							{
 								Values: []*proto3.Value{intProto(1), intProto(2)},
 							},
 						},
@@ -79,7 +79,7 @@ func TestMutationToProto(t *testing.T) {
 						Table:   "t_foo",
 						Columns: []string{"col1", "col2"},
 						Values: []*proto3.ListValue{
-							&proto3.ListValue{
+							{
 								Values: []*proto3.Value{floatProto(1.0), floatProto(2.0)},
 							},
 						},
@@ -96,7 +96,7 @@ func TestMutationToProto(t *testing.T) {
 						Table:   "t_foo",
 						Columns: []string{"col1", "col2"},
 						Values: []*proto3.ListValue{
-							&proto3.ListValue{
+							{
 								Values: []*proto3.Value{stringProto("one"), floatProto(2.0)},
 							},
 						},
@@ -113,7 +113,7 @@ func TestMutationToProto(t *testing.T) {
 						Table:   "t_foo",
 						Columns: []string{"col1", "col2"},
 						Values: []*proto3.ListValue{
-							&proto3.ListValue{
+							{
 								Values: []*proto3.Value{stringProto("one"), nullProto()},
 							},
 						},
@@ -331,7 +331,7 @@ func TestBadStructs(t *testing.T) {
 
 func TestStructToMutationParams(t *testing.T) {
 	// Tests cases not covered elsewhere.
-	type S struct{ F int }
+	type S struct{ F interface{} }
 
 	for _, test := range []struct {
 		in       interface{}
@@ -343,6 +343,7 @@ func TestStructToMutationParams(t *testing.T) {
 		{3, nil, nil, errNotStruct(3)},
 		{(*S)(nil), nil, nil, nil},
 		{&S{F: 1}, []string{"F"}, []interface{}{1}, nil},
+		{&S{F: CommitTimestamp}, []string{"F"}, []interface{}{CommitTimestamp}, nil},
 	} {
 		gotCols, gotVals, gotErr := structToMutationParams(test.in)
 		if !testEqual(gotCols, test.wantCols) {
@@ -520,11 +521,11 @@ func TestEncodeMutationArray(t *testing.T) {
 		{
 			"Multiple Mutations",
 			[]*Mutation{
-				&Mutation{opDelete, "t_test", Key{"bar"}, nil, nil},
-				&Mutation{opInsertOrUpdate, "t_test", nil, []string{"key", "val"}, []interface{}{"foo", 1}},
+				{opDelete, "t_test", Key{"bar"}, nil, nil},
+				{opInsertOrUpdate, "t_test", nil, []string{"key", "val"}, []interface{}{"foo", 1}},
 			},
 			[]*sppb.Mutation{
-				&sppb.Mutation{
+				{
 					Operation: &sppb.Mutation_Delete_{
 						Delete: &sppb.Mutation_Delete{
 							Table: "t_test",
@@ -534,7 +535,7 @@ func TestEncodeMutationArray(t *testing.T) {
 						},
 					},
 				},
-				&sppb.Mutation{
+				{
 					Operation: &sppb.Mutation_InsertOrUpdate{
 						InsertOrUpdate: &sppb.Mutation_Write{
 							Table:   "t_test",
@@ -549,8 +550,8 @@ func TestEncodeMutationArray(t *testing.T) {
 		{
 			"Multiple Mutations - Bad Mutation",
 			[]*Mutation{
-				&Mutation{opDelete, "t_test", Key{"bar"}, nil, nil},
-				&Mutation{opInsertOrUpdate, "t_test", nil, []string{"key", "val"}, []interface{}{"foo", struct{}{}}},
+				{opDelete, "t_test", Key{"bar"}, nil, nil},
+				{opInsertOrUpdate, "t_test", nil, []string{"key", "val"}, []interface{}{"foo", struct{}{}}},
 			},
 			[]*sppb.Mutation{},
 			errEncoderUnsupportedType(struct{}{}),

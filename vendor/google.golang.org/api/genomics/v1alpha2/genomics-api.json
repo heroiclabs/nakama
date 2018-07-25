@@ -65,11 +65,6 @@
       "location": "query",
       "type": "string"
     },
-    "bearer_token": {
-      "description": "OAuth bearer token.",
-      "location": "query",
-      "type": "string"
-    },
     "callback": {
       "description": "JSONP",
       "location": "query",
@@ -89,12 +84,6 @@
       "description": "OAuth 2.0 token for the current user.",
       "location": "query",
       "type": "string"
-    },
-    "pp": {
-      "default": "true",
-      "description": "Pretty-print response.",
-      "location": "query",
-      "type": "boolean"
     },
     "prettyPrint": {
       "default": "true",
@@ -399,7 +388,7 @@
       }
     }
   },
-  "revision": "20180225",
+  "revision": "20180718",
   "rootUrl": "https://genomics.googleapis.com/",
   "schemas": {
     "CancelOperationRequest": {
@@ -430,6 +419,18 @@
         "zone": {
           "description": "The availability zone in which the instance resides.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ContainerKilledEvent": {
+      "description": "This event is generated when a container is forcibly terminated by the\nworker.  Currently, this only occurs when the container outlives the user\nspecified timeout.",
+      "id": "ContainerKilledEvent",
+      "properties": {
+        "actionId": {
+          "description": "The numeric ID of the action that started the container.",
+          "format": "int32",
+          "type": "integer"
         }
       },
       "type": "object"
@@ -471,6 +472,10 @@
           "description": "The exit status of the container.",
           "format": "int32",
           "type": "integer"
+        },
+        "stderr": {
+          "description": "The tail end of any content written to standard error by the container.\nTo prevent this from being recorded if the action is known to emit\nlarge amounts of debugging noise or sensitive information, set the\nDISABLE_STANDARD_ERROR_CAPTURE flag.\n\nNote that only a small amount of the end of the stream is captured here.\nThe entire stream is stored in the /google/logs directory mounted into\neach action, and may be copied off the machine as described elsewhere.",
+          "type": "string"
         }
       },
       "type": "object"

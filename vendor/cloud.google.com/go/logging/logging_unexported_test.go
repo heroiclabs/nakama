@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -238,8 +238,8 @@ func TestFromHTTPRequest(t *testing.T) {
 			Method: "GET",
 			URL:    u,
 			Header: map[string][]string{
-				"User-Agent": []string{"user-agent"},
-				"Referer":    []string{"referer"},
+				"User-Agent": {"user-agent"},
+				"Referer":    {"referer"},
 			},
 		},
 		RequestSize:                    100,

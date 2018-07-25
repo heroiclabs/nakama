@@ -23,10 +23,10 @@ import (
 
 	"net"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )

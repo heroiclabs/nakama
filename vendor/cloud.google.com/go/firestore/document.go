@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import (
 	"time"
 
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/golang/protobuf/ptypes"
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
@@ -38,7 +40,7 @@ type DocumentSnapshot struct {
 	CreateTime time.Time
 
 	// Read-only. The time at which the document was last changed. This value
-	// is initally set to CreateTime then increases monotonically with each
+	// is initially set to CreateTime then increases monotonically with each
 	// change to the document. It can also be compared to values from other
 	// documents and the read time of a query.
 	UpdateTime time.Time
@@ -50,11 +52,22 @@ type DocumentSnapshot struct {
 	proto *pb.Document
 }
 
+// Exists reports whether the DocumentSnapshot represents an existing document.
+// Even if Exists returns false, the Ref and ReadTime fields of the DocumentSnapshot
+// are valid.
+func (d *DocumentSnapshot) Exists() bool {
+	return d.proto != nil
+}
+
 // Data returns the DocumentSnapshot's fields as a map.
 // It is equivalent to
 //     var m map[string]interface{}
 //     d.DataTo(&m)
+// except that it returns nil if the document does not exist.
 func (d *DocumentSnapshot) Data() map[string]interface{} {
+	if !d.Exists() {
+		return nil
+	}
 	m, err := createMapFromValueMap(d.proto.Fields, d.c)
 	// Any error here is a bug in the client.
 	if err != nil {
@@ -91,8 +104,13 @@ func (d *DocumentSnapshot) Data() map[string]interface{} {
 //
 // Field names given by struct field tags are observed, as described in
 // DocumentRef.Create.
+//
+// If the document does not exist, DataTo returns a NotFound error.
 func (d *DocumentSnapshot) DataTo(p interface{}) error {
-	return setFromProtoValue(p, &pb.Value{&pb.Value_MapValue{&pb.MapValue{d.proto.Fields}}}, d.c)
+	if !d.Exists() {
+		return status.Errorf(codes.NotFound, "document %s does not exist", d.Ref.Path)
+	}
+	return setFromProtoValue(p, &pb.Value{ValueType: &pb.Value_MapValue{&pb.MapValue{Fields: d.proto.Fields}}}, d.c)
 }
 
 // DataAt returns the data value denoted by path.
@@ -102,7 +120,12 @@ func (d *DocumentSnapshot) DataTo(p interface{}) error {
 // such a path.
 //
 // See DocumentSnapshot.DataTo for how Firestore values are converted to Go values.
+//
+// If the document does not exist, DataAt returns a NotFound error.
 func (d *DocumentSnapshot) DataAt(path string) (interface{}, error) {
+	if !d.Exists() {
+		return nil, status.Errorf(codes.NotFound, "document %s does not exist", d.Ref.Path)
+	}
 	fp, err := parseDotSeparatedString(path)
 	if err != nil {
 		return nil, err
@@ -111,7 +134,11 @@ func (d *DocumentSnapshot) DataAt(path string) (interface{}, error) {
 }
 
 // DataAtPath returns the data value denoted by the FieldPath fp.
+// If the document does not exist, DataAtPath returns a NotFound error.
 func (d *DocumentSnapshot) DataAtPath(fp FieldPath) (interface{}, error) {
+	if !d.Exists() {
+		return nil, status.Errorf(codes.NotFound, "document %s does not exist", d.Ref.Path)
+	}
 	v, err := valueAtPath(fp, d.proto.Fields)
 	if err != nil {
 		return nil, err
@@ -163,7 +190,7 @@ func toProtoDocument(x interface{}) (*pb.Document, []FieldPath, error) {
 	if pv != nil {
 		m := pv.GetMapValue()
 		if m == nil {
-			return nil, nil, fmt.Errorf("firestore: cannot covert value of type %T into a map", x)
+			return nil, nil, fmt.Errorf("firestore: cannot convert value of type %T into a map", x)
 		}
 		fields = m.Fields
 	}
@@ -251,19 +278,20 @@ func newDocumentSnapshot(ref *DocumentRef, proto *pb.Document, c *Client, readTi
 		c:     c,
 		proto: proto,
 	}
-	ts, err := ptypes.Timestamp(proto.CreateTime)
-	if err != nil {
-		return nil, err
+	if proto != nil {
+		ts, err := ptypes.Timestamp(proto.CreateTime)
+		if err != nil {
+			return nil, err
+		}
+		d.CreateTime = ts
+		ts, err = ptypes.Timestamp(proto.UpdateTime)
+		if err != nil {
+			return nil, err
+		}
+		d.UpdateTime = ts
 	}
-	d.CreateTime = ts
-	ts, err = ptypes.Timestamp(proto.UpdateTime)
-	if err != nil {
-		return nil, err
-	}
-	d.UpdateTime = ts
-	// TODO(jba): remove nil check when all callers pass a read time.
 	if readTime != nil {
-		ts, err = ptypes.Timestamp(readTime)
+		ts, err := ptypes.Timestamp(readTime)
 		if err != nil {
 			return nil, err
 		}

@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ database.
 
 See https://cloud.google.com/firestore/docs for an introduction
 to Cloud Firestore and additional help on using the Firestore API.
+
+See https://godoc.org/cloud.google.com/go for authentication, timeouts,
+connection pooling and similar aspects of this package.
 
 Note: you can't use both Cloud Firestore and Cloud Datastore in the same
 project.
@@ -170,6 +173,7 @@ Call the Query's Documents method to get an iterator, and use it like
 the other Google Cloud Client iterators.
 
 	iter := q.Documents(ctx)
+	defer iter.Stop()
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -208,10 +212,5 @@ read and write methods of the Transaction passed to it.
 	if err != nil {
 		// TODO: Handle error.
 	}
-
-Authentication
-
-See examples of authorization and authentication at
-https://godoc.org/cloud.google.com/go#pkg-examples.
 */
 package firestore

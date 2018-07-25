@@ -83,6 +83,9 @@ func TestIteratorReset(t *testing.T) {
 	}
 
 	itr, err := fst.Iterator(nil, nil)
+	if err != nil {
+		t.Fatalf("error creating an iterator: %v", err)
+	}
 
 	buf.Reset()
 	b, err = New(&buf, nil)

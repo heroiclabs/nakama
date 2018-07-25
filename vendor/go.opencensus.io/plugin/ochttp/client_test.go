@@ -36,8 +36,8 @@ func TestClient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	for _, v := range ochttp.DefaultClientViews {
-		v.Subscribe()
+	if err := view.Register(ochttp.DefaultClientViews...); err != nil {
+		t.Fatalf("Failed to register ochttp.DefaultClientViews error: %v", err)
 	}
 
 	views := []string{
@@ -54,15 +54,14 @@ func TestClient(t *testing.T) {
 		}
 	}
 
-	var (
-		w    sync.WaitGroup
-		tr   ochttp.Transport
-		errs = make(chan error, reqCount)
-	)
-	w.Add(reqCount)
+	var wg sync.WaitGroup
+	var tr ochttp.Transport
+	errs := make(chan error, reqCount)
+	wg.Add(reqCount)
+
 	for i := 0; i < reqCount; i++ {
 		go func() {
-			defer w.Done()
+			defer wg.Done()
 			req, err := http.NewRequest("POST", server.URL, strings.NewReader("req-body"))
 			if err != nil {
 				errs <- fmt.Errorf("error creating request: %v", err)
@@ -81,7 +80,7 @@ func TestClient(t *testing.T) {
 	}
 
 	go func() {
-		w.Wait()
+		wg.Wait()
 		close(errs)
 	}()
 
@@ -110,7 +109,7 @@ func TestClient(t *testing.T) {
 		var count int64
 		switch data := data.(type) {
 		case *view.CountData:
-			count = *(*int64)(data)
+			count = data.Value
 		case *view.DistributionData:
 			count = data.Count
 		default:

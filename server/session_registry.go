@@ -17,8 +17,8 @@ package server
 import (
 	"sync"
 
+	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 

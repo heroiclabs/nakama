@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-package internal
+package internal // import "go.opencensus.io/zpages/internal"
 
 // go get https://github.com/mjibson/esc.git
 //go:generate esc -pkg internal -o resources.go public/ templates/

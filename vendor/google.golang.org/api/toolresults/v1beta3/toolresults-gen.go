@@ -2505,6 +2505,14 @@ func (s *TestExecutionStep) MarshalJSON() ([]byte, error) {
 
 // TestIssue: An issue detected occurring during a test execution.
 type TestIssue struct {
+	// Category: Category of issue. Required.
+	//
+	// Possible values:
+	//   "common"
+	//   "robo"
+	//   "unspecifiedCategory"
+	Category string `json:"category,omitempty"`
+
 	// ErrorMessage: A brief human-readable message describing the issue.
 	// Required.
 	ErrorMessage string `json:"errorMessage,omitempty"`
@@ -2514,6 +2522,7 @@ type TestIssue struct {
 	// Possible values:
 	//   "info"
 	//   "severe"
+	//   "suggestion"
 	//   "unspecifiedSeverity"
 	//   "warning"
 	Severity string `json:"severity,omitempty"`
@@ -2526,12 +2535,15 @@ type TestIssue struct {
 	//
 	// Possible values:
 	//   "anr"
+	//   "availableDeepLinks"
 	//   "compatibleWithOrchestrator"
 	//   "completeRoboScriptExecution"
+	//   "failedToInstall"
 	//   "fatalException"
 	//   "incompleteRoboScriptExecution"
 	//   "launcherActivityNotFound"
 	//   "nativeCrash"
+	//   "nonSdkApiUsageViolation"
 	//   "startActivityNotFound"
 	//   "unspecifiedType"
 	//   "unusedRoboDirective"
@@ -2541,7 +2553,7 @@ type TestIssue struct {
 	// always be a message from com.google.devtools.toolresults.v1.warnings
 	Warning *Any `json:"warning,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "ErrorMessage") to
+	// ForceSendFields is a list of field names (e.g. "Category") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -2549,10 +2561,10 @@ type TestIssue struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "ErrorMessage") to include
-	// in API requests with the JSON null value. By default, fields with
-	// empty values are omitted from API requests. However, any field with
-	// an empty value appearing in NullFields will be sent to the server as
+	// NullFields is a list of field names (e.g. "Category") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
 	// null. It is an error if a field in this list has a non-empty value.
 	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`

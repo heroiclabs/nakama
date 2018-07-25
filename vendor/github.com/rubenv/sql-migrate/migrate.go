@@ -29,6 +29,26 @@ var tableName = "gorp_migrations"
 var schemaName = ""
 var numberPrefixRegex = regexp.MustCompile(`^(\d+).*$`)
 
+// PlanError happens where no migration plan could be created between the sets
+// of already applied migrations and the currently found. For example, when the database
+// contains a migration which is not among the migrations list found for an operation.
+type PlanError struct {
+	Migration   *Migration
+	ErrorMessag string
+}
+
+func newPlanError(migration *Migration, errorMessage string) error {
+	return &PlanError{
+		Migration:   migration,
+		ErrorMessag: errorMessage,
+	}
+}
+
+func (p *PlanError) Error() string {
+	return fmt.Sprintf("Unable to create migration plan because of %s: %s",
+		p.Migration.Id, p.ErrorMessag)
+}
+
 // TxError is returned when any error is encountered during a database
 // transaction. It contains the relevant *Migration and notes it's Id in the
 // Error function output.
@@ -444,6 +464,18 @@ func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationD
 		})
 	}
 	sort.Sort(byId(existingMigrations))
+
+	// Make sure all migrations in the database are among the found migrations which
+	// are to be applied.
+	migrationsSearch := make(map[string]struct{})
+	for _, migration := range migrations {
+		migrationsSearch[migration.Id] = struct{}{}
+	}
+	for _, existingMigration := range existingMigrations {
+		if _, ok := migrationsSearch[existingMigration.Id]; !ok {
+			return nil, nil, newPlanError(existingMigration, "unknown migration in database")
+		}
+	}
 
 	// Get last migration that was run
 	record := &Migration{}

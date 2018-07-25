@@ -46,3 +46,10 @@ func PackJSONBytes(box string, name string, jbb string) error {
 	PackBytes(box, name, bb)
 	return nil
 }
+
+// UnpackBytes unpacks bytes for specific box.
+func UnpackBytes(box string) {
+	gil.Lock()
+	defer gil.Unlock()
+	delete(data, box)
+}

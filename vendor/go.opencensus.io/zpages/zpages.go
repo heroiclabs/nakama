@@ -32,15 +32,39 @@ package zpages // import "go.opencensus.io/zpages"
 
 import (
 	"net/http"
+	"path"
+	"sync"
+
+	"go.opencensus.io/internal"
 )
 
-// Handler is an http.Handler that serves the zpages.
+// TODO(ramonza): Remove Handler to make initialization lazy.
+
+// Handler is deprecated: Use Handle.
 var Handler http.Handler
 
 func init() {
-	zpagesMux := http.NewServeMux()
-	zpagesMux.HandleFunc("/rpcz", rpczHandler)
-	zpagesMux.HandleFunc("/tracez", tracezHandler)
-	zpagesMux.Handle("/public/", http.FileServer(fs))
-	Handler = zpagesMux
+	mux := http.NewServeMux()
+	Handle(mux, "/")
+	Handler = mux
+}
+
+// Handle adds the z-pages to the given ServeMux rooted at pathPrefix.
+func Handle(mux *http.ServeMux, pathPrefix string) {
+	enable()
+	if mux == nil {
+		mux = http.DefaultServeMux
+	}
+	mux.HandleFunc(path.Join(pathPrefix, "rpcz"), rpczHandler)
+	mux.HandleFunc(path.Join(pathPrefix, "tracez"), tracezHandler)
+	mux.Handle(path.Join(pathPrefix, "public/"), http.FileServer(fs))
+}
+
+var enableOnce sync.Once
+
+func enable() {
+	enableOnce.Do(func() {
+		internal.LocalSpanStoreEnabled = true
+		registerRPCViews()
+	})
 }

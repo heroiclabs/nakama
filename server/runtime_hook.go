@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

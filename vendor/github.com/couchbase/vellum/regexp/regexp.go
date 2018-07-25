@@ -103,7 +103,7 @@ func (r *Regexp) WillAlwaysMatch(int) bool {
 	return false
 }
 
-// Accept returns the new state, resulting from the transite byte b
+// Accept returns the new state, resulting from the transition byte b
 // when currently in the state s.
 func (r *Regexp) Accept(s int, b byte) int {
 	if s < len(r.dfa.states) {

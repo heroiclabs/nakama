@@ -66,7 +66,7 @@ type Pusher struct {
 	username, password string
 }
 
-// New creates a new Pusher to push to the provided URL withe the provided job
+// New creates a new Pusher to push to the provided URL with the provided job
 // name. You can use just host:port or ip:port as url, in which case “http://”
 // is added automatically. Alternatively, include the schema in the
 // URL. However, do not include the “/metrics/jobs/…” part.

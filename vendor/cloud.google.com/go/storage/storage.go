@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -346,7 +346,7 @@ func (o *ObjectHandle) Generation(gen int64) *ObjectHandle {
 
 // If returns a new ObjectHandle that applies a set of preconditions.
 // Preconditions already set on the ObjectHandle are ignored.
-// Operations on the new handle will only occur if the preconditions are
+// Operations on the new handle will return an error if the preconditions are not
 // satisfied. See https://cloud.google.com/storage/docs/generations-preconditions
 // for more details.
 func (o *ObjectHandle) If(conds Conditions) *ObjectHandle {
@@ -368,7 +368,7 @@ func (o *ObjectHandle) Key(encryptionKey []byte) *ObjectHandle {
 
 // Attrs returns meta information about the object.
 // ErrObjectNotExist will be returned if the object is not found.
-func (o *ObjectHandle) Attrs(ctx context.Context) (_ *ObjectAttrs, err error) {
+func (o *ObjectHandle) Attrs(ctx context.Context) (attrs *ObjectAttrs, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.Object.Attrs")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -400,7 +400,7 @@ func (o *ObjectHandle) Attrs(ctx context.Context) (_ *ObjectAttrs, err error) {
 // Update updates an object with the provided attributes.
 // All zero-value attributes are ignored.
 // ErrObjectNotExist will be returned if the object is not found.
-func (o *ObjectHandle) Update(ctx context.Context, uattrs ObjectAttrsToUpdate) (_ *ObjectAttrs, err error) {
+func (o *ObjectHandle) Update(ctx context.Context, uattrs ObjectAttrsToUpdate) (oa *ObjectAttrs, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.Object.Update")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -722,6 +722,14 @@ type ObjectAttrs struct {
 	// encryption in Google Cloud Storage.
 	CustomerKeySHA256 string
 
+	// Cloud KMS key name, in the form
+	// projects/P/locations/L/keyRings/R/cryptoKeys/K, used to encrypt this object,
+	// if the object is encrypted by such a key.
+	//
+	// Providing both a KMSKeyName and a customer-supplied encryption key (via
+	// ObjectHandle.Key) will result in an error when writing an object.
+	KMSKeyName string
+
 	// Prefix is set only for ObjectAttrs which represent synthetic "directory
 	// entries" when iterating over buckets using Query.Delimiter. See
 	// ObjectIterator.Next. When set, no other fields in ObjectAttrs will be
@@ -779,6 +787,7 @@ func newObject(o *raw.Object) *ObjectAttrs {
 		Metageneration:     o.Metageneration,
 		StorageClass:       o.StorageClass,
 		CustomerKeySHA256:  sha256,
+		KMSKeyName:         o.KmsKeyName,
 		Created:            convertTime(o.TimeCreated),
 		Deleted:            convertTime(o.TimeDeleted),
 		Updated:            convertTime(o.Updated),

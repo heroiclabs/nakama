@@ -19,10 +19,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 

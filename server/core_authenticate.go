@@ -27,11 +27,11 @@ import (
 	"context"
 
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"

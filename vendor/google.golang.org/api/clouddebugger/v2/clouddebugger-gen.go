@@ -1,6 +1,6 @@
 // Package clouddebugger provides access to the Stackdriver Debugger API.
 //
-// See http://cloud.google.com/debugger
+// See https://cloud.google.com/debugger
 //
 // Usage example:
 //
@@ -280,7 +280,9 @@ type Breakpoint struct {
 	// `expressions` = `[ message.id, message.count ]`.
 	LogMessageFormat string `json:"logMessageFormat,omitempty"`
 
-	// StackFrames: The stack at breakpoint time.
+	// StackFrames: The stack at breakpoint time, where stack_frames[0]
+	// represents the most
+	// recently entered function.
 	StackFrames []*StackFrame `json:"stackFrames,omitempty"`
 
 	// Status: Breakpoint status.
@@ -1098,6 +1100,13 @@ func (s *SourceContext) MarshalJSON() ([]byte, error) {
 
 // SourceLocation: Represents a location in the source code.
 type SourceLocation struct {
+	// Column: Column within a line. The first column in a line as the value
+	// `1`.
+	// Agents that do not support setting breakpoints on specific columns
+	// ignore
+	// this field.
+	Column int64 `json:"column,omitempty"`
+
 	// Line: Line inside the file. The first line in the file has the value
 	// `1`.
 	Line int64 `json:"line,omitempty"`
@@ -1106,7 +1115,7 @@ type SourceLocation struct {
 	// binary.
 	Path string `json:"path,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "Line") to
+	// ForceSendFields is a list of field names (e.g. "Column") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -1114,7 +1123,7 @@ type SourceLocation struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "Line") to include in API
+	// NullFields is a list of field names (e.g. "Column") to include in API
 	// requests with the JSON null value. By default, fields with empty
 	// values are omitted from API requests. However, any field with an
 	// empty value appearing in NullFields will be sent to the server as

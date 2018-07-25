@@ -28,7 +28,7 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 	k2, _ := tag.NewKey("k2")
 	k3, _ := tag.NewKey("k3")
 	agg1 := Distribution(2)
-	m, _ := stats.Int64("Test_View_MeasureFloat64_AggregationDistribution/m1", "", stats.UnitNone)
+	m := stats.Int64("Test_View_MeasureFloat64_AggregationDistribution/m1", "", stats.UnitDimensionless)
 	view1 := &View{
 		TagKeys:     []tag.Key{k1, k2},
 		Measure:     m,
@@ -171,7 +171,7 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 			}
 			ctx, err := tag.New(context.Background(), mods...)
 			if err != nil {
-				t.Errorf("%v: NewMap = %v", tc.label, err)
+				t.Errorf("%v: New = %v", tc.label, err)
 			}
 			view.addSample(tag.FromContext(ctx), r.f)
 		}
@@ -197,7 +197,7 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 	k1, _ := tag.NewKey("k1")
 	k2, _ := tag.NewKey("k2")
 	k3, _ := tag.NewKey("k3")
-	m, _ := stats.Int64("Test_View_MeasureFloat64_AggregationSum/m1", "", stats.UnitNone)
+	m := stats.Int64("Test_View_MeasureFloat64_AggregationSum/m1", "", stats.UnitDimensionless)
 	view, err := newViewInternal(&View{TagKeys: []tag.Key{k1, k2}, Measure: m, Aggregation: Sum()})
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +226,7 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 			[]*Row{
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newSumData(6),
+					&SumData{Value: 6},
 				},
 			},
 		},
@@ -239,11 +239,11 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 			[]*Row{
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newSumData(1),
+					&SumData{Value: 1},
 				},
 				{
 					[]tag.Tag{{Key: k2, Value: "v2"}},
-					newSumData(5),
+					&SumData{Value: 5},
 				},
 			},
 		},
@@ -259,19 +259,19 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 			[]*Row{
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newSumData(6),
+					&SumData{Value: 6},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1 other"}},
-					newSumData(1),
+					&SumData{Value: 1},
 				},
 				{
 					[]tag.Tag{{Key: k2, Value: "v2"}},
-					newSumData(5),
+					&SumData{Value: 5},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}, {Key: k2, Value: "v2"}},
-					newSumData(5),
+					&SumData{Value: 5},
 				},
 			},
 		},
@@ -312,8 +312,8 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 func TestCanonicalize(t *testing.T) {
 	k1, _ := tag.NewKey("k1")
 	k2, _ := tag.NewKey("k2")
-	m, _ := stats.Int64("TestCanonicalize/m1", "desc desc", stats.UnitNone)
-	v := &View{TagKeys: []tag.Key{k2, k1}, Measure: m, Aggregation: Mean()}
+	m := stats.Int64("TestCanonicalize/m1", "desc desc", stats.UnitDimensionless)
+	v := &View{TagKeys: []tag.Key{k2, k1}, Measure: m, Aggregation: Sum()}
 	err := v.canonicalize()
 	if err != nil {
 		t.Fatal(err)
@@ -332,140 +332,21 @@ func TestCanonicalize(t *testing.T) {
 	}
 }
 
-func Test_View_MeasureFloat64_AggregationMean(t *testing.T) {
-	k1, _ := tag.NewKey("k1")
-	k2, _ := tag.NewKey("k2")
-	k3, _ := tag.NewKey("k3")
-	m, _ := stats.Int64("Test_View_MeasureFloat64_AggregationMean/m1", "", stats.UnitNone)
-	viewDesc := &View{TagKeys: []tag.Key{k1, k2}, Measure: m, Aggregation: Mean()}
-	view, err := newViewInternal(viewDesc)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	type tagString struct {
-		k tag.Key
-		v string
-	}
-	type record struct {
-		f    float64
-		tags []tagString
-	}
-
-	tcs := []struct {
-		label    string
-		records  []record
-		wantRows []*Row
-	}{
-		{
-			"1",
-			[]record{
-				{1, []tagString{{k1, "v1"}}},
-				{5, []tagString{{k1, "v1"}}},
-			},
-			[]*Row{
-				{
-					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newMeanData(3, 2),
-				},
-			},
-		},
-		{
-			"2",
-			[]record{
-				{1, []tagString{{k1, "v1"}}},
-				{5, []tagString{{k2, "v2"}}},
-				{-0.5, []tagString{{k2, "v2"}}},
-			},
-			[]*Row{
-				{
-					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newMeanData(1, 1),
-				},
-				{
-					[]tag.Tag{{Key: k2, Value: "v2"}},
-					newMeanData(2.25, 2),
-				},
-			},
-		},
-		{
-			"3",
-			[]record{
-				{1, []tagString{{k1, "v1"}}},
-				{5, []tagString{{k1, "v1"}, {k3, "v3"}}},
-				{1, []tagString{{k1, "v1 other"}}},
-				{5, []tagString{{k2, "v2"}}},
-				{5, []tagString{{k1, "v1"}, {k2, "v2"}}},
-				{-4, []tagString{{k1, "v1"}, {k2, "v2"}}},
-			},
-			[]*Row{
-				{
-					[]tag.Tag{{Key: k1, Value: "v1"}},
-					newMeanData(3, 2),
-				},
-				{
-					[]tag.Tag{{Key: k1, Value: "v1 other"}},
-					newMeanData(1, 1),
-				},
-				{
-					[]tag.Tag{{Key: k2, Value: "v2"}},
-					newMeanData(5, 1),
-				},
-				{
-					[]tag.Tag{{Key: k1, Value: "v1"}, {Key: k2, Value: "v2"}},
-					newMeanData(0.5, 2),
-				},
-			},
-		},
-	}
-
-	for _, tt := range tcs {
-		view.clearRows()
-		view.subscribe()
-		for _, r := range tt.records {
-			mods := []tag.Mutator{}
-			for _, t := range r.tags {
-				mods = append(mods, tag.Insert(t.k, t.v))
-			}
-			ctx, err := tag.New(context.Background(), mods...)
-			if err != nil {
-				t.Errorf("%v: New = %v", tt.label, err)
-			}
-			view.addSample(tag.FromContext(ctx), r.f)
-		}
-
-		gotRows := view.collectedRows()
-		for i, got := range gotRows {
-			if !containsRow(tt.wantRows, got) {
-				t.Errorf("%v-%d: got row %v; want none", tt.label, i, got)
-				break
-			}
-		}
-
-		for i, want := range tt.wantRows {
-			if !containsRow(gotRows, want) {
-				t.Errorf("%v-%d: got none; want row %v", tt.label, i, want)
-				break
-			}
-		}
-	}
-}
-
 func TestViewSortedKeys(t *testing.T) {
 	k1, _ := tag.NewKey("a")
 	k2, _ := tag.NewKey("b")
 	k3, _ := tag.NewKey("c")
 	ks := []tag.Key{k1, k3, k2}
 
-	m, _ := stats.Int64("TestViewSortedKeys/m1", "", stats.UnitNone)
-	Subscribe(&View{
+	m := stats.Int64("TestViewSortedKeys/m1", "", stats.UnitDimensionless)
+	Register(&View{
 		Name:        "sort_keys",
 		Description: "desc sort_keys",
 		TagKeys:     ks,
 		Measure:     m,
-		Aggregation: Mean(),
+		Aggregation: Sum(),
 	})
-	// Subscribe normalizes the view by sorting the tag keys, retrieve the normalized view
+	// Register normalizes the view by sorting the tag keys, retrieve the normalized view
 	v := Find("sort_keys")
 
 	want := []string{"a", "b", "c"}
@@ -489,4 +370,32 @@ func containsRow(rows []*Row, r *Row) bool {
 		}
 	}
 	return false
+}
+
+func TestRegisterUnregisterParity(t *testing.T) {
+	measures := []stats.Measure{
+		stats.Int64("ifoo", "iFOO", "iBar"),
+		stats.Float64("ffoo", "fFOO", "fBar"),
+	}
+	aggregations := []*Aggregation{
+		Count(),
+		Sum(),
+		Distribution(1, 2.0, 4.0, 8.0, 16.0),
+	}
+
+	for i := 0; i < 10; i++ {
+		for _, m := range measures {
+			for _, agg := range aggregations {
+				v := &View{
+					Aggregation: agg,
+					Name:        "Lookup here",
+					Measure:     m,
+				}
+				if err := Register(v); err != nil {
+					t.Errorf("Iteration #%d:\nMeasure: (%#v)\nAggregation (%#v)\nError: %v", i, m, agg, err)
+				}
+				Unregister(v)
+			}
+		}
+	}
 }

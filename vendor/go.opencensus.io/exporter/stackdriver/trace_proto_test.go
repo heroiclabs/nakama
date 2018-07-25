@@ -57,19 +57,21 @@ func (t *testExporter) ExportSpan(s *trace.SpanData) {
 }
 
 func TestExportTrace(t *testing.T) {
+	ctx := context.Background()
+
 	var te testExporter
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)
 
-	span0 := trace.NewSpanWithRemoteParent(
+	ctx, span0 := trace.StartSpanWithRemoteParent(
+		ctx,
 		"span0",
 		trace.SpanContext{
 			TraceID:      traceID,
 			SpanID:       spanID,
 			TraceOptions: 1,
 		},
-		trace.StartOptions{})
-	ctx := trace.WithSpan(context.Background(), span0)
+	)
 	{
 		ctx1, span1 := trace.StartSpan(ctx, "span1")
 		{
@@ -289,7 +291,7 @@ func TestExportTrace(t *testing.T) {
 			Links: &tracepb.Span_Links{
 				Link: []*tracepb.Span_Link{
 					{
-						TraceId: "projects/testproject/traces/01020000000000000000000000000000",
+						TraceId: "01020000000000000000000000000000",
 						SpanId:  "0300000000000000",
 						Type:    tracepb.Span_Link_PARENT_LINKED_SPAN,
 						Attributes: &tracepb.Span_Attributes{

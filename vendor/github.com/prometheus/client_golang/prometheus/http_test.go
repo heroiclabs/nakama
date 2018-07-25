@@ -29,6 +29,16 @@ func (b respBody) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(b))
 }
 
+func nowSeries(t ...time.Time) nower {
+	return nowFunc(func() time.Time {
+		defer func() {
+			t = t[1:]
+		}()
+
+		return t[0]
+	})
+}
+
 func TestInstrumentHandler(t *testing.T) {
 	defer func(n nower) {
 		now = n.(nower)
@@ -37,9 +47,9 @@ func TestInstrumentHandler(t *testing.T) {
 	instant := time.Now()
 	end := instant.Add(30 * time.Second)
 	now = nowSeries(instant, end)
-	respBody := respBody("Howdy there!")
+	body := respBody("Howdy there!")
 
-	hndlr := InstrumentHandler("test-handler", respBody)
+	hndlr := InstrumentHandler("test-handler", body)
 
 	opts := SummaryOpts{
 		Subsystem:   "http",
@@ -114,8 +124,8 @@ func TestInstrumentHandler(t *testing.T) {
 	if resp.Code != http.StatusTeapot {
 		t.Fatalf("expected status %d, got %d", http.StatusTeapot, resp.Code)
 	}
-	if string(resp.Body.Bytes()) != "Howdy there!" {
-		t.Fatalf("expected body %s, got %s", "Howdy there!", string(resp.Body.Bytes()))
+	if resp.Body.String() != "Howdy there!" {
+		t.Fatalf("expected body %s, got %s", "Howdy there!", resp.Body.String())
 	}
 
 	out := &dto.Metric{}

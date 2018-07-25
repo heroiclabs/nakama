@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package stackdriver contains the OpenCensus exporters for
-// Stackdriver Monitoring and Stackdriver Tracing.
+// Package stackdriver has moved.
 //
-// Please note that the Stackdriver exporter is currently experimental.
-//
-// The package uses Application Default Credentials to authenticate.  See
-// https://developers.google.com/identity/protocols/application-default-credentials
+// Deprecated: Use contrib.go.opencensus.io/exporter/stackdriver instead.
 package stackdriver // import "go.opencensus.io/exporter/stackdriver"
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	traceapi "cloud.google.com/go/trace/apiv2"
@@ -36,6 +33,8 @@ import (
 )
 
 // Options contains options for configuring the exporter.
+//
+// Deprecated: This package has been moved to: contrib.go.opencensus.io/exporter/stackdriver.
 type Options struct {
 	// ProjectID is the identifier of the Stackdriver
 	// project the user is uploading the stats data to.
@@ -49,10 +48,15 @@ type Options struct {
 	// Optional.
 	OnError func(err error)
 
-	// ClientOptions are additional options to be passed
+	// MonitoringClientOptions are additional options to be passed
 	// to the underlying Stackdriver Monitoring API client.
 	// Optional.
-	ClientOptions []option.ClientOption
+	MonitoringClientOptions []option.ClientOption
+
+	// TraceClientOptions are additional options to be passed
+	// to the underlying Stackdriver Trace API client.
+	// Optional.
+	TraceClientOptions []option.ClientOption
 
 	// BundleDelayThreshold determines the max amount of time
 	// the exporter can wait before uploading view data to
@@ -79,6 +83,8 @@ type Options struct {
 
 // Exporter is a stats.Exporter and trace.Exporter
 // implementation that uploads data to Stackdriver.
+//
+// Deprecated: This package has been moved to: contrib.go.opencensus.io/exporter/stackdriver.
 type Exporter struct {
 	traceExporter *traceExporter
 	statsExporter *statsExporter
@@ -86,6 +92,8 @@ type Exporter struct {
 
 // NewExporter creates a new Exporter that implements both stats.Exporter and
 // trace.Exporter.
+//
+// Deprecated: This package has been moved to: contrib.go.opencensus.io/exporter/stackdriver.
 func NewExporter(o Options) (*Exporter, error) {
 	if o.ProjectID == "" {
 		creds, err := google.FindDefaultCredentials(context.Background(), traceapi.DefaultAuthScopes()...)
@@ -129,4 +137,12 @@ func (e *Exporter) ExportSpan(sd *trace.SpanData) {
 func (e *Exporter) Flush() {
 	e.statsExporter.Flush()
 	e.traceExporter.Flush()
+}
+
+func (o Options) handleError(err error) {
+	if o.OnError != nil {
+		o.OnError(err)
+		return
+	}
+	log.Printf("Error exporting to Stackdriver: %v", err)
 }

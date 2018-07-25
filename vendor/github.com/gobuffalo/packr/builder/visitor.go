@@ -192,6 +192,16 @@ func (v *visitor) evalSelector(expr *ast.CallExpr, sel *ast.SelectorExpr) error 
 		for _, e := range expr.Args {
 			switch at := e.(type) {
 			case *ast.Ident:
+				switch at.Obj.Kind {
+				case ast.Var:
+					if as, ok := at.Obj.Decl.(*ast.AssignStmt); ok {
+						v.addVariable(as)
+					}
+				case ast.Con:
+					if vs, ok := at.Obj.Decl.(*ast.ValueSpec); ok {
+						v.addConstant(vs)
+					}
+				}
 				return v.evalIdent(at)
 			case *ast.BasicLit:
 				v.addBox(at.Value)
@@ -217,4 +227,22 @@ func (v *visitor) evalIdent(i *ast.Ident) error {
 func (v *visitor) addBox(b string) {
 	b = strings.Replace(b, "\"", "", -1)
 	v.Boxes = append(v.Boxes, b)
+}
+
+func (v *visitor) addVariable(as *ast.AssignStmt) error {
+	if len(as.Rhs) == 1 {
+		if bs, ok := as.Rhs[0].(*ast.BasicLit); ok {
+			v.addBox(bs.Value)
+		}
+	}
+	return nil
+}
+
+func (v *visitor) addConstant(vs *ast.ValueSpec) error {
+	if len(vs.Values) == 1 {
+		if bs, ok := vs.Values[0].(*ast.BasicLit); ok {
+			v.addBox(bs.Value)
+		}
+	}
+	return nil
 }

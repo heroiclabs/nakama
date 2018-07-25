@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,12 +156,9 @@ func testGetAll(t *testing.T, c *Client, srv *mockServer, dbPath string, getAll 
 		t.Errorf("got %d docs, wanted %d", got, want)
 	}
 	for i, got := range docs {
-		var want *DocumentSnapshot
-		if wantPBDocs[i] != nil {
-			want, err = newDocumentSnapshot(docRefs[i], wantPBDocs[i], c, wantReadTimes[i])
-			if err != nil {
-				t.Fatal(err)
-			}
+		want, err := newDocumentSnapshot(docRefs[i], wantPBDocs[i], c, wantReadTimes[i])
+		if err != nil {
+			t.Fatal(err)
 		}
 		if diff := testDiff(got, want); diff != "" {
 			t.Errorf("#%d: got=--, want==++\n%s", i, diff)
@@ -208,19 +205,6 @@ func TestGetAllErrors(t *testing.T) {
 				ReadTime: aTimestamp,
 			},
 		},
-	)
-	if _, err := c.GetAll(ctx, []*DocumentRef{c.Doc("C/a")}); err == nil {
-		t.Error("got nil, want error")
-	}
-
-	// Doc never appears (server bug).
-	srv.reset()
-	srv.addRPC(
-		&pb.BatchGetDocumentsRequest{
-			Database:  dbPath,
-			Documents: []string{docPath},
-		},
-		[]interface{}{},
 	)
 	if _, err := c.GetAll(ctx, []*DocumentRef{c.Doc("C/a")}); err == nil {
 		t.Error("got nil, want error")

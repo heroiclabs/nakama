@@ -34,8 +34,6 @@ func TestSerializationOfEmptyBitmap(t *testing.T) {
 		t.Errorf("Failed reading: %v", err)
 	}
 	if !rb.Equals(newrb) {
-		p("rb = '%s'", rb)
-		p("but newrb = '%s'", newrb)
 		t.Errorf("Cannot retrieve serialized version; rb != newrb")
 	}
 }
@@ -80,8 +78,6 @@ func TestSerializationBasic037(t *testing.T) {
 		t.Errorf("Failed reading")
 	}
 	if !rb.Equals(newrb) {
-		p("rb = '%s'", rb)
-		p("but newrb = '%s'", newrb)
 		t.Errorf("Cannot retrieve serialized version; rb != newrb")
 	}
 }
@@ -125,7 +121,6 @@ func TestSerializationToFile038(t *testing.T) {
 func TestSerializationReadRunsFromFile039(t *testing.T) {
 	fn := "testdata/bitmapwithruns.bin"
 
-	p("reading file '%s'", fn)
 	by, err := ioutil.ReadFile(fn)
 	if err != nil {
 		panic(err)
@@ -154,7 +149,6 @@ func TestSerializationBasic4WriteAndReadFile040(t *testing.T) {
 	}
 	rb.highlowcontainer.runOptimize()
 
-	p("TestSerializationBasic4WriteAndReadFile is writing to '%s'", fname)
 	fout, err := os.Create(fname)
 	if err != nil {
 		t.Errorf("Failed creating '%s'", fname)
@@ -350,7 +344,6 @@ func TestSerializationRunContainerMsgpack028(t *testing.T) {
 
 	Convey("runContainer writeTo and readFrom should return logically equivalent containers", t, func() {
 		seed := int64(42)
-		p("seed is %v", seed)
 		rand.Seed(seed)
 
 		trials := []trial{
@@ -361,7 +354,6 @@ func TestSerializationRunContainerMsgpack028(t *testing.T) {
 
 		tester := func(tr trial) {
 			for j := 0; j < tr.ntrial; j++ {
-				p("TestSerializationRunContainerMsgpack028 on check# j=%v", j)
 
 				ma := make(map[int]bool)
 
@@ -395,7 +387,6 @@ func TestSerializationRunContainerMsgpack028(t *testing.T) {
 				So(restored.equals(orig), ShouldBeTrue)
 
 			}
-			p("done with serialization of runContainer16 check for trial %#v", tr)
 		}
 
 		for i := range trials {
@@ -410,7 +401,6 @@ func TestSerializationArrayOnly032(t *testing.T) {
 	Convey("arrayContainer writeTo and readFrom should return logically equivalent containers, so long as you pre-size the write target properly", t, func() {
 
 		seed := int64(42)
-		p("seed is %v", seed)
 		rand.Seed(seed)
 
 		trials := []trial{
@@ -419,7 +409,6 @@ func TestSerializationArrayOnly032(t *testing.T) {
 
 		tester := func(tr trial) {
 			for j := 0; j < tr.ntrial; j++ {
-				p(" on check# j=%v", j)
 				ma := make(map[int]bool)
 
 				n := tr.n
@@ -447,8 +436,6 @@ func TestSerializationArrayOnly032(t *testing.T) {
 				panicOn(err)
 				So(ac2.String(), ShouldResemble, ac.String())
 			}
-			p("done with randomized writeTo/readFrom for arrayContainer"+
-				" checks for trial %#v", tr)
 		}
 
 		for i := range trials {
@@ -462,7 +449,6 @@ func TestSerializationRunOnly033(t *testing.T) {
 	Convey("runContainer16 writeTo and readFrom should return logically equivalent containers", t, func() {
 
 		seed := int64(42)
-		p("seed is %v", seed)
 		rand.Seed(seed)
 
 		trials := []trial{
@@ -471,7 +457,6 @@ func TestSerializationRunOnly033(t *testing.T) {
 
 		tester := func(tr trial) {
 			for j := 0; j < tr.ntrial; j++ {
-				p(" on check# j=%v", j)
 				ma := make(map[int]bool)
 
 				n := tr.n
@@ -497,8 +482,6 @@ func TestSerializationRunOnly033(t *testing.T) {
 				So(ac2.equals(ac), ShouldBeTrue)
 				So(ac2.String(), ShouldResemble, ac.String())
 			}
-			p("done with randomized writeTo/readFrom for runContainer16"+
-				" checks for trial %#v", tr)
 		}
 
 		for i := range trials {
@@ -512,7 +495,6 @@ func TestSerializationBitmapOnly034(t *testing.T) {
 	Convey("bitmapContainer writeTo and readFrom should return logically equivalent containers", t, func() {
 
 		seed := int64(42)
-		p("seed is %v", seed)
 		rand.Seed(seed)
 
 		trials := []trial{
@@ -521,7 +503,6 @@ func TestSerializationBitmapOnly034(t *testing.T) {
 
 		tester := func(tr trial) {
 			for j := 0; j < tr.ntrial; j++ {
-				p(" on check# j=%v", j)
 				ma := make(map[int]bool)
 
 				n := tr.n
@@ -547,8 +528,6 @@ func TestSerializationBitmapOnly034(t *testing.T) {
 				So(bc2.String(), ShouldResemble, bc.String())
 				So(bc2.equals(bc), ShouldBeTrue)
 			}
-			p("done with randomized writeTo/readFrom for bitmapContainer"+
-				" checks for trial %#v", tr)
 		}
 
 		for i := range trials {
@@ -606,73 +585,6 @@ func TestSerializationBasicMsgpack035(t *testing.T) {
 		c1, c2 := rb.GetCardinality(), newrb.GetCardinality()
 		So(c2, ShouldEqual, c1)
 		So(newrb.Equals(rb), ShouldBeTrue)
-	})
-}
-
-func TestSerializationRunContainer32Msgpack050(t *testing.T) {
-
-	Convey("runContainer32 writeToMsgpack and readFromMsgpack should save/load data", t, func() {
-		seed := int64(42)
-		p("seed is %v", seed)
-		rand.Seed(seed)
-
-		trials := []trial{
-			{n: 10, percentFill: .2, ntrial: 1},
-		}
-
-		tester := func(tr trial) {
-			for j := 0; j < tr.ntrial; j++ {
-				p("TestSerializationRunContainer32Msgpack050 on check# j=%v", j)
-
-				ma := make(map[int]bool)
-
-				n := tr.n
-				a := []uint32{}
-
-				draw := int(float64(n) * tr.percentFill)
-				for i := 0; i < draw; i++ {
-					r0 := rand.Intn(n)
-					a = append(a, uint32(r0))
-					ma[r0] = true
-				}
-
-				orig := newRunContainer32FromVals(false, a...)
-
-				// serialize
-				var buf bytes.Buffer
-				_, err := orig.writeToMsgpack(&buf)
-				if err != nil {
-					panic(err)
-				}
-
-				// deserialize
-				restored := &runContainer32{}
-				_, err = restored.readFromMsgpack(&buf)
-				if err != nil {
-					panic(err)
-				}
-
-				// and compare
-				So(restored.equals32(orig), ShouldBeTrue)
-				orig.removeKey(1)
-
-				// coverage
-				var notEq = newRunContainer32Range(1, 1)
-				So(notEq.equals32(orig), ShouldBeFalse)
-
-				bc := newBitmapContainer()
-				bc.iadd(1)
-				bc.iadd(2)
-				rc22 := newRunContainer32FromBitmapContainer(bc)
-				So(rc22.cardinality(), ShouldEqual, 2)
-			}
-			p("done with msgpack serialization of runContainer32 check for trial %#v", tr)
-		}
-
-		for i := range trials {
-			tester(trials[i])
-		}
-
 	})
 }
 
@@ -1009,10 +921,10 @@ func TestSerializationCrashers(t *testing.T) {
 		orig := make([]byte, len(data))
 		copy(orig, data)
 
-		catchPanic(t, func() { NewBitmap().FromBuffer(data) }, "FromBuffer(" + crasher + ")")
+		catchPanic(t, func() { NewBitmap().FromBuffer(data) }, "FromBuffer("+crasher+")")
 
 		// reset for next one
 		copy(data, orig)
-		catchPanic(t, func() { NewBitmap().ReadFrom(bytes.NewReader(data)) }, "ReadFrom(" + crasher + ")")
+		catchPanic(t, func() { NewBitmap().ReadFrom(bytes.NewReader(data)) }, "ReadFrom("+crasher+")")
 	}
 }

@@ -362,17 +362,13 @@ func (s *AdministratorWebTokenSpec) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// AndroidDevicePolicyConfig: The Android Device Policy configuration of
-// an enterprise.
+// AndroidDevicePolicyConfig: Deprecated and unused.
 type AndroidDevicePolicyConfig struct {
 	// Kind: Identifies what kind of resource this is. Value: the fixed
 	// string "androidenterprise#androidDevicePolicyConfig".
 	Kind string `json:"kind,omitempty"`
 
-	// State: The state of Android Device Policy. "enabled" indicates that
-	// Android Device Policy is enabled for the enterprise and the EMM is
-	// allowed to manage devices with Android Device Policy, while
-	// "disabled" means that it cannot.
+	// State: Deprecated and unused.
 	State string `json:"state,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
@@ -2141,21 +2137,18 @@ type Policy struct {
 	AutoUpdatePolicy string `json:"autoUpdatePolicy,omitempty"`
 
 	// MaintenanceWindow: The maintenance window defining when apps running
-	// in the foreground should be updated. This feature is only supported
-	// on fully managed devices.
+	// in the foreground should be updated.
 	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
 
 	// ProductAvailabilityPolicy: The availability granted to the device for
 	// the specified products. "all" gives the device access to all
-	// products, regardless of approval status. "allApproved" entitles the
-	// device to access all products that are approved for the enterprise.
-	// "allApproved" and "all" do not enable automatic visibility of "alpha"
-	// or "beta" tracks. "whitelist" grants the device access the products
-	// specified in productPolicy[]. Only products that are approved or
-	// products that were previously approved (products with revoked
-	// approval) by the enterprise can be whitelisted. If no value is
-	// provided, the availability set at the user level is applied by
-	// default.
+	// products, regardless of approval status. "all" does not enable
+	// automatic visibility of "alpha" or "beta" tracks. "whitelist" grants
+	// the device access the products specified in productPolicy[]. Only
+	// products that are approved or products that were previously approved
+	// (products with revoked approval) by the enterprise can be
+	// whitelisted. If no value is provided, the availability set at the
+	// user level is applied by default.
 	ProductAvailabilityPolicy string `json:"productAvailabilityPolicy,omitempty"`
 
 	// ProductPolicy: The list of product policies.
@@ -5232,8 +5225,7 @@ type EnterprisesGetAndroidDevicePolicyConfigCall struct {
 	header_      http.Header
 }
 
-// GetAndroidDevicePolicyConfig: Returns the Android Device Policy
-// config resource.
+// GetAndroidDevicePolicyConfig: Deprecated and unused.
 func (r *EnterprisesService) GetAndroidDevicePolicyConfig(enterpriseId string) *EnterprisesGetAndroidDevicePolicyConfigCall {
 	c := &EnterprisesGetAndroidDevicePolicyConfigCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.enterpriseId = enterpriseId
@@ -5334,7 +5326,7 @@ func (c *EnterprisesGetAndroidDevicePolicyConfigCall) Do(opts ...googleapi.CallO
 	}
 	return ret, nil
 	// {
-	//   "description": "Returns the Android Device Policy config resource.",
+	//   "description": "Deprecated and unused.",
 	//   "httpMethod": "GET",
 	//   "id": "androidenterprise.enterprises.getAndroidDevicePolicyConfig",
 	//   "parameterOrder": [
@@ -6371,11 +6363,7 @@ type EnterprisesSetAndroidDevicePolicyConfigCall struct {
 	header_                   http.Header
 }
 
-// SetAndroidDevicePolicyConfig: Sets the Android Device Policy config
-// resource. EMM may use this method to enable or disable Android Device
-// Policy support for the specified enterprise. To learn more about
-// managing devices and apps with Android Device Policy, see the Android
-// Management API.
+// SetAndroidDevicePolicyConfig: Deprecated and unused.
 func (r *EnterprisesService) SetAndroidDevicePolicyConfig(enterpriseId string, androiddevicepolicyconfig *AndroidDevicePolicyConfig) *EnterprisesSetAndroidDevicePolicyConfigCall {
 	c := &EnterprisesSetAndroidDevicePolicyConfigCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.enterpriseId = enterpriseId
@@ -6469,7 +6457,7 @@ func (c *EnterprisesSetAndroidDevicePolicyConfigCall) Do(opts ...googleapi.CallO
 	}
 	return ret, nil
 	// {
-	//   "description": "Sets the Android Device Policy config resource. EMM may use this method to enable or disable Android Device Policy support for the specified enterprise. To learn more about managing devices and apps with Android Device Policy, see the Android Management API.",
+	//   "description": "Deprecated and unused.",
 	//   "httpMethod": "PUT",
 	//   "id": "androidenterprise.enterprises.setAndroidDevicePolicyConfig",
 	//   "parameterOrder": [

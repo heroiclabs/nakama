@@ -19,8 +19,16 @@ import (
 	"fmt"
 	"unicode"
 
+	unicode_utf8 "unicode/utf8"
+
 	"github.com/couchbase/vellum/utf8"
 )
+
+var sequences0ToMaxRune utf8.Sequences
+
+func init() {
+	sequences0ToMaxRune, _ = utf8.NewSequences(0, unicode.MaxRune)
+}
 
 type dfa struct {
 	states statesStack
@@ -58,17 +66,25 @@ type dfaBuilder struct {
 	lev    *dynamicLevenshtein
 	cache  map[string]int
 	keyBuf []byte
+
+	sequences  utf8.Sequences
+	rangeStack utf8.RangeStack
+	startBytes []byte
+	endBytes   []byte
+	nexts      []int
 }
 
 func newDfaBuilder(lev *dynamicLevenshtein) *dfaBuilder {
 	dfab := &dfaBuilder{
 		dfa: &dfa{
-			states: make([]*state, 0, 16),
+			states: make([]state, 0, 16),
 		},
-		lev:   lev,
-		cache: make(map[string]int, 1024),
+		lev:        lev,
+		cache:      make(map[string]int, 1024),
+		startBytes: make([]byte, unicode_utf8.UTFMax),
+		endBytes:   make([]byte, unicode_utf8.UTFMax),
 	}
-	dfab.newState(false) // create state 0, invalid
+	_, dfab.nexts = dfab.newState(false, nil) // create state 0, invalid
 	return dfab
 }
 
@@ -101,7 +117,7 @@ func (b *dfaBuilder) build() (*dfa, error) {
 			levNext := b.lev.accept(levState, &r)
 			nextSi := b.cachedState(levNext)
 			if nextSi != 0 {
-				err = b.addUtf8Sequences(true, dfaSi, nextSi, r, r)
+				err = b.addUtf8RuneRange(true, dfaSi, nextSi, r, r)
 				if err != nil {
 					return nil, err
 				}
@@ -150,7 +166,7 @@ func (b *dfaBuilder) cached(levState []int) (int, bool) {
 		return v, true
 	}
 	match := b.lev.isMatch(levState)
-	b.dfa.states = b.dfa.states.Push(&state{
+	b.dfa.states = append(b.dfa.states, state{
 		next:  make([]int, 256),
 		match: match,
 	})
@@ -165,42 +181,64 @@ func (b *dfaBuilder) addMismatchUtf8States(fromSi int, levState []int) (int, []i
 	if toSi == 0 {
 		return 0, nil, nil
 	}
-	err := b.addUtf8Sequences(false, fromSi, toSi, 0, unicode.MaxRune)
-	if err != nil {
-		return 0, nil, err
-	}
+	b.addUtf8Sequences(false, fromSi, toSi, sequences0ToMaxRune)
 	return toSi, mmState, nil
 }
 
-func (b *dfaBuilder) addUtf8Sequences(overwrite bool, fromSi, toSi int, fromChar, toChar rune) error {
-	sequences, err := utf8.NewSequences(fromChar, toChar)
+func (b *dfaBuilder) addUtf8RuneRange(overwrite bool, fromSi, toSi int,
+	fromChar, toChar rune) (
+	err error) {
+	b.sequences, b.rangeStack, err = utf8.NewSequencesPrealloc(fromChar, toChar,
+		b.sequences, b.rangeStack, b.startBytes, b.endBytes)
 	if err != nil {
 		return err
 	}
+
+	b.addUtf8Sequences(overwrite, fromSi, toSi, b.sequences)
+
+	return nil
+}
+
+func (b *dfaBuilder) addUtf8Sequences(overwrite bool, fromSi, toSi int,
+	sequences utf8.Sequences) {
 	for _, seq := range sequences {
 		fsi := fromSi
 		for _, utf8r := range seq[:len(seq)-1] {
-			tsi := b.newState(false)
+			var tsi int
+			tsi, b.nexts = b.newState(false, b.nexts)
 			b.addUtf8Range(overwrite, fsi, tsi, utf8r)
 			fsi = tsi
 		}
 		b.addUtf8Range(overwrite, fsi, toSi, seq[len(seq)-1])
 	}
-	return nil
 }
 
-func (b *dfaBuilder) addUtf8Range(overwrite bool, from, to int, rang *utf8.Range) {
-	for by := rang.Start; by <= rang.End; by++ {
-		if overwrite || b.dfa.states[from].next[by] == 0 {
-			b.dfa.states[from].next[by] = to
+func (b *dfaBuilder) addUtf8Range(overwrite bool, from, to int, rang utf8.Range) {
+	fromNext := b.dfa.states[from].next
+	if overwrite {
+		for by := rang.Start; by <= rang.End; by++ {
+			fromNext[by] = to
+		}
+	} else {
+		for by := rang.Start; by <= rang.End; by++ {
+			if fromNext[by] == 0 {
+				fromNext[by] = to
+			}
 		}
 	}
 }
 
-func (b *dfaBuilder) newState(match bool) int {
-	b.dfa.states = append(b.dfa.states, &state{
-		next:  make([]int, 256),
+func (b *dfaBuilder) newState(match bool, prealloc []int) (int, []int) {
+	if len(prealloc) < 256 {
+		prealloc = make([]int, 16384)
+	}
+	next := prealloc[0:256]
+	prealloc = prealloc[256:]
+
+	b.dfa.states = append(b.dfa.states, state{
+		next:  next,
 		match: match,
 	})
-	return len(b.dfa.states) - 1
+
+	return len(b.dfa.states) - 1, prealloc
 }

@@ -28,6 +28,10 @@ func (ac *arrayContainer) getShortIterator() shortIterable {
 	return &shortIterator{ac.content, 0}
 }
 
+func (ac *arrayContainer) getReverseIterator() shortIterable {
+	return &reverseIterator{ac.content, len(ac.content) - 1}
+}
+
 func (ac *arrayContainer) getManyIterator() manyIterable {
 	return &manyIterator{ac.content, 0}
 }
@@ -550,7 +554,7 @@ func (ac *arrayContainer) iand(a container) container {
 		return ac.iandBitmap(x)
 	case *runContainer16:
 		if x.isFull() {
-			return ac.clone()
+			return ac
 		}
 		return x.andArray(ac)
 	}

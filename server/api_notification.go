@@ -20,9 +20,9 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

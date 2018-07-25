@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	descriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
+	"google.golang.org/genproto/googleapis/api/annotations"
 )
 
 // Registry is a registry of information extracted from plugin.CodeGeneratorRequest.
@@ -36,16 +37,26 @@ type Registry struct {
 
 	// allowDeleteBody permits http delete methods to have a body
 	allowDeleteBody bool
+
+	// externalHttpRules is a mapping from fully qualified service method names to additional HttpRules applicable besides the ones found in annotations.
+	externalHTTPRules map[string][]*annotations.HttpRule
+
+	// allowMerge generation one swagger file out of multiple protos
+	allowMerge bool
+
+	// mergeFileName target swagger file name after merge
+	mergeFileName string
 }
 
 // NewRegistry returns a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		msgs:       make(map[string]*Message),
-		enums:      make(map[string]*Enum),
-		files:      make(map[string]*File),
-		pkgMap:     make(map[string]string),
-		pkgAliases: make(map[string]string),
+		msgs:              make(map[string]*Message),
+		enums:             make(map[string]*Enum),
+		files:             make(map[string]*File),
+		pkgMap:            make(map[string]string),
+		pkgAliases:        make(map[string]string),
+		externalHTTPRules: make(map[string][]*annotations.HttpRule),
 	}
 }
 
@@ -61,7 +72,7 @@ func (r *Registry) Load(req *plugin.CodeGeneratorRequest) error {
 		if target == nil {
 			return fmt.Errorf("no such file: %s", name)
 		}
-		name := packageIdentityName(target.FileDescriptorProto)
+		name := r.packageIdentityName(target.FileDescriptorProto)
 		if targetPkg == "" {
 			targetPkg = name
 		} else {
@@ -83,7 +94,7 @@ func (r *Registry) Load(req *plugin.CodeGeneratorRequest) error {
 func (r *Registry) loadFile(file *descriptor.FileDescriptorProto) {
 	pkg := GoPackage{
 		Path: r.goPackagePath(file),
-		Name: defaultGoPackageName(file),
+		Name: r.defaultGoPackageName(file),
 	}
 	if err := r.ReserveGoPackageAlias(pkg.Name, pkg.Path); err != nil {
 		for i := 0; ; i++ {
@@ -205,6 +216,16 @@ func (r *Registry) LookupFile(name string) (*File, error) {
 	return f, nil
 }
 
+// LookupExternalHTTPRules looks up external http rules by fully qualified service method name
+func (r *Registry) LookupExternalHTTPRules(qualifiedMethodName string) []*annotations.HttpRule {
+	return r.externalHTTPRules[qualifiedMethodName]
+}
+
+// AddExternalHTTPRule adds an external http rule for the given fully qualified service method name
+func (r *Registry) AddExternalHTTPRule(qualifiedMethodName string, rule *annotations.HttpRule) {
+	r.externalHTTPRules[qualifiedMethodName] = append(r.externalHTTPRules[qualifiedMethodName], rule)
+}
+
 // AddPkgMap adds a mapping from a .proto file to proto package name.
 func (r *Registry) AddPkgMap(file, protoPkg string) {
 	r.pkgMap[file] = protoPkg
@@ -247,9 +268,6 @@ func (r *Registry) goPackagePath(f *descriptor.FileDescriptorProto) string {
 	}
 
 	gopkg := f.Options.GetGoPackage()
-	if len(gopkg) == 0 {
-		gopkg = r.importPath
-	}
 	idx := strings.LastIndex(gopkg, "/")
 	if idx >= 0 {
 		if sc := strings.LastIndex(gopkg, ";"); sc > 0 {
@@ -285,6 +303,26 @@ func (r *Registry) SetAllowDeleteBody(allow bool) {
 	r.allowDeleteBody = allow
 }
 
+// SetAllowMerge controls whether generation one swagger file out of multiple protos
+func (r *Registry) SetAllowMerge(allow bool) {
+	r.allowMerge = allow
+}
+
+// IsAllowMerge whether generation one swagger file out of multiple protos
+func (r *Registry) IsAllowMerge() bool {
+	return r.allowMerge
+}
+
+// SetMergeFileName controls the target swagger file name out of multiple protos
+func (r *Registry) SetMergeFileName(mergeFileName string) {
+	r.mergeFileName = mergeFileName
+}
+
+// GetMergeFileName return the target merge swagger file name
+func (r *Registry) GetMergeFileName() string {
+	return r.mergeFileName
+}
+
 // sanitizePackageName replaces unallowed character in package name
 // with allowed character.
 func sanitizePackageName(pkgName string) string {
@@ -295,15 +333,15 @@ func sanitizePackageName(pkgName string) string {
 
 // defaultGoPackageName returns the default go package name to be used for go files generated from "f".
 // You might need to use an unique alias for the package when you import it.  Use ReserveGoPackageAlias to get a unique alias.
-func defaultGoPackageName(f *descriptor.FileDescriptorProto) string {
-	name := packageIdentityName(f)
+func (r *Registry) defaultGoPackageName(f *descriptor.FileDescriptorProto) string {
+	name := r.packageIdentityName(f)
 	return sanitizePackageName(name)
 }
 
 // packageIdentityName returns the identity of packages.
 // protoc-gen-grpc-gateway rejects CodeGenerationRequests which contains more than one packages
 // as protoc-gen-go does.
-func packageIdentityName(f *descriptor.FileDescriptorProto) string {
+func (r *Registry) packageIdentityName(f *descriptor.FileDescriptorProto) string {
 	if f.Options != nil && f.Options.GoPackage != nil {
 		gopkg := f.Options.GetGoPackage()
 		idx := strings.LastIndex(gopkg, "/")
@@ -320,6 +358,12 @@ func packageIdentityName(f *descriptor.FileDescriptorProto) string {
 
 		}
 		return sanitizePackageName(gopkg[sc+1:])
+	}
+	if p := r.importPath; len(p) != 0 {
+		if i := strings.LastIndex(p, "/"); i >= 0 {
+			p = p[i+1:]
+		}
+		return p
 	}
 
 	if f.Package == nil {

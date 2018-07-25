@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -523,6 +523,33 @@ func (s *subscription) start(wg *sync.WaitGroup) {
 
 func (s *subscription) stop() {
 	close(s.done)
+}
+
+func (s *gServer) Acknowledge(_ context.Context, req *pb.AcknowledgeRequest) (*emptypb.Empty, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if req.Subscription == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "missing subscription")
+	}
+	sub := s.subs[req.Subscription]
+	for _, id := range req.AckIds {
+		sub.ack(id)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *gServer) ModifyAckDeadline(_ context.Context, req *pb.ModifyAckDeadlineRequest) (*emptypb.Empty, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if req.Subscription == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "missing subscription")
+	}
+	sub := s.subs[req.Subscription]
+	dur := secsToDur(req.AckDeadlineSeconds)
+	for _, id := range req.AckIds {
+		sub.modifyAckDeadline(id, dur)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (s *gServer) StreamingPull(sps pb.Subscriber_StreamingPullServer) error {

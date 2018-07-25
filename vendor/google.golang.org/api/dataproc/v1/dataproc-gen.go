@@ -1,4 +1,6 @@
-// Package dataproc provides access to the Google Cloud Dataproc API.
+// Package dataproc provides access to the Cloud Dataproc API.
+//
+// This package is DEPRECATED. Use package cloud.google.com/go/dataproc/apiv1 instead.
 //
 // See https://cloud.google.com/dataproc/
 //
@@ -148,7 +150,9 @@ type AcceleratorConfig struct {
 	//
 	// projects/[project_id]/zones/us-east1-a/acceleratorTypes/nvidia-tesla-k
 	// 80
-	// nvidia-tesla-k80
+	// nvidia-tesla-k80Auto Zone Exception: If you are using the Cloud
+	// Dataproc Auto Zone Placement feature, you must use the short name of
+	// the accelerator type resource, for example, nvidia-tesla-k80.
 	AcceleratorTypeUri string `json:"acceleratorTypeUri,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "AcceleratorCount") to
@@ -348,6 +352,40 @@ func (s *ClusterMetrics) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// ClusterOperation: The cluster operation triggered by a workflow.
+type ClusterOperation struct {
+	// Done: Output only. Indicates the operation is done.
+	Done bool `json:"done,omitempty"`
+
+	// Error: Output only. Error, if operation failed.
+	Error string `json:"error,omitempty"`
+
+	// OperationId: Output only. The id of the cluster operation.
+	OperationId string `json:"operationId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Done") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Done") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *ClusterOperation) MarshalJSON() ([]byte, error) {
+	type NoMethod ClusterOperation
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // ClusterOperationMetadata: Metadata describing the operation.
 type ClusterOperationMetadata struct {
 	// ClusterName: Output only. Name of the cluster for the operation.
@@ -508,9 +546,9 @@ type DiagnoseClusterRequest struct {
 
 // DiagnoseClusterResults: The location of diagnostic output.
 type DiagnoseClusterResults struct {
-	// OutputUri: Output only. The Google Cloud Storage URI of the
-	// diagnostic output. The output report is a plain text file with a
-	// summary of collected diagnostics.
+	// OutputUri: Output only. The Cloud Storage URI of the diagnostic
+	// output. The output report is a plain text file with a summary of
+	// collected diagnostics.
 	OutputUri string `json:"outputUri,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "OutputUri") to
@@ -542,6 +580,11 @@ type DiskConfig struct {
 	// BootDiskSizeGb: Optional. Size in GB of the boot disk (default is
 	// 500GB).
 	BootDiskSizeGb int64 `json:"bootDiskSizeGb,omitempty"`
+
+	// BootDiskType: Optional. Type of the boot disk (default is
+	// "pd-standard"). Valid values: "pd-ssd" (Persistent Disk Solid State
+	// Drive) or "pd-standard" (Persistent Disk Hard Disk Drive).
+	BootDiskType string `json:"bootDiskType,omitempty"`
 
 	// NumLocalSsds: Optional. Number of attached SSDs, from 0 to 4 (default
 	// is 0). If SSDs are not attached, the boot disk is used to store
@@ -625,7 +668,7 @@ type GceClusterConfig struct {
 
 	// ServiceAccount: Optional. The service account of the instances.
 	// Defaults to the default Compute Engine service account. Custom
-	// service accounts need permissions equivalent to the folloing IAM
+	// service accounts need permissions equivalent to the following IAM
 	// roles:
 	// roles/logging.logWriter
 	// roles/storage.objectAdmin(see
@@ -634,8 +677,8 @@ type GceClusterConfig struct {
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
 	// ServiceAccountScopes: Optional. The URIs of service account scopes to
-	// be included in Google Compute Engine instances. The following base
-	// set of scopes is always
+	// be included in Compute Engine instances. The following base set of
+	// scopes is always
 	// included:
 	// https://www.googleapis.com/auth/cloud.useraccounts.readonly
 	//
@@ -839,14 +882,14 @@ type InstanceGroupConfig struct {
 	// DiskConfig: Optional. Disk option config settings.
 	DiskConfig *DiskConfig `json:"diskConfig,omitempty"`
 
-	// ImageUri: Output only. The Compute Engine image resource used for
-	// cluster instances. Inferred from SoftwareConfig.image_version.
+	// ImageUri: Optional. The Compute Engine image resource used for
+	// cluster instances. It can be specified or may be inferred from
+	// SoftwareConfig.image_version.
 	ImageUri string `json:"imageUri,omitempty"`
 
-	// InstanceNames: Optional. The list of instance names. Cloud Dataproc
-	// derives the names from cluster_name, num_instances, and the instance
-	// group if not set by user (recommended practice is to let Cloud
-	// Dataproc derive the name).
+	// InstanceNames: Output only. The list of instance names. Cloud
+	// Dataproc derives the names from cluster_name, num_instances, and the
+	// instance group.
 	InstanceNames []string `json:"instanceNames,omitempty"`
 
 	// IsPreemptible: Optional. Specifies that this instance group contains
@@ -860,7 +903,9 @@ type InstanceGroupConfig struct {
 	// zones/us-east1-a/machineTypes/n1-standard-2
 	// projects/[project_id]/zone
 	// s/us-east1-a/machineTypes/n1-standard-2
-	// n1-standard-2
+	// n1-standard-2Auto Zone Exception: If you are using the Cloud Dataproc
+	// Auto Zone Placement feature, you must use the short name of the
+	// machine type resource, for example, n1-standard-2.
 	MachineTypeUri string `json:"machineTypeUri,omitempty"`
 
 	// ManagedGroupConfig: Output only. The config for Compute Engine
@@ -1604,8 +1649,9 @@ func (s *QueryList) MarshalJSON() ([]byte, error) {
 // the cluster.
 type SoftwareConfig struct {
 	// ImageVersion: Optional. The version of software inside the cluster.
-	// It must match the regular expression [0-9]+\.[0-9]+. If unspecified,
-	// it defaults to the latest version (see Cloud Dataproc Versioning).
+	// It must be one of the supported Cloud Dataproc Versions, such as
+	// "1.2" (including a subminor version, such as "1.2.29"), or the
+	// "preview" version. If unspecified, it defaults to the latest version.
 	ImageVersion string `json:"imageVersion,omitempty"`
 
 	// Properties: Optional. The properties to set on daemon config
@@ -1867,6 +1913,141 @@ type SubmitJobRequest struct {
 
 func (s *SubmitJobRequest) MarshalJSON() ([]byte, error) {
 	type NoMethod SubmitJobRequest
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// WorkflowGraph: The workflow graph.
+type WorkflowGraph struct {
+	// Nodes: Output only. The workflow nodes.
+	Nodes []*WorkflowNode `json:"nodes,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Nodes") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Nodes") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *WorkflowGraph) MarshalJSON() ([]byte, error) {
+	type NoMethod WorkflowGraph
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// WorkflowMetadata: A Cloud Dataproc workflow template resource.
+type WorkflowMetadata struct {
+	// ClusterName: Output only. The name of the managed cluster.
+	ClusterName string `json:"clusterName,omitempty"`
+
+	// CreateCluster: Output only. The create cluster operation metadata.
+	CreateCluster *ClusterOperation `json:"createCluster,omitempty"`
+
+	// DeleteCluster: Output only. The delete cluster operation metadata.
+	DeleteCluster *ClusterOperation `json:"deleteCluster,omitempty"`
+
+	// Graph: Output only. The workflow graph.
+	Graph *WorkflowGraph `json:"graph,omitempty"`
+
+	// Parameters: Map from parameter names to values that were used for
+	// those parameters.
+	Parameters map[string]string `json:"parameters,omitempty"`
+
+	// State: Output only. The workflow state.
+	//
+	// Possible values:
+	//   "UNKNOWN" - Unused.
+	//   "PENDING" - The operation has been created.
+	//   "RUNNING" - The operation is running.
+	//   "DONE" - The operation is done; either cancelled or completed.
+	State string `json:"state,omitempty"`
+
+	// Template: Output only. The "resource name" of the template.
+	Template string `json:"template,omitempty"`
+
+	// Version: Output only. The version of template at the time of workflow
+	// instantiation.
+	Version int64 `json:"version,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "ClusterName") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "ClusterName") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *WorkflowMetadata) MarshalJSON() ([]byte, error) {
+	type NoMethod WorkflowMetadata
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// WorkflowNode: The workflow node.
+type WorkflowNode struct {
+	// Error: Output only. The error detail.
+	Error string `json:"error,omitempty"`
+
+	// JobId: Output only. The job id; populated after the node enters
+	// RUNNING state.
+	JobId string `json:"jobId,omitempty"`
+
+	// PrerequisiteStepIds: Output only. Node's prerequisite nodes.
+	PrerequisiteStepIds []string `json:"prerequisiteStepIds,omitempty"`
+
+	// State: Output only. The node state.
+	//
+	// Possible values:
+	//   "NODE_STATE_UNSPECIFIED" - State is unspecified.
+	//   "BLOCKED" - The node is awaiting prerequisite node to finish.
+	//   "RUNNABLE" - The node is runnable but not running.
+	//   "RUNNING" - The node is running.
+	//   "COMPLETED" - The node completed successfully.
+	//   "FAILED" - The node failed. A node can be marked FAILED because its
+	// ancestor or peer failed.
+	State string `json:"state,omitempty"`
+
+	// StepId: Output only. The name of the node.
+	StepId string `json:"stepId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Error") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Error") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *WorkflowNode) MarshalJSON() ([]byte, error) {
+	type NoMethod WorkflowNode
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }

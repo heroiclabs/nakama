@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,24 +20,19 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/spanner/internal/testutil"
-	"go.opencensus.io/plugin/ocgrpc"
-	statsview "go.opencensus.io/stats/view"
+	"cloud.google.com/go/internal/testutil"
+	stestutil "cloud.google.com/go/spanner/internal/testutil"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 )
 
+// Check that stats are being exported.
 func TestOCStats(t *testing.T) {
-	// Check that stats are being exported.
-	te := &testExporter{c: make(chan *statsview.Data)}
-	statsview.RegisterExporter(te)
-	defer statsview.UnregisterExporter(te)
-	statsview.SetReportingPeriod(time.Millisecond)
-	if err := ocgrpc.ClientRequestCountView.Subscribe(); err != nil {
-		t.Fatal(err)
-	}
-	ms := testutil.NewMockCloudSpanner(t, trxTs)
+	te := testutil.NewTestExporter()
+	defer te.Unregister()
+
+	ms := stestutil.NewMockCloudSpanner(t, trxTs)
 	ms.Serve()
 	ctx := context.Background()
 	c, err := NewClient(ctx, "projects/P/instances/I/databases/D",
@@ -52,21 +47,8 @@ func TestOCStats(t *testing.T) {
 	c.Single().ReadRow(ctx, "Users", Key{"alice"}, []string{"email"})
 	// Wait until we see data from the view.
 	select {
-	case <-te.c:
+	case <-te.Stats:
 	case <-time.After(1 * time.Second):
 		t.Fatal("no stats were exported before timeout")
-	}
-}
-
-type testExporter struct {
-	c chan *statsview.Data
-}
-
-func (e *testExporter) ExportView(vd *statsview.Data) {
-	if len(vd.Rows) > 0 {
-		select {
-		case e.c <- vd:
-		default:
-		}
 	}
 }

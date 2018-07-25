@@ -18,8 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -28,6 +26,7 @@ import (
 	"time"
 
 	"go.opencensus.io/internal"
+	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
@@ -42,8 +41,6 @@ import (
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 )
 
 const maxTimeSeriesPerUpload = 200
@@ -92,7 +89,7 @@ func newStatsExporter(o Options) (*statsExporter, error) {
 
 	seenProjects[o.ProjectID] = true
 
-	opts := append(o.ClientOptions, option.WithUserAgent(internal.UserAgent))
+	opts := append(o.MonitoringClientOptions, option.WithUserAgent(internal.UserAgent))
 	client, err := monitoring.NewMetricClient(context.Background(), opts...)
 	if err != nil {
 		return nil, err
@@ -125,9 +122,9 @@ func (e *statsExporter) ExportView(vd *view.Data) {
 	case bundler.ErrOversizedItem:
 		go e.handleUpload(vd)
 	case bundler.ErrOverflow:
-		e.onError(errors.New("failed to upload: buffer full"))
+		e.o.handleError(errors.New("failed to upload: buffer full"))
 	default:
-		e.onError(err)
+		e.o.handleError(err)
 	}
 }
 
@@ -145,7 +142,7 @@ func getTaskValue() string {
 // of Data, as well as error handling.
 func (e *statsExporter) handleUpload(vds ...*view.Data) {
 	if err := e.uploadStats(vds); err != nil {
-		e.onError(err)
+		e.o.handleError(err)
 	}
 }
 
@@ -157,32 +154,23 @@ func (e *statsExporter) Flush() {
 	e.bundler.Flush()
 }
 
-func (e *statsExporter) onError(err error) {
-	if e.o.OnError != nil {
-		e.o.OnError(err)
-		return
-	}
-	log.Printf("Failed to export to Stackdriver Monitoring: %v", err)
-}
-
 func (e *statsExporter) uploadStats(vds []*view.Data) error {
-	span := trace.NewSpan(
+	ctx, span := trace.StartSpan(
+		context.Background(),
 		"go.opencensus.io/exporter/stackdriver.uploadStats",
-		nil,
-		trace.StartOptions{Sampler: trace.NeverSample()},
+		trace.WithSampler(trace.NeverSample()),
 	)
-	ctx := trace.WithSpan(context.Background(), span)
 	defer span.End()
 
 	for _, vd := range vds {
 		if err := e.createMeasure(ctx, vd); err != nil {
-			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
+			span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: err.Error()})
 			return err
 		}
 	}
 	for _, req := range e.makeReq(vds, maxTimeSeriesPerUpload) {
 		if err := e.c.CreateTimeSeries(ctx, req); err != nil {
-			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
+			span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: err.Error()})
 			// TODO(jbd): Don't fail fast here, batch errors?
 			return err
 		}
@@ -205,7 +193,7 @@ func (e *statsExporter) makeReq(vds []*view.Data, limit int) []*monitoringpb.Cre
 		for _, row := range vd.Rows {
 			ts := &monitoringpb.TimeSeries{
 				Metric: &metricpb.Metric{
-					Type:   namespacedViewName(vd.View.Name, false),
+					Type:   namespacedViewName(vd.View.Name),
 					Labels: newLabels(row.Tags, e.taskValue),
 				},
 				Resource: resource,
@@ -243,53 +231,53 @@ func (e *statsExporter) createMeasure(ctx context.Context, vd *view.Data) error 
 	viewName := vd.View.Name
 
 	if md, ok := e.createdViews[viewName]; ok {
-		return equalAggTagKeys(md, agg, tagKeys)
+		return equalMeasureAggTagKeys(md, m, agg, tagKeys)
 	}
 
-	metricName := monitoring.MetricMetricDescriptorPath(e.o.ProjectID, namespacedViewName(viewName, true))
-	md, err := getMetricDescriptor(ctx, e.c, &monitoringpb.GetMetricDescriptorRequest{
-		Name: metricName,
-	})
-	if err == nil {
-		if err := equalAggTagKeys(md, agg, tagKeys); err != nil {
-			return err
-		}
-		e.createdViews[viewName] = md
-		return nil
-	}
-	if grpc.Code(err) != codes.NotFound {
-		return err
-	}
-
-	var metricKind metricpb.MetricDescriptor_MetricKind
+	metricType := namespacedViewName(viewName)
 	var valueType metricpb.MetricDescriptor_ValueType
+	unit := m.Unit()
 
 	switch agg.Type {
 	case view.AggTypeCount:
 		valueType = metricpb.MetricDescriptor_INT64
+		// If the aggregation type is count, which counts the number of recorded measurements, the unit must be "1",
+		// because this view does not apply to the recorded values.
+		unit = stats.UnitDimensionless
 	case view.AggTypeSum:
-		valueType = metricpb.MetricDescriptor_DOUBLE
-	case view.AggTypeMean:
-		valueType = metricpb.MetricDescriptor_DISTRIBUTION
+		switch m.(type) {
+		case *stats.Int64Measure:
+			valueType = metricpb.MetricDescriptor_INT64
+		case *stats.Float64Measure:
+			valueType = metricpb.MetricDescriptor_DOUBLE
+		}
 	case view.AggTypeDistribution:
 		valueType = metricpb.MetricDescriptor_DISTRIBUTION
+	case view.AggTypeLastValue:
+		switch m.(type) {
+		case *stats.Int64Measure:
+			valueType = metricpb.MetricDescriptor_INT64
+		case *stats.Float64Measure:
+			valueType = metricpb.MetricDescriptor_DOUBLE
+		}
 	default:
 		return fmt.Errorf("unsupported aggregation type: %s", agg.Type.String())
 	}
 
-	metricKind = metricpb.MetricDescriptor_CUMULATIVE
+	metricKind := metricpb.MetricDescriptor_CUMULATIVE
 	displayNamePrefix := defaultDisplayNamePrefix
 	if e.o.MetricPrefix != "" {
 		displayNamePrefix = e.o.MetricPrefix
 	}
 
-	md, err = createMetricDescriptor(ctx, e.c, &monitoringpb.CreateMetricDescriptorRequest{
-		Name: monitoring.MetricProjectPath(e.o.ProjectID),
+	md, err := createMetricDescriptor(ctx, e.c, &monitoringpb.CreateMetricDescriptorRequest{
+		Name: fmt.Sprintf("projects/%s", e.o.ProjectID),
 		MetricDescriptor: &metricpb.MetricDescriptor{
+			Name:        fmt.Sprintf("projects/%s/metricDescriptors/%s", e.o.ProjectID, metricType),
 			DisplayName: path.Join(displayNamePrefix, viewName),
-			Description: m.Description(),
-			Unit:        m.Unit(),
-			Type:        namespacedViewName(viewName, false),
+			Description: vd.View.Description,
+			Unit:        unit,
+			Type:        metricType,
 			MetricKind:  metricKind,
 			ValueType:   valueType,
 			Labels:      newLabelDescriptors(vd.View.TagKeys),
@@ -323,28 +311,19 @@ func newTypedValue(vd *view.View, r *view.Row) *monitoringpb.TypedValue {
 	switch v := r.Data.(type) {
 	case *view.CountData:
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_Int64Value{
-			Int64Value: int64(*v),
+			Int64Value: v.Value,
 		}}
 	case *view.SumData:
-		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{
-			DoubleValue: float64(*v),
-		}}
-	case *view.MeanData:
-		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DistributionValue{
-			DistributionValue: &distributionpb.Distribution{
-				Count: int64(v.Count),
-				Mean:  v.Mean,
-				SumOfSquaredDeviation: 0,
-				BucketOptions: &distributionpb.Distribution_BucketOptions{
-					Options: &distributionpb.Distribution_BucketOptions_ExplicitBuckets{
-						ExplicitBuckets: &distributionpb.Distribution_BucketOptions_Explicit{
-							Bounds: []float64{0},
-						},
-					},
-				},
-				BucketCounts: []int64{0, int64(v.Count)},
-			},
-		}}
+		switch vd.Measure.(type) {
+		case *stats.Int64Measure:
+			return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_Int64Value{
+				Int64Value: int64(v.Value),
+			}}
+		case *stats.Float64Measure:
+			return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{
+				DoubleValue: v.Value,
+			}}
+		}
 	case *view.DistributionData:
 		return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DistributionValue{
 			DistributionValue: &distributionpb.Distribution{
@@ -366,16 +345,23 @@ func newTypedValue(vd *view.View, r *view.Row) *monitoringpb.TypedValue {
 				BucketCounts: v.CountPerBucket,
 			},
 		}}
+	case *view.LastValueData:
+		switch vd.Measure.(type) {
+		case *stats.Int64Measure:
+			return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_Int64Value{
+				Int64Value: int64(v.Value),
+			}}
+		case *stats.Float64Measure:
+			return &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{
+				DoubleValue: v.Value,
+			}}
+		}
 	}
 	return nil
 }
 
-func namespacedViewName(v string, escaped bool) string {
-	p := path.Join("opencensus", v)
-	if escaped {
-		p = url.PathEscape(p)
-	}
-	return path.Join("custom.googleapis.com", p)
+func namespacedViewName(v string) string {
+	return path.Join("custom.googleapis.com", "opencensus", v)
 }
 
 func newLabels(tags []tag.Tag, taskValue string) map[string]string {
@@ -404,15 +390,21 @@ func newLabelDescriptors(keys []tag.Key) []*labelpb.LabelDescriptor {
 	return labelDescriptors
 }
 
-func equalAggTagKeys(md *metricpb.MetricDescriptor, agg *view.Aggregation, keys []tag.Key) error {
+func equalMeasureAggTagKeys(md *metricpb.MetricDescriptor, m stats.Measure, agg *view.Aggregation, keys []tag.Key) error {
 	var aggTypeMatch bool
 	switch md.ValueType {
 	case metricpb.MetricDescriptor_INT64:
-		aggTypeMatch = agg.Type == view.AggTypeCount
+		if _, ok := m.(*stats.Int64Measure); !(ok || agg.Type == view.AggTypeCount) {
+			return fmt.Errorf("stackdriver metric descriptor was not created as int64")
+		}
+		aggTypeMatch = agg.Type == view.AggTypeCount || agg.Type == view.AggTypeSum || agg.Type == view.AggTypeLastValue
 	case metricpb.MetricDescriptor_DOUBLE:
-		aggTypeMatch = agg.Type == view.AggTypeSum
+		if _, ok := m.(*stats.Float64Measure); !ok {
+			return fmt.Errorf("stackdriver metric descriptor was not created as double")
+		}
+		aggTypeMatch = agg.Type == view.AggTypeSum || agg.Type == view.AggTypeLastValue
 	case metricpb.MetricDescriptor_DISTRIBUTION:
-		aggTypeMatch = agg.Type == view.AggTypeMean || agg.Type == view.AggTypeDistribution
+		aggTypeMatch = agg.Type == view.AggTypeDistribution
 	}
 
 	if !aggTypeMatch {

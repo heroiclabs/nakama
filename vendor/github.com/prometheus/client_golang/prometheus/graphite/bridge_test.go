@@ -3,6 +3,7 @@ package graphite
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -25,6 +26,7 @@ func TestSanitize(t *testing.T) {
 		{in: "hE/l1o", out: "hE_l1o"},
 		{in: "he,*ll(.o", out: "he_ll_o"},
 		{in: "hello_there%^&", out: "hello_there_"},
+		{in: "hell-.o", out: "hell-_o"},
 	}
 
 	var buf bytes.Buffer
@@ -72,27 +74,41 @@ func TestWriteSummary(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	now := model.Time(1477043083)
-	var buf bytes.Buffer
-	err = writeMetrics(&buf, mfs, "prefix", now)
-	if err != nil {
-		t.Fatalf("error: %v", err)
+	testCases := []struct {
+		prefix string
+	}{
+		{prefix: "prefix"},
+		{prefix: "pre/fix"},
+		{prefix: "pre.fix"},
 	}
 
-	want := `prefix.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043
-prefix.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043
-prefix.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043
-prefix.name_sum.constname.constvalue.labelname.val1 60 1477043
-prefix.name_count.constname.constvalue.labelname.val1 3 1477043
-prefix.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043
-prefix.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043
-prefix.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043
-prefix.name_sum.constname.constvalue.labelname.val2 90 1477043
-prefix.name_count.constname.constvalue.labelname.val2 3 1477043
+	const want = `%s.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043
+%s.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043
+%s.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043
+%s.name_sum.constname.constvalue.labelname.val1 60 1477043
+%s.name_count.constname.constvalue.labelname.val1 3 1477043
+%s.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043
+%s.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043
+%s.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043
+%s.name_sum.constname.constvalue.labelname.val2 90 1477043
+%s.name_count.constname.constvalue.labelname.val2 3 1477043
 `
+	for i, tc := range testCases {
 
-	if got := buf.String(); want != got {
-		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
+		now := model.Time(1477043083)
+		var buf bytes.Buffer
+		err = writeMetrics(&buf, mfs, tc.prefix, now)
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+
+		wantWithPrefix := fmt.Sprintf(want,
+			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+		)
+		if got := buf.String(); wantWithPrefix != got {
+			t.Fatalf("test case index %d: wanted \n%s\n, got \n%s\n", i, wantWithPrefix, got)
+		}
 	}
 }
 

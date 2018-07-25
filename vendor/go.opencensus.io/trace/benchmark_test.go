@@ -94,12 +94,12 @@ func BenchmarkSpanID_DotString(b *testing.B) {
 func traceBenchmark(b *testing.B, fn func(*testing.B)) {
 	b.Run("AlwaysSample", func(b *testing.B) {
 		b.ReportAllocs()
-		SetDefaultSampler(AlwaysSample())
+		ApplyConfig(Config{DefaultSampler: AlwaysSample()})
 		fn(b)
 	})
 	b.Run("NeverSample", func(b *testing.B) {
 		b.ReportAllocs()
-		SetDefaultSampler(NeverSample())
+		ApplyConfig(Config{DefaultSampler: NeverSample()})
 		fn(b)
 	})
 }

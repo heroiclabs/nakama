@@ -28,6 +28,13 @@ import (
 	"go.opencensus.io/stats/view"
 )
 
+// Create measures. The program will record measures for the size of
+// processed videos and the number of videos marked as spam.
+var (
+	videoCount = stats.Int64("example.com/measures/video_count", "number of processed videos", stats.UnitDimensionless)
+	videoSize  = stats.Int64("example.com/measures/video_size", "size of processed video", stats.UnitBytes)
+)
+
 func main() {
 	ctx := context.Background()
 
@@ -37,22 +44,11 @@ func main() {
 	}
 	view.RegisterExporter(exporter)
 
-	// Create measures. The program will record measures for the size of
-	// processed videos and the number of videos marked as spam.
-	videoCount, err := stats.Int64("my.org/measures/video_count", "number of processed videos", "")
-	if err != nil {
-		log.Fatalf("Video count measure not created: %v", err)
-	}
-	videoSize, err := stats.Int64("my.org/measures/video_size", "size of processed video", "MBy")
-	if err != nil {
-		log.Fatalf("Video size measure not created: %v", err)
-	}
-
 	// Create view to see the number of processed videos cumulatively.
 	// Create view to see the amount of video processed
 	// Subscribe will allow view data to be exported.
 	// Once no longer needed, you can unsubscribe from the view.
-	if err = view.Subscribe(
+	if err = view.Register(
 		&view.View{
 			Name:        "video_count",
 			Description: "number of videos processed over time",
@@ -66,7 +62,7 @@ func main() {
 			Aggregation: view.Distribution(0, 1<<16, 1<<32),
 		},
 	); err != nil {
-		log.Fatalf("Cannot subscribe to the view: %v", err)
+		log.Fatalf("Cannot register the view: %v", err)
 	}
 
 	// Set reporting period to report data at every second.

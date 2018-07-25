@@ -22,25 +22,12 @@ func (b *runContainer16) writeTo(stream io.Writer) (int, error) {
 	return stream.Write(buf)
 }
 
-func (b *runContainer32) writeToMsgpack(stream io.Writer) (int, error) {
-	bts, err := b.MarshalMsg(nil)
-	if err != nil {
-		return 0, err
-	}
-	return stream.Write(bts)
-}
-
 func (b *runContainer16) writeToMsgpack(stream io.Writer) (int, error) {
 	bts, err := b.MarshalMsg(nil)
 	if err != nil {
 		return 0, err
 	}
 	return stream.Write(bts)
-}
-
-func (b *runContainer32) readFromMsgpack(stream io.Reader) (int, error) {
-	err := msgp.Decode(stream, b)
-	return 0, err
 }
 
 func (b *runContainer16) readFromMsgpack(stream io.Reader) (int, error) {

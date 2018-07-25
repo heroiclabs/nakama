@@ -34,7 +34,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// uncheckedCollector wraps a Collector but its Describe method yields no Desc.
+type uncheckedCollector struct {
+	c prometheus.Collector
+}
+
+func (u uncheckedCollector) Describe(_ chan<- *prometheus.Desc) {}
+func (u uncheckedCollector) Collect(c chan<- prometheus.Metric) {
+	u.c.Collect(c)
+}
+
 func testHandler(t testing.TB) {
+	// TODO(beorn7): This test is a bit too "end-to-end". It tests quite a
+	// few moving parts that are not strongly coupled. They could/should be
+	// tested separately. However, the changes planned for v0.10 will
+	// require a major rework of this test anyway, at which time I will
+	// structure it in a better way.
 
 	metricVec := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -234,7 +249,64 @@ metric: <
 
 	expectedMetricFamilyInvalidLabelValueAsText := []byte(`An error has occurred during metrics gathering:
 
-collected metric's label constname is not utf8: "\xff"
+collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"labelname" value:"different_val" > counter:<value:42 > } has a label named "constname" whose value is not utf8: "\xff"
+`)
+
+	summary := prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "complex",
+		Help: "A metric to check collisions with _sum and _count.",
+	})
+	summaryAsText := []byte(`# HELP complex A metric to check collisions with _sum and _count.
+# TYPE complex summary
+complex{quantile="0.5"} NaN
+complex{quantile="0.9"} NaN
+complex{quantile="0.99"} NaN
+complex_sum 0
+complex_count 0
+`)
+	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "complex",
+		Help: "A metric to check collisions with _sun, _count, and _bucket.",
+	})
+	externalMetricFamilyWithBucketSuffix := &dto.MetricFamily{
+		Name: proto.String("complex_bucket"),
+		Help: proto.String("externaldocstring"),
+		Type: dto.MetricType_COUNTER.Enum(),
+		Metric: []*dto.Metric{
+			{
+				Counter: &dto.Counter{
+					Value: proto.Float64(1),
+				},
+			},
+		},
+	}
+	externalMetricFamilyWithBucketSuffixAsText := []byte(`# HELP complex_bucket externaldocstring
+# TYPE complex_bucket counter
+complex_bucket 1
+`)
+	externalMetricFamilyWithCountSuffix := &dto.MetricFamily{
+		Name: proto.String("complex_count"),
+		Help: proto.String("externaldocstring"),
+		Type: dto.MetricType_COUNTER.Enum(),
+		Metric: []*dto.Metric{
+			{
+				Counter: &dto.Counter{
+					Value: proto.Float64(1),
+				},
+			},
+		},
+	}
+	bucketCollisionMsg := []byte(`An error has occurred during metrics gathering:
+
+collected metric named "complex_bucket" collides with previously collected histogram named "complex"
+`)
+	summaryCountCollisionMsg := []byte(`An error has occurred during metrics gathering:
+
+collected metric named "complex_count" collides with previously collected summary named "complex"
+`)
+	histogramCountCollisionMsg := []byte(`An error has occurred during metrics gathering:
+
+collected metric named "complex_count" collides with previously collected histogram named "complex"
 `)
 
 	type output struct {
@@ -496,6 +568,84 @@ collected metric's label constname is not utf8: "\xff"
 				externalMetricFamilyWithInvalidLabelValue,
 			},
 		},
+		{ // 17
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4; charset=utf-8`,
+				},
+				body: expectedMetricFamilyAsText,
+			},
+			collector: uncheckedCollector{metricVec},
+		},
+		{ // 18
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; charset=utf-8`,
+				},
+				body: histogramCountCollisionMsg,
+			},
+			collector: histogram,
+			externalMF: []*dto.MetricFamily{
+				externalMetricFamilyWithCountSuffix,
+			},
+		},
+		{ // 19
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; charset=utf-8`,
+				},
+				body: bucketCollisionMsg,
+			},
+			collector: histogram,
+			externalMF: []*dto.MetricFamily{
+				externalMetricFamilyWithBucketSuffix,
+			},
+		},
+		{ // 20
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; charset=utf-8`,
+				},
+				body: summaryCountCollisionMsg,
+			},
+			collector: summary,
+			externalMF: []*dto.MetricFamily{
+				externalMetricFamilyWithCountSuffix,
+			},
+		},
+		{ // 21
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4; charset=utf-8`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						summaryAsText,
+						externalMetricFamilyWithBucketSuffixAsText,
+					},
+					[]byte{},
+				),
+			},
+			collector: summary,
+			externalMF: []*dto.MetricFamily{
+				externalMetricFamilyWithBucketSuffix,
+			},
+		},
 	}
 	for i, scenario := range scenarios {
 		registry := prometheus.NewPedanticRegistry()
@@ -510,7 +660,7 @@ collected metric's label constname is not utf8: "\xff"
 		}
 
 		if scenario.collector != nil {
-			registry.Register(scenario.collector)
+			registry.MustRegister(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
 		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))

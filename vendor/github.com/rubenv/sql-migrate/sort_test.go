@@ -1,8 +1,8 @@
 package migrate
 
 import (
-	"sort"
 	. "gopkg.in/check.v1"
+	"sort"
 )
 
 type SortSuite struct{}

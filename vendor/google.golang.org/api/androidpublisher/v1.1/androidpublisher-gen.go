@@ -132,7 +132,7 @@ type InappPurchase struct {
 	// billing flow. Possible values are:
 	// - Test (i.e. purchased from a license testing account)
 	// - Promo (i.e. purchased using a promo code)
-	PurchaseType int64 `json:"purchaseType,omitempty"`
+	PurchaseType *int64 `json:"purchaseType,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.

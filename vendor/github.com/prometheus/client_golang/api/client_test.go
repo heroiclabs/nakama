@@ -89,7 +89,7 @@ func TestClientURL(t *testing.T) {
 			address:  "http://localhost:9090",
 			endpoint: "/test/:param",
 			args: map[string]string{
-				"nonexistant": "content",
+				"nonexistent": "content",
 			},
 			expected: "http://localhost:9090/test/:param",
 		},
