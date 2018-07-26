@@ -17,7 +17,6 @@ import (
 	"crypto/tls"
 	"io/ioutil"
 	"reflect"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -29,11 +28,11 @@ func LoadTLSConfig(filename string) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg := &TLSConfig{}
-	if err = yaml.Unmarshal(content, cfg); err != nil {
+	cfg := TLSConfig{}
+	if err = yaml.UnmarshalStrict(content, &cfg); err != nil {
 		return nil, err
 	}
-	return NewTLSConfig(cfg)
+	return NewTLSConfig(&cfg)
 }
 
 var expectedTLSConfigs = []struct {
@@ -58,35 +57,6 @@ func TestValidTLSConfig(t *testing.T) {
 		}
 		if !reflect.DeepEqual(*got, *cfg.config) {
 			t.Fatalf("%v: unexpected config result: \n\n%v\n expected\n\n%v", cfg.filename, got, cfg.config)
-		}
-	}
-}
-
-var expectedTLSConfigErrors = []struct {
-	filename string
-	errMsg   string
-}{
-	{
-		filename: "tls_config.invalid_field.bad.yml",
-		errMsg:   "unknown fields in",
-	}, {
-		filename: "tls_config.cert_no_key.bad.yml",
-		errMsg:   "specified without client key file",
-	}, {
-		filename: "tls_config.key_no_cert.bad.yml",
-		errMsg:   "specified without client cert file",
-	},
-}
-
-func TestBadTLSConfigs(t *testing.T) {
-	for _, ee := range expectedTLSConfigErrors {
-		_, err := LoadTLSConfig("testdata/" + ee.filename)
-		if err == nil {
-			t.Errorf("Expected error parsing %s but got none", ee.filename)
-			continue
-		}
-		if !strings.Contains(err.Error(), ee.errMsg) {
-			t.Errorf("Expected error for %s to contain %q but got: %s", ee.filename, ee.errMsg, err)
 		}
 	}
 }

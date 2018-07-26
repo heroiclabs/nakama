@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,9 +63,6 @@ type Topic struct {
 	bundler *bundler.Bundler
 
 	wg sync.WaitGroup
-
-	// Channel for message bundles to be published. Close to indicate that Stop was called.
-	bundlec chan []*bundledMessage
 }
 
 // PublishSettings control the bundling of published messages.
@@ -133,14 +130,10 @@ func (c *Client) TopicInProject(id, projectID string) *Topic {
 }
 
 func newTopic(c *Client, name string) *Topic {
-	// bundlec is unbuffered. A buffer would occupy memory not
-	// accounted for by the bundler, so BufferedByteLimit would be a lie:
-	// the actual memory consumed would be higher.
 	return &Topic{
 		c:               c,
 		name:            name,
 		PublishSettings: DefaultPublishSettings,
-		bundlec:         make(chan []*bundledMessage),
 	}
 }
 
@@ -278,10 +271,6 @@ func (t *Topic) Stop() {
 		return
 	}
 	t.bundler.Flush()
-	// At this point, all pending bundles have been published and the bundler's
-	// goroutines have exited, so it is OK for this goroutine to close bundlec.
-	close(t.bundlec)
-	t.wg.Wait()
 }
 
 // A PublishResult holds the result from a call to Publish.
@@ -337,32 +326,16 @@ func (t *Topic) initBundler() {
 		return
 	}
 
-	// TODO(jba): use a context detached from the one passed to NewClient.
-	ctx := context.TODO()
-	// Unless overridden, run several goroutines per CPU to call the Publish RPC.
-	n := t.PublishSettings.NumGoroutines
-	if n <= 0 {
-		n = 25 * runtime.GOMAXPROCS(0)
-	}
 	timeout := t.PublishSettings.Timeout
-	t.wg.Add(n)
-	for i := 0; i < n; i++ {
-		go func() {
-			defer t.wg.Done()
-			for b := range t.bundlec {
-				bctx := ctx
-				cancel := func() {}
-				if timeout != 0 {
-					bctx, cancel = context.WithTimeout(ctx, timeout)
-				}
-				t.publishMessageBundle(bctx, b)
-				cancel()
-			}
-		}()
-	}
 	t.bundler = bundler.NewBundler(&bundledMessage{}, func(items interface{}) {
-		t.bundlec <- items.([]*bundledMessage)
-
+		// TODO(jba): use a context detached from the one passed to NewClient.
+		ctx := context.TODO()
+		if timeout != 0 {
+			var cancel func()
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+		t.publishMessageBundle(ctx, items.([]*bundledMessage))
 	})
 	t.bundler.DelayThreshold = t.PublishSettings.DelayThreshold
 	t.bundler.BundleCountThreshold = t.PublishSettings.CountThreshold
@@ -372,6 +345,13 @@ func (t *Topic) initBundler() {
 	t.bundler.BundleByteThreshold = t.PublishSettings.ByteThreshold
 	t.bundler.BufferedByteLimit = maxInt
 	t.bundler.BundleByteLimit = MaxPublishRequestBytes
+	// Unless overridden, allow many goroutines per CPU to call the Publish RPC concurrently.
+	// The default value was determined via extensive load testing (see the loadtest subdirectory).
+	if t.PublishSettings.NumGoroutines > 0 {
+		t.bundler.HandlerLimit = t.PublishSettings.NumGoroutines
+	} else {
+		t.bundler.HandlerLimit = 25 * runtime.GOMAXPROCS(0)
+	}
 }
 
 func (t *Topic) publishMessageBundle(ctx context.Context, bms []*bundledMessage) {

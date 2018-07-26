@@ -14,17 +14,12 @@ go:
 - 1.10.x
 - tip
 
-# Next lines seem to fail horribly
-#- go test -v -covermode=count -coverprofile=coverage.out
-#- $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken KOlKyOXz0qSjAqvfTF28RzNlr3unxjrLh -ignore arraycontainer_gen.go,bitmapcontainer_gen.go,rle16_gen.go,rle_gen.go,roaringarray_gen.go,rle.go
-
-
 # whitelist
 branches:
   only:
     - master
 script:
-- go test
+- goveralls -v -service travis-ci -ignore arraycontainer_gen.go,bitmapcontainer_gen.go,rle16_gen.go,rle_gen.go,roaringarray_gen.go,rle.go || go test
 - go test -race -run TestConcurrent*
 - GOARCH=arm64 go build
 - GOARCH=386 go build

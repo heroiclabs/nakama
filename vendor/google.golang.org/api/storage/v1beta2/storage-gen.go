@@ -1,5 +1,7 @@
 // Package storage provides access to the Cloud Storage JSON API.
 //
+// This package is DEPRECATED. Use package cloud.google.com/go/storage instead.
+//
 // See https://developers.google.com/storage/docs/json_api/
 //
 // Usage example:

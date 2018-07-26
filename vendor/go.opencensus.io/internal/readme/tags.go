@@ -24,11 +24,11 @@ import (
 func tagsExamples() {
 	ctx := context.Background()
 
-	osKey, err := tag.NewKey("my.org/keys/user-os")
+	osKey, err := tag.NewKey("example.com/keys/user-os")
 	if err != nil {
 		log.Fatal(err)
 	}
-	userIDKey, err := tag.NewKey("my.org/keys/user-id")
+	userIDKey, err := tag.NewKey("example.com/keys/user-id")
 	if err != nil {
 		log.Fatal(err)
 	}

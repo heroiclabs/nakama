@@ -94,11 +94,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The custom account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -126,11 +142,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The device account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -158,11 +190,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The email account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -190,11 +238,35 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "import",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -222,11 +294,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Game Center account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -254,11 +342,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Google account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -286,11 +390,27 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Steam account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -399,11 +519,20 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "import",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -696,6 +825,7 @@
         "parameters": [
           {
             "name": "channel_id",
+            "description": "The channel ID to list from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -830,11 +960,20 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook account details.",
             "in": "body",
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "reset",
+            "description": "Reset the current user's friends list.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -910,7 +1049,7 @@
     },
     "/v2/group/{group_id}": {
       "delete": {
-        "summary": "Delete one or more groups by ID.",
+        "summary": "Delete a group by ID.",
         "operationId": "DeleteGroup",
         "responses": {
           "200": {
@@ -923,6 +1062,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The id of a group.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -946,6 +1086,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The ID of the group to update.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -979,6 +1120,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group to add users to.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1004,6 +1146,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to join.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1029,6 +1172,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to kick from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1054,6 +1198,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to leave.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1079,6 +1224,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to promote in.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1104,6 +1250,7 @@
         "parameters": [
           {
             "name": "group_id",
+            "description": "The group ID to list from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1129,6 +1276,7 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The ID of the leaderboard to list for.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1177,6 +1325,7 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The leaderboard ID to delete from.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1200,12 +1349,14 @@
         "parameters": [
           {
             "name": "leaderboard_id",
+            "description": "The ID of the leaderboard to write to.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "Record data.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1352,6 +1503,7 @@
         "parameters": [
           {
             "name": "id",
+            "description": "The identifier of the function.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1395,12 +1547,14 @@
         "parameters": [
           {
             "name": "id",
+            "description": "The identifier of the function.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "The payload of the function which must be a JSON object.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1513,6 +1667,7 @@
         "parameters": [
           {
             "name": "collection",
+            "description": "The collection which stores the object.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1560,12 +1715,14 @@
         "parameters": [
           {
             "name": "collection",
+            "description": "The collection which stores the object.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "user_id",
+            "description": "ID of the user.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1655,6 +1812,7 @@
         "parameters": [
           {
             "name": "user_id",
+            "description": "ID of the user.",
             "in": "path",
             "required": true,
             "type": "string"

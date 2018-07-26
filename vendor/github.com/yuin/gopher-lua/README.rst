@@ -785,6 +785,7 @@ Libraries for GopherLua
 - `gluasocket <https://github.com/BixData/gluasocket>`_ : A LuaSocket library for the GopherLua VM
 - `gluabit32 <https://github.com/BixData/gluabit32>`_ : A native Go implementation of bit32 for the GopherLua VM.
 - `gmoonscript <https://github.com/rucuriousyet/gmoonscript>`_ : Moonscript Compiler for the Gopher Lua VM
+- `loguago <https://github.com/rucuriousyet/loguago>`_ : Zerolog wrapper for Gopher-Lua 
 
 ----------------------------------------------------------------
 Donation

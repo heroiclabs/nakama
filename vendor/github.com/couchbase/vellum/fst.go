@@ -64,15 +64,18 @@ func (f *FST) Contains(val []byte) (bool, error) {
 // does not imply the key does not exist, you must consult the second
 // return value as well.
 func (f *FST) Get(input []byte) (uint64, bool, error) {
+	return f.get(input, nil)
+}
 
+func (f *FST) get(input []byte, prealloc fstState) (uint64, bool, error) {
 	var total uint64
 	curr := f.decoder.getRoot()
-	state, err := f.decoder.stateAt(curr, nil)
+	state, err := f.decoder.stateAt(curr, prealloc)
 	if err != nil {
 		return 0, false, err
 	}
-	for i := range input {
-		_, curr, output := state.TransitionFor(input[i])
+	for _, c := range input {
+		_, curr, output := state.TransitionFor(c)
 		if curr == noneAddr {
 			return 0, false, nil
 		}
@@ -232,4 +235,20 @@ func (a addrStack) Pop() (addrStack, int) {
 		return a, noneAddr
 	}
 	return a[:l-1], a[l-1]
+}
+
+// Reader() returns a Reader instance that a single thread may use to
+// retrieve data from the FST
+func (f *FST) Reader() (*Reader, error) {
+	return &Reader{f: f}, nil
+}
+
+// A Reader is meant for a single threaded use
+type Reader struct {
+	f        *FST
+	prealloc fstStateV1
+}
+
+func (r *Reader) Get(input []byte) (uint64, bool, error) {
+	return r.f.get(input, &r.prealloc)
 }

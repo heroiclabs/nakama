@@ -62,6 +62,9 @@ const (
 	// View and manage the provisioning of users on your domain
 	AdminDirectoryUserScope = "https://www.googleapis.com/auth/admin.directory.user"
 
+	// View and manage your Google Docs documents
+	DocumentsScope = "https://www.googleapis.com/auth/documents"
+
 	// View and manage the files in your Google Drive
 	DriveScope = "https://www.googleapis.com/auth/drive"
 
@@ -811,7 +814,7 @@ func (s *GoogleAppsScriptTypeFunctionSet) MarshalJSON() ([]byte, error) {
 // the script editor, a trigger, an application, or using the Apps
 // Script API.
 // This is distinct from the `Operation`
-// resource, which only represents exeuctions started via the Apps
+// resource, which only represents executions started via the Apps
 // Script API.
 type GoogleAppsScriptTypeProcess struct {
 	// Duration: Duration the execution spent executing.
@@ -848,6 +851,9 @@ type GoogleAppsScriptTypeProcess struct {
 	//   "TRIGGER" - The process was started from an event-based trigger.
 	//   "WEBAPP" - The process was started from a web app entry point.
 	//   "EDITOR" - The process was started using the Apps Script IDE.
+	//   "SIMPLE_TRIGGER" - The process was started from a GSuite simple
+	// trigger.
+	//   "MENU" - The process was started from a GSuite menu item.
 	ProcessType string `json:"processType,omitempty"`
 
 	// ProjectName: Name of the script being executed.
@@ -1300,14 +1306,13 @@ func (s *MetricsValue) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// Operation: A representation of a execution of an Apps Script function
-// that is started using run. The execution response does not arrive
+// Operation: A representation of an execution of an Apps Script
+// function started with run. The execution response does not arrive
 // until the function finishes executing. The maximum execution runtime
 // is listed in the [Apps Script quotas
 // guide](/apps-script/guides/services/quotas#current_limitations).
-// <p>After the execution is started, it can have one of four
-// outcomes:</p> <ul> <li> If the script function returns successfully,
-// the
+// <p>After execution has started, it can have one of four outcomes:</p>
+// <ul> <li> If the script function returns successfully, the
 //   response field contains an
 //   ExecutionResponse object
 //   with the function's return value in the object's `result`
@@ -1467,9 +1472,10 @@ func (s *ScriptStackTraceElement) MarshalJSON() ([]byte, error) {
 // Script itself) throws an exception, the response body's error field
 // contains this `Status` object.
 type Status struct {
-	// Code: The status code. For this API, this value either: <ul> <li> 3,
-	// indicating an `INVALID_ARGUMENT` error, or</li> <li> 1, indicating a
-	// `CANCELLED` execution.</li> </ul>
+	// Code: The status code. For this API, this value either: <ul> <li> 10,
+	// indicating a `SCRIPT_TIMEOUT` error,</li> <li> 3, indicating an
+	// `INVALID_ARGUMENT` error, or</li> <li> 1, indicating a `CANCELLED`
+	// execution.</li> </ul>
 	Code int64 `json:"code,omitempty"`
 
 	// Details: An array that contains a single ExecutionError object that
@@ -1477,9 +1483,8 @@ type Status struct {
 	Details []googleapi.RawMessage `json:"details,omitempty"`
 
 	// Message: A developer-facing error message, which is in English. Any
-	// user-facing error message is localized and sent in the
-	// [google.rpc.Status.details](google.rpc.Status.details) field, or
-	// localized by the client.
+	// user-facing error message is localized and sent in the details field,
+	// or localized by the client.
 	Message string `json:"message,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Code") to
@@ -1648,7 +1653,7 @@ func (c *ProcessesListCall) UserProcessFilterFunctionName(userProcessFilterFunct
 // UserProcessFilterProjectName sets the optional parameter
 // "userProcessFilter.projectName": Optional field used to limit
 // returned processes to those originating from
-// projects with a specific project name.
+// projects with project names containing a specific string.
 func (c *ProcessesListCall) UserProcessFilterProjectName(userProcessFilterProjectName string) *ProcessesListCall {
 	c.urlParams_.Set("userProcessFilter.projectName", userProcessFilterProjectName)
 	return c
@@ -1705,6 +1710,8 @@ func (c *ProcessesListCall) UserProcessFilterStatuses(userProcessFilterStatuses 
 //   "TRIGGER"
 //   "WEBAPP"
 //   "EDITOR"
+//   "SIMPLE_TRIGGER"
+//   "MENU"
 func (c *ProcessesListCall) UserProcessFilterTypes(userProcessFilterTypes ...string) *ProcessesListCall {
 	c.urlParams_.SetMulti("userProcessFilter.types", append([]string{}, userProcessFilterTypes...))
 	return c
@@ -1851,7 +1858,7 @@ func (c *ProcessesListCall) Do(opts ...googleapi.CallOption) (*ListUserProcesses
 	//       "type": "string"
 	//     },
 	//     "userProcessFilter.projectName": {
-	//       "description": "Optional field used to limit returned processes to those originating from\nprojects with a specific project name.",
+	//       "description": "Optional field used to limit returned processes to those originating from\nprojects with project names containing a specific string.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -1892,7 +1899,9 @@ func (c *ProcessesListCall) Do(opts ...googleapi.CallOption) (*ListUserProcesses
 	//         "TIME_DRIVEN",
 	//         "TRIGGER",
 	//         "WEBAPP",
-	//         "EDITOR"
+	//         "EDITOR",
+	//         "SIMPLE_TRIGGER",
+	//         "MENU"
 	//       ],
 	//       "location": "query",
 	//       "repeated": true,
@@ -2052,6 +2061,8 @@ func (c *ProcessesListScriptProcessesCall) ScriptProcessFilterStatuses(scriptPro
 //   "TRIGGER"
 //   "WEBAPP"
 //   "EDITOR"
+//   "SIMPLE_TRIGGER"
+//   "MENU"
 func (c *ProcessesListScriptProcessesCall) ScriptProcessFilterTypes(scriptProcessFilterTypes ...string) *ProcessesListScriptProcessesCall {
 	c.urlParams_.SetMulti("scriptProcessFilter.types", append([]string{}, scriptProcessFilterTypes...))
 	return c
@@ -2234,7 +2245,9 @@ func (c *ProcessesListScriptProcessesCall) Do(opts ...googleapi.CallOption) (*Li
 	//         "TIME_DRIVEN",
 	//         "TRIGGER",
 	//         "WEBAPP",
-	//         "EDITOR"
+	//         "EDITOR",
+	//         "SIMPLE_TRIGGER",
+	//         "MENU"
 	//       ],
 	//       "location": "query",
 	//       "repeated": true,
@@ -4340,6 +4353,7 @@ func (c *ScriptsRunCall) Do(opts ...googleapi.CallOption) (*Operation, error) {
 	//     "https://www.google.com/m8/feeds",
 	//     "https://www.googleapis.com/auth/admin.directory.group",
 	//     "https://www.googleapis.com/auth/admin.directory.user",
+	//     "https://www.googleapis.com/auth/documents",
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/forms",
 	//     "https://www.googleapis.com/auth/forms.currentonly",

@@ -18,16 +18,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
-	"syscall"
 
 	"golang.org/x/net/internal/iana"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )
 
-// BUG(mikio): This package is not implemented on NaCl and Plan 9.
+// BUG(mikio): This package is not implemented on JS, NaCl and Plan 9.
 
 var (
+	errInvalidConn      = errors.New("invalid connection")
 	errMessageTooShort  = errors.New("message too short")
 	errHeaderTooShort   = errors.New("header too short")
 	errBufferTooShort   = errors.New("buffer too short")
@@ -80,7 +80,7 @@ func (m *Message) Marshal(psh []byte) ([]byte, error) {
 	case ipv6.ICMPType:
 		mtype = int(typ)
 	default:
-		return nil, syscall.EINVAL
+		return nil, errInvalidConn
 	}
 	b := []byte{byte(mtype), byte(m.Code), 0, 0}
 	if m.Type.Protocol() == iana.ProtocolIPv6ICMP && psh != nil {
@@ -143,7 +143,7 @@ func ParseMessage(proto int, b []byte) (*Message, error) {
 	case iana.ProtocolIPv6ICMP:
 		m.Type = ipv6.ICMPType(b[0])
 	default:
-		return nil, syscall.EINVAL
+		return nil, errInvalidConn
 	}
 	if fn, ok := parseFns[m.Type]; !ok {
 		m.Body, err = parseDefaultMessageBody(proto, b[4:])

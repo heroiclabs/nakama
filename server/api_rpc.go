@@ -17,8 +17,8 @@ package server
 import (
 	"strings"
 
+	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

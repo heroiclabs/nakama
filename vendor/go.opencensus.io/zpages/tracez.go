@@ -75,10 +75,6 @@ var (
 	}
 )
 
-func init() {
-	internal.LocalSpanStoreEnabled = true
-}
-
 func canonicalCodeString(code int32) string {
 	if code < 0 || int(code) >= len(canonicalCodes) {
 		return "error code " + strconv.FormatInt(int64(code), 10)

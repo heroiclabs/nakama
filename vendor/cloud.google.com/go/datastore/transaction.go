@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ type Transaction struct {
 }
 
 // NewTransaction starts a new transaction.
-func (c *Client) NewTransaction(ctx context.Context, opts ...TransactionOption) (_ *Transaction, err error) {
+func (c *Client) NewTransaction(ctx context.Context, opts ...TransactionOption) (t *Transaction, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.NewTransaction")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -156,7 +156,7 @@ func (c *Client) newTransaction(ctx context.Context, s *transactionSettings) (*T
 // is, it should have the same result when called multiple times. Note that
 // Transaction.Get will append when unmarshalling slice fields, so it is not
 // necessarily idempotent.
-func (c *Client) RunInTransaction(ctx context.Context, f func(tx *Transaction) error, opts ...TransactionOption) (_ *Commit, err error) {
+func (c *Client) RunInTransaction(ctx context.Context, f func(tx *Transaction) error, opts ...TransactionOption) (cmt *Commit, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.RunInTransaction")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -167,7 +167,7 @@ func (c *Client) RunInTransaction(ctx context.Context, f func(tx *Transaction) e
 			return nil, err
 		}
 		if err := f(tx); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return nil, err
 		}
 		if cmt, err := tx.Commit(); err != ErrConcurrentTransaction {
@@ -183,7 +183,7 @@ func (c *Client) RunInTransaction(ctx context.Context, f func(tx *Transaction) e
 }
 
 // Commit applies the enqueued operations atomically.
-func (t *Transaction) Commit() (_ *Commit, err error) {
+func (t *Transaction) Commit() (c *Commit, err error) {
 	t.ctx = trace.StartSpan(t.ctx, "cloud.google.com/go/datastore.Transaction.Commit")
 	defer func() { trace.EndSpan(t.ctx, err) }()
 
@@ -206,7 +206,6 @@ func (t *Transaction) Commit() (_ *Commit, err error) {
 	}
 
 	// Copy any newly minted keys into the returned keys.
-	commit := &Commit{}
 	for i, p := range t.pending {
 		if i >= len(resp.MutationResults) || resp.MutationResults[i].Key == nil {
 			return nil, errors.New("datastore: internal error: server returned the wrong mutation results")
@@ -216,10 +215,10 @@ func (t *Transaction) Commit() (_ *Commit, err error) {
 			return nil, errors.New("datastore: internal error: server returned an invalid key")
 		}
 		p.key = key
-		p.commit = commit
+		p.commit = c
 	}
 
-	return commit, nil
+	return c, nil
 }
 
 // Rollback abandons a pending transaction.
@@ -292,7 +291,7 @@ func (t *Transaction) Put(key *Key, src interface{}) (*PendingKey, error) {
 // PutMulti is a batch version of Put. One PendingKey is returned for each
 // element of src in the same order.
 // TODO(jba): rewrite in terms of Mutate.
-func (t *Transaction) PutMulti(keys []*Key, src interface{}) (_ []*PendingKey, err error) {
+func (t *Transaction) PutMulti(keys []*Key, src interface{}) (ret []*PendingKey, err error) {
 	t.ctx = trace.StartSpan(t.ctx, "cloud.google.com/go/datastore.Transaction.PutMulti")
 	defer func() { trace.EndSpan(t.ctx, err) }()
 
@@ -307,7 +306,7 @@ func (t *Transaction) PutMulti(keys []*Key, src interface{}) (_ []*PendingKey, e
 	t.mutations = append(t.mutations, mutations...)
 
 	// Prepare the returned handles, pre-populating where possible.
-	ret := make([]*PendingKey, len(keys))
+	ret = make([]*PendingKey, len(keys))
 	for i, key := range keys {
 		p := &PendingKey{}
 		if key.Incomplete() {

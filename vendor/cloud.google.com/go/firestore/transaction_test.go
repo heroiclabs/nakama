@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,12 +54,16 @@ func TestRunTransaction(t *testing.T) {
 		Fields:     map[string]*pb.Value{"count": intval(1)},
 	}
 	srv.addRPC(
-		&pb.GetDocumentRequest{
-			Name:                db + "/documents/C/a",
-			ConsistencySelector: &pb.GetDocumentRequest_Transaction{tid},
-		},
-		aDoc,
-	)
+		&pb.BatchGetDocumentsRequest{
+			Database:            c.path(),
+			Documents:           []string{db + "/documents/C/a"},
+			ConsistencySelector: &pb.BatchGetDocumentsRequest_Transaction{tid},
+		}, []interface{}{
+			&pb.BatchGetDocumentsResponse{
+				Result:   &pb.BatchGetDocumentsResponse_Found{aDoc},
+				ReadTime: aTimestamp2,
+			},
+		})
 	aDoc2 := &pb.Document{
 		Name:   aDoc.Name,
 		Fields: map[string]*pb.Value{"count": intval(2)},
@@ -88,8 +92,7 @@ func TestRunTransaction(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		tx.Update(docref, []Update{{Path: "count", Value: count.(int64) + 1}})
-		return nil
+		return tx.Update(docref, []Update{{Path: "count", Value: count.(int64) + 1}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -113,6 +116,7 @@ func TestRunTransaction(t *testing.T) {
 	srv.addRPC(commitReq, &pb.CommitResponse{CommitTime: aTimestamp3})
 	err = c.RunTransaction(ctx, func(_ context.Context, tx *Transaction) error {
 		it := tx.Documents(c.Collection("C"))
+		defer it.Stop()
 		_, err := it.Next()
 		if err != iterator.Done {
 			return err
@@ -132,7 +136,7 @@ func TestRunTransaction(t *testing.T) {
 			Database: db,
 			Options: &pb.TransactionOptions{
 				Mode: &pb.TransactionOptions_ReadWrite_{
-					&pb.TransactionOptions_ReadWrite{tid},
+					&pb.TransactionOptions_ReadWrite{RetryTransaction: tid},
 				},
 			},
 		},
@@ -156,9 +160,10 @@ func TestTransactionErrors(t *testing.T) {
 			Database: db,
 		}
 		beginRes = &pb.BeginTransactionResponse{Transaction: tid}
-		getReq   = &pb.GetDocumentRequest{
-			Name:                db + "/documents/C/a",
-			ConsistencySelector: &pb.GetDocumentRequest_Transaction{tid},
+		getReq   = &pb.BatchGetDocumentsRequest{
+			Database:            c.path(),
+			Documents:           []string{db + "/documents/C/a"},
+			ConsistencySelector: &pb.BatchGetDocumentsRequest_Transaction{tid},
 		}
 		rollbackReq = &pb.RollbackRequest{Database: db, Transaction: tid}
 		commitReq   = &pb.CommitRequest{Database: db, Transaction: tid}
@@ -199,10 +204,15 @@ func TestTransactionErrors(t *testing.T) {
 	// Commit has a permanent error.
 	srv.reset()
 	srv.addRPC(beginReq, beginRes)
-	srv.addRPC(getReq, &pb.Document{
-		Name:       "projects/projectID/databases/(default)/documents/C/a",
-		CreateTime: aTimestamp,
-		UpdateTime: aTimestamp2,
+	srv.addRPC(getReq, []interface{}{
+		&pb.BatchGetDocumentsResponse{
+			Result: &pb.BatchGetDocumentsResponse_Found{&pb.Document{
+				Name:       "projects/projectID/databases/(default)/documents/C/a",
+				CreateTime: aTimestamp,
+				UpdateTime: aTimestamp2,
+			}},
+			ReadTime: aTimestamp2,
+		},
 	})
 	srv.addRPC(commitReq, internalErr)
 	err = c.RunTransaction(ctx, get)
@@ -215,7 +225,9 @@ func TestTransactionErrors(t *testing.T) {
 	srv.addRPC(beginReq, beginRes)
 	srv.addRPC(rollbackReq, &empty.Empty{})
 	err = c.RunTransaction(ctx, func(_ context.Context, tx *Transaction) error {
-		tx.Delete(c.Doc("C/a"))
+		if err := tx.Delete(c.Doc("C/a")); err != nil {
+			return err
+		}
 		if _, err := tx.Get(c.Doc("C/a")); err != nil {
 			return err
 		}
@@ -230,8 +242,11 @@ func TestTransactionErrors(t *testing.T) {
 	srv.addRPC(beginReq, beginRes)
 	srv.addRPC(rollbackReq, &empty.Empty{})
 	err = c.RunTransaction(ctx, func(_ context.Context, tx *Transaction) error {
-		tx.Delete(c.Doc("C/a"))
+		if err := tx.Delete(c.Doc("C/a")); err != nil {
+			return err
+		}
 		it := tx.Documents(c.Collection("C").Select("x"))
+		defer it.Stop()
 		if _, err := it.Next(); err != iterator.Done {
 			return err
 		}
@@ -246,8 +261,12 @@ func TestTransactionErrors(t *testing.T) {
 	srv.addRPC(beginReq, beginRes)
 	srv.addRPC(rollbackReq, &empty.Empty{})
 	err = c.RunTransaction(ctx, func(_ context.Context, tx *Transaction) error {
-		tx.Delete(c.Doc("C/a"))
-		tx.Get(c.Doc("C/a"))
+		if err := tx.Delete(c.Doc("C/a")); err != nil {
+			return err
+		}
+		if _, err := tx.Get(c.Doc("C/a")); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != errReadAfterWrite {
@@ -282,7 +301,7 @@ func TestTransactionErrors(t *testing.T) {
 			Database: db,
 			Options: &pb.TransactionOptions{
 				Mode: &pb.TransactionOptions_ReadWrite_{
-					&pb.TransactionOptions_ReadWrite{tid},
+					&pb.TransactionOptions_ReadWrite{RetryTransaction: tid},
 				},
 			},
 		},
@@ -329,6 +348,7 @@ func TestTransactionErrors(t *testing.T) {
 		},
 		func(ctx context.Context) error {
 			it := c.Collection("C").Documents(ctx)
+			defer it.Stop()
 			_, err := it.Next()
 			return err
 		},

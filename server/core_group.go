@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

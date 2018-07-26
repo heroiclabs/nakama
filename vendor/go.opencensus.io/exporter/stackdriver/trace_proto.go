@@ -15,7 +15,6 @@
 package stackdriver
 
 import (
-	"fmt"
 	"math"
 	"time"
 	"unicode/utf8"
@@ -144,7 +143,7 @@ func protoFromSpanData(s *trace.SpanData, projectID string) *tracepb.Span {
 		sp.Links.Link = make([]*tracepb.Span_Link, 0, len(s.Links))
 		for _, l := range s.Links {
 			link := &tracepb.Span_Link{
-				TraceId: fmt.Sprintf("projects/%s/traces/%s", projectID, l.TraceID),
+				TraceId: l.TraceID.String(),
 				SpanId:  l.SpanID.String(),
 				Type:    tracepb.Span_Link_Type(l.Type),
 			}
@@ -152,7 +151,6 @@ func protoFromSpanData(s *trace.SpanData, projectID string) *tracepb.Span {
 			sp.Links.Link = append(sp.Links.Link, link)
 		}
 	}
-
 	return sp
 }
 

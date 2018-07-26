@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,23 +19,17 @@ package datastore
 import (
 	"testing"
 
-	"go.opencensus.io/trace"
+	"cloud.google.com/go/internal/testutil"
 	"golang.org/x/net/context"
 )
 
 func TestOCTracing(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Integration tests skipped in short mode")
-	}
-
-	te := &testExporter{}
-	trace.RegisterExporter(te)
-	defer trace.UnregisterExporter(te)
-	trace.SetDefaultSampler(trace.AlwaysSample())
-
 	ctx := context.Background()
 	client := newTestClient(ctx, t)
 	defer client.Close()
+
+	te := testutil.NewTestExporter()
+	defer te.Unregister()
 
 	type SomeValue struct {
 		S string
@@ -45,15 +39,7 @@ func TestOCTracing(t *testing.T) {
 		t.Fatalf("client.Put: %v", err)
 	}
 
-	if len(te.spans) != 1 {
-		t.Fatalf("Expected 1 span to be created, but got %d", len(te.spans))
+	if len(te.Spans) == 0 {
+		t.Fatalf("Expected some span to be created, but got %d", 0)
 	}
-}
-
-type testExporter struct {
-	spans []*trace.SpanData
-}
-
-func (te *testExporter) ExportSpan(s *trace.SpanData) {
-	te.spans = append(te.spans, s)
 }

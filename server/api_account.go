@@ -15,10 +15,10 @@
 package server
 
 import (
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

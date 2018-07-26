@@ -52,6 +52,20 @@ func checkContent(c container, s []uint16) bool {
 	return !fail
 }
 
+func TestContainerReverseIterator(t *testing.T) {
+	Convey("ArrayReverseIterator", t, func() {
+		content := []uint16{1, 3, 5, 7, 9}
+		c := makeContainer(content)
+		si := c.getReverseIterator()
+		i := 4
+		for si.hasNext() {
+			So(si.next(), ShouldEqual, content[i])
+			i--
+		}
+		So(i, ShouldEqual, -1)
+	})
+}
+
 func TestRoaringContainer(t *testing.T) {
 	Convey("countTrailingZeros", t, func() {
 		x := uint64(0)

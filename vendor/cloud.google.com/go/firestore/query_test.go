@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,16 +144,6 @@ func TestQueryToProto(t *testing.T) {
 			want: &pb.StructuredQuery{Where: filtr([]string{"a"}, ">", 5)},
 		},
 		{
-			desc: `q.Where("a", "==", nil)`,
-			in:   q.Where("a", "==", nil),
-			want: &pb.StructuredQuery{Where: filtr([]string{"a"}, "==", nil)},
-		},
-		{
-			desc: `q.Where("a", "==", NaN)`,
-			in:   q.Where("a", "==", math.NaN()),
-			want: &pb.StructuredQuery{Where: filtr([]string{"a"}, "==", math.NaN())},
-		},
-		{
 			desc: `q.Where("a", "==", NaN)`,
 			in:   q.Where("a", "==", float32(math.NaN())),
 			want: &pb.StructuredQuery{Where: filtr([]string{"a"}, "==", math.NaN())},
@@ -163,7 +153,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.Where("a", ">", 5).Where("b", "<", "foo"),
 			want: &pb.StructuredQuery{
 				Where: &pb.StructuredQuery_Filter{
-					&pb.StructuredQuery_Filter_CompositeFilter{
+					FilterType: &pb.StructuredQuery_Filter_CompositeFilter{
 						&pb.StructuredQuery_CompositeFilter{
 							Op: pb.StructuredQuery_CompositeFilter_AND,
 							Filters: []*pb.StructuredQuery_Filter{
@@ -184,9 +174,9 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("b", Asc).OrderBy("a", Desc).OrderByPath([]string{"~"}, Asc),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("b"), pb.StructuredQuery_ASCENDING},
-					{fref1("a"), pb.StructuredQuery_DESCENDING},
-					{fref1("~"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("b"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_DESCENDING},
+					{Field: fref1("~"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 			},
 		},
@@ -195,7 +185,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.Offset(2).Limit(3),
 			want: &pb.StructuredQuery{
 				Offset: 2,
-				Limit:  &wrappers.Int32Value{3},
+				Limit:  &wrappers.Int32Value{Value: 3},
 			},
 		},
 		{
@@ -203,7 +193,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.Offset(2).Limit(3).Limit(4).Offset(5), // last wins
 			want: &pb.StructuredQuery{
 				Offset: 5,
-				Limit:  &wrappers.Int32Value{4},
+				Limit:  &wrappers.Int32Value{Value: 4},
 			},
 		},
 		{
@@ -211,7 +201,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Asc).StartAt(7).EndBefore(9),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7)},
@@ -228,7 +218,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Asc).StartAt(7).EndAt(9),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7)},
@@ -245,7 +235,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Asc).StartAfter(7).EndAt(9),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7)},
@@ -262,7 +252,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy(DocumentID, Asc).StartAfter("foo").EndBefore("bar"),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{refval(coll.parentPath + "/documents/C/foo")},
@@ -279,8 +269,8 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Asc).OrderBy("b", Desc).StartAfter(7, 8).EndAt(9, 10),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
-					{fref1("b"), pb.StructuredQuery_DESCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("b"), Direction: pb.StructuredQuery_DESCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), intval(8)},
@@ -300,7 +290,7 @@ func TestQueryToProto(t *testing.T) {
 				EndAt(3).EndBefore(4),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(2)},
@@ -319,7 +309,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.StartAt(docsnap),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{refval(coll.parentPath + "/documents/C/D")},
@@ -332,8 +322,8 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Asc).StartAt(docsnap),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), refval(coll.parentPath + "/documents/C/D")},
@@ -347,8 +337,8 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Desc).StartAt(docsnap),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_DESCENDING},
-					{fref1("__name__"), pb.StructuredQuery_DESCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_DESCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_DESCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), refval(coll.parentPath + "/documents/C/D")},
@@ -361,9 +351,9 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.OrderBy("a", Desc).OrderBy("b", Asc).StartAt(docsnap),
 			want: &pb.StructuredQuery{
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_DESCENDING},
-					{fref1("b"), pb.StructuredQuery_ASCENDING},
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_DESCENDING},
+					{Field: fref1("b"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), intval(8), refval(coll.parentPath + "/documents/C/D")},
@@ -377,7 +367,7 @@ func TestQueryToProto(t *testing.T) {
 			want: &pb.StructuredQuery{
 				Where: filtr([]string{"a"}, "==", 3),
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{refval(coll.parentPath + "/documents/C/D")},
@@ -391,8 +381,8 @@ func TestQueryToProto(t *testing.T) {
 			want: &pb.StructuredQuery{
 				Where: filtr([]string{"a"}, "<", 3),
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), refval(coll.parentPath + "/documents/C/D")},
@@ -405,7 +395,7 @@ func TestQueryToProto(t *testing.T) {
 			in:   q.Where("b", "==", 1).Where("a", "<", 3).StartAt(docsnap),
 			want: &pb.StructuredQuery{
 				Where: &pb.StructuredQuery_Filter{
-					&pb.StructuredQuery_Filter_CompositeFilter{
+					FilterType: &pb.StructuredQuery_Filter_CompositeFilter{
 						&pb.StructuredQuery_CompositeFilter{
 							Op: pb.StructuredQuery_CompositeFilter_AND,
 							Filters: []*pb.StructuredQuery_Filter{
@@ -416,8 +406,8 @@ func TestQueryToProto(t *testing.T) {
 					},
 				},
 				OrderBy: []*pb.StructuredQuery_Order{
-					{fref1("a"), pb.StructuredQuery_ASCENDING},
-					{fref1("__name__"), pb.StructuredQuery_ASCENDING},
+					{Field: fref1("a"), Direction: pb.StructuredQuery_ASCENDING},
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
 				},
 				StartAt: &pb.Cursor{
 					Values: []*pb.Value{intval(7), refval(coll.parentPath + "/documents/C/D")},
@@ -455,7 +445,7 @@ func TestQueryToProtoErrors(t *testing.T) {
 	}
 	q := coll.Query
 	for _, query := range []Query{
-		Query{},                                // no collection ID
+		{}, // no collection ID
 		q.Where("x", "!=", 1),                  // invalid operator
 		q.Where("~", ">", 1),                   // invalid path
 		q.WherePath([]string{"*", ""}, ">", 1), // invalid path

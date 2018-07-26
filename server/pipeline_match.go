@@ -20,9 +20,9 @@ import (
 
 	"crypto"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"time"
 )

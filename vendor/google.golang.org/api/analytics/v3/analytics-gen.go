@@ -65,6 +65,9 @@ const (
 
 	// View your Google Analytics data
 	AnalyticsReadonlyScope = "https://www.googleapis.com/auth/analytics.readonly"
+
+	// Manage Google Analytics user deletion requests
+	AnalyticsUserDeletionScope = "https://www.googleapis.com/auth/analytics.user.deletion"
 )
 
 func New(client *http.Client) (*Service, error) {
@@ -76,6 +79,7 @@ func New(client *http.Client) (*Service, error) {
 	s.Management = NewManagementService(s)
 	s.Metadata = NewMetadataService(s)
 	s.Provisioning = NewProvisioningService(s)
+	s.UserDeletion = NewUserDeletionService(s)
 	return s, nil
 }
 
@@ -91,6 +95,8 @@ type Service struct {
 	Metadata *MetadataService
 
 	Provisioning *ProvisioningService
+
+	UserDeletion *UserDeletionService
 }
 
 func (s *Service) userAgent() string {
@@ -150,6 +156,7 @@ func NewManagementService(s *Service) *ManagementService {
 	rs.AccountSummaries = NewManagementAccountSummariesService(s)
 	rs.AccountUserLinks = NewManagementAccountUserLinksService(s)
 	rs.Accounts = NewManagementAccountsService(s)
+	rs.ClientId = NewManagementClientIdService(s)
 	rs.CustomDataSources = NewManagementCustomDataSourcesService(s)
 	rs.CustomDimensions = NewManagementCustomDimensionsService(s)
 	rs.CustomMetrics = NewManagementCustomMetricsService(s)
@@ -177,6 +184,8 @@ type ManagementService struct {
 	AccountUserLinks *ManagementAccountUserLinksService
 
 	Accounts *ManagementAccountsService
+
+	ClientId *ManagementClientIdService
 
 	CustomDataSources *ManagementCustomDataSourcesService
 
@@ -235,6 +244,15 @@ func NewManagementAccountsService(s *Service) *ManagementAccountsService {
 }
 
 type ManagementAccountsService struct {
+	s *Service
+}
+
+func NewManagementClientIdService(s *Service) *ManagementClientIdService {
+	rs := &ManagementClientIdService{s: s}
+	return rs
+}
+
+type ManagementClientIdService struct {
 	s *Service
 }
 
@@ -409,6 +427,27 @@ func NewProvisioningService(s *Service) *ProvisioningService {
 }
 
 type ProvisioningService struct {
+	s *Service
+}
+
+func NewUserDeletionService(s *Service) *UserDeletionService {
+	rs := &UserDeletionService{s: s}
+	rs.UserDeletionRequest = NewUserDeletionUserDeletionRequestService(s)
+	return rs
+}
+
+type UserDeletionService struct {
+	s *Service
+
+	UserDeletionRequest *UserDeletionUserDeletionRequestService
+}
+
+func NewUserDeletionUserDeletionRequestService(s *Service) *UserDeletionUserDeletionRequestService {
+	rs := &UserDeletionUserDeletionRequestService{s: s}
+	return rs
+}
+
+type UserDeletionUserDeletionRequestService struct {
 	s *Service
 }
 
@@ -762,33 +801,30 @@ func (s *AccountTreeRequest) MarshalJSON() ([]byte, error) {
 }
 
 type AccountTreeRequestAccountSettings struct {
-	AdmobReporting bool `json:"admobReporting,omitempty"`
+	ShareAnonymouslyWithOthers bool `json:"shareAnonymouslyWithOthers,omitempty"`
 
-	SharingWithGoogleAnySales bool `json:"sharingWithGoogleAnySales,omitempty"`
+	ShareWithGoogleProducts bool `json:"shareWithGoogleProducts,omitempty"`
 
-	SharingWithGoogleProducts bool `json:"sharingWithGoogleProducts,omitempty"`
+	ShareWithSpecialists bool `json:"shareWithSpecialists,omitempty"`
 
-	SharingWithGoogleSales bool `json:"sharingWithGoogleSales,omitempty"`
+	ShareWithSupport bool `json:"shareWithSupport,omitempty"`
 
-	SharingWithGoogleSupport bool `json:"sharingWithGoogleSupport,omitempty"`
-
-	SharingWithOthers bool `json:"sharingWithOthers,omitempty"`
-
-	// ForceSendFields is a list of field names (e.g. "AdmobReporting") to
-	// unconditionally include in API requests. By default, fields with
-	// empty values are omitted from API requests. However, any non-pointer,
-	// non-interface field appearing in ForceSendFields will be sent to the
-	// server regardless of whether the field is empty or not. This may be
-	// used to include empty fields in Patch requests.
+	// ForceSendFields is a list of field names (e.g.
+	// "ShareAnonymouslyWithOthers") to unconditionally include in API
+	// requests. By default, fields with empty values are omitted from API
+	// requests. However, any non-pointer, non-interface field appearing in
+	// ForceSendFields will be sent to the server regardless of whether the
+	// field is empty or not. This may be used to include empty fields in
+	// Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "AdmobReporting") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g.
+	// "ShareAnonymouslyWithOthers") to include in API requests with the
+	// JSON null value. By default, fields with empty values are omitted
+	// from API requests. However, any field with an empty value appearing
+	// in NullFields will be sent to the server as null. It is an error if a
+	// field in this list has a non-empty value. This may be used to include
+	// null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -845,33 +881,30 @@ func (s *AccountTreeResponse) MarshalJSON() ([]byte, error) {
 }
 
 type AccountTreeResponseAccountSettings struct {
-	AdmobReporting bool `json:"admobReporting,omitempty"`
+	ShareAnonymouslyWithOthers bool `json:"shareAnonymouslyWithOthers,omitempty"`
 
-	SharingWithGoogleAnySales bool `json:"sharingWithGoogleAnySales,omitempty"`
+	ShareWithGoogleProducts bool `json:"shareWithGoogleProducts,omitempty"`
 
-	SharingWithGoogleProducts bool `json:"sharingWithGoogleProducts,omitempty"`
+	ShareWithSpecialists bool `json:"shareWithSpecialists,omitempty"`
 
-	SharingWithGoogleSales bool `json:"sharingWithGoogleSales,omitempty"`
+	ShareWithSupport bool `json:"shareWithSupport,omitempty"`
 
-	SharingWithGoogleSupport bool `json:"sharingWithGoogleSupport,omitempty"`
-
-	SharingWithOthers bool `json:"sharingWithOthers,omitempty"`
-
-	// ForceSendFields is a list of field names (e.g. "AdmobReporting") to
-	// unconditionally include in API requests. By default, fields with
-	// empty values are omitted from API requests. However, any non-pointer,
-	// non-interface field appearing in ForceSendFields will be sent to the
-	// server regardless of whether the field is empty or not. This may be
-	// used to include empty fields in Patch requests.
+	// ForceSendFields is a list of field names (e.g.
+	// "ShareAnonymouslyWithOthers") to unconditionally include in API
+	// requests. By default, fields with empty values are omitted from API
+	// requests. However, any non-pointer, non-interface field appearing in
+	// ForceSendFields will be sent to the server regardless of whether the
+	// field is empty or not. This may be used to include empty fields in
+	// Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "AdmobReporting") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g.
+	// "ShareAnonymouslyWithOthers") to include in API requests with the
+	// JSON null value. By default, fields with empty values are omitted
+	// from API requests. However, any field with an empty value appearing
+	// in NullFields will be sent to the server as null. It is an error if a
+	// field in this list has a non-empty value. This may be used to include
+	// null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -3559,6 +3592,76 @@ func (s *Goals) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// HashClientIdRequest: JSON template for a hash Client Id request
+// resource.
+type HashClientIdRequest struct {
+	ClientId string `json:"clientId,omitempty"`
+
+	Kind string `json:"kind,omitempty"`
+
+	WebPropertyId string `json:"webPropertyId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "ClientId") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "ClientId") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *HashClientIdRequest) MarshalJSON() ([]byte, error) {
+	type NoMethod HashClientIdRequest
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// HashClientIdResponse: JSON template for a hash Client Id response
+// resource.
+type HashClientIdResponse struct {
+	ClientId string `json:"clientId,omitempty"`
+
+	HashedClientId string `json:"hashedClientId,omitempty"`
+
+	Kind string `json:"kind,omitempty"`
+
+	WebPropertyId string `json:"webPropertyId,omitempty"`
+
+	// ServerResponse contains the HTTP response code and headers from the
+	// server.
+	googleapi.ServerResponse `json:"-"`
+
+	// ForceSendFields is a list of field names (e.g. "ClientId") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "ClientId") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *HashClientIdResponse) MarshalJSON() ([]byte, error) {
+	type NoMethod HashClientIdResponse
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // IncludeConditions: JSON template for an Analytics Remarketing Include
 // Conditions.
 type IncludeConditions struct {
@@ -5332,6 +5435,84 @@ func (s *Uploads) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// UserDeletionRequest: JSON template for a user deletion request
+// resource.
+type UserDeletionRequest struct {
+	// DeletionRequestTime: This marks the point in time for which all user
+	// data before should be deleted
+	DeletionRequestTime string `json:"deletionRequestTime,omitempty"`
+
+	// FirebaseProjectId: Firebase Project Id
+	FirebaseProjectId string `json:"firebaseProjectId,omitempty"`
+
+	// Id: User ID.
+	Id *UserDeletionRequestId `json:"id,omitempty"`
+
+	// Kind: Value is "analytics#userDeletionRequest".
+	Kind string `json:"kind,omitempty"`
+
+	// WebPropertyId: Web property ID of the form UA-XXXXX-YY.
+	WebPropertyId string `json:"webPropertyId,omitempty"`
+
+	// ServerResponse contains the HTTP response code and headers from the
+	// server.
+	googleapi.ServerResponse `json:"-"`
+
+	// ForceSendFields is a list of field names (e.g. "DeletionRequestTime")
+	// to unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "DeletionRequestTime") to
+	// include in API requests with the JSON null value. By default, fields
+	// with empty values are omitted from API requests. However, any field
+	// with an empty value appearing in NullFields will be sent to the
+	// server as null. It is an error if a field in this list has a
+	// non-empty value. This may be used to include null fields in Patch
+	// requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *UserDeletionRequest) MarshalJSON() ([]byte, error) {
+	type NoMethod UserDeletionRequest
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// UserDeletionRequestId: User ID.
+type UserDeletionRequestId struct {
+	// Type: Type of user
+	Type string `json:"type,omitempty"`
+
+	// UserId: The User's id
+	UserId string `json:"userId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Type") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Type") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *UserDeletionRequestId) MarshalJSON() ([]byte, error) {
+	type NoMethod UserDeletionRequestId
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // UserRef: JSON template for a user reference.
 type UserRef struct {
 	// Email: Email ID of this user.
@@ -5531,6 +5712,20 @@ type Webproperty struct {
 
 	// Created: Time this web property was created.
 	Created string `json:"created,omitempty"`
+
+	// DataRetentionResetOnNewActivity: Set to true to reset the retention
+	// period of the user identifier with each new event from that user
+	// (thus setting the expiration date to current time plus retention
+	// period).
+	// Set to false to delete data associated with the user identifer
+	// automatically after the rentention period.
+	// This property cannot be set on insert.
+	DataRetentionResetOnNewActivity bool `json:"dataRetentionResetOnNewActivity,omitempty"`
+
+	// DataRetentionTtl: The length of time for which user and event data is
+	// retained.
+	// This property cannot be set on insert.
+	DataRetentionTtl string `json:"dataRetentionTtl,omitempty"`
 
 	// DefaultProfileId: Default view (profile) ID.
 	DefaultProfileId int64 `json:"defaultProfileId,omitempty,string"`
@@ -7316,6 +7511,124 @@ func (c *ManagementAccountsListCall) Do(opts ...googleapi.CallOption) (*Accounts
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/analytics",
+	//     "https://www.googleapis.com/auth/analytics.edit",
+	//     "https://www.googleapis.com/auth/analytics.readonly"
+	//   ]
+	// }
+
+}
+
+// method id "analytics.management.clientId.hashClientId":
+
+type ManagementClientIdHashClientIdCall struct {
+	s                   *Service
+	hashclientidrequest *HashClientIdRequest
+	urlParams_          gensupport.URLParams
+	ctx_                context.Context
+	header_             http.Header
+}
+
+// HashClientId: Hashes the given Client ID.
+func (r *ManagementClientIdService) HashClientId(hashclientidrequest *HashClientIdRequest) *ManagementClientIdHashClientIdCall {
+	c := &ManagementClientIdHashClientIdCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.hashclientidrequest = hashclientidrequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ManagementClientIdHashClientIdCall) Fields(s ...googleapi.Field) *ManagementClientIdHashClientIdCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ManagementClientIdHashClientIdCall) Context(ctx context.Context) *ManagementClientIdHashClientIdCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ManagementClientIdHashClientIdCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ManagementClientIdHashClientIdCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.hashclientidrequest)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "management/clientId:hashClientId")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	req.Header = reqHeaders
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "analytics.management.clientId.hashClientId" call.
+// Exactly one of *HashClientIdResponse or error will be non-nil. Any
+// non-2xx status code is an error. Response headers are in either
+// *HashClientIdResponse.ServerResponse.Header or (if a response was
+// returned at all) in error.(*googleapi.Error).Header. Use
+// googleapi.IsNotModified to check whether the returned error was
+// because http.StatusNotModified was returned.
+func (c *ManagementClientIdHashClientIdCall) Do(opts ...googleapi.CallOption) (*HashClientIdResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &HashClientIdResponse{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Hashes the given Client ID.",
+	//   "httpMethod": "POST",
+	//   "id": "analytics.management.clientId.hashClientId",
+	//   "path": "management/clientId:hashClientId",
+	//   "request": {
+	//     "$ref": "HashClientIdRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "HashClientIdResponse"
+	//   },
+	//   "scopes": [
 	//     "https://www.googleapis.com/auth/analytics.edit",
 	//     "https://www.googleapis.com/auth/analytics.readonly"
 	//   ]
@@ -19331,6 +19644,123 @@ func (c *ProvisioningCreateAccountTreeCall) Do(opts ...googleapi.CallOption) (*A
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/analytics.provision"
+	//   ]
+	// }
+
+}
+
+// method id "analytics.userDeletion.userDeletionRequest.upsert":
+
+type UserDeletionUserDeletionRequestUpsertCall struct {
+	s                   *Service
+	userdeletionrequest *UserDeletionRequest
+	urlParams_          gensupport.URLParams
+	ctx_                context.Context
+	header_             http.Header
+}
+
+// Upsert: Insert or update a user deletion requests.
+func (r *UserDeletionUserDeletionRequestService) Upsert(userdeletionrequest *UserDeletionRequest) *UserDeletionUserDeletionRequestUpsertCall {
+	c := &UserDeletionUserDeletionRequestUpsertCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.userdeletionrequest = userdeletionrequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *UserDeletionUserDeletionRequestUpsertCall) Fields(s ...googleapi.Field) *UserDeletionUserDeletionRequestUpsertCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *UserDeletionUserDeletionRequestUpsertCall) Context(ctx context.Context) *UserDeletionUserDeletionRequestUpsertCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *UserDeletionUserDeletionRequestUpsertCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *UserDeletionUserDeletionRequestUpsertCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.userdeletionrequest)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "userDeletion/userDeletionRequests:upsert")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	req.Header = reqHeaders
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "analytics.userDeletion.userDeletionRequest.upsert" call.
+// Exactly one of *UserDeletionRequest or error will be non-nil. Any
+// non-2xx status code is an error. Response headers are in either
+// *UserDeletionRequest.ServerResponse.Header or (if a response was
+// returned at all) in error.(*googleapi.Error).Header. Use
+// googleapi.IsNotModified to check whether the returned error was
+// because http.StatusNotModified was returned.
+func (c *UserDeletionUserDeletionRequestUpsertCall) Do(opts ...googleapi.CallOption) (*UserDeletionRequest, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &UserDeletionRequest{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Insert or update a user deletion requests.",
+	//   "httpMethod": "POST",
+	//   "id": "analytics.userDeletion.userDeletionRequest.upsert",
+	//   "path": "userDeletion/userDeletionRequests:upsert",
+	//   "request": {
+	//     "$ref": "UserDeletionRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "UserDeletionRequest"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/analytics.user.deletion"
 	//   ]
 	// }
 

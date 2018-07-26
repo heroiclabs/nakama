@@ -31,7 +31,6 @@ import (
 	"go.opencensus.io/zpages"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 const port = ":50051"
@@ -48,16 +47,19 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 }
 
 func main() {
+	// Start z-Pages server.
 	go func() {
-		http.Handle("/debug/", http.StripPrefix("/debug", zpages.Handler))
-		log.Fatal(http.ListenAndServe(":8081", nil))
+		mux := http.NewServeMux()
+		zpages.Handle(mux, "/debug")
+		log.Fatal(http.ListenAndServe("127.0.0.1:8081", mux))
 	}()
+
 	// Register stats and trace exporters to export
 	// the collected data.
 	view.RegisterExporter(&exporter.PrintExporter{})
 
-	// Subscribe to collect server request count.
-	if err := view.Subscribe(ocgrpc.DefaultServerViews...); err != nil {
+	// Register the views to collect server request count.
+	if err := view.Register(ocgrpc.DefaultServerViews...); err != nil {
 		log.Fatal(err)
 	}
 
@@ -70,8 +72,7 @@ func main() {
 	// stats handler to enable stats and tracing.
 	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 	pb.RegisterGreeterServer(s, &server{})
-	// Register reflection service on gRPC server.
-	reflection.Register(s)
+
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

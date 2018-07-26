@@ -33,9 +33,9 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "128-bit trace ID + 64-bit span ID; sampled=1",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
-				req.Header.Set(spanIDHeader, "0020000000000001")
-				req.Header.Set(sampledHeader, "1")
+				req.Header.Set(TraceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
+				req.Header.Set(SampledHeader, "1")
 				return req
 			},
 			wantSc: trace.SpanContext{
@@ -49,9 +49,9 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "short trace ID + short span ID; sampled=1",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "000102")
-				req.Header.Set(spanIDHeader, "000102")
-				req.Header.Set(sampledHeader, "1")
+				req.Header.Set(TraceIDHeader, "000102")
+				req.Header.Set(SpanIDHeader, "000102")
+				req.Header.Set(SampledHeader, "1")
 				return req
 			},
 			wantSc: trace.SpanContext{
@@ -65,9 +65,9 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "64-bit trace ID + 64-bit span ID; sampled=0",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "0020000000000001")
-				req.Header.Set(spanIDHeader, "0020000000000001")
-				req.Header.Set(sampledHeader, "0")
+				req.Header.Set(TraceIDHeader, "0020000000000001")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
+				req.Header.Set(SampledHeader, "0")
 				return req
 			},
 			wantSc: trace.SpanContext{
@@ -81,8 +81,8 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "128-bit trace ID + 64-bit span ID; no sampling header",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
-				req.Header.Set(spanIDHeader, "0020000000000001")
+				req.Header.Set(TraceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
 				return req
 			},
 			wantSc: trace.SpanContext{
@@ -96,8 +96,8 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "invalid trace ID + 64-bit span ID; no sampling header",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "")
-				req.Header.Set(spanIDHeader, "0020000000000001")
+				req.Header.Set(TraceIDHeader, "")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
 				return req
 			},
 			wantSc: trace.SpanContext{},
@@ -107,8 +107,8 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "128-bit trace ID; invalid span ID; no sampling header",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
-				req.Header.Set(spanIDHeader, "")
+				req.Header.Set(TraceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
+				req.Header.Set(SpanIDHeader, "")
 				return req
 			},
 			wantSc: trace.SpanContext{},
@@ -118,9 +118,9 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "128-bit trace ID + 64-bit span ID; sampled=true",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
-				req.Header.Set(spanIDHeader, "0020000000000001")
-				req.Header.Set(sampledHeader, "true")
+				req.Header.Set(TraceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
+				req.Header.Set(SampledHeader, "true")
 				return req
 			},
 			wantSc: trace.SpanContext{
@@ -134,9 +134,9 @@ func TestHTTPFormat_FromRequest(t *testing.T) {
 			name: "128-bit trace ID + 64-bit span ID; sampled=false",
 			makeReq: func() *http.Request {
 				req, _ := http.NewRequest("GET", "http://example.com", nil)
-				req.Header.Set(traceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
-				req.Header.Set(spanIDHeader, "0020000000000001")
-				req.Header.Set(sampledHeader, "false")
+				req.Header.Set(TraceIDHeader, "463ac35c9f6413ad48485a3953bb6124")
+				req.Header.Set(SpanIDHeader, "0020000000000001")
+				req.Header.Set(SampledHeader, "false")
 				return req
 			},
 			wantSc: trace.SpanContext{

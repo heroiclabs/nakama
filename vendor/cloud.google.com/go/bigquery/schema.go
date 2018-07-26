@@ -1,4 +1,4 @@
-// Copyright 2015 Google Inc. All Rights Reserved.
+// Copyright 2015 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import (
 	"reflect"
 
 	"cloud.google.com/go/internal/atomiccache"
-
 	bq "google.golang.org/api/bigquery/v2"
 )
 
@@ -116,6 +115,7 @@ const (
 	DateFieldType      FieldType = "DATE"
 	TimeFieldType      FieldType = "TIME"
 	DateTimeFieldType  FieldType = "DATETIME"
+	NumericFieldType   FieldType = "NUMERIC"
 )
 
 var (
@@ -143,6 +143,12 @@ var typeOfByteSlice = reflect.TypeOf([]byte{})
 //   DATE        civil.Date
 //   TIME        civil.Time
 //   DATETIME    civil.DateTime
+//   NUMERIC     *big.Rat
+//
+// The big.Rat type supports numbers of arbitrary size and precision. Values
+// will be rounded to 9 digits after the decimal point before being transmitted
+// to BigQuery. See https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type
+// for more on NUMERIC.
 //
 // A Go slice or array type is inferred to be a BigQuery repeated field of the
 // element type. The element type must be one of the above listed types.
@@ -157,8 +163,9 @@ var typeOfByteSlice = reflect.TypeOf([]byte{})
 //   DATE        NullDate
 //   TIME        NullTime
 //   DATETIME    NullDateTime
-
+//
 // For a nullable BYTES field, use the type []byte and tag the field "nullable" (see below).
+// For a nullable NUMERIC field, use the type *big.Rat and tag the field "nullable".
 //
 // A struct field that is of struct type is inferred to be a required field of type
 // RECORD with a schema inferred recursively. For backwards compatibility, a field of
@@ -179,7 +186,7 @@ var typeOfByteSlice = reflect.TypeOf([]byte{})
 //     bigquery:"-"
 // omits the field from the inferred schema.
 // The "nullable" option marks the field as nullable (not required). It is only
-// needed for []byte and pointer-to-struct fields, and cannot appear on other
+// needed for []byte, *big.Rat and pointer-to-struct fields, and cannot appear on other
 // fields. In this example, the Go name of the field is retained:
 //     bigquery:",nullable"
 func InferSchema(st interface{}) (Schema, error) {
@@ -246,6 +253,8 @@ func inferFieldSchema(rt reflect.Type, nullable bool) (*FieldSchema, error) {
 		return &FieldSchema{Required: true, Type: TimeFieldType}, nil
 	case typeOfDateTime:
 		return &FieldSchema{Required: true, Type: DateTimeFieldType}, nil
+	case typeOfRat:
+		return &FieldSchema{Required: !nullable, Type: NumericFieldType}, nil
 	}
 	if ft := nullableFieldType(rt); ft != "" {
 		return &FieldSchema{Required: false, Type: ft}, nil

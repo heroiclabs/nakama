@@ -41,27 +41,27 @@ var (
 	// A view's map value indicates whether that view contains data for received
 	// RPCs.
 	viewType = map[*view.View]bool{
-		ocgrpc.ClientErrorCountView:        false,
-		ocgrpc.ClientRequestBytesView:      false,
-		ocgrpc.ClientRequestCountView:      false,
-		ocgrpc.ClientResponseBytesView:     false,
-		ocgrpc.ClientResponseCountView:     false,
-		ocgrpc.ClientRoundTripLatencyView:  false,
-		ocgrpc.ServerErrorCountView:        true,
-		ocgrpc.ServerRequestBytesView:      true,
-		ocgrpc.ServerRequestCountView:      true,
-		ocgrpc.ServerResponseBytesView:     true,
-		ocgrpc.ServerResponseCountView:     true,
-		ocgrpc.ServerServerElapsedTimeView: true,
+		ocgrpc.ClientCompletedRPCsView:          false,
+		ocgrpc.ClientSentBytesPerRPCView:        false,
+		ocgrpc.ClientSentMessagesPerRPCView:     false,
+		ocgrpc.ClientReceivedBytesPerRPCView:    false,
+		ocgrpc.ClientReceivedMessagesPerRPCView: false,
+		ocgrpc.ClientRoundtripLatencyView:       false,
+		ocgrpc.ServerCompletedRPCsView:          true,
+		ocgrpc.ServerReceivedBytesPerRPCView:    true,
+		ocgrpc.ServerReceivedMessagesPerRPCView: true,
+		ocgrpc.ServerSentBytesPerRPCView:        true,
+		ocgrpc.ServerSentMessagesPerRPCView:     true,
+		ocgrpc.ServerLatencyView:                true,
 	}
 )
 
-func init() {
+func registerRPCViews() {
 	views := make([]*view.View, 0, len(viewType))
 	for v := range viewType {
 		views = append(views, v)
 	}
-	if err := view.Subscribe(views...); err != nil {
+	if err := view.Register(views...); err != nil {
 		log.Printf("error subscribing to views: %v", err)
 	}
 	view.RegisterExporter(snapExporter{})
@@ -222,12 +222,14 @@ func (s snapExporter) ExportView(vd *view.Data) {
 		return time.Duration(float64(time.Millisecond) * ms)
 	}
 
+	haveResetErrors := make(map[string]struct{})
+
 	mu.Lock()
 	defer mu.Unlock()
 	for _, row := range vd.Rows {
 		var method string
 		for _, tag := range row.Tags {
-			if tag.Key == ocgrpc.KeyMethod {
+			if tag.Key == ocgrpc.KeyClientMethod || tag.Key == ocgrpc.KeyServerMethod {
 				method = tag.Value
 				break
 			}
@@ -246,54 +248,67 @@ func (s snapExporter) ExportView(vd *view.Data) {
 		)
 		switch v := row.Data.(type) {
 		case *view.CountData:
-			sum = float64(*v)
-			count = float64(*v)
+			sum = float64(v.Value)
+			count = float64(v.Value)
 		case *view.DistributionData:
 			sum = v.Sum()
 			count = float64(v.Count)
-		case *view.MeanData:
-			sum = v.Sum()
-			count = float64(v.Count)
 		case *view.SumData:
-			sum = float64(*v)
-			count = float64(*v)
+			sum = v.Value
+			count = v.Value
 		}
 
 		// Update field of s corresponding to the view.
 		switch vd.View {
-		case ocgrpc.ClientErrorCountView:
-			s.ErrorsTotal = int(count)
+		case ocgrpc.ClientCompletedRPCsView:
+			if _, ok := haveResetErrors[method]; !ok {
+				haveResetErrors[method] = struct{}{}
+				s.ErrorsTotal = 0
+			}
+			for _, tag := range row.Tags {
+				if tag.Key == ocgrpc.KeyClientStatus && tag.Value != "OK" {
+					s.ErrorsTotal += int(count)
+				}
+			}
 
-		case ocgrpc.ClientRoundTripLatencyView:
+		case ocgrpc.ClientRoundtripLatencyView:
 			s.AvgLatencyTotal = convertTime(sum / count)
 
-		case ocgrpc.ClientRequestBytesView:
+		case ocgrpc.ClientSentBytesPerRPCView:
 			s.OutputRateTotal = computeRate(0, sum)
 
-		case ocgrpc.ClientResponseBytesView:
+		case ocgrpc.ClientReceivedBytesPerRPCView:
 			s.InputRateTotal = computeRate(0, sum)
 
-		case ocgrpc.ClientRequestCountView:
+		case ocgrpc.ClientSentMessagesPerRPCView:
 			s.CountTotal = int(count)
 			s.RPCRateTotal = computeRate(0, count)
 
-		case ocgrpc.ClientResponseCountView:
+		case ocgrpc.ClientReceivedMessagesPerRPCView:
 			// currently unused
 
-		case ocgrpc.ServerErrorCountView:
-			s.ErrorsTotal = int(count)
+		case ocgrpc.ServerCompletedRPCsView:
+			if _, ok := haveResetErrors[method]; !ok {
+				haveResetErrors[method] = struct{}{}
+				s.ErrorsTotal = 0
+			}
+			for _, tag := range row.Tags {
+				if tag.Key == ocgrpc.KeyServerStatus && tag.Value != "OK" {
+					s.ErrorsTotal += int(count)
+				}
+			}
 
-		case ocgrpc.ServerServerElapsedTimeView:
+		case ocgrpc.ServerLatencyView:
 			s.AvgLatencyTotal = convertTime(sum / count)
 
-		case ocgrpc.ServerResponseBytesView:
+		case ocgrpc.ServerSentBytesPerRPCView:
 			s.OutputRateTotal = computeRate(0, sum)
 
-		case ocgrpc.ServerRequestCountView:
+		case ocgrpc.ServerReceivedMessagesPerRPCView:
 			s.CountTotal = int(count)
 			s.RPCRateTotal = computeRate(0, count)
 
-		case ocgrpc.ServerResponseCountView:
+		case ocgrpc.ServerSentMessagesPerRPCView:
 			// currently unused
 		}
 	}

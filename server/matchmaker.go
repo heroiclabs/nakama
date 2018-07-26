@@ -18,8 +18,8 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve"
+	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 

@@ -36,7 +36,11 @@ func TestExport(t *testing.T) {
 		t.Skip("STACKDRIVER_TEST_PROJECT_ID not set")
 	}
 
-	exporter, err := NewExporter(Options{ProjectID: projectID})
+	var exportErrors []error
+
+	exporter, err := NewExporter(Options{ProjectID: projectID, OnError: func(err error) {
+		exportErrors = append(exportErrors, err)
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,16 +51,24 @@ func TestExport(t *testing.T) {
 	view.RegisterExporter(exporter)
 	defer view.UnregisterExporter(exporter)
 
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
-	span := trace.NewSpan("custom-span", nil, trace.StartOptions{})
+	_, span := trace.StartSpan(context.Background(), "custom-span")
 	time.Sleep(10 * time.Millisecond)
 	span.End()
 
 	// Test HTTP spans
 
 	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, backgroundSpan := trace.StartSpan(context.Background(), "BackgroundWork")
+		spanContext := backgroundSpan.SpanContext()
+		time.Sleep(10 * time.Millisecond)
+		backgroundSpan.End()
+
+		_, span := trace.StartSpan(req.Context(), "Sleep")
+		span.AddLink(trace.Link{Type: trace.LinkTypeChild, TraceID: spanContext.TraceID, SpanID: spanContext.SpanID})
 		time.Sleep(150 * time.Millisecond) // do work
+		span.End()
 		rw.Write([]byte("Hello, world!"))
 	})
 	server := httptest.NewServer(&ochttp.Handler{Handler: handler})
@@ -81,6 +93,10 @@ func TestExport(t *testing.T) {
 	// Flush twice to expose issue of exporter creating traces internally (#557)
 	exporter.Flush()
 	exporter.Flush()
+
+	for _, err := range exportErrors {
+		t.Error(err)
+	}
 }
 
 func TestGRPC(t *testing.T) {
@@ -100,7 +116,7 @@ func TestGRPC(t *testing.T) {
 	view.RegisterExporter(exporter)
 	defer view.UnregisterExporter(exporter)
 
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	client, done := testpb.NewTestClient(t)
 	defer done()

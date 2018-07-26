@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package internal // import "go.opencensus.io/internal"
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"go.opencensus.io"
+)
 
 // UserAgent is the user agent to be added to the outgoing
 // requests from the exporters.
-const UserAgent = "opencensus-go-v0.4.0"
+var UserAgent = fmt.Sprintf("opencensus-go [%s]", opencensus.Version())
 
 // MonotonicEndTime returns the end time at present
 // but offset from start, monotonically.

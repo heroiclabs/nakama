@@ -39,7 +39,7 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// For demoing purposes, always sample.
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	ctx, span := trace.StartSpan(ctx, "/foo")
 	bar(ctx)

@@ -105,6 +105,11 @@ type SummaryOpts struct {
 	// with the same fully-qualified name must have the same label names in
 	// their ConstLabels.
 	//
+	// Due to the way a Summary is represented in the Prometheus text format
+	// and how it is handled by the Prometheus server internally, “quantile”
+	// is an illegal label name. Construction of a Summary or SummaryVec
+	// will panic if this label name is used in ConstLabels.
+	//
 	// ConstLabels are only used rarely. In particular, do not use them to
 	// attach the same labels to all your metrics. Those use cases are
 	// better covered by target labels set by the scraping Prometheus
@@ -402,7 +407,16 @@ type SummaryVec struct {
 
 // NewSummaryVec creates a new SummaryVec based on the provided SummaryOpts and
 // partitioned by the given label names.
+//
+// Due to the way a Summary is represented in the Prometheus text format and how
+// it is handled by the Prometheus server internally, “quantile” is an illegal
+// label name. NewSummaryVec will panic if this label name is used.
 func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
+	for _, ln := range labelNames {
+		if ln == quantileLabel {
+			panic(errQuantileLabelNotAllowed)
+		}
+	}
 	desc := NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,

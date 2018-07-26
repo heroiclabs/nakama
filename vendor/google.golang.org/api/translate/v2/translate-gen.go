@@ -1,5 +1,7 @@
 // Package translate provides access to the Google Cloud Translation API.
 //
+// This package is DEPRECATED. Use package cloud.google.com/go/translate instead.
+//
 // See https://code.google.com/apis/language/translate/v2/getting_started.html
 //
 // Usage example:

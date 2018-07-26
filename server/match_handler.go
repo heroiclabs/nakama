@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

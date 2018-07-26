@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/gofrs/uuid"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 

@@ -35,19 +35,15 @@ func TestDataClone(t *testing.T) {
 	}{
 		{
 			name: "count data",
-			src:  newCountData(5),
+			src:  &CountData{Value: 5},
 		},
 		{
 			name: "distribution data",
 			src:  dist,
 		},
 		{
-			name: "mean data",
-			src:  newMeanData(11.0, 5),
-		},
-		{
 			name: "sum data",
-			src:  newSumData(65.7),
+			src:  &SumData{Value: 65.7},
 		},
 	}
 	for _, tt := range tests {

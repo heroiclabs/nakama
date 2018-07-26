@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,31 +71,27 @@ func busyworkOnce() {
 
 func main() {
 	flag.Parse()
+	defer log.Printf("busybench finished profiling.")
 
 	if *service == "" {
 		log.Print("Service name must be configured using --service flag.")
-	} else if err := profiler.Start(
-		profiler.Config{
-			Service:        *service,
-			MutexProfiling: *mutexProfiling,
-			DebugLogging:   true,
-			APIAddr:        *apiAddr,
-		}); err != nil {
-		log.Printf("Failed to start the profiler: %v", err)
-	} else {
-		mu := new(sync.Mutex)
-		var wg sync.WaitGroup
-		wg.Add(5)
-		for i := 0; i < 5; i++ {
-			go func() {
-				defer wg.Done()
-				busywork(mu)
-			}()
-		}
-		wg.Wait()
+		return
 	}
-
-	log.Printf("busybench finished profiling.")
-	// Do not exit, since the pod in the GKE test is set to always restart.
-	select {}
+	if err := profiler.Start(profiler.Config{Service: *service,
+		MutexProfiling: *mutexProfiling,
+		DebugLogging:   true,
+		APIAddr:        *apiAddr}); err != nil {
+		log.Printf("Failed to start the profiler: %v", err)
+		return
+	}
+	mu := new(sync.Mutex)
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func() {
+			defer wg.Done()
+			busywork(mu)
+		}()
+	}
+	wg.Wait()
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package bigquery
 import (
 	"io"
 
+	"cloud.google.com/go/internal/trace"
 	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
 )
@@ -46,8 +47,8 @@ type LoadConfig struct {
 	// Custom encryption configuration (e.g., Cloud KMS keys).
 	DestinationEncryptionConfig *EncryptionConfig
 
-	// SchemaUpdateOptions allows the schema of the destination table to be
-	// updated as a side effect of the load job.
+	// Allows the schema of the destination table to be updated as a side effect of
+	// the load job.
 	SchemaUpdateOptions []string
 }
 
@@ -123,7 +124,10 @@ func (t *Table) LoaderFrom(src LoadSource) *Loader {
 }
 
 // Run initiates a load job.
-func (l *Loader) Run(ctx context.Context) (*Job, error) {
+func (l *Loader) Run(ctx context.Context) (j *Job, err error) {
+	ctx = trace.StartSpan(ctx, "cloud.google.com/go/bigquery.Load.Run")
+	defer func() { trace.EndSpan(ctx, err) }()
+
 	job, media := l.newJob()
 	return l.c.insertJob(ctx, job, media)
 }

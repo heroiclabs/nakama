@@ -23,13 +23,13 @@ import (
 
 	"database/sql"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 

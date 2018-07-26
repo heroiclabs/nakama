@@ -74,44 +74,44 @@ func TestServerDefaultCollections(t *testing.T) {
 			},
 			[]*wantData{
 				{
-					func() *view.View { return ServerRequestCountView },
+					func() *view.View { return ServerReceivedMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, 1, 1, 1, 0),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerResponseCountView },
+					func() *view.View { return ServerSentMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, 1, 1, 1, 0),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerRequestBytesView },
+					func() *view.View { return ServerReceivedBytesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, 10, 10, 10, 0),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerResponseBytesView },
+					func() *view.View { return ServerSentBytesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, 10, 10, 10, 0),
 						},
@@ -151,34 +151,22 @@ func TestServerDefaultCollections(t *testing.T) {
 			},
 			[]*wantData{
 				{
-					func() *view.View { return ServerErrorCountView },
+					func() *view.View { return ServerReceivedMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyStatus, Value: "Canceled"},
-								{Key: KeyMethod, Value: "package.service/method"},
-							},
-							Data: newCountData(1),
-						},
-					},
-				},
-				{
-					func() *view.View { return ServerRequestCountView },
-					[]*view.Row{
-						{
-							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 2, 1, 2, 1.5, 0.5),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerResponseCountView },
+					func() *view.View { return ServerSentMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 2, 2, 3, 2.5, 0.5),
 						},
@@ -231,65 +219,46 @@ func TestServerDefaultCollections(t *testing.T) {
 			},
 			[]*wantData{
 				{
-					func() *view.View { return ServerErrorCountView },
+					func() *view.View { return ServerReceivedMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyStatus, Value: "Canceled"},
-								{Key: KeyMethod, Value: "package.service/method"},
-							},
-							Data: newCountData(1),
-						},
-						{
-							Tags: []tag.Tag{
-								{Key: KeyStatus, Value: "Aborted"},
-								{Key: KeyMethod, Value: "package.service/method"},
-							},
-							Data: newCountData(1),
-						},
-					},
-				},
-				{
-					func() *view.View { return ServerRequestCountView },
-					[]*view.Row{
-						{
-							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 3, 1, 2, 1.333333333, 0.333333333*2),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerResponseCountView },
+					func() *view.View { return ServerSentMessagesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
 							Data: newDistributionData([]int64{0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 3, 2, 3, 2.666666666, 0.333333333*2),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerRequestBytesView },
+					func() *view.View { return ServerReceivedBytesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
-							Data: newDistributionData([]int64{0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 4, 1, 16384, 4864.25, 59678208.25*3),
+							Data: newDistributionData([]int64{0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 3, 1, 18432, 6485.6666667, 2.1459558466666667e+08),
 						},
 					},
 				},
 				{
-					func() *view.View { return ServerResponseBytesView },
+					func() *view.View { return ServerSentBytesPerRPCView },
 					[]*view.Row{
 						{
 							Tags: []tag.Tag{
-								{Key: KeyMethod, Value: "package.service/method"},
+								{Key: KeyServerMethod, Value: "package.service/method"},
 							},
-							Data: newDistributionData([]int64{0, 1, 1, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0}, 8, 1, 65536, 13696.125, 481423542.982143*7),
+							Data: newDistributionData([]int64{0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0}, 3, 20480, 66561, 36523, 1.355519318e+09),
 						},
 					},
 				},
@@ -297,8 +266,10 @@ func TestServerDefaultCollections(t *testing.T) {
 		},
 	}
 
+	views := append(DefaultServerViews[:], ServerReceivedMessagesPerRPCView, ServerSentMessagesPerRPCView)
+
 	for _, tc := range tcs {
-		if err := view.Subscribe(DefaultServerViews...); err != nil {
+		if err := view.Register(views...); err != nil {
 			t.Fatal(err)
 		}
 
@@ -349,18 +320,12 @@ func TestServerDefaultCollections(t *testing.T) {
 		}
 
 		// Unregister views to cleanup.
-		view.Unsubscribe(DefaultServerViews...)
+		view.Unregister(views...)
 	}
 }
 
 func newCountData(v int) *view.CountData {
-	cav := view.CountData(v)
-	return &cav
-}
-
-func newMeanData(count int64, mean float64) *view.MeanData {
-	mav := view.MeanData{Count: count, Mean: mean}
-	return &mav
+	return &view.CountData{Value: int64(v)}
 }
 
 func newDistributionData(countPerBucket []int64, count int64, min, max, mean, sumOfSquaredDev float64) *view.DistributionData {

@@ -30,7 +30,7 @@ var (
 
 func ExampleNewKey() {
 	// Get a key to represent user OS.
-	key, err := tag.NewKey("my.org/keys/user-os")
+	key, err := tag.NewKey("example.com/keys/user-os")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,11 +38,11 @@ func ExampleNewKey() {
 }
 
 func ExampleNew() {
-	osKey, err := tag.NewKey("my.org/keys/user-os")
+	osKey, err := tag.NewKey("example.com/keys/user-os")
 	if err != nil {
 		log.Fatal(err)
 	}
-	userIDKey, err := tag.NewKey("my.org/keys/user-id")
+	userIDKey, err := tag.NewKey("example.com/keys/user-id")
 	if err != nil {
 		log.Fatal(err)
 	}

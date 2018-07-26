@@ -42,7 +42,7 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// For example purposes, sample every trace.
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	ctx := context.Background()
 	foo(ctx)

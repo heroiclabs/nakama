@@ -22,10 +22,12 @@ import (
 )
 
 func Example() {
-	m, _ := stats.Int64("my.org/measure/openconns", "open connections", "")
+	// Measures are usually declared and used by instrumented packages.
+	m := stats.Int64("example.com/measure/openconns", "open connections", stats.UnitDimensionless)
 
-	if err := view.Subscribe(&view.View{
-		Name:        "my.org/views/openconns",
+	// Views are usually registered in your application main function.
+	if err := view.Register(&view.View{
+		Name:        "example.com/views/openconns",
 		Description: "open connections",
 		Measure:     m,
 		Aggregation: view.Distribution(0, 1000, 2000),
@@ -33,5 +35,5 @@ func Example() {
 		log.Fatal(err)
 	}
 
-	// Use stats.RegisterExporter to export collected data.
+	// Use view.RegisterExporter to export collected data.
 }

@@ -43,7 +43,7 @@ var _ = ctxhttp.Do
 const apiId = "tpu:v1alpha1"
 const apiName = "tpu"
 const apiVersion = "v1alpha1"
-const basePath = "https://content-tpu.googleapis.com/"
+const basePath = "https://tpu.googleapis.com/"
 
 // OAuth2 scopes used by this API.
 const (
@@ -546,6 +546,8 @@ type Node struct {
 	// instances.
 	Port string `json:"port,omitempty"`
 
+	SchedulingConfig *SchedulingConfig `json:"schedulingConfig,omitempty"`
+
 	// ServiceAccount: Output only.
 	// The service account used to run the tensor flow services within the
 	// node.
@@ -571,6 +573,8 @@ type Node struct {
 	// found in the `help_description` field.
 	//   "STOPPED" - 7 - Reserved. Was SUSPENDED.
 	// TPU node is stopped.
+	//   "STOPPING" - TPU node is currently stopping.
+	//   "STARTING" - TPU node is currently starting.
 	State string `json:"state,omitempty"`
 
 	// TensorflowVersion: The version of Tensorflow running in the
@@ -769,6 +773,32 @@ func (s *ReimageNodeRequest) MarshalJSON() ([]byte, error) {
 type ResetNodeRequest struct {
 }
 
+type SchedulingConfig struct {
+	Preemptible bool `json:"preemptible,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Preemptible") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Preemptible") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *SchedulingConfig) MarshalJSON() ([]byte, error) {
+	type NoMethod SchedulingConfig
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // StartNodeRequest: Request for StartNode.
 type StartNodeRequest struct {
 }
@@ -943,7 +973,7 @@ type ProjectsLocationsGetCall struct {
 	header_      http.Header
 }
 
-// Get: Get information about a location.
+// Get: Gets information about a location.
 func (r *ProjectsLocationsService) Get(name string) *ProjectsLocationsGetCall {
 	c := &ProjectsLocationsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -1044,7 +1074,7 @@ func (c *ProjectsLocationsGetCall) Do(opts ...googleapi.CallOption) (*Location, 
 	}
 	return ret, nil
 	// {
-	//   "description": "Get information about a location.",
+	//   "description": "Gets information about a location.",
 	//   "flatPath": "v1alpha1/projects/{projectsId}/locations/{locationsId}",
 	//   "httpMethod": "GET",
 	//   "id": "tpu.projects.locations.get",

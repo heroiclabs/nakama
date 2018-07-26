@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"golang.org/x/crypto/bcrypt"
 )

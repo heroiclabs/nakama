@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package firestore
 import (
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"sort"
 
@@ -56,9 +57,11 @@ func (d *DocumentRef) Collection(id string) *CollectionRef {
 	return newCollRefWithParent(d.Parent.c, d, id)
 }
 
-// Get retrieves the document. It returns a NotFound error if the document does not exist.
-// You can test for NotFound with
+// Get retrieves the document. If the document does not exist, Get return a NotFound error, which
+// can be checked with
 //    grpc.Code(err) == codes.NotFound
+// In that case, Get returns a non-nil DocumentSnapshot whose Exists method return false and whose
+// ReadTime is the time of the failed read operation.
 func (d *DocumentRef) Get(ctx context.Context) (*DocumentSnapshot, error) {
 	if err := checkTransaction(ctx); err != nil {
 		return nil, err
@@ -70,10 +73,11 @@ func (d *DocumentRef) Get(ctx context.Context) (*DocumentSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	if docsnaps[0] == nil {
-		return nil, status.Errorf(codes.NotFound, "%q not found", d.Path)
+	ds := docsnaps[0]
+	if !ds.Exists() {
+		return ds, status.Errorf(codes.NotFound, "%q not found", d.Path)
 	}
-	return docsnaps[0], nil
+	return ds, nil
 }
 
 // Create creates the document with the given data.
@@ -92,9 +96,11 @@ func (d *DocumentRef) Get(ctx context.Context) (*DocumentSnapshot, error) {
 //     is the underlying type of a Integer.
 //   - float32 and float64 convert to Double.
 //   - []byte converts to Bytes.
-//   - time.Time converts to Timestamp.
-//   - latlng.LatLng converts to GeoPoint. latlng is the package
-//     "google.golang.org/genproto/googleapis/type/latlng".
+//   - time.Time and *ts.Timestamp convert to Timestamp. ts is the package
+//     "github.com/golang/protobuf/ptypes/timestamp".
+//   - *latlng.LatLng converts to GeoPoint. latlng is the package
+//     "google.golang.org/genproto/googleapis/type/latlng". You should always use
+//     a pointer to a LatLng.
 //   - Slices convert to Array.
 //   - Maps and structs convert to Map.
 //   - nils of any type convert to Null.
@@ -178,6 +184,10 @@ func (d *DocumentRef) newSetWrites(data interface{}, opts []SetOption) ([]*pb.Wr
 		if v.Kind() != reflect.Map {
 			return nil, errors.New("firestore: MergeAll can only be specified with map data")
 		}
+		if v.Len() == 0 {
+			// Special case: MergeAll with an empty map.
+			return d.newUpdateWithTransform(&pb.Document{Name: d.Path}, []FieldPath{}, nil, nil, true), nil
+		}
 		fpvsFromData(v, nil, &fpvs)
 	} else {
 		// Set with merge paths.  Collect only the values at the given paths.
@@ -214,6 +224,10 @@ func fpvsFromData(v reflect.Value, prefix FieldPath, fpvs *[]fpv) {
 // removePathsIf creates a new slice of FieldPaths that contains
 // exactly those elements of fps for which pred returns false.
 func removePathsIf(fps []FieldPath, pred func(FieldPath) bool) []FieldPath {
+	// Return fps if it's empty to preserve the distinction betweeen nil and zero-length.
+	if len(fps) == 0 {
+		return fps
+	}
 	var result []FieldPath
 	for _, fp := range fps {
 		if !pred(fp) {
@@ -340,7 +354,7 @@ func (d *DocumentRef) newUpdateWithTransform(doc *pb.Document, updatePaths []Fie
 	if updateOnEmpty || len(doc.Fields) > 0 ||
 		len(updatePaths) > 0 || (pc != nil && len(serverTimestampPaths) == 0) {
 		var mask *pb.DocumentMask
-		if len(updatePaths) > 0 {
+		if updatePaths != nil {
 			sfps := toServiceFieldPaths(updatePaths)
 			sort.Strings(sfps) // TODO(jba): make tests pass without this
 			mask = &pb.DocumentMask{FieldPaths: sfps}
@@ -557,4 +571,51 @@ func iterFetch(pageSize int, pageToken string, pi *iterator.PageInfo, next func(
 		}
 	}
 	return pi.Token, nil
+}
+
+// Snapshots returns an iterator over snapshots of the document. Each time the document
+// changes or is added or deleted, a new snapshot will be generated.
+func (d *DocumentRef) Snapshots(ctx context.Context) *DocumentSnapshotIterator {
+	return &DocumentSnapshotIterator{
+		docref: d,
+		ws:     newWatchStreamForDocument(ctx, d),
+	}
+}
+
+// DocumentSnapshotIterator is an iterator over snapshots of a document.
+// Call Next on the iterator to get a snapshot of the document each time it changes.
+// Call Stop on the iterator when done.
+//
+// For an example, see DocumentRef.Snapshots.
+type DocumentSnapshotIterator struct {
+	docref *DocumentRef
+	ws     *watchStream
+}
+
+// Next blocks until the document changes, then returns the DocumentSnapshot for
+// the current state of the document. If the document has been deleted, Next
+// returns a DocumentSnapshot whose Exists method returns false.
+//
+// Next never returns iterator.Done unless it is called after Stop.
+func (it *DocumentSnapshotIterator) Next() (*DocumentSnapshot, error) {
+	btree, _, readTime, err := it.ws.nextSnapshot()
+	if err != nil {
+		if err == io.EOF {
+			err = iterator.Done
+		}
+		// watchStream's error is sticky, so SnapshotIterator does not need to remember it.
+		return nil, err
+	}
+	if btree.Len() == 0 { // document deleted
+		return &DocumentSnapshot{Ref: it.docref, ReadTime: readTime}, nil
+	}
+	snap, _ := btree.At(0)
+	return snap.(*DocumentSnapshot), nil
+}
+
+// Stop stops receiving snapshots.
+// You should always call Stop when you are done with an iterator, to free up resources.
+// It is not safe to call Stop concurrently with Next.
+func (it *DocumentSnapshotIterator) Stop() {
+	it.ws.stop()
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,17 +29,20 @@ import (
 // subName is the full name of the subscription to pull messages from.
 // ctx is the context to use for acking messages and extending message deadlines.
 func newMessageIterator(ctx context.Context, subc *vkit.SubscriberClient, subName string, po *pullOptions) *streamingMessageIterator {
-	ps := newPullStream(ctx, subc, subName, int32(po.ackDeadline.Seconds()))
-	return newStreamingMessageIterator(ctx, ps, po)
+	ps := newPullStream(ctx, subc.StreamingPull, subName, int32(po.ackDeadline.Seconds()))
+	return newStreamingMessageIterator(ctx, ps, po, subc, subName)
 }
 
 type streamingMessageIterator struct {
 	ctx        context.Context
 	po         *pullOptions
 	ps         *pullStream
+	subc       *vkit.SubscriberClient
+	subName    string
 	kaTicker   *time.Ticker  // keep-alive (deadline extensions)
 	ackTicker  *time.Ticker  // message acks
 	nackTicker *time.Ticker  // message nacks (more frequent than acks)
+	pingTicker *time.Ticker  //  sends to the stream to keep it open
 	failed     chan struct{} // closed on stream error
 	stopped    chan struct{} // closed when Stop is called
 	drained    chan struct{} // closed when stopped && no more pending messages
@@ -48,12 +51,13 @@ type streamingMessageIterator struct {
 	mu                 sync.Mutex
 	ackTimeDist        *distribution.D
 	keepAliveDeadlines map[string]time.Time
-	pendingReq         *pb.StreamingPullRequest
-	pendingModAcks     map[string]int32 // ack IDs whose ack deadline is to be modified
-	err                error            // error from stream failure
+	pendingAcks        map[string]bool
+	pendingNacks       map[string]bool
+	pendingModAcks     map[string]bool // ack IDs whose ack deadline is to be modified
+	err                error           // error from stream failure
 }
 
-func newStreamingMessageIterator(ctx context.Context, ps *pullStream, po *pullOptions) *streamingMessageIterator {
+func newStreamingMessageIterator(ctx context.Context, ps *pullStream, po *pullOptions, subc *vkit.SubscriberClient, subName string) *streamingMessageIterator {
 	// TODO: make kaTicker frequency more configurable. (ackDeadline - 5s) is a
 	// reasonable default for now, because the minimum ack period is 10s. This
 	// gives us 5s grace.
@@ -63,20 +67,25 @@ func newStreamingMessageIterator(ctx context.Context, ps *pullStream, po *pullOp
 	// Ack promptly so users don't lose work if client crashes.
 	ackTicker := time.NewTicker(100 * time.Millisecond)
 	nackTicker := time.NewTicker(100 * time.Millisecond)
+	pingTicker := time.NewTicker(30 * time.Second)
 	it := &streamingMessageIterator{
 		ctx:                ctx,
 		ps:                 ps,
 		po:                 po,
+		subc:               subc,
+		subName:            subName,
 		kaTicker:           kaTicker,
 		ackTicker:          ackTicker,
 		nackTicker:         nackTicker,
+		pingTicker:         pingTicker,
 		failed:             make(chan struct{}),
 		stopped:            make(chan struct{}),
 		drained:            make(chan struct{}),
 		ackTimeDist:        distribution.New(int(maxAckDeadline/time.Second) + 1),
 		keepAliveDeadlines: map[string]time.Time{},
-		pendingReq:         &pb.StreamingPullRequest{},
-		pendingModAcks:     map[string]int32{},
+		pendingAcks:        map[string]bool{},
+		pendingNacks:       map[string]bool{},
+		pendingModAcks:     map[string]bool{},
 	}
 	it.wg.Add(1)
 	go it.sender()
@@ -125,9 +134,9 @@ func (it *streamingMessageIterator) done(ackID string, ack bool, receiveTime tim
 	defer it.mu.Unlock()
 	delete(it.keepAliveDeadlines, ackID)
 	if ack {
-		it.pendingReq.AckIds = append(it.pendingReq.AckIds, ackID)
+		it.pendingAcks[ackID] = true
 	} else {
-		it.pendingModAcks[ackID] = 0 // Nack indicated by modifying the deadline to zero.
+		it.pendingNacks[ackID] = true
 	}
 	it.checkDrained()
 }
@@ -170,26 +179,28 @@ func (it *streamingMessageIterator) receive() ([]*Message, error) {
 		it.fail(err)
 		return nil, err
 	}
-
 	// We received some messages. Remember them so we can keep them alive. Also,
-	// arrange for a receipt mod-ack (which will occur at the next firing of
-	// nackTicker).
+	// do a receipt mod-ack.
 	maxExt := time.Now().Add(it.po.maxExtension)
-	deadline := trunc32(int64(it.po.ackDeadline.Seconds()))
+	ackIDs := map[string]bool{}
 	it.mu.Lock()
 	now := time.Now()
 	for _, m := range msgs {
 		m.receiveTime = now
+		addRecv(m.ID, m.ackID, now)
 		m.doneFunc = it.done
 		it.keepAliveDeadlines[m.ackID] = maxExt
 		// The receipt mod-ack uses the subscription's configured ack deadline. Don't
-		// change the mod-ack if one is already pending. This is possible if there
-		// are retries.
-		if _, ok := it.pendingModAcks[m.ackID]; !ok {
-			it.pendingModAcks[m.ackID] = deadline
+		// change the mod-ack if the message is going to be nacked. This is possible
+		// if there are retries.
+		if !it.pendingNacks[m.ackID] {
+			ackIDs[m.ackID] = true
 		}
 	}
 	it.mu.Unlock()
+	if !it.sendModAck(ackIDs, trunc32(int64(it.po.ackDeadline.Seconds()))) {
+		return nil, it.err
+	}
 	return msgs, nil
 }
 
@@ -199,11 +210,15 @@ func (it *streamingMessageIterator) sender() {
 	defer it.kaTicker.Stop()
 	defer it.ackTicker.Stop()
 	defer it.nackTicker.Stop()
+	defer it.pingTicker.Stop()
 	defer it.ps.CloseSend()
 
 	done := false
 	for !done {
-		send := false
+		sendAcks := false
+		sendNacks := false
+		sendModAcks := false
+		sendPing := false
 		select {
 		case <-it.ctx.Done():
 			// Context canceled or timed out: stop immediately, without
@@ -216,59 +231,67 @@ func (it *streamingMessageIterator) sender() {
 
 		case <-it.drained:
 			// All outstanding messages have been marked done:
-			// nothing left to do except send the final request.
+			// nothing left to do except make the final calls.
 			it.mu.Lock()
-			send = (len(it.pendingReq.AckIds) > 0 || len(it.pendingModAcks) > 0)
+			sendAcks = (len(it.pendingAcks) > 0)
+			sendNacks = (len(it.pendingNacks) > 0)
+			// No point in sending modacks.
 			done = true
 
 		case <-it.kaTicker.C:
 			it.mu.Lock()
 			it.handleKeepAlives()
-			send = (len(it.pendingModAcks) > 0)
+			sendModAcks = (len(it.pendingModAcks) > 0)
 
 		case <-it.nackTicker.C:
 			it.mu.Lock()
-			send = (len(it.pendingModAcks) > 0)
+			sendNacks = (len(it.pendingNacks) > 0)
 
 		case <-it.ackTicker.C:
 			it.mu.Lock()
-			send = (len(it.pendingReq.AckIds) > 0)
+			sendAcks = (len(it.pendingAcks) > 0)
+
+		case <-it.pingTicker.C:
+			it.mu.Lock()
+			// Ping only if we are processing messages.
+			sendPing = (len(it.keepAliveDeadlines) > 0)
 		}
 		// Lock is held here.
-		if send {
-			req := it.pendingReq
-			it.pendingReq = &pb.StreamingPullRequest{}
-			modAcks := it.pendingModAcks
-			it.pendingModAcks = map[string]int32{}
-			it.mu.Unlock()
-			for id, s := range modAcks {
-				req.ModifyDeadlineAckIds = append(req.ModifyDeadlineAckIds, id)
-				req.ModifyDeadlineSeconds = append(req.ModifyDeadlineSeconds, s)
-			}
-			err := it.send(req)
-			if err != nil {
-				// The streamingPuller handles retries, so any error here
-				// is fatal to the iterator.
-				it.fail(err)
+		var acks, nacks, modAcks map[string]bool
+		if sendAcks {
+			acks = it.pendingAcks
+			it.pendingAcks = map[string]bool{}
+		}
+		if sendNacks {
+			nacks = it.pendingNacks
+			it.pendingNacks = map[string]bool{}
+		}
+		if sendModAcks {
+			modAcks = it.pendingModAcks
+			it.pendingModAcks = map[string]bool{}
+		}
+		it.mu.Unlock()
+		// Make Ack and ModAck RPCs.
+		if sendAcks {
+			if !it.sendAck(acks) {
 				return
 			}
-		} else {
-			it.mu.Unlock()
+		}
+		if sendNacks {
+			// Nack indicated by modifying the deadline to zero.
+			if !it.sendModAck(nacks, 0) {
+				return
+			}
+		}
+		if sendModAcks {
+			if !it.sendModAck(modAcks, trunc32(int64(it.po.ackDeadline.Seconds()))) {
+				return
+			}
+		}
+		if sendPing {
+			it.pingStream()
 		}
 	}
-}
-
-func (it *streamingMessageIterator) send(req *pb.StreamingPullRequest) error {
-	// Note: len(modAckIDs) == len(modSecs)
-	var rest *pb.StreamingPullRequest
-	for len(req.AckIds) > 0 || len(req.ModifyDeadlineAckIds) > 0 {
-		req, rest = splitRequest(req, maxPayload)
-		if err := it.ps.Send(req); err != nil {
-			return err
-		}
-		req = rest
-	}
-	return nil
 }
 
 // handleKeepAlives modifies the pending request to include deadline extensions
@@ -277,7 +300,6 @@ func (it *streamingMessageIterator) send(req *pb.StreamingPullRequest) error {
 // Called with the lock held.
 func (it *streamingMessageIterator) handleKeepAlives() {
 	now := time.Now()
-	dl := trunc32(int64(it.po.ackDeadline.Seconds()))
 	for id, expiry := range it.keepAliveDeadlines {
 		if expiry.Before(now) {
 			// This delete will not result in skipping any map items, as implied by
@@ -286,9 +308,72 @@ func (it *streamingMessageIterator) handleKeepAlives() {
 			// https://groups.google.com/forum/#!msg/golang-nuts/UciASUb03Js/pzSq5iVFAQAJ.
 			delete(it.keepAliveDeadlines, id)
 		} else {
-			// This will not overwrite a nack, because nacking removes the ID from keepAliveDeadlines.
-			it.pendingModAcks[id] = dl
+			// This will not conflict with a nack, because nacking removes the ID from keepAliveDeadlines.
+			it.pendingModAcks[id] = true
 		}
 	}
 	it.checkDrained()
+}
+
+func (it *streamingMessageIterator) sendAck(m map[string]bool) bool {
+	return it.sendAckIDRPC(m, func(ids []string) error {
+		addAcks(ids)
+		return it.subc.Acknowledge(it.ctx, &pb.AcknowledgeRequest{
+			Subscription: it.subName,
+			AckIds:       ids,
+		})
+	})
+}
+
+func (it *streamingMessageIterator) sendModAck(m map[string]bool, deadlineSecs int32) bool {
+	return it.sendAckIDRPC(m, func(ids []string) error {
+		addModAcks(ids, deadlineSecs)
+		return it.subc.ModifyAckDeadline(it.ctx, &pb.ModifyAckDeadlineRequest{
+			Subscription:       it.subName,
+			AckDeadlineSeconds: deadlineSecs,
+			AckIds:             ids,
+		})
+	})
+}
+
+func (it *streamingMessageIterator) sendAckIDRPC(ackIDSet map[string]bool, call func([]string) error) bool {
+	ackIDs := make([]string, 0, len(ackIDSet))
+	for k := range ackIDSet {
+		ackIDs = append(ackIDs, k)
+	}
+	var toSend []string
+	for len(ackIDs) > 0 {
+		toSend, ackIDs = splitRequestIDs(ackIDs, maxPayload)
+		if err := call(toSend); err != nil {
+			// The underlying client handles retries, so any error is fatal to the
+			// iterator.
+			it.fail(err)
+			return false
+		}
+	}
+	return true
+}
+
+// Send a message to the stream to keep it open. The stream will close if there's no
+// traffic on it for a while. By keeping it open, we delay the start of the
+// expiration timer on messages that are buffered by gRPC or elsewhere in the
+// network. This matters if it takes a long time to process messages relative to the
+// default ack deadline, and if the messages are small enough so that many can fit
+// into the buffer.
+func (it *streamingMessageIterator) pingStream() {
+	// Ignore error; if the stream is broken, this doesn't matter anyway.
+	_ = it.ps.Send(&pb.StreamingPullRequest{})
+}
+
+func splitRequestIDs(ids []string, maxSize int) (prefix, remainder []string) {
+	size := reqFixedOverhead
+	i := 0
+	for size < maxSize && i < len(ids) {
+		size += overheadPerID + len(ids[i])
+		i++
+	}
+	if size > maxSize {
+		i--
+	}
+	return ids[:i], ids[i:]
 }

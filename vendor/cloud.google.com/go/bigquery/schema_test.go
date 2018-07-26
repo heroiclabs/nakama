@@ -1,4 +1,4 @@
-// Copyright 2015 Google Inc. All Rights Reserved.
+// Copyright 2015 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package bigquery
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 	"testing"
 	"time"
@@ -159,6 +160,17 @@ func TestSchemaConversion(t *testing.T) {
 			},
 		},
 		{
+			// numeric
+			bqSchema: &bq.TableSchema{
+				Fields: []*bq.TableFieldSchema{
+					bqTableFieldSchema("desc", "n", "NUMERIC", ""),
+				},
+			},
+			schema: Schema{
+				fieldSchema("desc", "n", "NUMERIC", false, false),
+			},
+		},
+		{
 			// nested
 			bqSchema: &bq.TableSchema{
 				Fields: []*bq.TableFieldSchema{
@@ -190,7 +202,6 @@ func TestSchemaConversion(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		bqSchema := tc.schema.toBQ()
 		if !testutil.Equal(bqSchema, tc.bqSchema) {
@@ -238,6 +249,10 @@ type allTime struct {
 	Time      civil.Time
 	Date      civil.Date
 	DateTime  civil.DateTime
+}
+
+type allNumeric struct {
+	Numeric *big.Rat
 }
 
 func reqField(name, typ string) *FieldSchema {
@@ -305,6 +320,12 @@ func TestSimpleInference(t *testing.T) {
 				reqField("Time", "TIME"),
 				reqField("Date", "DATE"),
 				reqField("DateTime", "DATETIME"),
+			},
+		},
+		{
+			in: &allNumeric{},
+			want: Schema{
+				reqField("Numeric", "NUMERIC"),
 			},
 		},
 		{
@@ -571,11 +592,12 @@ func TestRecursiveInference(t *testing.T) {
 
 type withTags struct {
 	NoTag         int
-	ExcludeTag    int    `bigquery:"-"`
-	SimpleTag     int    `bigquery:"simple_tag"`
-	UnderscoreTag int    `bigquery:"_id"`
-	MixedCase     int    `bigquery:"MIXEDcase"`
-	Nullable      []byte `bigquery:",nullable"`
+	ExcludeTag    int      `bigquery:"-"`
+	SimpleTag     int      `bigquery:"simple_tag"`
+	UnderscoreTag int      `bigquery:"_id"`
+	MixedCase     int      `bigquery:"MIXEDcase"`
+	Nullable      []byte   `bigquery:",nullable"`
+	NullNumeric   *big.Rat `bigquery:",nullable"`
 }
 
 type withTagsNested struct {
@@ -606,6 +628,7 @@ var withTagsSchema = Schema{
 	reqField("_id", "INTEGER"),
 	reqField("MIXEDcase", "INTEGER"),
 	optField("Nullable", "BYTES"),
+	optField("NullNumeric", "NUMERIC"),
 }
 
 func TestTagInference(t *testing.T) {

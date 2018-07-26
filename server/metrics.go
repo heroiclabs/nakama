@@ -34,14 +34,14 @@ import (
 
 var (
 	// Metrics stats measurements.
-	MetricsRuntimeCount, _          = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitNone)
-	MetricsSocketWsTimeSpentMsec, _ = stats.Float64("nakama.socket/ws/server_elapsed_time", "Elapsed time in msecs spent in WebSocket connections", stats.UnitMilliseconds)
-	MetricsSocketWsOpenCount, _     = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitNone)
-	MetricsSocketWsCloseCount, _    = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitNone)
-	MetricsApiTimeSpentMsec, _      = stats.Float64("nakama.api/server/server_elapsed_time", "Elapsed time in msecs spent in API functions", stats.UnitMilliseconds)
-	MetricsApiCount, _              = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitNone)
-	MetricsRtapiTimeSpentMsec, _    = stats.Float64("nakama.rtapi/server/server_elapsed_time", "Elapsed time in msecs spent in realtime socket functions", stats.UnitMilliseconds)
-	MetricsRtapiCount, _            = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitNone)
+	MetricsRuntimeCount          = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitNone)
+	MetricsSocketWsTimeSpentMsec = stats.Float64("nakama.socket/ws/server_elapsed_time", "Elapsed time in msecs spent in WebSocket connections", stats.UnitMilliseconds)
+	MetricsSocketWsOpenCount     = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitNone)
+	MetricsSocketWsCloseCount    = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitNone)
+	MetricsApiTimeSpentMsec      = stats.Float64("nakama.api/server/server_elapsed_time", "Elapsed time in msecs spent in API functions", stats.UnitMilliseconds)
+	MetricsApiCount              = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitNone)
+	MetricsRtapiTimeSpentMsec    = stats.Float64("nakama.rtapi/server/server_elapsed_time", "Elapsed time in msecs spent in realtime socket functions", stats.UnitMilliseconds)
+	MetricsRtapiCount            = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitNone)
 
 	// Metrics stats tag keys.
 	MetricsFunction, _ = tag.NewKey("function")
@@ -54,7 +54,7 @@ type Metrics struct {
 func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	m := &Metrics{}
 
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama/runtime/count",
 		Description: "Number of pooled runtime instances",
 		TagKeys:     []tag.Key{},
@@ -63,7 +63,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing runtime count metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.socket/ws/server_elapsed_time",
 		Description: "Elapsed time in msecs spent in WebSocket connections",
 		TagKeys:     []tag.Key{},
@@ -72,7 +72,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing socket ws elapsed time metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.socket/ws/open_count",
 		Description: "Number of opened WebSocket connections",
 		TagKeys:     []tag.Key{},
@@ -81,7 +81,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing socket ws opened count metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.socket/ws/close_count",
 		Description: "Number of closed WebSocket connections",
 		TagKeys:     []tag.Key{},
@@ -90,7 +90,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing socket ws count metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.api/server/server_elapsed_time",
 		Description: "Elapsed time in msecs spent in API functions",
 		TagKeys:     []tag.Key{MetricsFunction},
@@ -99,7 +99,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing api elapsed time metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.api/server/request_count",
 		Description: "Number of calls to API functions",
 		TagKeys:     []tag.Key{MetricsFunction},
@@ -108,7 +108,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing api request count metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.rtapi/server/server_elapsed_time",
 		Description: "Elapsed time in msecs spent in realtime socket functions",
 		TagKeys:     []tag.Key{MetricsFunction},
@@ -117,7 +117,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}); err != nil {
 		startupLogger.Fatal("Error subscribing rtapi elapsed time metrics view", zap.Error(err))
 	}
-	if err := view.Subscribe(&view.View{
+	if err := view.Register(&view.View{
 		Name:        "nakama.rtapi/server/request_count",
 		Description: "Number of calls to realtime socket functions",
 		TagKeys:     []tag.Key{MetricsFunction},

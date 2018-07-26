@@ -752,6 +752,10 @@ type EndpointsApiService struct {
 	// config_id.
 	ConfigId string `json:"configId,omitempty"`
 
+	// DisableTraceSampling: Enable or disable trace sampling. By default,
+	// this is set to false for enabled.
+	DisableTraceSampling bool `json:"disableTraceSampling,omitempty"`
+
 	// Name: Endpoints service name which is the name of the "service"
 	// resource in the Service Management API. For example
 	// "myapi.endpoints.myproject.cloud.goog"

@@ -133,6 +133,7 @@ func main() {
     if rb1.Equals(newrb) {
     	fmt.Println("I wrote the content to a byte stream and read it back.")
     }
+    // you can iterate over bitmaps using ReverseIterator(), Iterator, ManyIterator()
 }
 ```
 

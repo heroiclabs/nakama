@@ -1,5 +1,7 @@
 // Package cloudtasks provides access to the Cloud Tasks API.
 //
+// This package is DEPRECATED. Use package cloud.google.com/go/cloudtasks/apiv2beta2 instead.
+//
 // See https://cloud.google.com/cloud-tasks/
 //
 // Usage example:
@@ -471,12 +473,6 @@ type AppEngineRouting struct {
 	// is
 	// attempted.
 	//
-	// When service is "default",
-	// version is "default", and
-	// instance is empty,
-	// host is shortened to just the
-	// `application_domain_name`.
-	//
 	// If service,
 	// version, or
 	// instance is invalid, then the task
@@ -506,7 +502,7 @@ type AppEngineRouting struct {
 	//
 	// By default, the task is sent to the service which is the
 	// default
-	// service when the task is attempted ("default").
+	// service when the task is attempted.
 	//
 	// For some queues or tasks which were created using the App Engine
 	// Task Queue API, host is not parsable
@@ -525,7 +521,7 @@ type AppEngineRouting struct {
 	//
 	// By default, the task is sent to the version which is the
 	// default
-	// version when the task is attempted ("default").
+	// version when the task is attempted.
 	//
 	// For some queues or tasks which were created using the App Engine
 	// Task Queue API, host is not parsable
@@ -630,7 +626,7 @@ type Binding struct {
 	//
 	// * `user:{emailid}`: An email address that represents a specific
 	// Google
-	//    account. For example, `alice@gmail.com` or `joe@example.com`.
+	//    account. For example, `alice@gmail.com` .
 	//
 	//
 	// * `serviceAccount:{emailid}`: An email address that represents a
@@ -896,8 +892,8 @@ type LeaseTasksRequest struct {
 	//
 	// When `filter` is set to `tag_function=oldest_tag()`, only tasks which
 	// have
-	// the same tag as the task with the oldest schedule_time will be
-	// returned.
+	// the same tag as the task with the oldest
+	// schedule_time will be returned.
 	//
 	// Grammar Syntax:
 	//
@@ -934,9 +930,13 @@ type LeaseTasksRequest struct {
 	// `lease_duration` will be truncated to the nearest second.
 	LeaseDuration string `json:"leaseDuration,omitempty"`
 
-	// MaxTasks: The maximum number of tasks to lease. The maximum that can
-	// be
-	// requested is 1000.
+	// MaxTasks: The maximum number of tasks to lease.
+	//
+	// The system will make a best effort to return as close to
+	// as
+	// `max_tasks` as possible.
+	//
+	// The largest that `max_tasks` can be is 1000.
 	MaxTasks int64 `json:"maxTasks,omitempty"`
 
 	// ResponseView: The response_view specifies which subset of the Task
@@ -1216,7 +1216,7 @@ type PauseQueueRequest struct {
 // specify access control policies for Cloud Platform resources.
 //
 //
-// A `Policy` consists of a list of `bindings`. A `Binding` binds a list
+// A `Policy` consists of a list of `bindings`. A `binding` binds a list
 // of
 // `members` to a `role`, where the members can be user accounts, Google
 // groups,
@@ -1224,7 +1224,7 @@ type PauseQueueRequest struct {
 // permissions
 // defined by IAM.
 //
-// **Example**
+// **JSON Example**
 //
 //     {
 //       "bindings": [
@@ -1235,7 +1235,7 @@ type PauseQueueRequest struct {
 //             "group:admins@example.com",
 //             "domain:google.com",
 //
-// "serviceAccount:my-other-app@appspot.gserviceaccount.com",
+// "serviceAccount:my-other-app@appspot.gserviceaccount.com"
 //           ]
 //         },
 //         {
@@ -1244,6 +1244,20 @@ type PauseQueueRequest struct {
 //         }
 //       ]
 //     }
+//
+// **YAML Example**
+//
+//     bindings:
+//     - members:
+//       - user:mike@example.com
+//       - group:admins@example.com
+//       - domain:google.com
+//       - serviceAccount:my-other-app@appspot.gserviceaccount.com
+//       role: roles/owner
+//     - members:
+//       - user:sean@example.com
+//       role: roles/viewer
+//
 //
 // For a description of IAM and its features, see the
 // [IAM developer's guide](https://cloud.google.com/iam/docs).
@@ -1380,7 +1394,10 @@ type Queue struct {
 	// An App Engine queue is a queue that has an AppEngineHttpTarget.
 	AppEngineHttpTarget *AppEngineHttpTarget `json:"appEngineHttpTarget,omitempty"`
 
-	// Name: The queue name.
+	// Name: Caller-specified and required in CreateQueue,
+	// after which it becomes output only.
+	//
+	// The queue name.
 	//
 	// The queue name must have the following
 	// format:
@@ -1399,11 +1416,7 @@ type Queue struct {
 	//    For more information, see
 	// https://cloud.google.com/about/locations/.
 	// * `QUEUE_ID` can contain letters ([A-Za-z]), numbers ([0-9]), or
-	//   hyphens (-). The maximum length is 100
-	// characters.
-	//
-	// Caller-specified and required in CreateQueue,
-	// after which it becomes output only.
+	//   hyphens (-). The maximum length is 100 characters.
 	Name string `json:"name,omitempty"`
 
 	// PullTarget: Pull target.
@@ -1540,6 +1553,9 @@ func (s *Queue) MarshalJSON() ([]byte, error) {
 // by a
 // queue, regardless of whether the dispatch is a first task attempt or
 // a retry.
+//
+// Note: The debugging command, RunTask, will run a task
+// even if the queue has reached its RateLimits.
 type RateLimits struct {
 	// MaxBurstSize: Output only. The max burst size.
 	//
@@ -1598,10 +1614,14 @@ type RateLimits struct {
 	// default.
 	//
 	//
-	// The maximum allowed value is 5,000. -1 indicates no limit.
+	// The maximum allowed value is 5,000.
 	//
 	// This field is output only for
-	// [pull queues](google.cloud.tasks.v2beta2.PullTarget).
+	// [pull queues](google.cloud.tasks.v2beta2.PullTarget) and always -1,
+	// which
+	// indicates no limit. No other queue types can have
+	// `max_concurrent_tasks`
+	// set to -1.
 	//
 	//
 	// This field has the same meaning as
@@ -2137,7 +2157,9 @@ type Task struct {
 	// `create_time` will be truncated to the nearest second.
 	CreateTime string `json:"createTime,omitempty"`
 
-	// Name: The task name.
+	// Name: Optionally caller-specified in CreateTask.
+	//
+	// The task name.
 	//
 	// The task name must have the following
 	// format:
@@ -2160,8 +2182,6 @@ type Task struct {
 	// * `TASK_ID` can contain only letters ([A-Za-z]), numbers ([0-9]),
 	//   hyphens (-), or underscores (_). The maximum length is 500
 	// characters.
-	//
-	// Optionally caller-specified in CreateTask.
 	Name string `json:"name,omitempty"`
 
 	// PullMessage: LeaseTasks to process the task. Can be
@@ -2381,7 +2401,7 @@ type ProjectsLocationsGetCall struct {
 	header_      http.Header
 }
 
-// Get: Get information about a location.
+// Get: Gets information about a location.
 func (r *ProjectsLocationsService) Get(name string) *ProjectsLocationsGetCall {
 	c := &ProjectsLocationsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -2482,7 +2502,7 @@ func (c *ProjectsLocationsGetCall) Do(opts ...googleapi.CallOption) (*Location, 
 	}
 	return ret, nil
 	// {
-	//   "description": "Get information about a location.",
+	//   "description": "Gets information about a location.",
 	//   "flatPath": "v2beta2/projects/{projectsId}/locations/{locationsId}",
 	//   "httpMethod": "GET",
 	//   "id": "cloudtasks.projects.locations.get",
@@ -3647,7 +3667,7 @@ func (c *ProjectsLocationsQueuesPatchCall) Do(opts ...googleapi.CallOption) (*Qu
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The queue name.\n\nThe queue name must have the following format:\n`projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID`\n\n* `PROJECT_ID` can contain letters ([A-Za-z]), numbers ([0-9]),\n   hyphens (-), colons (:), or periods (.).\n   For more information, see\n   [Identifying projects](/resource-manager/docs/creating-managing-projects#identifying_projects)\n* `LOCATION_ID` is the canonical ID for the queue's location.\n   The list of available locations can be obtained by calling\n   ListLocations.\n   For more information, see https://cloud.google.com/about/locations/.\n* `QUEUE_ID` can contain letters ([A-Za-z]), numbers ([0-9]), or\n  hyphens (-). The maximum length is 100 characters.\n\nCaller-specified and required in CreateQueue,\nafter which it becomes output only.",
+	//       "description": "Caller-specified and required in CreateQueue,\nafter which it becomes output only.\n\nThe queue name.\n\nThe queue name must have the following format:\n`projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID`\n\n* `PROJECT_ID` can contain letters ([A-Za-z]), numbers ([0-9]),\n   hyphens (-), colons (:), or periods (.).\n   For more information, see\n   [Identifying projects](/resource-manager/docs/creating-managing-projects#identifying_projects)\n* `LOCATION_ID` is the canonical ID for the queue's location.\n   The list of available locations can be obtained by calling\n   ListLocations.\n   For more information, see https://cloud.google.com/about/locations/.\n* `QUEUE_ID` can contain letters ([A-Za-z]), numbers ([0-9]), or\n  hyphens (-). The maximum length is 100 characters.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/locations/[^/]+/queues/[^/]+$",
 	//       "required": true,
@@ -4424,13 +4444,6 @@ type ProjectsLocationsQueuesTasksAcknowledgeCall struct {
 // by a later LeaseTasks,
 // GetTask, or
 // ListTasks.
-//
-// To acknowledge multiple tasks at the same time, use
-// [HTTP batching](/storage/docs/json_api/v1/how-tos/batch)
-// or the batching documentation for your client library, for
-// example
-// https://developers.google.com/api-client-library/python/guide/
-// batch.
 func (r *ProjectsLocationsQueuesTasksService) Acknowledge(name string, acknowledgetaskrequest *AcknowledgeTaskRequest) *ProjectsLocationsQueuesTasksAcknowledgeCall {
 	c := &ProjectsLocationsQueuesTasksAcknowledgeCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -4524,7 +4537,7 @@ func (c *ProjectsLocationsQueuesTasksAcknowledgeCall) Do(opts ...googleapi.CallO
 	}
 	return ret, nil
 	// {
-	//   "description": "Acknowledges a pull task.\n\nThe worker, that is, the entity that\nleased this task must call this method\nto indicate that the work associated with the task has finished.\n\nThe worker must acknowledge a task within the\nlease_duration or the lease\nwill expire and the task will become available to be leased\nagain. After the task is acknowledged, it will not be returned\nby a later LeaseTasks,\nGetTask, or\nListTasks.\n\nTo acknowledge multiple tasks at the same time, use\n[HTTP batching](/storage/docs/json_api/v1/how-tos/batch)\nor the batching documentation for your client library, for example\nhttps://developers.google.com/api-client-library/python/guide/batch.",
+	//   "description": "Acknowledges a pull task.\n\nThe worker, that is, the entity that\nleased this task must call this method\nto indicate that the work associated with the task has finished.\n\nThe worker must acknowledge a task within the\nlease_duration or the lease\nwill expire and the task will become available to be leased\nagain. After the task is acknowledged, it will not be returned\nby a later LeaseTasks,\nGetTask, or\nListTasks.",
 	//   "flatPath": "v2beta2/projects/{projectsId}/locations/{locationsId}/queues/{queuesId}/tasks/{tasksId}:acknowledge",
 	//   "httpMethod": "POST",
 	//   "id": "cloudtasks.projects.locations.queues.tasks.acknowledge",
@@ -4708,13 +4721,6 @@ type ProjectsLocationsQueuesTasksCreateCall struct {
 
 // Create: Creates a task and adds it to a queue.
 //
-// To add multiple tasks at the same time, use
-// [HTTP batching](/storage/docs/json_api/v1/how-tos/batch)
-// or the batching documentation for your client library, for
-// example
-// https://developers.google.com/api-client-library/python/guide/
-// batch.
-//
 // Tasks cannot be updated after creation; there is no UpdateTask
 // command.
 //
@@ -4816,7 +4822,7 @@ func (c *ProjectsLocationsQueuesTasksCreateCall) Do(opts ...googleapi.CallOption
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a task and adds it to a queue.\n\nTo add multiple tasks at the same time, use\n[HTTP batching](/storage/docs/json_api/v1/how-tos/batch)\nor the batching documentation for your client library, for example\nhttps://developers.google.com/api-client-library/python/guide/batch.\n\nTasks cannot be updated after creation; there is no UpdateTask command.\n\n* For [App Engine queues](google.cloud.tasks.v2beta2.AppEngineHttpTarget),\n  the maximum task size is 100KB.\n* For [pull queues](google.cloud.tasks.v2beta2.PullTarget), this\n  the maximum task size is 1MB.",
+	//   "description": "Creates a task and adds it to a queue.\n\nTasks cannot be updated after creation; there is no UpdateTask command.\n\n* For [App Engine queues](google.cloud.tasks.v2beta2.AppEngineHttpTarget),\n  the maximum task size is 100KB.\n* For [pull queues](google.cloud.tasks.v2beta2.PullTarget), this\n  the maximum task size is 1MB.",
 	//   "flatPath": "v2beta2/projects/{projectsId}/locations/{locationsId}/queues/{queuesId}/tasks",
 	//   "httpMethod": "POST",
 	//   "id": "cloudtasks.projects.locations.queues.tasks.create",
@@ -5332,18 +5338,6 @@ func (r *ProjectsLocationsQueuesTasksService) List(parent string) *ProjectsLocat
 	return c
 }
 
-// OrderBy sets the optional parameter "orderBy": Sort order used for
-// the query. The only fields supported for sorting
-// are `schedule_time` and `pull_message.tag`. All results will
-// be
-// returned in approximately ascending order. The default ordering is
-// by
-// `schedule_time`.
-func (c *ProjectsLocationsQueuesTasksListCall) OrderBy(orderBy string) *ProjectsLocationsQueuesTasksListCall {
-	c.urlParams_.Set("orderBy", orderBy)
-	return c
-}
-
 // PageSize sets the optional parameter "pageSize": Requested page size.
 // Fewer tasks than requested might be returned.
 //
@@ -5503,11 +5497,6 @@ func (c *ProjectsLocationsQueuesTasksListCall) Do(opts ...googleapi.CallOption) 
 	//     "parent"
 	//   ],
 	//   "parameters": {
-	//     "orderBy": {
-	//       "description": "Sort order used for the query. The only fields supported for sorting\nare `schedule_time` and `pull_message.tag`. All results will be\nreturned in approximately ascending order. The default ordering is by\n`schedule_time`.",
-	//       "location": "query",
-	//       "type": "string"
-	//     },
 	//     "pageSize": {
 	//       "description": "Requested page size. Fewer tasks than requested might be returned.\n\nThe maximum page size is 1000. If unspecified, the page size will\nbe the maximum. Fewer tasks than requested might be returned,\neven if more tasks exist; use\nnext_page_token in the\nresponse to determine if more tasks exist.",
 	//       "format": "int32",
@@ -5721,38 +5710,36 @@ type ProjectsLocationsQueuesTasksRunCall struct {
 
 // Run: Forces a task to run now.
 //
+// When this method is called, Cloud Tasks will dispatch the task, even
+// if
+// the task is already running, the queue has reached its RateLimits
+// or
+// is PAUSED.
+//
 // This command is meant to be used for manual debugging. For
 // example, RunTask can be used to retry a failed
 // task after a fix has been made or to manually force a task to
 // be
 // dispatched now.
 //
-// When this method is called, Cloud Tasks will dispatch the task to
-// its
-// target, even if the queue is PAUSED.
-//
 // The dispatched task is returned. That is, the task that is
 // returned
 // contains the status after the task is dispatched but
 // before the task is received by its target.
 //
-// If Cloud Tasks receives a successful response from the
-// task's
-// handler, then the task will be deleted; otherwise the
+// If Cloud Tasks receives a successful response from the task's
+// target, then the task will be deleted; otherwise the
 // task's
 // schedule_time will be reset to the time that
 // RunTask was called plus the retry delay specified
-// in the queue and task's RetryConfig.
+// in the queue's RetryConfig.
 //
 // RunTask returns
 // NOT_FOUND when it is called on a
-// task that has already succeeded or permanently
-// failed. FAILED_PRECONDITION
-// is returned when RunTask is called on task
-// that is dispatched or already running.
+// task that has already succeeded or permanently failed.
 //
-// RunTask cannot be called on
-// pull tasks.
+// RunTask cannot be called on a
+// pull task.
 func (r *ProjectsLocationsQueuesTasksService) Run(name string, runtaskrequest *RunTaskRequest) *ProjectsLocationsQueuesTasksRunCall {
 	c := &ProjectsLocationsQueuesTasksRunCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -5846,7 +5833,7 @@ func (c *ProjectsLocationsQueuesTasksRunCall) Do(opts ...googleapi.CallOption) (
 	}
 	return ret, nil
 	// {
-	//   "description": "Forces a task to run now.\n\nThis command is meant to be used for manual debugging. For\nexample, RunTask can be used to retry a failed\ntask after a fix has been made or to manually force a task to be\ndispatched now.\n\nWhen this method is called, Cloud Tasks will dispatch the task to its\ntarget, even if the queue is PAUSED.\n\nThe dispatched task is returned. That is, the task that is returned\ncontains the status after the task is dispatched but\nbefore the task is received by its target.\n\nIf Cloud Tasks receives a successful response from the task's\nhandler, then the task will be deleted; otherwise the task's\nschedule_time will be reset to the time that\nRunTask was called plus the retry delay specified\nin the queue and task's RetryConfig.\n\nRunTask returns\nNOT_FOUND when it is called on a\ntask that has already succeeded or permanently\nfailed. FAILED_PRECONDITION\nis returned when RunTask is called on task\nthat is dispatched or already running.\n\nRunTask cannot be called on\npull tasks.",
+	//   "description": "Forces a task to run now.\n\nWhen this method is called, Cloud Tasks will dispatch the task, even if\nthe task is already running, the queue has reached its RateLimits or\nis PAUSED.\n\nThis command is meant to be used for manual debugging. For\nexample, RunTask can be used to retry a failed\ntask after a fix has been made or to manually force a task to be\ndispatched now.\n\nThe dispatched task is returned. That is, the task that is returned\ncontains the status after the task is dispatched but\nbefore the task is received by its target.\n\nIf Cloud Tasks receives a successful response from the task's\ntarget, then the task will be deleted; otherwise the task's\nschedule_time will be reset to the time that\nRunTask was called plus the retry delay specified\nin the queue's RetryConfig.\n\nRunTask returns\nNOT_FOUND when it is called on a\ntask that has already succeeded or permanently failed.\n\nRunTask cannot be called on a\npull task.",
 	//   "flatPath": "v2beta2/projects/{projectsId}/locations/{locationsId}/queues/{queuesId}/tasks/{tasksId}:run",
 	//   "httpMethod": "POST",
 	//   "id": "cloudtasks.projects.locations.queues.tasks.run",

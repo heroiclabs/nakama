@@ -85,6 +85,19 @@ func (a ABitOfEverythingServiceApi) Create(floatValue float32, doubleValue float
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -145,6 +158,19 @@ func (a ABitOfEverythingServiceApi) CreateBody(body ExamplepbABitOfEverything) (
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -209,6 +235,19 @@ func (a ABitOfEverythingServiceApi) DeepPathEcho(singleNestedName string, body E
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -272,6 +311,14 @@ func (a ABitOfEverythingServiceApi) Delete(uuid string) (*ProtobufEmpty, *APIRes
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -315,18 +362,15 @@ func (a ABitOfEverythingServiceApi) Delete(uuid string) (*ProtobufEmpty, *APIRes
 }
 
 /**
- * Echo allows posting a StringMessage value.
- * It also exposes multiple bindings.  This makes it useful when validating that the OpenAPI v2 API description exposes documentation correctly on all paths defined as additional_bindings in the proto.
+ * 
  *
- * @param value 
- * @return *SubStringMessage
+ * @return *ProtobufEmpty
  */
-func (a ABitOfEverythingServiceApi) Echo(value string) (*SubStringMessage, *APIResponse, error) {
+func (a ABitOfEverythingServiceApi) ErrorWithDetails() (*ProtobufEmpty, *APIResponse, error) {
 
 	var localVarHttpMethod = strings.ToUpper("Get")
 	// create path and map variables
-	localVarPath := a.Configuration.BasePath + "/v1/example/a_bit_of_everything/echo/{value}"
-	localVarPath = strings.Replace(localVarPath, "{"+"value"+"}", fmt.Sprintf("%v", value), -1)
+	localVarPath := a.Configuration.BasePath + "/v2/example/errorwithdetails"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -334,6 +378,19 @@ func (a ABitOfEverythingServiceApi) Echo(value string) (*SubStringMessage, *APIR
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -358,137 +415,12 @@ func (a ABitOfEverythingServiceApi) Echo(value string) (*SubStringMessage, *APIR
 	if localVarHttpHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHttpHeaderAccept
 	}
-	var successPayload = new(SubStringMessage)
+	var successPayload = new(ProtobufEmpty)
 	localVarHttpResponse, err := a.Configuration.APIClient.CallAPI(localVarPath, localVarHttpMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, localVarFileName, localVarFileBytes)
 
 	var localVarURL, _ = url.Parse(localVarPath)
 	localVarURL.RawQuery = localVarQueryParams.Encode()
-	var localVarAPIResponse = &APIResponse{Operation: "Echo", Method: localVarHttpMethod, RequestURL: localVarURL.String()}
-	if localVarHttpResponse != nil {
-		localVarAPIResponse.Response = localVarHttpResponse.RawResponse
-		localVarAPIResponse.Payload = localVarHttpResponse.Body()
-	}
-
-	if err != nil {
-		return successPayload, localVarAPIResponse, err
-	}
-	err = json.Unmarshal(localVarHttpResponse.Body(), &successPayload)
-	return successPayload, localVarAPIResponse, err
-}
-
-/**
- * Echo allows posting a StringMessage value.
- * It also exposes multiple bindings.  This makes it useful when validating that the OpenAPI v2 API description exposes documentation correctly on all paths defined as additional_bindings in the proto.
- *
- * @param body 
- * @return *SubStringMessage
- */
-func (a ABitOfEverythingServiceApi) Echo2(body string) (*SubStringMessage, *APIResponse, error) {
-
-	var localVarHttpMethod = strings.ToUpper("Post")
-	// create path and map variables
-	localVarPath := a.Configuration.BasePath + "/v2/example/echo"
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := make(map[string]string)
-	var localVarPostBody interface{}
-	var localVarFileName string
-	var localVarFileBytes []byte
-	// add default headers if any
-	for key := range a.Configuration.DefaultHeader {
-		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
-	}
-
-	// to determine the Content-Type header
-	localVarHttpContentTypes := []string{ "application/json", "application/x-foo-mime",  }
-
-	// set Content-Type header
-	localVarHttpContentType := a.Configuration.APIClient.SelectHeaderContentType(localVarHttpContentTypes)
-	if localVarHttpContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHttpContentType
-	}
-	// to determine the Accept header
-	localVarHttpHeaderAccepts := []string{
-		"application/json",
-		"application/x-foo-mime",
-		}
-
-	// set Accept header
-	localVarHttpHeaderAccept := a.Configuration.APIClient.SelectHeaderAccept(localVarHttpHeaderAccepts)
-	if localVarHttpHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHttpHeaderAccept
-	}
-	// body params
-	localVarPostBody = &body
-	var successPayload = new(SubStringMessage)
-	localVarHttpResponse, err := a.Configuration.APIClient.CallAPI(localVarPath, localVarHttpMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, localVarFileName, localVarFileBytes)
-
-	var localVarURL, _ = url.Parse(localVarPath)
-	localVarURL.RawQuery = localVarQueryParams.Encode()
-	var localVarAPIResponse = &APIResponse{Operation: "Echo2", Method: localVarHttpMethod, RequestURL: localVarURL.String()}
-	if localVarHttpResponse != nil {
-		localVarAPIResponse.Response = localVarHttpResponse.RawResponse
-		localVarAPIResponse.Payload = localVarHttpResponse.Body()
-	}
-
-	if err != nil {
-		return successPayload, localVarAPIResponse, err
-	}
-	err = json.Unmarshal(localVarHttpResponse.Body(), &successPayload)
-	return successPayload, localVarAPIResponse, err
-}
-
-/**
- * Echo allows posting a StringMessage value.
- * It also exposes multiple bindings.  This makes it useful when validating that the OpenAPI v2 API description exposes documentation correctly on all paths defined as additional_bindings in the proto.
- *
- * @param value 
- * @return *SubStringMessage
- */
-func (a ABitOfEverythingServiceApi) Echo3(value string) (*SubStringMessage, *APIResponse, error) {
-
-	var localVarHttpMethod = strings.ToUpper("Get")
-	// create path and map variables
-	localVarPath := a.Configuration.BasePath + "/v2/example/echo"
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := make(map[string]string)
-	var localVarPostBody interface{}
-	var localVarFileName string
-	var localVarFileBytes []byte
-	// add default headers if any
-	for key := range a.Configuration.DefaultHeader {
-		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
-	}
-	localVarQueryParams.Add("value", a.Configuration.APIClient.ParameterToString(value, ""))
-
-	// to determine the Content-Type header
-	localVarHttpContentTypes := []string{ "application/json", "application/x-foo-mime",  }
-
-	// set Content-Type header
-	localVarHttpContentType := a.Configuration.APIClient.SelectHeaderContentType(localVarHttpContentTypes)
-	if localVarHttpContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHttpContentType
-	}
-	// to determine the Accept header
-	localVarHttpHeaderAccepts := []string{
-		"application/json",
-		"application/x-foo-mime",
-		}
-
-	// set Accept header
-	localVarHttpHeaderAccept := a.Configuration.APIClient.SelectHeaderAccept(localVarHttpHeaderAccepts)
-	if localVarHttpHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHttpHeaderAccept
-	}
-	var successPayload = new(SubStringMessage)
-	localVarHttpResponse, err := a.Configuration.APIClient.CallAPI(localVarPath, localVarHttpMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, localVarFileName, localVarFileBytes)
-
-	var localVarURL, _ = url.Parse(localVarPath)
-	localVarURL.RawQuery = localVarQueryParams.Encode()
-	var localVarAPIResponse = &APIResponse{Operation: "Echo3", Method: localVarHttpMethod, RequestURL: localVarURL.String()}
+	var localVarAPIResponse = &APIResponse{Operation: "ErrorWithDetails", Method: localVarHttpMethod, RequestURL: localVarURL.String()}
 	if localVarHttpResponse != nil {
 		localVarAPIResponse.Response = localVarHttpResponse.RawResponse
 		localVarAPIResponse.Payload = localVarHttpResponse.Body()
@@ -521,6 +453,19 @@ func (a ABitOfEverythingServiceApi) GetMessageWithBody(id string, body Examplepb
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -581,7 +526,8 @@ func (a ABitOfEverythingServiceApi) GetMessageWithBody(id string, body Examplepb
  * @param fixed32Value 
  * @param boolValue 
  * @param stringValue 
- * @param uint32Value TODO(yugui) add bytes_value.
+ * @param bytesValue 
+ * @param uint32Value 
  * @param enumValue  - ZERO: ZERO means 0  - ONE: ONE means 1
  * @param sfixed32Value 
  * @param sfixed64Value 
@@ -594,7 +540,7 @@ func (a ABitOfEverythingServiceApi) GetMessageWithBody(id string, body Examplepb
  * @param repeatedEnumValue repeated enum value. it is comma-separated in query.   - ZERO: ZERO means 0  - ONE: ONE means 1
  * @return *ProtobufEmpty
  */
-func (a ABitOfEverythingServiceApi) GetQuery(uuid string, singleNestedName string, singleNestedAmount int64, singleNestedOk string, floatValue float32, doubleValue float64, int64Value string, uint64Value string, int32Value int32, fixed64Value string, fixed32Value int64, boolValue bool, stringValue string, uint32Value int64, enumValue string, sfixed32Value int32, sfixed64Value string, sint32Value int32, sint64Value string, repeatedStringValue []string, oneofString string, nonConventionalNameValue string, timestampValue time.Time, repeatedEnumValue []string) (*ProtobufEmpty, *APIResponse, error) {
+func (a ABitOfEverythingServiceApi) GetQuery(uuid string, singleNestedName string, singleNestedAmount int64, singleNestedOk string, floatValue float32, doubleValue float64, int64Value string, uint64Value string, int32Value int32, fixed64Value string, fixed32Value int64, boolValue bool, stringValue string, bytesValue string, uint32Value int64, enumValue string, sfixed32Value int32, sfixed64Value string, sint32Value int32, sint64Value string, repeatedStringValue []string, oneofString string, nonConventionalNameValue string, timestampValue time.Time, repeatedEnumValue []string) (*ProtobufEmpty, *APIResponse, error) {
 
 	var localVarHttpMethod = strings.ToUpper("Get")
 	// create path and map variables
@@ -607,6 +553,19 @@ func (a ABitOfEverythingServiceApi) GetQuery(uuid string, singleNestedName strin
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -623,6 +582,7 @@ func (a ABitOfEverythingServiceApi) GetQuery(uuid string, singleNestedName strin
 	localVarQueryParams.Add("fixed32_value", a.Configuration.APIClient.ParameterToString(fixed32Value, ""))
 	localVarQueryParams.Add("bool_value", a.Configuration.APIClient.ParameterToString(boolValue, ""))
 	localVarQueryParams.Add("string_value", a.Configuration.APIClient.ParameterToString(stringValue, ""))
+	localVarQueryParams.Add("bytes_value", a.Configuration.APIClient.ParameterToString(bytesValue, ""))
 	localVarQueryParams.Add("uint32_value", a.Configuration.APIClient.ParameterToString(uint32Value, ""))
 	localVarQueryParams.Add("enum_value", a.Configuration.APIClient.ParameterToString(enumValue, ""))
 	localVarQueryParams.Add("sfixed32_value", a.Configuration.APIClient.ParameterToString(sfixed32Value, ""))
@@ -695,6 +655,19 @@ func (a ABitOfEverythingServiceApi) Lookup(uuid string) (*ExamplepbABitOfEveryth
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -740,6 +713,83 @@ func (a ABitOfEverythingServiceApi) Lookup(uuid string) (*ExamplepbABitOfEveryth
 /**
  * 
  *
+ * @param name 
+ * @param body 
+ * @return *ProtobufEmpty
+ */
+func (a ABitOfEverythingServiceApi) PostWithEmptyBody(name string, body ExamplepbBody) (*ProtobufEmpty, *APIResponse, error) {
+
+	var localVarHttpMethod = strings.ToUpper("Post")
+	// create path and map variables
+	localVarPath := a.Configuration.BasePath + "/v2/example/postwithemptybody/{name}"
+	localVarPath = strings.Replace(localVarPath, "{"+"name"+"}", fmt.Sprintf("%v", name), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := make(map[string]string)
+	var localVarPostBody interface{}
+	var localVarFileName string
+	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
+	// add default headers if any
+	for key := range a.Configuration.DefaultHeader {
+		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
+	}
+
+	// to determine the Content-Type header
+	localVarHttpContentTypes := []string{ "application/json", "application/x-foo-mime",  }
+
+	// set Content-Type header
+	localVarHttpContentType := a.Configuration.APIClient.SelectHeaderContentType(localVarHttpContentTypes)
+	if localVarHttpContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHttpContentType
+	}
+	// to determine the Accept header
+	localVarHttpHeaderAccepts := []string{
+		"application/json",
+		"application/x-foo-mime",
+		}
+
+	// set Accept header
+	localVarHttpHeaderAccept := a.Configuration.APIClient.SelectHeaderAccept(localVarHttpHeaderAccepts)
+	if localVarHttpHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHttpHeaderAccept
+	}
+	// body params
+	localVarPostBody = &body
+	var successPayload = new(ProtobufEmpty)
+	localVarHttpResponse, err := a.Configuration.APIClient.CallAPI(localVarPath, localVarHttpMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, localVarFileName, localVarFileBytes)
+
+	var localVarURL, _ = url.Parse(localVarPath)
+	localVarURL.RawQuery = localVarQueryParams.Encode()
+	var localVarAPIResponse = &APIResponse{Operation: "PostWithEmptyBody", Method: localVarHttpMethod, RequestURL: localVarURL.String()}
+	if localVarHttpResponse != nil {
+		localVarAPIResponse.Response = localVarHttpResponse.RawResponse
+		localVarAPIResponse.Payload = localVarHttpResponse.Body()
+	}
+
+	if err != nil {
+		return successPayload, localVarAPIResponse, err
+	}
+	err = json.Unmarshal(localVarHttpResponse.Body(), &successPayload)
+	return successPayload, localVarAPIResponse, err
+}
+
+/**
+ * 
+ *
  * @return *ProtobufEmpty
  */
 func (a ABitOfEverythingServiceApi) Timeout() (*ProtobufEmpty, *APIResponse, error) {
@@ -754,6 +804,19 @@ func (a ABitOfEverythingServiceApi) Timeout() (*ProtobufEmpty, *APIResponse, err
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]
@@ -816,6 +879,19 @@ func (a ABitOfEverythingServiceApi) Update(uuid string, body ExamplepbABitOfEver
 	var localVarPostBody interface{}
 	var localVarFileName string
 	var localVarFileBytes []byte
+	// authentication '(OAuth2)' required
+	// oauth required
+	if a.Configuration.AccessToken != ""{
+		localVarHeaderParams["Authorization"] =  "Bearer " + a.Configuration.AccessToken
+	}
+	// authentication '(BasicAuth)' required
+	// http basic authentication required
+	if a.Configuration.Username != "" || a.Configuration.Password != ""{
+		localVarHeaderParams["Authorization"] =  "Basic " + a.Configuration.GetBasicAuthEncodedString()
+	}
+	// authentication '(ApiKeyAuth)' required
+	// set key with prefix in header
+	localVarHeaderParams["X-API-Key"] = a.Configuration.GetAPIKeyWithPrefix("X-API-Key")
 	// add default headers if any
 	for key := range a.Configuration.DefaultHeader {
 		localVarHeaderParams[key] = a.Configuration.DefaultHeader[key]

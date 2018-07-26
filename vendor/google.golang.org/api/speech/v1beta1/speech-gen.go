@@ -1,6 +1,8 @@
 // Package speech provides access to the Cloud Speech API.
 //
-// See https://cloud.google.com/speech/
+// This package is DEPRECATED. Use package cloud.google.com/go/speech/apiv1 instead.
+//
+// See https://cloud.google.com/speech-to-text/docs/quickstart-protocol
 //
 // Usage example:
 //

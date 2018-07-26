@@ -98,7 +98,7 @@ func Test_spanDataToThrift(t *testing.T) {
 						},
 					},
 				},
-				Status: trace.Status{Code: 2, Message: "error"},
+				Status: trace.Status{Code: trace.StatusCodeUnknown, Message: "error"},
 			},
 			want: &gen.Span{
 				TraceIdLow:    651345242494996240,

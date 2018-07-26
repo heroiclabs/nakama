@@ -1,4 +1,4 @@
-// Copyright 4 Google Inc. All Rights Reserved.
+// Copyright 4 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -438,6 +438,10 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
+	case reflect.Struct:
+		if t, ok := v.Interface().(time.Time); ok {
+			return t.IsZero()
+		}
 	}
 	return false
 }

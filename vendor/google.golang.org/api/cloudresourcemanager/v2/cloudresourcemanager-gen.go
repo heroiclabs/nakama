@@ -60,6 +60,7 @@ func New(client *http.Client) (*Service, error) {
 	}
 	s := &Service{client: client, BasePath: basePath}
 	s.Folders = NewFoldersService(s)
+	s.Operations = NewOperationsService(s)
 	return s, nil
 }
 
@@ -69,6 +70,8 @@ type Service struct {
 	UserAgent string // optional additional User-Agent fragment
 
 	Folders *FoldersService
+
+	Operations *OperationsService
 }
 
 func (s *Service) userAgent() string {
@@ -84,6 +87,15 @@ func NewFoldersService(s *Service) *FoldersService {
 }
 
 type FoldersService struct {
+	s *Service
+}
+
+func NewOperationsService(s *Service) *OperationsService {
+	rs := &OperationsService{s: s}
+	return rs
+}
+
+type OperationsService struct {
 	s *Service
 }
 
@@ -147,7 +159,6 @@ type FoldersService struct {
 type AuditConfig struct {
 	// AuditLogConfigs: The configuration for logging of each type of
 	// permission.
-	// Next ID: 4
 	AuditLogConfigs []*AuditLogConfig `json:"auditLogConfigs,omitempty"`
 
 	// Service: Specifies a service that will be enabled for audit
@@ -258,7 +269,7 @@ type Binding struct {
 	//
 	// * `user:{emailid}`: An email address that represents a specific
 	// Google
-	//    account. For example, `alice@gmail.com` or `joe@example.com`.
+	//    account. For example, `alice@gmail.com` .
 	//
 	//
 	// * `serviceAccount:{emailid}`: An email address that represents a
@@ -280,9 +291,7 @@ type Binding struct {
 	Members []string `json:"members,omitempty"`
 
 	// Role: Role that is assigned to `members`.
-	// For example, `roles/viewer`, `roles/editor`, or
-	// `roles/owner`.
-	// Required
+	// For example, `roles/viewer`, `roles/editor`, or `roles/owner`.
 	Role string `json:"role,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Members") to
@@ -635,7 +644,7 @@ func (s *Operation) MarshalJSON() ([]byte, error) {
 // specify access control policies for Cloud Platform resources.
 //
 //
-// A `Policy` consists of a list of `bindings`. A `Binding` binds a list
+// A `Policy` consists of a list of `bindings`. A `binding` binds a list
 // of
 // `members` to a `role`, where the members can be user accounts, Google
 // groups,
@@ -643,7 +652,7 @@ func (s *Operation) MarshalJSON() ([]byte, error) {
 // permissions
 // defined by IAM.
 //
-// **Example**
+// **JSON Example**
 //
 //     {
 //       "bindings": [
@@ -654,7 +663,7 @@ func (s *Operation) MarshalJSON() ([]byte, error) {
 //             "group:admins@example.com",
 //             "domain:google.com",
 //
-// "serviceAccount:my-other-app@appspot.gserviceaccount.com",
+// "serviceAccount:my-other-app@appspot.gserviceaccount.com"
 //           ]
 //         },
 //         {
@@ -663,6 +672,20 @@ func (s *Operation) MarshalJSON() ([]byte, error) {
 //         }
 //       ]
 //     }
+//
+// **YAML Example**
+//
+//     bindings:
+//     - members:
+//       - user:mike@example.com
+//       - group:admins@example.com
+//       - domain:google.com
+//       - serviceAccount:my-other-app@appspot.gserviceaccount.com
+//       role: roles/owner
+//     - members:
+//       - user:sean@example.com
+//       role: roles/viewer
+//
 //
 // For a description of IAM and its features, see the
 // [IAM developer's guide](https://cloud.google.com/iam/docs).
@@ -791,18 +814,25 @@ type SearchFoldersRequest struct {
 	// `OR`
 	// can be used along with the suffix wildcard symbol `*`.
 	//
+	// The displayName field in a query expression should use escaped
+	// quotes
+	// for values that include whitespace to prevent unexpected
+	// behavior.
+	//
 	// Some example queries are:
 	//
 	// |Query | Description|
 	// |----- | -----------|
 	// |displayName=Test* | Folders whose display name starts with
-	// "Test".
+	// "Test".|
 	// |lifecycleState=ACTIVE | Folders whose lifecycleState is
-	// ACTIVE.
+	// ACTIVE.|
 	// |parent=folders/123 | Folders whose parent is
-	// "folders/123".
+	// "folders/123".|
 	// |parent=folders/123 AND lifecycleState=ACTIVE | Active folders whose
 	// parent is "folders/123".|
+	// |displayName=\\"Test String\\"|Folders whose display name includes
+	// both "Test" and "String".|
 	Query string `json:"query,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "PageSize") to
@@ -1138,13 +1168,17 @@ type FoldersCreateCall struct {
 // Folders
 // under its parent to exceed 100.
 //
-// If the operation fails due to a folder constraint violation,
-// a PreconditionFailure explaining the violation will be returned.
-// If the failure occurs synchronously then the PreconditionFailure
-// will be returned via the Status.details field and if it
-// occurs
-// asynchronously then the PreconditionFailure will be returned
-// via the the Operation.error field.
+// If the operation fails due to a folder constraint violation, some
+// errors
+// may be returned by the CreateFolder request, with status
+// code
+// FAILED_PRECONDITION and an error description. Other folder
+// constraint
+// violations will be communicated in the Operation, with the
+// specific
+// PreconditionFailure returned via the details list in the
+// Operation.error
+// field.
 //
 // The caller must have `resourcemanager.folders.create` permission on
 // the
@@ -1247,7 +1281,7 @@ func (c *FoldersCreateCall) Do(opts ...googleapi.CallOption) (*Operation, error)
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a Folder in the resource hierarchy.\nReturns an Operation which can be used to track the progress of the\nfolder creation workflow.\nUpon success the Operation.response field will be populated with the\ncreated Folder.\n\nIn order to succeed, the addition of this new Folder must not violate\nthe Folder naming, height or fanout constraints.\n\n+ The Folder's display_name must be distinct from all other Folder's that\nshare its parent.\n+ The addition of the Folder must not cause the active Folder hierarchy\nto exceed a height of 4. Note, the full active + deleted Folder hierarchy\nis allowed to reach a height of 8; this provides additional headroom when\nmoving folders that contain deleted folders.\n+ The addition of the Folder must not cause the total number of Folders\nunder its parent to exceed 100.\n\nIf the operation fails due to a folder constraint violation,\na PreconditionFailure explaining the violation will be returned.\nIf the failure occurs synchronously then the PreconditionFailure\nwill be returned via the Status.details field and if it occurs\nasynchronously then the PreconditionFailure will be returned\nvia the the Operation.error field.\n\nThe caller must have `resourcemanager.folders.create` permission on the\nidentified parent.",
+	//   "description": "Creates a Folder in the resource hierarchy.\nReturns an Operation which can be used to track the progress of the\nfolder creation workflow.\nUpon success the Operation.response field will be populated with the\ncreated Folder.\n\nIn order to succeed, the addition of this new Folder must not violate\nthe Folder naming, height or fanout constraints.\n\n+ The Folder's display_name must be distinct from all other Folder's that\nshare its parent.\n+ The addition of the Folder must not cause the active Folder hierarchy\nto exceed a height of 4. Note, the full active + deleted Folder hierarchy\nis allowed to reach a height of 8; this provides additional headroom when\nmoving folders that contain deleted folders.\n+ The addition of the Folder must not cause the total number of Folders\nunder its parent to exceed 100.\n\nIf the operation fails due to a folder constraint violation, some errors\nmay be returned by the CreateFolder request, with status code\nFAILED_PRECONDITION and an error description. Other folder constraint\nviolations will be communicated in the Operation, with the specific\nPreconditionFailure returned via the details list in the Operation.error\nfield.\n\nThe caller must have `resourcemanager.folders.create` permission on the\nidentified parent.",
 	//   "flatPath": "v2/folders",
 	//   "httpMethod": "POST",
 	//   "id": "cloudresourcemanager.folders.create",
@@ -2820,6 +2854,150 @@ func (c *FoldersUndeleteCall) Do(opts ...googleapi.CallOption) (*Folder, error) 
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform"
+	//   ]
+	// }
+
+}
+
+// method id "cloudresourcemanager.operations.get":
+
+type OperationsGetCall struct {
+	s            *Service
+	name         string
+	urlParams_   gensupport.URLParams
+	ifNoneMatch_ string
+	ctx_         context.Context
+	header_      http.Header
+}
+
+// Get: Gets the latest state of a long-running operation.  Clients can
+// use this
+// method to poll the operation result at intervals as recommended by
+// the API
+// service.
+func (r *OperationsService) Get(name string) *OperationsGetCall {
+	c := &OperationsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.name = name
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *OperationsGetCall) Fields(s ...googleapi.Field) *OperationsGetCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// IfNoneMatch sets the optional parameter which makes the operation
+// fail if the object's ETag matches the given value. This is useful for
+// getting updates only after the object has changed since the last
+// request. Use googleapi.IsNotModified to check whether the response
+// error from Do is the result of In-None-Match.
+func (c *OperationsGetCall) IfNoneMatch(entityTag string) *OperationsGetCall {
+	c.ifNoneMatch_ = entityTag
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *OperationsGetCall) Context(ctx context.Context) *OperationsGetCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *OperationsGetCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("GET", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"name": c.name,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "cloudresourcemanager.operations.get" call.
+// Exactly one of *Operation or error will be non-nil. Any non-2xx
+// status code is an error. Response headers are in either
+// *Operation.ServerResponse.Header or (if a response was returned at
+// all) in error.(*googleapi.Error).Header. Use googleapi.IsNotModified
+// to check whether the returned error was because
+// http.StatusNotModified was returned.
+func (c *OperationsGetCall) Do(opts ...googleapi.CallOption) (*Operation, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &Operation{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice.",
+	//   "flatPath": "v1/operations/{operationsId}",
+	//   "httpMethod": "GET",
+	//   "id": "cloudresourcemanager.operations.get",
+	//   "parameterOrder": [
+	//     "name"
+	//   ],
+	//   "parameters": {
+	//     "name": {
+	//       "description": "The name of the operation resource.",
+	//       "location": "path",
+	//       "pattern": "^operations/.+$",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "v1/{+name}",
+	//   "response": {
+	//     "$ref": "Operation"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only"
 	//   ]
 	// }
 

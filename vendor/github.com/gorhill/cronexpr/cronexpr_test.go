@@ -10,15 +10,13 @@
  *
  */
 
-package cronexpr_test
+package cronexpr
 
 /******************************************************************************/
 
 import (
 	"testing"
 	"time"
-
-	"github.com/gorhill/cronexpr"
 )
 
 /******************************************************************************/
@@ -203,9 +201,9 @@ func TestExpressions(t *testing.T) {
 	for _, test := range crontests {
 		for _, times := range test.times {
 			from, _ := time.Parse("2006-01-02 15:04:05", times.from)
-			expr, err := cronexpr.Parse(test.expr)
+			expr, err := Parse(test.expr)
 			if err != nil {
-				t.Errorf(`cronexpr.Parse("%s") returned "%s"`, test.expr, err.Error())
+				t.Errorf(`Parse("%s") returned "%s"`, test.expr, err.Error())
 			}
 			next := expr.Next(from)
 			nextstr := next.Format(test.layout)
@@ -220,17 +218,17 @@ func TestExpressions(t *testing.T) {
 
 func TestZero(t *testing.T) {
 	from, _ := time.Parse("2006-01-02", "2013-08-31")
-	next := cronexpr.MustParse("* * * * * 1980").Next(from)
+	next := MustParse("* * * * * 1980").Next(from)
 	if next.IsZero() == false {
 		t.Error(`("* * * * * 1980").Next("2013-08-31").IsZero() returned 'false', expected 'true'`)
 	}
 
-	next = cronexpr.MustParse("* * * * * 2050").Next(from)
+	next = MustParse("* * * * * 2050").Next(from)
 	if next.IsZero() == true {
 		t.Error(`("* * * * * 2050").Next("2013-08-31").IsZero() returned 'true', expected 'false'`)
 	}
 
-	next = cronexpr.MustParse("* * * * * 2099").Next(time.Time{})
+	next = MustParse("* * * * * 2099").Next(time.Time{})
 	if next.IsZero() == false {
 		t.Error(`("* * * * * 2014").Next(time.Time{}).IsZero() returned 'true', expected 'false'`)
 	}
@@ -247,7 +245,7 @@ func TestNextN(t *testing.T) {
 		"Sat, 29 Nov 2014 00:00:00",
 	}
 	from, _ := time.Parse("2006-01-02 15:04:05", "2013-09-02 08:44:30")
-	result := cronexpr.MustParse("0 0 * * 6#5").NextN(from, uint(len(expected)))
+	result := MustParse("0 0 * * 6#5").NextN(from, uint(len(expected)))
 	if len(result) != len(expected) {
 		t.Errorf(`MustParse("0 0 * * 6#5").NextN("2013-09-02 08:44:30", 5):\n"`)
 		t.Errorf(`  Expected %d returned time values but got %d instead`, len(expected), len(result))
@@ -270,7 +268,7 @@ func TestNextN_every5min(t *testing.T) {
 		"Mon, 2 Sep 2013 09:05:00",
 	}
 	from, _ := time.Parse("2006-01-02 15:04:05", "2013-09-02 08:44:32")
-	result := cronexpr.MustParse("*/5 * * * *").NextN(from, uint(len(expected)))
+	result := MustParse("*/5 * * * *").NextN(from, uint(len(expected)))
 	if len(result) != len(expected) {
 		t.Errorf(`MustParse("*/5 * * * *").NextN("2013-09-02 08:44:30", 5):\n"`)
 		t.Errorf(`  Expected %d returned time values but got %d instead`, len(expected), len(result))
@@ -278,30 +276,30 @@ func TestNextN_every5min(t *testing.T) {
 	for i, next := range result {
 		nextStr := next.Format("Mon, 2 Jan 2006 15:04:05")
 		if nextStr != expected[i] {
-		t.Errorf(`MustParse("*/5 * * * *").NextN("2013-09-02 08:44:30", 5):\n"`)
+			t.Errorf(`MustParse("*/5 * * * *").NextN("2013-09-02 08:44:30", 5):\n"`)
 			t.Errorf(`  result[%d]: expected "%s" but got "%s"`, i, expected[i], nextStr)
 		}
 	}
 }
 
 // Issue: https://github.com/gorhill/cronexpr/issues/16
-func TestInterval_Interval60Issue(t *testing.T){
-	_, err := cronexpr.Parse("*/60 * * * * *")
+func TestInterval_Interval60Issue(t *testing.T) {
+	_, err := Parse("*/60 * * * * *")
 	if err == nil {
 		t.Errorf("parsing with interval 60 should return err")
 	}
 
-	_, err = cronexpr.Parse("*/61 * * * * *")
+	_, err = Parse("*/61 * * * * *")
 	if err == nil {
 		t.Errorf("parsing with interval 61 should return err")
 	}
 
-	_, err = cronexpr.Parse("2/60 * * * * *")
+	_, err = Parse("2/60 * * * * *")
 	if err == nil {
 		t.Errorf("parsing with interval 60 should return err")
 	}
 
-	_, err = cronexpr.Parse("2-20/61 * * * * *")
+	_, err = Parse("2-20/61 * * * * *")
 	if err == nil {
 		t.Errorf("parsing with interval 60 should return err")
 	}
@@ -322,14 +320,14 @@ var benchmarkExpressionsLen = len(benchmarkExpressions)
 
 func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = cronexpr.MustParse(benchmarkExpressions[i%benchmarkExpressionsLen])
+		_ = MustParse(benchmarkExpressions[i%benchmarkExpressionsLen])
 	}
 }
 
 func BenchmarkNext(b *testing.B) {
-	exprs := make([]*cronexpr.Expression, benchmarkExpressionsLen)
+	exprs := make([]*Expression, benchmarkExpressionsLen)
 	for i := 0; i < benchmarkExpressionsLen; i++ {
-		exprs[i] = cronexpr.MustParse(benchmarkExpressions[i])
+		exprs[i] = MustParse(benchmarkExpressions[i])
 	}
 	from := time.Now()
 	b.ResetTimer()

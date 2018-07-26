@@ -298,7 +298,7 @@ func TestRoundTripEmptyString(t *testing.T) {
 		t.Fatalf("error creating builder: %v", err)
 	}
 
-	err = b.Insert([]byte(""), 0)
+	err = b.Insert([]byte(""), 1)
 	if err != nil {
 		t.Fatalf("error inserting empty string")
 	}
@@ -325,7 +325,7 @@ func TestRoundTripEmptyString(t *testing.T) {
 
 	// first check all the expected values
 	want := map[string]uint64{
-		"": 0,
+		"": 1,
 	}
 	got := map[string]uint64{}
 	itr, err := fst.Iterator(nil, nil)

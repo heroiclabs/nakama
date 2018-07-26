@@ -15,9 +15,9 @@
 package server
 
 import (
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"strconv"
 	"strings"

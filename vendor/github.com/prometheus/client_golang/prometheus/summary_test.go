@@ -64,6 +64,31 @@ func TestSummaryWithoutObjectives(t *testing.T) {
 	}
 }
 
+func TestSummaryWithQuantileLabel(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Attempt to create Summary with 'quantile' label did not panic.")
+		}
+	}()
+	_ = NewSummary(SummaryOpts{
+		Name:        "test_summary",
+		Help:        "less",
+		ConstLabels: Labels{"quantile": "test"},
+	})
+}
+
+func TestSummaryVecWithQuantileLabel(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Attempt to create SummaryVec with 'quantile' label did not panic.")
+		}
+	}()
+	_ = NewSummaryVec(SummaryOpts{
+		Name: "test_summary",
+		Help: "less",
+	}, []string{"quantile"})
+}
+
 func benchmarkSummaryObserve(w int, b *testing.B) {
 	b.StopTimer()
 

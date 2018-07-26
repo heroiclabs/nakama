@@ -1,5 +1,7 @@
 // Package logging provides access to the Google Cloud Logging API.
 //
+// This package is DEPRECATED. Use package cloud.google.com/go/logging instead.
+//
 // Usage example:
 //
 //   import "google.golang.org/api/logging/v1beta3"

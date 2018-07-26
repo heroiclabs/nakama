@@ -15,9 +15,9 @@
 package server
 
 import (
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"

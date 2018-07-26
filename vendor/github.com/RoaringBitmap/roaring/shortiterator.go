@@ -19,3 +19,18 @@ func (si *shortIterator) next() uint16 {
 	si.loc++
 	return a
 }
+
+type reverseIterator struct {
+	slice []uint16
+	loc   int
+}
+
+func (si *reverseIterator) hasNext() bool {
+	return si.loc >= 0
+}
+
+func (si *reverseIterator) next() uint16 {
+	a := si.slice[si.loc]
+	si.loc--
+	return a
+}

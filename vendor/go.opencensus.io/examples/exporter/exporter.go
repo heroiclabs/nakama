@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package exporter
+package exporter // import "go.opencensus.io/examples/exporter"
 
 import (
 	"log"

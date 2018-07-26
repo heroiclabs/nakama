@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 	"cloud.google.com/go/iam"
 	"cloud.google.com/go/internal"
 	"cloud.google.com/go/internal/testutil"
+	"cloud.google.com/go/internal/uid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -33,8 +34,8 @@ import (
 )
 
 var (
-	topicIDs = testutil.NewUIDSpace("topic")
-	subIDs   = testutil.NewUIDSpace("sub")
+	topicIDs = uid.NewSpace("topic", nil)
+	subIDs   = uid.NewSpace("sub", nil)
 )
 
 // messageData is used to hold the contents of a message so that it can be compared against the contents
@@ -72,7 +73,7 @@ func integrationTestClient(t *testing.T, ctx context.Context) *Client {
 	return client
 }
 
-func TestAll(t *testing.T) {
+func TestIntegration_All(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	client := integrationTestClient(t, ctx)
@@ -278,7 +279,7 @@ func testIAM(ctx context.Context, h *iam.Handle, permission string) (msg string,
 	return "", true
 }
 
-func TestSubscriptionUpdate(t *testing.T) {
+func TestIntegration_UpdateSubscription(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	client := integrationTestClient(t, ctx)
@@ -360,7 +361,7 @@ func TestSubscriptionUpdate(t *testing.T) {
 	}
 }
 
-func TestPublicTopic(t *testing.T) {
+func TestIntegration_PublicTopic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	client := integrationTestClient(t, ctx)

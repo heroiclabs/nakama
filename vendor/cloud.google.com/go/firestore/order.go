@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -121,21 +121,15 @@ func compareReferences(a, b string) int {
 	// Compare path components lexicographically.
 	pa := strings.Split(a, "/")
 	pb := strings.Split(b, "/")
-	for i := 0; i < len(pa) && i < len(pb); i++ {
-		if c := strings.Compare(pa[i], pb[i]); c != 0 {
-			return c
-		}
-	}
-	return compareInt64s(int64(len(pa)), int64(len(pb)))
+	return compareSequences(len(pa), len(pb), func(i int) int {
+		return strings.Compare(pa[i], pb[i])
+	})
 }
 
 func compareArrays(a, b []*pb.Value) int {
-	for i := 0; i < len(a) && i < len(b); i++ {
-		if c := compareValues(a[i], b[i]); c != 0 {
-			return c
-		}
-	}
-	return compareInt64s(int64(len(a)), int64(len(b)))
+	return compareSequences(len(a), len(b), func(i int) int {
+		return compareValues(a[i], b[i])
+	})
 }
 
 func compareMaps(a, b map[string]*pb.Value) int {
@@ -150,16 +144,22 @@ func compareMaps(a, b map[string]*pb.Value) int {
 
 	aks := sortedKeys(a)
 	bks := sortedKeys(b)
-	for i := 0; i < len(aks) && i < len(bks); i++ {
+	return compareSequences(len(aks), len(bks), func(i int) int {
 		if c := strings.Compare(aks[i], bks[i]); c != 0 {
 			return c
 		}
 		k := aks[i]
-		if c := compareValues(a[k], b[k]); c != 0 {
+		return compareValues(a[k], b[k])
+	})
+}
+
+func compareSequences(len1, len2 int, compare func(int) int) int {
+	for i := 0; i < len1 && i < len2; i++ {
+		if c := compare(i); c != 0 {
 			return c
 		}
 	}
-	return compareInt64s(int64(len(aks)), int64(len(bks)))
+	return compareInt64s(int64(len1), int64(len2))
 }
 
 func compareFloat64s(a, b float64) int {

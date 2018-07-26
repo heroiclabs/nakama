@@ -112,8 +112,6 @@ func TestExample2_roaring061(t *testing.T) {
 	for i := uint32(0); i < 10000; i += 3 {
 		rb1.Add(i)
 	}
-	p("rb1card before doing AndNot(rb3): %v, rb3card=%v",
-		rb1.GetCardinality(), rb3.GetCardinality())
 	rb1.AndNot(rb3)
 	rb1card := rb1.GetCardinality()
 	if rb1card != 1 {

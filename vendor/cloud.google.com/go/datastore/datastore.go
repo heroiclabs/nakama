@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,13 +57,13 @@ func NewClient(ctx context.Context, projectID string, opts ...option.ClientOptio
 	var o []option.ClientOption
 	// Environment variables for gcd emulator:
 	// https://cloud.google.com/datastore/docs/tools/datastore-emulator
-	// If the emulator is available, dial it directly (and don't pass any credentials).
+	// If the emulator is available, dial it without passing any credentials.
 	if addr := os.Getenv("DATASTORE_EMULATOR_HOST"); addr != "" {
-		conn, err := grpc.Dial(addr, grpc.WithInsecure())
-		if err != nil {
-			return nil, fmt.Errorf("grpc.Dial: %v", err)
+		o = []option.ClientOption{
+			option.WithEndpoint(addr),
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithInsecure()),
 		}
-		o = []option.ClientOption{option.WithGRPCConn(conn)}
 	} else {
 		o = []option.ClientOption{
 			option.WithEndpoint(prodAddr),
@@ -460,7 +460,7 @@ func (c *Client) Put(ctx context.Context, key *Key, src interface{}) (*Key, erro
 //
 // src must satisfy the same conditions as the dst argument to GetMulti.
 // TODO(jba): rewrite in terms of Mutate.
-func (c *Client) PutMulti(ctx context.Context, keys []*Key, src interface{}) (_ []*Key, err error) {
+func (c *Client) PutMulti(ctx context.Context, keys []*Key, src interface{}) (ret []*Key, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.PutMulti")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -481,7 +481,7 @@ func (c *Client) PutMulti(ctx context.Context, keys []*Key, src interface{}) (_ 
 	}
 
 	// Copy any newly minted keys into the returned keys.
-	ret := make([]*Key, len(keys))
+	ret = make([]*Key, len(keys))
 	for i, key := range keys {
 		if key.Incomplete() {
 			// This key is in the mutation results.
@@ -593,7 +593,7 @@ func deleteMutations(keys []*Key) ([]*pb.Mutation, error) {
 //
 // If any of the mutations are invalid, Mutate returns a MultiError with the errors.
 // Mutate returns a MultiError in this case even if there is only one Mutation.
-func (c *Client) Mutate(ctx context.Context, muts ...*Mutation) (_ []*Key, err error) {
+func (c *Client) Mutate(ctx context.Context, muts ...*Mutation) (ret []*Key, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.Mutate")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -611,7 +611,7 @@ func (c *Client) Mutate(ctx context.Context, muts ...*Mutation) (_ []*Key, err e
 		return nil, err
 	}
 	// Copy any newly minted keys into the returned keys.
-	ret := make([]*Key, len(muts))
+	ret = make([]*Key, len(muts))
 	for i, mut := range muts {
 		if mut.key.Incomplete() {
 			// This key is in the mutation results.

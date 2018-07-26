@@ -118,6 +118,36 @@ func (bc *bitmapContainer) getShortIterator() shortIterable {
 	return newBitmapContainerShortIterator(bc)
 }
 
+type reverseBitmapContainerShortIterator struct {
+	ptr *bitmapContainer
+	i   int
+}
+
+func (bcsi *reverseBitmapContainerShortIterator) next() uint16 {
+	if bcsi.i == -1 {
+		panic("reverseBitmapContainerShortIterator.next() going beyond what is available")
+	}
+
+	j := bcsi.i
+	bcsi.i = bcsi.ptr.PrevSetBit(bcsi.i - 1)
+	return uint16(j)
+}
+
+func (bcsi *reverseBitmapContainerShortIterator) hasNext() bool {
+	return bcsi.i >= 0
+}
+
+func newReverseBitmapContainerShortIterator(a *bitmapContainer) *reverseBitmapContainerShortIterator {
+	if a.cardinality == 0 {
+		return &reverseBitmapContainerShortIterator{a, -1}
+	}
+	return &reverseBitmapContainerShortIterator{a, int(a.maximum())}
+}
+
+func (bc *bitmapContainer) getReverseIterator() shortIterable {
+	return newReverseBitmapContainerShortIterator(bc)
+}
+
 type bitmapContainerManyIterator struct {
 	ptr    *bitmapContainer
 	base   int
@@ -261,12 +291,6 @@ func (bc *bitmapContainer) iremoveReturnMinimized(i uint16) container {
 
 // iremove returns true if i was found.
 func (bc *bitmapContainer) iremove(i uint16) bool {
-	/* branchless code
-	  w := bc.bitmap[i>>6]
-		mask := uint64(1) << (i % 64)
-		neww := w &^ mask
-		bc.cardinality -= int((w ^ neww) >> (i % 64))
-		bc.bitmap[i>>6] = neww */
 	if bc.contains(i) {
 		bc.cardinality--
 		bc.bitmap[i/64] &^= (uint64(1) << (i % 64))
@@ -306,7 +330,6 @@ func (bc *bitmapContainer) iremoveRange(firstOfRange, lastOfRange int) container
 
 // flip all values in range [firstOfRange,endx)
 func (bc *bitmapContainer) inot(firstOfRange, endx int) container {
-	p("bc.inot() called with [%v, %v)", firstOfRange, endx)
 	if endx-firstOfRange == maxCapacity {
 		//p("endx-firstOfRange == maxCapacity")
 		flipBitmapRange(bc.bitmap, firstOfRange, endx)
@@ -712,11 +735,11 @@ func (bc *bitmapContainer) getCardinalityInRange(start, end uint) int {
 	endword := (end - 1) / 64
 	const allones = ^uint64(0)
 	if firstword == endword {
-		return int(popcount(bc.bitmap[firstword] & ((allones << (start % 64)) & (allones >> (64 - (end % 64))))))
+		return int(popcount(bc.bitmap[firstword] & ((allones << (start % 64)) & (allones >> ((64 - end) & 63)))))
 	}
 	answer := popcount(bc.bitmap[firstword] & (allones << (start % 64)))
 	answer += popcntSlice(bc.bitmap[firstword+1 : endword])
-	answer += popcount(bc.bitmap[endword] & (allones >> (64 - (end % 64))))
+	answer += popcount(bc.bitmap[endword] & (allones >> ((64 - end) & 63)))
 	return int(answer)
 }
 
@@ -912,6 +935,32 @@ func (bc *bitmapContainer) NextSetBit(i int) int {
 	for ; x < len(bc.bitmap); x++ {
 		if bc.bitmap[x] != 0 {
 			return (x * 64) + countTrailingZeros(bc.bitmap[x])
+		}
+	}
+	return -1
+}
+
+func (bc *bitmapContainer) PrevSetBit(i int) int {
+	if i < 0 {
+		return -1
+	}
+	x := i / 64
+	if x >= len(bc.bitmap) {
+		return -1
+	}
+
+	w := bc.bitmap[x]
+
+	b := i % 64
+
+	w = w << uint(63-b)
+	if w != 0 {
+		return b - countLeadingZeros(w)
+	}
+	x -= 1
+	for ; x >= 0; x-- {
+		if bc.bitmap[x] != 0 {
+			return (x * 64) + 63 - countLeadingZeros(bc.bitmap[x])
 		}
 	}
 	return -1

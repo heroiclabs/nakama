@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap/internal/ztest"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 )
 
 type user struct {
@@ -52,7 +52,7 @@ func withBenchedLogger(b *testing.B, f func(*Logger)) {
 	logger := New(
 		zapcore.NewCore(
 			zapcore.NewJSONEncoder(NewProductionConfig().EncoderConfig),
-			&zaptest.Discarder{},
+			&ztest.Discarder{},
 			DebugLevel,
 		))
 	b.ResetTimer()
@@ -166,7 +166,7 @@ func BenchmarkAddCallerHook(b *testing.B) {
 	logger := New(
 		zapcore.NewCore(
 			zapcore.NewJSONEncoder(NewProductionConfig().EncoderConfig),
-			&zaptest.Discarder{},
+			&ztest.Discarder{},
 			InfoLevel,
 		),
 		AddCaller(),
@@ -200,15 +200,15 @@ func Benchmark100Fields(b *testing.B) {
 	const batchSize = 50
 	logger := New(zapcore.NewCore(
 		zapcore.NewJSONEncoder(NewProductionConfig().EncoderConfig),
-		&zaptest.Discarder{},
+		&ztest.Discarder{},
 		DebugLevel,
 	))
 
 	// Don't include allocating these helper slices in the benchmark. Since
 	// access to them isn't synchronized, we can't run the benchmark in
 	// parallel.
-	first := make([]zapcore.Field, batchSize)
-	second := make([]zapcore.Field, batchSize)
+	first := make([]Field, batchSize)
+	second := make([]Field, batchSize)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

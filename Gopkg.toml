@@ -1,26 +1,26 @@
 [[constraint]]
   name = "go.uber.org/zap"
-  version = "~1.7.1"
+  version = "~1.9.0"
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "~1.11.1"
+  version = "~1.13.0"
 
 [[constraint]]
   name = "github.com/go-yaml/yaml"
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[constraint]]
-  name = "github.com/satori/go.uuid"
-  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
+  name = "github.com/gofrs/uuid"
+  version = "~2.1.0"
 
 [[constraint]]
   name = "github.com/rubenv/sql-migrate"
-  revision = "081fe17d19ff4e2dd9f5a0c1158e6bcf74da6906"
+  revision = "3f452fc0ebebbb784fdab91f7bc79a31dcacab5c"
 
 [[constraint]]
   name = "github.com/lib/pq"
-  revision = "d34b9ff171c21ad295489235aec8b6626023cd04"
+  revision = "90697d60dd844d5ef6ff15135d0203f65d2f53b8"
 
 [[constraint]]
   name = "github.com/gorilla/handlers"
@@ -28,7 +28,7 @@
 
 [[constraint]]
   name = "github.com/gorilla/mux"
-  version = "~1.6.1"
+  version = "~1.6.2"
 
 [[constraint]]
   name = "github.com/dgrijalva/jwt-go"
@@ -36,31 +36,35 @@
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
-  revision = "eb925808374e5ca90c83401a40d711dc08c0c0f6"
+  revision = "5ed622c449da6d44c3c8329331ff47a9e5844f71"
 
 [[constraint]]
   name = "github.com/yuin/gopher-lua"
-  revision = "84ea3a3c79b3c4b3b39606cc96f255cd63635ce0"
+  revision = "46796da1b0b4794e1e341883a399f12cc7574b55"
 
 [[constraint]]
   name = "github.com/gorhill/cronexpr"
-  revision = "d520615e531a6bf3fb69406b9eba718261285ec8"
+  revision = "88b0669f7d75f171bd612b874e52b95c190218df"
 
 [[constraint]]
   name = "golang.org/x/crypto"
-  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
+  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
 
 [[constraint]]
   name = "github.com/gobuffalo/packr"
-  version = "~1.10.7"
+  version = "~1.12.0"
 
 [[override]]
   name = "github.com/prometheus/client_golang"
-  revision = "d49167c4b9f3c4451707560c5c71471ff5291aaa"
+  revision = "bcbbc08eb2ddff3af83bbf11e7ec13b4fd730b6e"
+
+[[constraint]]
+  name = "go.opencensus.io"
+  version = "~0.14.0"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "~1.2.1"
+  version = "~1.2.2"
 
 [[constraint]]
   name = "github.com/cockroachdb/cockroach-go"

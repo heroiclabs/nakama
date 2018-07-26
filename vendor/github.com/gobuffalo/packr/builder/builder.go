@@ -5,12 +5,19 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"text/template"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
+
+var DebugLog func(string, ...interface{})
+
+func init() {
+	DebugLog = func(string, ...interface{}) {}
+}
 
 var invalidFilePattern = regexp.MustCompile(`(_test|-packr).go$`)
 
@@ -19,11 +26,12 @@ var invalidFilePattern = regexp.MustCompile(`(_test|-packr).go$`)
 // be built into Go binaries.
 type Builder struct {
 	context.Context
-	RootPath     string
-	IgnoredBoxes []string
-	pkgs         map[string]pkg
-	moot         *sync.Mutex
-	Compress     bool
+	RootPath       string
+	IgnoredBoxes   []string
+	IgnoredFolders []string
+	pkgs           map[string]pkg
+	moot           *sync.Mutex
+	Compress       bool
 }
 
 // Run the builder.
@@ -38,11 +46,12 @@ func (b *Builder) Run() error {
 			return filepath.SkipDir
 		}
 
-		base := filepath.Base(path)
-		if base == ".git" || base == "vendor" || base == "node_modules" {
-			return filepath.SkipDir
+		base := strings.ToLower(filepath.Base(path))
+		for _, f := range b.IgnoredFolders {
+			if strings.ToLower(f) == base {
+				return filepath.SkipDir
+			}
 		}
-
 		if !info.IsDir() {
 			wg.Go(func() error {
 				return b.process(path)
@@ -61,7 +70,7 @@ func (b *Builder) Run() error {
 
 func (b *Builder) dump() error {
 	for _, p := range b.pkgs {
-		name := filepath.Join(p.Dir, p.Name+"-packr.go")
+		name := filepath.Join(p.Dir, "a_"+p.Name+"-packr.go")
 		f, err := os.Create(name)
 		defer f.Close()
 		if err != nil {
@@ -114,6 +123,7 @@ func (b *Builder) process(path string) error {
 			Files:    []file{},
 			compress: b.Compress,
 		}
+		DebugLog("building box %s\n", bx.Name)
 		p := filepath.Join(pk.Dir, bx.Name)
 		if err := bx.Walk(p); err != nil {
 			return errors.WithStack(err)
@@ -121,6 +131,7 @@ func (b *Builder) process(path string) error {
 		if len(bx.Files) > 0 {
 			pk.Boxes = append(pk.Boxes, *bx)
 		}
+		DebugLog("built box %s with %q\n", bx.Name, bx.Files)
 	}
 
 	if len(pk.Boxes) > 0 {
@@ -144,10 +155,11 @@ func (b *Builder) addPkg(p pkg) {
 // New Builder with a given context and path
 func New(ctx context.Context, path string) *Builder {
 	return &Builder{
-		Context:      ctx,
-		RootPath:     path,
-		IgnoredBoxes: []string{},
-		pkgs:         map[string]pkg{},
-		moot:         &sync.Mutex{},
+		Context:        ctx,
+		RootPath:       path,
+		IgnoredBoxes:   []string{},
+		IgnoredFolders: []string{"vendor", ".git", "node_modules", ".idea"},
+		pkgs:           map[string]pkg{},
+		moot:           &sync.Mutex{},
 	}
 }

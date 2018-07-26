@@ -182,3 +182,10 @@ for i in s:gmatch([=[[[][^%s,]*[]]]=]) do
 end
 assert(result[1] == [=[["a"]['b'][9]]=])
 assert(result[2] == [=[["a"]['b'][8]]=])
+
+-- issue 168
+local expected = 1
+
+local result = math.random(1)
+
+assert(result == expected)

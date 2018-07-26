@@ -21,8 +21,14 @@
 package zap
 
 import (
+	"encoding/hex"
+	"errors"
 	"io/ioutil"
+	"math/rand"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,63 +50,91 @@ func TestOpenNoPaths(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
-	temp, err := ioutil.TempFile("", "zap-open-test")
-	require.NoError(t, err, "Couldn't create a temporary file for test.")
-	defer os.Remove(temp.Name())
+	tempName := tempFileName("", "zap-open-test")
+	assert.False(t, fileExists(tempName))
+	require.True(t, strings.HasPrefix(tempName, "/"), "Expected absolute temp file path.")
 
 	tests := []struct {
-		paths     []string
-		filenames []string
-		error     string
+		paths []string
+		errs  []string
 	}{
-		{[]string{"stdout"}, []string{os.Stdout.Name()}, ""},
-		{[]string{"stderr"}, []string{os.Stderr.Name()}, ""},
-		{[]string{temp.Name()}, []string{temp.Name()}, ""},
-		{[]string{"/foo/bar/baz"}, []string{}, "open /foo/bar/baz: no such file or directory"},
+		{[]string{"stdout"}, nil},
+		{[]string{"stderr"}, nil},
+		{[]string{tempName}, nil},
+		{[]string{"file://" + tempName}, nil},
+		{[]string{"file://localhost" + tempName}, nil},
+		{[]string{"/foo/bar/baz"}, []string{"open /foo/bar/baz: no such file or directory"}},
+		{[]string{"file://localhost/foo/bar/baz"}, []string{"open /foo/bar/baz: no such file or directory"}},
 		{
-			paths:     []string{"stdout", "/foo/bar/baz", temp.Name(), "/baz/quux"},
-			filenames: []string{os.Stdout.Name(), temp.Name()},
-			error:     "open /foo/bar/baz: no such file or directory; open /baz/quux: no such file or directory",
+			paths: []string{"stdout", "/foo/bar/baz", tempName, "file:///baz/quux"},
+			errs: []string{
+				"open /foo/bar/baz: no such file or directory",
+				"open /baz/quux: no such file or directory",
+			},
 		},
+		{[]string{"file:///stderr"}, []string{"open /stderr: permission denied"}},
+		{[]string{"file:///stdout"}, []string{"open /stdout: permission denied"}},
+		{[]string{"file://host01.test.com" + tempName}, []string{"empty or use localhost"}},
+		{[]string{"file://rms@localhost" + tempName}, []string{"user and password not allowed"}},
+		{[]string{"file://localhost" + tempName + "#foo"}, []string{"fragments not allowed"}},
+		{[]string{"file://localhost" + tempName + "?foo=bar"}, []string{"query parameters not allowed"}},
+		{[]string{"file://localhost:8080" + tempName}, []string{"ports not allowed"}},
 	}
 
 	for _, tt := range tests {
-		wss, cleanup, err := open(tt.paths)
+		_, cleanup, err := Open(tt.paths...)
 		if err == nil {
 			defer cleanup()
 		}
 
-		if tt.error == "" {
+		if len(tt.errs) == 0 {
 			assert.NoError(t, err, "Unexpected error opening paths %v.", tt.paths)
 		} else {
-			assert.Equal(t, tt.error, err.Error(), "Unexpected error opening paths %v.", tt.paths)
+			msg := err.Error()
+			for _, expect := range tt.errs {
+				assert.Contains(t, msg, expect, "Unexpected error opening paths %v.", tt.paths)
+			}
 		}
-		names := make([]string, len(wss))
-		for i, ws := range wss {
-			f, ok := ws.(*os.File)
-			require.True(t, ok, "Expected all WriteSyncers returned from open() to be files.")
-			names[i] = f.Name()
-		}
-		assert.Equal(t, tt.filenames, names, "Opened unexpected files given paths %v.", tt.paths)
 	}
+
+	assert.True(t, fileExists(tempName))
+	os.Remove(tempName)
+}
+
+func TestOpenRelativePath(t *testing.T) {
+	const name = "test-relative-path.txt"
+
+	require.False(t, fileExists(name), "Test file already exists.")
+	s, cleanup, err := Open(name)
+	require.NoError(t, err, "Open failed.")
+	defer func() {
+		err := os.Remove(name)
+		if !t.Failed() {
+			// If the test has already failed, we probably didn't create this file.
+			require.NoError(t, err, "Deleting test file failed.")
+		}
+	}()
+	defer cleanup()
+
+	_, err = s.Write([]byte("test"))
+	assert.NoError(t, err, "Write failed.")
+	assert.True(t, fileExists(name), "Didn't create file for relative path.")
 }
 
 func TestOpenFails(t *testing.T) {
 	tests := []struct {
 		paths []string
 	}{
-		{
-			paths: []string{"./non-existent-dir/file"},
-		},
-		{
-			paths: []string{"stdout", "./non-existent-dir/file"},
-		},
+		{paths: []string{"./non-existent-dir/file"}},           // directory doesn't exist
+		{paths: []string{"stdout", "./non-existent-dir/file"}}, // directory doesn't exist
+		{paths: []string{"://foo.log"}},                        // invalid URL, scheme can't begin with colon
+		{paths: []string{"mem://somewhere"}},                   // scheme not registered
 	}
 
 	for _, tt := range tests {
 		_, cleanup, err := Open(tt.paths...)
 		require.Nil(t, cleanup, "Cleanup function should never be nil")
-		assert.Error(t, err, "Open with non-existent directory should fail")
+		assert.Error(t, err, "Open with invalid URL should fail.")
 	}
 }
 
@@ -118,8 +152,34 @@ func (w *testWriter) Sync() error {
 	return nil
 }
 
+func TestOpenWithErroringSinkFactory(t *testing.T) {
+	defer resetSinkRegistry()
+
+	msg := "expected factory error"
+	factory := func(_ *url.URL) (Sink, error) {
+		return nil, errors.New(msg)
+	}
+
+	assert.NoError(t, RegisterSink("test", factory), "Failed to register sink factory.")
+	_, _, err := Open("test://some/path")
+	assert.Contains(t, err.Error(), msg, "Unexpected error.")
+}
+
 func TestCombineWriteSyncers(t *testing.T) {
 	tw := &testWriter{"test", t}
 	w := CombineWriteSyncers(tw)
 	w.Write([]byte("test"))
+}
+
+func tempFileName(prefix, suffix string) string {
+	randBytes := make([]byte, 16)
+	rand.Read(randBytes)
+	return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
+}
+
+func fileExists(name string) bool {
+	if _, err := os.Stat(name); os.IsNotExist(err) {
+		return false
+	}
+	return true
 }

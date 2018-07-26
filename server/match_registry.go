@@ -17,10 +17,10 @@ package server
 import (
 	"database/sql"
 	"fmt"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
-	"github.com/satori/go.uuid"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"sync"

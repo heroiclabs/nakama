@@ -26,8 +26,8 @@ import (
 	"testing"
 
 	"go.uber.org/zap/internal/exit"
+	"go.uber.org/zap/internal/ztest"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/stretchr/testify/assert"
@@ -89,7 +89,7 @@ func TestLoggerInitialFields(t *testing.T) {
 		logger.Info("")
 		assert.Equal(
 			t,
-			observer.LoggedEntry{Context: []zapcore.Field{Int("foo", 42), String("bar", "baz")}},
+			observer.LoggedEntry{Context: []Field{Int("foo", 42), String("bar", "baz")}},
 			logs.AllUntimed()[0],
 			"Unexpected output with initial fields set.",
 		)
@@ -106,9 +106,9 @@ func TestLoggerWith(t *testing.T) {
 		logger.Info("")
 
 		assert.Equal(t, []observer.LoggedEntry{
-			{Context: []zapcore.Field{Int("foo", 42), String("one", "two")}},
-			{Context: []zapcore.Field{Int("foo", 42), String("three", "four")}},
-			{Context: []zapcore.Field{Int("foo", 42)}},
+			{Context: []Field{Int("foo", 42), String("one", "two")}},
+			{Context: []Field{Int("foo", 42), String("three", "four")}},
+			{Context: []Field{Int("foo", 42)}},
 		}, logs.AllUntimed(), "Unexpected cross-talk between child loggers.")
 	})
 }
@@ -171,7 +171,7 @@ func TestLoggerLogFatal(t *testing.T) {
 func TestLoggerLeveledMethods(t *testing.T) {
 	withLogger(t, DebugLevel, nil, func(logger *Logger, logs *observer.ObservedLogs) {
 		tests := []struct {
-			method        func(string, ...zapcore.Field)
+			method        func(string, ...Field)
 			expectedLevel zapcore.Level
 		}{
 			{logger.Debug, DebugLevel},
@@ -232,7 +232,7 @@ func TestLoggerDPanic(t *testing.T) {
 		assert.NotPanics(t, func() { logger.DPanic("") })
 		assert.Equal(
 			t,
-			[]observer.LoggedEntry{{Entry: zapcore.Entry{Level: DPanicLevel}, Context: []zapcore.Field{}}},
+			[]observer.LoggedEntry{{Entry: zapcore.Entry{Level: DPanicLevel}, Context: []Field{}}},
 			logs.AllUntimed(),
 			"Unexpected log output from DPanic in production mode.",
 		)
@@ -241,7 +241,7 @@ func TestLoggerDPanic(t *testing.T) {
 		assert.Panics(t, func() { logger.DPanic("") })
 		assert.Equal(
 			t,
-			[]observer.LoggedEntry{{Entry: zapcore.Entry{Level: DPanicLevel}, Context: []zapcore.Field{}}},
+			[]observer.LoggedEntry{{Entry: zapcore.Entry{Level: DPanicLevel}, Context: []Field{}}},
 			logs.AllUntimed(),
 			"Unexpected log output from DPanic in development mode.",
 		)
@@ -298,11 +298,11 @@ func TestLoggerNames(t *testing.T) {
 }
 
 func TestLoggerWriteFailure(t *testing.T) {
-	errSink := &zaptest.Buffer{}
+	errSink := &ztest.Buffer{}
 	logger := New(
 		zapcore.NewCore(
 			zapcore.NewJSONEncoder(NewProductionConfig().EncoderConfig),
-			zapcore.Lock(zapcore.AddSync(zaptest.FailWriter{})),
+			zapcore.Lock(zapcore.AddSync(ztest.FailWriter{})),
 			DebugLevel,
 		),
 		ErrorOutput(errSink),
@@ -322,7 +322,7 @@ func TestLoggerSync(t *testing.T) {
 }
 
 func TestLoggerSyncFail(t *testing.T) {
-	noSync := &zaptest.Buffer{}
+	noSync := &ztest.Buffer{}
 	err := errors.New("fail")
 	noSync.SetError(err)
 	logger := New(zapcore.NewCore(
@@ -362,7 +362,7 @@ func TestLoggerAddCaller(t *testing.T) {
 }
 
 func TestLoggerAddCallerFail(t *testing.T) {
-	errBuf := &zaptest.Buffer{}
+	errBuf := &ztest.Buffer{}
 	withLogger(t, DebugLevel, opts(AddCaller(), ErrorOutput(errBuf)), func(log *Logger, logs *observer.ObservedLogs) {
 		log.callerSkip = 1e3
 		log.Info("Failure.")
@@ -422,7 +422,7 @@ func TestLoggerConcurrent(t *testing.T) {
 				t,
 				observer.LoggedEntry{
 					Entry:   zapcore.Entry{Level: InfoLevel},
-					Context: []zapcore.Field{String("foo", "bar")},
+					Context: []Field{String("foo", "bar")},
 				},
 				obs,
 				"Unexpected log output.",

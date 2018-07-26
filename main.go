@@ -30,13 +30,13 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/ga"
 	"github.com/heroiclabs/nakama/migrate"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/heroiclabs/nakama/social"
 	_ "github.com/lib/pq"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

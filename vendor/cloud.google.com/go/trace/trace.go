@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // This package is OBSOLETE. See https://godoc.org/go.opencensus.io/trace; and use
-// OpenCensus Stackdriver exporter, https://godoc.org/go.opencensus.io/exporter/stackdriver.
+// OpenCensus Stackdriver exporter, https://godoc.org/contrib.go.opencensus.io/exporter/stackdriver.
 //
 // Package trace is a Google Stackdriver Trace library.
 //

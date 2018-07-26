@@ -901,6 +901,10 @@ func (s *Project) MarshalJSON() ([]byte, error) {
 
 // Quota: Limits associated with a Project.
 type Quota struct {
+	// BlackHoleHidesSystemZones: Whether a black hole zone should suppress
+	// system zones for this project.
+	BlackHoleHidesSystemZones bool `json:"blackHoleHidesSystemZones,omitempty"`
+
 	// DnsKeysPerManagedZone: Maximum allowed number of DnsKeys per
 	// ManagedZone.
 	DnsKeysPerManagedZone int64 `json:"dnsKeysPerManagedZone,omitempty"`
@@ -937,21 +941,21 @@ type Quota struct {
 	WhitelistedKeySpecs []*DnsKeySpec `json:"whitelistedKeySpecs,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g.
-	// "DnsKeysPerManagedZone") to unconditionally include in API requests.
-	// By default, fields with empty values are omitted from API requests.
-	// However, any non-pointer, non-interface field appearing in
+	// "BlackHoleHidesSystemZones") to unconditionally include in API
+	// requests. By default, fields with empty values are omitted from API
+	// requests. However, any non-pointer, non-interface field appearing in
 	// ForceSendFields will be sent to the server regardless of whether the
 	// field is empty or not. This may be used to include empty fields in
 	// Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "DnsKeysPerManagedZone") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g.
+	// "BlackHoleHidesSystemZones") to include in API requests with the JSON
+	// null value. By default, fields with empty values are omitted from API
+	// requests. However, any field with an empty value appearing in
+	// NullFields will be sent to the server as null. It is an error if a
+	// field in this list has a non-empty value. This may be used to include
+	// null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -3095,8 +3099,7 @@ type ManagedZonesPatchCall struct {
 	header_     http.Header
 }
 
-// Patch: Update an existing ManagedZone. This method supports patch
-// semantics.
+// Patch: Apply a partial update to an existing ManagedZone.
 func (r *ManagedZonesService) Patch(project string, managedZone string, managedzone *ManagedZone) *ManagedZonesPatchCall {
 	c := &ManagedZonesPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.project = project
@@ -3201,7 +3204,7 @@ func (c *ManagedZonesPatchCall) Do(opts ...googleapi.CallOption) (*Operation, er
 	}
 	return ret, nil
 	// {
-	//   "description": "Update an existing ManagedZone. This method supports patch semantics.",
+	//   "description": "Apply a partial update to an existing ManagedZone.",
 	//   "httpMethod": "PATCH",
 	//   "id": "dns.managedZones.patch",
 	//   "parameterOrder": [

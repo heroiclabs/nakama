@@ -80,7 +80,7 @@ func TestEncodeDecode(t *testing.T) {
 		}
 		ctx, err := New(context.Background(), mods...)
 		if err != nil {
-			t.Errorf("%v: NewMap = %v", tc.label, err)
+			t.Errorf("%v: New = %v", tc.label, err)
 		}
 
 		encoded := Encode(FromContext(ctx))

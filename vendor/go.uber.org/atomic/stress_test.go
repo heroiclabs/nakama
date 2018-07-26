@@ -34,17 +34,18 @@ const (
 )
 
 var _stressTests = map[string]func() func(){
-	"i32/std": stressStdInt32,
-	"i32":     stressInt32,
-	"i64/std": stressStdInt32,
-	"i64":     stressInt64,
-	"u32/std": stressStdUint32,
-	"u32":     stressUint32,
-	"u64/std": stressStdUint64,
-	"u64":     stressUint64,
-	"f64":     stressFloat64,
-	"bool":    stressBool,
-	"string":  stressString,
+	"i32/std":  stressStdInt32,
+	"i32":      stressInt32,
+	"i64/std":  stressStdInt32,
+	"i64":      stressInt64,
+	"u32/std":  stressStdUint32,
+	"u32":      stressUint32,
+	"u64/std":  stressStdUint64,
+	"u64":      stressUint64,
+	"f64":      stressFloat64,
+	"bool":     stressBool,
+	"string":   stressString,
+	"duration": stressDuration,
 }
 
 func TestStress(t *testing.T) {
@@ -241,5 +242,17 @@ func stressString() func() {
 		atom.Store("def")
 		atom.Load()
 		atom.Store("")
+	}
+}
+
+func stressDuration() func() {
+	var atom = NewDuration(0)
+	return func() {
+		atom.Load()
+		atom.Add(1)
+		atom.Sub(2)
+		atom.CAS(1, 0)
+		atom.Swap(5)
+		atom.Store(1)
 	}
 }

@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/test/leakcheck"
+	"google.golang.org/grpc/internal/leakcheck"
 	"google.golang.org/grpc/transport"
 )
 
@@ -128,7 +128,7 @@ func TestGetServiceInfo(t *testing.T) {
 func TestStreamContext(t *testing.T) {
 	expectedStream := &transport.Stream{}
 	ctx := NewContextWithServerTransportStream(context.Background(), expectedStream)
-	s := serverTransportStreamFromContext(ctx)
+	s := ServerTransportStreamFromContext(ctx)
 	stream, ok := s.(*transport.Stream)
 	if !ok || expectedStream != stream {
 		t.Fatalf("GetStreamFromContext(%v) = %v, %t, want: %v, true", ctx, stream, ok, expectedStream)

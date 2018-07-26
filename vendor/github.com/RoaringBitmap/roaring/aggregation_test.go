@@ -3,8 +3,8 @@ package roaring
 // to run just these tests: go test -run TestParAggregations
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
 func testAggregations(t *testing.T,

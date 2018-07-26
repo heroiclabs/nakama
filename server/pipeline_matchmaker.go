@@ -17,8 +17,8 @@ package server
 import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"time"
 )

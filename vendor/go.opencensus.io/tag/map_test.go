@@ -33,7 +33,7 @@ func TestContext(t *testing.T) {
 		Insert(k2, "v2"),
 	)
 	got := FromContext(ctx)
-	want := newMap(2)
+	want := newMap()
 	want.insert(k1, "v1")
 	want.insert(k2, "v2")
 
@@ -51,7 +51,7 @@ func TestDo(t *testing.T) {
 		Insert(k2, "v2"),
 	)
 	got := FromContext(ctx)
-	want := newMap(2)
+	want := newMap()
 	want.insert(k1, "v1")
 	want.insert(k2, "v2")
 	Do(ctx, func(ctx context.Context) {
@@ -168,7 +168,7 @@ func TestNewMap(t *testing.T) {
 	}
 }
 
-func TestNewMapValidation(t *testing.T) {
+func TestNewValidation(t *testing.T) {
 	tests := []struct {
 		err  string
 		seed *Map
@@ -213,7 +213,7 @@ func TestNewMapValidation(t *testing.T) {
 }
 
 func makeTestTagMap(ids ...int) *Map {
-	m := newMap(len(ids))
+	m := newMap()
 	for _, v := range ids {
 		k, _ := NewKey(fmt.Sprintf("k%d", v))
 		m.m[k] = fmt.Sprintf("v%d", v)

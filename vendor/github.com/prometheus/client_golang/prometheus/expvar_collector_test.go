@@ -78,7 +78,7 @@ func ExampleNewExpvarCollector() {
 		close(metricChan)
 	}()
 	for m := range metricChan {
-		if strings.Index(m.Desc().String(), "expvar_memstats") == -1 {
+		if !strings.Contains(m.Desc().String(), "expvar_memstats") {
 			metric.Reset()
 			m.Write(&metric)
 			metricStrings = append(metricStrings, metric.String())

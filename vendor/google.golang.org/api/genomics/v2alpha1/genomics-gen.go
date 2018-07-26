@@ -123,6 +123,50 @@ type WorkersService struct {
 	s *Service
 }
 
+// Accelerator: Carries information about an accelerator that can be
+// attached to a VM.
+type Accelerator struct {
+	// Count: How many accelerators of this type to attach.
+	Count int64 `json:"count,omitempty,string"`
+
+	// Type: The accelerator type string (eg nvidia-tesla-k80).
+	//
+	// Only NVIDIA GPU accelerators are currently supported.  If an NVIDIA
+	// GPU is
+	// attached, the required runtime libraries will be made available to
+	// all
+	// containers under `/usr/local/nvidia`.  The driver version to install
+	// must
+	// be specified using the NVIDIA driver version parameter on the
+	// virtual
+	// machine specification.  Note that attaching a GPU increases the
+	// worker VM
+	// startup time by a few minutes.
+	Type string `json:"type,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Count") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Count") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *Accelerator) MarshalJSON() ([]byte, error) {
+	type NoMethod Accelerator
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // Action: Action specifies a single action that runs a docker
 // container.
 type Action struct {
@@ -134,6 +178,17 @@ type Action struct {
 	// run
 	// inside the container.
 	Commands []string `json:"commands,omitempty"`
+
+	// Credentials: If the specified image is hosted on a private registry
+	// other than Google
+	// Container Registry, the credentials required to pull the image must
+	// be
+	// specified here as an encrypted secret.
+	//
+	// The secret must decrypt to a JSON encoded dictionary containing
+	// both
+	// `username` and `password` keys.
+	Credentials *Secret `json:"credentials,omitempty"`
 
 	// Entrypoint: If specified, overrides the ENTRYPOINT specified in the
 	// container.
@@ -212,18 +267,11 @@ type Action struct {
 	// If set, this flag prevents the worker from downloading the image
 	// until
 	// just before the action is executed.
-	//
-	// This is useful for two reasons: first, if the image is large and a
-	// step
-	// earlier in the pipeline can fail, it can save time to avoid fetching
-	// the
-	// image until it is needed.
-	//
-	// Second, if the image is private (that is, it requires running
-	// `docker
-	// login` to access) this flag **must** be set so that a preceding
-	// action
-	// can establish the credentials required to fetch it.
+	//   "DISABLE_STANDARD_ERROR_CAPTURE" - Normally, a small portion of the
+	// container's standard error stream is
+	// captured and returned inside the ContainerStoppedEvent.  Setting
+	// this
+	// flag disables this functionality.
 	Flags []string `json:"flags,omitempty"`
 
 	// ImageUri: The URI to pull the container image from.  Note that all
@@ -296,6 +344,15 @@ type Action struct {
 	// consult
 	// the ContainerStartedEvent in the operation metadata.
 	PortMappings map[string]int64 `json:"portMappings,omitempty"`
+
+	// Timeout: The maximum amount of time to give the action to complete.
+	// If the action
+	// fails to complete before the timeout, it will be terminated and the
+	// exit
+	// status will be non-zero.  The pipeline will continue or terminate
+	// based
+	// on the rules defined by the ALWAYS_RUN and IGNORE_EXIT_STATUS flags.
+	Timeout string `json:"timeout,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Commands") to
 	// unconditionally include in API requests. By default, fields with
@@ -442,6 +499,38 @@ func (s *ComputeEngine) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// ContainerKilledEvent: This event is generated when a container is
+// forcibly terminated by the
+// worker.  Currently, this only occurs when the container outlives the
+// user
+// specified timeout.
+type ContainerKilledEvent struct {
+	// ActionId: The numeric ID of the action that started the container.
+	ActionId int64 `json:"actionId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "ActionId") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "ActionId") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *ContainerKilledEvent) MarshalJSON() ([]byte, error) {
+	type NoMethod ContainerKilledEvent
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // ContainerStartedEvent: This event is generated when a container
 // starts.
 type ContainerStartedEvent struct {
@@ -495,6 +584,22 @@ type ContainerStoppedEvent struct {
 
 	// ExitStatus: The exit status of the container.
 	ExitStatus int64 `json:"exitStatus,omitempty"`
+
+	// Stderr: The tail end of any content written to standard error by the
+	// container.
+	// To prevent this from being recorded if the action is known to
+	// emit
+	// large amounts of debugging noise or sensitive information, set
+	// the
+	// DISABLE_STANDARD_ERROR_CAPTURE flag.
+	//
+	// Note that only a small amount of the end of the stream is captured
+	// here.
+	// The entire stream is stored in the /google/logs directory mounted
+	// into
+	// each action, and may be copied off the machine as described
+	// elsewhere.
+	Stderr string `json:"stderr,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "ActionId") to
 	// unconditionally include in API requests. By default, fields with
@@ -562,7 +667,12 @@ func (s *DelayedEvent) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// Disk: Carries information about a disk that can be attached to a VM.
+// Disk: Carries information about a disk that can be attached to a
+// VM.
+//
+// See https://cloud.google.com/compute/docs/disks/performance for
+// more
+// information about disk type, size and performance considerations.
 type Disk struct {
 	// Name: A user supplied name for the disk, used when mounting it into
 	// actions.
@@ -571,20 +681,25 @@ type Disk struct {
 	// hypens and cannot start with a hypen.
 	Name string `json:"name,omitempty"`
 
-	// SizeGb: The size, in gigabytes, of the disk to attach.  Note that
-	// this value is
-	// not configurable for some disk types such as local-ssd.  If the size
-	// is
-	// not specified, a size of at least 500gb is used to ensure reasonable
-	// I/O
+	// SizeGb: The size, in gigabytes, of the disk to attach.  If the size
+	// is not
+	// specified, a default is chosen to ensure reasonable I/O
 	// performance.
+	//
+	// If the disk type is specified as `local-ssd`, multiple local drives
+	// are
+	// automatically combined to provide the requested size.  Note, however,
+	// that
+	// each physical SSD is 375GB in size, and no more than 8 drives can
+	// be
+	// attached to a single instance.
 	SizeGb int64 `json:"sizeGb,omitempty"`
 
 	// SourceImage: An optional image to put on the disk before attaching it
 	// to the VM.
 	SourceImage string `json:"sourceImage,omitempty"`
 
-	// Type: The Compute Engine disk type.  If unspecified, 'standard-pd' is
+	// Type: The Compute Engine disk type.  If unspecified, 'pd-standard' is
 	// used.
 	Type string `json:"type,omitempty"`
 
@@ -958,6 +1073,10 @@ type Metadata struct {
 	// CreateTime: The time that the operation was created by the API.
 	CreateTime string `json:"createTime,omitempty"`
 
+	// EndTime: The time at which execution was completed and resources were
+	// cleaned up.
+	EndTime string `json:"endTime,omitempty"`
+
 	// Events: The list of events that have happened so far during the
 	// execution of this
 	// operation.
@@ -968,6 +1087,10 @@ type Metadata struct {
 
 	// Pipeline: The pipeline this operation represents.
 	Pipeline *Pipeline `json:"pipeline,omitempty"`
+
+	// StartTime: The first time at which resources were allocated to
+	// execute the pipeline.
+	StartTime string `json:"startTime,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "CreateTime") to
 	// unconditionally include in API requests. By default, fields with
@@ -1031,10 +1154,30 @@ func (s *Mount) MarshalJSON() ([]byte, error) {
 
 // Network: VM networking options.
 type Network struct {
-	// Name: The network name to attach the VM's network interface to.  If
-	// unspecified,
-	// the global default network is used.
+	// Name: The network name to attach the VM's network interface to.  The
+	// value will
+	// be prefixed with "global/networks/" unless it contains a "/" in which
+	// case
+	// it is assumed to be a fully specified network resource URL.
+	//
+	// If unspecified, the global default network is used.
 	Name string `json:"name,omitempty"`
+
+	// Subnetwork: If the specified network is configured for custom subnet
+	// creation, the
+	// name of the subnetwork to attach the instance to must be specified
+	// here.
+	//
+	// The value is prefixed with "regions/*/subnetworks/" unless it
+	// contains a
+	// "/" in which case it is assumed to be a full specified subnetwork
+	// resource
+	// URL.
+	//
+	// If the '*' character appears in the value, it is replaced with the
+	// region
+	// that the virtual machine has been allocated in.
+	Subnetwork string `json:"subnetwork,omitempty"`
 
 	// UsePrivateAddress: If set to true, do not attach a public IP address
 	// to the VM.  Note that
@@ -1446,6 +1589,45 @@ func (s *RuntimeMetadata) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// Secret: Secret holds encrypted information that is only decrypted and
+// stored in RAM
+// by the worker VM when running the pipeline.
+type Secret struct {
+	// CipherText: The value of the cipherText response from the `encrypt`
+	// method.
+	CipherText string `json:"cipherText,omitempty"`
+
+	// KeyName: The name of the Cloud KMS key that will be used to decrypt
+	// the secret
+	// value.  The VM service account must have the required permissions
+	// and
+	// authentication scopes to invoke the `decrypt` method on the specified
+	// key.
+	KeyName string `json:"keyName,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "CipherText") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "CipherText") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *Secret) MarshalJSON() ([]byte, error) {
+	type NoMethod Secret
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // ServiceAccount: Carries information about a Google Cloud Service
 // Account.
 type ServiceAccount struct {
@@ -1641,6 +1823,9 @@ func (s *UnexpectedExitStatusEvent) MarshalJSON() ([]byte, error) {
 // VirtualMachine: Carries information about a Compute Engine VM
 // resource.
 type VirtualMachine struct {
+	// Accelerators: The list of accelerators to attach to the VM.
+	Accelerators []*Accelerator `json:"accelerators,omitempty"`
+
 	// BootDiskSizeGb: The size of the boot disk, in gigabytes. The boot
 	// disk must be large
 	// enough to accommodate all of the docker images from each action in
@@ -1711,6 +1896,16 @@ type VirtualMachine struct {
 	// Network: The VM network configuration.
 	Network *Network `json:"network,omitempty"`
 
+	// NvidiaDriverVersion: The NVIDIA driver version to use when attaching
+	// an NVIDIA GPU accelerator.
+	// The version specified here must be compatible with the GPU
+	// libraries
+	// contained in the container being executed, and must be one of the
+	// drivers
+	// hosted in the 'nvidia-drivers-us-public' bucket on Google Cloud
+	// Storage.
+	NvidiaDriverVersion string `json:"nvidiaDriverVersion,omitempty"`
+
 	// Preemptible: If true, allocate a preemptible VM.
 	Preemptible bool `json:"preemptible,omitempty"`
 
@@ -1719,7 +1914,7 @@ type VirtualMachine struct {
 	// any permissions other than those required by the pipeline.
 	ServiceAccount *ServiceAccount `json:"serviceAccount,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "BootDiskSizeGb") to
+	// ForceSendFields is a list of field names (e.g. "Accelerators") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -1727,13 +1922,12 @@ type VirtualMachine struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "BootDiskSizeGb") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g. "Accelerators") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 

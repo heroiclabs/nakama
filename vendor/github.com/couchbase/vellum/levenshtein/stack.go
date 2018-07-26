@@ -16,7 +16,7 @@ package levenshtein
 
 import "fmt"
 
-type statesStack []*state
+type statesStack []state
 
 func (s statesStack) String() string {
 	rv := ""
@@ -28,10 +28,6 @@ func (s statesStack) String() string {
 		rv += fmt.Sprintf("state %d%s:\n%v\n", i, matchStr, s[i])
 	}
 	return rv
-}
-
-func (s statesStack) Push(v *state) statesStack {
-	return append(s, v)
 }
 
 type intsStack [][]int

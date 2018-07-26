@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -578,6 +578,10 @@ type Entry struct {
 	// if any. If it contains a relative resource name, the name is assumed to
 	// be relative to //tracing.googleapis.com.
 	Trace string
+
+	// Optional. Source code location information associated with the log entry,
+	// if any.
+	SourceLocation *logpb.LogEntrySourceLocation
 }
 
 // HTTPRequest contains an http.Request as well as additional
@@ -791,14 +795,15 @@ func toLogEntry(e Entry) (*logpb.LogEntry, error) {
 		return nil, err
 	}
 	ent := &logpb.LogEntry{
-		Timestamp:   ts,
-		Severity:    logtypepb.LogSeverity(e.Severity),
-		InsertId:    e.InsertID,
-		HttpRequest: fromHTTPRequest(e.HTTPRequest),
-		Operation:   e.Operation,
-		Labels:      e.Labels,
-		Trace:       e.Trace,
-		Resource:    e.Resource,
+		Timestamp:      ts,
+		Severity:       logtypepb.LogSeverity(e.Severity),
+		InsertId:       e.InsertID,
+		HttpRequest:    fromHTTPRequest(e.HTTPRequest),
+		Operation:      e.Operation,
+		Labels:         e.Labels,
+		Trace:          e.Trace,
+		Resource:       e.Resource,
+		SourceLocation: e.SourceLocation,
 	}
 	switch p := e.Payload.(type) {
 	case string:

@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,10 +33,7 @@ import (
 )
 
 func newView(measureName string, agg *view.Aggregation) *view.View {
-	m, err := stats.Int64(measureName, "bytes", stats.UnitBytes)
-	if err != nil {
-		log.Fatal(err)
-	}
+	m := stats.Int64(measureName, "bytes", stats.UnitBytes)
 	return &view.View{
 		Name:        "foo",
 		Description: "bar",
@@ -48,11 +44,8 @@ func newView(measureName string, agg *view.Aggregation) *view.View {
 
 func TestOnlyCumulativeWindowSupported(t *testing.T) {
 	// See Issue https://github.com/census-instrumentation/opencensus-go/issues/214.
-	count1 := view.CountData(1)
-	mean1 := view.MeanData{
-		Mean:  4.5,
-		Count: 5,
-	}
+	count1 := &view.CountData{Value: 1}
+	lastValue1 := &view.LastValueData{Value: 56.7}
 	tests := []struct {
 		vds  *view.Data
 		want int
@@ -67,16 +60,16 @@ func TestOnlyCumulativeWindowSupported(t *testing.T) {
 			vds: &view.Data{
 				View: newView("TestOnlyCumulativeWindowSupported/m2", view.Count()),
 				Rows: []*view.Row{
-					{Data: &count1},
+					{Data: count1},
 				},
 			},
 			want: 1,
 		},
 		2: {
 			vds: &view.Data{
-				View: newView("TestOnlyCumulativeWindowSupported/m3", view.Mean()),
+				View: newView("TestOnlyCumulativeWindowSupported/m3", view.LastValue()),
 				Rows: []*view.Row{
-					{Data: &mean1},
+					{Data: lastValue1},
 				},
 			},
 			want: 1,
@@ -98,29 +91,10 @@ func TestOnlyCumulativeWindowSupported(t *testing.T) {
 	}
 }
 
-func TestSingletonExporter(t *testing.T) {
-	exp, err := NewExporter(Options{})
-	if err != nil {
-		t.Fatalf("NewExporter() = %v", err)
-	}
-	if exp == nil {
-		t.Fatal("Nil exporter")
-	}
-
-	// Should all now fail
-	exp, err = NewExporter(Options{})
-	if err == nil {
-		t.Fatal("NewExporter() = nil")
-	}
-	if exp != nil {
-		t.Fatal("Non-nil exporter")
-	}
-}
-
 func TestCollectNonRacy(t *testing.T) {
 	// Despite enforcing the singleton, for this case we
 	// need an exporter hence won't be using NewExporter.
-	exp, err := newExporter(Options{})
+	exp, err := NewExporter(Options{})
 	if err != nil {
 		t.Fatalf("NewExporter: %v", err)
 	}
@@ -143,11 +117,9 @@ func TestCollectNonRacy(t *testing.T) {
 		}()
 
 		for i := 0; i < 1e3; i++ {
-			count1 := view.CountData(1)
-			mean1 := &view.MeanData{Mean: 4.5, Count: 5}
+			count1 := &view.CountData{Value: 1}
 			vds := []*view.Data{
-				{View: newView(fmt.Sprintf("TestCollectNonRacy/m1-%d", i), view.Mean()), Rows: []*view.Row{{Data: mean1}}},
-				{View: newView(fmt.Sprintf("TestCollectNonRacy/m2-%d", i), view.Count()), Rows: []*view.Row{{Data: &count1}}},
+				{View: newView(fmt.Sprintf("TestCollectNonRacy/m2-%d", i), view.Count()), Rows: []*view.Row{{Data: count1}}},
 			}
 			for _, v := range vds {
 				exp.ExportView(v)
@@ -190,32 +162,28 @@ func TestCollectNonRacy(t *testing.T) {
 	}()
 }
 
-type mCreator struct {
-	m   *stats.Int64Measure
-	err error
-}
-
 type mSlice []*stats.Int64Measure
 
-func (mc *mCreator) createAndAppend(measures *mSlice, name, desc, unit string) {
-	mc.m, mc.err = stats.Int64(name, desc, unit)
-	*measures = append(*measures, mc.m)
+func (measures *mSlice) createAndAppend(name, desc, unit string) {
+	m := stats.Int64(name, desc, unit)
+	*measures = append(*measures, m)
 }
 
-type vCreator struct {
-	v   *view.View
-	err error
-}
+type vCreator []*view.View
 
-func (vc *vCreator) createAndSubscribe(name, description string, keys []tag.Key, measure stats.Measure, agg *view.Aggregation) {
-	vc.v, vc.err = view.New(name, description, keys, measure, agg)
-	if err := vc.v.Subscribe(); err != nil {
-		vc.err = err
+func (vc *vCreator) createAndAppend(name, description string, keys []tag.Key, measure stats.Measure, agg *view.Aggregation) {
+	v := &view.View{
+		Name:        name,
+		Description: description,
+		TagKeys:     keys,
+		Measure:     measure,
+		Aggregation: agg,
 	}
+	*vc = append(*vc, v)
 }
 
 func TestMetricsEndpointOutput(t *testing.T) {
-	exporter, err := newExporter(Options{})
+	exporter, err := NewExporter(Options{})
 	if err != nil {
 		t.Fatalf("failed to create prometheus exporter: %v", err)
 	}
@@ -223,22 +191,21 @@ func TestMetricsEndpointOutput(t *testing.T) {
 
 	names := []string{"foo", "bar", "baz"}
 
-	measures := make(mSlice, 0)
-	mc := &mCreator{}
+	var measures mSlice
 	for _, name := range names {
-		mc.createAndAppend(&measures, "tests/"+name, name, "")
-	}
-	if mc.err != nil {
-		t.Errorf("failed to create measures: %v", err)
+		measures.createAndAppend("tests/"+name, name, "")
 	}
 
-	vc := &vCreator{}
+	var vc vCreator
 	for _, m := range measures {
-		vc.createAndSubscribe(m.Name(), m.Description(), nil, m, view.Count())
+		vc.createAndAppend(m.Name(), m.Description(), nil, m, view.Count())
 	}
-	if vc.err != nil {
+
+	if err := view.Register(vc...); err != nil {
 		t.Fatalf("failed to create views: %v", err)
 	}
+	defer view.Unregister(vc...)
+
 	view.SetReportingPeriod(time.Millisecond)
 
 	for _, m := range measures {
@@ -251,7 +218,8 @@ func TestMetricsEndpointOutput(t *testing.T) {
 	var i int
 	var output string
 	for {
-		if i == 10000 {
+		time.Sleep(10 * time.Millisecond)
+		if i == 1000 {
 			t.Fatal("no output at /metrics (10s wait)")
 		}
 		i++
@@ -271,7 +239,6 @@ func TestMetricsEndpointOutput(t *testing.T) {
 		if output != "" {
 			break
 		}
-		time.Sleep(time.Millisecond)
 	}
 
 	if strings.Contains(output, "collected before with the same name and label values") {
@@ -283,8 +250,95 @@ func TestMetricsEndpointOutput(t *testing.T) {
 	}
 
 	for _, name := range names {
-		if !strings.Contains(output, "opencensus_tests_"+name+" 1") {
+		if !strings.Contains(output, "tests_"+name+" 1") {
 			t.Fatalf("measurement missing in output: %v", name)
 		}
+	}
+}
+
+func TestCumulativenessFromHistograms(t *testing.T) {
+	exporter, err := NewExporter(Options{})
+	if err != nil {
+		t.Fatalf("failed to create prometheus exporter: %v", err)
+	}
+	view.RegisterExporter(exporter)
+	reportPeriod := time.Millisecond
+	view.SetReportingPeriod(reportPeriod)
+
+	m := stats.Float64("tests/bills", "payments by denomination", stats.UnitDimensionless)
+	v := &view.View{
+		Name:        "cash/register",
+		Description: "this is a test",
+		Measure:     m,
+
+		// Intentionally used repeated elements in the ascending distribution.
+		// to ensure duplicate distribution items are handles.
+		Aggregation: view.Distribution(1, 5, 5, 5, 5, 10, 20, 50, 100, 250),
+	}
+
+	if err := view.Register(v); err != nil {
+		t.Fatalf("Register error: %v", err)
+	}
+	defer view.Unregister(v)
+
+	// Give the reporter ample time to process registration
+	<-time.After(10 * reportPeriod)
+
+	values := []float64{0.25, 245.67, 12, 1.45, 199.9, 7.69, 187.12}
+	// We want the results that look like this:
+	// 1:   [0.25]      		| 1 + prev(i) = 1 + 0 = 1
+	// 5:   [1.45]			| 1 + prev(i) = 1 + 1 = 2
+	// 10:	[]			| 1 + prev(i) = 1 + 2 = 3
+	// 20:  [12]			| 1 + prev(i) = 1 + 3 = 4
+	// 50:  []			| 0 + prev(i) = 0 + 4 = 4
+	// 100: []			| 0 + prev(i) = 0 + 4 = 4
+	// 250: [187.12, 199.9, 245.67]	| 3 + prev(i) = 3 + 4 = 7
+	wantLines := []string{
+		`cash_register_bucket{le="1"} 1`,
+		`cash_register_bucket{le="5"} 2`,
+		`cash_register_bucket{le="10"} 3`,
+		`cash_register_bucket{le="20"} 4`,
+		`cash_register_bucket{le="50"} 4`,
+		`cash_register_bucket{le="100"} 4`,
+		`cash_register_bucket{le="250"} 7`,
+		`cash_register_bucket{le="+Inf"} 7`,
+		`cash_register_sum 654.0799999999999`, // Summation of the input values
+		`cash_register_count 7`,
+	}
+
+	ctx := context.Background()
+	ms := make([]stats.Measurement, len(values))
+	for _, value := range values {
+		mx := m.M(value)
+		ms = append(ms, mx)
+	}
+	stats.Record(ctx, ms...)
+
+	// Give the recorder ample time to process recording
+	<-time.After(10 * reportPeriod)
+
+	cst := httptest.NewServer(exporter)
+	defer cst.Close()
+	res, err := http.Get(cst.URL)
+	if err != nil {
+		t.Fatalf("http.Get error: %v", err)
+	}
+	blob, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("Read body error: %v", err)
+	}
+	str := strings.Trim(string(blob), "\n")
+	lines := strings.Split(str, "\n")
+	nonComments := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if !strings.Contains(line, "#") {
+			nonComments = append(nonComments, line)
+		}
+	}
+
+	got := strings.Join(nonComments, "\n")
+	want := strings.Join(wantLines, "\n")
+	if got != want {
+		t.Fatalf("\ngot:\n%s\n\nwant:\n%s\n", got, want)
 	}
 }

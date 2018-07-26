@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -443,10 +443,10 @@ func (q *Query) toProto(req *pb.RunQueryRequest) error {
 // Count returns the number of results for the given query.
 //
 // The running time and number of API calls made by Count scale linearly with
-// with the sum of the query's offset and limit. Unless the result count is
+// the sum of the query's offset and limit. Unless the result count is
 // expected to be small, it is best to specify a limit; otherwise Count will
 // continue until it finishes counting or the provided context expires.
-func (c *Client) Count(ctx context.Context, q *Query) (_ int, err error) {
+func (c *Client) Count(ctx context.Context, q *Query) (n int, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.Query.Count")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -463,7 +463,6 @@ func (c *Client) Count(ctx context.Context, q *Query) (_ int, err error) {
 	// Create an iterator and use it to walk through the batches of results
 	// directly.
 	it := c.Run(ctx, newQ)
-	n := 0
 	for {
 		err := it.nextBatch()
 		if err == iterator.Done {
@@ -496,7 +495,7 @@ func (c *Client) Count(ctx context.Context, q *Query) (_ int, err error) {
 // expected to be small, it is best to specify a limit; otherwise GetAll will
 // continue until it finishes collecting results or the provided context
 // expires.
-func (c *Client) GetAll(ctx context.Context, q *Query, dst interface{}) (_ []*Key, err error) {
+func (c *Client) GetAll(ctx context.Context, q *Query, dst interface{}) (keys []*Key, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.Query.GetAll")
 	defer func() { trace.EndSpan(ctx, err) }()
 
@@ -518,7 +517,6 @@ func (c *Client) GetAll(ctx context.Context, q *Query, dst interface{}) (_ []*Ke
 		}
 	}
 
-	var keys []*Key
 	for t := c.Run(ctx, q); ; {
 		k, e, err := t.next()
 		if err == iterator.Done {
@@ -632,7 +630,7 @@ type Iterator struct {
 // If the query is not keys only and dst is non-nil, it also loads the entity
 // stored for that key into the struct pointer or PropertyLoadSaver dst, with
 // the same semantics and possible errors as for the Get function.
-func (t *Iterator) Next(dst interface{}) (_ *Key, err error) {
+func (t *Iterator) Next(dst interface{}) (k *Key, err error) {
 	k, e, err := t.next()
 	if err != nil {
 		return nil, err
@@ -735,7 +733,7 @@ func (t *Iterator) nextBatch() error {
 }
 
 // Cursor returns a cursor for the iterator's current location.
-func (t *Iterator) Cursor() (_ Cursor, err error) {
+func (t *Iterator) Cursor() (c Cursor, err error) {
 	t.ctx = trace.StartSpan(t.ctx, "cloud.google.com/go/datastore.Query.Cursor")
 	defer func() { trace.EndSpan(t.ctx, err) }()
 

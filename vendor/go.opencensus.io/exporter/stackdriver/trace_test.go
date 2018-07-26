@@ -35,9 +35,8 @@ func TestBundling(t *testing.T) {
 	}
 	trace.RegisterExporter(exporter)
 
-	trace.SetDefaultSampler(trace.AlwaysSample())
 	for i := 0; i < 35; i++ {
-		_, span := trace.StartSpan(context.Background(), "span")
+		_, span := trace.StartSpan(context.Background(), "span", trace.WithSampler(trace.AlwaysSample()))
 		span.End()
 	}
 

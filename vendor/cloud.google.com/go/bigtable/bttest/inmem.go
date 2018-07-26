@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Google Inc. All Rights Reserved.
+Copyright 2015 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,6 +53,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	// MilliSeconds field of the minimum valid Timestamp.
+	minValidMilliSeconds = 0
+
+	// MilliSeconds field of the max valid Timestamp.
+	maxValidMilliSeconds = int64(time.Millisecond) * 253402300800
 )
 
 // Server is an in-memory Cloud Bigtable fake.
@@ -171,8 +179,6 @@ func (s *server) DeleteTable(ctx context.Context, req *btapb.DeleteTableRequest)
 }
 
 func (s *server) ModifyColumnFamilies(ctx context.Context, req *btapb.ModifyColumnFamiliesRequest) (*btapb.Table, error) {
-	tblName := req.Name[strings.LastIndex(req.Name, "/")+1:]
-
 	s.mu.Lock()
 	tbl, ok := s.tables[req.Name]
 	s.mu.Unlock()
@@ -216,7 +222,7 @@ func (s *server) ModifyColumnFamilies(ctx context.Context, req *btapb.ModifyColu
 
 	s.needGC()
 	return &btapb.Table{
-		Name:           tblName,
+		Name:           req.Name,
 		ColumnFamilies: toColumnFamilies(tbl.families),
 		Granularity:    btapb.Table_TimestampGranularity(btapb.Table_MILLIS),
 	}, nil
@@ -317,7 +323,8 @@ func (s *server) ReadRows(req *btpb.ReadRowsRequest, stream btpb.Bigtable_ReadRo
 		return true
 	}
 
-	if req.Rows != nil {
+	if req.Rows != nil &&
+		len(req.Rows.RowKeys)+len(req.Rows.RowRanges) > 0 {
 		// Add the explicitly given keys
 		for _, key := range req.Rows.RowKeys {
 			k := string(key)
@@ -698,8 +705,7 @@ func (s *server) MutateRows(req *btpb.MutateRowsRequest, stream btpb.Bigtable_Mu
 		}
 		r.mu.Unlock()
 	}
-	stream.Send(res)
-	return nil
+	return stream.Send(res)
 }
 
 func (s *server) CheckAndMutateRow(ctx context.Context, req *btpb.CheckAndMutateRowRequest) (*btpb.CheckAndMutateRowResponse, error) {
@@ -861,12 +867,13 @@ func (s *server) ReadModifyWriteRow(ctx context.Context, req *btpb.ReadModifyWri
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "table %q not found", req.TableName)
 	}
-	updates := make(map[string]cell) // copy of updated cells; keyed by full column name
 
 	fs := tbl.columnFamilies()
 
 	rowKey := string(req.RowKey)
 	r := tbl.mutableRow(rowKey)
+	resultRow := newRow(rowKey) // copy of updated cells
+
 	// This must be done before the row lock, acquired below, is released.
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -914,35 +921,37 @@ func (s *server) ReadModifyWriteRow(ctx context.Context, req *btpb.ReadModifyWri
 			binary.BigEndian.PutUint64(val[:], uint64(v))
 			newCell = cell{ts: ts, value: val[:]}
 		}
-		key := strings.Join([]string{fam, col}, ":")
-		updates[key] = newCell
+
+		// Store the new cell
 		f.cells[col] = appendOrReplaceCell(f.cellsByColumn(col), newCell)
+
+		// Store a copy for the result row
+		resultFamily := resultRow.getOrCreateFamily(fam, fs[fam].order)
+		resultFamily.cellsByColumn(col)           // create the column
+		resultFamily.cells[col] = []cell{newCell} // overwrite the cells
 	}
 
+	// Build the response using the result row
 	res := &btpb.Row{
-		Key: req.RowKey,
+		Key:      req.RowKey,
+		Families: make([]*btpb.Family, len(resultRow.families)),
 	}
-	for col, cell := range updates {
-		i := strings.Index(col, ":")
-		fam, qual := col[:i], col[i+1:]
-		var f *btpb.Family
-		for _, ff := range res.Families {
-			if ff.Name == fam {
-				f = ff
-				break
+
+	for i, family := range resultRow.sortedFamilies() {
+		res.Families[i] = &btpb.Family{
+			Name:    family.name,
+			Columns: make([]*btpb.Column, len(family.colNames)),
+		}
+
+		for j, colName := range family.colNames {
+			res.Families[i].Columns[j] = &btpb.Column{
+				Qualifier: []byte(colName),
+				Cells: []*btpb.Cell{{
+					TimestampMicros: family.cells[colName][0].ts,
+					Value:           family.cells[colName][0].value,
+				}},
 			}
 		}
-		if f == nil {
-			f = &btpb.Family{Name: fam}
-			res.Families = append(res.Families, f)
-		}
-		f.Columns = append(f.Columns, &btpb.Column{
-			Qualifier: []byte(qual),
-			Cells: []*btpb.Cell{{
-				TimestampMicros: cell.ts,
-				Value:           cell.value,
-			}},
-		})
 	}
 	return &btpb.ReadModifyWriteRowResponse{Row: res}, nil
 }
@@ -1050,6 +1059,10 @@ func newTable(ctr *btapb.CreateTableRequest) *table {
 }
 
 func (t *table) validTimestamp(ts int64) bool {
+	if ts <= minValidMilliSeconds || ts >= maxValidMilliSeconds {
+		return false
+	}
+
 	// Assume millisecond granularity is required.
 	return ts%1000 == 0
 }
@@ -1264,8 +1277,8 @@ func applyGC(cells []cell, rule *btapb.GcRule) []cell {
 type family struct {
 	name     string            // Column family name
 	order    uint64            // Creation order of column family
-	colNames []string          // Collumn names are sorted in lexicographical ascending order
-	cells    map[string][]cell // Keyed by collumn name; cells are in descending timestamp order
+	colNames []string          // Column names are sorted in lexicographical ascending order
+	cells    map[string][]cell // Keyed by column name; cells are in descending timestamp order
 }
 
 type byCreationOrder []*family

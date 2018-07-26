@@ -153,7 +153,7 @@ func DoServerStreaming(tc testpb.TestServiceClient, args ...grpc.CallOption) {
 			grpclog.Fatalf("Got the reply of type %d, want %d", t, testpb.PayloadType_COMPRESSABLE)
 		}
 		size := len(reply.GetPayload().GetBody())
-		if size != int(respSizes[index]) {
+		if size != respSizes[index] {
 			grpclog.Fatalf("Got reply body of length %d, want %d", size, respSizes[index])
 		}
 		index++
@@ -198,7 +198,7 @@ func DoPingPong(tc testpb.TestServiceClient, args ...grpc.CallOption) {
 			grpclog.Fatalf("Got the reply of type %d, want %d", t, testpb.PayloadType_COMPRESSABLE)
 		}
 		size := len(reply.GetPayload().GetBody())
-		if size != int(respSizes[index]) {
+		if size != respSizes[index] {
 			grpclog.Fatalf("Got reply body of length %d, want %d", size, respSizes[index])
 		}
 		index++
@@ -574,8 +574,8 @@ func DoUnimplementedService(tc testpb.UnimplementedServiceClient) {
 // DoUnimplementedMethod attempts to call an unimplemented method.
 func DoUnimplementedMethod(cc *grpc.ClientConn) {
 	var req, reply proto.Message
-	if err := grpc.Invoke(context.Background(), "/grpc.testing.TestService/UnimplementedCall", req, reply, cc); err == nil || status.Code(err) != codes.Unimplemented {
-		grpclog.Fatalf("grpc.Invoke(_, _, _, _, _) = %v, want error code %s", err, codes.Unimplemented)
+	if err := cc.Invoke(context.Background(), "/grpc.testing.TestService/UnimplementedCall", req, reply); err == nil || status.Code(err) != codes.Unimplemented {
+		grpclog.Fatalf("ClientConn.Invoke(_, _, _, _, _) = %v, want error code %s", err, codes.Unimplemented)
 	}
 }
 

@@ -23,10 +23,10 @@ import (
 
 	"net"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/satori/go.uuid"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -212,9 +212,8 @@ func (s *sessionWS) pingNow() bool {
 		s.Unlock()
 		return false
 	}
-	t := time.Now()
-	s.conn.SetWriteDeadline(t.Add(s.writeWaitDuration))
-	err := s.conn.WriteMessage(websocket.BinaryMessage, []byte{})
+	s.conn.SetWriteDeadline(time.Now().Add(s.writeWaitDuration))
+	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
 	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping, closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
@@ -223,8 +222,6 @@ func (s *sessionWS) pingNow() bool {
 		return false
 	}
 	s.pingTimer.Reset(s.pingPeriodDuration)
-	// Workaround for poor behaviour in some WebSocket clients.
-	s.conn.SetReadDeadline(t.Add(s.pongWaitDuration))
 	return true
 }
 

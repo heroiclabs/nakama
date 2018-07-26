@@ -33,7 +33,7 @@ func (t *testExporter) ExportSpan(s *trace.SpanData) {
 }
 
 func TestStreaming(t *testing.T) {
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	te := testExporter{make(chan *trace.SpanData)}
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)
@@ -76,7 +76,7 @@ func TestStreaming(t *testing.T) {
 }
 
 func TestStreamingFail(t *testing.T) {
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	te := testExporter{make(chan *trace.SpanData)}
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)
@@ -117,7 +117,7 @@ func TestStreamingFail(t *testing.T) {
 }
 
 func TestSingle(t *testing.T) {
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	te := testExporter{make(chan *trace.SpanData)}
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)
@@ -150,7 +150,7 @@ func TestServerSpanDuration(t *testing.T) {
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)
 
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	ctx := context.Background()
 	const sleep = 100 * time.Millisecond
@@ -174,7 +174,7 @@ loop:
 }
 
 func TestSingleFail(t *testing.T) {
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	te := testExporter{make(chan *trace.SpanData)}
 	trace.RegisterExporter(&te)
 	defer trace.UnregisterExporter(&te)

@@ -25,7 +25,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,6 +34,14 @@ import (
 	"go.opencensus.io/plugin/ochttp/propagation/tracecontext"
 	"go.opencensus.io/trace"
 )
+
+type testExporter struct {
+	spans []*trace.SpanData
+}
+
+func (t *testExporter) ExportSpan(s *trace.SpanData) {
+	t.spans = append(t.spans, s)
+}
 
 type testTransport struct {
 	ch chan *http.Request
@@ -73,7 +80,8 @@ func (t testPropagator) SpanContextToRequest(sc trace.SpanContext, req *http.Req
 }
 
 func TestTransport_RoundTrip(t *testing.T) {
-	parent := trace.NewSpan("parent", nil, trace.StartOptions{})
+	ctx := context.Background()
+	ctx, parent := trace.StartSpan(ctx, "parent")
 	tests := []struct {
 		name   string
 		parent *trace.Span
@@ -172,7 +180,7 @@ func (c *collector) ExportSpan(s *trace.SpanData) {
 }
 
 func TestEndToEnd(t *testing.T) {
-	trace.SetDefaultSampler(trace.AlwaysSample())
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	tc := []struct {
 		name            string
@@ -221,12 +229,9 @@ func TestEndToEnd(t *testing.T) {
 			url := serveHTTP(tt.handler, serverDone, serverReturn)
 
 			// Start a root Span in the client.
-			root := trace.NewSpan(
-				"top-level",
-				nil,
-				trace.StartOptions{})
-			ctx := trace.WithSpan(context.Background(), root)
-
+			ctx, root := trace.StartSpan(
+				context.Background(),
+				"top-level")
 			// Make the request.
 			req, err := http.NewRequest(
 				http.MethodPost,
@@ -278,7 +283,7 @@ func TestEndToEnd(t *testing.T) {
 						t.Errorf("Span name: %q; want %q", got, want)
 					}
 				default:
-					t.Fatalf("server or client span missing")
+					t.Fatalf("server or client span missing; kind = %v", sp.SpanKind)
 				}
 			}
 
@@ -359,11 +364,67 @@ func TestSpanNameFromURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.u, func(t *testing.T) {
-			u, err := url.Parse(tt.u)
+			req, err := http.NewRequest("GET", tt.u, nil)
 			if err != nil {
-				t.Errorf("url.Parse() = %v", err)
+				t.Errorf("url issue = %v", err)
 			}
-			if got := spanNameFromURL(u); got != tt.want {
+			if got := spanNameFromURL(req); got != tt.want {
+				t.Errorf("spanNameFromURL() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatSpanName(t *testing.T) {
+	formatSpanName := func(r *http.Request) string {
+		return r.Method + " " + r.URL.Path
+	}
+
+	handler := &Handler{
+		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+			resp.Write([]byte("Hello, world!"))
+		}),
+		FormatSpanName: formatSpanName,
+	}
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	client := &http.Client{
+		Transport: &Transport{FormatSpanName: formatSpanName},
+	}
+
+	tests := []struct {
+		u    string
+		want string
+	}{
+		{
+			u:    "/hello?q=a",
+			want: "GET /hello",
+		},
+		{
+			u:    "/a/b?q=c",
+			want: "GET /a/b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.u, func(t *testing.T) {
+			var te testExporter
+			trace.RegisterExporter(&te)
+			res, err := client.Get(server.URL + tt.u)
+			if err != nil {
+				t.Fatalf("error creating request: %v", err)
+			}
+			res.Body.Close()
+			trace.UnregisterExporter(&te)
+			if want, got := 2, len(te.spans); want != got {
+				t.Fatalf("got exported spans %#v, wanted two spans", te.spans)
+			}
+			if got := te.spans[0].Name; got != tt.want {
+				t.Errorf("spanNameFromURL() = %v, want %v", got, tt.want)
+			}
+			if got := te.spans[1].Name; got != tt.want {
 				t.Errorf("spanNameFromURL() = %v, want %v", got, tt.want)
 			}
 		})
@@ -439,19 +500,20 @@ func TestStatusUnitTest(t *testing.T) {
 		in   int
 		want trace.Status
 	}{
-		{200, trace.Status{Code: 0, Message: `"OK"`}},
-		{100, trace.Status{Code: 2, Message: `"UNKNOWN"`}},
-		{500, trace.Status{Code: 2, Message: `"UNKNOWN"`}},
-		{404, trace.Status{Code: 5, Message: `"NOT_FOUND"`}},
-		{600, trace.Status{Code: 2, Message: `"UNKNOWN"`}},
-		{401, trace.Status{Code: 16, Message: `"UNAUTHENTICATED"`}},
-		{403, trace.Status{Code: 7, Message: `"PERMISSION_DENIED"`}},
-		{301, trace.Status{Code: 0, Message: `"OK"`}},
-		{501, trace.Status{Code: 12, Message: `"UNIMPLEMENTED"`}},
+		{200, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
+		{204, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
+		{100, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
+		{500, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
+		{404, trace.Status{Code: trace.StatusCodeNotFound, Message: `"NOT_FOUND"`}},
+		{600, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
+		{401, trace.Status{Code: trace.StatusCodeUnauthenticated, Message: `"UNAUTHENTICATED"`}},
+		{403, trace.Status{Code: trace.StatusCodePermissionDenied, Message: `"PERMISSION_DENIED"`}},
+		{301, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
+		{501, trace.Status{Code: trace.StatusCodeUnimplemented, Message: `"UNIMPLEMENTED"`}},
 	}
 
 	for _, tt := range tests {
-		got, want := status(tt.in), tt.want
+		got, want := TraceStatus(tt.in, ""), tt.want
 		if got != want {
 			t.Errorf("status(%d) got = (%#v) want = (%#v)", tt.in, got, want)
 		}

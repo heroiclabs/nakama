@@ -1,6 +1,8 @@
 // Package texttospeech provides access to the Cloud Text-to-Speech API.
 //
-// See http://cloud.google.com/speech/text-to-speech/
+// This package is DEPRECATED. Use package cloud.google.com/go/texttospeech/apiv1 instead.
+//
+// See https://cloud.google.com/text-to-speech/
 //
 // Usage example:
 //
@@ -116,6 +118,12 @@ type AudioConfig struct {
 	// higher
 	// than MP3 while using approximately the same bitrate.
 	AudioEncoding string `json:"audioEncoding,omitempty"`
+
+	// EffectsProfileId: An identifier which selects 'audio effects'
+	// profiles that are applied on
+	// (post synthesized) text to speech.
+	// Effects are applied on top of each other in the order they are given.
+	EffectsProfileId []string `json:"effectsProfileId,omitempty"`
 
 	// Pitch: Optional speaking pitch, in the range [-20.0, 20.0]. 20 means
 	// increase 20

@@ -8,15 +8,13 @@
  *
  */
 
-package cronexpr_test
+package cronexpr
 
 /******************************************************************************/
 
 import (
 	"fmt"
 	"time"
-
-	"github.com/gorhill/cronexpr"
 )
 
 /******************************************************************************/
@@ -24,7 +22,7 @@ import (
 // ExampleMustParse
 func ExampleMustParse() {
 	t := time.Date(2013, time.August, 31, 0, 0, 0, 0, time.UTC)
-	nextTimes := cronexpr.MustParse("0 0 29 2 *").NextN(t, 5)
+	nextTimes := MustParse("0 0 29 2 *").NextN(t, 5)
 	for i := range nextTimes {
 		fmt.Println(nextTimes[i].Format(time.RFC1123))
 		// Output:

@@ -1073,8 +1073,8 @@ func compileExprWithMVPropagation(context *funcContext, expr ast.Expr, reg *int,
 func constFold(exp ast.Expr) ast.Expr { // {{{
 	switch expr := exp.(type) {
 	case *ast.ArithmeticOpExpr:
-		lvalue, lisconst := lnumberValue(expr.Lhs)
-		rvalue, risconst := lnumberValue(expr.Rhs)
+		lvalue, lisconst := lnumberValue(constFold(expr.Lhs))
+		rvalue, risconst := lnumberValue(constFold(expr.Rhs))
 		if lisconst && risconst {
 			switch expr.Operator {
 			case "+":

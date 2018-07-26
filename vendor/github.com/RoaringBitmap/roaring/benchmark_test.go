@@ -469,6 +469,7 @@ func BenchmarkSparseIterateBitset(b *testing.B) {
 }
 
 func BenchmarkSerializationSparse(b *testing.B) {
+	b.ReportAllocs()
 	b.StopTimer()
 	r := rand.New(rand.NewSource(0))
 	s := NewBitmap()
@@ -487,6 +488,7 @@ func BenchmarkSerializationSparse(b *testing.B) {
 }
 
 func BenchmarkSerializationMid(b *testing.B) {
+	b.ReportAllocs()
 	b.StopTimer()
 	r := rand.New(rand.NewSource(0))
 	s := NewBitmap()
@@ -505,6 +507,7 @@ func BenchmarkSerializationMid(b *testing.B) {
 }
 
 func BenchmarkSerializationDense(b *testing.B) {
+	b.ReportAllocs()
 	b.StopTimer()
 	r := rand.New(rand.NewSource(0))
 	s := NewBitmap()
