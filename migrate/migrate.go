@@ -123,6 +123,9 @@ func Parse(args []string, logger *zap.Logger) {
 		parsedUrl.RawQuery = query.Encode()
 	}
 
+	if len(parsedUrl.User.Username()) < 1 {
+		parsedUrl.User = url.User("root")
+	}
 	dbname := "nakama"
 	if len(parsedUrl.Path) > 1 {
 		dbname = parsedUrl.Path[1:]

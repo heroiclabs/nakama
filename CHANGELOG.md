@@ -15,6 +15,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Reduce the frequency of socket checks on known active connections.
 - Deleting a record from a leaderboard that does not exist now succeeds.
 - Notification listings now use more accurate time in cacheable cursors.
+- Use "root" as the default database user if not otherwise specified.
+
+### Fixed
+- Runtime module loading now correctly handles paths on non-UNIX environments.
 
 ## [2.0.2] - 2018-07-09
 ### Added

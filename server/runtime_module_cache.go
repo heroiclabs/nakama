@@ -61,7 +61,7 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 
 	// Override before Package library is invoked.
 	lua.LuaLDir = runtimeConfig.Path
-	lua.LuaPathDefault = lua.LuaLDir + "/?.lua;" + lua.LuaLDir + "/?/init.lua"
+	lua.LuaPathDefault = lua.LuaLDir + string(os.PathSeparator) + "?.lua;" + lua.LuaLDir + string(os.PathSeparator) + "?" + string(os.PathSeparator) + "init.lua"
 	os.Setenv(lua.LuaPath, lua.LuaPathDefault)
 
 	startupLogger.Info("Initialising runtime", zap.String("path", lua.LuaLDir))
@@ -80,7 +80,7 @@ func LoadRuntimeModules(startupLogger *zap.Logger, config Config) (map[string]lu
 				relPath, _ := filepath.Rel(lua.LuaLDir, path)
 				name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 				// Make paths Lua friendly.
-				name = strings.Replace(name, "/", ".", -1)
+				name = strings.Replace(name, string(os.PathSeparator), ".", -1)
 				moduleCache.Add(&RuntimeModule{
 					Name:    name,
 					Path:    path,

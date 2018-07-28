@@ -168,6 +168,9 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 		parsedUrl.RawQuery = query.Encode()
 	}
 
+	if len(parsedUrl.User.Username()) < 1 {
+		parsedUrl.User = url.User("root")
+	}
 	if len(parsedUrl.Path) < 1 {
 		parsedUrl.Path = "/nakama"
 	}
