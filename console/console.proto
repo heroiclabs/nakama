@@ -23,6 +23,7 @@ import "github.com/heroiclabs/nakama/api/api.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "protoc-gen-swagger/options/annotations.proto";
 
 option go_package = "console";
@@ -37,6 +38,7 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
       email: "hello@heroiclabs.com";
     };
   };
+  host: "127.0.0.1:7351";
   external_docs: {
     url: "https://heroiclabs.com/docs";
     description: "Nakama server console documentation";
@@ -44,15 +46,58 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   schemes: HTTP;
   consumes: "application/json";
   produces: "application/json";
+  security_definitions: {
+    security: {
+      key: "BasicAuth";
+      value: {
+        type: TYPE_BASIC;
+      }
+    }
+  }
+  // Default security definition.
+  security: {
+    security_requirement: {
+      key: "BasicAuth";
+      value: {};
+    }
+  }
 };
 
 /**
  * The developer console RPC protocol service built with GRPC.
  */
 service Console {
+  // Authenticate a user with username+password.
+  rpc Login (AuthenticateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate",
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {}
+      }
+    };
+  }
+
   // Delete all information stored for a user account.
-  rpc DeleteAccount (AccountIdRequest) returns (google.protobuf.Empty) {
+  rpc DeleteAccount (AccountDeleteRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}";
+  }
+
+  // Delete all accounts.
+  rpc DeleteAccounts (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account";
+  }
+
+  // Delete a storage object.
+  rpc DeleteStorageObject (DeleteStorageObjectRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/storage/{collection}/{key}/{user_id}";
+  }
+
+  // Delete all storage objects.
+  rpc DeleteStorageObjects (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/storage";
   }
 
   // Export all information stored about a user account.
@@ -60,13 +105,50 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/export";
   }
 
-  // Authenticate a user with username+password.
-  rpc Login (AuthenticateRequest) returns (Session) {
+  // Get info about a particular account
+  rpc GetAccount (AccountIdRequest) returns (nakama.api.Account) {
+    option (google.api.http).get = "/v2/console/account/{id}";
+  }
+
+  // Get a storage object
+  rpc GetStorage (GetStorageObjectRequest) returns (StorageObject) {
+    option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
+  }
+
+  // List all recent accounts.
+  rpc ListAccounts (google.protobuf.Empty) returns (AccountList) {
+    option (google.api.http).get = "/v2/console/account";
+  }
+
+  // List all storage collections.
+  rpc ListStorageCollections(google.protobuf.Empty) returns (StorageCollectionList) {
+    option (google.api.http).get = "/v2/console/storage";
+  }
+
+  // List storage objects in a given collection.
+  rpc ListStorageObjects (ListStorageObjectRequest) returns (StorageObjectList) {
     option (google.api.http) = {
-      post: "/v2/console/authenticate",
-      body: "*"
+      get: "/v2/console/storage/{collection}",
+      additional_bindings {
+        get: "/v2/console/storage/{collection}/{user_id}"
+      }
     };
   }
+
+  // Create or overwrite a storage object.
+  rpc WriteStorageObject (WriteStorageObjectRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).put = "/v2/console/storage";
+  }
+}
+
+/**
+ * Deletion request for a user account.
+ */
+message AccountDeleteRequest {
+  // The unique identifier of the user account.
+  string id = 1;
+  // Record the user deletion - used for GDPR compliance.
+  google.protobuf.BoolValue record_deletion = 2;
 }
 
 /**
@@ -100,6 +182,13 @@ message AccountIdRequest {
 }
 
 /**
+ * Get the recent list of accounts.
+ */
+message AccountList {
+  repeated nakama.api.Account accounts = 1;
+}
+
+/**
  * Authenticate against the server with username+password.
  */
 message AuthenticateRequest {
@@ -109,12 +198,68 @@ message AuthenticateRequest {
   string password = 2;
 }
 
+// Delete a storage object.
+message DeleteStorageObjectRequest {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // ID of the user that this object belongs to.
+  string user_id = 3;
+}
+
+// Retrieve a storage object.
+message GetStorageObjectRequest {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // The user owner of the object.
+  string user_id = 3;
+}
+
+// List object belonging to a user and/or a collection.
+message ListStorageObjectRequest {
+ // The collection which stores the object.
+  string collection = 1;
+  // ID of the user that this object belongs to.
+  string user_id = 2;
+  // The cursor to page through results from.
+  string cursor = 3; // value from StorageObjectList.cursor.
+}
+
 /**
- * A user's session used to authenticate messages.
+ * List of collections available in storage.
  */
-message Session {
-  // Authentication credentials.
-  string token = 1;
+message StorageCollectionList {
+  // Storage collections.
+  repeated string collections = 1;
+}
+
+// A storage record.
+message StorageObject {
+  // The collection to store the object.
+  string collection = 1;
+  // The key for the object within the collection.
+  string key = 2;
+  // ID of the user that this object belongs to.
+  string user_id = 3;
+  // The value of the object.
+  string value = 4;
+  // The read access permissions for the object.
+  int32 permission_read = 5;
+  // The write access permissions for the object.
+  int32 permission_write = 6;
+}
+
+/**
+ * List of objects in a given collection.
+ */
+message StorageObjectList {
+  // The list of storage objects.
+  repeated StorageObject objects = 1;
+  // The cursor associated with the query a page of results.
+  string cursor = 2;
 }
 
 /**
@@ -133,4 +278,9 @@ message WalletLedger {
   google.protobuf.Timestamp create_time = 8;
   // The UNIX time when the wallet ledger item was updated.
   google.protobuf.Timestamp update_time = 9;
+}
+
+// Write an object to storage.
+message WriteStorageObjectRequest {
+  StorageObject object = 1;
 }
