@@ -30,9 +30,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountIdRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteAccountRecorded(ctx context.Context, in *console.AccountDeleteRequest) (*empty.Empty, error) {
 	userID := uuid.FromStringOrNil(in.Id)
-	if uuid.Equal(uuid.Nil, userID) {
+	if userID == uuid.Nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
@@ -79,7 +79,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountId
 
 func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountIdRequest) (*console.AccountExport, error) {
 	userID := uuid.FromStringOrNil(in.Id)
-	if uuid.Equal(uuid.Nil, userID) {
+	if userID == uuid.Nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 

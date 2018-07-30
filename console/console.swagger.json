@@ -9,6 +9,7 @@
       "email": "hello@heroiclabs.com"
     }
   },
+  "host": "127.0.0.1:7351",
   "schemes": [
     "http"
   ],
@@ -19,7 +20,63 @@
     "application/json"
   ],
   "paths": {
+    "/v2/console/account": {
+      "get": {
+        "summary": "List all recent accounts.",
+        "operationId": "ListAccounts",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/consoleAccountList"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete all accounts.",
+        "operationId": "DeleteAccounts",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}": {
+      "get": {
+        "summary": "Get info about a particular account",
+        "operationId": "GetAccount",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiAccount"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "delete": {
         "summary": "Delete all information stored for a user account.",
         "operationId": "DeleteAccount",
@@ -38,6 +95,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "record_deletion",
+            "description": "Record the user deletion - used for GDPR compliance.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -79,7 +144,7 @@
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/nakamaconsoleSession"
+              "$ref": "#/definitions/protobufEmpty"
             }
           }
         },
@@ -91,6 +156,216 @@
             "schema": {
               "$ref": "#/definitions/consoleAuthenticateRequest"
             }
+          }
+        ],
+        "tags": [
+          "Console"
+        ],
+        "security": [
+          {
+            "": []
+          }
+        ]
+      }
+    },
+    "/v2/console/storage": {
+      "get": {
+        "summary": "List all storage collections.",
+        "operationId": "ListStorageCollections",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/consoleStorageCollectionList"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete all storage objects.",
+        "operationId": "DeleteStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "summary": "Create or overwrite a storage object.",
+        "operationId": "WriteStorageObject",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/{collection}": {
+      "get": {
+        "summary": "List storage objects in a given collection.",
+        "operationId": "ListStorageObjects",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleStorageObjectList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user that this object belongs to.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "The cursor to page through results from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/{collection}/{key}/{user_id}": {
+      "get": {
+        "summary": "Get a storage object",
+        "operationId": "GetStorage",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleStorageObject"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "The key of the object within the collection.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "The user owner of the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a storage object.",
+        "operationId": "DeleteStorageObject",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "The key of the object within the collection.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user that this object belongs to.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/{collection}/{user_id}": {
+      "get": {
+        "summary": "List storage objects in a given collection.",
+        "operationId": "ListStorageObjects2",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleStorageObjectList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user that this object belongs to.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "The cursor to page through results from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -358,52 +633,6 @@
       },
       "description": "A notification in the server."
     },
-    "apiStorageObject": {
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "description": "The collection which stores the object."
-        },
-        "key": {
-          "type": "string",
-          "description": "The key of the object within the collection."
-        },
-        "user_id": {
-          "type": "string",
-          "description": "The user owner of the object."
-        },
-        "value": {
-          "type": "string",
-          "description": "The value of the object."
-        },
-        "version": {
-          "type": "string",
-          "description": "The version hash of the object."
-        },
-        "permission_read": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The read access permissions for the object."
-        },
-        "permission_write": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The write access permissions for the object."
-        },
-        "create_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the object was created."
-        },
-        "update_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the object was last updated."
-        }
-      },
-      "description": "An object within the storage engine."
-    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -488,7 +717,7 @@
         "objects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/apiStorageObject"
+            "$ref": "#/definitions/nakamaapiStorageObject"
           },
           "description": "The user's storage."
         },
@@ -537,6 +766,18 @@
       },
       "description": "*\nAn export of all information stored for a user account."
     },
+    "consoleAccountList": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAccount"
+          }
+        }
+      },
+      "description": "*\nGet the recent list of accounts."
+    },
     "consoleAuthenticateRequest": {
       "type": "object",
       "properties": {
@@ -550,6 +791,19 @@
         }
       },
       "description": "*\nAuthenticate against the server with username+password."
+    },
+    "consoleStorageCollectionList": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Storage collections."
+        }
+      },
+      "description": "*\nList of collections available in storage."
     },
     "consoleWalletLedger": {
       "type": "object",
@@ -583,15 +837,100 @@
       },
       "description": "*\nA wallet ledger item representing a change to the user's wallet."
     },
-    "nakamaconsoleSession": {
+    "nakamaapiStorageObject": {
       "type": "object",
       "properties": {
-        "token": {
+        "collection": {
           "type": "string",
-          "description": "Authentication credentials."
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the object was last updated."
         }
       },
-      "description": "*\nA user's session used to authenticate messages."
+      "description": "An object within the storage engine."
+    },
+    "nakamaconsoleStorageObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection to store the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key for the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "ID of the user that this object belongs to."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        }
+      },
+      "description": "A storage record."
+    },
+    "nakamaconsoleStorageObjectList": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaconsoleStorageObject"
+          },
+          "description": "The list of storage objects."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "The cursor associated with the query a page of results."
+        }
+      },
+      "description": "*\nList of objects in a given collection."
     },
     "protobufEmpty": {
       "type": "object",
@@ -599,6 +938,16 @@
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
     }
   },
+  "securityDefinitions": {
+    "BasicAuth": {
+      "type": "basic"
+    }
+  },
+  "security": [
+    {
+      "BasicAuth": []
+    }
+  ],
   "externalDocs": {
     "description": "Nakama server console documentation",
     "url": "https://heroiclabs.com/docs"

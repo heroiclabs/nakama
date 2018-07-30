@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -164,6 +165,6 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 	}
 }
 
-func (s *ConsoleServer) Login(context.Context, *console.AuthenticateRequest) (*console.Session, error) {
+func (s *ConsoleServer) Login(context.Context, *console.AuthenticateRequest) (*empty.Empty, error) {
 	return nil, nil
 }
