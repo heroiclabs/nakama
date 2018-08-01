@@ -138,6 +138,12 @@ func (s *ConsoleServer) Stop() {
 func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
+		switch info.FullMethod {
+		// skip authentication check for Login endpoint
+		case "/nakama.console.Console/Login":
+			return handler(ctx, req)
+		}
+
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
 			logger.Error("Cannot extract metadata from incoming context")
@@ -165,6 +171,11 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 	}
 }
 
-func (s *ConsoleServer) Login(context.Context, *console.AuthenticateRequest) (*empty.Empty, error) {
-	return nil, nil
+func (s *ConsoleServer) Login(ctx context.Context, in *console.AuthenticateRequest) (*empty.Empty, error) {
+	username := s.config.GetConsole().Username
+	password := s.config.GetConsole().Password
+	if in.Username == username && in.Password == password {
+		return &empty.Empty{}, nil
+	}
+	return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 }
