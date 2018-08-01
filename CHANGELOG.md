@@ -19,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Runtime module loading now correctly handles paths on non-UNIX environments.
+- Correctly handle blocked user list when importing friends from Facebook.
 
 ## [2.0.2] - 2018-07-09
 ### Added

@@ -626,17 +626,25 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 			}
 			return err
 		}
-		defer rows.Close()
 
 		var id string
+		possibleFriendIDs := make([]uuid.UUID, 0)
 		for rows.Next() {
-			position := time.Now().UTC().UnixNano()
 			err = rows.Scan(&id)
 			if err != nil {
 				// Error scanning the ID, try to skip this user and move on.
 				continue
 			}
-			friendID := uuid.FromStringOrNil(id)
+			friendID, err := uuid.FromString(id)
+			if err != nil {
+				continue
+			}
+			possibleFriendIDs = append(possibleFriendIDs, friendID)
+		}
+		rows.Close()
+
+		for _, friendID := range possibleFriendIDs {
+			position := time.Now().UTC().UnixNano()
 
 			var r *sql.Rows
 			r, err = tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
