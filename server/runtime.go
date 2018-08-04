@@ -270,8 +270,8 @@ func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
 	return nil
 }
 
-func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string, payload interface{}) (interface{}, error, codes.Code) {
-	ctx := NewLuaContext(r.vm, r.luaEnv, execMode, queryParams, uid, username, sessionExpiry, sid)
+func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string, clientIP string, clientPort string, payload interface{}) (interface{}, error, codes.Code) {
+	ctx := NewLuaContext(r.vm, r.luaEnv, execMode, queryParams, sessionExpiry, uid, username, sid, clientIP, clientPort)
 	var lv lua.LValue
 	if payload != nil {
 		lv = ConvertValue(r.vm, payload)

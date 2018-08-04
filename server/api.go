@@ -28,6 +28,7 @@ import (
 
 	"compress/flate"
 	"compress/gzip"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
@@ -49,6 +50,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -256,8 +258,30 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 		startNanos := time.Now().UTC().UnixNano()
 		span := trace.NewSpan(name, nil, trace.StartOptions{})
 
+		clientAddr := ""
+		clientIP := ""
+		clientPort := ""
+		md, _ := metadata.FromIncomingContext(ctx)
+		if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
+			// look for gRPC-Gateway / LB header
+			clientAddr = strings.Split(ips[0], ",")[0]
+		} else if peerInfo, ok := peer.FromContext(ctx); ok {
+			// if missing, try to look up gRPC peer info
+			clientAddr = peerInfo.Addr.String()
+		}
+
+		clientAddr = strings.TrimSpace(clientAddr)
+		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
+			clientIP = host
+			clientPort = port
+		} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
+			clientIP = clientAddr
+		} else {
+			logger.Debug("Could not extract client address from request.", zap.Error(err))
+		}
+
 		// Actual before hook function execution.
-		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, info.FullMethod, req)
+		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, clientIP, clientPort, info.FullMethod, req)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -283,7 +307,7 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 			span := trace.NewSpan(name, nil, trace.StartOptions{})
 
 			// Actual after hook function execution.
-			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, handlerResult)
+			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, clientIP, clientPort, handlerResult)
 
 			// Stats measurement end boundary.
 			span.End()
