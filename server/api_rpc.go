@@ -15,6 +15,7 @@
 package server
 
 import (
+	"net"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -25,6 +26,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -71,7 +73,18 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, queryParams, uid, username, expiry, "", in.Payload)
+	clientIP := ""
+	clientPort := ""
+	if peerInfo, ok := peer.FromContext(ctx); ok {
+		if host, port, err := net.SplitHostPort(peerInfo.Addr.String()); err == nil {
+			clientIP = host
+			clientPort = port
+		} else {
+			s.logger.Debug("Could not extract client address from request.", zap.Error(err))
+		}
+	}
+
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
 	s.runtimePool.Put(runtime)
 
 	if fnErr != nil {

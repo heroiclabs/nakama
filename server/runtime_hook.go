@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionID string, uid uuid.UUID, username string, expiry int64, callbackID string, req interface{}) (interface{}, error) {
+func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionID string, uid uuid.UUID, username string, expiry int64, clientIP string, clientPort string, callbackID string, req interface{}) (interface{}, error) {
 	id := strings.ToLower(callbackID)
 	if !runtimePool.HasCallback(ExecutionModeBefore, id) {
 		return req, nil
@@ -65,7 +65,7 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	result, fnErr, code := runtime.InvokeFunction(ExecutionModeBefore, lf, nil, userID, username, expiry, sessionID, reqMap)
+	result, fnErr, code := runtime.InvokeFunction(ExecutionModeBefore, lf, nil, userID, username, expiry, sessionID, clientIP, clientPort, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -105,7 +105,7 @@ func invokeReqBeforeHook(logger *zap.Logger, config Config, runtimePool *Runtime
 	return reqProto, nil
 }
 
-func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, sessionID string, uid uuid.UUID, username string, expiry int64, callbackID string, req interface{}) {
+func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, sessionID string, uid uuid.UUID, username string, expiry int64, clientIP string, clientPort string, callbackID string, req interface{}) {
 	id := strings.ToLower(callbackID)
 	if !runtimePool.HasCallback(ExecutionModeAfter, id) {
 		return
@@ -143,7 +143,7 @@ func invokeReqAfterHook(logger *zap.Logger, config Config, runtimePool *RuntimeP
 	if uid != uuid.Nil {
 		userID = uid.String()
 	}
-	_, fnErr, _ := runtime.InvokeFunction(ExecutionModeAfter, lf, nil, userID, username, expiry, sessionID, reqMap)
+	_, fnErr, _ := runtime.InvokeFunction(ExecutionModeAfter, lf, nil, userID, username, expiry, sessionID, clientIP, clientPort, reqMap)
 	runtimePool.Put(runtime)
 
 	if fnErr != nil {
@@ -176,7 +176,7 @@ func invokeMatchmakerMatchedHook(logger *zap.Logger, runtimePool *RuntimePool, e
 		return "", false
 	}
 
-	ctx := NewLuaContext(runtime.vm, runtime.luaEnv, ExecutionModeMatchmaker, nil, "", "", 0, "")
+	ctx := NewLuaContext(runtime.vm, runtime.luaEnv, ExecutionModeMatchmaker, nil, 0, "", "", "", "", "")
 
 	entriesTable := runtime.vm.CreateTable(len(entries), 0)
 	for i, entry := range entries {

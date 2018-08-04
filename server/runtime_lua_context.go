@@ -58,19 +58,29 @@ const (
 	__CTX_USERNAME         = "username"
 	__CTX_USER_SESSION_EXP = "user_session_exp"
 	__CTX_SESSION_ID       = "session_id"
+	__CTX_IP_ADDRESS       = "ip_address"
+	__CTX_PORT             = "port"
 	__CTX_MATCH_ID         = "match_id"
 	__CTX_MATCH_NODE       = "match_node"
 	__CTX_MATCH_LABEL      = "match_label"
 	__CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string) *lua.LTable {
+func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryParams map[string][]string, sessionExpiry int64,
+	userID, username, sessionID, clientIP, clientPort string) *lua.LTable {
 	size := 3
-	if uid != "" {
+	if userID != "" {
 		size += 3
-		if sid != "" {
+		if sessionID != "" {
 			size++
 		}
+	}
+
+	if clientIP != "" {
+		size++
+	}
+	if clientPort != "" {
+		size++
 	}
 
 	lt := l.CreateTable(0, size)
@@ -82,13 +92,21 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryPara
 		lt.RawSetString(__CTX_QUERY_PARAMS, ConvertValue(l, queryParams))
 	}
 
-	if uid != "" {
-		lt.RawSetString(__CTX_USER_ID, lua.LString(uid))
+	if userID != "" {
+		lt.RawSetString(__CTX_USER_ID, lua.LString(userID))
 		lt.RawSetString(__CTX_USERNAME, lua.LString(username))
 		lt.RawSetString(__CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
-		if sid != "" {
-			lt.RawSetString(__CTX_SESSION_ID, lua.LString(sid))
+		if sessionID != "" {
+			lt.RawSetString(__CTX_SESSION_ID, lua.LString(sessionID))
 		}
+	}
+
+	if clientIP != "" {
+		lt.RawSetString(__CTX_IP_ADDRESS, lua.LString(clientIP))
+	}
+
+	if clientPort != "" {
+		lt.RawSetString(__CTX_PORT, lua.LString(clientPort))
 	}
 
 	return lt

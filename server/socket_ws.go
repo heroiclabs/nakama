@@ -15,15 +15,18 @@
 package server
 
 import (
+	"net"
 	"net/http"
+	"strings"
 
 	"context"
+	"time"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
-	"time"
 )
 
 var SocketWsStatsCtx = context.Background()
@@ -49,6 +52,23 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 			return
 		}
 
+		clientAddr := ""
+		clientIP := ""
+		clientPort := ""
+		if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
+			clientAddr = strings.Split(ips, ",")[0]
+		} else {
+			clientAddr = r.RemoteAddr
+		}
+
+		clientAddr = strings.TrimSpace(clientAddr)
+		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
+			clientIP = host
+			clientPort = port
+		} else {
+			logger.Debug("Could not extract client address from request.", zap.Error(err))
+		}
+
 		status := false
 		if r.URL.Query().Get("status") == "true" {
 			status = true
@@ -68,7 +88,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, userID, username, expiry, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
+		s := NewSessionWS(logger, config, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
 
 		// Add to the session registry.
 		sessionRegistry.add(s)

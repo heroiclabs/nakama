@@ -19,14 +19,15 @@ import (
 	"fmt"
 
 	"context"
+	"strings"
+	"time"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
-	"strings"
-	"time"
 )
 
 type Pipeline struct {
@@ -147,7 +148,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		span := trace.NewSpan(name, nil, trace.StartOptions{})
 
 		// Actual before hook function execution.
-		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), session.ClientIP(), session.ClientPort(), messageName, envelope)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -202,7 +203,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		span := trace.NewSpan(name, nil, trace.StartOptions{})
 
 		// Actual after hook function execution.
-		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), messageName, envelope)
+		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), session.ClientIP(), session.ClientPort(), messageName, envelope)
 
 		// Stats measurement end boundary.
 		span.End()

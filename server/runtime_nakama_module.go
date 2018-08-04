@@ -41,6 +41,7 @@ import (
 	"crypto/sha256"
 
 	"crypto/md5"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -327,7 +328,7 @@ func (n *NakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), ExecutionModeRunOnce, nil, "", "", 0, "")
+		ctx := NewLuaContext(l, ConvertMap(l, n.config.GetRuntime().Environment), ExecutionModeRunOnce, nil, 0, "", "", "", "", "")
 
 		l.Push(LSentinel)
 		l.Push(fn)

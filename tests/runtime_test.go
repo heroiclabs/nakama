@@ -347,7 +347,7 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	fn := r.GetCallback(server.ExecutionModeRPC, "helloworld")
 	payload := "Hello World"
 
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -425,7 +425,7 @@ nakama.register_rpc(test, "test")
 	defer r.Stop()
 
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "")
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -454,7 +454,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -483,7 +483,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -512,7 +512,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -541,7 +541,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -596,7 +596,7 @@ nakama.register_rpc(test, "test")
 
 	payload := "{\"key\":\"value\"}"
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", payload)
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Error(err)
 	}
@@ -627,7 +627,7 @@ nakama.register_rpc(test, "test")
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
 	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", string(hash))
+	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", string(hash))
 	if err != nil {
 		t.Error(err)
 	}

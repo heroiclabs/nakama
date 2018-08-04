@@ -35,12 +35,14 @@ var ErrSessionQueueFull = errors.New("session outgoing queue full")
 
 type sessionWS struct {
 	sync.Mutex
-	logger   *zap.Logger
-	config   Config
-	id       uuid.UUID
-	userID   uuid.UUID
-	username *atomic.String
-	expiry   int64
+	logger     *zap.Logger
+	config     Config
+	id         uuid.UUID
+	userID     uuid.UUID
+	username   *atomic.String
+	expiry     int64
+	clientIP   string
+	clientPort string
 
 	jsonpbMarshaler        *jsonpb.Marshaler
 	jsonpbUnmarshaler      *jsonpb.Unmarshaler
@@ -61,19 +63,21 @@ type sessionWS struct {
 	outgoingStopCh         chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
+func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New WebSocket session connected")
 
 	return &sessionWS{
-		logger:   sessionLogger,
-		config:   config,
-		id:       sessionID,
-		userID:   userID,
-		username: atomic.NewString(username),
-		expiry:   expiry,
+		logger:     sessionLogger,
+		config:     config,
+		id:         sessionID,
+		userID:     userID,
+		username:   atomic.NewString(username),
+		expiry:     expiry,
+		clientIP:   clientIP,
+		clientPort: clientIP,
 
 		jsonpbMarshaler:        jsonpbMarshaler,
 		jsonpbUnmarshaler:      jsonpbUnmarshaler,
@@ -105,6 +109,14 @@ func (s *sessionWS) ID() uuid.UUID {
 
 func (s *sessionWS) UserID() uuid.UUID {
 	return s.userID
+}
+
+func (s *sessionWS) ClientIP() string {
+	return s.clientIP
+}
+
+func (s *sessionWS) ClientPort() string {
+	return s.clientPort
 }
 
 func (s *sessionWS) Username() string {
