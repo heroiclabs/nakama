@@ -77,7 +77,7 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		username:   atomic.NewString(username),
 		expiry:     expiry,
 		clientIP:   clientIP,
-		clientPort: clientIP,
+		clientPort: clientPort,
 
 		jsonpbMarshaler:        jsonpbMarshaler,
 		jsonpbUnmarshaler:      jsonpbUnmarshaler,

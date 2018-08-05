@@ -65,6 +65,8 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
 			clientIP = host
 			clientPort = port
+		} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
+			clientIP = clientAddr
 		} else {
 			logger.Debug("Could not extract client address from request.", zap.Error(err))
 		}

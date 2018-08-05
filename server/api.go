@@ -274,6 +274,8 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
 			clientIP = host
 			clientPort = port
+		} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
+			clientIP = clientAddr
 		} else {
 			logger.Debug("Could not extract client address from request.", zap.Error(err))
 		}
