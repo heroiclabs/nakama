@@ -58,8 +58,8 @@ const (
 	__CTX_USERNAME         = "username"
 	__CTX_USER_SESSION_EXP = "user_session_exp"
 	__CTX_SESSION_ID       = "session_id"
-	__CTX_IP_ADDRESS       = "ip_address"
-	__CTX_PORT             = "port"
+	__CTX_CLIENT_IP        = "client_ip"
+	__CTX_CLIENT_PORT      = "client_port"
 	__CTX_MATCH_ID         = "match_id"
 	__CTX_MATCH_NODE       = "match_node"
 	__CTX_MATCH_LABEL      = "match_label"
@@ -102,11 +102,11 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryPara
 	}
 
 	if clientIP != "" {
-		lt.RawSetString(__CTX_IP_ADDRESS, lua.LString(clientIP))
+		lt.RawSetString(__CTX_CLIENT_IP, lua.LString(clientIP))
 	}
 
 	if clientPort != "" {
-		lt.RawSetString(__CTX_PORT, lua.LString(clientPort))
+		lt.RawSetString(__CTX_CLIENT_PORT, lua.LString(clientPort))
 	}
 
 	return lt
