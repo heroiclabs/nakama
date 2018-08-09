@@ -1,6 +1,6 @@
 <template>
-  <div class="home">
-    <h2>Nakama Console - Home</h2>
+  <div class="users">
+    <h2>Nakama Console - Users</h2>
   </div>
 </template>
 
@@ -10,5 +10,5 @@ import { Component, Vue } from 'vue-property-decorator';
 @Component({
   components: {},
 })
-export default class Home extends Vue {}
+export default class Users extends Vue {}
 </script>
