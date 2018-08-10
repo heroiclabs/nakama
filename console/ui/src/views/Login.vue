@@ -16,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
+import Vue from 'vue';
 import LoginBox from '@/components/LoginBox.vue';
 
 export default Vue.extend({

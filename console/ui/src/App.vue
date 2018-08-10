@@ -50,13 +50,4 @@ body {
   -webkit-transform: translate3d(200px,0,0) !important;
   transform: translate3d(200px,0,0) !important;
 }
-
-#nav {
-  /*padding: 30px;*/
-}
-
-/*#nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}*/
 </style>
