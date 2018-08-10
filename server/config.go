@@ -94,6 +94,21 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if l := len(mainConfig.Name); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
+	if mainConfig.GetSocket().ServerKey == "" {
+		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
+	}
+	if mainConfig.GetSession().EncryptionKey == "" {
+		logger.Fatal("Encryption key must be set", zap.String("param", "session.encryption_key"))
+	}
+	if mainConfig.GetRuntime().HTTPKey == "" {
+		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
+	}
+	if mainConfig.GetConsole().Username == "" {
+		logger.Fatal("Console username must be set", zap.String("param", "console.username"))
+	}
+	if mainConfig.GetConsole().Password == "" {
+		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
+	}
 	if p := mainConfig.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
 		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", mainConfig.GetSocket().Protocol))
 	}

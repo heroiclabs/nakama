@@ -16,12 +16,11 @@ package server
 
 import (
 	"context"
+	"database/sql"
 
 	"encoding/json"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/console"
@@ -30,51 +29,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ConsoleServer) DeleteAccountRecorded(ctx context.Context, in *console.AccountDeleteRequest) (*empty.Empty, error) {
-	userID := uuid.FromStringOrNil(in.Id)
-	if userID == uuid.Nil {
-		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
+func (s *ConsoleServer) RecordAccountDeletion(tx *sql.Tx, userID uuid.UUID) error {
+	if _, err := tx.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
+		s.logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", userID.String()))
+		return err
 	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
-	}
-
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
-		count, err := DeleteUser(tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		} else if count == 0 {
-			s.logger.Info("No user was found to delete. Skipping blacklist.", zap.String("user_id", in.Id))
-			return nil
-		}
-
-		err = LeaderboardRecordsDeleteAll(s.logger, tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		}
-
-		err = GroupDeleteAll(s.logger, tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete groups and relationships.", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		}
-
-		if _, err = tx.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
-			s.logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		}
-		return nil
-	}); err != nil {
-		s.logger.Error("Error occurred while trying to delete the user.", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
-	}
-
-	return &empty.Empty{}, nil
+	return nil
 }
 
 func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountIdRequest) (*console.AccountExport, error) {
