@@ -27,7 +27,7 @@ export default Vue.extend({
 </script>
 
 <style scoped>
-#app, body > .grid {
+.login {
   height: 100%;
 }
 

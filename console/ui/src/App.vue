@@ -1,20 +1,18 @@
 <template>
-  <div id="app" :class="{fullheight: !isAuthenticated}">
-    <div class="fullheight" v-if="!isAuthenticated">
+  <div id="app">
+    <template v-if="!isAuthenticated">
       <!-- login view -->
       <router-view/>
-    </div>
+    </template>
     <template v-else>
-      <div class="ui grid">
-        <div class="doubling sixteen column row no-gutter-bottom">
-          <div class="two wide column">
-            <Sidebar/>
-          </div>
-          <div class="fourteen wide column no-gutter-left">
+      <section class="ui segment bottom attached pushable">
+        <Sidebar/>
+        <div class="pusher">
+          <div class="ui basic segment">
             <router-view/>
           </div>
         </div>
-      </div>
+      </section>
     </template>
   </div>
 </template>
@@ -45,26 +43,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
-}
-
-.fullheight {
   height: 100%;
 }
 
-.no-gutter-left {
-  padding-left: 0px !important;
-}
-
-.no-gutter-bottom {
-  padding-bottom: 0px !important;
+.pusher {
+  -webkit-transform: translate3d(200px,0,0) !important;
+  transform: translate3d(200px,0,0) !important;
 }
 
 #nav {
-  padding: 30px;
+  /*padding: 30px;*/
 }
 
-#nav a {
+/*#nav a {
   font-weight: bold;
   color: #2c3e50;
-}
+}*/
 </style>
