@@ -3,9 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.0.3] - 2018-08-10
 ### Added
-- New `bit32` module available in the code runtime.
+- New "bit32" backported module available in the code runtime.
 - New code runtime function to create MD5 hashes.
 - New code runtime function to create SHA256 hashes.
 - Runtime stream user list function now allows filtering hidden presences.
@@ -14,8 +14,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Reduce the frequency of socket checks on known active connections.
 - Deleting a record from a leaderboard that does not exist now succeeds.
-- Notification listings now use more accurate time in cacheable cursors.
-- Use "root" as the default database user if not otherwise specified.
+- Notification listings use a more accurate timestamp in cacheable cursors.
+- Use "root" as the default database user if not specified.
 
 ### Fixed
 - Runtime module loading now correctly handles paths on non-UNIX environments.
