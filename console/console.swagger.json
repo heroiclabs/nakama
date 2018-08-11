@@ -60,7 +60,7 @@
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/nakamaconsoleAccount"
+              "$ref": "#/definitions/apiAccount"
             }
           }
         },
@@ -375,6 +375,40 @@
     }
   },
   "definitions": {
+    "apiAccount": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "The user's wallet data."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user."
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAccountDevice"
+          },
+          "description": "The devices which belong to the user's account."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "The custom id in the user's account."
+        },
+        "verify_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user's email was verified."
+        }
+      },
+      "description": "A user with additional account details. Always the current user."
+    },
     "apiAccountDevice": {
       "type": "object",
       "properties": {
@@ -677,7 +711,7 @@
       "type": "object",
       "properties": {
         "account": {
-          "$ref": "#/definitions/nakamaapiAccount",
+          "$ref": "#/definitions/apiAccount",
           "description": "The user's account details."
         },
         "objects": {
@@ -738,7 +772,7 @@
         "accounts": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/nakamaapiAccount"
+            "$ref": "#/definitions/apiAccount"
           }
         }
       },
@@ -803,40 +837,6 @@
       },
       "description": "*\nA wallet ledger item representing a change to the user's wallet."
     },
-    "nakamaapiAccount": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/apiUser",
-          "description": "The user object."
-        },
-        "wallet": {
-          "type": "string",
-          "description": "The user's wallet data."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the user."
-        },
-        "devices": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiAccountDevice"
-          },
-          "description": "The devices which belong to the user's account."
-        },
-        "custom_id": {
-          "type": "string",
-          "description": "The custom id in the user's account."
-        },
-        "verify_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the user's email was verified."
-        }
-      },
-      "description": "A user with additional account details. Always the current user."
-    },
     "nakamaapiStorageObject": {
       "type": "object",
       "properties": {
@@ -882,36 +882,6 @@
         }
       },
       "description": "An object within the storage engine."
-    },
-    "nakamaconsoleAccount": {
-      "type": "object",
-      "properties": {
-        "account": {
-          "$ref": "#/definitions/nakamaapiAccount",
-          "description": "The user's account details."
-        },
-        "friends": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiFriend"
-          },
-          "description": "The user's friends."
-        },
-        "groups": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiGroup"
-          },
-          "description": "The user's groups."
-        },
-        "wallet_ledgers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/consoleWalletLedger"
-          },
-          "description": "The user's wallet ledger items."
-        }
-      }
     },
     "nakamaconsoleStorageObject": {
       "type": "object",

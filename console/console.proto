@@ -106,7 +106,7 @@ service Console {
   }
 
   // Get info about a particular account
-  rpc GetAccount (AccountIdRequest) returns (Account) {
+  rpc GetAccount (AccountIdRequest) returns (nakama.api.Account) {
     option (google.api.http).get = "/v2/console/account/{id}";
   }
 
@@ -139,17 +139,6 @@ service Console {
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (google.protobuf.Empty) {
     option (google.api.http).put = "/v2/console/storage";
   }
-}
-
-message Account {
-  // The user's account details.
-  nakama.api.Account account = 1;
-  // The user's friends.
-  repeated nakama.api.Friend friends = 2;
-  // The user's groups.
-  repeated nakama.api.Group groups = 3;
-  // The user's wallet ledger items.
-  repeated WalletLedger wallet_ledgers = 4;
 }
 
 /**
