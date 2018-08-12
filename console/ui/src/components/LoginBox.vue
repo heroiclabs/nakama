@@ -59,14 +59,13 @@ export default Vue.extend({
         this.$router.replace({name: 'home'});
       }).catch((error) => {
         this.loading = false;
-        this.error = error.message;
+        this.error = error.response.data.error;
       });
     },
   },
 });
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 h3 {
   margin: 40px 0 0;

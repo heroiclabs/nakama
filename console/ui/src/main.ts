@@ -3,7 +3,7 @@ import Vue from 'vue';
 import VeeValidate from 'vee-validate';
 import axios from 'axios';
 import App from './App.vue';
-import store from './store/index';
+import store from './store/main';
 import router from './router';
 
 Vue.config.productionTip = false;

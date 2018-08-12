@@ -1,19 +1,15 @@
 <template>
-  <div id="app">
-    <template v-if="!isAuthenticated">
-      <!-- login view -->
-      <router-view/>
-    </template>
-    <template v-else>
-      <section class="ui segment bottom attached pushable">
-        <Sidebar/>
-        <div class="pusher">
-          <div class="ui basic segment">
-            <router-view/>
-          </div>
-        </div>
-      </section>
-    </template>
+  <div v-if="!isAuthenticated" id="app" class="fullheight">
+    <!-- login view -->
+    <router-view/>
+  </div>
+  <div v-else id="app">
+    <Sidebar/>
+    <section class="pusher">
+      <div class="ui basic segment">
+        <router-view/>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -43,11 +39,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
+}
+
+.fullheight {
   height: 100%;
 }
 
 .pusher {
-  -webkit-transform: translate3d(200px,0,0) !important;
-  transform: translate3d(200px,0,0) !important;
+  min-width: 500px;
+  margin-left: 200px;
 }
 </style>
