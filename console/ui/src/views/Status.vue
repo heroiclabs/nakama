@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <h2>Nakama Console - Home</h2>
+    <h2>Nakama Console - Status</h2>
   </div>
 </template>
 

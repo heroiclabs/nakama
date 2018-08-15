@@ -23,6 +23,11 @@ axios.interceptors.response.use((response) => {
     // Received non-200 response...
     console.error('Received HTTP response error: %o', error.response);
   } else if (error.request) {
+    error.response = {
+      data: {
+        error: 'Could not send request due to bad request.',
+      },
+    };
     console.error('Could not send request - is the server running? %o', error.request);
   } else {
     console.log('Unknown error occured: %o', error.message);

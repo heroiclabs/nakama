@@ -16,11 +16,11 @@
         </tr>
         <tr v-for="account in accounts">
           <td class="collapsing">
-            <button @click="deleteUser(account.user.id)" class="ui compact fluid icon button">
+            <button @click="deleteAccount(account.user.id)" class="ui compact fluid icon button">
               <i class="icon trash"></i>
             </button>
           </td>
-          <td><router-link :to="'/users/'+account.user.id">{{account.user.id}}</router-link></td>
+          <td><router-link :to="'/accounts/'+account.user.id">{{account.user.id}}</router-link></td>
           <td>{{account.user.username}}</td>
           <td>{{account.user.display_name ? account.user.display_name : '-'}}</td>
           <td>{{account.email ? account.email : '-'}}</td>
@@ -52,10 +52,15 @@ export default Vue.extend({
     },
   },
   methods: {
-    async deleteUser(userId: string): Promise<void> {
+    async deleteAccount(userId: string): Promise<void> {
       this.deleting = true;
-      await this.$store.dispatch('deleteUser', userId);
-      this.deleting = false;
+      try {
+        await this.$store.dispatch('deleteAccount', userId);
+      } catch (error) {
+        this.$emit('on-error', error);
+      } finally {
+        this.deleting = false;
+      }
     },
   },
 });

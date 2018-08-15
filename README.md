@@ -126,6 +126,7 @@ To build the codebase and generate all sources use these steps.
 
     ```shell
     cd console/ui
+    yarn install
     yarn build
     cd ../../
     ```

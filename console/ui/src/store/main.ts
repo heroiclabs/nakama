@@ -3,8 +3,9 @@ import Vuex from 'vuex';
 import { Store, ActionTree, ActionContext, GetterTree } from 'vuex';
 import axios from 'axios';
 
-import { MainState, UsersState, Credentials } from './types';
-import Users from './users';
+import { MainState, Credentials } from './types';
+import Account from './account';
+import Accounts from './accounts';
 
 Vue.use(Vuex);
 
@@ -33,7 +34,7 @@ const getters: GetterTree<MainState, any> = {
 };
 
 const mainState: MainState = {
-  credentials: undefined,
+  credentials: {username: 'admin', password: 'password'},
 };
 
 export default new Vuex.Store<MainState>({
@@ -42,6 +43,7 @@ export default new Vuex.Store<MainState>({
   actions,
   getters,
   modules: {
-    Users,
+    Account,
+    Accounts,
   },
 });

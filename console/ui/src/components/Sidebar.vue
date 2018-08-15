@@ -2,17 +2,17 @@
   <nav class="ui large sidebar menu vertical left visible blue inverted overlay">
     <div class="item"><img src="@/assets/nakama_logo_small.png" class="logo"></div>
     <!--
-    <router-link class="item" exact-active-class="active" to="/"><i class="dashboard icon"></i> Status</router-link>
-    <router-link class="item" exact-active-class="active" to="/config"><i class="settings icon"></i>Configuration</router-link>
+    <router-link class="item" active-class="active" to="/status"><i class="dashboard icon"></i> Status</router-link>
+    <router-link class="item" active-class="active" to="/config"><i class="settings icon"></i>Configuration</router-link>
      -->
-    <router-link class="item" exact-active-class="active" to="/users"><i class="users icon"></i>Users</router-link>
-    <router-link class="item" exact-active-class="active" to="/storage"><i class="database icon"></i>Storage</router-link>
+    <router-link class="item" active-class="active" to="/accounts"><i class="users icon"></i>Accounts</router-link>
+    <router-link class="item" active-class="active" to="/storage"><i class="database icon"></i>Storage</router-link>
     <!--
-    <router-link class="item" exact-active-class="active" to="/leaderboards"><i class="trophy icon"></i>Leaderboards</router-link>
-    <router-link class="item" exact-active-class="active" to="/tournaments"><i class="icon"></i>Tournaments</router-link>
-    <router-link class="item" exact-active-class="active" to="/runtime"><i class="code icon"></i>Runtime</router-link>
-    <router-link class="item" exact-active-class="active" to="/logs"><i class="browser icon"></i>Logs</router-link>
-    <router-link class="item" exact-active-class="active" to="/apidebugger"><i class="bug icon"></i>API Debugger</router-link>
+    <router-link class="item" active-class="active" to="/leaderboards"><i class="trophy icon"></i>Leaderboards</router-link>
+    <router-link class="item" active-class="active" to="/tournaments"><i class="icon"></i>Tournaments</router-link>
+    <router-link class="item" active-class="active" to="/runtime"><i class="code icon"></i>Runtime</router-link>
+    <router-link class="item" active-class="active" to="/logs"><i class="browser icon"></i>Logs</router-link>
+    <router-link class="item" active-class="active" to="/apidebugger"><i class="bug icon"></i>API Debugger</router-link>
     -->
 
     <br/>

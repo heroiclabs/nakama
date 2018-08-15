@@ -2,8 +2,9 @@ import Vue from 'vue';
 import Router from 'vue-router';
 import store from './store/main';
 import Login from './views/Login.vue';
-import Home from './views/Home.vue';
-import Users from './views/Users.vue';
+import Status from './views/Status.vue';
+import AccountList from './views/AccountList.vue';
+import Account from './views/Account.vue';
 import Storage from './views/Storage.vue';
 
 Vue.use(Router);
@@ -12,30 +13,39 @@ const router = new Router({
   routes: [
     {
       path: '/login',
-      name: 'login',
       component: Login,
     },
     {
       path: '/',
-      name: 'home',
-      // component: Home,
-      redirect: '/users',
+      name: '/',
+      redirect: '/accounts',
     },
-    // {
-    //   path: '/config',
-    //   name: 'config',
-    //   component: Config,
-    // },
     {
-      path: '/users',
-      name: 'users',
-      component: Users,
+      path: '/status',
+      name: 'status',
+      component: Status,
+    },
+    {
+      path: '/accounts',
+      name: 'accounts',
+      component: AccountList,
+    },
+    {
+      path: '/accounts/:id',
+      name: 'account',
+      component: Account,
+      props: true,
     },
     {
       path: '/storage',
       name: 'storage',
       component: Storage,
     },
+    // {
+    //   path: '/config',
+    //   name: 'config',
+    //   component: Config,
+    // },
     // {
     //   path: '/leaderboards',
     //   name: 'leaderboards',

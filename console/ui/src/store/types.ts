@@ -30,7 +30,21 @@ export interface Credentials {
   password: string;
 }
 
-export interface UsersState {
+export interface Friend {
+
+}
+
+export interface Group {
+
+}
+
+export interface AccountState {
+  currentAccount?: Account[]; // has to be a list so that vuex notifies on change.
+  friends?: Friend[];
+  groups?: Group[];
+}
+
+export interface AccountsState {
   accounts: Account[];
 }
 

@@ -56,7 +56,7 @@ export default Vue.extend({
       };
       this.$store.dispatch('authenticate', credentials).then(() => {
         this.loading = false;
-        this.$router.replace({name: 'home'});
+        this.$router.replace({path: '/'});
       }).catch((error) => {
         this.loading = false;
         this.error = error.response.data.error;
