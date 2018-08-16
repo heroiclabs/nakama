@@ -34,7 +34,7 @@ const getters: GetterTree<MainState, any> = {
 };
 
 const mainState: MainState = {
-  credentials: {},
+  credentials: undefined,
 };
 
 export default new Vuex.Store<MainState>({

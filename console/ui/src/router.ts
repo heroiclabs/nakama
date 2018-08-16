@@ -20,11 +20,11 @@ const router = new Router({
       name: '/',
       redirect: '/accounts',
     },
-    {
-      path: '/status',
-      name: 'status',
-      component: Status,
-    },
+    // {
+    //   path: '/status',
+    //   name: 'status',
+    //   component: Status,
+    // },
     {
       path: '/accounts',
       name: 'accounts',
@@ -36,11 +36,11 @@ const router = new Router({
       component: Account,
       props: true,
     },
-    {
-      path: '/storage',
-      name: 'storage',
-      component: Storage,
-    },
+    // {
+    //   path: '/storage',
+    //   name: 'storage',
+    //   component: Storage,
+    // },
     // {
     //   path: '/config',
     //   name: 'config',

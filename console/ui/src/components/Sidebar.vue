@@ -6,7 +6,7 @@
     <router-link class="item" active-class="active" to="/config"><i class="settings icon"></i>Configuration</router-link>
      -->
     <router-link class="item" active-class="active" to="/accounts"><i class="users icon"></i>Accounts</router-link>
-    <router-link class="item" active-class="active" to="/storage"><i class="database icon"></i>Storage</router-link>
+    <!-- <router-link class="item" active-class="active" to="/storage"><i class="database icon"></i>Storage</router-link> -->
     <!--
     <router-link class="item" active-class="active" to="/leaderboards"><i class="trophy icon"></i>Leaderboards</router-link>
     <router-link class="item" active-class="active" to="/tournaments"><i class="icon"></i>Tournaments</router-link>
@@ -20,9 +20,9 @@
     <a class="ui item sub tiny header" href="https://gitter.im/heroiclabs/nakama" target="_blank">Community</a>
     <a class="ui item sub tiny header" href="https://heroiclabs.com/services" target="_blank">Heroic Support</a>
     <br />
-    <div class="ui item sub tiny inverted grey header">
+    <!-- <div class="ui item sub tiny inverted grey header">
       <p>Nakama 2.0.3</p>
-    </div>
+    </div> -->
   </nav>
 </template>
 
