@@ -120,6 +120,16 @@ service Console {
     option (google.api.http).get = "/v2/console/account";
   }
 
+  // List friends for a particular account.
+  rpc ListFriends (AccountIdRequest) returns (nakama.api.Friends) {
+    option (google.api.http).get = "/v2/console/account/{id}/friends";
+  }
+
+  // List groups a particular belongs account to.
+  rpc ListGroups (AccountIdRequest) returns (nakama.api.UserGroupList) {
+    option (google.api.http).get = "/v2/console/account/{id}/groups";
+  }
+
   // List all storage collections.
   rpc ListStorageCollections(google.protobuf.Empty) returns (StorageCollectionList) {
     option (google.api.http).get = "/v2/console/storage";

@@ -119,10 +119,10 @@ export default Vue.extend({
     },
   },
   methods: {
-    async loadAccount(): Promise<void> {
+    async loadAccount(id: string): Promise<void> {
       this.loading = true;
       try {
-        await this.$store.dispatch('loadAccount', this.id);
+        await this.$store.dispatch('loadAccount', id);
       } catch (error) {
         this.$emit('on-error', error);
       } finally {
@@ -132,7 +132,7 @@ export default Vue.extend({
   },
   async created() {
     try {
-      await this.loadAccount();
+      await this.loadAccount(this.id);
     } catch (error) {
       this.$emit('on-error', error);
     }

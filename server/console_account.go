@@ -99,8 +99,8 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountIdReq
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
-		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		s.logger.Error("Could not get account data", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to get user data.")
 	}
 
 	return account, nil
@@ -134,4 +134,40 @@ func (s *ConsoleServer) ListAccounts(context.Context, *empty.Empty) (*console.Ac
 	}
 
 	return &console.AccountList{Accounts: accounts}, nil
+}
+
+func (s *ConsoleServer) ListFriends(ctx context.Context, in *console.AccountIdRequest) (*api.Friends, error) {
+	userID := uuid.FromStringOrNil(in.Id)
+	if userID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
+	}
+
+	friends, err := GetFriends(s.logger, s.db, nil, userID)
+	if err != nil {
+		if err == ErrAccountNotFound {
+			return nil, status.Error(codes.NotFound, "Account not found.")
+		}
+		s.logger.Error("Could not get friends.", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to get friends.")
+	}
+
+	return friends, nil
+}
+
+func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.AccountIdRequest) (*api.UserGroupList, error) {
+	userID := uuid.FromStringOrNil(in.Id)
+	if userID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
+	}
+
+	userGroupList, err := ListUserGroups(s.logger, s.db, userID)
+	if err != nil {
+		if err == ErrAccountNotFound {
+			return nil, status.Error(codes.NotFound, "Account not found.")
+		}
+		s.logger.Error("Could not get groups.", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to get groups.")
+	}
+
+	return userGroupList, nil
 }

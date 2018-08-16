@@ -136,6 +136,58 @@
         ]
       }
     },
+    "/v2/console/account/{id}/friends": {
+      "get": {
+        "summary": "List friends for a particular account.",
+        "operationId": "ListFriends",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiFriends"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/account/{id}/groups": {
+      "get": {
+        "summary": "List groups a particular belongs account to.",
+        "operationId": "ListGroups",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiUserGroupList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a user with username+password.",
@@ -375,6 +427,21 @@
     }
   },
   "definitions": {
+    "UserGroupListUserGroup": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/apiGroup",
+          "description": "Group."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The user's relationship to the group."
+        }
+      },
+      "description": "A single group-role pair."
+    },
     "apiAccount": {
       "type": "object",
       "properties": {
@@ -479,6 +546,19 @@
         }
       },
       "description": "A friend of a user."
+    },
+    "apiFriends": {
+      "type": "object",
+      "properties": {
+        "friends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiFriend"
+          },
+          "description": "The Friend objects."
+        }
+      },
+      "description": "A collection of zero or more friends of the user."
     },
     "apiGroup": {
       "type": "object",
@@ -706,6 +786,19 @@
         }
       },
       "description": "A user in the server."
+    },
+    "apiUserGroupList": {
+      "type": "object",
+      "properties": {
+        "user_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UserGroupListUserGroup"
+          },
+          "description": "Group-role pairs for a user."
+        }
+      },
+      "description": "A list of groups belonging to a user, along with the user's role in each group."
     },
     "consoleAccountExport": {
       "type": "object",
