@@ -3,7 +3,7 @@
 nakama
 
 # *.pb.go
-!dashboard/build
+console/ui/dist
 data/*
 .GITHUB_TOKEN
 .idea
