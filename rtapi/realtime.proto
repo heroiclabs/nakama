@@ -27,7 +27,7 @@ option go_package = "rtapi";
 
 option java_multiple_files = true;
 option java_outer_classname = "NakamaRealtime";
-option java_package = "com.heroiclabs.nakama";
+option java_package = "com.heroiclabs.nakama.rtapi";
 
 option csharp_namespace = "Nakama";
 
