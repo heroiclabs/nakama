@@ -648,11 +648,13 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 
 			var r *sql.Rows
 			r, err = tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
-			if err == nil {
+			if r.Next() {
 				// User has previously blocked this friend, skip it.
 				r.Close()
 				continue
-			} else if err != sql.ErrNoRows {
+			}
+
+			if err != nil {
 				logger.Error("Error checking block status in Facebook friend import.", zap.Error(err))
 				continue
 			}
