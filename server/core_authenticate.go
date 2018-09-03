@@ -571,7 +571,7 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 			}
 			if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 0 {
 				// Update edge count to reflect removed friends.
-				query = "UPDATE user SET edge_count = edge_count - $2 WHERE id = $1"
+				query = "UPDATE users SET edge_count = edge_count - $2 WHERE id = $1"
 				result, err := tx.Exec(query, userID, rowsAffectedCount)
 				if err != nil {
 					return err
@@ -590,7 +590,7 @@ func importFacebookFriends(logger *zap.Logger, db *sql.DB, messageRouter Message
 			}
 			defer rows.Close()
 			var id string
-			query = "UPDATE user SET edge_count = edge_count - 1 WHERE id = $1"
+			query = "UPDATE users SET edge_count = edge_count - 1 WHERE id = $1"
 			for rows.Next() {
 				// Update edge count to reflect each removed friend.
 				err = rows.Scan(&id)
