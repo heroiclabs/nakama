@@ -125,10 +125,10 @@ func ValidateRuntimeModules(logger, startupLogger *zap.Logger, db *sql.DB, confi
 			logger.Info("Registered RPC function invocation", zap.String("id", id))
 		case ExecutionModeBefore:
 			regCallbacks.Before[id] = struct{}{}
-			logger.Info("Registered Before function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
+			logger.Info("Registered Before function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
 		case ExecutionModeAfter:
 			regCallbacks.After[id] = struct{}{}
-			logger.Info("Registered After function invocation", zap.String("id", strings.TrimLeft(strings.TrimLeft(id, API_PREFIX), RTAPI_PREFIX)))
+			logger.Info("Registered After function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
 		case ExecutionModeMatchmaker:
 			regCallbacks.Matchmaker = struct{}{}
 			logger.Info("Registered Matchmaker Matched function invocation")

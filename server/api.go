@@ -305,9 +305,8 @@ func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimeP
 			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
 			startNanos := time.Now().UTC().UnixNano()
 			span := trace.NewSpan(name, nil, trace.StartOptions{})
-
 			// Actual after hook function execution.
-			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, info.FullMethod, clientIP, clientPort, handlerResult)
+			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, clientIP, clientPort, info.FullMethod, handlerResult)
 
 			// Stats measurement end boundary.
 			span.End()
