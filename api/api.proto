@@ -282,6 +282,10 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/join";
   }
 
+  rpc JoinTournament (JoinTournamentRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/tournament/{tournament_id}/join";
+  }
+
   // Kick a set of users from a group.
   rpc KickGroupUsers (KickGroupUsersRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/group/{group_id}/kick";
@@ -391,6 +395,11 @@ service Nakama {
         get: "/v2/storage/{collection}/{user_id}"
       }
     };
+  }
+
+  // List current or upcoming tournaments.
+  rpc ListTournaments (ListTournamentsRequest) returns (TournamentList) {
+    option (google.api.http).get = "/v2/tournament";
   }
 
   // List groups the current user belongs to.
@@ -892,8 +901,14 @@ message ImportFacebookFriendsRequest {
 
 // Immediately join an open group, or request to join a closed one.
 message JoinGroupRequest {
-  // The group ID to join.
+  // The group ID to join. The group must already exist.
   string group_id = 1;
+}
+
+// The request to join a tournament.
+message JoinTournamentRequest {
+  // The ID of the tournament to join. The tournament must already exist.
+  string tournament_id = 1;
 }
 
 // Kick a set of users from a group.
@@ -928,6 +943,8 @@ message LeaderboardRecord {
   google.protobuf.Timestamp expiry_time = 10;
   // The rank of this record.
   int64 rank = 11;
+  // The maximum number of score updates allowed by the owner.
+  uint32 max_num_score = 12;
 }
 
 // A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records.
@@ -1028,6 +1045,26 @@ message ListStorageObjectsRequest {
   google.protobuf.Int32Value limit = 3;
   // The cursor to page through results from.
   string cursor = 4; // value from StorageObjectList.cursor.
+}
+
+// List active/upcoming tournaments based on given filters.
+message ListTournamentsRequest {
+  // The start of the categories to include. Defaults to 0.
+  google.protobuf.UInt32Value category_start = 1;
+  // The end of the categories to include. Defaults to 128.
+  google.protobuf.UInt32Value category_end = 2;
+  // The start time for tournaments. Defaults to current Unix time.
+  google.protobuf.UInt32Value start_time = 3;
+  // The end time for tournaments. Defaults to +1 year from current Unix time.
+  google.protobuf.UInt32Value end_time = 4;
+  // Include tournaments that are full with players. Default to false.
+  google.protobuf.BoolValue full = 5;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 6;
+  // Filter tournaments joined by the ID (optional).
+  string owner_id = 7;
+  // A next page cursor for listings (optional).
+  string cursor = 8;
 }
 
 // List the groups a user is part of, and their relationship to each.
@@ -1175,6 +1212,48 @@ message StorageObjectList {
   // The list of storage objects.
   repeated StorageObject objects = 1;
   // The cursor associated with the query a page of results.
+  string cursor = 2;
+}
+
+// A tournament on the server.
+message Tournament {
+  // The ID of the tournament.
+  string id = 1;
+  // The title for the tournament.
+  string title = 2;
+  // The description of the tournament. May be blank.
+  string description = 3;
+  // The category of the tournament. e.g. "vip" could be category 1.
+  uint32 category = 4;
+  // ASC or DESC sort mode of scores in the tournament.
+  uint32 sort_order = 5;
+  // The current number of players in the tournament.
+  uint32 size = 6;
+  // The maximum number of players for the tournament.
+  uint32 max_size = 7;
+  // The maximum score updates allowed per player for the current tournament.
+  uint32 max_num_score = 8;
+  // True if the tournament is active and can enter. A computed value.
+  bool can_enter = 9;
+  // The UNIX timestamp when the tournament stops being active until next reset. A computed value.
+  uint32 end_active = 10;
+  // The UNIX timestamp when the tournament is next playable. A computed value.
+  uint32 next_reset = 11;
+  // Additional information stored as a JSON object.
+  string metadata = 12;
+  // The UNIX time when the tournament was created.
+  google.protobuf.Timestamp create_time = 13;
+  // The UNIX time when the tournament will start.
+  google.protobuf.Timestamp start_time = 14;
+  // The UNIX time when the tournament will be stopped.
+  google.protobuf.Timestamp end_time = 15;
+}
+
+// A list of tournaments.
+message TournamentList {
+  // The list of tournaments returned.
+  repeated Tournament tournaments = 1;
+  // A pagination cursor (optional).
   string cursor = 2;
 }
 
