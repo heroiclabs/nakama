@@ -25,6 +25,7 @@ ALTER TABLE leaderboard
   ADD COLUMN description   VARCHAR(255) DEFAULT '' NOT NULL,
   ADD COLUMN duration      INT          DEFAULT 86400 /*CHECK (duration > 0)*/ NOT NULL, -- in seconds.
   ADD COLUMN end_time      TIMESTAMPTZ,
+  ADD COLUMN join_required BOOLEAN      DEFAULT FALSE NOT NULL,
   ADD COLUMN max_size      INT          DEFAULT 100000000 /*CHECK (max_size > 0)*/ NOT NULL,
   ADD COLUMN max_num_score INT          DEFAULT 1000000 /*CHECK (max_num_score > 0)*/ NOT NULL, -- max allowed score attempts.
   ADD COLUMN title         VARCHAR(255) DEFAULT '' NOT NULL,
@@ -57,6 +58,7 @@ ALTER TABLE IF EXISTS leaderboard
   DROP COLUMN IF EXISTS description,
   DROP COLUMN IF EXISTS duration,
   DROP COLUMN IF EXISTS end_time,
+  DROP COLUMN IF EXISTS join_required,
   DROP COLUMN IF EXISTS max_size,
   DROP COLUMN IF EXISTS max_num_score,
   DROP COLUMN IF EXISTS title,

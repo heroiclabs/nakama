@@ -372,7 +372,7 @@ service Nakama {
     option (google.api.http).get = "/v2/group/{group_id}/user";
   }
 
-  // List leaderboard records
+  // List leaderboard records.
   rpc ListLeaderboardRecords (ListLeaderboardRecordsRequest) returns (LeaderboardRecordList) {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}";
   }
@@ -400,6 +400,11 @@ service Nakama {
   // List current or upcoming tournaments.
   rpc ListTournaments (ListTournamentsRequest) returns (TournamentList) {
     option (google.api.http).get = "/v2/tournament";
+  }
+
+  // List tournament records.
+  rpc ListTournamentRecords (ListTournamentRecordsRequest) returns (TournamentRecordList) {
+    option (google.api.http).get = "/v2/tournament/{tournament_id}";
   }
 
   // List groups the current user belongs to.
@@ -529,6 +534,14 @@ service Nakama {
     option (google.api.http) = {
       put: "/v2/storage",
       body: "*"
+    };
+  }
+
+  // Write a record to a tournament.
+  rpc WriteTournamentRecord (WriteTournamentRecordRequest) returns (LeaderboardRecord) {
+    option (google.api.http) = {
+      put: "/v2/tournament/{tournament_id}",
+      body: "record"
     };
   }
 }
@@ -1047,6 +1060,18 @@ message ListStorageObjectsRequest {
   string cursor = 4; // value from StorageObjectList.cursor.
 }
 
+// List tournament records from a given tournament.
+message ListTournamentRecordsRequest {
+  // The ID of the tournament to list for.
+  string tournament_id = 1;
+  // One or more owners to retrieve records for.
+  repeated string owner_ids = 2;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 3;
+  // A next or previous page cursor.
+  string cursor = 4;
+}
+
 // List active/upcoming tournaments based on given filters.
 message ListTournamentsRequest {
   // The start of the categories to include. Defaults to 0.
@@ -1257,6 +1282,18 @@ message TournamentList {
   string cursor = 2;
 }
 
+// A set of tournament records which may be part of a tournament records page or a batch of individual records.
+message TournamentRecordList {
+  // A list of tournament records.
+  repeated LeaderboardRecord records = 1;
+  // A batched set of tournament records belonging to specified owners.
+  repeated LeaderboardRecord owner_records = 2;
+  // The cursor to send when retireving the next page (optional).
+  string next_cursor = 3;
+  // The cursor to send when retrieving the previous page (optional).
+  string prev_cursor = 4;
+}
+
 // Update a user's account details.
 message UpdateAccountRequest {
   // The username of the user's account.
@@ -1373,7 +1410,7 @@ message WriteLeaderboardRecordRequest {
 
   // The ID of the leaderboard to write to.
   string leaderboard_id = 1;
-  // Record data.
+  // Record input.
   LeaderboardRecordWrite record = 2;
 }
 
@@ -1397,4 +1434,22 @@ message WriteStorageObject {
 message WriteStorageObjectsRequest {
   // The objects to store on the server.
   repeated WriteStorageObject objects = 1;
+}
+
+// A request to submit a score to a tournament.
+message WriteTournamentRecordRequest {
+  // Record values to write.
+  message TournamentRecordWrite {
+    // The score value to submit.
+    int64 score = 1;
+    // An optional secondary value.
+    int64 subscore = 2;
+    // A JSON object of additional properties (optional).
+    string metadata = 3;
+  }
+
+  // The tournament ID to write the record for.
+  string tournament_id = 1;
+  // Record input.
+  TournamentRecordWrite record = 2;
 }
