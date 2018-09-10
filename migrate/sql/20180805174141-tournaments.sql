@@ -21,25 +21,25 @@
 -- +migrate Up notransaction
 BEGIN;
 ALTER TABLE leaderboard
-  ADD COLUMN category      SMALLINT     DEFAULT 0 /*CHECK (category >= 0)*/ NOT NULL,
+  ADD COLUMN category      SMALLINT     DEFAULT 0 NOT NULL,
   ADD COLUMN description   VARCHAR(255) DEFAULT '' NOT NULL,
-  ADD COLUMN duration      INT          DEFAULT 86400 /*CHECK (duration > 0)*/ NOT NULL, -- in seconds.
+  ADD COLUMN duration      INT          DEFAULT 0 NOT NULL, -- in seconds.
   ADD COLUMN end_time      TIMESTAMPTZ,
   ADD COLUMN join_required BOOLEAN      DEFAULT FALSE NOT NULL,
-  ADD COLUMN max_size      INT          DEFAULT 100000000 /*CHECK (max_size > 0)*/ NOT NULL,
-  ADD COLUMN max_num_score INT          DEFAULT 1000000 /*CHECK (max_num_score > 0)*/ NOT NULL, -- max allowed score attempts.
+  ADD COLUMN max_size      INT          DEFAULT 100000000 NOT NULL,
+  ADD COLUMN max_num_score INT          DEFAULT 1000000 NOT NULL, -- max allowed score attempts.
   ADD COLUMN title         VARCHAR(255) DEFAULT '' NOT NULL,
   ADD COLUMN size          INT          DEFAULT 0 NOT NULL,
-  ADD COLUMN start_time    TIMESTAMPTZ;
+  ADD COLUMN start_time    TIMESTAMPTZ  DEFAULT now() NOT NULL;
 
 ALTER TABLE leaderboard_record
-  ADD COLUMN max_num_score INT DEFAULT 1000000 /*CHECK (max_num_score > 0)*/ NOT NULL;
+  ADD COLUMN max_num_score INT DEFAULT 1000000 NOT NULL;
 COMMIT;
 
 BEGIN;
 ALTER TABLE leaderboard
   ADD CONSTRAINT check_category CHECK (category >= 0),
-  ADD CONSTRAINT check_duration CHECK (duration > 0),
+  ADD CONSTRAINT check_duration CHECK (duration >= 0),
   ADD CONSTRAINT check_max_size CHECK (max_size > 0),
   ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0),
   VALIDATE CONSTRAINT check_category,
