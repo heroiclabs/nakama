@@ -16,11 +16,12 @@ package server
 
 import (
 	"database/sql"
+	"fmt"
 
 	"go.uber.org/zap"
 )
 
-func CreateTournament(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
+func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
 	description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 	/*
 	  val current_time = now()
@@ -32,11 +33,41 @@ func CreateTournament(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, le
 	  val issubmittable = (submittable_time - current_time) > 0
 	*/
 
-	if err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata,
-		description, title, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
-		logger.Error("Error while creating tournament", zap.Error(err))
+	leaderboard, err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata,
+		description, title, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+
+	if err != nil {
 		return err
 	}
 
+	if leaderboard != nil {
+		// TODO(mo, zyro) setup scheduled job for tournament
+		logger.Info("Tournament created", zap.String("id", leaderboard.Id))
+	}
+
+	return nil
+}
+
+func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, leaderboardId string) error {
+	if err := cache.Delete(leaderboardId); err != nil {
+		return err
+	}
+
+	// TODO(mo, zyro) delete scheduled job for tournament
+	return nil
+}
+
+func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, owner string, count int) error {
+	if count <= 0 {
+		return fmt.Errorf("max attempt count must be greater than zero")
+	}
+
+	query := `UPDATE leaderboard_record SET max_num_score=$1 WHERE leaderboard_id = $2 AND owner = $3`
+	_, err := db.Exec(query, count, leaderboardId, owner)
+	if err != nil {
+		logger.Error("Could not increment max attempt counter", zap.Error(err))
+	} else {
+		logger.Info("Max attempt count was increased", zap.Int("new_count", count), zap.String("owner", owner), zap.String("leaderboard_id", leaderboardId))
+	}
 	return nil
 }

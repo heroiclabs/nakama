@@ -60,7 +60,8 @@ type Leaderboard struct {
 type LeaderboardCache interface {
 	Get(id string) *Leaderboard
 	Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error
-	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata, description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
+	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
+		description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
 	Delete(id string) error
 }
 
@@ -214,11 +215,11 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 }
 
 func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
-	description, title string, category, endTime, duration, maxSize, maxNumScore, startTime int, joinRequired bool) error {
+	description, title string, category, endTime, duration, maxSize, maxNumScore, startTime int, joinRequired bool) (*Leaderboard, error) {
 
-	if err := checkTournamentConfig(resetSchedule, metadata, startTime, endTime, duration, maxSize, maxNumScore); err != nil {
+	if err := checkTournamentConfig(resetSchedule, startTime, endTime, duration, maxSize, maxNumScore); err != nil {
 		l.logger.Error("Error while creating tournament", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	l.Lock()
@@ -227,11 +228,11 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 		if leaderboard.Duration > 0 {
 			// Creation is an idempotent operation.
 			l.Unlock()
-			return nil
+			return nil, nil // return nil for leaderboard to indicate no new creation
 		} else {
 			l.Unlock()
 			l.logger.Error("Cannot create tournament as leaderboard is already in use.", zap.String("leaderboard_id", id))
-			return fmt.Errorf("cannot create tournament as leaderboard is already in use")
+			return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")
 		}
 	}
 
@@ -344,8 +345,8 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	err := l.db.QueryRow(query, params...).Scan(&createTime, &startTime, &endTime)
 	if err != nil {
 		l.Unlock()
-		l.logger.Error("Error creating leaderboard", zap.Error(err))
-		return err
+		l.logger.Error("Error creating tournament", zap.Error(err))
+		return nil, err
 	}
 
 	cron, _ := cronexpr.Parse(resetSchedule)
@@ -374,7 +375,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 
 	l.leaderboards[id] = leaderboard
 	l.Unlock()
-	return nil
+	return leaderboard, nil
 }
 
 func (l *LocalLeaderboardCache) Delete(id string) error {
@@ -401,7 +402,7 @@ func (l *LocalLeaderboardCache) Delete(id string) error {
 	return nil
 }
 
-func checkTournamentConfig(resetSchedule, metadata string, startTime, endTime, duration, maxSize, maxNumScore int) error {
+func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, maxSize, maxNumScore int) error {
 	if startTime < 0 {
 		return fmt.Errorf("tournament start time must be a unix UTC time in the future")
 	} else if startTime == 0 {
@@ -449,10 +450,6 @@ func checkTournamentConfig(resetSchedule, metadata string, startTime, endTime, d
 		if nextReset < int64(startTime+duration) {
 			return fmt.Errorf("tournament cannot be scheduled to be reset while it is ongoing - either decrease duration or change/disable reset schedule")
 		}
-	}
-
-	if metadata != "" {
-		//TODO do json validation...
 	}
 
 	return nil
