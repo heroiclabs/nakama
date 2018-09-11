@@ -137,6 +137,14 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 		limit = &wrappers.Int32Value{Value: 1}
 	}
 
+	if len(in.GetOwnerIds()) != 0 {
+		for _, ownerId := range in.OwnerIds {
+			if _, err := uuid.FromString(ownerId); err != nil {
+				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
+			}
+		}
+	}
+
 	records, err := LeaderboardRecordsList(s.logger, s.db, s.leaderboardCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
