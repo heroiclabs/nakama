@@ -71,3 +71,26 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, 
 	}
 	return nil
 }
+
+func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owner, username, tournamentId string) error {
+	leaderboard := cache.Get(tournamentId)
+	if leaderboard == nil {
+		return fmt.Errorf("tournament not found: %s", tournamentId)
+	}
+
+	if !leaderboard.JoinRequired {
+		return nil
+	}
+
+	query := `INSERT INTO leaderboard_record 
+(leaderboard_id, owner_id, username, num_score) 
+VALUES 
+($1, $2, $3, $4)
+ON CONFLICT DO NOTHING`
+	_, err := db.Exec(query, tournamentId, owner, username, 0)
+	if err != nil {
+		logger.Error("Could not join tournament.", zap.Error(err))
+	}
+
+	return err
+}

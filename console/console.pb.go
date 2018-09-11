@@ -45,7 +45,7 @@ func (m *AccountDeleteRequest) Reset()         { *m = AccountDeleteRequest{} }
 func (m *AccountDeleteRequest) String() string { return proto.CompactTextString(m) }
 func (*AccountDeleteRequest) ProtoMessage()    {}
 func (*AccountDeleteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{0}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{0}
 }
 func (m *AccountDeleteRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AccountDeleteRequest.Unmarshal(m, b)
@@ -107,7 +107,7 @@ func (m *AccountExport) Reset()         { *m = AccountExport{} }
 func (m *AccountExport) String() string { return proto.CompactTextString(m) }
 func (*AccountExport) ProtoMessage()    {}
 func (*AccountExport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{1}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{1}
 }
 func (m *AccountExport) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AccountExport.Unmarshal(m, b)
@@ -197,7 +197,7 @@ func (m *AccountIdRequest) Reset()         { *m = AccountIdRequest{} }
 func (m *AccountIdRequest) String() string { return proto.CompactTextString(m) }
 func (*AccountIdRequest) ProtoMessage()    {}
 func (*AccountIdRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{2}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{2}
 }
 func (m *AccountIdRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AccountIdRequest.Unmarshal(m, b)
@@ -237,7 +237,7 @@ func (m *AccountList) Reset()         { *m = AccountList{} }
 func (m *AccountList) String() string { return proto.CompactTextString(m) }
 func (*AccountList) ProtoMessage()    {}
 func (*AccountList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{3}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{3}
 }
 func (m *AccountList) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AccountList.Unmarshal(m, b)
@@ -280,7 +280,7 @@ func (m *AuthenticateRequest) Reset()         { *m = AuthenticateRequest{} }
 func (m *AuthenticateRequest) String() string { return proto.CompactTextString(m) }
 func (*AuthenticateRequest) ProtoMessage()    {}
 func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{4}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{4}
 }
 func (m *AuthenticateRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AuthenticateRequest.Unmarshal(m, b)
@@ -331,7 +331,7 @@ func (m *DeleteStorageObjectRequest) Reset()         { *m = DeleteStorageObjectR
 func (m *DeleteStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteStorageObjectRequest) ProtoMessage()    {}
 func (*DeleteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{5}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{5}
 }
 func (m *DeleteStorageObjectRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteStorageObjectRequest.Unmarshal(m, b)
@@ -389,7 +389,7 @@ func (m *GetStorageObjectRequest) Reset()         { *m = GetStorageObjectRequest
 func (m *GetStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*GetStorageObjectRequest) ProtoMessage()    {}
 func (*GetStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{6}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{6}
 }
 func (m *GetStorageObjectRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetStorageObjectRequest.Unmarshal(m, b)
@@ -447,7 +447,7 @@ func (m *ListStorageObjectRequest) Reset()         { *m = ListStorageObjectReque
 func (m *ListStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*ListStorageObjectRequest) ProtoMessage()    {}
 func (*ListStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{7}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{7}
 }
 func (m *ListStorageObjectRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListStorageObjectRequest.Unmarshal(m, b)
@@ -502,7 +502,7 @@ func (m *StorageCollectionList) Reset()         { *m = StorageCollectionList{} }
 func (m *StorageCollectionList) String() string { return proto.CompactTextString(m) }
 func (*StorageCollectionList) ProtoMessage()    {}
 func (*StorageCollectionList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{8}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{8}
 }
 func (m *StorageCollectionList) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StorageCollectionList.Unmarshal(m, b)
@@ -552,7 +552,7 @@ func (m *StorageObject) Reset()         { *m = StorageObject{} }
 func (m *StorageObject) String() string { return proto.CompactTextString(m) }
 func (*StorageObject) ProtoMessage()    {}
 func (*StorageObject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{9}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{9}
 }
 func (m *StorageObject) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StorageObject.Unmarshal(m, b)
@@ -630,7 +630,7 @@ func (m *StorageObjectList) Reset()         { *m = StorageObjectList{} }
 func (m *StorageObjectList) String() string { return proto.CompactTextString(m) }
 func (*StorageObjectList) ProtoMessage()    {}
 func (*StorageObjectList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{10}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{10}
 }
 func (m *StorageObjectList) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StorageObjectList.Unmarshal(m, b)
@@ -688,7 +688,7 @@ func (m *WalletLedger) Reset()         { *m = WalletLedger{} }
 func (m *WalletLedger) String() string { return proto.CompactTextString(m) }
 func (*WalletLedger) ProtoMessage()    {}
 func (*WalletLedger) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{11}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{11}
 }
 func (m *WalletLedger) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WalletLedger.Unmarshal(m, b)
@@ -762,7 +762,7 @@ func (m *WriteStorageObjectRequest) Reset()         { *m = WriteStorageObjectReq
 func (m *WriteStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*WriteStorageObjectRequest) ProtoMessage()    {}
 func (*WriteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_console_829ffd564b70513d, []int{12}
+	return fileDescriptor_console_9eb27081139a5c7b, []int{12}
 }
 func (m *WriteStorageObjectRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WriteStorageObjectRequest.Unmarshal(m, b)
@@ -1264,9 +1264,9 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 	Metadata: "console/console.proto",
 }
 
-func init() { proto.RegisterFile("console/console.proto", fileDescriptor_console_829ffd564b70513d) }
+func init() { proto.RegisterFile("console/console.proto", fileDescriptor_console_9eb27081139a5c7b) }
 
-var fileDescriptor_console_829ffd564b70513d = []byte{
+var fileDescriptor_console_9eb27081139a5c7b = []byte{
 	// 1329 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xdf, 0x6e, 0xd4, 0x46,
 	0x17, 0xc7, 0x1b, 0xb2, 0xbb, 0x39, 0xcb, 0x6e, 0xc2, 0x24, 0x01, 0xe3, 0xf0, 0xc7, 0x18, 0xbe,

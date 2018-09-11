@@ -1146,7 +1146,7 @@
         "parameters": [
           {
             "name": "group_id",
-            "description": "The group ID to join.",
+            "description": "The group ID to join. The group must already exist.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -1263,7 +1263,7 @@
     },
     "/v2/leaderboard/{leaderboard_id}": {
       "get": {
-        "summary": "List leaderboard records",
+        "summary": "List leaderboard records.",
         "operationId": "ListLeaderboardRecords",
         "responses": {
           "200": {
@@ -1356,7 +1356,7 @@
           },
           {
             "name": "body",
-            "description": "Record data.",
+            "description": "Record input.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1748,6 +1748,196 @@
         ]
       }
     },
+    "/v2/tournament": {
+      "get": {
+        "summary": "List current or upcoming tournaments.",
+        "operationId": "ListTournaments",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiTournamentList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "category_start",
+            "description": "The start of the categories to include. Defaults to 0.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "category_end",
+            "description": "The end of the categories to include. Defaults to 128.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "start_time",
+            "description": "The start time for tournaments. Defaults to current Unix time.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "end_time",
+            "description": "The end time for tournaments. Defaults to +1 year from current Unix time.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "full",
+            "description": "Include tournaments that are full with players. Default to false.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "owner_id",
+            "description": "Filter tournaments joined by the ID (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "A next page cursor for listings (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/tournament/{tournament_id}": {
+      "get": {
+        "summary": "List tournament records.",
+        "operationId": "ListTournamentRecords",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiTournamentRecordList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournament_id",
+            "description": "The ID of the tournament to list for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "owner_ids",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "A next or previous page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Write a record to a tournament.",
+        "operationId": "WriteTournamentRecord",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecord"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournament_id",
+            "description": "The tournament ID to write the record for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "description": "Record input.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/WriteTournamentRecordRequestTournamentRecordWrite"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/tournament/{tournament_id}/join": {
+      "post": {
+        "operationId": "JoinTournament",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournament_id",
+            "description": "The ID of the tournament to join. The tournament must already exist.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/user": {
       "get": {
         "summary": "Fetch zero or more users by ID and/or username.",
@@ -1871,6 +2061,26 @@
         "metadata": {
           "type": "string",
           "description": "Optional record metadata."
+        }
+      },
+      "description": "Record values to write."
+    },
+    "WriteTournamentRecordRequestTournamentRecordWrite": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "string",
+          "format": "int64",
+          "description": "The score value to submit."
+        },
+        "subscore": {
+          "type": "string",
+          "format": "int64",
+          "description": "An optional secondary value."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "A JSON object of additional properties (optional)."
         }
       },
       "description": "Record values to write."
@@ -2299,6 +2509,11 @@
           "type": "string",
           "format": "int64",
           "description": "The rank of this record."
+        },
+        "max_num_score": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of score updates allowed by the owner."
         }
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."
@@ -2600,6 +2815,128 @@
         }
       },
       "description": "Batch of storage objects."
+    },
+    "apiTournament": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the tournament."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title for the tournament."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the tournament. May be blank."
+        },
+        "category": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The category of the tournament. e.g. \"vip\" could be category 1."
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "int64",
+          "description": "ASC or DESC sort mode of scores in the tournament."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The current number of players in the tournament."
+        },
+        "max_size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of players for the tournament."
+        },
+        "max_num_score": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum score updates allowed per player for the current tournament."
+        },
+        "can_enter": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "True if the tournament is active and can enter. A computed value."
+        },
+        "end_active": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX timestamp when the tournament stops being active until next reset. A computed value."
+        },
+        "next_reset": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX timestamp when the tournament is next playable. A computed value."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the tournament was created."
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the tournament will start."
+        },
+        "end_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the tournament will be stopped."
+        }
+      },
+      "description": "A tournament on the server."
+    },
+    "apiTournamentList": {
+      "type": "object",
+      "properties": {
+        "tournaments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiTournament"
+          },
+          "description": "The list of tournaments returned."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "A pagination cursor (optional)."
+        }
+      },
+      "description": "A list of tournaments."
+    },
+    "apiTournamentRecordList": {
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A list of tournament records."
+        },
+        "owner_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A batched set of tournament records belonging to specified owners."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retireving the next page (optional)."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page (optional)."
+        }
+      },
+      "description": "A set of tournament records which may be part of a tournament records page or a batch of individual records."
     },
     "apiUpdateAccountRequest": {
       "type": "object",

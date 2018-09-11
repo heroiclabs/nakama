@@ -17,6 +17,8 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -28,7 +30,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
@@ -134,14 +135,6 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 		limit = in.GetLimit()
 	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
 		limit = &wrappers.Int32Value{Value: 1}
-	}
-
-	if len(in.GetOwnerIds()) != 0 {
-		for _, ownerId := range in.OwnerIds {
-			if _, err := uuid.FromString(ownerId); err != nil {
-				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
-			}
-		}
 	}
 
 	records, err := LeaderboardRecordsList(s.logger, s.db, s.leaderboardCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds)

@@ -88,7 +88,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			}
 		}
 
-		query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ)"
+		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ)"
 		if incomingCursor == nil {
 			// Ascending doesn't need an ordering clause.
 			if leaderboard.SortOrder == LeaderboardSortOrderDescending {
@@ -129,6 +129,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		var dbScore int64
 		var dbSubscore int64
 		var dbNumScore int32
+		var dbMaxNumScore int32
 		var dbMetadata string
 		var dbCreateTime pq.NullTime
 		var dbUpdateTime pq.NullTime
@@ -146,7 +147,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 				break
 			}
 
-			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
 				logger.Error("Error parsing listed leaderboard records", zap.Error(err))
 				return nil, err
@@ -164,6 +165,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 				Score:         dbScore,
 				Subscore:      dbSubscore,
 				NumScore:      dbNumScore,
+				MaxNumScore:   uint32(dbMaxNumScore),
 				Metadata:      dbMetadata,
 				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
@@ -228,7 +230,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			statements[i] = "$" + strconv.Itoa(i+3)
 		}
 
-		query := "SELECT owner_id, username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ) AND owner_id IN (" + strings.Join(statements, ", ") + ")"
+		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ) AND owner_id IN (" + strings.Join(statements, ", ") + ")"
 		rows, err := db.Query(query, params...)
 		if err != nil {
 			logger.Error("Error reading leaderboard records", zap.Error(err))
@@ -243,11 +245,12 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		var dbScore int64
 		var dbSubscore int64
 		var dbNumScore int32
+		var dbMaxNumScore int32
 		var dbMetadata string
 		var dbCreateTime pq.NullTime
 		var dbUpdateTime pq.NullTime
 		for rows.Next() {
-			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
 				logger.Error("Error parsing read leaderboard records", zap.Error(err))
 				return nil, err
@@ -259,6 +262,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 				Score:         dbScore,
 				Subscore:      dbSubscore,
 				NumScore:      dbNumScore,
+				MaxNumScore:   uint32(dbMaxNumScore),
 				Metadata:      dbMetadata,
 				CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 				UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
@@ -395,11 +399,12 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	var dbScore int64
 	var dbSubscore int64
 	var dbNumScore int32
+	var dbMaxNumScore int32
 	var dbMetadata string
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
-	query = "SELECT username, score, subscore, num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
-	err = db.QueryRow(query, leaderboardId, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
+	err = db.QueryRow(query, leaderboardId, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -411,6 +416,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		Score:         dbScore,
 		Subscore:      dbSubscore,
 		NumScore:      dbNumScore,
+		MaxNumScore:   uint32(dbMaxNumScore),
 		Metadata:      dbMetadata,
 		CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 		UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
@@ -451,7 +457,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 }
 
 func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.LeaderboardRecord, error) {
-	query := "SELECT leaderboard_id, owner_id, username, score, subscore, num_score, metadata, create_time, update_time, expiry_time FROM leaderboard_record WHERE owner_id = $1"
+	query := "SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time FROM leaderboard_record WHERE owner_id = $1"
 	rows, err := db.Query(query, userID.String())
 	if err != nil {
 		logger.Error("Error reading all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
@@ -467,12 +473,13 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	var dbScore int64
 	var dbSubscore int64
 	var dbNumScore int32
+	var dbMaxNumScore int32
 	var dbMetadata string
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	var dbExpiryTime pq.NullTime
 	for rows.Next() {
-		err = rows.Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
+		err = rows.Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
 		if err != nil {
 			logger.Error("Error parsing read all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 			return nil, err
@@ -484,6 +491,7 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 			Score:         dbScore,
 			Subscore:      dbSubscore,
 			NumScore:      dbNumScore,
+			MaxNumScore:   uint32(dbMaxNumScore),
 			Metadata:      dbMetadata,
 			CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 			UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
