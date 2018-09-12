@@ -20,16 +20,26 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"fmt"
+	"errors"
 	"strconv"
 	"time"
 
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
+)
+
+var (
+	ErrTournamentNotFound               = errors.New("tournament not found")
+	ErrTournamentSubzeroMaxAttemptCount = errors.New("max attempt count must be greater than zero")
+	ErrTournamentMaxSizeReached         = errors.New("tournament max size reached")
+	ErrTournamentWriteOutsideDuration   = errors.New("tournament submission outside of duration")
+	ErrTournamentWriteMaxAttemptReached = errors.New("max attempt count reached")
+	ErrTournamentWriteJoinRequired      = errors.New("required to join before writing tournament record")
 )
 
 type tournamentListCursor struct {
@@ -39,15 +49,6 @@ type tournamentListCursor struct {
 
 func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
 	description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
-	/*
-	  val current_time = now()
-	  val expiry_time = cronexpr(“”, current_time)
-	  val next_expiry_time = expiry_time.next()
-	  val start_time = expiry_time - (next_expiry_time - expiry_time) (edited)
-
-	  val submittable_time = (start_time + duration)
-	  val issubmittable = (submittable_time - current_time) > 0
-	*/
 
 	leaderboard, err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata,
 		description, title, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
@@ -75,7 +76,7 @@ func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, leaderboardId 
 
 func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, owner string, count int) error {
 	if count <= 0 {
-		return fmt.Errorf("max attempt count must be greater than zero")
+		return ErrTournamentSubzeroMaxAttemptCount
 	}
 
 	query := `UPDATE leaderboard_record SET max_num_score=$1 WHERE leaderboard_id = $2 AND owner = $3`
@@ -91,7 +92,7 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, 
 func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owner, username, tournamentId string) error {
 	leaderboard := cache.Get(tournamentId)
 	if leaderboard == nil {
-		return fmt.Errorf("tournament not found: %s", tournamentId)
+		return ErrTournamentNotFound
 	}
 
 	if !leaderboard.JoinRequired {
@@ -139,7 +140,7 @@ ON CONFLICT DO NOTHING`
 
 	if maxSizeReached {
 		logger.Info("Failed to join tournament as reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
-		return fmt.Errorf("tournament max size reached: %s", tournamentId)
+		return ErrTournamentMaxSizeReached
 	}
 
 	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
@@ -317,4 +318,237 @@ WHERE
 	}
 
 	return tournamentList, nil
+}
+
+func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, tournamentId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+	leaderboard := leaderboardCache.Get(tournamentId)
+
+	currentTime := time.Now().UTC()
+	expiryTime := int64(0)
+	if leaderboard.ResetSchedule != nil {
+		schedules := leaderboard.ResetSchedule.NextN(currentTime, 2)
+		sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
+
+		endActive := sessionStartTime + int64(leaderboard.Duration)
+		if endActive < currentTime.Unix() {
+			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
+			return nil, ErrTournamentWriteOutsideDuration
+		}
+
+		expiryTime = schedules[0].Unix()
+	} else {
+		endActive := leaderboard.StartTime + int64(leaderboard.Duration)
+		if endActive < currentTime.Unix() {
+			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
+			return nil, ErrTournamentWriteOutsideDuration
+		}
+	}
+
+	var record *api.LeaderboardRecord
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return nil, err
+	}
+
+	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+		if err := tournamentJoinCheck(logger, tx, leaderboard, tournamentId, ownerId); err != nil {
+			return err
+		}
+
+		if err := tournamentMaxSizeCheck(logger, tx, tournamentId); err != nil {
+			return err
+		}
+
+		if err := tournamentMaxAttemptCheck(logger, tx, tournamentId, ownerId); err != nil {
+			return err
+		}
+
+		record, err = tournamentWriteRecord(logger, tx, leaderboard, expiryTime, tournamentId, ownerId, username, score, subscore, metadata)
+
+		//TODO (mo,zyro) update rank cache
+
+		return err
+	}); err != nil {
+		if err == ErrTournamentMaxSizeReached || err == ErrTournamentWriteMaxAttemptReached || err == ErrTournamentWriteJoinRequired {
+			logger.Info("Aborted writing tournament record.", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
+		} else {
+			logger.Error("Could not write tournament record.", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
+		}
+
+		return nil, err
+	}
+
+	return record, nil
+}
+
+func tournamentJoinCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboard, tournamentId, ownerId string) error {
+	if !leaderboard.JoinRequired {
+		return nil
+	}
+
+	query := `SELECT EXISTS (SELECT id FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time > now())`
+	var exists bool
+	if err := tx.QueryRow(query, tournamentId, ownerId).Scan(&exists); err != nil {
+		logger.Error("Failed to check for tournament join check.", zap.Error(err))
+		return err
+	}
+
+	if !exists {
+		return ErrTournamentWriteJoinRequired
+	}
+
+	return nil
+}
+
+func tournamentMaxSizeCheck(logger *zap.Logger, tx *sql.Tx, tournamentId string) error {
+	query := `SELECT EXISTS (SELECT id FROM leaderboard WHERE leaderboard_id = $1 AND size < max_size)`
+
+	var exists bool
+	if err := tx.QueryRow(query, tournamentId).Scan(&exists); err != nil {
+		logger.Error("Failed to check for tournament size.", zap.Error(err))
+		return err
+	}
+
+	if !exists {
+		return ErrTournamentMaxSizeReached
+	}
+
+	return nil
+}
+
+func tournamentMaxAttemptCheck(logger *zap.Logger, tx *sql.Tx, tournamentId, ownerId string) error {
+	query := `
+SELECT EXISTS (
+	SELECT id 
+	FROM leaderboard_record 
+	WHERE leaderboard_id = $1 
+		AND owner_id = $2 
+		AND expiry_time > now() 
+		AND num_score < max_num_score 
+)`
+	var exists bool
+	if err := tx.QueryRow(query, tournamentId, ownerId).Scan(&exists); err != nil {
+		logger.Error("Failed to check for tournament record max attempt count.", zap.Error(err))
+		return err
+	}
+
+	if !exists {
+		return ErrTournamentWriteMaxAttemptReached
+	}
+
+	return nil
+}
+
+func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboard, expiryTime int64, tournamentId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+	var opSql string
+	var scoreDelta int64
+	var subscoreDelta int64
+	var scoreAbs int64
+	var subscoreAbs int64
+	switch leaderboard.Operator {
+	case LeaderboardOperatorIncrement:
+		opSql = "score = leaderboard_record.score + $8::BIGINT, subscore = leaderboard_record.subscore + $9::BIGINT"
+		scoreDelta = score
+		subscoreDelta = subscore
+		scoreAbs = score
+		subscoreAbs = subscore
+	case LeaderboardOperatorSet:
+		opSql = "score = $8::BIGINT, subscore = $9::BIGINT"
+		scoreDelta = score
+		subscoreDelta = subscore
+		scoreAbs = score
+		subscoreAbs = subscore
+	case LeaderboardOperatorBest:
+		fallthrough
+	default:
+		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
+			// Lower score is better.
+			opSql = "score = ((leaderboard_record.score + $8::BIGINT - abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT - abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+		} else {
+			// Higher score is better.
+			opSql = "score = ((leaderboard_record.score + $8::BIGINT + abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT + abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+		}
+		scoreDelta = score
+		subscoreDelta = subscore
+		scoreAbs = score
+		subscoreAbs = subscore
+	}
+
+	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, max_num_score, username, score, subscore, metadata, expiry_time)
+            VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{}'), CAST($8::BIGINT AS TIMESTAMPTZ))
+            ON CONFLICT (owner_id, leaderboard_id, expiry_time)
+            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()`
+	params := make([]interface{}, 0, 9)
+	params = append(params, tournamentId, ownerId, leaderboard.MaxNumScore)
+	if username == "" {
+		params = append(params, nil)
+	} else {
+		params = append(params, username)
+	}
+	params = append(params, scoreAbs, subscoreAbs)
+	if metadata == "" {
+		params = append(params, nil)
+	} else {
+		params = append(params, metadata)
+	}
+	params = append(params, expiryTime, scoreDelta, subscoreDelta)
+
+	_, err := tx.Exec(query, params...)
+	if err != nil {
+		logger.Error("Error writing leaderboard record", zap.Error(err))
+		return nil, err
+	}
+
+	// only increment leaderboard size if a new record was inserted
+	// we test for a new record by comparing create_time = update_time
+	query = ` 
+UPDATE leaderboard SET size = size + 1 
+WHERE id = $1
+AND SELECT EXISTS (
+	SELECT leaderboard_id FROM leaderboard_record
+	WHERE leaderboard_id = $1 
+	AND owner_id = $2 
+	AND expiry_time > now()
+	AND create_time = update_time)`
+	_, err = tx.Exec(query, tournamentId)
+	if err != nil {
+		logger.Error("Error update leaderboard size", zap.Error(err))
+		return nil, err
+	}
+
+	var dbUsername sql.NullString
+	var dbScore int64
+	var dbSubscore int64
+	var dbNumScore int32
+	var dbMaxNumScore int32
+	var dbMetadata string
+	var dbCreateTime pq.NullTime
+	var dbUpdateTime pq.NullTime
+	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
+	err = tx.QueryRow(query, tournamentId, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	if err != nil {
+		logger.Error("Error after writing leaderboard record", zap.Error(err))
+		return nil, err
+	}
+
+	record := &api.LeaderboardRecord{
+		LeaderboardId: tournamentId,
+		OwnerId:       ownerId,
+		Score:         dbScore,
+		Subscore:      dbSubscore,
+		NumScore:      dbNumScore,
+		MaxNumScore:   uint32(dbMaxNumScore),
+		Metadata:      dbMetadata,
+		CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+		UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+	}
+	if dbUsername.Valid {
+		record.Username = &wrappers.StringValue{Value: dbUsername.String}
+	}
+	if expiryTime != 0 {
+		record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
+	}
+
+	return record, nil
 }

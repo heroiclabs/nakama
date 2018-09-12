@@ -209,10 +209,6 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	} else if in.Record == nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
-	} else if in.Record.Score < 0 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid score value, must be >= 0.")
-	} else if in.Record.Subscore < 0 {
-		return nil, status.Error(codes.InvalidArgument, "Invalid subscore value, must be >= 0.")
 	} else if in.Record.Metadata != "" {
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal([]byte(in.Record.Metadata), &maybeJSON) != nil {

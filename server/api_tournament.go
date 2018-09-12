@@ -19,7 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/gob"
-	"strings"
+	"encoding/json"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -36,9 +36,9 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	if err := TournamentJoin(s.logger, s.db, s.leaderboardCache, userID.String(), username, tournamentId); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if err == ErrTournamentNotFound {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
-		} else if strings.Contains(err.Error(), "max size") {
+		} else if err == ErrTournamentMaxSizeReached {
 			return nil, status.Error(codes.InvalidArgument, "Tournament cannot be joined as it has reached its max size.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
@@ -164,5 +164,37 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 }
 
 func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTournamentRecordRequest) (*api.LeaderboardRecord, error) {
-	return nil, nil
+	if in.GetTournamentId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be provided")
+	}
+
+	if in.GetTournamentId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Invalid tournament ID.")
+	} else if in.GetRecord() == nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
+	} else if in.GetRecord().GetMetadata() != "" {
+		var maybeJSON map[string]interface{}
+		if json.Unmarshal([]byte(in.GetRecord().GetMetadata()), &maybeJSON) != nil {
+			return nil, status.Error(codes.InvalidArgument, "Metadata value must be JSON, if provided.")
+		}
+	}
+
+	tournament := s.leaderboardCache.Get(in.GetTournamentId())
+	if tournament == nil {
+		return nil, status.Error(codes.NotFound, "Tournament not found.")
+	}
+
+	if tournament.EndTime <= time.Now().UTC().Unix() {
+		return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
+	}
+
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	username := ctx.Value(ctxUsernameKey{}).(string)
+
+	record, err := TournamentRecordWrite(s.logger, s.db, s.leaderboardCache, in.GetTournamentId(), userID.String(), username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error writing score to tournament.")
+	}
+
+	return record, nil
 }
