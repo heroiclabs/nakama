@@ -53,7 +53,6 @@ type Leaderboard struct {
 	MaxSize       int
 	MaxNumScore   int
 	Title         string
-	Size          int
 	StartTime     int64
 }
 
@@ -82,7 +81,7 @@ func NewLocalLeaderboardCache(logger, startupLogger *zap.Logger, db *sql.DB) Lea
 	query := `
 SELECT 
 id, authoritative, sort_order, operator, reset_schedule, metadata, create_time, 
-category, description, duration, end_time, join_required, max_size, max_num_score, title, size, start_time 
+category, description, duration, end_time, join_required, max_size, max_num_score, title, start_time 
 FROM leaderboard`
 
 	rows, err := db.Query(query)
@@ -106,11 +105,10 @@ FROM leaderboard`
 		var maxSize int
 		var maxNumScore int
 		var title string
-		var size int
 		var startTime pq.NullTime
 
 		err = rows.Scan(&id, &authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime,
-			&category, &description, &duration, &endTime, &joinRequired, &maxSize, &maxNumScore, &title, &size, &startTime)
+			&category, &description, &duration, &endTime, &joinRequired, &maxSize, &maxNumScore, &title, &startTime)
 		if err != nil {
 			startupLogger.Fatal("Error parsing leaderboard cache from database", zap.Error(err))
 		}
@@ -131,7 +129,6 @@ FROM leaderboard`
 			MaxSize:      maxSize,
 			MaxNumScore:  maxNumScore,
 			Title:        title,
-			Size:         size,
 			StartTime:    startTime.Time.Unix(),
 		}
 		if resetSchedule.Valid {
@@ -366,7 +363,6 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 		MaxSize:       maxSize,
 		MaxNumScore:   maxNumScore,
 		Title:         title,
-		Size:          0,
 		StartTime:     startTimeZ.Time.Unix(),
 	}
 	if endTimeZ.Valid {

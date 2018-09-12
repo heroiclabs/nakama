@@ -38,6 +38,8 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	if err := TournamentJoin(s.logger, s.db, s.leaderboardCache, userID.String(), username, tournamentId); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
+		} else if strings.Contains(err.Error(), "max size") {
+			return nil, status.Error(codes.InvalidArgument, "Tournament cannot be joined as it has reached its max size.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
 	}

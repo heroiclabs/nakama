@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -23,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
@@ -32,7 +34,7 @@ import (
 
 type tournamentListCursor struct {
 	// ID fields.
-	LeaderboardId string
+	TournamentId string
 }
 
 func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
@@ -96,19 +98,52 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 		return nil
 	}
 
-	//TODO increase leaderboard.size value?
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
 
-	query := `INSERT INTO leaderboard_record 
+	maxSizeReached := false
+	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+		query := "UPDATE leaderboard SET size = size+1 WHERE size < max_size AND id = $1"
+		result, err := tx.Exec(query, tournamentId)
+		if err != nil {
+			return err
+		}
+
+		if rowsAffected, err := result.RowsAffected(); err != nil {
+			return err
+		} else {
+			if rowsAffected == 0 {
+				maxSizeReached = true
+				return nil
+			}
+		}
+
+		query = `INSERT INTO leaderboard_record 
 (leaderboard_id, owner_id, username, num_score) 
 VALUES 
 ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING`
-	_, err := db.Exec(query, tournamentId, owner, username, 0)
-	if err != nil {
+		_, err = tx.Exec(query, tournamentId, owner, username, 0)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		logger.Error("Could not join tournament.", zap.Error(err))
+		return err
 	}
 
-	return err
+	if maxSizeReached {
+		logger.Info("Failed to join tournament as reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
+		return fmt.Errorf("tournament max size reached: %s", tournamentId)
+	}
+
+	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
+	return nil
 }
 
 func TournamentList(logger *zap.Logger, db *sql.DB, ownerId string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
@@ -164,7 +199,7 @@ WHERE
 		if filter != "" {
 			filter += " AND "
 		}
-		params = append(params, cursor.LeaderboardId)
+		params = append(params, cursor.TournamentId)
 		filter += " id > $" + strconv.Itoa(len(params))
 	}
 
@@ -206,10 +241,11 @@ WHERE
 	var dbTitle string
 	var dbSize int
 	var dbStartTime pq.NullTime
+
 	for rows.Next() {
 		if len(records) >= limit {
 			newCursor = &tournamentListCursor{
-				LeaderboardId: dbId,
+				TournamentId: dbId,
 			}
 			break
 		}
@@ -258,7 +294,6 @@ WHERE
 			Metadata:    dbMetadata,
 			CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
 			StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
-			EndTime:     nil,
 		}
 
 		if dbEndTime.Valid {
