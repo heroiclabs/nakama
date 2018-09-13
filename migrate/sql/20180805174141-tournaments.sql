@@ -67,7 +67,7 @@ ALTER TABLE IF EXISTS leaderboard
   DROP COLUMN IF EXISTS size,
   DROP COLUMN IF EXISTS start_time;
 
-DROP INDEX IF EXISTS leaderboard_record @ owner_id_expiry_time_leaderboard_id_idx; -- ensure postgres compatibility
+DROP INDEX IF EXISTS owner_id_expiry_time_leaderboard_id_idx;
 
 ALTER TABLE IF EXISTS leaderboard_record
   DROP COLUMN IF EXISTS max_num_score;

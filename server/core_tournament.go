@@ -218,7 +218,7 @@ WHERE
 			if filter != "" {
 				filter += " AND "
 			}
-			params = append(params, ids)
+			params = append(params, ids...)
 			filter += " id IN (" + strings.Join(idParams, ",") + ")"
 		}
 	}
@@ -392,8 +392,8 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	return record, nil
 }
 
-func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]string, error) {
-	result := make([]string, 0)
+func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]interface{}, error) {
+	result := make([]interface{}, 0)
 	rows, err := db.Query("SELECT leaderboard_id FROM leaderboard_record WHERE owner_id = $1 AND expiry_time > now()")
 	if err != nil {
 		logger.Error("Could not list leaderboard records belonging to owner", zap.Error(err), zap.String("owner_id", ownerId))
@@ -404,7 +404,7 @@ func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]str
 		var id string
 		if err = rows.Scan(&id); err != nil {
 			if err == sql.ErrNoRows {
-				return make([]string, 0), nil
+				return make([]interface{}, 0), nil
 			}
 			logger.Error("Failed to parse database results", zap.Error(err))
 			return nil, err
