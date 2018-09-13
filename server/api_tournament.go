@@ -117,12 +117,12 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
-	categoryStart := -1
+	categoryStart := 0
 	if in.GetCategoryStart() != nil {
 		categoryStart = int(in.GetCategoryStart().GetValue())
 	}
 
-	categoryEnd := -1
+	categoryEnd := 128
 	if in.GetCategoryEnd() != nil {
 		categoryEnd = int(in.GetCategoryEnd().GetValue())
 		if categoryEnd < categoryStart {
@@ -130,12 +130,12 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
-	startTime := -1
+	startTime := int(time.Now().UTC().Unix())
 	if in.GetStartTime() != nil {
 		startTime = int(in.GetStartTime().GetValue())
 	}
 
-	endTime := -1
+	endTime := int(time.Now().UTC().AddDate(1, 0, 0).Unix()) // one year from now
 	if in.GetEndTime() != nil {
 		endTime = int(in.GetEndTime().GetValue())
 		if endTime < startTime {
