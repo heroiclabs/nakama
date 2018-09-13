@@ -1078,7 +1078,7 @@ message ListTournamentsRequest {
   google.protobuf.UInt32Value category_start = 1;
   // The end of the categories to include. Defaults to 128.
   google.protobuf.UInt32Value category_end = 2;
-  // The start time for tournaments. Defaults to current Unix time.
+  // The start time for tournaments. Defaults to epoch.
   google.protobuf.UInt32Value start_time = 3;
   // The end time for tournaments. Defaults to +1 year from current Unix time.
   google.protobuf.UInt32Value end_time = 4;

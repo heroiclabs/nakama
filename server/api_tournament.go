@@ -122,15 +122,18 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		categoryStart = int(in.GetCategoryStart().GetValue())
 	}
 
-	categoryEnd := 128
+	categoryEnd := 127
 	if in.GetCategoryEnd() != nil {
 		categoryEnd = int(in.GetCategoryEnd().GetValue())
+		if categoryEnd >= 128 {
+			return nil, status.Error(codes.InvalidArgument, "Tournament category end must be >=0 and <128.")
+		}
 		if categoryEnd < categoryStart {
 			return nil, status.Error(codes.InvalidArgument, "Tournament category end must be greater than category start.")
 		}
 	}
 
-	startTime := int(time.Now().UTC().Unix())
+	startTime := -1 // don't include start time in query
 	if in.GetStartTime() != nil {
 		startTime = int(in.GetStartTime().GetValue())
 	}
@@ -145,7 +148,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 
 	limit := 1
 	if in.GetLimit() != nil {
-		limit := int(in.GetLimit().GetValue())
+		limit = int(in.GetLimit().GetValue())
 		if limit < 1 || limit > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Limit must be between 1 and 100.")
 		}

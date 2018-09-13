@@ -24,7 +24,7 @@ ALTER TABLE leaderboard
   ADD COLUMN category      SMALLINT     DEFAULT 0 NOT NULL,
   ADD COLUMN description   VARCHAR(255) DEFAULT '' NOT NULL,
   ADD COLUMN duration      INT          DEFAULT 0 NOT NULL, -- in seconds.
-  ADD COLUMN end_time      TIMESTAMPTZ,
+  ADD COLUMN end_time      TIMESTAMPTZ  DEFAULT '1970-01-01 00:00:00' NOT NULL,
   ADD COLUMN join_required BOOLEAN      DEFAULT FALSE NOT NULL,
   ADD COLUMN max_size      INT          DEFAULT 100000000 NOT NULL,
   ADD COLUMN max_num_score INT          DEFAULT 1000000 NOT NULL, -- max allowed score attempts.
@@ -47,6 +47,8 @@ ALTER TABLE leaderboard
   VALIDATE CONSTRAINT check_max_size,
   VALIDATE CONSTRAINT check_max_num_score;
 
+CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
+
 ALTER TABLE leaderboard_record
   ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0),
   VALIDATE CONSTRAINT check_max_num_score;
@@ -64,6 +66,8 @@ ALTER TABLE IF EXISTS leaderboard
   DROP COLUMN IF EXISTS title,
   DROP COLUMN IF EXISTS size,
   DROP COLUMN IF EXISTS start_time;
+
+DROP INDEX IF EXISTS leaderboard_record @ owner_id_expiry_time_leaderboard_id_idx; -- ensure postgres compatibility
 
 ALTER TABLE IF EXISTS leaderboard_record
   DROP COLUMN IF EXISTS max_num_score;

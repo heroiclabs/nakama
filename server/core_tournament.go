@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/cockroach-go/crdb"
@@ -184,7 +185,7 @@ WHERE
 		}
 		stime := time.Unix(int64(startTime), 0).UTC()
 		params = append(params, pq.FormatTimestamp(stime))
-		filter += " startTime >= $" + strconv.Itoa(len(params))
+		filter += " start_time >= $" + strconv.Itoa(len(params))
 	}
 
 	if endTime >= 0 {
@@ -193,7 +194,7 @@ WHERE
 		}
 		etime := time.Unix(int64(endTime), 0).UTC()
 		params = append(params, pq.FormatTimestamp(etime))
-		filter += " endTime <= $" + strconv.Itoa(len(params))
+		filter += " end_time <= $" + strconv.Itoa(len(params))
 	}
 
 	if cursor != nil {
@@ -205,20 +206,29 @@ WHERE
 	}
 
 	if ownerId != "" {
-		if filter != "" {
-			filter += " AND "
+		if ids, err := getJoinedTournaments(logger, db, ownerId); err != nil {
+			return nil, err
+		} else if len(ids) > 0 {
+			currentCount := len(params)
+			idParams := make([]string, len(ids))
+			for i := range ids {
+				idParams[i] = "$" + strconv.Itoa(currentCount+i)
+			}
+
+			if filter != "" {
+				filter += " AND "
+			}
+			params = append(params, ids)
+			filter += " id IN (" + strings.Join(idParams, ",") + ")"
 		}
-		params = append(params, ownerId)
-		params = append(params, pq.FormatTimestamp(time.Now().UTC())) //expiry time for a leaderboard record
-		subquery := `SELECT leaderboard_id FROM leaderboard_record WHERE owner_id = $` + strconv.Itoa(len(params)-1) + ` AND expired_at > $` + strconv.Itoa(len(params))
-		filter += " id IN (" + subquery + ")"
 	}
 
-	query += query + filter
+	query = query + filter
 
 	params = append(params, limit)
 	query += " LIMIT $" + strconv.Itoa(len(params))
 
+	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
 	rows, err := db.Query(query, params...)
 	if err != nil {
 		logger.Error("Could not retrieve tournaments", zap.Error(err))
@@ -230,7 +240,7 @@ WHERE
 
 	var dbId string
 	var dbSortOrder int
-	var dbResetSchedule string
+	var dbResetSchedule sql.NullString
 	var dbMetadata string
 	var dbCreateTime pq.NullTime
 	var dbCategory int
@@ -252,7 +262,7 @@ WHERE
 		}
 
 		err = rows.Scan(&dbId, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
-			&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, dbStartTime)
+			&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
 		if err != nil {
 			logger.Error("Error parsing listed tournament records", zap.Error(err))
 			return nil, err
@@ -262,8 +272,8 @@ WHERE
 		endActive := int64(0)
 		nextReset := int64(0)
 
-		if dbResetSchedule != "" {
-			cron := cronexpr.MustParse(dbResetSchedule)
+		if dbResetSchedule.Valid {
+			cron := cronexpr.MustParse(dbResetSchedule.String)
 			schedules := cron.NextN(time.Now().UTC(), 2)
 			sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
 
@@ -274,7 +284,7 @@ WHERE
 
 			nextReset = schedules[0].Unix()
 		} else {
-			endActive = int64(startTime + dbDuration)
+			endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
 			if endActive < time.Now().UTC().Unix() {
 				canEnter = false
 			}
@@ -297,7 +307,7 @@ WHERE
 			StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
 		}
 
-		if dbEndTime.Valid {
+		if dbEndTime.Time.Unix() > 0 {
 			tournament.EndTime = &timestamp.Timestamp{Seconds: dbEndTime.Time.UTC().Unix()}
 		}
 
@@ -382,12 +392,36 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	return record, nil
 }
 
+func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]string, error) {
+	result := make([]string, 0)
+	rows, err := db.Query("SELECT leaderboard_id FROM leaderboard_record WHERE owner_id = $1 AND expiry_time > now()")
+	if err != nil {
+		logger.Error("Could not list leaderboard records belonging to owner", zap.Error(err), zap.String("owner_id", ownerId))
+		return nil, err
+	}
+
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			if err == sql.ErrNoRows {
+				return make([]string, 0), nil
+			}
+			logger.Error("Failed to parse database results", zap.Error(err))
+			return nil, err
+		}
+
+		result = append(result, id)
+	}
+
+	return result, nil
+}
+
 func tournamentJoinCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboard, tournamentId, ownerId string) error {
 	if !leaderboard.JoinRequired {
 		return nil
 	}
 
-	query := `SELECT EXISTS (SELECT id FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time > now())`
+	query := "SELECT EXISTS (SELECT id FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time > now())"
 	var exists bool
 	if err := tx.QueryRow(query, tournamentId, ownerId).Scan(&exists); err != nil {
 		logger.Error("Failed to check for tournament join check.", zap.Error(err))
@@ -402,7 +436,7 @@ func tournamentJoinCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboar
 }
 
 func tournamentMaxSizeCheck(logger *zap.Logger, tx *sql.Tx, tournamentId string) error {
-	query := `SELECT EXISTS (SELECT id FROM leaderboard WHERE leaderboard_id = $1 AND size < max_size)`
+	query := "SELECT EXISTS (SELECT id FROM leaderboard WHERE leaderboard_id = $1 AND size < max_size)"
 
 	var exists bool
 	if err := tx.QueryRow(query, tournamentId).Scan(&exists); err != nil {
