@@ -181,8 +181,8 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	return mainConfig
 }
 
-func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]interface{}, mergeEnv []string) map[string]interface{} {
-	envMap := make(map[string]interface{}, len(existingEnv))
+func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
+	envMap := make(map[string]string, len(existingEnv))
 	for k, v := range existingEnv {
 		envMap[k] = v
 	}
@@ -412,7 +412,7 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment   map[string]interface{}
+	Environment   map[string]string
 	Env           []string `yaml:"env" json:"env"`
 	Path          string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
 	HTTPKey       string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
@@ -425,7 +425,7 @@ type RuntimeConfig struct {
 // NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment:   make(map[string]interface{}, 0),
+		Environment:   make(map[string]string, 0),
 		Env:           make([]string, 0),
 		Path:          "",
 		HTTPKey:       "defaultkey",

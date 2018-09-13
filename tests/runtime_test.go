@@ -18,54 +18,24 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"fmt"
-	"sync"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
-	"github.com/yuin/gopher-lua"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func vm(t *testing.T, moduleCache *server.ModuleCache) *server.RuntimePool {
-	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:     server.OpenPackage(moduleCache),
-		lua.BaseLibName:     lua.OpenBase,
-		lua.TabLibName:      lua.OpenTable,
-		lua.OsLibName:       server.OpenOs,
-		lua.StringLibName:   lua.OpenString,
-		lua.MathLibName:     lua.OpenMath,
-		server.Bit32LibName: server.OpenBit32,
-	}
-
-	db := NewDB(t)
-	once := &sync.Once{}
-	router := &DummyMessageRouter{}
-	regCallbacks, err := server.ValidateRuntimeModules(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, moduleCache, once)
-	if err != nil {
-		t.Fatalf("Failed initializing runtime modules: %s", err.Error())
-	}
-
-	return server.NewRuntimePool(logger, logger, db, config, nil, nil, nil, nil, nil, router, stdLibs, moduleCache, regCallbacks, once)
-}
-
-func writeLuaModule(modules *server.ModuleCache, name, content string) {
-	modules.Add(&server.RuntimeModule{
-		Name:    name,
-		Path:    fmt.Sprintf("%v.lua", name),
-		Content: []byte(content),
-	})
-}
-
-func writeStatsModule(modules *server.ModuleCache) {
-	writeLuaModule(modules, "stats", `
-stats={}
+const (
+	STATS_MODULE_NAME = "stats"
+	STATS_MODULE_DATA = `stats={}
 -- Get the mean value of a table
 function stats.mean( t )
   local sum = 0
@@ -79,64 +49,67 @@ function stats.mean( t )
   return (sum / count)
 end
 print("Stats Module Loaded")
-return stats`)
-}
-
-func writeTestModule(modules *server.ModuleCache) {
-	writeLuaModule(modules, "test", `
-test={}
+return stats`
+	TEST_MODULE_NAME = "test"
+	TEST_MODULE_DATA = `test={}
 -- Get the mean value of a table
 function test.printWorld()
 	print("Hello World")
 	return {["message"]="Hello World"}
 end
 print("Test Module Loaded")
-return test
-`)
+return test`
+)
+
+func runtimeWithModules(t *testing.T, modules map[string]string) (*server.Runtime, error) {
+	dir, err := ioutil.TempDir("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
+	if err != nil {
+		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
+	}
+	defer os.RemoveAll(dir)
+
+	for moduleName, moduleData := range modules {
+		if err := ioutil.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0644); err != nil {
+			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
+		}
+	}
+
+	cfg := server.NewConfig(logger)
+	cfg.Runtime.Path = dir
+
+	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, &DummyMessageRouter{})
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
-	rp := vm(t, &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	})
-	r := rp.Get()
-	defer r.Stop()
-
-	l, _ := r.NewStateThread()
-	defer l.Close()
-	err := l.DoString(`
+	modules := map[string]string{
+		"mod": `
 local example = "an example string"
 for i in string.gmatch(example, "%S+") do
    print(i)
-end`)
+end`,
+	}
 
+	_, err := runtimeWithModules(t, modules)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 }
 
 func TestRuntimeDisallowStandardLibs(t *testing.T) {
-	rp := vm(t, &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	})
-	r := rp.Get()
-	defer r.Stop()
-
-	l, _ := r.NewStateThread()
-	defer l.Close()
-	err := l.DoString(`
+	modules := map[string]string{
+		"mod": `
 -- Return true if file exists and is readable.
 function file_exists(path)
   local file = io.open(path, "r")
   if file then file:close() end
   return file ~= nil
 end
-file_exists "./"`)
+file_exists "./"`,
+	}
 
+	_, err := runtimeWithModules(t, modules)
 	if err == nil {
-		t.Error(errors.New("successfully accessed IO package"))
+		t.Fatal(errors.New("successfully accessed IO package"))
 	}
 }
 
@@ -144,56 +117,53 @@ file_exists "./"`)
 // Have a look at the stdout messages to see if the module was loaded multiple times
 // You should only see "Test Module Loaded" once
 func TestRuntimeRequireEval(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeTestModule(modules)
-	writeLuaModule(modules, "test-invoke", `
+	modules := map[string]string{
+		TEST_MODULE_NAME: TEST_MODULE_DATA,
+		"test-invoke": `
 local nakama = require("nakama")
 local test = require("test")
-test.printWorld()
-`)
+test.printWorld()`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeRequireFile(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeStatsModule(modules)
-	writeLuaModule(modules, "local_test", `
+	modules := map[string]string{
+		STATS_MODULE_NAME: STATS_MODULE_DATA,
+		"local_test": `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
-assert(stats.mean(t) > 0)
-`)
+assert(stats.mean(t) > 0)`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeRequirePreload(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeStatsModule(modules)
-	writeLuaModule(modules, "states-invoke", `
+	modules := map[string]string{
+		STATS_MODULE_NAME: STATS_MODULE_DATA,
+		"states-invoke": `
 local stats = require("stats")
 t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
-print(stats.mean(t))
-`)
+print(stats.mean(t))`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeBit32(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "bit32-tests", `
+	modules := map[string]string{
+		"bit32-tests": `
 --[[
 Original under MIT license at https://github.com/Shopify/lua-tests/blob/master/bitwise.lua
 --]]
@@ -312,18 +282,18 @@ assert(bit32.replace(-1, 0, 31) == 2^31 - 1)
 assert(bit32.replace(-1, 0, 1, 2) == 2^32 - 7)
 
 
-print'OK'
-`)
+print'OK'`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeRegisterRPCWithPayload(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -332,37 +302,37 @@ function test.printWorld(ctx, payload)
 	return payload
 end
 print("Test Module Loaded")
-return test
-	`)
-	writeLuaModule(modules, "http-invoke", `
+return test`,
+		"http-invoke": `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_rpc(test.printWorld, "helloworld")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	fn := r.GetCallback(server.ExecutionModeRPC, "helloworld")
-	payload := "Hello World"
-
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
-	if m != payload {
-		t.Error("Invocation failed. Return result not expected")
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("helloworld")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "Hello World"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if result != payload {
+		t.Fatal("Invocation failed. Return result not expected")
 	}
 }
 
 func TestRuntimeRegisterRPCWithPayloadEndToEnd(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 test={}
 -- Get the mean value of a table
 function test.printWorld(ctx, payload)
@@ -371,19 +341,21 @@ function test.printWorld(ctx, payload)
 	return payload
 end
 print("Test Module Loaded")
-return test
-	`)
-	writeLuaModule(modules, "http-invoke", `
+return test`,
+		"http-invoke": `
 local nakama = require("nakama")
 local test = require("test")
-nakama.register_rpc(test.printWorld, "helloworld")
-	`)
+nakama.register_rpc(test.printWorld, "helloworld")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
 	db := NewDB(t)
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, rp)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, pipeline, rp)
+	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, runtime)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, pipeline, runtime)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -392,257 +364,267 @@ nakama.register_rpc(test.printWorld, "helloworld")
 	request.Header.Add("Content-Type", "Application/JSON")
 	res, err := client.Do(request)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	if string(b) != "{\"payload\":"+payload+"}" {
-		t.Error("Invocation failed. Return result not expected: ", string(b))
+		t.Fatal("Invocation failed. Return result not expected: ", string(b))
 	}
 }
 
 func TestRuntimeHTTPRequest(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	local success, code, headers, body = pcall(nakama.http_request, "http://httpbin.org/status/200", "GET", {})
 	return tostring(code)
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", "")
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	if m != "200" {
-		t.Error("Invocation failed. Return result not expected", m)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	result, err, _ := fn(nil, "", "", 0, "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result != "200" {
+		t.Fatal("Invocation failed. Return result not expected", result)
 	}
 }
 
 func TestRuntimeJson(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.json_encode(nakama.json_decode(payload))
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	if m != payload {
-		t.Error("Invocation failed. Return result not expected", m)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "{\"key\":\"value\"}"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result != payload {
+		t.Fatal("Invocation failed. Return result not expected", result)
 	}
 }
 
 func TestRuntimeBase64(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.base64_decode(nakama.base64_encode(payload))
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	if m != payload {
-		t.Error("Invocation failed. Return result not expected", m)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "{\"key\":\"value\"}"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result != payload {
+		t.Fatal("Invocation failed. Return result not expected", result)
 	}
 }
 
 func TestRuntimeBase16(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.base16_decode(nakama.base16_encode(payload))
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	if m != payload {
-		t.Error("Invocation failed. Return result not expected", m)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "{\"key\":\"value\"}"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result != payload {
+		t.Fatal("Invocation failed. Return result not expected", result)
 	}
 }
 
 func TestRuntimeAes128(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.aes128_decrypt(nakama.aes128_encrypt(payload, "goldenbridge_key"), "goldenbridge_key")
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	if strings.TrimSpace(m.(string)) != payload {
-		t.Error("Invocation failed. Return result not expected", m)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "{\"key\":\"value\"}"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.TrimSpace(result) != payload {
+		t.Fatal("Invocation failed. Return result not expected", result)
 	}
 }
 
 func TestRuntimeMD5Hash(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "md5hash-test", `
+	modules := map[string]string{
+		"md5hash-test": `
 local nk = require("nakama")
-assert(nk.md5_hash("test") == "098f6bcd4621d373cade4e832627b4f6")
-`)
+assert(nk.md5_hash("test") == "098f6bcd4621d373cade4e832627b4f6")`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeSHA256Hash(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "sha256hash-test", `
+	modules := map[string]string{
+		"sha256hash-test": `
 local nk = require("nakama")
-assert(nk.sha256_hash("test") == "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08")
-`)
+assert(nk.sha256_hash("test") == "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08")`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeBcryptHash(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return nakama.bcrypt_hash(payload)
 end
-nakama.register_rpc(test, "test")
-	`)
-
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
-
-	payload := "{\"key\":\"value\"}"
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", payload)
-	if err != nil {
-		t.Error(err)
+nakama.register_rpc(test, "test")`,
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(m.(string)), []byte(payload))
+	runtime, err := runtimeWithModules(t, modules)
 	if err != nil {
-		t.Error("Return result not expected", m, err)
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
+
+	payload := "{\"key\":\"value\"}"
+	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(result), []byte(payload))
+	if err != nil {
+		t.Fatal("Return result not expected", result, err)
 	}
 }
 
 func TestRuntimeBcryptCompare(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
 	return tostring(nakama.bcrypt_compare(payload, "something_to_encrypt"))
 end
-nakama.register_rpc(test, "test")
-	`)
+nakama.register_rpc(test, "test")`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.Rpc("test")
+	if fn == nil {
+		t.Fatal("Expected RPC function to be registered")
+	}
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	fn := r.GetCallback(server.ExecutionModeRPC, "test")
-	m, err, _ := r.InvokeFunction(server.ExecutionModeRPC, fn, nil, "", "", 0, "", "", "", string(hash))
+	result, err, _ := fn(nil, "", "", 0, "", "", "", string(hash))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	if m != "true" {
-		t.Error("Return result not expected", m)
+	if result != "true" {
+		t.Error("Return result not expected", result)
 	}
 }
 
 func TestRuntimeNotificationsSend(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
@@ -655,20 +637,18 @@ local code = 1
 local new_notifications = {
   { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
 }
-nk.notifications_send(new_notifications)
-`)
+nk.notifications_send(new_notifications)`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeNotificationSend(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
@@ -678,25 +658,22 @@ local content = {
 local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
 
-nk.notification_send(user_id, subject, content, code, "", false)
-`)
+nk.notification_send(user_id, subject, content, code, "", false)`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeWalletWrite(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-
 	db := NewDB(t)
 	uid := uuid.FromStringOrNil("95f05d94-cc66-445a-b4d1-9e262662cf79")
 	InsertUser(t, db, uid)
 
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 
 local content = {
@@ -704,20 +681,18 @@ local content = {
 }
 local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 
-nk.wallet_update(user_id, content)
-`)
+nk.wallet_update(user_id, content)`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeStorageWrite(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test.lua", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 
 local new_objects = {
@@ -726,20 +701,18 @@ local new_objects = {
 	{collection = "settings", key = "c", user_id = nil, value = {}}
 }
 
-nk.storage_write(new_objects)
-`)
+nk.storage_write(new_objects)`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeStorageRead(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test.lua", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 local object_ids = {
   {collection = "settings", key = "a", user_id = nil},
@@ -750,30 +723,31 @@ local objects = nk.storage_read(object_ids)
 for i, r in ipairs(objects)
 do
   assert(#r.value == 0, "'r.value' must be '{}'")
-end
-`)
+end`,
+	}
 
-	rp := vm(t, modules)
-	r := rp.Get()
-	defer r.Stop()
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestRuntimeReqBeforeHook(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function before_storage_write(ctx, payload)
 	return payload
 end
-nakama.register_req_before(before_storage_write, "WriteStorageObjects")
-	`)
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	apiserver, _ := NewAPIServer(t, rp)
+	apiserver, _ := NewAPIServer(t, runtime)
 	defer apiserver.Stop()
 	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
@@ -799,26 +773,26 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeReqBeforeHookDisallowed(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function before_storage_write(ctx, payload)
 	return nil
 end
-nakama.register_req_before(before_storage_write, "WriteStorageObjects")
-	`)
+nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	apiserver, _ := NewAPIServer(t, rp)
+	apiserver, _ := NewAPIServer(t, runtime)
 	defer apiserver.Stop()
 	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
 
-	_, err := client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
+	_, err = client.WriteStorageObjects(ctx, &api.WriteStorageObjectsRequest{
 		Objects: []*api.WriteStorageObject{{
 			Collection: "collection",
 			Key:        "key",
@@ -835,22 +809,22 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeReqAfterHook(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function after_storage_write(ctx, payload)
 	nakama.wallet_update(ctx.user_id, {gem = 10})
 	return payload
 end
-nakama.register_req_after(after_storage_write, "WriteStorageObjects")
-	`)
+nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	apiserver, _ := NewAPIServer(t, rp)
+	apiserver, _ := NewAPIServer(t, runtime)
 	defer apiserver.Stop()
 	conn, client, _, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
@@ -871,7 +845,7 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 	}
 
 	if len(acks.Acks) != 1 {
-		t.Error("Invocation failed. Return result not expected: ", len(acks.Acks))
+		t.Fatal("Invocation failed. Return result not expected: ", len(acks.Acks))
 	}
 
 	account, err := client.GetAccount(ctx, &empty.Empty{})
@@ -885,22 +859,22 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")
 }
 
 func TestRuntimeRTBeforeHook(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
 	nakama.wallet_update(ctx.user_id, {gem = 20})
 	return payload
 end
-nakama.register_rt_before(before_match_create, "MatchCreate")
-	`)
+nakama.register_rt_before(before_match_create, "MatchCreate")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	apiserver, pipeline := NewAPIServer(t, rp)
+	apiserver, pipeline := NewAPIServer(t, runtime)
 	defer apiserver.Stop()
 	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
@@ -934,11 +908,8 @@ nakama.register_rt_before(before_match_create, "MatchCreate")
 }
 
 func TestRuntimeRTBeforeHookDisallow(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test", `
+	modules := map[string]string{
+		"test": `
 local nakama = require("nakama")
 function before_match_create(ctx, payload)
 	return nil
@@ -949,12 +920,15 @@ function after_match_create(ctx, payload)
 	nakama.wallet_update(ctx.user_id, {gem = 30})
 	return payload
 end
-nakama.register_rt_after(after_match_create, "MatchCreate")
-	`)
+nakama.register_rt_after(after_match_create, "MatchCreate")`,
+	}
 
-	rp := vm(t, modules)
+	runtime, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	apiserver, pipeline := NewAPIServer(t, rp)
+	apiserver, pipeline := NewAPIServer(t, runtime)
 	defer apiserver.Stop()
 	conn, client, s, ctx := NewAuthenticatedAPIClient(t, uuid.Must(uuid.NewV4()).String())
 	defer conn.Close()
@@ -988,11 +962,8 @@ nakama.register_rt_after(after_match_create, "MatchCreate")
 }
 
 func TestRuntimeGroupTests(t *testing.T) {
-	modules := &server.ModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*server.RuntimeModule, 0),
-	}
-	writeLuaModule(modules, "test.lua", `
+	modules := map[string]string{
+		"test": `
 local nk = require("nakama")
 
 local user_id = nk.uuid_v4()
@@ -1020,8 +991,11 @@ do
 	assert(g.state == 1, "'g.state' must be equal to 1 / superadmin")
 end
 
-nk.group_delete(group.id)
-`)
+nk.group_delete(group.id)`,
+	}
 
-	vm(t, modules)
+	_, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 }

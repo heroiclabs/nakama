@@ -1,3 +1,21 @@
+# docker build . --rm --build-arg version=2.0.4 --build-arg commit=master -t heroiclabs/nakama:2.0.4
+
+FROM golang:1.10-alpine3.7 as builder
+
+ARG commit
+
+RUN apk --no-cache add ca-certificates gcc musl-dev git
+
+WORKDIR /go/src/github.com/heroiclabs/
+RUN git config --global advice.detachedHead false && \
+  git clone -q -n https://github.com/heroiclabs/nakama
+
+WORKDIR /go/src/github.com/heroiclabs/nakama
+RUN git checkout -q "$commit" && \
+  GOOS=linux GOARCH=amd64 go build && \
+  mkdir -p /go/build && \
+  mv nakama /go/build
+
 FROM alpine:3.7
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
@@ -12,12 +30,11 @@ RUN mkdir -p /nakama/data/modules && \
   apk --no-cache add ca-certificates curl iproute2
 
 WORKDIR /nakama/
-COPY ./nakama ./nakama
+COPY --from=builder "/go/build/nakama" /nakama/
 EXPOSE 7349 7350 7351
 
-# set entry point to nakama so that it can be invoked from the `docker run nakama`
 ENTRYPOINT ["./nakama"]
 
-# curl fails on non-200 HTTP status code
 HEALTHCHECK --interval=5m --timeout=3s \
   CMD curl -f http://localhost:7350/ || exit 1
+

@@ -15,6 +15,11 @@
 package server
 
 import (
+	"fmt"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
+	"go.uber.org/zap"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -34,6 +39,33 @@ var (
 )
 
 func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.AuthenticateCustomRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateCustomFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
@@ -58,11 +90,57 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateCustomFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.AuthenticateDeviceRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateDeviceFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {
@@ -87,11 +165,57 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateDeviceFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateEmailRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateEmailFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	email := in.Account
 	if email == nil || email.Email == "" || email.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
@@ -123,11 +247,57 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateEmailFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateFacebookFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil || in.Account.Token == "" {
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
@@ -153,11 +323,57 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, false)
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateFacebookFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateGameCenterFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil {
 		return nil, status.Error(codes.InvalidArgument, "GameCenter access credentials are required.")
 	} else if in.Account.BundleId == "" {
@@ -190,11 +406,57 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateGameCenterFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateGoogleFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil || in.Account.Token == "" {
 		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
@@ -215,11 +477,57 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateGoogleFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateSteamFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if s.config.GetSocial().Steam.PublisherKey == "" || s.config.GetSocial().Steam.AppID == 0 {
 		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
 	}
@@ -244,23 +552,42 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 		return nil, err
 	}
 
-	token := generateToken(s.config, dbUserID, dbUsername)
-	return &api.Session{Created: created, Token: token}, nil
+	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	session := &api.Session{Created: created, Token: token}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterAuthenticateSteamFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
+	return session, nil
 }
 
-func generateToken(config Config, userID, username string) string {
+func generateToken(config Config, userID, username string) (string, int64) {
 	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
 	return generateTokenWithExpiry(config, userID, username, exp)
 }
 
-func generateTokenWithExpiry(config Config, userID, username string, exp int64) string {
+func generateTokenWithExpiry(config Config, userID, username string, exp int64) (string, int64) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid": userID,
 		"exp": exp,
 		"usn": username,
 	})
 	signedToken, _ := token.SignedString([]byte(config.GetSession().EncryptionKey))
-	return signedToken
+	return signedToken, exp
 }
 
 func generateUsername() string {

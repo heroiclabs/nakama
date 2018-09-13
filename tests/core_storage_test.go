@@ -381,6 +381,9 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 				PermissionWrite: &wrappers.Int32Value{Value: 1},
 			}}}
 	allAcks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 	acks := allAcks.Acks
 
 	assert.Nil(t, err, "err was not nil")

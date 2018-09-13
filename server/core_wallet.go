@@ -44,6 +44,30 @@ type walletLedger struct {
 	UpdateTime int64
 }
 
+func (w *walletLedger) GetID() string {
+	return w.ID
+}
+
+func (w *walletLedger) GetUserID() string {
+	return w.UserID
+}
+
+func (w *walletLedger) GetCreateTime() int64 {
+	return w.CreateTime
+}
+
+func (w *walletLedger) GetUpdateTime() int64 {
+	return w.UpdateTime
+}
+
+func (w *walletLedger) GetChangeset() map[string]interface{} {
+	return w.Changeset
+}
+
+func (w *walletLedger) GetMetadata() map[string]interface{} {
+	return w.Metadata
+}
+
 func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) error {
 	if len(updates) == 0 {
 		return nil

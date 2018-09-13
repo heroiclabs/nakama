@@ -31,6 +31,7 @@ import (
 )
 
 type Pipeline struct {
+	logger            *zap.Logger
 	config            Config
 	db                *sql.DB
 	jsonpbMarshaler   *jsonpb.Marshaler
@@ -40,12 +41,13 @@ type Pipeline struct {
 	matchmaker        Matchmaker
 	tracker           Tracker
 	router            MessageRouter
-	runtimePool       *RuntimePool
+	runtime           *Runtime
 	node              string
 }
 
-func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtimePool *RuntimePool) *Pipeline {
+func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
 	return &Pipeline{
+		logger:            logger,
 		config:            config,
 		db:                db,
 		jsonpbMarshaler:   jsonpbMarshaler,
@@ -55,7 +57,7 @@ func NewPipeline(config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, j
 		matchmaker:        matchmaker,
 		tracker:           tracker,
 		router:            router,
-		runtimePool:       runtimePool,
+		runtime:           runtime,
 		node:              config.GetName(),
 	}
 }
@@ -133,53 +135,47 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		return false
 	}
 
-	var messageName string
+	var messageName, messageNameID string
 
 	switch envelope.Message.(type) {
 	case *rtapi.Envelope_Rpc:
 		// No before/after hooks on RPC.
 	default:
 		messageName = fmt.Sprintf("%T", envelope.Message)
+		messageNameID = strings.ToLower(messageName)
 
-		// Stats measurement start boundary.
-		name := fmt.Sprintf("nakama.rtapi-before.%v", pipelineName)
-		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-		startNanos := time.Now().UTC().UnixNano()
-		span := trace.NewSpan(name, nil, trace.StartOptions{})
+		if fn := p.runtime.BeforeRt(messageNameID); fn != nil {
+			// Stats measurement start boundary.
+			name := fmt.Sprintf("nakama.rtapi.%v-before", pipelineName)
+			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+			startNanos := time.Now().UTC().UnixNano()
+			span := trace.NewSpan(name, nil, trace.StartOptions{})
 
-		// Actual before hook function execution.
-		hookResult, hookErr := invokeReqBeforeHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, p.jsonpbUnmarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), session.ClientIP(), session.ClientPort(), messageName, envelope)
+			// Actual before hook function execution.
+			hookResult, hookErr := fn(logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 
-		// Stats measurement end boundary.
-		span.End()
-		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
+			// Stats measurement end boundary.
+			span.End()
+			stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 
-		if hookErr != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
-				Message: hookErr.Error(),
-			}}})
-			return false
-		} else if hookResult == nil {
-			// if result is nil, requested resource is disabled.
-			logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
-				Message: "Requested resource was not found.",
-			}}})
-			return false
+			if hookErr != nil {
+				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+					Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
+					Message: hookErr.Error(),
+				}}})
+				return false
+			} else if hookResult == nil {
+				// if result is nil, requested resource is disabled.
+				logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
+				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+					Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
+					Message: "Requested resource was not found.",
+				}}})
+				return false
+			}
+
+			envelope = hookResult
 		}
-
-		resultCast, ok := hookResult.(*rtapi.Envelope)
-		if !ok {
-			logger.Error("Invalid runtime Before function result. Make sure that the result matches the structure of the payload.", zap.Any("payload", envelope), zap.Any("result", hookResult))
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
-				Message: "Invalid runtime Before function result.",
-			}}})
-			return false
-		}
-		envelope = resultCast
 	}
 
 	// Stats measurement start boundary.
@@ -196,18 +192,20 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 
 	if messageName != "" {
-		// Stats measurement start boundary.
-		name := fmt.Sprintf("nakama.rtapi-after.%v", pipelineName)
-		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-		startNanos := time.Now().UTC().UnixNano()
-		span := trace.NewSpan(name, nil, trace.StartOptions{})
+		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
+			// Stats measurement start boundary.
+			name := fmt.Sprintf("nakama.rtapi.%v-after", pipelineName)
+			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+			startNanos := time.Now().UTC().UnixNano()
+			span := trace.NewSpan(name, nil, trace.StartOptions{})
 
-		// Actual after hook function execution.
-		invokeReqAfterHook(logger, p.config, p.runtimePool, p.jsonpbMarshaler, session.ID().String(), session.UserID(), session.Username(), session.Expiry(), session.ClientIP(), session.ClientPort(), messageName, envelope)
+			// Actual after hook function execution.
+			fn(logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 
-		// Stats measurement end boundary.
-		span.End()
-		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
+			// Stats measurement end boundary.
+			span.End()
+			stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
+		}
 	}
 
 	return true

@@ -4,7 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New Go code runtime for custom functions and authoritative match handlers.
+- Lua runtime token generator function now returns a second value representing the token's expiry.
+- Add local cache for in-memory storage to the Lua runtime.
 
+### Fixed
+- Correctly merge new friend records when importing from Facebook.
+- Log correct registered hook names at startup.
 
 ## [2.0.3] - 2018-08-10
 ### Added

@@ -15,8 +15,13 @@
 package server
 
 import (
+	"fmt"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
@@ -31,6 +36,35 @@ import (
 )
 
 func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkCustomFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	customID := in.Id
 	if customID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
@@ -40,7 +74,6 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, must be 6-128 bytes.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET custom_id = $2, update_time = now()
@@ -59,10 +92,56 @@ AND (NOT EXISTS
 		return nil, status.Error(codes.AlreadyExists, "Custom ID is already in use.")
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkCustomFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkDeviceFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	deviceID := in.Id
 	if deviceID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Device ID is required.")
@@ -79,8 +158,6 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	}
 
 	err = crdb.ExecuteInTx(ctx, tx, func() error {
-		userID := ctx.Value(ctxUserIDKey{})
-
 		var dbDeviceIdLinkedUser int64
 		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
@@ -115,10 +192,56 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 		return nil, status.Error(codes.Internal, "Error linking Device ID.")
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkDeviceFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkEmailFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Email == "" || in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
 	} else if invalidCharsRegex.MatchString(in.Email) {
@@ -134,7 +257,6 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	cleanEmail := strings.ToLower(in.Email)
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET email = $2, password = $3, update_time = now()
@@ -154,10 +276,56 @@ AND (NOT EXISTS
 		return nil, status.Error(codes.AlreadyExists, "Email is already in use.")
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkEmailFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkFacebookFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Account == nil || in.Account.Token == "" {
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
@@ -168,7 +336,6 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET facebook_id = $2, update_time = now()
@@ -192,10 +359,56 @@ AND (NOT EXISTS
 		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkFacebookFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkGameCenterFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.BundleId == "" {
 		return nil, status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
 	} else if in.PlayerId == "" {
@@ -216,7 +429,6 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET gamecenter_id = $2, update_time = now()
@@ -235,10 +447,56 @@ AND (NOT EXISTS
 		return nil, status.Error(codes.AlreadyExists, "GameCenter ID is already in use.")
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkGameCenterFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkGoogleFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if in.Token == "" {
 		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
@@ -249,7 +507,6 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET google_id = $2, update_time = now()
@@ -268,10 +525,56 @@ AND (NOT EXISTS
 		return nil, status.Error(codes.AlreadyExists, "Google ID is already in use.")
 	}
 
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkGoogleFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.beforeReqFunctions.beforeLinkSteamFunction; fn != nil {
+		// Stats measurement start boundary.
+		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
+		name := fmt.Sprintf("%v-before", fullMethod)
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		if err != nil {
+			return nil, status.Error(code, err.Error())
+		}
+		if result == nil {
+			// If result is nil, requested resource is disabled.
+			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", fullMethod), zap.String("uid", userID.(uuid.UUID).String()))
+			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
+		}
+		in = result
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+	}
+
 	if s.config.GetSocial().Steam.PublisherKey == "" || s.config.GetSocial().Steam.AppID == 0 {
 		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
 	}
@@ -286,7 +589,6 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
-	userID := ctx.Value(ctxUserIDKey{})
 	res, err := s.db.Exec(`
 UPDATE users
 SET steam_id = $2, update_time = now()
@@ -303,6 +605,23 @@ AND (NOT EXISTS
 		return nil, status.Error(codes.Internal, "Error while trying to link Steam ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.AlreadyExists, "Steam ID is already in use.")
+	}
+
+	// After hook.
+	if fn := s.runtime.afterReqFunctions.afterLinkSteamFunction; fn != nil {
+		// Stats measurement start boundary.
+		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
+		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos := time.Now().UTC().UnixNano()
+		span := trace.NewSpan(name, nil, trace.StartOptions{})
+
+		// Extract request information and execute the hook.
+		clientIP, clientPort := extractClientAddress(s.logger, ctx)
+		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, &empty.Empty{})
+
+		// Stats measurement end boundary.
+		span.End()
+		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
 	}
 
 	return &empty.Empty{}, nil

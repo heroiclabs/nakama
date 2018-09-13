@@ -352,9 +352,9 @@ func (fm *FlagMaker) enumerateAndCreate(prefix string, value reflect.Value, usag
 		}
 
 		usageDesc := fm.getUsage(optName, stField)
-		if len(usageDesc) == 0 {
-			optName = optName
-		}
+		//if len(usageDesc) == 0 {
+		//	optName = optName
+		//}
 
 		fm.enumerateAndCreate(optName, field, usageDesc)
 	}
@@ -450,7 +450,7 @@ func (fm *FlagMaker) defineFlag(name string, value reflect.Value, usage string) 
 			fm.fs.DurationVar(v, name, value.Interface().(time.Duration), usage)
 		default:
 			// (TODO) if one type defines time.Duration, we'll create a int64 flag for it.
-			// Find some acceptible way to deal with it.
+			// Find some acceptable way to deal with it.
 			vv := ptrValue.Convert(int64PtrType).Interface().(*int64)
 			fm.fs.Int64Var(vv, name, value.Int(), usage)
 		}

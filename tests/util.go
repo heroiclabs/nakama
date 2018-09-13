@@ -20,12 +20,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"os"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/api"
@@ -35,6 +29,9 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"os"
+	"strings"
+	"testing"
 )
 
 var (
@@ -82,6 +79,12 @@ func (d *DummySession) Consume(func(logger *zap.Logger, session server.Session, 
 }
 func (d *DummySession) Format() server.SessionFormat {
 	return server.SessionFormatJson
+}
+func (d *DummySession) ClientIP() string {
+	return ""
+}
+func (d *DummySession) ClientPort() string {
+	return ""
 }
 func (d *DummySession) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
 	d.messages = append(d.messages, envelope)
@@ -135,7 +138,7 @@ func NewDB(t *testing.T) *sql.DB {
 }
 
 func GenerateString() string {
-	return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	return uuid.Must(uuid.NewV4()).String()
 }
 
 func InsertUser(t *testing.T, db *sql.DB, uid uuid.UUID) {
@@ -147,12 +150,12 @@ ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
 	}
 }
 
-func NewAPIServer(t *testing.T, runtimePool *server.RuntimePool) (*server.ApiServer, *server.Pipeline) {
+func NewAPIServer(t *testing.T, runtime *server.Runtime) (*server.ApiServer, *server.Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
 	tracker := &server.LocalTracker{}
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtimePool)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, tracker, router, pipeline, runtimePool)
+	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtime)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, tracker, router, pipeline, runtime)
 	return apiServer, pipeline
 }
 

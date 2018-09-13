@@ -67,8 +67,18 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		return
 	}
 
+	var tokenOrMatchID string
+	var isMatchID bool
+
 	// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
-	tokenOrMatchID, isMatchID := invokeMatchmakerMatchedHook(logger, p.runtimePool, entries)
+	fn := p.runtime.MatchmakerMatched()
+	if fn != nil {
+		tokenOrMatchID, isMatchID, err = fn(entries)
+		if err != nil {
+			p.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
+		}
+	}
+
 	if !isMatchID {
 		// If there was no callback or it didn't return a valid match ID always return at least a token.
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

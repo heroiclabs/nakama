@@ -20,9 +20,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -37,7 +35,8 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	id := strings.ToLower(in.Id)
 
-	if !s.runtimePool.HasCallback(ExecutionModeRPC, id) {
+	fn := s.runtime.Rpc(id)
+	if fn == nil {
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
@@ -65,14 +64,6 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	if e := ctx.Value(ctxExpiryKey{}); e != nil {
 		expiry = e.(int64)
 	}
-
-	runtime := s.runtimePool.Get()
-	lf := runtime.GetCallback(ExecutionModeRPC, id)
-	if lf == nil {
-		s.runtimePool.Put(runtime)
-		return nil, status.Error(codes.NotFound, "RPC function not found")
-	}
-
 	clientAddr := ""
 	clientIP := ""
 	clientPort := ""
@@ -84,7 +75,6 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		// if missing, try to look up gRPC peer info
 		clientAddr = peerInfo.Addr.String()
 	}
-
 	clientAddr = strings.TrimSpace(clientAddr)
 	if host, port, err := net.SplitHostPort(clientAddr); err == nil {
 		clientIP = host
@@ -95,36 +85,10 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		s.logger.Debug("Could not extract client address from request.", zap.Error(err))
 	}
 
-	result, fnErr, code := runtime.InvokeFunction(ExecutionModeRPC, lf, queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
-	s.runtimePool.Put(runtime)
-
+	result, fnErr, code := fn(queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
 	if fnErr != nil {
-		s.logger.Error("Runtime RPC function caused an error", zap.String("id", in.Id), zap.Error(fnErr))
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !s.logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return nil, status.Error(code, msg)
-		} else {
-			return nil, status.Error(code, fnErr.Error())
-		}
+		return nil, status.Error(code, fnErr.Error())
 	}
 
-	if result == nil {
-		return &api.Rpc{}, nil
-	}
-
-	if payload, ok := result.(string); !ok {
-		s.logger.Warn("Runtime function returned invalid data", zap.Any("result", result))
-		return nil, status.Error(codes.Internal, "Runtime function returned invalid data - only allowed one return value of type String/Byte.")
-	} else {
-		return &api.Rpc{Payload: payload}, nil
-	}
+	return &api.Rpc{Payload: result}, nil
 }

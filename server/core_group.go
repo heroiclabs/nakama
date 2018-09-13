@@ -218,7 +218,6 @@ func UpdateGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.
 	if creatorID != nil {
 		statements = append(statements, "creator_id = $"+strconv.Itoa(index)+"::UUID")
 		params = append(params, creatorID)
-		index++
 	}
 
 	if len(statements) == 0 {

@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"sync"
 	"syscall"
 	"time"
 
@@ -95,40 +94,35 @@ func main() {
 
 	// Access to social provider integrations.
 	socialClient := social.NewClient(5 * time.Second)
-	// Used to govern once-per-server-start executions in all Lua runtime instances, across both pooled and match VMs.
-	once := &sync.Once{}
 
 	// Start up server components.
 	matchmaker := server.NewLocalMatchmaker(startupLogger, config.GetName())
 	sessionRegistry := server.NewSessionRegistry()
 	tracker := server.StartLocalTracker(logger, sessionRegistry, jsonpbMarshaler, config.GetName())
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
-	stdLibs, modules, err := server.LoadRuntimeModules(startupLogger, config)
-	if err != nil {
-		startupLogger.Fatal("Failed reading runtime modules", zap.Error(err))
-	}
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
-	matchRegistry := server.NewLocalMatchRegistry(logger, db, config, socialClient, leaderboardCache, sessionRegistry, tracker, router, stdLibs, once, config.GetName())
+	matchRegistry := server.NewLocalMatchRegistry(logger, config, tracker, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
-	// Separate module evaluation/validation from module loading.
-	// We need the match registry to be available to wire all functions exposed to the runtime, which in turn needs the modules at least cached first.
-	regCallbacks, err := server.ValidateRuntimeModules(logger, startupLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, once)
+	runtime, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
-	runtimePool := server.NewRuntimePool(logger, startupLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, modules, regCallbacks, once)
-	pipeline := server.NewPipeline(config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtimePool)
+	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtime)
 	metrics := server.NewMetrics(logger, startupLogger, config)
 
 	consoleServer := server.StartConsoleServer(logger, startupLogger, config, db)
-	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtimePool)
+	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtime)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)
 	gacode := "UA-89792135-1"
+	var telemetryClient *http.Client
 	if gaenabled {
-		runTelemetry(http.DefaultClient, gacode, cookie)
+		telemetryClient = &http.Client{
+			Timeout: 1500 * time.Millisecond,
+		}
+		runTelemetry(telemetryClient, gacode, cookie)
 	}
 
 	// Respect OS stop signals.
@@ -150,7 +144,7 @@ func main() {
 	sessionRegistry.Stop()
 
 	if gaenabled {
-		ga.SendSessionStop(http.DefaultClient, gacode, cookie)
+		ga.SendSessionStop(telemetryClient, gacode, cookie)
 	}
 
 	os.Exit(0)

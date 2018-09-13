@@ -19,6 +19,7 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama/runtime"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -32,6 +33,28 @@ type MatchmakerPresence struct {
 	Node      string `json:"node"`
 }
 
+func (p *MatchmakerPresence) GetUserId() string {
+	return p.UserId
+}
+func (p *MatchmakerPresence) GetSessionId() string {
+	return p.SessionId
+}
+func (p *MatchmakerPresence) GetNodeId() string {
+	return p.Node
+}
+func (p *MatchmakerPresence) GetHidden() bool {
+	return false
+}
+func (p *MatchmakerPresence) GetPersistence() bool {
+	return false
+}
+func (p *MatchmakerPresence) GetUsername() string {
+	return p.Username
+}
+func (p *MatchmakerPresence) GetStatus() string {
+	return ""
+}
+
 type MatchmakerEntry struct {
 	Ticket     string                 `json:"ticket"`
 	Presence   *MatchmakerPresence    `json:"presence"`
@@ -40,6 +63,16 @@ type MatchmakerEntry struct {
 	StringProperties  map[string]string  `json:"-"`
 	NumericProperties map[string]float64 `json:"-"`
 	SessionID         uuid.UUID          `json:"-"`
+}
+
+func (m *MatchmakerEntry) GetPresence() runtime.Presence {
+	return m.Presence
+}
+func (m *MatchmakerEntry) GetTicket() string {
+	return m.Ticket
+}
+func (m *MatchmakerEntry) GetProperties() map[string]interface{} {
+	return m.Properties
 }
 
 type Matchmaker interface {

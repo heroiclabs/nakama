@@ -15,13 +15,11 @@
 package server
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/heroiclabs/nakama/social"
-	"github.com/yuin/gopher-lua"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"sync"
 	"time"
@@ -43,6 +41,28 @@ type MatchPresence struct {
 	Username  string
 }
 
+func (p *MatchPresence) GetUserId() string {
+	return p.UserID.String()
+}
+func (p *MatchPresence) GetSessionId() string {
+	return p.SessionID.String()
+}
+func (p *MatchPresence) GetNodeId() string {
+	return p.Node
+}
+func (p *MatchPresence) GetHidden() bool {
+	return false
+}
+func (p *MatchPresence) GetPersistence() bool {
+	return false
+}
+func (p *MatchPresence) GetUsername() string {
+	return p.Username
+}
+func (p *MatchPresence) GetStatus() string {
+	return ""
+}
+
 type MatchJoinResult struct {
 	Allow  bool
 	Reason string
@@ -51,7 +71,7 @@ type MatchJoinResult struct {
 
 type MatchRegistry interface {
 	// Create and start a new match, given a Lua module name.
-	NewMatch(name string, params interface{}) (*MatchHandler, error)
+	NewMatch(logger *zap.Logger, id uuid.UUID, label *atomic.String, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match handler by ID, only from the local node.
 	GetMatch(id uuid.UUID) *MatchHandler
 	// Remove a tracked match and ensure all its presences are cleaned up.
@@ -80,44 +100,29 @@ type MatchRegistry interface {
 
 type LocalMatchRegistry struct {
 	sync.RWMutex
-	logger           *zap.Logger
-	db               *sql.DB
-	config           Config
-	socialClient     *social.Client
-	leaderboardCache LeaderboardCache
-	sessionRegistry  *SessionRegistry
-	tracker          Tracker
-	router           MessageRouter
-	stdLibs          map[string]lua.LGFunction
-	modules          *sync.Map
-	once             *sync.Once
-	node             string
-	matches          map[uuid.UUID]*MatchHandler
+	logger  *zap.Logger
+	config  Config
+	tracker Tracker
+	node    string
+	matches map[uuid.UUID]*MatchHandler
 }
 
-func NewLocalMatchRegistry(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
 	return &LocalMatchRegistry{
-		logger:           logger,
-		db:               db,
-		config:           config,
-		socialClient:     socialClient,
-		leaderboardCache: leaderboardCache,
-		sessionRegistry:  sessionRegistry,
-		tracker:          tracker,
-		router:           router,
-		stdLibs:          stdLibs,
-		once:             once,
-		node:             node,
-		matches:          make(map[uuid.UUID]*MatchHandler),
+		logger:  logger,
+		config:  config,
+		tracker: tracker,
+		node:    node,
+		matches: make(map[uuid.UUID]*MatchHandler),
 	}
 }
 
-func (r *LocalMatchRegistry) NewMatch(name string, params interface{}) (*MatchHandler, error) {
-	id := uuid.Must(uuid.NewV4())
-	match, err := NewMatchHandler(r.logger, r.db, r.config, r.socialClient, r.leaderboardCache, r.sessionRegistry, r, r.tracker, r.router, r.stdLibs, r.once, id, r.node, name, params)
+func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, label *atomic.String, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error) {
+	match, err := NewMatchHandler(logger, r.config, r, core, label, id, r.node, params)
 	if err != nil {
 		return nil, err
 	}
+
 	r.Lock()
 	r.matches[id] = match
 	r.Unlock()

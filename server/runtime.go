@@ -16,343 +16,1545 @@ package server
 
 import (
 	"database/sql"
-
-	"bytes"
-	"sync"
-
-	"context"
-
+	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
-	"github.com/yuin/gopher-lua"
-	"go.opencensus.io/stats"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
-const LTSentinel = lua.LValueType(-1)
+var (
+	ErrRuntimeRPCNotFound = errors.New("RPC function not found")
+)
 
-type LSentinelType struct {
-	lua.LNilType
-}
+const API_PREFIX = "/nakama.api.Nakama/"
+const RTAPI_PREFIX = "*rtapi.Envelope_"
 
-func (s *LSentinelType) String() string       { return "" }
-func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
+type (
+	RuntimeRpcFunction func(queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code)
 
-var LSentinel = lua.LValue(&LSentinelType{})
+	RuntimeBeforeRtFunction func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error)
+	RuntimeAfterRtFunction  func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error
 
-type RuntimeModule struct {
-	Name    string
-	Path    string
-	Content []byte
-}
+	RuntimeBeforeGetAccountFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeAfterGetAccountFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error
+	RuntimeBeforeUpdateAccountFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
+	RuntimeAfterUpdateAccountFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeAuthenticateCustomFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
+	RuntimeAfterAuthenticateCustomFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateDeviceFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code)
+	RuntimeAfterAuthenticateDeviceFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateEmailFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateEmailRequest) (*api.AuthenticateEmailRequest, error, codes.Code)
+	RuntimeAfterAuthenticateEmailFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateFacebookFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code)
+	RuntimeAfterAuthenticateFacebookFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateGameCenterFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code)
+	RuntimeAfterAuthenticateGameCenterFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateGoogleFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
+	RuntimeAfterAuthenticateGoogleFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateSteamFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code)
+	RuntimeAfterAuthenticateSteamFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeListChannelMessagesFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
+	RuntimeAfterListChannelMessagesFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList) error
+	RuntimeBeforeListFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeAfterListFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error
+	RuntimeBeforeAddFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code)
+	RuntimeAfterAddFriendsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeDeleteFriendsFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code)
+	RuntimeAfterDeleteFriendsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeBlockFriendsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code)
+	RuntimeAfterBlockFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeImportFacebookFriendsFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code)
+	RuntimeAfterImportFacebookFriendsFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeCreateGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code)
+	RuntimeAfterCreateGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group) error
+	RuntimeBeforeUpdateGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code)
+	RuntimeAfterUpdateGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeDeleteGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code)
+	RuntimeAfterDeleteGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeJoinGroupFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code)
+	RuntimeAfterJoinGroupFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLeaveGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code)
+	RuntimeAfterLeaveGroupFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeAddGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code)
+	RuntimeAfterAddGroupUsersFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeKickGroupUsersFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code)
+	RuntimeAfterKickGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforePromoteGroupUsersFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
+	RuntimeAfterPromoteGroupUsersFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListGroupUsersFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code)
+	RuntimeAfterListGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList) error
+	RuntimeBeforeListUserGroupsFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code)
+	RuntimeAfterListUserGroupsFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList) error
+	RuntimeBeforeListGroupsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code)
+	RuntimeAfterListGroupsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList) error
+	RuntimeBeforeDeleteLeaderboardRecordFunction func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code)
+	RuntimeAfterDeleteLeaderboardRecordFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListLeaderboardRecordsFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code)
+	RuntimeAfterListLeaderboardRecordsFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
+	RuntimeBeforeWriteLeaderboardRecordFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code)
+	RuntimeAfterWriteLeaderboardRecordFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error
+	RuntimeBeforeLinkCustomFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
+	RuntimeAfterLinkCustomFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkDeviceFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
+	RuntimeAfterLinkDeviceFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkEmailFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
+	RuntimeAfterLinkEmailFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkFacebookFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
+	RuntimeAfterLinkFacebookFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkGameCenterFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
+	RuntimeAfterLinkGameCenterFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkGoogleFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
+	RuntimeAfterLinkGoogleFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkSteamFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
+	RuntimeAfterLinkSteamFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListMatchesFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
+	RuntimeAfterListMatchesFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList) error
+	RuntimeBeforeListNotificationsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
+	RuntimeAfterListNotificationsFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList) error
+	RuntimeBeforeDeleteNotificationFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
+	RuntimeAfterDeleteNotificationFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterListStorageObjectsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList) error
+	RuntimeBeforeReadStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterReadStorageObjectsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects) error
+	RuntimeBeforeWriteStorageObjectsFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterWriteStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks) error
+	RuntimeBeforeDeleteStorageObjectsFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterDeleteStorageObjectsFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkCustomFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
+	RuntimeAfterUnlinkCustomFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkDeviceFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
+	RuntimeAfterUnlinkDeviceFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkEmailFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
+	RuntimeAfterUnlinkEmailFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkFacebookFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
+	RuntimeAfterUnlinkFacebookFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkGameCenterFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
+	RuntimeAfterUnlinkGameCenterFunction         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkGoogleFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
+	RuntimeAfterUnlinkGoogleFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkSteamFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
+	RuntimeAfterUnlinkSteamFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeGetUsersFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
+	RuntimeAfterGetUsersFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users) error
 
-type RuntimePool struct {
-	sync.Mutex
-	logger       *zap.Logger
-	regCallbacks *RegCallbacks
-	moduleCache  *ModuleCache
-	poolCh       chan *Runtime
-	maxCount     int
-	currentCount int
-	newFn        func() *Runtime
+	RuntimeMatchmakerMatchedFunction func(entries []*MatchmakerEntry) (string, bool, error)
 
-	statsCtx context.Context
-}
+	RuntimeMatchCreateFunction func(logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error)
+)
 
-func NewRuntimePool(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, regCallbacks *RegCallbacks, once *sync.Once) *RuntimePool {
-	rp := &RuntimePool{
-		logger:       logger,
-		regCallbacks: regCallbacks,
-		moduleCache:  moduleCache,
-		poolCh:       make(chan *Runtime, config.GetRuntime().MaxCount),
-		maxCount:     config.GetRuntime().MaxCount,
-		// Set the current count assuming we'll warm up the pool in a moment.
-		currentCount: config.GetRuntime().MinCount,
-		newFn: func() *Runtime {
-			r, err := newVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, nil)
-			if err != nil {
-				logger.Fatal("Failed initializing runtime.", zap.Error(err))
-			}
-			return r
-		},
-		statsCtx: context.Background(),
+type RuntimeExecutionMode int
+
+const (
+	RuntimeExecutionModeRunOnce RuntimeExecutionMode = iota
+	RuntimeExecutionModeRPC
+	RuntimeExecutionModeBefore
+	RuntimeExecutionModeAfter
+	RuntimeExecutionModeMatch
+	RuntimeExecutionModeMatchmaker
+	RuntimeExecutionModeMatchCreate
+)
+
+func (e RuntimeExecutionMode) String() string {
+	switch e {
+	case RuntimeExecutionModeRunOnce:
+		return "run_once"
+	case RuntimeExecutionModeRPC:
+		return "rpc"
+	case RuntimeExecutionModeBefore:
+		return "before"
+	case RuntimeExecutionModeAfter:
+		return "after"
+	case RuntimeExecutionModeMatch:
+		return "match"
+	case RuntimeExecutionModeMatchmaker:
+		return "matchmaker"
+	case RuntimeExecutionModeMatchCreate:
+		return "match_create"
 	}
 
-	// Warm up the pool.
-	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", rp.currentCount))
-	if len(moduleCache.Names) > 0 {
-		// Only if there are runtime modules to load.
-		for i := 0; i < config.GetRuntime().MinCount; i++ {
-			rp.poolCh <- rp.newFn()
-		}
-		stats.Record(rp.statsCtx, MetricsRuntimeCount.M(int64(config.GetRuntime().MinCount)))
-	}
-	startupLogger.Info("Allocated minimum runtime pool")
-
-	return rp
+	return ""
 }
 
-func (rp *RuntimePool) HasCallback(mode ExecutionMode, id string) bool {
-	ok := false
-	switch mode {
-	case ExecutionModeRPC:
-		_, ok = rp.regCallbacks.RPC[id]
-	case ExecutionModeBefore:
-		_, ok = rp.regCallbacks.Before[id]
-	case ExecutionModeAfter:
-		_, ok = rp.regCallbacks.After[id]
-	case ExecutionModeMatchmaker:
-		ok = rp.regCallbacks.Matchmaker != nil
-	}
-
-	return ok
+type RuntimeMatchCore interface {
+	MatchInit(params map[string]interface{}) (interface{}, int, string, error)
+	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string) (interface{}, bool, string, error)
+	MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error)
+	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)
+	MatchLoop(tick int64, state interface{}, inputCh chan *MatchDataMessage) (interface{}, error)
 }
 
-func (rp *RuntimePool) Get() *Runtime {
-	select {
-	case r := <-rp.poolCh:
-		// Ideally use an available idle runtime.
-		return r
-	default:
-		// If there was no idle runtime, see if we can allocate a new one.
-		rp.Lock()
-		if rp.currentCount >= rp.maxCount {
-			rp.Unlock()
-			// If we've reached the max allowed allocation block on an available runtime.
-			return <-rp.poolCh
-		}
-		// Inside the locked region now, last chance to use an available idle runtime.
-		// Note: useful in case a runtime becomes available while waiting to acquire lock.
-		select {
-		case r := <-rp.poolCh:
-			rp.Unlock()
-			return r
-		default:
-			// Allocate a new runtime.
-			rp.currentCount++
-			rp.Unlock()
-			stats.Record(rp.statsCtx, MetricsRuntimeCount.M(1))
-			return rp.newFn()
-		}
-	}
+type RuntimeBeforeReqFunctions struct {
+	beforeGetAccountFunction              RuntimeBeforeGetAccountFunction
+	beforeUpdateAccountFunction           RuntimeBeforeUpdateAccountFunction
+	beforeAuthenticateCustomFunction      RuntimeBeforeAuthenticateCustomFunction
+	beforeAuthenticateDeviceFunction      RuntimeBeforeAuthenticateDeviceFunction
+	beforeAuthenticateEmailFunction       RuntimeBeforeAuthenticateEmailFunction
+	beforeAuthenticateFacebookFunction    RuntimeBeforeAuthenticateFacebookFunction
+	beforeAuthenticateGameCenterFunction  RuntimeBeforeAuthenticateGameCenterFunction
+	beforeAuthenticateGoogleFunction      RuntimeBeforeAuthenticateGoogleFunction
+	beforeAuthenticateSteamFunction       RuntimeBeforeAuthenticateSteamFunction
+	beforeListChannelMessagesFunction     RuntimeBeforeListChannelMessagesFunction
+	beforeListFriendsFunction             RuntimeBeforeListFriendsFunction
+	beforeAddFriendsFunction              RuntimeBeforeAddFriendsFunction
+	beforeDeleteFriendsFunction           RuntimeBeforeDeleteFriendsFunction
+	beforeBlockFriendsFunction            RuntimeBeforeBlockFriendsFunction
+	beforeImportFacebookFriendsFunction   RuntimeBeforeImportFacebookFriendsFunction
+	beforeCreateGroupFunction             RuntimeBeforeCreateGroupFunction
+	beforeUpdateGroupFunction             RuntimeBeforeUpdateGroupFunction
+	beforeDeleteGroupFunction             RuntimeBeforeDeleteGroupFunction
+	beforeJoinGroupFunction               RuntimeBeforeJoinGroupFunction
+	beforeLeaveGroupFunction              RuntimeBeforeLeaveGroupFunction
+	beforeAddGroupUsersFunction           RuntimeBeforeAddGroupUsersFunction
+	beforeKickGroupUsersFunction          RuntimeBeforeKickGroupUsersFunction
+	beforePromoteGroupUsersFunction       RuntimeBeforePromoteGroupUsersFunction
+	beforeListGroupUsersFunction          RuntimeBeforeListGroupUsersFunction
+	beforeListUserGroupsFunction          RuntimeBeforeListUserGroupsFunction
+	beforeListGroupsFunction              RuntimeBeforeListGroupsFunction
+	beforeDeleteLeaderboardRecordFunction RuntimeBeforeDeleteLeaderboardRecordFunction
+	beforeListLeaderboardRecordsFunction  RuntimeBeforeListLeaderboardRecordsFunction
+	beforeWriteLeaderboardRecordFunction  RuntimeBeforeWriteLeaderboardRecordFunction
+	beforeLinkCustomFunction              RuntimeBeforeLinkCustomFunction
+	beforeLinkDeviceFunction              RuntimeBeforeLinkDeviceFunction
+	beforeLinkEmailFunction               RuntimeBeforeLinkEmailFunction
+	beforeLinkFacebookFunction            RuntimeBeforeLinkFacebookFunction
+	beforeLinkGameCenterFunction          RuntimeBeforeLinkGameCenterFunction
+	beforeLinkGoogleFunction              RuntimeBeforeLinkGoogleFunction
+	beforeLinkSteamFunction               RuntimeBeforeLinkSteamFunction
+	beforeListMatchesFunction             RuntimeBeforeListMatchesFunction
+	beforeListNotificationsFunction       RuntimeBeforeListNotificationsFunction
+	beforeDeleteNotificationFunction      RuntimeBeforeDeleteNotificationFunction
+	beforeListStorageObjectsFunction      RuntimeBeforeListStorageObjectsFunction
+	beforeReadStorageObjectsFunction      RuntimeBeforeReadStorageObjectsFunction
+	beforeWriteStorageObjectsFunction     RuntimeBeforeWriteStorageObjectsFunction
+	beforeDeleteStorageObjectsFunction    RuntimeBeforeDeleteStorageObjectsFunction
+	beforeUnlinkCustomFunction            RuntimeBeforeUnlinkCustomFunction
+	beforeUnlinkDeviceFunction            RuntimeBeforeUnlinkDeviceFunction
+	beforeUnlinkEmailFunction             RuntimeBeforeUnlinkEmailFunction
+	beforeUnlinkFacebookFunction          RuntimeBeforeUnlinkFacebookFunction
+	beforeUnlinkGameCenterFunction        RuntimeBeforeUnlinkGameCenterFunction
+	beforeUnlinkGoogleFunction            RuntimeBeforeUnlinkGoogleFunction
+	beforeUnlinkSteamFunction             RuntimeBeforeUnlinkSteamFunction
+	beforeGetUsersFunction                RuntimeBeforeGetUsersFunction
 }
 
-func (rp *RuntimePool) Put(r *Runtime) {
-	select {
-	case rp.poolCh <- r:
-		// Runtime is successfully returned to the pool.
-	default:
-		// The pool is over capacity. Should never happen but guard anyway.
-		// Safe to continue processing, the runtime is just discarded.
-		rp.logger.Warn("Runtime pool full, discarding runtime")
-	}
-}
-
-func newVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *ModuleCache, once *sync.Once, announceCallback func(ExecutionMode, string)) (*Runtime, error) {
-	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
-	vm := lua.NewState(lua.Options{
-		CallStackSize:       config.GetRuntime().CallStackSize,
-		RegistrySize:        config.GetRuntime().RegistrySize,
-		SkipOpenLibs:        true,
-		IncludeGoStackTrace: true,
-	})
-	for name, lib := range stdLibs {
-		vm.Push(vm.NewFunction(lib))
-		vm.Push(lua.LString(name))
-		vm.Call(1, 0)
-	}
-	nakamaModule := NewNakamaModule(logger, db, config, socialClient, leaderboardCache, vm, sessionRegistry, matchRegistry, tracker, router, once, announceCallback)
-	vm.PreloadModule("nakama", nakamaModule.Loader)
-	r := &Runtime{
-		logger: logger,
-		vm:     vm,
-		luaEnv: ConvertMap(vm, config.GetRuntime().Environment),
-	}
-
-	return r, r.loadModules(moduleCache)
+type RuntimeAfterReqFunctions struct {
+	afterGetAccountFunction              RuntimeAfterGetAccountFunction
+	afterUpdateAccountFunction           RuntimeAfterUpdateAccountFunction
+	afterAuthenticateCustomFunction      RuntimeAfterAuthenticateCustomFunction
+	afterAuthenticateDeviceFunction      RuntimeAfterAuthenticateDeviceFunction
+	afterAuthenticateEmailFunction       RuntimeAfterAuthenticateEmailFunction
+	afterAuthenticateFacebookFunction    RuntimeAfterAuthenticateFacebookFunction
+	afterAuthenticateGameCenterFunction  RuntimeAfterAuthenticateGameCenterFunction
+	afterAuthenticateGoogleFunction      RuntimeAfterAuthenticateGoogleFunction
+	afterAuthenticateSteamFunction       RuntimeAfterAuthenticateSteamFunction
+	afterListChannelMessagesFunction     RuntimeAfterListChannelMessagesFunction
+	afterListFriendsFunction             RuntimeAfterListFriendsFunction
+	afterAddFriendsFunction              RuntimeAfterAddFriendsFunction
+	afterDeleteFriendsFunction           RuntimeAfterDeleteFriendsFunction
+	afterBlockFriendsFunction            RuntimeAfterBlockFriendsFunction
+	afterImportFacebookFriendsFunction   RuntimeAfterImportFacebookFriendsFunction
+	afterCreateGroupFunction             RuntimeAfterCreateGroupFunction
+	afterUpdateGroupFunction             RuntimeAfterUpdateGroupFunction
+	afterDeleteGroupFunction             RuntimeAfterDeleteGroupFunction
+	afterJoinGroupFunction               RuntimeAfterJoinGroupFunction
+	afterLeaveGroupFunction              RuntimeAfterLeaveGroupFunction
+	afterAddGroupUsersFunction           RuntimeAfterAddGroupUsersFunction
+	afterKickGroupUsersFunction          RuntimeAfterKickGroupUsersFunction
+	afterPromoteGroupUsersFunction       RuntimeAfterPromoteGroupUsersFunction
+	afterListGroupUsersFunction          RuntimeAfterListGroupUsersFunction
+	afterListUserGroupsFunction          RuntimeAfterListUserGroupsFunction
+	afterListGroupsFunction              RuntimeAfterListGroupsFunction
+	afterDeleteLeaderboardRecordFunction RuntimeAfterDeleteLeaderboardRecordFunction
+	afterListLeaderboardRecordsFunction  RuntimeAfterListLeaderboardRecordsFunction
+	afterWriteLeaderboardRecordFunction  RuntimeAfterWriteLeaderboardRecordFunction
+	afterLinkCustomFunction              RuntimeAfterLinkCustomFunction
+	afterLinkDeviceFunction              RuntimeAfterLinkDeviceFunction
+	afterLinkEmailFunction               RuntimeAfterLinkEmailFunction
+	afterLinkFacebookFunction            RuntimeAfterLinkFacebookFunction
+	afterLinkGameCenterFunction          RuntimeAfterLinkGameCenterFunction
+	afterLinkGoogleFunction              RuntimeAfterLinkGoogleFunction
+	afterLinkSteamFunction               RuntimeAfterLinkSteamFunction
+	afterListMatchesFunction             RuntimeAfterListMatchesFunction
+	afterListNotificationsFunction       RuntimeAfterListNotificationsFunction
+	afterDeleteNotificationFunction      RuntimeAfterDeleteNotificationFunction
+	afterListStorageObjectsFunction      RuntimeAfterListStorageObjectsFunction
+	afterReadStorageObjectsFunction      RuntimeAfterReadStorageObjectsFunction
+	afterWriteStorageObjectsFunction     RuntimeAfterWriteStorageObjectsFunction
+	afterDeleteStorageObjectsFunction    RuntimeAfterDeleteStorageObjectsFunction
+	afterUnlinkCustomFunction            RuntimeAfterUnlinkCustomFunction
+	afterUnlinkDeviceFunction            RuntimeAfterUnlinkDeviceFunction
+	afterUnlinkEmailFunction             RuntimeAfterUnlinkEmailFunction
+	afterUnlinkFacebookFunction          RuntimeAfterUnlinkFacebookFunction
+	afterUnlinkGameCenterFunction        RuntimeAfterUnlinkGameCenterFunction
+	afterUnlinkGoogleFunction            RuntimeAfterUnlinkGoogleFunction
+	afterUnlinkSteamFunction             RuntimeAfterUnlinkSteamFunction
+	afterGetUsersFunction                RuntimeAfterGetUsersFunction
 }
 
 type Runtime struct {
-	logger *zap.Logger
-	vm     *lua.LState
-	luaEnv *lua.LTable
+	rpcFunctions map[string]RuntimeRpcFunction
+
+	beforeRtFunctions map[string]RuntimeBeforeRtFunction
+	afterRtFunctions  map[string]RuntimeAfterRtFunction
+
+	beforeReqFunctions *RuntimeBeforeReqFunctions
+	afterReqFunctions  *RuntimeAfterReqFunctions
+
+	matchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
 }
 
-func (r *Runtime) loadModules(moduleCache *ModuleCache) error {
-	// `DoFile(..)` only parses and evaluates modules. Calling it multiple times, will load and eval the file multiple times.
-	// So to make sure that we only load and evaluate modules once, regardless of whether there is dependency between files, we load them all into `preload`.
-	// This is to make sure that modules are only loaded and evaluated once as `doFile()` does not (always) update _LOADED table.
-	// Bear in mind two separate thoughts around the script runtime design choice:
-	//
-	// 1) This is only a problem if one module is dependent on another module.
-	// This means that the global functions are evaluated once at system startup and then later on when the module is required through `require`.
-	// We circumvent this by checking the _LOADED table to check if `require` had evaluated the module and avoiding double-eval.
-	//
-	// 2) Second item is that modules must be pre-loaded into the state for callback-func eval to work properly (in case of HTTP/RPC/etc invokes)
-	// So we need to always load the modules into the system via `preload` so that they are always available in the LState.
-	// We can't rely on `require` to have seen the module in case there is no dependency between the modules.
+func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) (*Runtime, error) {
+	runtimeConfig := config.GetRuntime()
+	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 
-	//for _, mod := range r.modules {
-	//	relPath, _ := filepath.Rel(r.luaPath, mod)
-	//	moduleName := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-	//
-	//	// check to see if this module was loaded by `require` before executing it
-	//	loaded := l.GetField(l.Get(lua.RegistryIndex), "_LOADED")
-	//	lv := l.GetField(loaded, moduleName)
-	//	if lua.LVAsBool(lv) {
-	//		// Already evaluated module via `require(..)`
-	//		continue
-	//	}
-	//
-	//	if err = l.DoFile(mod); err != nil {
-	//		failedModules++
-	//		r.logger.Error("Failed to evaluate module - skipping", zap.String("path", mod), zap.Error(err))
-	//	}
-	//}
+	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
+		return nil, err
+	}
 
-	preload := r.vm.GetField(r.vm.GetField(r.vm.Get(lua.EnvironIndex), "package"), "preload")
-	fns := make(map[string]*lua.LFunction)
-	for _, name := range moduleCache.Names {
-		module, ok := moduleCache.Modules[name]
-		if !ok {
-			r.logger.Fatal("Failed to find named module in cache", zap.String("name", name))
-		}
-		f, err := r.vm.Load(bytes.NewReader(module.Content), module.Path)
+	paths := make([]string, 0)
+	if err := filepath.Walk(runtimeConfig.Path, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
-			r.logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
+			startupLogger.Error("Error listing runtime path", zap.String("path", path), zap.Error(err))
 			return err
-		} else {
-			r.vm.SetField(preload, module.Name, f)
-			fns[module.Name] = f
-		}
-	}
-
-	for _, name := range moduleCache.Names {
-		fn, ok := fns[name]
-		if !ok {
-			r.logger.Fatal("Failed to find named module in prepared functions", zap.String("name", name))
-		}
-		loaded := r.vm.GetField(r.vm.Get(lua.RegistryIndex), "_LOADED")
-		lv := r.vm.GetField(loaded, name)
-		if lua.LVAsBool(lv) {
-			// Already evaluated module via `require(..)`
-			continue
 		}
 
-		r.vm.Push(fn)
-		fnErr := r.vm.PCall(0, -1, nil)
-		if fnErr != nil {
-			r.logger.Error("Could not complete runtime invocation", zap.Error(fnErr))
-			return fnErr
+		// Ignore directories.
+		if !f.IsDir() {
+			paths = append(paths, path)
 		}
+		return nil
+	}); err != nil {
+		startupLogger.Error("Failed to list runtime path", zap.Error(err))
+		return nil, err
 	}
 
-	return nil
-}
-
-func (r *Runtime) NewStateThread() (*lua.LState, context.CancelFunc) {
-	return r.vm, nil
-}
-
-func (r *Runtime) GetCallback(e ExecutionMode, key string) *lua.LFunction {
-	cp := r.vm.Context().Value(CALLBACKS).(*Callbacks)
-	switch e {
-	case ExecutionModeRPC:
-		return cp.RPC[key]
-	case ExecutionModeBefore:
-		return cp.Before[key]
-	case ExecutionModeAfter:
-		return cp.After[key]
-	case ExecutionModeMatchmaker:
-		return cp.Matchmaker
-	}
-
-	return nil
-}
-
-func (r *Runtime) InvokeFunction(execMode ExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, sessionExpiry int64, sid string, clientIP string, clientPort string, payload interface{}) (interface{}, error, codes.Code) {
-	ctx := NewLuaContext(r.vm, r.luaEnv, execMode, queryParams, sessionExpiry, uid, username, sid, clientIP, clientPort)
-	var lv lua.LValue
-	if payload != nil {
-		lv = ConvertValue(r.vm, payload)
-	}
-
-	retValue, err, code := r.invokeFunction(r.vm, fn, ctx, lv)
+	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, runtimeConfig.Path, paths)
 	if err != nil {
-		return nil, err, code
+		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
+		return nil, err
 	}
 
-	if retValue == nil || retValue == lua.LNil {
-		return nil, nil, 0
-	}
-
-	return ConvertLuaValue(retValue), nil, 0
-}
-
-func (r *Runtime) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
-	l.Push(LSentinel)
-	l.Push(fn)
-
-	nargs := 1
-	l.Push(ctx)
-
-	if payload != nil {
-		nargs = 2
-		l.Push(payload)
-	}
-
-	err := l.PCall(nargs, lua.MultRet, nil)
+	luaModules, luaRpcFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, goMatchCreateFn, runtimeConfig.Path, paths)
 	if err != nil {
-		// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
-		for {
-			v := l.Get(-1)
-			l.Pop(1)
-			if v.Type() == LTSentinel {
-				break
-			}
-		}
-
-		if apiError, ok := err.(*lua.ApiError); ok && apiError.Object.Type() == lua.LTTable {
-			t := apiError.Object.(*lua.LTable)
-			switch t.Len() {
-			case 0:
-				return nil, err, codes.Internal
-			case 1:
-				apiError.Object = t.RawGetInt(1)
-				return nil, err, codes.Internal
-			default:
-				// Ignore everything beyond the first 2 params, if there are more.
-				apiError.Object = t.RawGetInt(1)
-				code := codes.Internal
-				if c := t.RawGetInt(2); c.Type() == lua.LTNumber {
-					code = codes.Code(c.(lua.LNumber))
-				}
-				return nil, err, code
-			}
-		}
-
-		return nil, err, codes.Internal
+		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
+		return nil, err
 	}
 
-	retValue := l.Get(-1)
-	l.Pop(1)
-	if retValue.Type() == LTSentinel {
-		return nil, nil, 0
+	// allMatchCreateFn has already been set up by the Lua side to multiplex, now tell the Go side to use it too.
+	goSetMatchCreateFn(allMatchCreateFn)
+
+	allModules := make([]string, 0, len(goModules)+len(luaModules))
+	for _, module := range luaModules {
+		allModules = append(allModules, module)
+	}
+	for _, module := range goModules {
+		allModules = append(allModules, module)
+	}
+	startupLogger.Info("Found runtime modules", zap.Int("count", len(allModules)), zap.Strings("modules", allModules))
+
+	allRpcFunctions := make(map[string]RuntimeRpcFunction, len(goRpcFunctions)+len(luaRpcFunctions))
+	for id, fn := range luaRpcFunctions {
+		allRpcFunctions[id] = fn
+		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
+	}
+	for id, fn := range goRpcFunctions {
+		allRpcFunctions[id] = fn
+		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
 
-	// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
-	for {
-		v := l.Get(-1)
-		l.Pop(1)
-		if v.Type() == LTSentinel {
-			break
-		}
+	allBeforeRtFunctions := make(map[string]RuntimeBeforeRtFunction, len(goBeforeRtFunctions)+len(luaBeforeRtFunctions))
+	for id, fn := range luaBeforeRtFunctions {
+		allBeforeRtFunctions[id] = fn
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
+	}
+	for id, fn := range goBeforeRtFunctions {
+		allBeforeRtFunctions[id] = fn
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
 	}
 
-	return retValue, nil, 0
+	allAfterRtFunctions := make(map[string]RuntimeAfterRtFunction, len(goAfterRtFunctions)+len(luaAfterRtFunctions))
+	for id, fn := range luaAfterRtFunctions {
+		allAfterRtFunctions[id] = fn
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
+	}
+	for id, fn := range goAfterRtFunctions {
+		allAfterRtFunctions[id] = fn
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", strings.TrimPrefix(strings.TrimPrefix(id, API_PREFIX), RTAPI_PREFIX)))
+	}
+
+	allBeforeReqFunctions := luaBeforeReqFunctions
+	if allBeforeReqFunctions.beforeGetAccountFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getaccount"))
+	}
+	if allBeforeReqFunctions.beforeUpdateAccountFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updateaccount"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatecustom"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatedevice"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticateemail"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticategamecenter"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if allBeforeReqFunctions.beforeListChannelMessagesFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listchannelmessages"))
+	}
+	if allBeforeReqFunctions.beforeListFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listfriends"))
+	}
+	if allBeforeReqFunctions.beforeAddFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "addfriends"))
+	}
+	if allBeforeReqFunctions.beforeDeleteFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletefriends"))
+	}
+	if allBeforeReqFunctions.beforeBlockFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "blockfriends"))
+	}
+	if allBeforeReqFunctions.beforeImportFacebookFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if allBeforeReqFunctions.beforeCreateGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "creategroup"))
+	}
+	if allBeforeReqFunctions.beforeUpdateGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updategroup"))
+	}
+	if allBeforeReqFunctions.beforeDeleteGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletegroup"))
+	}
+	if allBeforeReqFunctions.beforeJoinGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "joingroup"))
+	}
+	if allBeforeReqFunctions.beforeLeaveGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "leavegroup"))
+	}
+	if allBeforeReqFunctions.beforeAddGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "addgroupusers"))
+	}
+	if allBeforeReqFunctions.beforeKickGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "kickgroupusers"))
+	}
+	if allBeforeReqFunctions.beforePromoteGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if allBeforeReqFunctions.beforeListGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listgroupusers"))
+	}
+	if allBeforeReqFunctions.beforeListUserGroupsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listusergroups"))
+	}
+	if allBeforeReqFunctions.beforeListGroupsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listgroups"))
+	}
+	if allBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if allBeforeReqFunctions.beforeListLeaderboardRecordsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listleaderboardrecords"))
+	}
+	if allBeforeReqFunctions.beforeWriteLeaderboardRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "writeleaderboardrecord"))
+	}
+	if allBeforeReqFunctions.beforeLinkCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkcustom"))
+	}
+	if allBeforeReqFunctions.beforeLinkDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkdevice"))
+	}
+	if allBeforeReqFunctions.beforeLinkEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkemail"))
+	}
+	if allBeforeReqFunctions.beforeLinkFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkfacebook"))
+	}
+	if allBeforeReqFunctions.beforeLinkGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkgamecenter"))
+	}
+	if allBeforeReqFunctions.beforeLinkGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkgoogle"))
+	}
+	if allBeforeReqFunctions.beforeLinkSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linksteam"))
+	}
+	if allBeforeReqFunctions.beforeListMatchesFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listmatches"))
+	}
+	if allBeforeReqFunctions.beforeListNotificationsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listnotifications"))
+	}
+	if allBeforeReqFunctions.beforeDeleteNotificationFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletenotification"))
+	}
+	if allBeforeReqFunctions.beforeListStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "liststorageobjects"))
+	}
+	if allBeforeReqFunctions.beforeReadStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "readstorageobjects"))
+	}
+	if allBeforeReqFunctions.beforeWriteStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "writestorageobjects"))
+	}
+	if allBeforeReqFunctions.beforeDeleteStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkdevice"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkemail"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkfacebook"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkgamecenter"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkgoogle"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinksteam"))
+	}
+	if allBeforeReqFunctions.beforeGetUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getusers"))
+	}
+	if goBeforeReqFunctions.beforeGetAccountFunction != nil {
+		allBeforeReqFunctions.beforeGetAccountFunction = goBeforeReqFunctions.beforeGetAccountFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getaccount"))
+	}
+	if goBeforeReqFunctions.beforeUpdateAccountFunction != nil {
+		allBeforeReqFunctions.beforeUpdateAccountFunction = goBeforeReqFunctions.beforeUpdateAccountFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "updateaccount"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateCustomFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateCustomFunction = goBeforeReqFunctions.beforeAuthenticateCustomFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatecustom"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateDeviceFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateDeviceFunction = goBeforeReqFunctions.beforeAuthenticateDeviceFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatedevice"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateEmailFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateEmailFunction = goBeforeReqFunctions.beforeAuthenticateEmailFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticateemail"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateFacebookFunction = goBeforeReqFunctions.beforeAuthenticateFacebookFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateGameCenterFunction = goBeforeReqFunctions.beforeAuthenticateGameCenterFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticategamecenter"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateGoogleFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateGoogleFunction = goBeforeReqFunctions.beforeAuthenticateGoogleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateSteamFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateSteamFunction = goBeforeReqFunctions.beforeAuthenticateSteamFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if goBeforeReqFunctions.beforeListChannelMessagesFunction != nil {
+		allBeforeReqFunctions.beforeListChannelMessagesFunction = goBeforeReqFunctions.beforeListChannelMessagesFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listchannelmessages"))
+	}
+	if goBeforeReqFunctions.beforeListFriendsFunction != nil {
+		allBeforeReqFunctions.beforeListFriendsFunction = goBeforeReqFunctions.beforeListFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listfriends"))
+	}
+	if goBeforeReqFunctions.beforeAddFriendsFunction != nil {
+		allBeforeReqFunctions.beforeAddFriendsFunction = goBeforeReqFunctions.beforeAddFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "addfriends"))
+	}
+	if goBeforeReqFunctions.beforeDeleteFriendsFunction != nil {
+		allBeforeReqFunctions.beforeDeleteFriendsFunction = goBeforeReqFunctions.beforeDeleteFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletefriends"))
+	}
+	if goBeforeReqFunctions.beforeBlockFriendsFunction != nil {
+		allBeforeReqFunctions.beforeBlockFriendsFunction = goBeforeReqFunctions.beforeBlockFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "blockfriends"))
+	}
+	if goBeforeReqFunctions.beforeImportFacebookFriendsFunction != nil {
+		allBeforeReqFunctions.beforeImportFacebookFriendsFunction = goBeforeReqFunctions.beforeImportFacebookFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if goBeforeReqFunctions.beforeCreateGroupFunction != nil {
+		allBeforeReqFunctions.beforeCreateGroupFunction = goBeforeReqFunctions.beforeCreateGroupFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "creategroup"))
+	}
+	if goBeforeReqFunctions.beforeUpdateGroupFunction != nil {
+		allBeforeReqFunctions.beforeUpdateGroupFunction = goBeforeReqFunctions.beforeUpdateGroupFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "updategroup"))
+	}
+	if goBeforeReqFunctions.beforeDeleteGroupFunction != nil {
+		allBeforeReqFunctions.beforeDeleteGroupFunction = goBeforeReqFunctions.beforeDeleteGroupFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletegroup"))
+	}
+	if goBeforeReqFunctions.beforeJoinGroupFunction != nil {
+		allBeforeReqFunctions.beforeJoinGroupFunction = goBeforeReqFunctions.beforeJoinGroupFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "joingroup"))
+	}
+	if goBeforeReqFunctions.beforeLeaveGroupFunction != nil {
+		allBeforeReqFunctions.beforeLeaveGroupFunction = goBeforeReqFunctions.beforeLeaveGroupFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "leavegroup"))
+	}
+	if goBeforeReqFunctions.beforeAddGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeAddGroupUsersFunction = goBeforeReqFunctions.beforeAddGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "addgroupusers"))
+	}
+	if goBeforeReqFunctions.beforeKickGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeKickGroupUsersFunction = goBeforeReqFunctions.beforeKickGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "kickgroupusers"))
+	}
+	if goBeforeReqFunctions.beforePromoteGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforePromoteGroupUsersFunction = goBeforeReqFunctions.beforePromoteGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if goBeforeReqFunctions.beforeListGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeListGroupUsersFunction = goBeforeReqFunctions.beforeListGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listgroupusers"))
+	}
+	if goBeforeReqFunctions.beforeListUserGroupsFunction != nil {
+		allBeforeReqFunctions.beforeListUserGroupsFunction = goBeforeReqFunctions.beforeListUserGroupsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listusergroups"))
+	}
+	if goBeforeReqFunctions.beforeListGroupsFunction != nil {
+		allBeforeReqFunctions.beforeListGroupsFunction = goBeforeReqFunctions.beforeListGroupsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listgroups"))
+	}
+	if goBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction != nil {
+		allBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction = goBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if goBeforeReqFunctions.beforeListLeaderboardRecordsFunction != nil {
+		allBeforeReqFunctions.beforeListLeaderboardRecordsFunction = goBeforeReqFunctions.beforeListLeaderboardRecordsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listleaderboardrecords"))
+	}
+	if goBeforeReqFunctions.beforeWriteLeaderboardRecordFunction != nil {
+		allBeforeReqFunctions.beforeWriteLeaderboardRecordFunction = goBeforeReqFunctions.beforeWriteLeaderboardRecordFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "writeleaderboardrecord"))
+	}
+	if goBeforeReqFunctions.beforeLinkCustomFunction != nil {
+		allBeforeReqFunctions.beforeLinkCustomFunction = goBeforeReqFunctions.beforeLinkCustomFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkcustom"))
+	}
+	if goBeforeReqFunctions.beforeLinkDeviceFunction != nil {
+		allBeforeReqFunctions.beforeLinkDeviceFunction = goBeforeReqFunctions.beforeLinkDeviceFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkdevice"))
+	}
+	if goBeforeReqFunctions.beforeLinkEmailFunction != nil {
+		allBeforeReqFunctions.beforeLinkEmailFunction = goBeforeReqFunctions.beforeLinkEmailFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkemail"))
+	}
+	if goBeforeReqFunctions.beforeLinkFacebookFunction != nil {
+		allBeforeReqFunctions.beforeLinkFacebookFunction = goBeforeReqFunctions.beforeLinkFacebookFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkfacebook"))
+	}
+	if goBeforeReqFunctions.beforeLinkGameCenterFunction != nil {
+		allBeforeReqFunctions.beforeLinkGameCenterFunction = goBeforeReqFunctions.beforeLinkGameCenterFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkgamecenter"))
+	}
+	if goBeforeReqFunctions.beforeLinkGoogleFunction != nil {
+		allBeforeReqFunctions.beforeLinkGoogleFunction = goBeforeReqFunctions.beforeLinkGoogleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkgoogle"))
+	}
+	if goBeforeReqFunctions.beforeLinkSteamFunction != nil {
+		allBeforeReqFunctions.beforeLinkSteamFunction = goBeforeReqFunctions.beforeLinkSteamFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linksteam"))
+	}
+	if goBeforeReqFunctions.beforeListMatchesFunction != nil {
+		allBeforeReqFunctions.beforeListMatchesFunction = goBeforeReqFunctions.beforeListMatchesFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listmatches"))
+	}
+	if goBeforeReqFunctions.beforeListNotificationsFunction != nil {
+		allBeforeReqFunctions.beforeListNotificationsFunction = goBeforeReqFunctions.beforeListNotificationsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listnotifications"))
+	}
+	if goBeforeReqFunctions.beforeDeleteNotificationFunction != nil {
+		allBeforeReqFunctions.beforeDeleteNotificationFunction = goBeforeReqFunctions.beforeDeleteNotificationFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletenotification"))
+	}
+	if goBeforeReqFunctions.beforeListStorageObjectsFunction != nil {
+		allBeforeReqFunctions.beforeListStorageObjectsFunction = goBeforeReqFunctions.beforeListStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "liststorageobjects"))
+	}
+	if goBeforeReqFunctions.beforeReadStorageObjectsFunction != nil {
+		allBeforeReqFunctions.beforeReadStorageObjectsFunction = goBeforeReqFunctions.beforeReadStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "readstorageobjects"))
+	}
+	if goBeforeReqFunctions.beforeWriteStorageObjectsFunction != nil {
+		allBeforeReqFunctions.beforeWriteStorageObjectsFunction = goBeforeReqFunctions.beforeWriteStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "writestorageobjects"))
+	}
+	if goBeforeReqFunctions.beforeDeleteStorageObjectsFunction != nil {
+		allBeforeReqFunctions.beforeDeleteStorageObjectsFunction = goBeforeReqFunctions.beforeDeleteStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkCustomFunction = goBeforeReqFunctions.beforeUnlinkCustomFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkDeviceFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkDeviceFunction = goBeforeReqFunctions.beforeUnlinkDeviceFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkdevice"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkEmailFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkEmailFunction = goBeforeReqFunctions.beforeUnlinkEmailFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkemail"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkFacebookFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkFacebookFunction = goBeforeReqFunctions.beforeUnlinkFacebookFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkfacebook"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkGameCenterFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkGameCenterFunction = goBeforeReqFunctions.beforeUnlinkGameCenterFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkgamecenter"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkGoogleFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkGoogleFunction = goBeforeReqFunctions.beforeUnlinkGoogleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkgoogle"))
+	}
+	if goBeforeReqFunctions.beforeUnlinkSteamFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkSteamFunction = goBeforeReqFunctions.beforeUnlinkSteamFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinksteam"))
+	}
+	if goBeforeReqFunctions.beforeGetUsersFunction != nil {
+		allBeforeReqFunctions.beforeGetUsersFunction = goBeforeReqFunctions.beforeGetUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getusers"))
+	}
+
+	allAfterReqFunctions := luaAfterReqFunctions
+	if allAfterReqFunctions.afterGetAccountFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getaccount"))
+	}
+	if allAfterReqFunctions.afterUpdateAccountFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if allAfterReqFunctions.afterAuthenticateCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatecustom"))
+	}
+	if allAfterReqFunctions.afterAuthenticateDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatedevice"))
+	}
+	if allAfterReqFunctions.afterAuthenticateEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticateemail"))
+	}
+	if allAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if allAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticategamecenter"))
+	}
+	if allAfterReqFunctions.afterAuthenticateGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if allAfterReqFunctions.afterAuthenticateSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if allAfterReqFunctions.afterListChannelMessagesFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listchannelmessages"))
+	}
+	if allAfterReqFunctions.afterListFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listfriends"))
+	}
+	if allAfterReqFunctions.afterAddFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "addfriends"))
+	}
+	if allAfterReqFunctions.afterDeleteFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletefriends"))
+	}
+	if allAfterReqFunctions.afterBlockFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "blockfriends"))
+	}
+	if allAfterReqFunctions.afterImportFacebookFriendsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if allAfterReqFunctions.afterCreateGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "creategroup"))
+	}
+	if allAfterReqFunctions.afterUpdateGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "updategroup"))
+	}
+	if allAfterReqFunctions.afterDeleteGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletegroup"))
+	}
+	if allAfterReqFunctions.afterJoinGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "joingroup"))
+	}
+	if allAfterReqFunctions.afterLeaveGroupFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "leavegroup"))
+	}
+	if allAfterReqFunctions.afterAddGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "addgroupusers"))
+	}
+	if allAfterReqFunctions.afterKickGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "kickgroupusers"))
+	}
+	if allAfterReqFunctions.afterPromoteGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if allAfterReqFunctions.afterListGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listgroupusers"))
+	}
+	if allAfterReqFunctions.afterListUserGroupsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listusergroups"))
+	}
+	if allAfterReqFunctions.afterListGroupsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listgroups"))
+	}
+	if allAfterReqFunctions.afterDeleteLeaderboardRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if allAfterReqFunctions.afterListLeaderboardRecordsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listleaderboardrecords"))
+	}
+	if allAfterReqFunctions.afterWriteLeaderboardRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "writeleaderboardrecord"))
+	}
+	if allAfterReqFunctions.afterLinkCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkcustom"))
+	}
+	if allAfterReqFunctions.afterLinkDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkdevice"))
+	}
+	if allAfterReqFunctions.afterLinkEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkemail"))
+	}
+	if allAfterReqFunctions.afterLinkFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkfacebook"))
+	}
+	if allAfterReqFunctions.afterLinkGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkgamecenter"))
+	}
+	if allAfterReqFunctions.afterLinkGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkgoogle"))
+	}
+	if allAfterReqFunctions.afterLinkSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linksteam"))
+	}
+	if allAfterReqFunctions.afterListMatchesFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listmatches"))
+	}
+	if allAfterReqFunctions.afterListNotificationsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listnotifications"))
+	}
+	if allAfterReqFunctions.afterDeleteNotificationFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletenotification"))
+	}
+	if allAfterReqFunctions.afterListStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "liststorageobjects"))
+	}
+	if allAfterReqFunctions.afterReadStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "readstorageobjects"))
+	}
+	if allAfterReqFunctions.afterWriteStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "writestorageobjects"))
+	}
+	if allAfterReqFunctions.afterDeleteStorageObjectsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if allAfterReqFunctions.afterUnlinkCustomFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if allAfterReqFunctions.afterUnlinkDeviceFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkdevice"))
+	}
+	if allAfterReqFunctions.afterUnlinkEmailFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkemail"))
+	}
+	if allAfterReqFunctions.afterUnlinkFacebookFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkfacebook"))
+	}
+	if allAfterReqFunctions.afterUnlinkGameCenterFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkgamecenter"))
+	}
+	if allAfterReqFunctions.afterUnlinkGoogleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkgoogle"))
+	}
+	if allAfterReqFunctions.afterUnlinkSteamFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinksteam"))
+	}
+	if allAfterReqFunctions.afterGetUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getusers"))
+	}
+	if goAfterReqFunctions.afterGetAccountFunction != nil {
+		allAfterReqFunctions.afterGetAccountFunction = goAfterReqFunctions.afterGetAccountFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "getaccount"))
+	}
+	if goAfterReqFunctions.afterUpdateAccountFunction != nil {
+		allAfterReqFunctions.afterUpdateAccountFunction = goAfterReqFunctions.afterUpdateAccountFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if goAfterReqFunctions.afterAuthenticateCustomFunction != nil {
+		allAfterReqFunctions.afterAuthenticateCustomFunction = goAfterReqFunctions.afterAuthenticateCustomFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatecustom"))
+	}
+	if goAfterReqFunctions.afterAuthenticateDeviceFunction != nil {
+		allAfterReqFunctions.afterAuthenticateDeviceFunction = goAfterReqFunctions.afterAuthenticateDeviceFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatedevice"))
+	}
+	if goAfterReqFunctions.afterAuthenticateEmailFunction != nil {
+		allAfterReqFunctions.afterAuthenticateEmailFunction = goAfterReqFunctions.afterAuthenticateEmailFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticateemail"))
+	}
+	if goAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
+		allAfterReqFunctions.afterAuthenticateFacebookFunction = goAfterReqFunctions.afterAuthenticateFacebookFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
+		allAfterReqFunctions.afterAuthenticateGameCenterFunction = goAfterReqFunctions.afterAuthenticateGameCenterFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticategamecenter"))
+	}
+	if goAfterReqFunctions.afterAuthenticateGoogleFunction != nil {
+		allAfterReqFunctions.afterAuthenticateGoogleFunction = goAfterReqFunctions.afterAuthenticateGoogleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if goAfterReqFunctions.afterAuthenticateSteamFunction != nil {
+		allAfterReqFunctions.afterAuthenticateSteamFunction = goAfterReqFunctions.afterAuthenticateSteamFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if goAfterReqFunctions.afterListChannelMessagesFunction != nil {
+		allAfterReqFunctions.afterListChannelMessagesFunction = goAfterReqFunctions.afterListChannelMessagesFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listchannelmessages"))
+	}
+	if goAfterReqFunctions.afterListFriendsFunction != nil {
+		allAfterReqFunctions.afterListFriendsFunction = goAfterReqFunctions.afterListFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listfriends"))
+	}
+	if goAfterReqFunctions.afterAddFriendsFunction != nil {
+		allAfterReqFunctions.afterAddFriendsFunction = goAfterReqFunctions.afterAddFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "addfriends"))
+	}
+	if goAfterReqFunctions.afterDeleteFriendsFunction != nil {
+		allAfterReqFunctions.afterDeleteFriendsFunction = goAfterReqFunctions.afterDeleteFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletefriends"))
+	}
+	if goAfterReqFunctions.afterBlockFriendsFunction != nil {
+		allAfterReqFunctions.afterBlockFriendsFunction = goAfterReqFunctions.afterBlockFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "blockfriends"))
+	}
+	if goAfterReqFunctions.afterImportFacebookFriendsFunction != nil {
+		allAfterReqFunctions.afterImportFacebookFriendsFunction = goAfterReqFunctions.afterImportFacebookFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if goAfterReqFunctions.afterCreateGroupFunction != nil {
+		allAfterReqFunctions.afterCreateGroupFunction = goAfterReqFunctions.afterCreateGroupFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "creategroup"))
+	}
+	if goAfterReqFunctions.afterUpdateGroupFunction != nil {
+		allAfterReqFunctions.afterUpdateGroupFunction = goAfterReqFunctions.afterUpdateGroupFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "updategroup"))
+	}
+	if goAfterReqFunctions.afterDeleteGroupFunction != nil {
+		allAfterReqFunctions.afterDeleteGroupFunction = goAfterReqFunctions.afterDeleteGroupFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletegroup"))
+	}
+	if goAfterReqFunctions.afterJoinGroupFunction != nil {
+		allAfterReqFunctions.afterJoinGroupFunction = goAfterReqFunctions.afterJoinGroupFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "joingroup"))
+	}
+	if goAfterReqFunctions.afterLeaveGroupFunction != nil {
+		allAfterReqFunctions.afterLeaveGroupFunction = goAfterReqFunctions.afterLeaveGroupFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "leavegroup"))
+	}
+	if goAfterReqFunctions.afterAddGroupUsersFunction != nil {
+		allAfterReqFunctions.afterAddGroupUsersFunction = goAfterReqFunctions.afterAddGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "addgroupusers"))
+	}
+	if goAfterReqFunctions.afterKickGroupUsersFunction != nil {
+		allAfterReqFunctions.afterKickGroupUsersFunction = goAfterReqFunctions.afterKickGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "kickgroupusers"))
+	}
+	if goAfterReqFunctions.afterPromoteGroupUsersFunction != nil {
+		allAfterReqFunctions.afterPromoteGroupUsersFunction = goAfterReqFunctions.afterPromoteGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if goAfterReqFunctions.afterListGroupUsersFunction != nil {
+		allAfterReqFunctions.afterListGroupUsersFunction = goAfterReqFunctions.afterListGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listgroupusers"))
+	}
+	if goAfterReqFunctions.afterListUserGroupsFunction != nil {
+		allAfterReqFunctions.afterListUserGroupsFunction = goAfterReqFunctions.afterListUserGroupsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listusergroups"))
+	}
+	if goAfterReqFunctions.afterListGroupsFunction != nil {
+		allAfterReqFunctions.afterListGroupsFunction = goAfterReqFunctions.afterListGroupsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listgroups"))
+	}
+	if goAfterReqFunctions.afterDeleteLeaderboardRecordFunction != nil {
+		allAfterReqFunctions.afterDeleteLeaderboardRecordFunction = goAfterReqFunctions.afterDeleteLeaderboardRecordFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if goAfterReqFunctions.afterListLeaderboardRecordsFunction != nil {
+		allAfterReqFunctions.afterListLeaderboardRecordsFunction = goAfterReqFunctions.afterListLeaderboardRecordsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listleaderboardrecords"))
+	}
+	if goAfterReqFunctions.afterWriteLeaderboardRecordFunction != nil {
+		allAfterReqFunctions.afterWriteLeaderboardRecordFunction = goAfterReqFunctions.afterWriteLeaderboardRecordFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "writeleaderboardrecord"))
+	}
+	if goAfterReqFunctions.afterLinkCustomFunction != nil {
+		allAfterReqFunctions.afterLinkCustomFunction = goAfterReqFunctions.afterLinkCustomFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkcustom"))
+	}
+	if goAfterReqFunctions.afterLinkDeviceFunction != nil {
+		allAfterReqFunctions.afterLinkDeviceFunction = goAfterReqFunctions.afterLinkDeviceFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkdevice"))
+	}
+	if goAfterReqFunctions.afterLinkEmailFunction != nil {
+		allAfterReqFunctions.afterLinkEmailFunction = goAfterReqFunctions.afterLinkEmailFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkemail"))
+	}
+	if goAfterReqFunctions.afterLinkFacebookFunction != nil {
+		allAfterReqFunctions.afterLinkFacebookFunction = goAfterReqFunctions.afterLinkFacebookFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkfacebook"))
+	}
+	if goAfterReqFunctions.afterLinkGameCenterFunction != nil {
+		allAfterReqFunctions.afterLinkGameCenterFunction = goAfterReqFunctions.afterLinkGameCenterFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkgamecenter"))
+	}
+	if goAfterReqFunctions.afterLinkGoogleFunction != nil {
+		allAfterReqFunctions.afterLinkGoogleFunction = goAfterReqFunctions.afterLinkGoogleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkgoogle"))
+	}
+	if goAfterReqFunctions.afterLinkSteamFunction != nil {
+		allAfterReqFunctions.afterLinkSteamFunction = goAfterReqFunctions.afterLinkSteamFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linksteam"))
+	}
+	if goAfterReqFunctions.afterListMatchesFunction != nil {
+		allAfterReqFunctions.afterListMatchesFunction = goAfterReqFunctions.afterListMatchesFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listmatches"))
+	}
+	if goAfterReqFunctions.afterListNotificationsFunction != nil {
+		allAfterReqFunctions.afterListNotificationsFunction = goAfterReqFunctions.afterListNotificationsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listnotifications"))
+	}
+	if goAfterReqFunctions.afterDeleteNotificationFunction != nil {
+		allAfterReqFunctions.afterDeleteNotificationFunction = goAfterReqFunctions.afterDeleteNotificationFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletenotification"))
+	}
+	if goAfterReqFunctions.afterListStorageObjectsFunction != nil {
+		allAfterReqFunctions.afterListStorageObjectsFunction = goAfterReqFunctions.afterListStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "liststorageobjects"))
+	}
+	if goAfterReqFunctions.afterReadStorageObjectsFunction != nil {
+		allAfterReqFunctions.afterReadStorageObjectsFunction = goAfterReqFunctions.afterReadStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "readstorageobjects"))
+	}
+	if goAfterReqFunctions.afterWriteStorageObjectsFunction != nil {
+		allAfterReqFunctions.afterWriteStorageObjectsFunction = goAfterReqFunctions.afterWriteStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "writestorageobjects"))
+	}
+	if goAfterReqFunctions.afterDeleteStorageObjectsFunction != nil {
+		allAfterReqFunctions.afterDeleteStorageObjectsFunction = goAfterReqFunctions.afterDeleteStorageObjectsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if goAfterReqFunctions.afterUnlinkCustomFunction != nil {
+		allAfterReqFunctions.afterUnlinkCustomFunction = goAfterReqFunctions.afterUnlinkCustomFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if goAfterReqFunctions.afterUnlinkDeviceFunction != nil {
+		allAfterReqFunctions.afterUnlinkDeviceFunction = goAfterReqFunctions.afterUnlinkDeviceFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkdevice"))
+	}
+	if goAfterReqFunctions.afterUnlinkEmailFunction != nil {
+		allAfterReqFunctions.afterUnlinkEmailFunction = goAfterReqFunctions.afterUnlinkEmailFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkemail"))
+	}
+	if goAfterReqFunctions.afterUnlinkFacebookFunction != nil {
+		allAfterReqFunctions.afterUnlinkFacebookFunction = goAfterReqFunctions.afterUnlinkFacebookFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkfacebook"))
+	}
+	if goAfterReqFunctions.afterUnlinkGameCenterFunction != nil {
+		allAfterReqFunctions.afterUnlinkGameCenterFunction = goAfterReqFunctions.afterUnlinkGameCenterFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkgamecenter"))
+	}
+	if goAfterReqFunctions.afterUnlinkGoogleFunction != nil {
+		allAfterReqFunctions.afterUnlinkGoogleFunction = goAfterReqFunctions.afterUnlinkGoogleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkgoogle"))
+	}
+	if goAfterReqFunctions.afterUnlinkSteamFunction != nil {
+		allAfterReqFunctions.afterUnlinkSteamFunction = goAfterReqFunctions.afterUnlinkSteamFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinksteam"))
+	}
+	if goAfterReqFunctions.afterGetUsersFunction != nil {
+		allAfterReqFunctions.afterGetUsersFunction = goAfterReqFunctions.afterGetUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "getusers"))
+	}
+
+	var allMatchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
+	switch {
+	case goMatchmakerMatchedFunction != nil:
+		allMatchmakerMatchedFunction = goMatchmakerMatchedFunction
+		startupLogger.Info("Registered Go runtime Matchmaker Matched function invocation")
+	case luaMatchmakerMatchedFunction != nil:
+		allMatchmakerMatchedFunction = luaMatchmakerMatchedFunction
+		startupLogger.Info("Registered Lua runtime Matchmaker Matched function invocation")
+	}
+
+	// Lua matches are not registered the same, list only Go ones.
+	goMatchNames := goMatchNamesListFn()
+	for _, name := range goMatchNames {
+		startupLogger.Info("Registered Go runtime Match creation function invocation", zap.String("name", name))
+	}
+
+	return &Runtime{
+		rpcFunctions:              allRpcFunctions,
+		beforeRtFunctions:         allBeforeRtFunctions,
+		afterRtFunctions:          allAfterRtFunctions,
+		beforeReqFunctions:        allBeforeReqFunctions,
+		afterReqFunctions:         allAfterReqFunctions,
+		matchmakerMatchedFunction: allMatchmakerMatchedFunction,
+	}, nil
 }
 
-func (r *Runtime) Stop() {
-	// Not necessarily required as it only does OS temp files cleanup, which we don't expose in the runtime.
-	r.vm.Close()
+func (r *Runtime) Rpc(id string) RuntimeRpcFunction {
+	return r.rpcFunctions[id]
+}
+
+func (r *Runtime) BeforeRt(id string) RuntimeBeforeRtFunction {
+	return r.beforeRtFunctions[id]
+}
+
+func (r *Runtime) AfterRt(id string) RuntimeAfterRtFunction {
+	return r.afterRtFunctions[id]
+}
+
+func (r *Runtime) RuntimeBeforeGetAccount() RuntimeBeforeGetAccountFunction {
+	return r.beforeReqFunctions.beforeGetAccountFunction
+}
+
+func (r *Runtime) AfterGetAccount() RuntimeAfterGetAccountFunction {
+	return r.afterReqFunctions.afterGetAccountFunction
+}
+
+func (r *Runtime) BeforeUpdateAccount() RuntimeBeforeUpdateAccountFunction {
+	return r.beforeReqFunctions.beforeUpdateAccountFunction
+}
+
+func (r *Runtime) AfterUpdateAccount() RuntimeAfterUpdateAccountFunction {
+	return r.afterReqFunctions.afterUpdateAccountFunction
+}
+
+func (r *Runtime) BeforeAuthenticateCustom() RuntimeBeforeAuthenticateCustomFunction {
+	return r.beforeReqFunctions.beforeAuthenticateCustomFunction
+}
+
+func (r *Runtime) AfterAuthenticateCustom() RuntimeAfterAuthenticateCustomFunction {
+	return r.afterReqFunctions.afterAuthenticateCustomFunction
+}
+
+func (r *Runtime) BeforeAuthenticateDevice() RuntimeBeforeAuthenticateDeviceFunction {
+	return r.beforeReqFunctions.beforeAuthenticateDeviceFunction
+}
+
+func (r *Runtime) AfterAuthenticateDevice() RuntimeAfterAuthenticateDeviceFunction {
+	return r.afterReqFunctions.afterAuthenticateDeviceFunction
+}
+
+func (r *Runtime) BeforeAuthenticateEmail() RuntimeBeforeAuthenticateEmailFunction {
+	return r.beforeReqFunctions.beforeAuthenticateEmailFunction
+}
+
+func (r *Runtime) AfterAuthenticateEmail() RuntimeAfterAuthenticateEmailFunction {
+	return r.afterReqFunctions.afterAuthenticateEmailFunction
+}
+
+func (r *Runtime) BeforeAuthenticateFacebook() RuntimeBeforeAuthenticateFacebookFunction {
+	return r.beforeReqFunctions.beforeAuthenticateFacebookFunction
+}
+
+func (r *Runtime) AfterAuthenticateFacebook() RuntimeAfterAuthenticateFacebookFunction {
+	return r.afterReqFunctions.afterAuthenticateFacebookFunction
+}
+
+func (r *Runtime) BeforeAuthenticateGameCenter() RuntimeBeforeAuthenticateGameCenterFunction {
+	return r.beforeReqFunctions.beforeAuthenticateGameCenterFunction
+}
+
+func (r *Runtime) AfterAuthenticateGameCenter() RuntimeAfterAuthenticateGameCenterFunction {
+	return r.afterReqFunctions.afterAuthenticateGameCenterFunction
+}
+
+func (r *Runtime) BeforeAuthenticateGoogle() RuntimeBeforeAuthenticateGoogleFunction {
+	return r.beforeReqFunctions.beforeAuthenticateGoogleFunction
+}
+
+func (r *Runtime) AfterAuthenticateGoogle() RuntimeAfterAuthenticateGoogleFunction {
+	return r.afterReqFunctions.afterAuthenticateGoogleFunction
+}
+
+func (r *Runtime) BeforeAuthenticateSteam() RuntimeBeforeAuthenticateSteamFunction {
+	return r.beforeReqFunctions.beforeAuthenticateSteamFunction
+}
+
+func (r *Runtime) AfterAuthenticateSteam() RuntimeAfterAuthenticateSteamFunction {
+	return r.afterReqFunctions.afterAuthenticateSteamFunction
+}
+
+func (r *Runtime) BeforeListChannelMessages() RuntimeBeforeListChannelMessagesFunction {
+	return r.beforeReqFunctions.beforeListChannelMessagesFunction
+}
+
+func (r *Runtime) AfterListChannelMessages() RuntimeAfterListChannelMessagesFunction {
+	return r.afterReqFunctions.afterListChannelMessagesFunction
+}
+
+func (r *Runtime) BeforeListFriends() RuntimeBeforeListFriendsFunction {
+	return r.beforeReqFunctions.beforeListFriendsFunction
+}
+
+func (r *Runtime) AfterListFriends() RuntimeAfterListFriendsFunction {
+	return r.afterReqFunctions.afterListFriendsFunction
+}
+
+func (r *Runtime) BeforeAddFriends() RuntimeBeforeAddFriendsFunction {
+	return r.beforeReqFunctions.beforeAddFriendsFunction
+}
+
+func (r *Runtime) AfterAddFriends() RuntimeAfterAddFriendsFunction {
+	return r.afterReqFunctions.afterAddFriendsFunction
+}
+
+func (r *Runtime) BeforeDeleteFriends() RuntimeBeforeDeleteFriendsFunction {
+	return r.beforeReqFunctions.beforeDeleteFriendsFunction
+}
+
+func (r *Runtime) AfterDeleteFriends() RuntimeAfterDeleteFriendsFunction {
+	return r.afterReqFunctions.afterDeleteFriendsFunction
+}
+
+func (r *Runtime) BeforeBlockFriends() RuntimeBeforeBlockFriendsFunction {
+	return r.beforeReqFunctions.beforeBlockFriendsFunction
+}
+
+func (r *Runtime) AfterBlockFriends() RuntimeAfterBlockFriendsFunction {
+	return r.afterReqFunctions.afterBlockFriendsFunction
+}
+
+func (r *Runtime) BeforeImportFacebookFriends() RuntimeBeforeImportFacebookFriendsFunction {
+	return r.beforeReqFunctions.beforeImportFacebookFriendsFunction
+}
+
+func (r *Runtime) AfterImportFacebookFriends() RuntimeAfterImportFacebookFriendsFunction {
+	return r.afterReqFunctions.afterImportFacebookFriendsFunction
+}
+
+func (r *Runtime) BeforeCreateGroup() RuntimeBeforeCreateGroupFunction {
+	return r.beforeReqFunctions.beforeCreateGroupFunction
+}
+
+func (r *Runtime) AfterCreateGroup() RuntimeAfterCreateGroupFunction {
+	return r.afterReqFunctions.afterCreateGroupFunction
+}
+
+func (r *Runtime) BeforeUpdateGroup() RuntimeBeforeUpdateGroupFunction {
+	return r.beforeReqFunctions.beforeUpdateGroupFunction
+}
+
+func (r *Runtime) AfterUpdateGroup() RuntimeAfterUpdateGroupFunction {
+	return r.afterReqFunctions.afterUpdateGroupFunction
+}
+
+func (r *Runtime) BeforeDeleteGroup() RuntimeBeforeDeleteGroupFunction {
+	return r.beforeReqFunctions.beforeDeleteGroupFunction
+}
+
+func (r *Runtime) AfterDeleteGroup() RuntimeAfterDeleteGroupFunction {
+	return r.afterReqFunctions.afterDeleteGroupFunction
+}
+
+func (r *Runtime) BeforeJoinGroup() RuntimeBeforeJoinGroupFunction {
+	return r.beforeReqFunctions.beforeJoinGroupFunction
+}
+
+func (r *Runtime) AfterJoinGroup() RuntimeAfterJoinGroupFunction {
+	return r.afterReqFunctions.afterJoinGroupFunction
+}
+
+func (r *Runtime) BeforeLeaveGroup() RuntimeBeforeLeaveGroupFunction {
+	return r.beforeReqFunctions.beforeLeaveGroupFunction
+}
+
+func (r *Runtime) AfterLeaveGroup() RuntimeAfterLeaveGroupFunction {
+	return r.afterReqFunctions.afterLeaveGroupFunction
+}
+
+func (r *Runtime) BeforeAddGroupUsers() RuntimeBeforeAddGroupUsersFunction {
+	return r.beforeReqFunctions.beforeAddGroupUsersFunction
+}
+
+func (r *Runtime) AfterAddGroupUsers() RuntimeAfterAddGroupUsersFunction {
+	return r.afterReqFunctions.afterAddGroupUsersFunction
+}
+
+func (r *Runtime) BeforeKickGroupUsers() RuntimeBeforeKickGroupUsersFunction {
+	return r.beforeReqFunctions.beforeKickGroupUsersFunction
+}
+
+func (r *Runtime) AfterKickGroupUsers() RuntimeAfterKickGroupUsersFunction {
+	return r.afterReqFunctions.afterKickGroupUsersFunction
+}
+
+func (r *Runtime) BeforePromoteGroupUsers() RuntimeBeforePromoteGroupUsersFunction {
+	return r.beforeReqFunctions.beforePromoteGroupUsersFunction
+}
+
+func (r *Runtime) AfterPromoteGroupUsers() RuntimeAfterPromoteGroupUsersFunction {
+	return r.afterReqFunctions.afterPromoteGroupUsersFunction
+}
+
+func (r *Runtime) BeforeListGroupUsers() RuntimeBeforeListGroupUsersFunction {
+	return r.beforeReqFunctions.beforeListGroupUsersFunction
+}
+
+func (r *Runtime) AfterListGroupUsers() RuntimeAfterListGroupUsersFunction {
+	return r.afterReqFunctions.afterListGroupUsersFunction
+}
+
+func (r *Runtime) BeforeListUserGroups() RuntimeBeforeListUserGroupsFunction {
+	return r.beforeReqFunctions.beforeListUserGroupsFunction
+}
+
+func (r *Runtime) AfterListUserGroups() RuntimeAfterListUserGroupsFunction {
+	return r.afterReqFunctions.afterListUserGroupsFunction
+}
+
+func (r *Runtime) BeforeListGroups() RuntimeBeforeListGroupsFunction {
+	return r.beforeReqFunctions.beforeListGroupsFunction
+}
+
+func (r *Runtime) AfterListGroups() RuntimeAfterListGroupsFunction {
+	return r.afterReqFunctions.afterListGroupsFunction
+}
+
+func (r *Runtime) BeforeDeleteLeaderboardRecord() RuntimeBeforeDeleteLeaderboardRecordFunction {
+	return r.beforeReqFunctions.beforeDeleteLeaderboardRecordFunction
+}
+
+func (r *Runtime) AfterDeleteLeaderboardRecord() RuntimeAfterDeleteLeaderboardRecordFunction {
+	return r.afterReqFunctions.afterDeleteLeaderboardRecordFunction
+}
+
+func (r *Runtime) BeforeListLeaderboardRecords() RuntimeBeforeListLeaderboardRecordsFunction {
+	return r.beforeReqFunctions.beforeListLeaderboardRecordsFunction
+}
+
+func (r *Runtime) AfterListLeaderboardRecords() RuntimeAfterListLeaderboardRecordsFunction {
+	return r.afterReqFunctions.afterListLeaderboardRecordsFunction
+}
+
+func (r *Runtime) BeforeWriteLeaderboardRecord() RuntimeBeforeWriteLeaderboardRecordFunction {
+	return r.beforeReqFunctions.beforeWriteLeaderboardRecordFunction
+}
+
+func (r *Runtime) AfterWriteLeaderboardRecord() RuntimeAfterWriteLeaderboardRecordFunction {
+	return r.afterReqFunctions.afterWriteLeaderboardRecordFunction
+}
+
+func (r *Runtime) BeforeLinkCustom() RuntimeBeforeLinkCustomFunction {
+	return r.beforeReqFunctions.beforeLinkCustomFunction
+}
+
+func (r *Runtime) AfterLinkCustom() RuntimeAfterLinkCustomFunction {
+	return r.afterReqFunctions.afterLinkCustomFunction
+}
+
+func (r *Runtime) BeforeLinkDevice() RuntimeBeforeLinkDeviceFunction {
+	return r.beforeReqFunctions.beforeLinkDeviceFunction
+}
+
+func (r *Runtime) AfterLinkDevice() RuntimeAfterLinkDeviceFunction {
+	return r.afterReqFunctions.afterLinkDeviceFunction
+}
+
+func (r *Runtime) BeforeLinkEmail() RuntimeBeforeLinkEmailFunction {
+	return r.beforeReqFunctions.beforeLinkEmailFunction
+}
+
+func (r *Runtime) AfterLinkEmail() RuntimeAfterLinkEmailFunction {
+	return r.afterReqFunctions.afterLinkEmailFunction
+}
+
+func (r *Runtime) BeforeLinkFacebook() RuntimeBeforeLinkFacebookFunction {
+	return r.beforeReqFunctions.beforeLinkFacebookFunction
+}
+
+func (r *Runtime) AfterLinkFacebook() RuntimeAfterLinkFacebookFunction {
+	return r.afterReqFunctions.afterLinkFacebookFunction
+}
+
+func (r *Runtime) BeforeLinkGameCenter() RuntimeBeforeLinkGameCenterFunction {
+	return r.beforeReqFunctions.beforeLinkGameCenterFunction
+}
+
+func (r *Runtime) AfterLinkGameCenter() RuntimeAfterLinkGameCenterFunction {
+	return r.afterReqFunctions.afterLinkGameCenterFunction
+}
+
+func (r *Runtime) BeforeLinkGoogle() RuntimeBeforeLinkGoogleFunction {
+	return r.beforeReqFunctions.beforeLinkGoogleFunction
+}
+
+func (r *Runtime) AfterLinkGoogle() RuntimeAfterLinkGoogleFunction {
+	return r.afterReqFunctions.afterLinkGoogleFunction
+}
+
+func (r *Runtime) BeforeLinkSteam() RuntimeBeforeLinkSteamFunction {
+	return r.beforeReqFunctions.beforeLinkSteamFunction
+}
+
+func (r *Runtime) AfterLinkSteam() RuntimeAfterLinkSteamFunction {
+	return r.afterReqFunctions.afterLinkSteamFunction
+}
+
+func (r *Runtime) BeforeListMatches() RuntimeBeforeListMatchesFunction {
+	return r.beforeReqFunctions.beforeListMatchesFunction
+}
+
+func (r *Runtime) AfterListMatches() RuntimeAfterListMatchesFunction {
+	return r.afterReqFunctions.afterListMatchesFunction
+}
+
+func (r *Runtime) BeforeListNotifications() RuntimeBeforeListNotificationsFunction {
+	return r.beforeReqFunctions.beforeListNotificationsFunction
+}
+
+func (r *Runtime) AfterListNotifications() RuntimeAfterListNotificationsFunction {
+	return r.afterReqFunctions.afterListNotificationsFunction
+}
+
+func (r *Runtime) BeforeDeleteNotification() RuntimeBeforeDeleteNotificationFunction {
+	return r.beforeReqFunctions.beforeDeleteNotificationFunction
+}
+
+func (r *Runtime) AfterDeleteNotification() RuntimeAfterDeleteNotificationFunction {
+	return r.afterReqFunctions.afterDeleteNotificationFunction
+}
+
+func (r *Runtime) BeforeListStorageObjects() RuntimeBeforeListStorageObjectsFunction {
+	return r.beforeReqFunctions.beforeListStorageObjectsFunction
+}
+
+func (r *Runtime) AfterListStorageObjects() RuntimeAfterListStorageObjectsFunction {
+	return r.afterReqFunctions.afterListStorageObjectsFunction
+}
+
+func (r *Runtime) BeforeReadStorageObjects() RuntimeBeforeReadStorageObjectsFunction {
+	return r.beforeReqFunctions.beforeReadStorageObjectsFunction
+}
+
+func (r *Runtime) AfterReadStorageObjects() RuntimeAfterReadStorageObjectsFunction {
+	return r.afterReqFunctions.afterReadStorageObjectsFunction
+}
+
+func (r *Runtime) BeforeWriteStorageObjects() RuntimeBeforeWriteStorageObjectsFunction {
+	return r.beforeReqFunctions.beforeWriteStorageObjectsFunction
+}
+
+func (r *Runtime) AfterWriteStorageObjects() RuntimeAfterWriteStorageObjectsFunction {
+	return r.afterReqFunctions.afterWriteStorageObjectsFunction
+}
+
+func (r *Runtime) BeforeDeleteStorageObjects() RuntimeBeforeDeleteStorageObjectsFunction {
+	return r.beforeReqFunctions.beforeDeleteStorageObjectsFunction
+}
+
+func (r *Runtime) AfterDeleteStorageObjects() RuntimeAfterDeleteStorageObjectsFunction {
+	return r.afterReqFunctions.afterDeleteStorageObjectsFunction
+}
+
+func (r *Runtime) BeforeUnlinkCustom() RuntimeBeforeUnlinkCustomFunction {
+	return r.beforeReqFunctions.beforeUnlinkCustomFunction
+}
+
+func (r *Runtime) AfterUnlinkCustom() RuntimeAfterUnlinkCustomFunction {
+	return r.afterReqFunctions.afterUnlinkCustomFunction
+}
+
+func (r *Runtime) BeforeUnlinkDevice() RuntimeBeforeUnlinkDeviceFunction {
+	return r.beforeReqFunctions.beforeUnlinkDeviceFunction
+}
+
+func (r *Runtime) AfterUnlinkDevice() RuntimeAfterUnlinkDeviceFunction {
+	return r.afterReqFunctions.afterUnlinkDeviceFunction
+}
+
+func (r *Runtime) BeforeUnlinkEmail() RuntimeBeforeUnlinkEmailFunction {
+	return r.beforeReqFunctions.beforeUnlinkEmailFunction
+}
+
+func (r *Runtime) AfterUnlinkEmail() RuntimeAfterUnlinkEmailFunction {
+	return r.afterReqFunctions.afterUnlinkEmailFunction
+}
+
+func (r *Runtime) BeforeUnlinkFacebook() RuntimeBeforeUnlinkFacebookFunction {
+	return r.beforeReqFunctions.beforeUnlinkFacebookFunction
+}
+
+func (r *Runtime) AfterUnlinkFacebook() RuntimeAfterUnlinkFacebookFunction {
+	return r.afterReqFunctions.afterUnlinkFacebookFunction
+}
+
+func (r *Runtime) BeforeUnlinkGameCenter() RuntimeBeforeUnlinkGameCenterFunction {
+	return r.beforeReqFunctions.beforeUnlinkGameCenterFunction
+}
+
+func (r *Runtime) AfterUnlinkGameCenter() RuntimeAfterUnlinkGameCenterFunction {
+	return r.afterReqFunctions.afterUnlinkGameCenterFunction
+}
+
+func (r *Runtime) BeforeUnlinkGoogle() RuntimeBeforeUnlinkGoogleFunction {
+	return r.beforeReqFunctions.beforeUnlinkGoogleFunction
+}
+
+func (r *Runtime) AfterUnlinkGoogle() RuntimeAfterUnlinkGoogleFunction {
+	return r.afterReqFunctions.afterUnlinkGoogleFunction
+}
+
+func (r *Runtime) BeforeUnlinkSteam() RuntimeBeforeUnlinkSteamFunction {
+	return r.beforeReqFunctions.beforeUnlinkSteamFunction
+}
+
+func (r *Runtime) AfterUnlinkSteam() RuntimeAfterUnlinkSteamFunction {
+	return r.afterReqFunctions.afterUnlinkSteamFunction
+}
+
+func (r *Runtime) BeforeGetUsers() RuntimeBeforeGetUsersFunction {
+	return r.beforeReqFunctions.beforeGetUsersFunction
+}
+
+func (r *Runtime) AfterGetUsers() RuntimeAfterGetUsersFunction {
+	return r.afterReqFunctions.afterGetUsersFunction
+}
+
+func (r *Runtime) MatchmakerMatched() RuntimeMatchmakerMatchedFunction {
+	return r.matchmakerMatchedFunction
 }

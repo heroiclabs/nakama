@@ -49,7 +49,7 @@ func loGetPath(env string, defpath string) string {
 	return path
 }
 
-func OpenPackage(moduleCache *ModuleCache) func(L *lua.LState) int {
+func OpenPackage(moduleCache *RuntimeLuaModuleCache) func(L *lua.LState) int {
 	return func(L *lua.LState) int {
 		loLoaderCache := func(L *lua.LState) int {
 			name := L.CheckString(1)

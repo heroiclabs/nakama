@@ -403,7 +403,7 @@ func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp i
 	// Parse the public key, check issuer, check signature.
 	pubBlock, rest := pem.Decode([]byte(body))
 	if pubBlock == nil {
-		pubBlock, rest = pem.Decode([]byte("\n-----BEGIN CERTIFICATE-----\n" + base64.StdEncoding.EncodeToString(rest) + "\n-----END CERTIFICATE-----"))
+		pubBlock, _ = pem.Decode([]byte("\n-----BEGIN CERTIFICATE-----\n" + base64.StdEncoding.EncodeToString(rest) + "\n-----END CERTIFICATE-----"))
 		if pubBlock == nil {
 			return false, errors.New("gamecenter check error: error decoding public key")
 		}

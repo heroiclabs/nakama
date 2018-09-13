@@ -20,54 +20,23 @@ import (
 	"github.com/yuin/gopher-lua"
 )
 
-type ExecutionMode int
-
 const (
-	ExecutionModeRunOnce ExecutionMode = iota
-	ExecutionModeRPC
-	ExecutionModeBefore
-	ExecutionModeAfter
-	ExecutionModeMatch
-	ExecutionModeMatchmaker
+	__RUNTIME_LUA_CTX_ENV              = "env"
+	__RUNTIME_LUA_CTX_MODE             = "execution_mode"
+	__RUNTIME_LUA_CTX_QUERY_PARAMS     = "query_params"
+	__RUNTIME_LUA_CTX_USER_ID          = "user_id"
+	__RUNTIME_LUA_CTX_USERNAME         = "username"
+	__RUNTIME_LUA_CTX_USER_SESSION_EXP = "user_session_exp"
+	__RUNTIME_LUA_CTX_SESSION_ID       = "session_id"
+	__RUNTIME_LUA_CTX_CLIENT_IP        = "client_ip"
+	__RUNTIME_LUA_CTX_CLIENT_PORT      = "client_port"
+	__RUNTIME_LUA_CTX_MATCH_ID         = "match_id"
+	__RUNTIME_LUA_CTX_MATCH_NODE       = "match_node"
+	__RUNTIME_LUA_CTX_MATCH_LABEL      = "match_label"
+	__RUNTIME_LUA_CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-func (e ExecutionMode) String() string {
-	switch e {
-	case ExecutionModeRunOnce:
-		return "run_once"
-	case ExecutionModeRPC:
-		return "rpc"
-	case ExecutionModeBefore:
-		return "before"
-	case ExecutionModeAfter:
-		return "after"
-	case ExecutionModeMatch:
-		return "match"
-	case ExecutionModeMatchmaker:
-		return "matchmaker"
-	}
-
-	return ""
-}
-
-const (
-	__CTX_ENV              = "env"
-	__CTX_MODE             = "execution_mode"
-	__CTX_QUERY_PARAMS     = "query_params"
-	__CTX_USER_ID          = "user_id"
-	__CTX_USERNAME         = "username"
-	__CTX_USER_SESSION_EXP = "user_session_exp"
-	__CTX_SESSION_ID       = "session_id"
-	__CTX_CLIENT_IP        = "client_ip"
-	__CTX_CLIENT_PORT      = "client_port"
-	__CTX_MATCH_ID         = "match_id"
-	__CTX_MATCH_NODE       = "match_node"
-	__CTX_MATCH_LABEL      = "match_label"
-	__CTX_MATCH_TICK_RATE  = "match_tick_rate"
-)
-
-func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryParams map[string][]string, sessionExpiry int64,
-	userID, username, sessionID, clientIP, clientPort string) *lua.LTable {
+func NewRuntimeLuaContext(l *lua.LState, env *lua.LTable, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username, sessionID, clientIP, clientPort string) *lua.LTable {
 	size := 3
 	if userID != "" {
 		size += 3
@@ -84,50 +53,59 @@ func NewLuaContext(l *lua.LState, env *lua.LTable, mode ExecutionMode, queryPara
 	}
 
 	lt := l.CreateTable(0, size)
-	lt.RawSetString(__CTX_ENV, env)
-	lt.RawSetString(__CTX_MODE, lua.LString(mode.String()))
+	lt.RawSetString(__RUNTIME_LUA_CTX_ENV, env)
+	lt.RawSetString(__RUNTIME_LUA_CTX_MODE, lua.LString(mode.String()))
 	if queryParams == nil {
-		lt.RawSetString(__CTX_QUERY_PARAMS, l.CreateTable(0, 0))
+		lt.RawSetString(__RUNTIME_LUA_CTX_QUERY_PARAMS, l.CreateTable(0, 0))
 	} else {
-		lt.RawSetString(__CTX_QUERY_PARAMS, ConvertValue(l, queryParams))
+		lt.RawSetString(__RUNTIME_LUA_CTX_QUERY_PARAMS, RuntimeLuaConvertValue(l, queryParams))
 	}
 
 	if userID != "" {
-		lt.RawSetString(__CTX_USER_ID, lua.LString(userID))
-		lt.RawSetString(__CTX_USERNAME, lua.LString(username))
-		lt.RawSetString(__CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
+		lt.RawSetString(__RUNTIME_LUA_CTX_USER_ID, lua.LString(userID))
+		lt.RawSetString(__RUNTIME_LUA_CTX_USERNAME, lua.LString(username))
+		lt.RawSetString(__RUNTIME_LUA_CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
 		if sessionID != "" {
-			lt.RawSetString(__CTX_SESSION_ID, lua.LString(sessionID))
+			lt.RawSetString(__RUNTIME_LUA_CTX_SESSION_ID, lua.LString(sessionID))
 		}
 	}
 
 	if clientIP != "" {
-		lt.RawSetString(__CTX_CLIENT_IP, lua.LString(clientIP))
+		lt.RawSetString(__RUNTIME_LUA_CTX_CLIENT_IP, lua.LString(clientIP))
 	}
-
 	if clientPort != "" {
-		lt.RawSetString(__CTX_CLIENT_PORT, lua.LString(clientPort))
+		lt.RawSetString(__RUNTIME_LUA_CTX_CLIENT_PORT, lua.LString(clientPort))
 	}
 
 	return lt
 }
 
-func ConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
+func RuntimeLuaConvertMapString(l *lua.LState, data map[string]string) *lua.LTable {
 	lt := l.CreateTable(0, len(data))
 
 	for k, v := range data {
-		lt.RawSetString(k, ConvertValue(l, v))
+		lt.RawSetString(k, RuntimeLuaConvertValue(l, v))
 	}
 
 	return lt
 }
 
-func ConvertLuaTable(lv *lua.LTable) map[string]interface{} {
-	returnData, _ := ConvertLuaValue(lv).(map[string]interface{})
+func RuntimeLuaConvertMap(l *lua.LState, data map[string]interface{}) *lua.LTable {
+	lt := l.CreateTable(0, len(data))
+
+	for k, v := range data {
+		lt.RawSetString(k, RuntimeLuaConvertValue(l, v))
+	}
+
+	return lt
+}
+
+func RuntimeLuaConvertLuaTable(lv *lua.LTable) map[string]interface{} {
+	returnData, _ := RuntimeLuaConvertLuaValue(lv).(map[string]interface{})
 	return returnData
 }
 
-func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
+func RuntimeLuaConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	if val == nil {
 		return lua.LNil
 	}
@@ -159,11 +137,13 @@ func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	case map[string][]string:
 		lt := l.CreateTable(0, len(v))
 		for k, v := range v {
-			lt.RawSetString(k, ConvertValue(l, v))
+			lt.RawSetString(k, RuntimeLuaConvertValue(l, v))
 		}
 		return lt
+	case map[string]string:
+		return RuntimeLuaConvertMapString(l, v)
 	case map[string]interface{}:
-		return ConvertMap(l, v)
+		return RuntimeLuaConvertMap(l, v)
 	case []string:
 		lt := l.CreateTable(len(val.([]string)), 0)
 		for k, v := range v {
@@ -173,7 +153,7 @@ func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	case []interface{}:
 		lt := l.CreateTable(len(val.([]interface{})), 0)
 		for k, v := range v {
-			lt.RawSetInt(k+1, ConvertValue(l, v))
+			lt.RawSetInt(k+1, RuntimeLuaConvertValue(l, v))
 		}
 		return lt
 	default:
@@ -181,7 +161,7 @@ func ConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	}
 }
 
-func ConvertLuaValue(lv lua.LValue) interface{} {
+func RuntimeLuaConvertLuaValue(lv lua.LValue) interface{} {
 	// Taken from: https://github.com/yuin/gluamapper/blob/master/gluamapper.go#L79
 	switch v := lv.(type) {
 	case *lua.LNilType:
@@ -198,15 +178,15 @@ func ConvertLuaValue(lv lua.LValue) interface{} {
 			// Table.
 			ret := make(map[string]interface{})
 			v.ForEach(func(key, value lua.LValue) {
-				keystr := fmt.Sprint(ConvertLuaValue(key))
-				ret[keystr] = ConvertLuaValue(value)
+				keyStr := fmt.Sprint(RuntimeLuaConvertLuaValue(key))
+				ret[keyStr] = RuntimeLuaConvertLuaValue(value)
 			})
 			return ret
 		} else {
 			// Array.
 			ret := make([]interface{}, 0, maxn)
 			for i := 1; i <= maxn; i++ {
-				ret = append(ret, ConvertLuaValue(v.RawGetInt(i)))
+				ret = append(ret, RuntimeLuaConvertLuaValue(v.RawGetInt(i)))
 			}
 			return ret
 		}

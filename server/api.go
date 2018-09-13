@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"google.golang.org/grpc/peer"
 	"net"
 	"net/http"
 	"strings"
@@ -35,14 +36,11 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	grpcRuntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
-	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -50,7 +48,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -58,6 +55,8 @@ import (
 type ctxUserIDKey struct{}
 type ctxUsernameKey struct{}
 type ctxExpiryKey struct{}
+
+type ctxFullMethodKey struct{}
 
 type ApiServer struct {
 	logger            *zap.Logger
@@ -68,16 +67,22 @@ type ApiServer struct {
 	matchRegistry     MatchRegistry
 	tracker           Tracker
 	router            MessageRouter
-	runtimePool       *RuntimePool
+	runtime           *Runtime
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtimePool *RuntimePool) *ApiServer {
+func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtime *Runtime) *ApiServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(apiInterceptorFunc(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler)),
+		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
+			if err != nil {
+				return nil, err
+			}
+			return handler(ctx, req)
+		}),
 	}
 	if config.GetSocket().TLSCert != nil {
 		serverOpts = append(serverOpts, grpc.Creds(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
@@ -93,7 +98,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 		matchRegistry:    matchRegistry,
 		tracker:          tracker,
 		router:           router,
-		runtimePool:      runtimePool,
+		runtime:          runtime,
 		grpcServer:       grpcServer,
 	}
 
@@ -114,8 +119,8 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Register and start GRPC Gateway server.
 	// Should start after GRPC server itself because RegisterNakamaHandlerFromEndpoint below tries to dial GRPC.
 	ctx := context.Background()
-	grpcGateway := runtime.NewServeMux(
-		runtime.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
+	grpcGateway := grpcRuntime.NewServeMux(
+		grpcRuntime.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
 			// For RPC GET operations pass through any custom query parameters.
 			if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/v2/rpc/") {
 				return metadata.MD{}
@@ -221,106 +226,11 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 	return &empty.Empty{}, nil
 }
 
-func apiInterceptorFunc(logger *zap.Logger, config Config, runtimePool *RuntimePool, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		//logger.Debug("Security interceptor fired", zap.Any("ctx", ctx), zap.Any("req", req), zap.Any("info", info))
-		ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
-		if err != nil {
-			return nil, err
-		}
-
-		switch info.FullMethod {
-		case "/nakama.api.Nakama/Healthcheck":
-			fallthrough
-		case "/nakama.api.Nakama/RpcFunc":
-			return handler(ctx, req)
-		}
-
-		uid := uuid.Nil
-		username := ""
-		expiry := int64(0)
-		if ctx.Value(ctxUserIDKey{}) != nil {
-			// incase of authentication methods, uid is nil
-			uid = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-			username = ctx.Value(ctxUsernameKey{}).(string)
-			expiry = ctx.Value(ctxExpiryKey{}).(int64)
-		}
-
-		// Method name to use for before/after stats.
-		var methodName string
-		if parts := strings.SplitN(info.FullMethod, "/", 3); len(parts) == 3 {
-			methodName = parts[2]
-		}
-
-		// Stats measurement start boundary.
-		name := fmt.Sprintf("nakama.api-before.Nakama.%v", methodName)
-		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-		startNanos := time.Now().UTC().UnixNano()
-		span := trace.NewSpan(name, nil, trace.StartOptions{})
-
-		clientAddr := ""
-		clientIP := ""
-		clientPort := ""
-		md, _ := metadata.FromIncomingContext(ctx)
-		if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
-			// look for gRPC-Gateway / LB header
-			clientAddr = strings.Split(ips[0], ",")[0]
-		} else if peerInfo, ok := peer.FromContext(ctx); ok {
-			// if missing, try to look up gRPC peer info
-			clientAddr = peerInfo.Addr.String()
-		}
-
-		clientAddr = strings.TrimSpace(clientAddr)
-		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-			clientIP = host
-			clientPort = port
-		} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
-			clientIP = clientAddr
-		} else {
-			logger.Debug("Could not extract client address from request.", zap.Error(err))
-		}
-
-		// Actual before hook function execution.
-		beforeHookResult, hookErr := invokeReqBeforeHook(logger, config, runtimePool, jsonpbMarshaler, jsonpbUnmarshaler, "", uid, username, expiry, clientIP, clientPort, info.FullMethod, req)
-
-		// Stats measurement end boundary.
-		span.End()
-		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
-
-		if hookErr != nil {
-			return nil, hookErr
-		} else if beforeHookResult == nil {
-			// if result is nil, requested resource is disabled.
-			logger.Warn("Intercepted a disabled resource.",
-				zap.String("resource", info.FullMethod),
-				zap.String("uid", uid.String()),
-				zap.String("username", username))
-			return nil, status.Error(codes.NotFound, "Requested resource was not found.")
-		}
-
-		handlerResult, handlerErr := handler(ctx, beforeHookResult)
-		if handlerErr == nil {
-			// Stats measurement start boundary.
-			name := fmt.Sprintf("nakama.api-after.Nakama.%v", methodName)
-			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-			startNanos := time.Now().UTC().UnixNano()
-			span := trace.NewSpan(name, nil, trace.StartOptions{})
-			// Actual after hook function execution.
-			invokeReqAfterHook(logger, config, runtimePool, jsonpbMarshaler, "", uid, username, expiry, clientIP, clientPort, info.FullMethod, handlerResult)
-
-			// Stats measurement end boundary.
-			span.End()
-			stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
-		}
-		return handlerResult, handlerErr
-	}
-}
-
 func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) (context.Context, error) {
 	switch info.FullMethod {
 	case "/nakama.api.Nakama/Healthcheck":
 		// Healthcheck has no security.
-		return nil, nil
+		return ctx, nil
 	case "/nakama.api.Nakama/AuthenticateCustom":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateDevice":
@@ -425,7 +335,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 		}
 		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxExpiryKey{}, exp)
 	}
-	return ctx, nil
+	return context.WithValue(ctx, ctxFullMethodKey{}, info.FullMethod), nil
 }
 
 func parseBasicAuth(auth string) (username, password string, ok bool) {
@@ -497,4 +407,30 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+func extractClientAddress(logger *zap.Logger, ctx context.Context) (string, string) {
+	clientAddr := ""
+	clientIP := ""
+	clientPort := ""
+	md, _ := metadata.FromIncomingContext(ctx)
+	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
+		// Look for gRPC-Gateway / LB header.
+		clientAddr = strings.Split(ips[0], ",")[0]
+	} else if peerInfo, ok := peer.FromContext(ctx); ok {
+		// If missing, try to look up gRPC peer info.
+		clientAddr = peerInfo.Addr.String()
+	}
+
+	clientAddr = strings.TrimSpace(clientAddr)
+	if host, port, err := net.SplitHostPort(clientAddr); err == nil {
+		clientIP = host
+		clientPort = port
+	} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
+		clientIP = clientAddr
+	} else {
+		logger.Debug("Could not extract client address from request.", zap.Error(err))
+	}
+
+	return clientIP, clientPort
 }
