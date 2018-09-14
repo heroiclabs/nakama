@@ -59,7 +59,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 	expiryTime := int64(0)
 	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
+		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
 	records := make([]*api.LeaderboardRecord, 0)
@@ -329,7 +329,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 	expiryTime := int64(0)
 	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
+		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
 	var opSql string
@@ -437,7 +437,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 
 	expiryTime := int64(0)
 	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now()).Unix()
+		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
 	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
