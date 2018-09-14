@@ -1320,8 +1320,6 @@ message TournamentRecordList {
   string next_cursor = 3;
   // The cursor to send when retrieving the previous page (optional).
   string prev_cursor = 4;
-  // The owner ID with the retrieved records around. May be null.
-  string owner_id = 5;
 }
 
 // Update a user's account details.
