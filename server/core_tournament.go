@@ -49,7 +49,7 @@ type tournamentListCursor struct {
 }
 
 func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
-	description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
 	leaderboard, err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata,
 		description, title, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)

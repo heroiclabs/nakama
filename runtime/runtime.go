@@ -292,6 +292,10 @@ type NakamaModule interface {
 	LeaderboardRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(id, ownerID string) error
 
+	TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
+	TournamentDelete(id string) error
+	TournamentAddAttempt(id, ownerID string, count int) error
+
 	GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
 	GroupUpdate(id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
 	GroupDelete(id string) error

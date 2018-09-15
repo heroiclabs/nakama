@@ -181,6 +181,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_records_list":    n.leaderboardRecordsList,
 		"leaderboard_record_write":    n.leaderboardRecordWrite,
 		"leaderboard_record_delete":   n.leaderboardRecordDelete,
+		"tournament_create":           n.tournamentCreate,
+		"tournament_delete":           n.tournamentDelete,
+		"tournament_add_attempt":      n.tournamentAddAttempt,
 		"group_create":                n.groupCreate,
 		"group_update":                n.groupUpdate,
 		"group_delete":                n.groupDelete,
@@ -3756,6 +3759,144 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 
 	if err := LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerId); err != nil {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	sortOrder := l.OptString(2, "desc")
+	var sortOrderNumber int
+	switch sortOrder {
+	case "asc":
+		sortOrderNumber = LeaderboardSortOrderAscending
+	case "desc":
+		sortOrderNumber = LeaderboardSortOrderDescending
+	default:
+		l.ArgError(2, "expects sort order to be 'asc' or 'desc'")
+		return 0
+	}
+
+	operator := l.OptString(3, "best")
+	var operatorNumber int
+	switch operator {
+	case "best":
+		operatorNumber = LeaderboardOperatorBest
+	case "set":
+		operatorNumber = LeaderboardOperatorSet
+	case "incr":
+		operatorNumber = LeaderboardOperatorIncrement
+	default:
+		l.ArgError(3, "expects sort order to be 'best', 'set', or 'incr'")
+		return 0
+	}
+
+	resetSchedule := l.OptString(4, "")
+	if resetSchedule != "" {
+		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			l.ArgError(4, "expects reset schedule to be a valid CRON expression")
+			return 0
+		}
+	}
+
+	metadata := l.OptTable(5, nil)
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataMap := RuntimeLuaConvertLuaTable(metadata)
+		metadataBytes, err := json.Marshal(metadataMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	title := l.OptString(6, "")
+	description := l.OptString(7, "")
+	category := l.OptInt(8, 0)
+	if category < 0 || category >= 128 {
+		l.ArgError(8, "category must be 0-127")
+		return 0
+	}
+	startTime := l.OptInt(9, 0)
+	if startTime < 0 {
+		l.ArgError(9, "startTime must be >= 0")
+		return 0
+	}
+	endTime := l.OptInt(10, 0)
+	if endTime < 0 {
+		l.ArgError(10, "endTime must be >= 0")
+		return 0
+	}
+	if endTime < startTime {
+		l.ArgError(10, "endTime must be >= startTime")
+		return 0
+	}
+	duration := l.OptInt(11, 0)
+	if duration < 0 {
+		l.ArgError(11, "duration must be >= 0")
+		return 0
+	}
+	maxSize := l.OptInt(12, 0)
+	if maxSize < 0 {
+		l.ArgError(12, "maxSize must be >= 0")
+		return 0
+	}
+	maxNumScore := l.OptInt(13, 0)
+	if maxNumScore < 0 {
+		l.ArgError(13, "maxNumScore must be >= 0")
+		return 0
+	}
+	joinRequired := l.OptBool(14, false)
+
+	if err := TournamentCreate(n.logger, n.leaderboardCache, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+		l.RaiseError("error creating tournament: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) tournamentDelete(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament ID string")
+		return 0
+	}
+
+	if err := TournamentDelete(n.logger, n.leaderboardCache, id); err != nil {
+		l.RaiseError("error deleting tournament: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) tournamentAddAttempt(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament ID string")
+		return 0
+	}
+
+	owner := l.CheckString(2)
+	if owner == "" {
+		l.ArgError(2, "expects a owner ID string")
+		return 0
+	} else if _, err := uuid.FromString(owner); err != nil {
+		l.ArgError(2, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	count := l.CheckInt(3)
+	if count == 0 {
+		l.ArgError(3, "expects an attempt count number != 0")
+		return 0
+	}
+
+	if err := TournamentAddAttempt(n.logger, n.db, id, owner, count); err != nil {
+		l.RaiseError("error adding tournament attempts: %v", err.Error())
 	}
 	return 0
 }

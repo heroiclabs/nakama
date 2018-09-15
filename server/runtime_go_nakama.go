@@ -1103,6 +1103,99 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(id, ownerID string) erro
 	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerID)
 }
 
+func (n *RuntimeGoNakamaModule) TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	sort := LeaderboardSortOrderDescending
+	switch sortOrder {
+	case "desc":
+		sort = LeaderboardSortOrderDescending
+	case "asc":
+		sort = LeaderboardSortOrderAscending
+	default:
+		return errors.New("expects sort order to be 'asc' or 'desc'")
+	}
+
+	oper := LeaderboardOperatorBest
+	switch operator {
+	case "best":
+		oper = LeaderboardOperatorBest
+	case "set":
+		oper = LeaderboardOperatorSet
+	case "incr":
+		oper = LeaderboardOperatorIncrement
+	default:
+		return errors.New("expects sort order to be 'best', 'set', or 'incr'")
+	}
+
+	if resetSchedule != "" {
+		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			return errors.New("expects reset schedule to be a valid CRON expression")
+		}
+	}
+
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return errors.Errorf("error encoding metadata: %v", err.Error())
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	if category < 0 || category >= 128 {
+		return errors.New("category must be 0-127")
+	}
+	if startTime < 0 {
+		return errors.New("startTime must be >= 0")
+	}
+	if endTime < 0 {
+		return errors.New("endTime must be >= 0")
+	}
+	if endTime < startTime {
+		return errors.New("endTime must be >= startTime")
+	}
+	if duration < 0 {
+		return errors.New("duration must be >= 0")
+	}
+	if maxSize < 0 {
+		return errors.New("maxSize must be >= 0")
+	}
+	if maxNumScore < 0 {
+		return errors.New("maxNumScore must be >= 0")
+	}
+
+	return TournamentCreate(n.logger, n.leaderboardCache, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentDelete(id string) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	return TournamentDelete(n.logger, n.leaderboardCache, id)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentAddAttempt(id, ownerID string, count int) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	if ownerID == "" {
+		return errors.New("expects a owner ID string")
+	} else if _, err := uuid.FromString(ownerID); err != nil {
+		return errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if count == 0 {
+		return errors.New("expects an attempt count number != 0")
+	}
+
+	return TournamentAddAttempt(n.logger, n.db, id, ownerID, count)
+}
+
 func (n *RuntimeGoNakamaModule) GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
