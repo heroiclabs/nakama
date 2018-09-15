@@ -244,3 +244,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 
 	return record, nil
 }
+
+func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error) {
+	return nil, nil
+}

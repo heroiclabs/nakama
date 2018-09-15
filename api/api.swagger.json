@@ -1369,6 +1369,46 @@
         ]
       }
     },
+    "/v2/leaderboard/{leaderboard_id}/owner/{owner_id}": {
+      "get": {
+        "operationId": "ListLeaderboardRecordsAroundOwner",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecordList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboard_id",
+            "description": "The ID of the tournament to list for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "owner_id",
+            "description": "The owner to retrieve records around.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/match": {
       "get": {
         "summary": "Fetch list of running matches.",
@@ -1779,7 +1819,7 @@
           },
           {
             "name": "start_time",
-            "description": "The start time for tournaments. Defaults to current Unix time.",
+            "description": "The start time for tournaments. Defaults to epoch.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1931,6 +1971,46 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/tournament/{tournament_id}/owner/{owner_id}": {
+      "get": {
+        "operationId": "ListTournamentRecordsAroundOwner",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apiTournamentRecordList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournament_id",
+            "description": "The ID of the tournament to list for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "owner_id",
+            "description": "The owner to retrieve records around.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
           }
         ],
         "tags": [
