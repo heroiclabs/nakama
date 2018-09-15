@@ -19,11 +19,12 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"google.golang.org/grpc/peer"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"google.golang.org/grpc/peer"
 
 	"crypto/tls"
 
@@ -59,20 +60,21 @@ type ctxExpiryKey struct{}
 type ctxFullMethodKey struct{}
 
 type ApiServer struct {
-	logger            *zap.Logger
-	db                *sql.DB
-	config            Config
-	socialClient      *social.Client
-	leaderboardCache  LeaderboardCache
-	matchRegistry     MatchRegistry
-	tracker           Tracker
-	router            MessageRouter
-	runtime           *Runtime
-	grpcServer        *grpc.Server
-	grpcGatewayServer *http.Server
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
+	runtime              *Runtime
+	grpcServer           *grpc.Server
+	grpcGatewayServer    *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtime *Runtime) *ApiServer {
+func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtime *Runtime) *ApiServer {
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -90,16 +92,17 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ApiServer{
-		logger:           logger,
-		db:               db,
-		config:           config,
-		socialClient:     socialClient,
-		leaderboardCache: leaderboardCache,
-		matchRegistry:    matchRegistry,
-		tracker:          tracker,
-		router:           router,
-		runtime:          runtime,
-		grpcServer:       grpcServer,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
+		runtime:              runtime,
+		grpcServer:           grpcServer,
 	}
 
 	// Register and start GRPC server.

@@ -17,6 +17,10 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -28,39 +32,38 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"strings"
-	"sync"
-	"time"
 )
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
-	logger           *zap.Logger
-	db               *sql.DB
-	config           Config
-	socialClient     *social.Client
-	leaderboardCache LeaderboardCache
-	sessionRegistry  *SessionRegistry
-	matchRegistry    MatchRegistry
-	tracker          Tracker
-	router           MessageRouter
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	sessionRegistry      *SessionRegistry
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
 
 	node string
 
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
-		logger:           logger,
-		db:               db,
-		config:           config,
-		socialClient:     socialClient,
-		leaderboardCache: leaderboardCache,
-		sessionRegistry:  sessionRegistry,
-		matchRegistry:    matchRegistry,
-		tracker:          tracker,
-		router:           router,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		sessionRegistry:      sessionRegistry,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
 
 		node: config.GetName(),
 	}

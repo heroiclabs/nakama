@@ -21,6 +21,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -33,12 +40,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/codes"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"sync"
 )
 
 const LTSentinel = lua.LValueType(-1)
@@ -73,18 +74,19 @@ func (mc *RuntimeLuaModuleCache) Add(m *RuntimeLuaModule) {
 
 type RuntimeProviderLua struct {
 	sync.Mutex
-	logger            *zap.Logger
-	db                *sql.DB
-	jsonpbMarshaler   *jsonpb.Marshaler
-	jsonpbUnmarshaler *jsonpb.Unmarshaler
-	config            Config
-	socialClient      *social.Client
-	leaderboardCache  LeaderboardCache
-	sessionRegistry   *SessionRegistry
-	matchRegistry     MatchRegistry
-	tracker           Tracker
-	router            MessageRouter
-	stdLibs           map[string]lua.LGFunction
+	logger               *zap.Logger
+	db                   *sql.DB
+	jsonpbMarshaler      *jsonpb.Marshaler
+	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	sessionRegistry      *SessionRegistry
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
+	stdLibs              map[string]lua.LGFunction
 
 	once         *sync.Once
 	poolCh       chan *RuntimeLua
@@ -95,7 +97,7 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, error) {
 	moduleCache := &RuntimeLuaModuleCache{
 		Names:   make([]string, 0),
 		Modules: make(map[string]*RuntimeLuaModule, 0),
@@ -165,18 +167,19 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	}
 
 	runtimeProviderLua := &RuntimeProviderLua{
-		logger:            logger,
-		db:                db,
-		jsonpbMarshaler:   jsonpbMarshaler,
-		jsonpbUnmarshaler: jsonpbUnmarshaler,
-		config:            config,
-		socialClient:      socialClient,
-		leaderboardCache:  leaderboardCache,
-		sessionRegistry:   sessionRegistry,
-		matchRegistry:     matchRegistry,
-		tracker:           tracker,
-		router:            router,
-		stdLibs:           stdLibs,
+		logger:               logger,
+		db:                   db,
+		jsonpbMarshaler:      jsonpbMarshaler,
+		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		sessionRegistry:      sessionRegistry,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
+		stdLibs:              stdLibs,
 
 		once:     once,
 		poolCh:   make(chan *RuntimeLua, config.GetRuntime().MaxCount),

@@ -234,6 +234,7 @@ WHERE
 		logger.Error("Could not retrieve tournaments", zap.Error(err))
 		return nil, err
 	}
+	defer rows.Close()
 
 	records := make([]*api.Tournament, 0)
 	var newCursor *tournamentListCursor
@@ -399,6 +400,7 @@ func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]int
 		logger.Error("Could not list leaderboard records belonging to owner", zap.Error(err), zap.String("owner_id", ownerId))
 		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var id string

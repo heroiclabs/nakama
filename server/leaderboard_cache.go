@@ -58,6 +58,7 @@ type Leaderboard struct {
 
 type LeaderboardCache interface {
 	Get(id string) *Leaderboard
+	GetAllLeaderboards() []*Leaderboard
 	Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error
 	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
 		description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
@@ -156,6 +157,16 @@ func (l *LocalLeaderboardCache) Get(id string) *Leaderboard {
 	return lb
 }
 
+func (l *LocalLeaderboardCache) GetAllLeaderboards() []*Leaderboard {
+	l.RLock()
+	leaderboards := make([]*Leaderboard, 0)
+	for _, v := range l.leaderboards {
+		leaderboards = append(leaderboards, v)
+	}
+	l.RUnlock()
+	return leaderboards
+}
+
 func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error {
 	l.Lock()
 	if _, ok := l.leaderboards[id]; ok {
@@ -219,15 +230,14 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 		return nil, err
 	}
 
-	l.Lock()
+	l.RLock()
 	leaderboard := l.leaderboards[id]
+	l.RUnlock()
 	if leaderboard != nil {
 		if leaderboard.Duration > 0 {
 			// Creation is an idempotent operation.
-			l.Unlock()
 			return nil, nil // return nil for leaderboard to indicate no new creation
 		} else {
-			l.Unlock()
 			l.logger.Error("Cannot create tournament as leaderboard is already in use.", zap.String("leaderboard_id", id))
 			return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")
 		}
@@ -369,6 +379,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 		leaderboard.EndTime = endTimeZ.Time.Unix()
 	}
 
+	l.Lock()
 	l.leaderboards[id] = leaderboard
 	l.Unlock()
 	return leaderboard, nil
@@ -376,9 +387,11 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 
 func (l *LocalLeaderboardCache) Delete(id string) error {
 	l.Lock()
-	if _, ok := l.leaderboards[id]; ok {
+	_, leaderboardFound := l.leaderboards[id]
+	l.Unlock()
+
+	if !leaderboardFound {
 		// Deletion is an idempotent operation.
-		l.Unlock()
 		return nil
 	}
 
@@ -386,14 +399,13 @@ func (l *LocalLeaderboardCache) Delete(id string) error {
 	query := "DELETE FROM leaderboard WHERE id = $1"
 	_, err := l.db.Exec(query, id)
 	if err != nil {
-		l.Unlock()
 		l.logger.Error("Error deleting leaderboard", zap.Error(err))
 		return err
 	}
 
+	l.Lock()
 	// Then delete from cache.
 	delete(l.leaderboards, id)
-
 	l.Unlock()
 	return nil
 }
