@@ -81,7 +81,7 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, 
 		return ErrTournamentSubzeroMaxAttemptCount
 	}
 
-	query := `UPDATE leaderboard_record SET max_num_score = $1 WHERE leaderboard_id = $2 AND owner = $3`
+	query := `UPDATE leaderboard_record SET max_num_score = $1 WHERE leaderboard_id = $2 AND owner_id = $3`
 	_, err := db.Exec(query, count, leaderboardId, owner)
 	if err != nil {
 		logger.Error("Could not increment max attempt counter", zap.Error(err))
@@ -289,7 +289,7 @@ WHERE
 			schedules := cron.NextN(now, 2)
 			sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
 
-			if sessionStartTime > now.Unix() {
+			if dbStartTime.Time.UTC().After(now) {
 				endActive = 0
 				canEnter = false
 			} else {
