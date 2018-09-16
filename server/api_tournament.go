@@ -371,6 +371,8 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 			return nil, status.Error(codes.InvalidArgument, "Reached allowed max number of score attempts.")
 		} else if err == ErrTournamentWriteJoinRequired {
 			return nil, status.Error(codes.InvalidArgument, "Must join tournament before attempting to write value.")
+		} else if err == ErrTournamentWriteOutsideDuration {
+			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new scores.")
 		} else {
 			return nil, status.Error(codes.Internal, "Error writing score to tournament.")
 		}

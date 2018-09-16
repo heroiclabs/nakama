@@ -360,10 +360,20 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	currentTime := time.Now().UTC()
-	expiryTime := int64(0)
+	expiryTime := leaderboard.EndTime
+
 	if leaderboard.ResetSchedule != nil {
 		schedules := leaderboard.ResetSchedule.NextN(currentTime, 2)
-		sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
+		sessionStartTime := schedules[0].UTC().Unix() - (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
+
+		if sessionStartTime < leaderboard.StartTime {
+			// If we've not hit the first reset schedule
+			// let's wait for the first reset schedule after the start time.
+			// This is useful for when there is arbitrary start time + duration
+			// that doesn't fit a big enough window for a reset period.
+			// This problem could be avoided if the start time matches a reset period pattern (like exactly on the minute/hour).
+			sessionStartTime = leaderboard.ResetSchedule.Next(time.Unix(leaderboard.StartTime, 0).UTC()).UTC().Unix()
+		}
 
 		endActive := sessionStartTime + int64(leaderboard.Duration)
 		if endActive <= currentTime.Unix() {
