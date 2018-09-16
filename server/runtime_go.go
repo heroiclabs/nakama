@@ -812,6 +812,91 @@ func (ri *RuntimeGoInitialiser) RegisterAfterDeleteStorageObjects(fn func(ctx co
 	return nil
 }
 
+func (ri *RuntimeGoInitialiser) RegisterBeforeJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, int)) error {
+	ri.beforeReq.beforeJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *empty.Empty) error) error {
+	ri.afterReq.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterBeforeListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, int)) error {
+	ri.beforeReq.beforeListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList) error) error {
+	ri.afterReq.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentRecordList) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterBeforeListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, int)) error {
+	ri.beforeReq.beforeListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentList) error) error {
+	ri.afterReq.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentList) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterBeforeWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, int)) error {
+	ri.beforeReq.beforeWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecord) error) error {
+	ri.afterReq.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecord) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterBeforeListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, int)) error {
+	ri.beforeReq.beforeListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList) error) error {
+	ri.afterReq.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentRecordList) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitialiser) RegisterBeforeUnlinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error, int)) error {
 	ri.beforeReq.beforeUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)

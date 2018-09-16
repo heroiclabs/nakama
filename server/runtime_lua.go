@@ -557,6 +557,46 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						}
 						return result.(*api.DeleteStorageObjectsRequest), nil, 0
 					}
+				case "jointournament":
+					beforeReqFunctions.beforeJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.JoinTournamentRequest), nil, 0
+					}
+				case "listtournamentrecords":
+					beforeReqFunctions.beforeListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentRecordsRequest), nil, 0
+					}
+				case "listtournaments":
+					beforeReqFunctions.beforeListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentsRequest), nil, 0
+					}
+				case "writetournamentrecord":
+					beforeReqFunctions.beforeWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.WriteTournamentRecordRequest), nil, 0
+					}
+				case "listtournamentrecordsaroundowner":
+					beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentRecordsAroundOwnerRequest), nil, 0
+					}
 				case "unlinkcustom":
 					beforeReqFunctions.beforeUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
@@ -801,6 +841,26 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					}
 				case "deletestorageobjects":
 					afterReqFunctions.afterDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "jointournament":
+					afterReqFunctions.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournamentrecords":
+					afterReqFunctions.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournaments":
+					afterReqFunctions.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "writetournamentrecord":
+					afterReqFunctions.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournamentrecordsaroundowner":
+					afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error {
 						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
 					}
 				case "unlinkcustom":

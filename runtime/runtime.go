@@ -131,6 +131,16 @@ type Initializer interface {
 	RegisterAfterWriteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.StorageObjectAcks) error) error
 	RegisterBeforeDeleteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, int)) error
 	RegisterAfterDeleteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *empty.Empty) error) error
+	RegisterBeforeJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, int)) error
+	RegisterAfterJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *empty.Empty) error) error
+	RegisterBeforeListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, int)) error
+	RegisterAfterListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.TournamentRecordList) error) error
+	RegisterBeforeListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, int)) error
+	RegisterAfterListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.TournamentList) error) error
+	RegisterBeforeWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, int)) error
+	RegisterAfterWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.LeaderboardRecord) error) error
+	RegisterBeforeListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, int)) error
+	RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.TournamentRecordList) error) error
 	RegisterBeforeUnlinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error, int)) error
 	RegisterAfterUnlinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *empty.Empty) error) error
 	RegisterBeforeUnlinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AccountDevice) (*api.AccountDevice, error, int)) error
