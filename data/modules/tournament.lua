@@ -59,3 +59,10 @@ local function delete_tournament(_context, payload)
   nk.tournament_delete(args.tournament_id)
 end
 nk.register_rpc(delete_tournament, "clientrpc.delete_tournament")
+
+local function addattempt_tournament(_context, payload)
+  local args = nk.json_decode(payload)
+
+  nk.tournament_add_attempt(args.tournament_id, args.owner_id, args.count)
+end
+nk.register_rpc(addattempt_tournament, "clientrpc.addattempt_tournament")

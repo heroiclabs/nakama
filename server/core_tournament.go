@@ -37,7 +37,7 @@ import (
 
 var (
 	ErrTournamentNotFound                = errors.New("tournament not found")
-	ErrTournamentSubzeroMaxAttemptCount  = errors.New("max attempt count must be greater than zero")
+	ErrTournamentZeroMaxAttemptCount     = errors.New("max attempt count must be greater or less than zero")
 	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
 	ErrTournamentWriteOutsideDuration    = errors.New("tournament submission outside of duration")
 	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
@@ -77,11 +77,11 @@ func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, leaderboardId 
 }
 
 func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, leaderboardId string, owner string, count int) error {
-	if count <= 0 {
-		return ErrTournamentSubzeroMaxAttemptCount
+	if count == 0 {
+		return ErrTournamentZeroMaxAttemptCount
 	}
 
-	query := `UPDATE leaderboard_record SET max_num_score = $1 WHERE leaderboard_id = $2 AND owner_id = $3`
+	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3`
 	_, err := db.Exec(query, count, leaderboardId, owner)
 	if err != nil {
 		logger.Error("Could not increment max attempt counter", zap.Error(err))
