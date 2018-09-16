@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -277,41 +276,6 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 			ownerRecords = append(ownerRecords, record)
 		}
-
-		sort.Slice(ownerRecords, func(i, j int) bool {
-			iRecord := ownerRecords[i]
-			jRecord := ownerRecords[j]
-			if leaderboard.SortOrder == LeaderboardSortOrderAscending {
-				if iRecord.Score < jRecord.Score {
-					return true
-				} else if iRecord.Score == jRecord.Score {
-					if iRecord.Subscore < jRecord.Subscore {
-						return true
-					} else if iRecord.Subscore == jRecord.Subscore {
-						if iRecord.OwnerId < jRecord.OwnerId {
-							return true
-						}
-					}
-				}
-				return false
-			} else {
-				if iRecord.Score > jRecord.Score {
-					return true
-				} else if iRecord.Score == jRecord.Score {
-					if iRecord.Subscore > jRecord.Subscore {
-						return true
-					} else if iRecord.Subscore == jRecord.Subscore {
-						if iRecord.OwnerId > jRecord.OwnerId {
-							return true
-						}
-					}
-				}
-				return false
-			}
-		})
-		for i, record := range ownerRecords {
-			record.Rank = int64(i + 1)
-		}
 	}
 
 	return &api.LeaderboardRecordList{
@@ -396,8 +360,6 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		return nil, err
 	}
 
-	newRank := rankCache.Insert(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerId)), score, subscore)
-
 	var dbUsername sql.NullString
 	var dbScore int64
 	var dbSubscore int64
@@ -412,6 +374,9 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
 	}
+
+	// ensure we have the latest dbscore, dbsubscore
+	newRank := rankCache.Insert(leaderboardId, leaderboard.SortOrder, expiryTime, uuid.Must(uuid.FromString(ownerId)), dbScore, dbSubscore)
 
 	record := &api.LeaderboardRecord{
 		Rank:          newRank,

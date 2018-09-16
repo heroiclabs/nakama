@@ -16,6 +16,7 @@ package server
 
 import (
 	"database/sql"
+	"sort"
 	"sync"
 	"time"
 
@@ -26,7 +27,7 @@ import (
 
 type LeaderboardRankCache interface {
 	Get(leaderboardId string, ownerId uuid.UUID) int64
-	Insert(leaderboardId string, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64
+	Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64
 	Delete(leaderboardId string, ownerId uuid.UUID)
 	DeleteLeaderboard(leaderboardId string)
 }
@@ -40,8 +41,39 @@ type RankData struct {
 
 type RankMap struct {
 	sync.RWMutex
-	ranks    []*RankData
-	haystack map[uuid.UUID]*RankData
+	ranks     []*RankData
+	haystack  map[uuid.UUID]*RankData
+	sortOrder int
+}
+
+func (r RankMap) Len() int {
+	return len(r.ranks)
+}
+func (r RankMap) Swap(i, j int) {
+	rank1 := r.ranks[i]
+	rank2 := r.ranks[j]
+	r.ranks[i], r.ranks[j] = rank2, rank1
+	rank1.rank, rank2.rank = rank2.rank, rank1.rank
+}
+func (r RankMap) Less(i, j int) bool {
+	rank1 := r.ranks[i]
+	rank2 := r.ranks[j]
+	if r.sortOrder == LeaderboardSortOrderDescending {
+		rank1, rank2 = rank2, rank1
+	}
+
+	if rank1.score < rank2.score {
+		return true
+	} else if rank2.score < rank1.score {
+		return false
+	}
+
+	if rank1.subscore <= rank2.subscore {
+		return true
+	}
+
+	// rank2.subscore > rank1.subscore
+	return false
 }
 
 type LeaderboardWithExpiry struct {
@@ -81,8 +113,9 @@ func (l *LocalLeaderboardRankCache) Start(startupLogger *zap.Logger, db *sql.DB,
 		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 
 		rankEntries := &RankMap{
-			ranks:    make([]*RankData, 0),
-			haystack: make(map[uuid.UUID]*RankData),
+			ranks:     make([]*RankData, 0),
+			haystack:  make(map[uuid.UUID]*RankData),
+			sortOrder: leaderboard.SortOrder,
 		}
 		leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboard.Id, 0}
 		l.cache[leaderboardWithExpiry] = rankEntries
@@ -90,7 +123,7 @@ func (l *LocalLeaderboardRankCache) Start(startupLogger *zap.Logger, db *sql.DB,
 		query := `
 SELECT owner_id, score, subscore, expiry_time
 FROM leaderboard_record
-WHERE leaderboard_id = $1 AND expiry_time > now()`
+WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00+00:00')`
 		rows, err := db.Query(query, leaderboard.Id)
 		if err != nil {
 			startupLogger.Debug("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
@@ -100,7 +133,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 		for rows.Next() {
 			var dbExpiry pq.NullTime
 			var ownerId string
-			rankData := &RankData{rank: int64(len(rankEntries.ranks))}
+			rankData := &RankData{rank: int64(len(rankEntries.ranks) + 1)}
 
 			if err = rows.Scan(&ownerId, &rankData.score, &rankData.subscore, &dbExpiry); err != nil {
 				startupLogger.Debug("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
@@ -120,8 +153,9 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 						zap.Int64("different_expiry_time", expiryTime))
 
 					rankMap := &RankMap{
-						ranks:    make([]*RankData, 0),
-						haystack: make(map[uuid.UUID]*RankData),
+						ranks:     make([]*RankData, 0),
+						haystack:  make(map[uuid.UUID]*RankData),
+						sortOrder: leaderboard.SortOrder,
 					}
 					leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboard.Id, 0}
 					l.cache[leaderboardWithExpiry] = rankMap
@@ -136,7 +170,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 
 	for k, v := range l.cache {
 		startupLogger.Debug("Sorting leaderboard ranks", zap.String("leaderboard_id", k.leaderboardId), zap.Int("count", len(v.ranks)))
-		l.sortRanks(v)
+		sort.Sort(v)
 	}
 
 	return nil
@@ -144,6 +178,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 
 func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) int64 {
 	l.RLock()
+	defer l.RUnlock()
 	for k, rankMap := range l.cache {
 		if k.leaderboardId == leaderboardId {
 			rankMap.RLock()
@@ -152,11 +187,10 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID)
 			return result
 		}
 	}
-	l.RUnlock()
 	return 0
 }
 
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64 {
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64 {
 	l.RLock()
 	var rankMap *RankMap
 	for k, v := range l.cache {
@@ -170,8 +204,9 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpi
 		// new leaderboard created after server start
 		l.Lock()
 		rankMap = &RankMap{
-			ranks:    make([]*RankData, 0),
-			haystack: make(map[uuid.UUID]*RankData),
+			ranks:     make([]*RankData, 0),
+			haystack:  make(map[uuid.UUID]*RankData),
+			sortOrder: sortOrder,
 		}
 		leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboardId, leaderboardExpiry}
 		l.cache[leaderboardWithExpiry] = rankMap
@@ -188,13 +223,13 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpi
 			ownerId:  ownerId,
 			score:    score,
 			subscore: subscore,
-			rank:     int64(len(rankMap.ranks)),
+			rank:     int64(len(rankMap.ranks) + 1),
 		}
 		rankMap.haystack[ownerId] = rankData
 		rankMap.ranks = append(rankMap.ranks, rankData)
 	}
 
-	l.sortRanks(rankMap)
+	sort.Sort(rankMap)
 	rankMap.Unlock()
 
 	return rankData.rank
@@ -237,9 +272,4 @@ func (l *LocalLeaderboardRankCache) trimExpired() {
 		}
 	}
 	l.Unlock()
-}
-
-func (l *LocalLeaderboardRankCache) sortRanks(rankMap *RankMap) {
-	// do not lock/unlock in this func
-	// TODO do rank calculation
 }

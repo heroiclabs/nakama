@@ -401,7 +401,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		}
 
 		record, err = tournamentWriteRecord(logger, tx, leaderboard, expiryTime, ownerId, username, score, subscore, metadata)
-		record.Rank = rankCache.Insert(leaderboard.Id, expiryTime, ownerId, score, subscore)
+		record.Rank = rankCache.Insert(leaderboard.Id, leaderboard.SortOrder, expiryTime, ownerId, record.Score, record.Subscore)
 		return err
 	}); err != nil {
 		if err == ErrTournamentMaxSizeReached || err == ErrTournamentWriteMaxNumScoreReached || err == ErrTournamentWriteJoinRequired {
