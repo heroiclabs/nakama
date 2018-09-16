@@ -92,21 +92,27 @@ FROM storage
 WHERE collection = $1 AND read = 2` + cursorQuery + `
 LIMIT $2`
 
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}, nil
-		} else {
-			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-			return nil, err
+	var objects *api.StorageObjectList
+	err := ExecuteRetryable(func() error {
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				return nil
+			} else {
+				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+				return err
+			}
 		}
-	}
-	defer rows.Close()
+		defer rows.Close()
 
-	objects, err := storageListObjects(rows, cursor)
-	if err != nil {
-		logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-	}
+		objects, err = storageListObjects(rows, cursor)
+		if err != nil {
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
+		}
+		return nil
+	})
 
 	return objects, err
 }
@@ -125,21 +131,27 @@ FROM storage
 WHERE collection = $1 AND read = 2 AND user_id = $2 ` + cursorQuery + `
 LIMIT $3`
 
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}, nil
-		} else {
-			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-			return nil, err
+	var objects *api.StorageObjectList
+	err := ExecuteRetryable(func() error {
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				return nil
+			} else {
+				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+				return err
+			}
 		}
-	}
-	defer rows.Close()
+		defer rows.Close()
 
-	objects, err := storageListObjects(rows, cursor)
-	if err != nil {
-		logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-	}
+		objects, err = storageListObjects(rows, cursor)
+		if err != nil {
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
+		}
+		return nil
+	})
 
 	return objects, err
 }
@@ -166,21 +178,27 @@ WHERE collection = $1 AND user_id = $2 ` + cursorQuery + `
 LIMIT $3`
 	}
 
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}, nil
-		} else {
-			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-			return nil, err
+	var objects *api.StorageObjectList
+	err := ExecuteRetryable(func() error {
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				return nil
+			} else {
+				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+				return err
+			}
 		}
-	}
-	defer rows.Close()
+		defer rows.Close()
 
-	objects, err := storageListObjects(rows, cursor)
-	if err != nil {
-		logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-	}
+		objects, err = storageListObjects(rows, cursor)
+		if err != nil {
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
+		}
+		return nil
+	})
 
 	return objects, err
 }
@@ -191,38 +209,44 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 FROM storage
 WHERE user_id = $1`
 
-	rows, err := db.Query(query, userID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return make([]*api.StorageObject, 0), nil
-		} else {
+	var objects []*api.StorageObject
+	err := ExecuteRetryable(func() error {
+		rows, err := db.Query(query, userID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				objects = make([]*api.StorageObject, 0)
+				return nil
+			} else {
+				logger.Error("Could not read storage objects.", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+		}
+		defer rows.Close()
+
+		funcObjects := make([]*api.StorageObject, 0)
+		for rows.Next() {
+			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+			var createTime pq.NullTime
+			var updateTime pq.NullTime
+			var userID sql.NullString
+			if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+				return err
+			}
+
+			o.CreateTime.Seconds = createTime.Time.Unix()
+			o.UpdateTime.Seconds = updateTime.Time.Unix()
+
+			o.UserId = userID.String
+			funcObjects = append(funcObjects, o)
+		}
+
+		if rows.Err() != nil {
 			logger.Error("Could not read storage objects.", zap.Error(err), zap.String("user_id", userID.String()))
-			return nil, err
+			return rows.Err()
 		}
-	}
-	defer rows.Close()
-
-	objects := make([]*api.StorageObject, 0)
-	for rows.Next() {
-		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
-		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
-			return nil, err
-		}
-
-		o.CreateTime.Seconds = createTime.Time.Unix()
-		o.UpdateTime.Seconds = updateTime.Time.Unix()
-
-		o.UserId = userID.String
-		objects = append(objects, o)
-	}
-
-	if rows.Err() != nil {
-		logger.Error("Could not read storage objects.", zap.Error(err), zap.String("user_id", userID.String()))
-		return nil, rows.Err()
-	}
+		objects = funcObjects
+		return nil
+	})
 
 	return objects, err
 }
@@ -307,42 +331,48 @@ FROM storage
 WHERE
 ` + whereClause
 
-	rows, err := db.Query(query, params...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}, nil
-		} else {
+	var objects *api.StorageObjects
+	err := ExecuteRetryable(func() error {
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				objects = &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
+				return nil
+			} else {
+				logger.Error("Could not read storage objects.", zap.Error(err))
+				return err
+			}
+		}
+		defer rows.Close()
+
+		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
+		for rows.Next() {
+			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+			var createTime pq.NullTime
+			var updateTime pq.NullTime
+
+			var userID sql.NullString
+			if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+				return err
+			}
+
+			o.CreateTime.Seconds = createTime.Time.Unix()
+			o.UpdateTime.Seconds = updateTime.Time.Unix()
+
+			if !uuid.Equal(uuid.FromStringOrNil(userID.String), uuid.Nil) {
+				o.UserId = userID.String
+			}
+			funcObjects.Objects = append(funcObjects.Objects, o)
+		}
+		if err = rows.Err(); err != nil {
 			logger.Error("Could not read storage objects.", zap.Error(err))
-			return nil, err
+			return err
 		}
-	}
-	defer rows.Close()
+		objects = funcObjects
+		return nil
+	})
 
-	objects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
-	for rows.Next() {
-		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
-
-		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
-			return nil, err
-		}
-
-		o.CreateTime.Seconds = createTime.Time.Unix()
-		o.UpdateTime.Seconds = updateTime.Time.Unix()
-
-		if !uuid.Equal(uuid.FromStringOrNil(userID.String), uuid.Nil) {
-			o.UserId = userID.String
-		}
-		objects.Objects = append(objects.Objects, o)
-	}
-	if err = rows.Err(); err != nil {
-		logger.Error("Could not read storage objects.", zap.Error(err))
-		return nil, err
-	}
-
-	return objects, nil
+	return objects, err
 }
 
 func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {

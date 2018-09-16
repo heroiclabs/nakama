@@ -16,6 +16,7 @@ package server
 
 import (
 	"errors"
+	"github.com/lib/pq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -58,4 +59,16 @@ func StatusError(code codes.Code, msg string, cause error) error {
 		status: status.Error(code, msg),
 		cause:  cause,
 	}
+}
+
+// Retry functions that perform non-transactional database operations.
+func ExecuteRetryable(fn func() error) error {
+	if err := fn(); err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "CR000" || pqErr.Code == "40001" {
+			// A recognised error type that can be retried.
+			return ExecuteRetryable(fn)
+		}
+		return err
+	}
+	return nil
 }
