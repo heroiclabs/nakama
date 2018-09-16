@@ -24,10 +24,12 @@ local du = require("debug_utils")
 local function create_same_tournament_multiple_times(_context, payload)
   local args = nk.json_decode(payload)
   local id = nk.uuid_v4()
-  nk.tournament_create(id, args.sort_order, args.operator, args.category, args.description, args.duration, args.end_time, args.join_required, args.max_size, args.max_num_score, args.start_time, args.title)
+  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+    args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
-  -- should not through a new error
-  nk.tournament_create(id, args.sort_order, args.operator, args.category, args.description, args.duration, args.end_time, args.join_required, args.max_size, args.max_num_score, args.start_time, args.title)
+  -- should not throw a new error
+  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+    args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
   local response = {
     tournament_id = id
@@ -41,27 +43,9 @@ local function create_tournament(_context, payload)
 
   local id = nk.uuid_v4()
 
-  -- TODO: use args.end_time and args.start_time
+  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+    args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
-  local params = {id, args.sort_order, args.operator, args.category, args.description, args.duration, args.join_required, args.max_size, args.max_num_score, args.title}
-  local query = [[
-INSERT INTO leaderboard
-  (id, authoritative, sort_order, operator, category, description, duration, join_required, max_size, max_num_score, title)
-VALUES
-  ($1, true, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-  ]]
-
-  if args.end_time > 0 then
-    params[#params+1] = args.end_time
-    query = [[
-INSERT INTO leaderboard
-  (id, authoritative, sort_order, operator, category, description, duration, join_required, max_size, max_num_score, title, end_time)
-VALUES
-  ($1, true, $2, $3, $4, $5, $6, $7, $8, $9, $10, CAST($11::BIGINT AS TIMESTAMPTZ))
-  ]]
-  end
-
-  nk.sql_exec(query, params)
   local response = {
     tournament_id = id
   }
@@ -72,9 +56,6 @@ nk.register_rpc(create_tournament, "clientrpc.create_tournament")
 local function delete_tournament(_context, payload)
   local args = nk.json_decode(payload)
 
-  local params = {args.tournament_id}
-  local query = [[ DELETE FROM leaderboard WHERE id = $1 ]]
-
-  nk.sql_exec(query, params)
+  nk.tournament_delete(args.tournament_id)
 end
 nk.register_rpc(delete_tournament, "clientrpc.delete_tournament")

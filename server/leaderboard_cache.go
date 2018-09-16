@@ -223,7 +223,7 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 }
 
 func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
-	description, title string, category, endTime, duration, maxSize, maxNumScore, startTime int, joinRequired bool) (*Leaderboard, error) {
+	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
 
 	if err := checkTournamentConfig(resetSchedule, startTime, endTime, duration, maxSize, maxNumScore); err != nil {
 		l.logger.Error("Error while creating tournament", zap.Error(err))
@@ -245,92 +245,70 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 
 	params := make([]interface{}, 0)
 	paramsIndex := make(map[string]string)
-	index := 1
 
-	paramsIndex["id"] = strconv.Itoa(index)
 	params = append(params, id)
-	index++
+	paramsIndex["id"] = strconv.Itoa(len(params))
 
-	paramsIndex["authoritative"] = strconv.Itoa(index)
 	params = append(params, true)
-	index++
+	paramsIndex["authoritative"] = strconv.Itoa(len(params))
 
-	paramsIndex["sort_order"] = strconv.Itoa(index)
 	params = append(params, sortOrder)
-	index++
+	paramsIndex["sort_order"] = strconv.Itoa(len(params))
 
-	paramsIndex["operator"] = strconv.Itoa(index)
 	params = append(params, operator)
-	index++
+	paramsIndex["operator"] = strconv.Itoa(len(params))
 
-	paramsIndex["duration"] = strconv.Itoa(index)
 	params = append(params, duration)
-	index++
-
-	if metadata != "" {
-		paramsIndex["metadata"] = strconv.Itoa(index)
-		params = append(params, resetSchedule)
-		index++
-	}
+	paramsIndex["duration"] = strconv.Itoa(len(params))
 
 	if resetSchedule != "" {
-		paramsIndex["reset_schedule"] = strconv.Itoa(index)
 		params = append(params, resetSchedule)
-		index++
+		paramsIndex["reset_schedule"] = strconv.Itoa(len(params))
 	}
 
 	if metadata != "" {
-		paramsIndex["metadata"] = strconv.Itoa(index)
 		params = append(params, metadata)
-		index++
+		paramsIndex["metadata"] = strconv.Itoa(len(params))
 	}
 
 	if category >= 0 {
-		paramsIndex["category"] = strconv.Itoa(index)
 		params = append(params, category)
-		index++
+		paramsIndex["category"] = strconv.Itoa(len(params))
 	}
 
 	if description != "" {
-		paramsIndex["description"] = strconv.Itoa(index)
 		params = append(params, description)
-		index++
+		paramsIndex["description"] = strconv.Itoa(len(params))
 	}
 
 	if endTime > 0 {
-		paramsIndex["end_time"] = strconv.Itoa(index)
-		params = append(params, endTime)
-		index++
+		params = append(params, time.Unix(int64(endTime), 0))
+		paramsIndex["end_time"] = strconv.Itoa(len(params))
 	}
 
 	if joinRequired {
-		paramsIndex["join_required"] = strconv.Itoa(index)
 		params = append(params, joinRequired)
-		index++
+		paramsIndex["join_required"] = strconv.Itoa(len(params))
 	}
 
 	if maxSize > 0 {
-		paramsIndex["max_size"] = strconv.Itoa(index)
 		params = append(params, maxSize)
-		index++
+		paramsIndex["max_size"] = strconv.Itoa(len(params))
 	}
 
 	if maxNumScore > 0 {
-		paramsIndex["max_num_score"] = strconv.Itoa(index)
 		params = append(params, maxNumScore)
-		index++
+		paramsIndex["max_num_score"] = strconv.Itoa(len(params))
 	}
 
 	if title != "" {
-		paramsIndex["title"] = strconv.Itoa(index)
 		params = append(params, title)
-		index++
+		paramsIndex["title"] = strconv.Itoa(len(params))
 	}
 
 	if startTime > 0 {
-		paramsIndex["start_time"] = strconv.Itoa(index)
-		params = append(params, startTime)
-		index++
+		params = append(params, time.Unix(int64(startTime), 0))
+		paramsIndex["start_time"] = strconv.Itoa(len(params))
 	}
 
 	columns := ""
@@ -341,17 +319,18 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 			values += ", "
 		}
 		columns += k
-		values += v
+		values += "$" + v
 	}
 
 	query := "INSERT INTO leaderboard (" + columns + ") VALUES (" + values + ") RETURNING create_time, start_time, end_time"
 
+	l.logger.Debug("Create tournament query", zap.String("query", query))
+
 	var createTime pq.NullTime
-	var startTimeZ pq.NullTime
-	var endTimeZ pq.NullTime
-	err := l.db.QueryRow(query, params...).Scan(&createTime, &startTime, &endTime)
+	var dbStartTime pq.NullTime
+	var dbEndTime pq.NullTime
+	err := l.db.QueryRow(query, params...).Scan(&createTime, &dbStartTime, &dbEndTime)
 	if err != nil {
-		l.Unlock()
 		l.logger.Error("Error creating tournament", zap.Error(err))
 		return nil, err
 	}
@@ -373,10 +352,10 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 		MaxSize:       maxSize,
 		MaxNumScore:   maxNumScore,
 		Title:         title,
-		StartTime:     startTimeZ.Time.Unix(),
+		StartTime:     dbStartTime.Time.Unix(),
 	}
-	if endTimeZ.Valid {
-		leaderboard.EndTime = endTimeZ.Time.Unix()
+	if dbEndTime.Valid {
+		leaderboard.EndTime = dbEndTime.Time.Unix()
 	}
 
 	l.Lock()

@@ -63,10 +63,12 @@ func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB,
 	}
 
 	// TODO config option to disable caching at start...
+	startupLogger.Info("Initializing leaderboard rank cache")
 	if err := cache.Start(startupLogger, db, leaderboardCache); err != nil {
-		startupLogger.Fatal("Could not cache leaderboard ranks at start.", zap.Error(err))
+		startupLogger.Fatal("Could not cache leaderboard ranks at start", zap.Error(err))
 		return nil
 	}
+	startupLogger.Info("Leaderboard rank cache initialization completed successfully")
 
 	// TODO setup timer
 
@@ -74,7 +76,6 @@ func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB,
 }
 
 func (l *LocalLeaderboardRankCache) Start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache) error {
-	startupLogger.Info("Initializing leaderboard rank cache.")
 	leaderboards := leaderboardCache.GetAllLeaderboards()
 	for _, leaderboard := range leaderboards {
 		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
@@ -112,7 +113,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 				if leaderboardWithExpiry.expiry == 0 {
 					leaderboardWithExpiry.expiry = expiryTime
 				} else if leaderboardWithExpiry.expiry != expiryTime {
-					startupLogger.Warn("Encountered a leaderboard record with same leaderboard ID but different expiry times.",
+					startupLogger.Warn("Encountered a leaderboard record with same leaderboard ID but different expiry times",
 						zap.String("leaderboard_id", leaderboard.Id),
 						zap.String("owner_id", ownerId),
 						zap.Int("expiry_time", leaderboardWithExpiry.expiry),
@@ -137,7 +138,6 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 		startupLogger.Debug("Sorting leaderboard ranks", zap.String("leaderboard_id", k.leaderboardId), zap.Int("count", len(v.ranks)))
 		l.sortRanks(v)
 	}
-	startupLogger.Info("Leaderboard rank cache initialization completed succesfully.")
 
 	return nil
 }
@@ -207,8 +207,9 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, ownerId uuid.UU
 			rankMap.Lock()
 			rankData := rankMap.haystack[ownerId]
 
+			index := rankData.rank - 1
+			rankMap.ranks = append(rankMap.ranks[:index], rankMap.ranks[index+1:]...)
 			delete(rankMap.haystack, ownerId)
-			rankMap.ranks = append(rankMap.ranks[:rankData.rank], rankMap.ranks[rankData.rank+1:]...)
 
 			rankMap.Unlock()
 		}

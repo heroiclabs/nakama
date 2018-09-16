@@ -358,13 +358,21 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	}
 
-	if tournament.EndTime <= time.Now().UTC().Unix() {
+	if tournament.EndTime > 0 && tournament.EndTime <= time.Now().UTC().Unix() {
 		return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
 	}
 
 	record, err := TournamentRecordWrite(s.logger, s.db, s.leaderboardCache, in.GetTournamentId(), userID.String(), username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata())
 	if err != nil {
-		return nil, status.Error(codes.Internal, "Error writing score to tournament.")
+		if err == ErrTournamentMaxSizeReached {
+			return nil, status.Error(codes.InvalidArgument, "Tournament has reached max size.")
+		} else if err == ErrTournamentWriteMaxNumScoreReached {
+			return nil, status.Error(codes.InvalidArgument, "Reached allowed max number of score attempts.")
+		} else if err == ErrTournamentWriteJoinRequired {
+			return nil, status.Error(codes.InvalidArgument, "Must join tournament before attempting to write value.")
+		} else {
+			return nil, status.Error(codes.Internal, "Error writing score to tournament.")
+		}
 	}
 
 	// After hook.

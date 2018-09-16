@@ -35,12 +35,12 @@ import (
 )
 
 var (
-	ErrTournamentNotFound               = errors.New("tournament not found")
-	ErrTournamentSubzeroMaxAttemptCount = errors.New("max attempt count must be greater than zero")
-	ErrTournamentMaxSizeReached         = errors.New("tournament max size reached")
-	ErrTournamentWriteOutsideDuration   = errors.New("tournament submission outside of duration")
-	ErrTournamentWriteMaxAttemptReached = errors.New("max attempt count reached")
-	ErrTournamentWriteJoinRequired      = errors.New("required to join before writing tournament record")
+	ErrTournamentNotFound                = errors.New("tournament not found")
+	ErrTournamentSubzeroMaxAttemptCount  = errors.New("max attempt count must be greater than zero")
+	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
+	ErrTournamentWriteOutsideDuration    = errors.New("tournament submission outside of duration")
+	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
+	ErrTournamentWriteJoinRequired       = errors.New("required to join before writing tournament record")
 )
 
 type tournamentListCursor struct {
@@ -52,7 +52,7 @@ func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId 
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
 	leaderboard, err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata,
-		description, title, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+		title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 
 	if err != nil {
 		return err
@@ -123,12 +123,17 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 			}
 		}
 
+		expiryTime := int64(0)
+		if leaderboard.ResetSchedule != nil {
+			expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
+		}
+
 		query = `INSERT INTO leaderboard_record 
-(leaderboard_id, owner_id, username, num_score) 
+(leaderboard_id, owner_id, expiry_time, username, num_score) 
 VALUES 
-($1, $2, $3, $4)
-ON CONFLICT DO NOTHING`
-		_, err = tx.Exec(query, tournamentId, owner, username, 0)
+($1, $2, $3, $4, $5)
+ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
+		_, err = tx.Exec(query, tournamentId, owner, time.Unix(expiryTime, 0), username, 0)
 		if err != nil {
 			return err
 		}
@@ -193,7 +198,7 @@ WHERE
 			filter += " AND "
 		}
 		etime := time.Unix(int64(endTime), 0).UTC()
-		params = append(params, pq.FormatTimestamp(etime))
+		params = append(params, etime)
 		filter += " end_time <= $" + strconv.Itoa(len(params))
 	}
 
@@ -208,17 +213,21 @@ WHERE
 	if ownerId != "" {
 		if ids, err := getJoinedTournaments(logger, db, ownerId); err != nil {
 			return nil, err
+		} else if len(ids) == 0 {
+			return &api.TournamentList{
+				Tournaments: make([]*api.Tournament, 0),
+			}, nil
 		} else if len(ids) > 0 {
-			currentCount := len(params)
 			idParams := make([]string, len(ids))
-			for i := range ids {
-				idParams[i] = "$" + strconv.Itoa(currentCount+i)
+			for i, id := range ids {
+				params = append(params, id)
+				idParams[i] = "$" + strconv.Itoa(len(params))
 			}
 
 			if filter != "" {
 				filter += " AND "
 			}
-			params = append(params, ids...)
+
 			filter += " id IN (" + strings.Join(idParams, ",") + ")"
 		}
 	}
@@ -273,22 +282,37 @@ WHERE
 		endActive := int64(0)
 		nextReset := int64(0)
 
+		now := time.Now().UTC()
 		if dbResetSchedule.Valid {
 			cron := cronexpr.MustParse(dbResetSchedule.String)
-			schedules := cron.NextN(time.Now().UTC(), 2)
+			schedules := cron.NextN(now, 2)
 			sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
 
-			endActive = sessionStartTime + int64(dbDuration)
-			if endActive < time.Now().UTC().Unix() {
+			if sessionStartTime > now.Unix() {
+				endActive = 0
 				canEnter = false
+			} else {
+				endActive = sessionStartTime + int64(dbDuration)
+				if endActive < now.Unix() {
+					canEnter = false
+				}
 			}
 
 			nextReset = schedules[0].Unix()
 		} else {
-			endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
-			if endActive < time.Now().UTC().Unix() {
+			if dbStartTime.Time.UTC().After(now) {
+				endActive = 0
 				canEnter = false
+			} else {
+				endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
+				if endActive < now.Unix() {
+					canEnter = false
+				}
 			}
+		}
+
+		if canEnter && dbSize == dbMaxSize {
+			canEnter = false
 		}
 
 		tournament := &api.Tournament{
@@ -341,7 +365,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
 
 		endActive := sessionStartTime + int64(leaderboard.Duration)
-		if endActive < currentTime.Unix() {
+		if endActive <= currentTime.Unix() {
 			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
 			return nil, ErrTournamentWriteOutsideDuration
 		}
@@ -349,7 +373,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		expiryTime = schedules[0].Unix()
 	} else {
 		endActive := leaderboard.StartTime + int64(leaderboard.Duration)
-		if endActive < currentTime.Unix() {
+		if endActive <= currentTime.Unix() {
 			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
 			return nil, ErrTournamentWriteOutsideDuration
 		}
@@ -367,11 +391,11 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 			return err
 		}
 
-		if err := tournamentMaxSizeCheck(logger, tx, tournamentId); err != nil {
+		if err := tournamentMaxSizeCheck(logger, tx, leaderboard, tournamentId); err != nil {
 			return err
 		}
 
-		if err := tournamentMaxAttemptCheck(logger, tx, tournamentId, ownerId); err != nil {
+		if err := tournamentMaxNumScoreCheck(logger, tx, tournamentId, ownerId); err != nil {
 			return err
 		}
 
@@ -381,10 +405,10 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 
 		return err
 	}); err != nil {
-		if err == ErrTournamentMaxSizeReached || err == ErrTournamentWriteMaxAttemptReached || err == ErrTournamentWriteJoinRequired {
-			logger.Info("Aborted writing tournament record.", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
+		if err == ErrTournamentMaxSizeReached || err == ErrTournamentWriteMaxNumScoreReached || err == ErrTournamentWriteJoinRequired {
+			logger.Info("Aborted writing tournament record", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
 		} else {
-			logger.Error("Could not write tournament record.", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
+			logger.Error("Could not write tournament record", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
 		}
 
 		return nil, err
@@ -395,7 +419,9 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 
 func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]interface{}, error) {
 	result := make([]interface{}, 0)
-	rows, err := db.Query("SELECT leaderboard_id FROM leaderboard_record WHERE owner_id = $1 AND expiry_time > now()")
+	query := `SELECT leaderboard_id FROM leaderboard_record WHERE (owner_id = $1 AND expiry_time > now()) OR (owner_id = $1 AND expiry_time = '1970-01-01 00:00:00')`
+	logger.Debug("Finding joined tournaments", zap.String("query", query))
+	rows, err := db.Query(query, ownerId)
 	if err != nil {
 		logger.Error("Could not list leaderboard records belonging to owner", zap.Error(err), zap.String("owner_id", ownerId))
 		return nil, err
@@ -415,6 +441,8 @@ func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]int
 		result = append(result, id)
 	}
 
+	logger.Debug("Found joined tournaments", zap.Any("tournament_ids", result))
+
 	return result, nil
 }
 
@@ -423,10 +451,17 @@ func tournamentJoinCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboar
 		return nil
 	}
 
-	query := "SELECT EXISTS (SELECT id FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time > now())"
+	query := `
+SELECT EXISTS (
+	SELECT leaderboard_id 
+	FROM leaderboard_record 
+	WHERE leaderboard_id = $1 
+		AND owner_id = $2 
+		AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00')
+)`
 	var exists bool
 	if err := tx.QueryRow(query, tournamentId, ownerId).Scan(&exists); err != nil {
-		logger.Error("Failed to check for tournament join check.", zap.Error(err))
+		logger.Error("Failed to check for tournament join check", zap.Error(err))
 		return err
 	}
 
@@ -437,12 +472,16 @@ func tournamentJoinCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboar
 	return nil
 }
 
-func tournamentMaxSizeCheck(logger *zap.Logger, tx *sql.Tx, tournamentId string) error {
-	query := "SELECT EXISTS (SELECT id FROM leaderboard WHERE leaderboard_id = $1 AND size < max_size)"
+func tournamentMaxSizeCheck(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderboard, tournamentId string) error {
+	if leaderboard.MaxSize == 0 {
+		return nil
+	}
+
+	query := "SELECT EXISTS (SELECT id FROM leaderboard WHERE id = $1 AND max_size > 0 AND size < max_size)"
 
 	var exists bool
 	if err := tx.QueryRow(query, tournamentId).Scan(&exists); err != nil {
-		logger.Error("Failed to check for tournament size.", zap.Error(err))
+		logger.Error("Failed to check for tournament size", zap.Error(err))
 		return err
 	}
 
@@ -453,24 +492,30 @@ func tournamentMaxSizeCheck(logger *zap.Logger, tx *sql.Tx, tournamentId string)
 	return nil
 }
 
-func tournamentMaxAttemptCheck(logger *zap.Logger, tx *sql.Tx, tournamentId, ownerId string) error {
+func tournamentMaxNumScoreCheck(logger *zap.Logger, tx *sql.Tx, tournamentId, ownerId string) error {
+	// cannot cache max_num_score in memory as they are per entry
+
 	query := `
 SELECT EXISTS (
-	SELECT id 
+	SELECT leaderboard_id 
 	FROM leaderboard_record 
 	WHERE leaderboard_id = $1 
 		AND owner_id = $2 
-		AND expiry_time > now() 
-		AND num_score < max_num_score 
+		AND ( expiry_time > now() OR expiry_time = '1970-01-01 00:00:00' )
+		AND max_num_score > 0
+		AND num_score = max_num_score 
 )`
+
+	logger.Debug("Checking max number score", zap.String("query", query), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId))
+
 	var exists bool
 	if err := tx.QueryRow(query, tournamentId, ownerId).Scan(&exists); err != nil {
-		logger.Error("Failed to check for tournament record max attempt count.", zap.Error(err))
+		logger.Error("Failed to check for tournament record max num score", zap.Error(err))
 		return err
 	}
 
-	if !exists {
-		return ErrTournamentWriteMaxAttemptReached
+	if exists {
+		return ErrTournamentWriteMaxNumScoreReached
 	}
 
 	return nil
@@ -511,12 +556,12 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 		subscoreAbs = subscore
 	}
 
-	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, max_num_score, username, score, subscore, metadata, expiry_time)
-            VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{}'), CAST($8::BIGINT AS TIMESTAMPTZ))
+	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
+            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'), CAST($7::BIGINT AS TIMESTAMPTZ), $10)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()`
-	params := make([]interface{}, 0, 9)
-	params = append(params, tournamentId, ownerId, leaderboard.MaxNumScore)
+	params := make([]interface{}, 0, 10)
+	params = append(params, tournamentId, ownerId)
 	if username == "" {
 		params = append(params, nil)
 	} else {
@@ -528,7 +573,7 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, expiryTime, scoreDelta, subscoreDelta)
+	params = append(params, expiryTime, scoreDelta, subscoreDelta, leaderboard.MaxNumScore)
 
 	_, err := tx.Exec(query, params...)
 	if err != nil {
@@ -541,13 +586,13 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 	query = ` 
 UPDATE leaderboard SET size = size + 1 
 WHERE id = $1
-AND SELECT EXISTS (
+AND EXISTS (
 	SELECT leaderboard_id FROM leaderboard_record
 	WHERE leaderboard_id = $1 
 	AND owner_id = $2 
-	AND expiry_time > now()
+	AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00')
 	AND create_time = update_time)`
-	_, err = tx.Exec(query, tournamentId)
+	_, err = tx.Exec(query, tournamentId, ownerId)
 	if err != nil {
 		logger.Error("Error update leaderboard size", zap.Error(err))
 		return nil, err

@@ -27,6 +27,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -38,12 +45,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"strings"
-	"sync"
-	"time"
 )
 
 const RUNTIME_LUA_CALLBACKS = "runtime_lua_callbacks"
@@ -3796,15 +3797,21 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 		return 0
 	}
 
-	resetSchedule := l.OptString(4, "")
+	duration := l.OptInt(4, 0)
+	if duration <= 0 {
+		l.ArgError(4, "duration must be > 0")
+		return 0
+	}
+
+	resetSchedule := l.OptString(5, "")
 	if resetSchedule != "" {
 		if _, err := cronexpr.Parse(resetSchedule); err != nil {
-			l.ArgError(4, "expects reset schedule to be a valid CRON expression")
+			l.ArgError(5, "expects reset schedule to be a valid CRON expression")
 			return 0
 		}
 	}
 
-	metadata := l.OptTable(5, nil)
+	metadata := l.OptTable(6, nil)
 	metadataStr := "{}"
 	if metadata != nil {
 		metadataMap := RuntimeLuaConvertLuaTable(metadata)
@@ -3816,30 +3823,21 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	title := l.OptString(6, "")
-	description := l.OptString(7, "")
-	category := l.OptInt(8, 0)
+	title := l.OptString(7, "")
+	description := l.OptString(8, "")
+	category := l.OptInt(9, 0)
 	if category < 0 || category >= 128 {
-		l.ArgError(8, "category must be 0-127")
+		l.ArgError(9, "category must be 0-127")
 		return 0
 	}
-	startTime := l.OptInt(9, 0)
-	if startTime < 0 {
-		l.ArgError(9, "startTime must be >= 0")
+	startTime := l.OptInt(10, 0)
+	if startTime != 0 && startTime < int(time.Now().UTC().Unix()) {
+		l.ArgError(10, "startTime must be >= current time. Use 0 to indicate a tournament that starts immediately.")
 		return 0
 	}
-	endTime := l.OptInt(10, 0)
-	if endTime < 0 {
-		l.ArgError(10, "endTime must be >= 0")
-		return 0
-	}
-	if endTime < startTime {
-		l.ArgError(10, "endTime must be >= startTime")
-		return 0
-	}
-	duration := l.OptInt(11, 0)
-	if duration < 0 {
-		l.ArgError(11, "duration must be >= 0")
+	endTime := l.OptInt(11, 0)
+	if endTime != 0 && endTime <= startTime {
+		l.ArgError(11, "endTime must be > startTime. Use 0 to indicate a tournament that never ends.")
 		return 0
 	}
 	maxSize := l.OptInt(12, 0)
@@ -3882,7 +3880,7 @@ func (n *RuntimeLuaNakamaModule) tournamentAddAttempt(l *lua.LState) int {
 
 	owner := l.CheckString(2)
 	if owner == "" {
-		l.ArgError(2, "expects a owner ID string")
+		l.ArgError(2, "expects an owner ID string")
 		return 0
 	} else if _, err := uuid.FromString(owner); err != nil {
 		l.ArgError(2, "expects owner ID to be a valid identifier")
