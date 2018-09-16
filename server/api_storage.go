@@ -35,7 +35,7 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 	caller := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.BeforeListStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -88,7 +88,7 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.AfterListStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -111,7 +111,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeReadStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.BeforeReadStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -159,7 +159,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterReadStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.AfterReadStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -182,7 +182,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeWriteStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.BeforeWriteStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -248,7 +248,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterWriteStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.AfterWriteStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -271,7 +271,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeDeleteStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.BeforeDeleteStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -317,7 +317,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterDeleteStorageObjectsFunction; fn != nil {
+	if fn := s.runtime.AfterDeleteStorageObjects(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

@@ -37,7 +37,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListNotificationsFunction; fn != nil {
+	if fn := s.runtime.BeforeListNotifications(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -92,7 +92,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListNotificationsFunction; fn != nil {
+	if fn := s.runtime.AfterListNotifications(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -115,7 +115,7 @@ func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotif
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeDeleteNotificationFunction; fn != nil {
+	if fn := s.runtime.BeforeDeleteNotification(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -150,7 +150,7 @@ func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotif
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterDeleteNotificationFunction; fn != nil {
+	if fn := s.runtime.AfterDeleteNotification(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

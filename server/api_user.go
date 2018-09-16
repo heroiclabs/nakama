@@ -30,7 +30,7 @@ import (
 
 func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api.Users, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeGetUsersFunction; fn != nil {
+	if fn := s.runtime.BeforeGetUsers(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -88,7 +88,7 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterGetUsersFunction; fn != nil {
+	if fn := s.runtime.AfterGetUsers(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

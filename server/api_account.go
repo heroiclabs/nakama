@@ -34,7 +34,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeGetAccountFunction; fn != nil {
+	if fn := s.runtime.BeforeGetAccount(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -69,7 +69,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterGetAccountFunction; fn != nil {
+	if fn := s.runtime.AfterGetAccount(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -92,7 +92,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeUpdateAccountFunction; fn != nil {
+	if fn := s.runtime.BeforeUpdateAccount(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -134,7 +134,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterUpdateAccountFunction; fn != nil {
+	if fn := s.runtime.AfterUpdateAccount(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

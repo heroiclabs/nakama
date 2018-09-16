@@ -1238,7 +1238,7 @@ func (r *Runtime) AfterRt(id string) RuntimeAfterRtFunction {
 	return r.afterRtFunctions[id]
 }
 
-func (r *Runtime) RuntimeBeforeGetAccount() RuntimeBeforeGetAccountFunction {
+func (r *Runtime) BeforeGetAccount() RuntimeBeforeGetAccountFunction {
 	return r.beforeReqFunctions.beforeGetAccountFunction
 }
 
@@ -1582,43 +1582,43 @@ func (r *Runtime) AfterDeleteStorageObjects() RuntimeAfterDeleteStorageObjectsFu
 	return r.afterReqFunctions.afterDeleteStorageObjectsFunction
 }
 
-func (r *Runtime) RuntimeBeforeJoinTournamentFunction() RuntimeBeforeJoinTournamentFunction {
+func (r *Runtime) BeforeJoinTournament() RuntimeBeforeJoinTournamentFunction {
 	return r.beforeReqFunctions.beforeJoinTournamentFunction
 }
 
-func (r *Runtime) RuntimeAfterJoinTournamentFunction() RuntimeAfterJoinTournamentFunction {
+func (r *Runtime) AfterJoinTournament() RuntimeAfterJoinTournamentFunction {
 	return r.afterReqFunctions.afterJoinTournamentFunction
 }
 
-func (r *Runtime) RuntimeBeforeListTournamentRecordsFunction() RuntimeBeforeListTournamentRecordsFunction {
+func (r *Runtime) BeforeListTournamentRecords() RuntimeBeforeListTournamentRecordsFunction {
 	return r.beforeReqFunctions.beforeListTournamentRecordsFunction
 }
 
-func (r *Runtime) RuntimeAfterListTournamentRecordsFunction() RuntimeAfterListTournamentRecordsFunction {
+func (r *Runtime) AfterListTournamentRecords() RuntimeAfterListTournamentRecordsFunction {
 	return r.afterReqFunctions.afterListTournamentRecordsFunction
 }
 
-func (r *Runtime) RuntimeBeforeListTournamentsFunction() RuntimeBeforeListTournamentsFunction {
+func (r *Runtime) BeforeListTournaments() RuntimeBeforeListTournamentsFunction {
 	return r.beforeReqFunctions.beforeListTournamentsFunction
 }
 
-func (r *Runtime) RuntimeAfterListTournamentsFunction() RuntimeAfterListTournamentsFunction {
+func (r *Runtime) AfterListTournaments() RuntimeAfterListTournamentsFunction {
 	return r.afterReqFunctions.afterListTournamentsFunction
 }
 
-func (r *Runtime) RuntimeBeforeWriteTournamentRecordFunction() RuntimeBeforeWriteTournamentRecordFunction {
+func (r *Runtime) BeforeWriteTournamentRecord() RuntimeBeforeWriteTournamentRecordFunction {
 	return r.beforeReqFunctions.beforeWriteTournamentRecordFunction
 }
 
-func (r *Runtime) RuntimeAfterWriteTournamentRecordFunction() RuntimeAfterWriteTournamentRecordFunction {
+func (r *Runtime) AfterWriteTournamentRecord() RuntimeAfterWriteTournamentRecordFunction {
 	return r.afterReqFunctions.afterWriteTournamentRecordFunction
 }
 
-func (r *Runtime) RuntimeBeforeListTournamentRecordsAroundOwnerFunction() RuntimeBeforeListTournamentRecordsAroundOwnerFunction {
+func (r *Runtime) BeforeListTournamentRecordsAroundOwner() RuntimeBeforeListTournamentRecordsAroundOwnerFunction {
 	return r.beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction
 }
 
-func (r *Runtime) RuntimeAfterListTournamentRecordsAroundOwnerFunction() RuntimeAfterListTournamentRecordsAroundOwnerFunction {
+func (r *Runtime) AfterListTournamentRecordsAroundOwner() RuntimeAfterListTournamentRecordsAroundOwnerFunction {
 	return r.afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction
 }
 

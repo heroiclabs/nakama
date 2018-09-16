@@ -33,7 +33,7 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeCreateGroupFunction; fn != nil {
+	if fn := s.runtime.BeforeCreateGroup(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -72,7 +72,7 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterCreateGroupFunction; fn != nil {
+	if fn := s.runtime.AfterCreateGroup(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -95,7 +95,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeUpdateGroupFunction; fn != nil {
+	if fn := s.runtime.BeforeUpdateGroup(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -155,7 +155,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterUpdateGroupFunction; fn != nil {
+	if fn := s.runtime.AfterUpdateGroup(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -178,7 +178,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeDeleteGroupFunction; fn != nil {
+	if fn := s.runtime.BeforeDeleteGroup(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -222,7 +222,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterDeleteGroupFunction; fn != nil {
+	if fn := s.runtime.AfterDeleteGroup(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -245,7 +245,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeJoinGroupFunction; fn != nil {
+	if fn := s.runtime.BeforeJoinGroup(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -291,7 +291,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterJoinGroupFunction; fn != nil {
+	if fn := s.runtime.AfterJoinGroup(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -314,7 +314,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLeaveGroupFunction; fn != nil {
+	if fn := s.runtime.BeforeLeaveGroup(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -358,7 +358,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLeaveGroupFunction; fn != nil {
+	if fn := s.runtime.AfterLeaveGroup(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -381,7 +381,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAddGroupUsersFunction; fn != nil {
+	if fn := s.runtime.BeforeAddGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -440,7 +440,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAddGroupUsersFunction; fn != nil {
+	if fn := s.runtime.AfterAddGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -463,7 +463,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeKickGroupUsersFunction; fn != nil {
+	if fn := s.runtime.BeforeKickGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -519,7 +519,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterKickGroupUsersFunction; fn != nil {
+	if fn := s.runtime.AfterKickGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -542,7 +542,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforePromoteGroupUsersFunction; fn != nil {
+	if fn := s.runtime.BeforePromoteGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -599,7 +599,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterPromoteGroupUsersFunction; fn != nil {
+	if fn := s.runtime.AfterPromoteGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -620,7 +620,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 
 func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRequest) (*api.GroupUserList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListGroupUsersFunction; fn != nil {
+	if fn := s.runtime.BeforeListGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -661,7 +661,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListGroupUsersFunction; fn != nil {
+	if fn := s.runtime.AfterListGroupUsers(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -682,7 +682,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 
 func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRequest) (*api.UserGroupList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListUserGroupsFunction; fn != nil {
+	if fn := s.runtime.BeforeListUserGroups(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -723,7 +723,7 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListUserGroupsFunction; fn != nil {
+	if fn := s.runtime.AfterListUserGroups(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -744,7 +744,7 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 
 func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (*api.GroupList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListGroupsFunction; fn != nil {
+	if fn := s.runtime.BeforeListGroups(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -784,7 +784,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListGroupsFunction; fn != nil {
+	if fn := s.runtime.AfterListGroups(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

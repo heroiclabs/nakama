@@ -30,7 +30,7 @@ import (
 
 func (s *ApiServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest) (*api.MatchList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListMatchesFunction; fn != nil {
+	if fn := s.runtime.BeforeListMatches(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -83,7 +83,7 @@ func (s *ApiServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest)
 	list := &api.MatchList{Matches: results}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListMatchesFunction; fn != nil {
+	if fn := s.runtime.AfterListMatches(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

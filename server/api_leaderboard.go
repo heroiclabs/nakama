@@ -36,7 +36,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeDeleteLeaderboardRecordFunction; fn != nil {
+	if fn := s.runtime.BeforeDeleteLeaderboardRecord(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -76,7 +76,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterDeleteLeaderboardRecordFunction; fn != nil {
+	if fn := s.runtime.AfterDeleteLeaderboardRecord(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -97,7 +97,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 
 func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListLeaderboardRecordsFunction; fn != nil {
+	if fn := s.runtime.BeforeListLeaderboardRecords(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -155,7 +155,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListLeaderboardRecordsFunction; fn != nil {
+	if fn := s.runtime.AfterListLeaderboardRecords(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -179,7 +179,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeWriteLeaderboardRecordFunction; fn != nil {
+	if fn := s.runtime.BeforeWriteLeaderboardRecord(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -226,7 +226,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterWriteLeaderboardRecordFunction; fn != nil {
+	if fn := s.runtime.AfterWriteLeaderboardRecord(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

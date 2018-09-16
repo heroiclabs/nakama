@@ -40,7 +40,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeJoinTournamentFunction; fn != nil {
+	if fn := s.runtime.BeforeJoinTournament(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -78,7 +78,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterJoinTournamentFunction; fn != nil {
+	if fn := s.runtime.AfterJoinTournament(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -99,7 +99,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 
 func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTournamentRecordsRequest) (*api.TournamentRecordList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListTournamentRecordsFunction; fn != nil {
+	if fn := s.runtime.BeforeListTournamentRecords(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -173,7 +173,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListTournamentRecordsFunction; fn != nil {
+	if fn := s.runtime.AfterListTournamentRecords(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -195,7 +195,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 
 func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournamentsRequest) (*api.TournamentList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListTournamentsFunction; fn != nil {
+	if fn := s.runtime.BeforeListTournaments(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -288,7 +288,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListTournamentsFunction; fn != nil {
+	if fn := s.runtime.AfterListTournaments(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -312,7 +312,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeWriteTournamentRecordFunction; fn != nil {
+	if fn := s.runtime.BeforeWriteTournamentRecord(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -368,7 +368,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterWriteTournamentRecordFunction; fn != nil {
+	if fn := s.runtime.AfterWriteTournamentRecord(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -389,7 +389,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 
 func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.TournamentRecordList, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction; fn != nil {
+	if fn := s.runtime.BeforeListTournamentRecordsAroundOwner(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -419,7 +419,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 	list := &api.TournamentRecordList{}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction; fn != nil {
+	if fn := s.runtime.AfterListTournamentRecordsAroundOwner(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
