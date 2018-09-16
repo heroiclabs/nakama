@@ -25,17 +25,17 @@ import (
 )
 
 type LeaderboardRankCache interface {
-	Get(leaderboardId string, ownerId uuid.UUID) uint
-	Insert(leaderboardId string, leaderboardExpiry int, ownerId uuid.UUID, score, subscore int) uint
+	Get(leaderboardId string, ownerId uuid.UUID) int64
+	Insert(leaderboardId string, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64
 	Delete(leaderboardId string, ownerId uuid.UUID)
 	DeleteLeaderboard(leaderboardId string)
 }
 
 type RankData struct {
 	ownerId  uuid.UUID
-	score    int
-	subscore int
-	rank     uint
+	score    int64
+	subscore int64
+	rank     int64
 }
 
 type RankMap struct {
@@ -46,7 +46,7 @@ type RankMap struct {
 
 type LeaderboardWithExpiry struct {
 	leaderboardId string
-	expiry        int
+	expiry        int64
 }
 
 type LocalLeaderboardRankCache struct {
@@ -100,7 +100,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 		for rows.Next() {
 			var dbExpiry pq.NullTime
 			var ownerId string
-			rankData := &RankData{rank: uint(len(rankEntries.ranks))}
+			rankData := &RankData{rank: int64(len(rankEntries.ranks))}
 
 			if err = rows.Scan(&ownerId, &rankData.score, &rankData.subscore, &dbExpiry); err != nil {
 				startupLogger.Debug("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
@@ -109,15 +109,15 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 
 			rankData.ownerId = uuid.Must(uuid.FromString(ownerId))
 			if dbExpiry.Valid && dbExpiry.Time.UTC().Unix() != 0 {
-				expiryTime := int(dbExpiry.Time.UTC().Unix())
+				expiryTime := dbExpiry.Time.UTC().Unix()
 				if leaderboardWithExpiry.expiry == 0 {
 					leaderboardWithExpiry.expiry = expiryTime
 				} else if leaderboardWithExpiry.expiry != expiryTime {
 					startupLogger.Warn("Encountered a leaderboard record with same leaderboard ID but different expiry times",
 						zap.String("leaderboard_id", leaderboard.Id),
 						zap.String("owner_id", ownerId),
-						zap.Int("expiry_time", leaderboardWithExpiry.expiry),
-						zap.Int("different_expiry_time", expiryTime))
+						zap.Int64("expiry_time", leaderboardWithExpiry.expiry),
+						zap.Int64("different_expiry_time", expiryTime))
 
 					rankMap := &RankMap{
 						ranks:    make([]*RankData, 0),
@@ -142,7 +142,7 @@ WHERE leaderboard_id = $1 AND expiry_time > now()`
 	return nil
 }
 
-func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) uint {
+func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) int64 {
 	l.RLock()
 	for k, rankMap := range l.cache {
 		if k.leaderboardId == leaderboardId {
@@ -156,7 +156,7 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID)
 	return 0
 }
 
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpiry int, ownerId uuid.UUID, score, subscore int) uint {
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64 {
 	l.RLock()
 	var rankMap *RankMap
 	for k, v := range l.cache {
@@ -188,7 +188,7 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, leaderboardExpi
 			ownerId:  ownerId,
 			score:    score,
 			subscore: subscore,
-			rank:     uint(len(rankMap.ranks)),
+			rank:     int64(len(rankMap.ranks)),
 		}
 		rankMap.haystack[ownerId] = rankData
 		rankMap.ranks = append(rankMap.ranks, rankData)
@@ -232,7 +232,7 @@ func (l *LocalLeaderboardRankCache) trimExpired() {
 	l.Lock()
 	currentTime := time.Now().UTC().Unix()
 	for k := range l.cache {
-		if k.expiry <= int(currentTime) {
+		if k.expiry <= currentTime {
 			delete(l.cache, k)
 		}
 	}

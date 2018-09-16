@@ -62,6 +62,7 @@ type RuntimeLuaNakamaModule struct {
 	config           Config
 	socialClient     *social.Client
 	leaderboardCache LeaderboardCache
+	rankCache        LeaderboardRankCache
 	sessionRegistry  *SessionRegistry
 	matchRegistry    MatchRegistry
 	tracker          Tracker
@@ -75,7 +76,7 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	l.SetContext(context.WithValue(context.Background(), RUNTIME_LUA_CALLBACKS, &RuntimeLuaCallbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
@@ -87,6 +88,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, so
 		config:           config,
 		socialClient:     socialClient,
 		leaderboardCache: leaderboardCache,
+		rankCache:        rankCache,
 		sessionRegistry:  sessionRegistry,
 		matchRegistry:    matchRegistry,
 		tracker:          tracker,
@@ -3574,7 +3576,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, limit, cursor, ownerIds)
+	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.rankCache, id, limit, cursor, ownerIds)
 	if err != nil {
 		l.RaiseError("error listing leaderboard records: %v", err.Error())
 		return 0
@@ -3706,7 +3708,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
+	record, err := LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0
@@ -3758,7 +3760,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerId); err != nil {
+	if err := LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId); err != nil {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0

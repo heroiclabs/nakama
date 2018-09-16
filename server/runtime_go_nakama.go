@@ -1058,7 +1058,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []str
 		}
 	}
 
-	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs)
+	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs)
 	if err != nil {
 		return nil, nil, "", "", err
 	}
@@ -1091,7 +1091,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(id, ownerID, username str
 		metadataStr = string(metadataBytes)
 	}
 
-	return LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+	return LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(id, ownerID string) error {
@@ -1103,7 +1103,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(id, ownerID string) erro
 		return errors.New("expects owner ID to be a valid identifier")
 	}
 
-	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerID)
+	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {

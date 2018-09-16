@@ -51,7 +51,7 @@ type leaderboardRecordListCursor struct {
 	Rank          int64
 }
 
-func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string) (*api.LeaderboardRecordList, error) {
+func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string) (*api.LeaderboardRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -257,6 +257,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			}
 
 			record := &api.LeaderboardRecord{
+				Rank:          rankCache.Get(leaderboardId, uuid.Must(uuid.FromString(dbOwnerId))),
 				LeaderboardId: leaderboardId,
 				OwnerId:       dbOwnerId,
 				Score:         dbScore,
@@ -321,7 +322,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}, nil
 }
 
-func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, caller uuid.UUID, leaderboardId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -395,6 +396,8 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		return nil, err
 	}
 
+	newRank := rankCache.Insert(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerId)), score, subscore)
+
 	var dbUsername sql.NullString
 	var dbScore int64
 	var dbSubscore int64
@@ -411,6 +414,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}
 
 	record := &api.LeaderboardRecord{
+		Rank:          newRank,
 		LeaderboardId: leaderboardId,
 		OwnerId:       ownerId,
 		Score:         dbScore,
@@ -431,7 +435,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	return record, nil
 }
 
-func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, caller uuid.UUID, leaderboardId, ownerId string) error {
+func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil
@@ -453,6 +457,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 		return err
 	}
 
+	rankCache.Delete(leaderboardId, uuid.Must(uuid.FromString(ownerId)))
 	return nil
 }
 
