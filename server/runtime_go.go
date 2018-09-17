@@ -1056,10 +1056,10 @@ func (ri *RuntimeGoInitialiser) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, func(RuntimeMatchCreateFunction), func() []string, error) {
+func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, func(RuntimeMatchCreateFunction), func() []string, error) {
 	stdLogger := zap.NewStdLog(logger)
 	env := config.GetRuntime().Environment
-	nk := NewRuntimeGoNakamaModule(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, tracker, router)
+	nk := NewRuntimeGoNakamaModule(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router)
 
 	match := make(map[string]func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error), 0)
 	matchLock := &sync.RWMutex{}

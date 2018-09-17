@@ -77,7 +77,7 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*server.Runtim
 	cfg := server.NewConfig(logger)
 	cfg.Runtime.Path = dir
 
-	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, &DummyMessageRouter{})
+	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, &DummyMessageRouter{})
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
@@ -355,7 +355,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 
 	db := NewDB(t)
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, runtime)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, pipeline, runtime)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, nil, pipeline, runtime)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""

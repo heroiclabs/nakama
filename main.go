@@ -102,16 +102,16 @@ func main() {
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
 	leaderboardRankCache := server.NewLocalLeaderboardRankCache(logger, startupLogger, db, config.GetLeaderboard(), leaderboardCache)
+	leaderboardScheduler := server.NewLeaderboardScheduler(logger, db, leaderboardCache, leaderboardRankCache)
 	matchRegistry := server.NewLocalMatchRegistry(logger, config, tracker, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
-	runtime, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, tracker, router)
+	runtime, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 
-	leaderboardScheduler := server.NewLeaderboardScheduler(logger, db, leaderboardCache, leaderboardRankCache, runtime)
-	leaderboardScheduler.Start()
+	leaderboardScheduler.Start(runtime)
 
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtime)
 	metrics := server.NewMetrics(logger, startupLogger, config)

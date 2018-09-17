@@ -475,7 +475,7 @@ func NewConsoleConfig() *ConsoleConfig {
 
 // LeaderboardConfig is configuration relevant to the leaderboard system.
 type LeaderboardConfig struct {
-	BlacklistRankCache []string `yaml:"username" json:"username" usage:"Disable rank cache for leaderboards with matching identifiers. To disable rank cache entirely, use '*', otherwise leave blank to enable rank cache."`
+	BlacklistRankCache []string `yaml:"blacklist_rank_cache" json:"blacklist_rank_cache" usage:"Disable rank cache for leaderboards with matching identifiers. To disable rank cache entirely, use '*', otherwise leave blank to enable rank cache."`
 }
 
 // NewLeaderboardConfig creates a new LeaderboardConfig struct.

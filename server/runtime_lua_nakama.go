@@ -57,45 +57,47 @@ type RuntimeLuaCallbacks struct {
 }
 
 type RuntimeLuaNakamaModule struct {
-	logger           *zap.Logger
-	db               *sql.DB
-	config           Config
-	socialClient     *social.Client
-	leaderboardCache LeaderboardCache
-	rankCache        LeaderboardRankCache
-	sessionRegistry  *SessionRegistry
-	matchRegistry    MatchRegistry
-	tracker          Tracker
-	router           MessageRouter
-	once             *sync.Once
-	localCache       *RuntimeLuaLocalCache
-	announceCallback func(RuntimeExecutionMode, string)
-	client           *http.Client
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	rankCache            LeaderboardRankCache
+	leaderboardScheduler *LeaderboardScheduler
+	sessionRegistry      *SessionRegistry
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
+	once                 *sync.Once
+	localCache           *RuntimeLuaLocalCache
+	announceCallback     func(RuntimeExecutionMode, string)
+	client               *http.Client
 
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	l.SetContext(context.WithValue(context.Background(), RUNTIME_LUA_CALLBACKS, &RuntimeLuaCallbacks{
 		RPC:    make(map[string]*lua.LFunction),
 		Before: make(map[string]*lua.LFunction),
 		After:  make(map[string]*lua.LFunction),
 	}))
 	return &RuntimeLuaNakamaModule{
-		logger:           logger,
-		db:               db,
-		config:           config,
-		socialClient:     socialClient,
-		leaderboardCache: leaderboardCache,
-		rankCache:        rankCache,
-		sessionRegistry:  sessionRegistry,
-		matchRegistry:    matchRegistry,
-		tracker:          tracker,
-		router:           router,
-		once:             once,
-		localCache:       localCache,
-		announceCallback: announceCallback,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		rankCache:            rankCache,
+		leaderboardScheduler: leaderboardScheduler,
+		sessionRegistry:      sessionRegistry,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
+		once:                 once,
+		localCache:           localCache,
+		announceCallback:     announceCallback,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -3507,6 +3509,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 	if err := n.leaderboardCache.Create(id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
+
+	n.leaderboardScheduler.Update()
 	return 0
 }
 
@@ -3854,7 +3858,7 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 	}
 	joinRequired := l.OptBool(14, false)
 
-	if err := TournamentCreate(n.logger, n.leaderboardCache, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+	if err := TournamentCreate(n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
 		l.RaiseError("error creating tournament: %v", err.Error())
 	}
 	return 0
@@ -3867,7 +3871,7 @@ func (n *RuntimeLuaNakamaModule) tournamentDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentDelete(n.logger, n.leaderboardCache, id); err != nil {
+	if err := TournamentDelete(n.logger, n.leaderboardCache, n.rankCache, n.leaderboardScheduler, id); err != nil {
 		l.RaiseError("error deleting tournament: %v", err.Error())
 	}
 	return 0

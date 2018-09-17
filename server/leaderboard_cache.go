@@ -219,6 +219,7 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 	}
 
 	l.Unlock()
+
 	return nil
 }
 
@@ -361,6 +362,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	l.Lock()
 	l.leaderboards[id] = leaderboard
 	l.Unlock()
+
 	return leaderboard, nil
 }
 

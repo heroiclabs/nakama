@@ -35,17 +35,17 @@ type LeaderboardScheduler struct {
 	nearExpiryIds    []string
 }
 
-func NewLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache, runtime *Runtime) *LeaderboardScheduler {
+func NewLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache) *LeaderboardScheduler {
 	return &LeaderboardScheduler{
 		logger:    logger,
 		db:        db,
 		cache:     cache,
 		rankCache: rankCache,
-		runtime:   runtime,
 	}
 }
 
-func (ls *LeaderboardScheduler) Start() {
+func (ls *LeaderboardScheduler) Start(runtime *Runtime) {
+	ls.runtime = runtime
 	ls.Update()
 }
 
@@ -61,7 +61,18 @@ func (ls *LeaderboardScheduler) Stop() {
 }
 
 func (ls *LeaderboardScheduler) Update() {
+	if ls.runtime == nil {
+		// in case the update is called during VM init, skip setting timers until ready
+		return
+	}
+
 	endActive, endActiveIds, expiry, expiryIds := ls.findEndActiveAndExpiry()
+
+	ls.logger.Debug("dd",
+		zap.Duration("ea", endActive),
+		zap.Strings("endActiveIds", endActiveIds),
+		zap.Duration("exp", expiry),
+		zap.Strings("expiryIds", expiryIds))
 
 	ls.Lock()
 	ls.nearEndActiveIds = endActiveIds
@@ -74,9 +85,11 @@ func (ls *LeaderboardScheduler) Update() {
 		ls.expiryTimer.Stop()
 	}
 	if endActive > -1 {
-		ls.endActiveTimer = time.AfterFunc(endActive, ls.invokeDurationElapse)
+		ls.logger.Debug("Setting timer to run end active elapse", zap.Duration("end_active", endActive), zap.Strings("ids", ls.nearEndActiveIds))
+		ls.endActiveTimer = time.AfterFunc(endActive, ls.invokeEndActiveElapse)
 	}
 	if expiry > -1 {
+		ls.logger.Debug("Setting timer to run expiry elapse", zap.Duration("expiry", expiry), zap.Strings("ids", ls.nearExpiryIds))
 		ls.expiryTimer = time.AfterFunc(expiry, ls.invokeExpiryElapse)
 	}
 	ls.Unlock()
@@ -94,10 +107,15 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 
 	for _, l := range leaderboards {
 		if l.Duration > 0 { // a tournament
-			endActive, expiry := calculateTournamentDeadlines(l, now)
+			_, endActive, expiry := calculateTournamentDeadlines(l, now)
+
+			if l.EndTime < now.Unix() {
+				// tournament has ended permanently
+				continue
+			}
+
 			if earliestEndActive == -1 || endActive < earliestEndActive {
 				earliestEndActive = endActive
-
 				endActiveLeaderboardIds = []string{l.Id}
 			} else if endActive == earliestEndActive {
 				endActiveLeaderboardIds = append(endActiveLeaderboardIds, l.Id)
@@ -105,11 +123,17 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 
 			if earliestExpiry == -1 || expiry < earliestExpiry {
 				earliestExpiry = expiry
+				expiryLeaderboardIds = []string{l.Id}
+			} else if expiry == earliestExpiry {
+				expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
 			}
 		} else {
 			expiry := calculateLeaderboardExpiry(l, now)
 			if earliestExpiry == -1 || expiry < earliestExpiry {
 				earliestExpiry = expiry
+				expiryLeaderboardIds = []string{l.Id}
+			} else if expiry == earliestExpiry {
+				expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
 			}
 		}
 	}
@@ -128,7 +152,7 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 	return endActiveDuration, endActiveLeaderboardIds, expiryDuration, expiryLeaderboardIds
 }
 
-func (ls *LeaderboardScheduler) invokeDurationElapse() {
+func (ls *LeaderboardScheduler) invokeEndActiveElapse() {
 	ls.Lock()
 	for _, id := range ls.nearEndActiveIds {
 		// TODO (zyro) - call win func

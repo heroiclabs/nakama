@@ -42,6 +42,7 @@ type RuntimeGoNakamaModule struct {
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
+	leaderboardScheduler *LeaderboardScheduler
 	sessionRegistry      *SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -52,7 +53,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -60,6 +61,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, soc
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
+		leaderboardScheduler: leaderboardScheduler,
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
@@ -1036,7 +1038,14 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(id string, authoritative bool,
 		metadataStr = string(metadataBytes)
 	}
 
-	return n.leaderboardCache.Create(id, authoritative, sort, oper, resetSchedule, metadataStr)
+	err := n.leaderboardCache.Create(id, authoritative, sort, oper, resetSchedule, metadataStr)
+	if err != nil {
+		return err
+	}
+
+	n.leaderboardScheduler.Update()
+
+	return nil
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardDelete(id string) error {
@@ -1170,7 +1179,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(id string, sortOrder, operator,
 		return errors.New("maxNumScore must be >= 0")
 	}
 
-	return TournamentCreate(n.logger, n.leaderboardCache, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	return TournamentCreate(n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentDelete(id string) error {
@@ -1178,7 +1187,7 @@ func (n *RuntimeGoNakamaModule) TournamentDelete(id string) error {
 		return errors.New("expects a tournament ID string")
 	}
 
-	return TournamentDelete(n.logger, n.leaderboardCache, id)
+	return TournamentDelete(n.logger, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentAddAttempt(id, ownerID string, count int) error {
