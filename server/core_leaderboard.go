@@ -488,3 +488,11 @@ func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUI
 	}
 	return nil
 }
+
+func calculateLeaderboardExpiry(leaderboard *Leaderboard, t time.Time) int64 {
+	if leaderboard.ResetSchedule != nil {
+		return leaderboard.ResetSchedule.Next(t).UTC().Unix()
+	}
+
+	return 0
+}

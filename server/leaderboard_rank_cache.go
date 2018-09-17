@@ -30,6 +30,7 @@ type LeaderboardRankCache interface {
 	Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64
 	Delete(leaderboardId string, ownerId uuid.UUID)
 	DeleteLeaderboard(leaderboardId string)
+	TrimExpired()
 }
 
 type RankData struct {
@@ -84,32 +85,45 @@ type LeaderboardWithExpiry struct {
 type LocalLeaderboardRankCache struct {
 	sync.RWMutex
 	cache  map[*LeaderboardWithExpiry]*RankMap
-	timer  *time.Timer
 	logger *zap.Logger
 }
 
-func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache) *LocalLeaderboardRankCache {
+func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) *LocalLeaderboardRankCache {
 	cache := &LocalLeaderboardRankCache{
 		logger: logger,
 		cache:  make(map[*LeaderboardWithExpiry]*RankMap, 0),
 	}
 
-	// TODO config option to disable caching at start...
+	if len(config.BlacklistRankCache) == 1 && config.BlacklistRankCache[0] == "*" {
+		startupLogger.Info("Skipping leaderboard rank cache initialization")
+		return cache
+	}
+
 	startupLogger.Info("Initializing leaderboard rank cache")
-	if err := cache.Start(startupLogger, db, leaderboardCache); err != nil {
+	if cached, skipped, err := cache.start(startupLogger, db, leaderboardCache, config); err != nil {
 		startupLogger.Fatal("Could not cache leaderboard ranks at start", zap.Error(err))
 		return nil
+	} else {
+		startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cached), zap.Strings("skipped", skipped))
 	}
-	startupLogger.Info("Leaderboard rank cache initialization completed successfully")
-
-	// TODO setup timer
 
 	return cache
 }
 
-func (l *LocalLeaderboardRankCache) Start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache) error {
+func (l *LocalLeaderboardRankCache) start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, config *LeaderboardConfig) ([]string, []string, error) {
+	skippedLeaderboards := make([]string, 0)
+	cachedLeaderboards := make([]string, 0)
+
 	leaderboards := leaderboardCache.GetAllLeaderboards()
 	for _, leaderboard := range leaderboards {
+		for _, blacklistId := range config.BlacklistRankCache {
+			if blacklistId == leaderboard.Id {
+				startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
+				skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
+				continue
+			}
+		}
+		cachedLeaderboards = append(cachedLeaderboards, leaderboard.Id)
 		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 
 		rankEntries := &RankMap{
@@ -127,7 +141,7 @@ WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 
 		rows, err := db.Query(query, leaderboard.Id)
 		if err != nil {
 			startupLogger.Debug("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-			return err
+			return cachedLeaderboards, skippedLeaderboards, err
 		}
 
 		for rows.Next() {
@@ -137,7 +151,7 @@ WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 
 
 			if err = rows.Scan(&ownerId, &rankData.score, &rankData.subscore, &dbExpiry); err != nil {
 				startupLogger.Debug("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-				return err
+				return cachedLeaderboards, skippedLeaderboards, err
 			}
 
 			rankData.ownerId = uuid.Must(uuid.FromString(ownerId))
@@ -173,7 +187,7 @@ WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 
 		sort.Sort(v)
 	}
 
-	return nil
+	return cachedLeaderboards, skippedLeaderboards, nil
 }
 
 func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) int64 {
@@ -262,7 +276,7 @@ func (l *LocalLeaderboardRankCache) DeleteLeaderboard(leaderboardId string) {
 	l.RUnlock()
 }
 
-func (l *LocalLeaderboardRankCache) trimExpired() {
+func (l *LocalLeaderboardRankCache) TrimExpired() {
 	// used for the timer
 	l.Lock()
 	currentTime := time.Now().UTC().Unix()

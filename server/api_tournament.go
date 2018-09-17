@@ -74,6 +74,8 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
 		} else if err == ErrTournamentMaxSizeReached {
 			return nil, status.Error(codes.InvalidArgument, "Tournament cannot be joined as it has reached its max size.")
+		} else if err == ErrTournamentOutsideDuration {
+			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new joins.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
 	}
@@ -371,7 +373,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 			return nil, status.Error(codes.InvalidArgument, "Reached allowed max number of score attempts.")
 		} else if err == ErrTournamentWriteJoinRequired {
 			return nil, status.Error(codes.InvalidArgument, "Must join tournament before attempting to write value.")
-		} else if err == ErrTournamentWriteOutsideDuration {
+		} else if err == ErrTournamentOutsideDuration {
 			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new scores.")
 		} else {
 			return nil, status.Error(codes.Internal, "Error writing score to tournament.")

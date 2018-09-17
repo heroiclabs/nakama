@@ -39,7 +39,7 @@ var (
 	ErrTournamentNotFound                = errors.New("tournament not found")
 	ErrTournamentZeroMaxAttemptCount     = errors.New("max attempt count must be greater or less than zero")
 	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
-	ErrTournamentWriteOutsideDuration    = errors.New("tournament submission outside of duration")
+	ErrTournamentOutsideDuration         = errors.New("tournament outside of duration")
 	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
 	ErrTournamentWriteJoinRequired       = errors.New("required to join before writing tournament record")
 )
@@ -60,7 +60,6 @@ func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, leaderboardId 
 	}
 
 	if leaderboard != nil {
-		// TODO(mo, zyro) setup scheduled job for tournament
 		logger.Info("Tournament created", zap.String("id", leaderboard.Id))
 	}
 
@@ -72,7 +71,6 @@ func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, leaderboardId 
 		return err
 	}
 
-	// TODO(mo, zyro) delete scheduled job for tournament
 	return nil
 }
 
@@ -99,6 +97,13 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 
 	if !leaderboard.JoinRequired {
 		return nil
+	}
+
+	now := time.Now().UTC()
+	endActive, _ := calculateTournamentDeadlines(leaderboard, now)
+	if endActive <= now.Unix() {
+		logger.Info("Cannot join tournament record as it is outside of tournament duration.")
+		return ErrTournamentOutsideDuration
 	}
 
 	tx, err := db.Begin()
@@ -291,25 +296,20 @@ WHERE
 
 			if dbStartTime.Time.UTC().After(now) {
 				endActive = 0
-				canEnter = false
 			} else {
 				endActive = sessionStartTime + int64(dbDuration)
-				if endActive < now.Unix() {
-					canEnter = false
-				}
 			}
-
 			nextReset = schedules[0].Unix()
 		} else {
 			if dbStartTime.Time.UTC().After(now) {
 				endActive = 0
-				canEnter = false
 			} else {
 				endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
-				if endActive < now.Unix() {
-					canEnter = false
-				}
 			}
+		}
+
+		if endActive < now.Unix() {
+			canEnter = false
 		}
 
 		if canEnter && dbSize == dbMaxSize {
@@ -360,34 +360,10 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	currentTime := time.Now().UTC()
-	expiryTime := leaderboard.EndTime
-
-	if leaderboard.ResetSchedule != nil {
-		schedules := leaderboard.ResetSchedule.NextN(currentTime, 2)
-		sessionStartTime := schedules[0].UTC().Unix() - (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
-
-		if sessionStartTime < leaderboard.StartTime {
-			// If we've not hit the first reset schedule
-			// let's wait for the first reset schedule after the start time.
-			// This is useful for when there is arbitrary start time + duration
-			// that doesn't fit a big enough window for a reset period.
-			// This problem could be avoided if the start time matches a reset period pattern (like exactly on the minute/hour).
-			sessionStartTime = leaderboard.ResetSchedule.Next(time.Unix(leaderboard.StartTime, 0).UTC()).UTC().Unix()
-		}
-
-		endActive := sessionStartTime + int64(leaderboard.Duration)
-		if endActive <= currentTime.Unix() {
-			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
-			return nil, ErrTournamentWriteOutsideDuration
-		}
-
-		expiryTime = schedules[0].Unix()
-	} else {
-		endActive := leaderboard.StartTime + int64(leaderboard.Duration)
-		if endActive <= currentTime.Unix() {
-			logger.Info("Cannot write tournament record as it is outside of tournament duration.")
-			return nil, ErrTournamentWriteOutsideDuration
-		}
+	endActive, expiryTime := calculateTournamentDeadlines(leaderboard, currentTime)
+	if endActive <= currentTime.Unix() {
+		logger.Info("Cannot write tournament record as it is outside of tournament duration.")
+		return nil, ErrTournamentOutsideDuration
 	}
 
 	var record *api.LeaderboardRecord
@@ -641,4 +617,46 @@ AND EXISTS (
 	}
 
 	return record, nil
+}
+
+func calculateTournamentDeadlines(leaderboard *Leaderboard, t time.Time) (int64, int64) {
+	if leaderboard.ResetSchedule != nil {
+		schedules := leaderboard.ResetSchedule.NextN(t, 2)
+		sessionStartTime := schedules[0].UTC().Unix() - (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
+
+		if sessionStartTime < leaderboard.StartTime {
+			// If we've not hit the first reset schedule
+			// let's wait for the first reset schedule after the start time.
+			// This is useful for when there is arbitrary start time + duration
+			// that doesn't fit a big enough window for a reset period.
+			// This problem could be avoided if the start time matches a reset period pattern (like exactly on the minute/hour).
+			sessionStartTime = leaderboard.ResetSchedule.Next(time.Unix(leaderboard.StartTime, 0).UTC()).UTC().Unix()
+		}
+
+		endActive := sessionStartTime + int64(leaderboard.Duration)
+		expiryTime := schedules[0].Unix()
+		return endActive, expiryTime
+	} else {
+		endActive := int64(0)
+		if leaderboard.StartTime <= t.Unix() {
+			endActive = leaderboard.StartTime + int64(leaderboard.Duration)
+		}
+		expiryTime := leaderboard.EndTime
+		return endActive, expiryTime
+	}
+}
+
+func resetTournamentSize(logger *zap.Logger, db *sql.DB, leaderboardIds []string) {
+	logger.Info("Resetting tournament size", zap.Strings("ids", leaderboardIds))
+
+	index := make([]string, len(leaderboardIds))
+	params := make([]interface{}, len(leaderboardIds))
+	for i, id := range leaderboardIds {
+		index[i] = "$" + strconv.Itoa(i)
+		params[i] = id
+	}
+
+	if _, err := db.Exec("UPDATE leaderboard SET size = 0 WHERE id IN ("+strings.Join(index, ",")+")", params...); err != nil {
+		logger.Error("Could not reset leaderboard size", zap.Error(err), zap.Strings("ids", leaderboardIds))
+	}
 }
