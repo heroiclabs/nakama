@@ -87,7 +87,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			}
 		}
 
-		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ)"
+		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
 		if incomingCursor == nil {
 			// Ascending doesn't need an ordering clause.
 			if leaderboard.SortOrder == LeaderboardSortOrderDescending {
@@ -96,15 +96,15 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		} else {
 			if (leaderboard.SortOrder == LeaderboardSortOrderAscending && incomingCursor.IsNext) || (leaderboard.SortOrder == LeaderboardSortOrderDescending && !incomingCursor.IsNext) {
 				// Ascending and next page == descending and previous page.
-				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6)"
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $4, $5, $6)"
 			} else {
 				// Ascending and previous page == descending and next page.
-				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) < ($1, CAST($2::BIGINT AS TIMESTAMPTZ), $4, $5, $6) ORDER BY score DESC, subscore DESC, owner_id DESC"
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) < ($1, $2, $4, $5, $6) ORDER BY score DESC, subscore DESC, owner_id DESC"
 			}
 		}
 		query += " LIMIT $3"
 		params := make([]interface{}, 0, 6)
-		params = append(params, leaderboardId, expiryTime, limitNumber+1)
+		params = append(params, leaderboardId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), limitNumber+1)
 		if incomingCursor != nil {
 			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
 		}
@@ -222,14 +222,14 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 	if len(ownerIds) != 0 {
 		params := make([]interface{}, 0, len(ownerIds)+2)
-		params = append(params, leaderboardId, expiryTime)
+		params = append(params, leaderboardId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()))
 		statements := make([]string, len(ownerIds))
 		for i, ownerId := range ownerIds {
 			params = append(params, ownerId)
 			statements[i] = "$" + strconv.Itoa(i+3)
 		}
 
-		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = CAST($2::BIGINT AS TIMESTAMPTZ) AND owner_id IN (" + strings.Join(statements, ", ") + ")"
+		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id IN (" + strings.Join(statements, ", ") + ")"
 		rows, err := db.Query(query, params...)
 		if err != nil {
 			logger.Error("Error reading leaderboard records", zap.Error(err))
@@ -336,7 +336,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}
 
 	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time)
-            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'), CAST($7::BIGINT AS TIMESTAMPTZ))
+            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()`
 	params := make([]interface{}, 0, 9)
@@ -352,7 +352,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, expiryTime, scoreDelta, subscoreDelta)
+	params = append(params, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), scoreDelta, subscoreDelta)
 
 	_, err := db.Exec(query, params...)
 	if err != nil {
@@ -368,8 +368,8 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	var dbMetadata string
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
-	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
-	err = db.QueryRow(query, leaderboardId, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+	err = db.QueryRow(query, leaderboardId, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC())).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -415,8 +415,8 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
-	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
-	_, err := db.Exec(query, leaderboardId, ownerId, expiryTime)
+	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+	_, err := db.Exec(query, leaderboardId, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()))
 	if err != nil {
 		logger.Error("Error deleting leaderboard record", zap.Error(err))
 		return err

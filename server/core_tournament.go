@@ -546,7 +546,7 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 	}
 
 	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
-            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'), CAST($7::BIGINT AS TIMESTAMPTZ), $10)
+            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7, $10)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()`
 	params := make([]interface{}, 0, 10)
@@ -562,7 +562,7 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, expiryTime, scoreDelta, subscoreDelta, leaderboard.MaxNumScore)
+	params = append(params, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), scoreDelta, subscoreDelta, leaderboard.MaxNumScore)
 
 	_, err := tx.Exec(query, params...)
 	if err != nil {
@@ -595,8 +595,8 @@ AND EXISTS (
 	var dbMetadata string
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
-	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = CAST($3::BIGINT AS TIMESTAMPTZ)"
-	err = tx.QueryRow(query, leaderboard.Id, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+	err = tx.QueryRow(query, leaderboard.Id, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC())).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err

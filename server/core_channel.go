@@ -21,6 +21,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -104,16 +105,16 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	} else {
 		if (forward && incomingCursor.IsNext) || (!forward && !incomingCursor.IsNext) {
 			// Forward and next page == backwards and previous page.
-			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, CAST($6::BIGINT AS TIMESTAMPTZ), $7)"
+			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, $6, $7)"
 		} else {
 			// Forward and previous page == backwards and next page.
-			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) < ($1, $2::UUID, $3::UUID, CAST($6::BIGINT AS TIMESTAMPTZ), $7) ORDER BY create_time DESC, id DESC"
+			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) < ($1, $2::UUID, $3::UUID, $6, $7) ORDER BY create_time DESC, id DESC"
 		}
 	}
 	query += " LIMIT $5"
 	params := []interface{}{stream.Mode, stream.Subject, stream.Descriptor, stream.Label, limit + 1}
 	if incomingCursor != nil {
-		params = append(params, incomingCursor.CreateTime, incomingCursor.Id)
+		params = append(params, pq.FormatTimestamp(time.Unix(incomingCursor.CreateTime, 0).UTC()), incomingCursor.Id)
 	}
 
 	rows, err := db.Query(query, params...)

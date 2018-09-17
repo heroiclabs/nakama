@@ -137,7 +137,7 @@ func (l *LocalLeaderboardRankCache) start(startupLogger *zap.Logger, db *sql.DB,
 		query := `
 SELECT owner_id, score, subscore, expiry_time
 FROM leaderboard_record
-WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00+00:00')`
+WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00')`
 		rows, err := db.Query(query, leaderboard.Id)
 		if err != nil {
 			startupLogger.Debug("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
