@@ -62,17 +62,11 @@ func (ls *LeaderboardScheduler) Stop() {
 
 func (ls *LeaderboardScheduler) Update() {
 	if ls.runtime == nil {
-		// in case the update is called during VM init, skip setting timers until ready
+		// in case the update is called during runtime VM init, skip setting timers until ready
 		return
 	}
 
 	endActive, endActiveIds, expiry, expiryIds := ls.findEndActiveAndExpiry()
-
-	ls.logger.Debug("dd",
-		zap.Duration("ea", endActive),
-		zap.Strings("endActiveIds", endActiveIds),
-		zap.Duration("exp", expiry),
-		zap.Strings("expiryIds", expiryIds))
 
 	ls.Lock()
 	ls.nearEndActiveIds = endActiveIds
@@ -85,11 +79,11 @@ func (ls *LeaderboardScheduler) Update() {
 		ls.expiryTimer.Stop()
 	}
 	if endActive > -1 {
-		ls.logger.Debug("Setting timer to run end active elapse", zap.Duration("end_active", endActive), zap.Strings("ids", ls.nearEndActiveIds))
+		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActive), zap.Strings("ids", ls.nearEndActiveIds))
 		ls.endActiveTimer = time.AfterFunc(endActive, ls.invokeEndActiveElapse)
 	}
 	if expiry > -1 {
-		ls.logger.Debug("Setting timer to run expiry elapse", zap.Duration("expiry", expiry), zap.Strings("ids", ls.nearExpiryIds))
+		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiry), zap.Strings("ids", ls.nearExpiryIds))
 		ls.expiryTimer = time.AfterFunc(expiry, ls.invokeExpiryElapse)
 	}
 	ls.Unlock()
@@ -109,31 +103,37 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 		if l.Duration > 0 { // a tournament
 			_, endActive, expiry := calculateTournamentDeadlines(l, now)
 
-			if l.EndTime < now.Unix() {
+			if l.EndTime > 0 && l.EndTime < now.Unix() {
 				// tournament has ended permanently
 				continue
 			}
 
-			if earliestEndActive == -1 || endActive < earliestEndActive {
-				earliestEndActive = endActive
-				endActiveLeaderboardIds = []string{l.Id}
-			} else if endActive == earliestEndActive {
-				endActiveLeaderboardIds = append(endActiveLeaderboardIds, l.Id)
+			if endActive > 0 && now.Before(time.Unix(endActive, 0)) {
+				if earliestEndActive == -1 || endActive < earliestEndActive {
+					earliestEndActive = endActive
+					endActiveLeaderboardIds = []string{l.Id}
+				} else if endActive == earliestEndActive {
+					endActiveLeaderboardIds = append(endActiveLeaderboardIds, l.Id)
+				}
 			}
 
-			if earliestExpiry == -1 || expiry < earliestExpiry {
-				earliestExpiry = expiry
-				expiryLeaderboardIds = []string{l.Id}
-			} else if expiry == earliestExpiry {
-				expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+			if expiry > 0 {
+				if earliestExpiry == -1 || expiry < earliestExpiry {
+					earliestExpiry = expiry
+					expiryLeaderboardIds = []string{l.Id}
+				} else if expiry == earliestExpiry {
+					expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+				}
 			}
 		} else {
 			expiry := calculateLeaderboardExpiry(l, now)
-			if earliestExpiry == -1 || expiry < earliestExpiry {
-				earliestExpiry = expiry
-				expiryLeaderboardIds = []string{l.Id}
-			} else if expiry == earliestExpiry {
-				expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+			if expiry > 0 {
+				if earliestExpiry == -1 || expiry < earliestExpiry {
+					earliestExpiry = expiry
+					expiryLeaderboardIds = []string{l.Id}
+				} else if expiry == earliestExpiry {
+					expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+				}
 			}
 		}
 	}
@@ -149,19 +149,22 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 		earliestExpiryTime := time.Unix(earliestExpiry, 0).UTC()
 		expiryDuration = earliestExpiryTime.Sub(now)
 	}
+
 	return endActiveDuration, endActiveLeaderboardIds, expiryDuration, expiryLeaderboardIds
 }
 
 func (ls *LeaderboardScheduler) invokeEndActiveElapse() {
 	ls.Lock()
-	for _, id := range ls.nearEndActiveIds {
+	ids := ls.nearEndActiveIds
+	ls.Unlock()
+	for _, id := range ids {
 		// TODO (zyro) - call win func
 		// ls.runtime...
 
 		// TODO - remove the following line
 		ls.logger.Info("Duration elapsed for", zap.String("tournament_id", id))
 	}
-	ls.Unlock()
+
 	ls.Update()
 }
 

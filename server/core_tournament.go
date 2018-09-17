@@ -639,13 +639,6 @@ func calculateTournamentDeadlines(leaderboard *Leaderboard, t time.Time) (int64,
 
 		endActive := startActive + int64(leaderboard.Duration)
 		expiryTime := schedules[0].Unix()
-
-		println(t.String())
-		println(schedules[0].UTC().String())
-		println(schedules[1].UTC().String())
-		println(time.Unix(endActive, 0).UTC().String())
-		println(endActive < t.Unix())
-
 		return startActive, endActive, expiryTime
 	} else {
 		endActive := int64(0)
