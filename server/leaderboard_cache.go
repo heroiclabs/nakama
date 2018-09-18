@@ -283,7 +283,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	}
 
 	if endTime > 0 {
-		params = append(params, time.Unix(int64(endTime), 0))
+		params = append(params, time.Unix(int64(endTime), 0).UTC())
 		paramsIndex["end_time"] = strconv.Itoa(len(params))
 	}
 
@@ -308,7 +308,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	}
 
 	if startTime > 0 {
-		params = append(params, time.Unix(int64(startTime), 0))
+		params = append(params, time.Unix(int64(startTime), 0).UTC())
 		paramsIndex["start_time"] = strconv.Itoa(len(params))
 	}
 
@@ -396,7 +396,7 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 		return fmt.Errorf("tournament start time must be a unix UTC time in the future")
 	} else if startTime == 0 {
 		startTime = int(time.Now().UTC().Unix())
-	} else if time.Now().UTC().After(time.Unix(int64(startTime), 0)) {
+	} else if time.Now().UTC().After(time.Unix(int64(startTime), 0).UTC()) {
 		return fmt.Errorf("tournament start time must be a unix UTC time in the future")
 	}
 

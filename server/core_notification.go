@@ -93,7 +93,7 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, pq.NullTime{Time: time.Unix(0, nc.CreateTime), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
+		params = append(params, pq.NullTime{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.Query(`

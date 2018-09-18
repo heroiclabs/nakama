@@ -108,7 +108,7 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 				continue
 			}
 
-			if endActive > 0 && now.Before(time.Unix(endActive, 0)) {
+			if endActive > 0 && now.Before(time.Unix(endActive, 0).UTC()) {
 				if earliestEndActive == -1 || endActive < earliestEndActive {
 					earliestEndActive = endActive
 					endActiveLeaderboardIds = []string{l.Id}

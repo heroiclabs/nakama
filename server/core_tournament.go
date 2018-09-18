@@ -143,7 +143,7 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 VALUES 
 ($1, $2, $3, $4, $5)
 ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
-		_, err = tx.Exec(query, tournamentId, owner, time.Unix(expiryTime, 0), username, 0)
+		_, err = tx.Exec(query, tournamentId, owner, time.Unix(expiryTime, 0).UTC(), username, 0)
 		if err != nil {
 			return err
 		}
@@ -198,8 +198,7 @@ WHERE
 		if filter != "" {
 			filter += " AND "
 		}
-		stime := time.Unix(int64(startTime), 0).UTC()
-		params = append(params, pq.FormatTimestamp(stime))
+		params = append(params, time.Unix(int64(startTime), 0).UTC())
 		filter += " start_time >= $" + strconv.Itoa(len(params))
 	}
 
@@ -207,8 +206,7 @@ WHERE
 		if filter != "" {
 			filter += " AND "
 		}
-		etime := time.Unix(int64(endTime), 0).UTC()
-		params = append(params, etime)
+		params = append(params, time.Unix(int64(endTime), 0).UTC())
 		filter += " end_time <= $" + strconv.Itoa(len(params))
 	}
 
@@ -562,7 +560,7 @@ func tournamentWriteRecord(logger *zap.Logger, tx *sql.Tx, leaderboard *Leaderbo
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), scoreDelta, subscoreDelta, leaderboard.MaxNumScore)
+	params = append(params, time.Unix(expiryTime, 0).UTC(), scoreDelta, subscoreDelta, leaderboard.MaxNumScore)
 
 	_, err := tx.Exec(query, params...)
 	if err != nil {
@@ -596,7 +594,7 @@ AND EXISTS (
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	err = tx.QueryRow(query, leaderboard.Id, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC())).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	err = tx.QueryRow(query, leaderboard.Id, ownerId, time.Unix(expiryTime, 0).UTC()).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err

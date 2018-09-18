@@ -114,7 +114,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	query += " LIMIT $5"
 	params := []interface{}{stream.Mode, stream.Subject, stream.Descriptor, stream.Label, limit + 1}
 	if incomingCursor != nil {
-		params = append(params, pq.FormatTimestamp(time.Unix(incomingCursor.CreateTime, 0).UTC()), incomingCursor.Id)
+		params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
 	}
 
 	rows, err := db.Query(query, params...)

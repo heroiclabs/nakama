@@ -104,7 +104,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		}
 		query += " LIMIT $3"
 		params := make([]interface{}, 0, 6)
-		params = append(params, leaderboardId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), limitNumber+1)
+		params = append(params, leaderboardId, time.Unix(expiryTime, 0).UTC(), limitNumber+1)
 		if incomingCursor != nil {
 			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
 		}
@@ -222,7 +222,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 
 	if len(ownerIds) != 0 {
 		params := make([]interface{}, 0, len(ownerIds)+2)
-		params = append(params, leaderboardId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()))
+		params = append(params, leaderboardId, time.Unix(expiryTime, 0).UTC())
 		statements := make([]string, len(ownerIds))
 		for i, ownerId := range ownerIds {
 			params = append(params, ownerId)
@@ -352,7 +352,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()), scoreDelta, subscoreDelta)
+	params = append(params, time.Unix(expiryTime, 0).UTC(), scoreDelta, subscoreDelta)
 
 	_, err := db.Exec(query, params...)
 	if err != nil {
@@ -369,7 +369,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	err = db.QueryRow(query, leaderboardId, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC())).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	err = db.QueryRow(query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC()).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -416,7 +416,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 	}
 
 	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	_, err := db.Exec(query, leaderboardId, ownerId, pq.FormatTimestamp(time.Unix(expiryTime, 0).UTC()))
+	_, err := db.Exec(query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC())
 	if err != nil {
 		logger.Error("Error deleting leaderboard record", zap.Error(err))
 		return err
