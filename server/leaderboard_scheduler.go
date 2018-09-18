@@ -126,7 +126,11 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 				}
 			}
 		} else {
-			expiry := calculateLeaderboardExpiry(l, now)
+			expiry := int64(0)
+			if l.ResetSchedule != nil {
+				expiry = l.ResetSchedule.Next(now).UTC().Unix()
+			}
+
 			if expiry > 0 {
 				if earliestExpiry == -1 || expiry < earliestExpiry {
 					earliestExpiry = expiry

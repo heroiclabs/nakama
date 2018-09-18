@@ -404,6 +404,20 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	return record, nil
 }
 
+func TournamentRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
+	leaderboard := leaderboardCache.Get(leaderboardId)
+	if leaderboard == nil {
+		return nil, ErrLeaderboardNotFound
+	}
+
+	sortOrder := leaderboard.SortOrder
+
+	_, _, expiry := calculateTournamentDeadlines(leaderboard, time.Now().UTC())
+	expiryTime := time.Unix(expiry, 0).UTC()
+
+	return getLeaderboardRecordsHaystack(logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+}
+
 func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]interface{}, error) {
 	result := make([]interface{}, 0)
 	query := `SELECT leaderboard_id FROM leaderboard_record WHERE (owner_id = $1 AND expiry_time > now()) OR (owner_id = $1 AND expiry_time = '1970-01-01 00:00:00')`

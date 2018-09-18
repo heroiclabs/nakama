@@ -246,5 +246,32 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 }
 
 func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error) {
-	return nil, nil
+	if in.GetLeaderboardId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
+	}
+
+	limit := 1
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
+	}
+
+	if in.GetOwnerId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Owner ID must be provided for a haystack query.")
+	}
+
+	ownerId, err := uuid.FromString(in.GetOwnerId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
+	}
+
+	records, err := LeaderboardRecordsHaystack(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit)
+	if err == ErrLeaderboardNotFound {
+		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "Error querying records from leaderboard.")
+	}
+	return &api.LeaderboardRecordList{Records: records}, nil
 }

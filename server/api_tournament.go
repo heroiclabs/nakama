@@ -428,8 +428,35 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
 	}
 
-	// TODO complete function.
-	list := &api.TournamentRecordList{}
+	if in.GetTournamentId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Invalid tournament ID.")
+	}
+
+	limit := 1
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
+	}
+
+	if in.GetOwnerId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Owner ID must be provided for a haystack query.")
+	}
+
+	ownerId, err := uuid.FromString(in.GetOwnerId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
+	}
+
+	records, err := TournamentRecordsHaystack(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), ownerId, limit)
+	if err == ErrLeaderboardNotFound {
+		return nil, status.Error(codes.NotFound, "Tournament not found.")
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "Error querying records from leaderboard.")
+	}
+
+	list := &api.TournamentRecordList{Records: records}
 
 	// After hook.
 	if fn := s.runtime.AfterListTournamentRecordsAroundOwner(); fn != nil {

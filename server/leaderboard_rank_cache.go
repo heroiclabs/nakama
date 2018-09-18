@@ -84,23 +84,25 @@ type LeaderboardWithExpiry struct {
 
 type LocalLeaderboardRankCache struct {
 	sync.RWMutex
-	cache  map[*LeaderboardWithExpiry]*RankMap
-	logger *zap.Logger
+	cache        map[*LeaderboardWithExpiry]*RankMap
+	logger       *zap.Logger
+	blacklistIds []string
 }
 
 func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) *LocalLeaderboardRankCache {
 	cache := &LocalLeaderboardRankCache{
-		logger: logger,
-		cache:  make(map[*LeaderboardWithExpiry]*RankMap, 0),
+		logger:       logger,
+		blacklistIds: config.BlacklistRankCache,
+		cache:        make(map[*LeaderboardWithExpiry]*RankMap, 0),
 	}
 
-	if len(config.BlacklistRankCache) == 1 && config.BlacklistRankCache[0] == "*" {
+	if len(cache.blacklistIds) == 1 && cache.blacklistIds[0] == "*" {
 		startupLogger.Info("Skipping leaderboard rank cache initialization")
 		return cache
 	}
 
 	startupLogger.Info("Initializing leaderboard rank cache")
-	if cached, skipped, err := cache.start(startupLogger, db, leaderboardCache, config); err != nil {
+	if cached, skipped, err := cache.start(startupLogger, db, leaderboardCache); err != nil {
 		startupLogger.Fatal("Could not cache leaderboard ranks at start", zap.Error(err))
 		return nil
 	} else {
@@ -110,13 +112,13 @@ func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB,
 	return cache
 }
 
-func (l *LocalLeaderboardRankCache) start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, config *LeaderboardConfig) ([]string, []string, error) {
+func (l *LocalLeaderboardRankCache) start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache) ([]string, []string, error) {
 	skippedLeaderboards := make([]string, 0)
 	cachedLeaderboards := make([]string, 0)
 
 	leaderboards := leaderboardCache.GetAllLeaderboards()
 	for _, leaderboard := range leaderboards {
-		for _, blacklistId := range config.BlacklistRankCache {
+		for _, blacklistId := range l.blacklistIds {
 			if blacklistId == leaderboard.Id {
 				startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 				skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
@@ -191,6 +193,12 @@ WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 
 }
 
 func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) int64 {
+	for _, blacklistId := range l.blacklistIds {
+		if blacklistId == leaderboardId {
+			return 0
+		}
+	}
+
 	l.RLock()
 	defer l.RUnlock()
 	for k, rankMap := range l.cache {
@@ -205,6 +213,12 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID)
 }
 
 func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64 {
+	for _, blacklistId := range l.blacklistIds {
+		if blacklistId == leaderboardId {
+			return 0
+		}
+	}
+
 	l.RLock()
 	var rankMap *RankMap
 	for k, v := range l.cache {

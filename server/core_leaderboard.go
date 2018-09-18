@@ -435,6 +435,158 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	}
 	defer rows.Close()
 
+	return parseLeaderboardRecords(logger, nil, rows)
+}
+
+func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
+	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
+	_, err := tx.Exec(query, userID.String())
+	if err != nil {
+		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func LeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
+	leaderboard := leaderboardCache.Get(leaderboardId)
+	if leaderboard == nil {
+		return nil, ErrLeaderboardNotFound
+	}
+
+	sortOrder := leaderboard.SortOrder
+	expiryTime := time.Unix(0, 0).UTC()
+	if leaderboard.ResetSchedule != nil {
+		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC()
+	}
+
+	return getLeaderboardRecordsHaystack(logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+}
+
+func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache LeaderboardRankCache, ownerId uuid.UUID, limit int, leaderboardId string, sortOrder int, expiryTime time.Time) ([]*api.LeaderboardRecord, error) {
+	var dbLeaderboardId string
+	var dbOwnerId string
+	var dbUsername sql.NullString
+	var dbScore int64
+	var dbSubscore int64
+	var dbNumScore int32
+	var dbMaxNumScore int32
+	var dbMetadata string
+	var dbCreateTime pq.NullTime
+	var dbUpdateTime pq.NullTime
+	var dbExpiryTime pq.NullTime
+
+	findQuery := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time 
+		FROM leaderboard_record
+		WHERE owner_id = $1
+		AND leaderboard_id = $2
+		AND expiry_time = $3`
+	logger.Debug("Leaderboard haystack lookup", zap.String("query", findQuery))
+	err := db.QueryRow(findQuery, ownerId, leaderboardId, expiryTime).Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
+	if err == sql.ErrNoRows {
+		return []*api.LeaderboardRecord{}, nil
+	} else if err != nil {
+		logger.Error("Could not load owner record in leaderboard records list haystack", zap.Error(err), zap.String("leaderboard_id", leaderboardId), zap.String("owner_id", ownerId.String()))
+		return nil, err
+	}
+
+	ownerRecord := &api.LeaderboardRecord{
+		Rank:          rankCache.Get(leaderboardId, ownerId),
+		LeaderboardId: dbLeaderboardId,
+		OwnerId:       dbOwnerId,
+		Score:         dbScore,
+		Subscore:      dbSubscore,
+		NumScore:      dbNumScore,
+		MaxNumScore:   uint32(dbMaxNumScore),
+		Metadata:      dbMetadata,
+		CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+		UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+	}
+	if dbUsername.Valid {
+		ownerRecord.Username = &wrappers.StringValue{Value: dbUsername.String}
+	}
+	if expiryTime := dbExpiryTime.Time.Unix(); expiryTime != 0 {
+		ownerRecord.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
+	}
+
+	if limit == 1 {
+		return []*api.LeaderboardRecord{ownerRecord}, nil
+	}
+
+	query := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time
+	FROM leaderboard_record
+	AND leaderboard_id = $1
+	AND expiry_time = $2`
+
+	// First half.
+	params := []interface{}{leaderboardId, expiryTime, ownerRecord.Score, ownerRecord.Subscore, ownerId}
+	firstQuery := query
+	if sortOrder == LeaderboardSortOrderAscending {
+		// Lower score is better, but get in reverse order from current user to get those immediately above.
+		firstQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC"
+	} else {
+		// Higher score is better.
+		firstQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC"
+	}
+	firstParams := append(params, limit)
+	firstQuery += " LIMIT $6"
+
+	firstRows, err := db.Query(firstQuery, firstParams...)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
+		return nil, err
+	}
+	defer firstRows.Close()
+
+	firstRecords, err := parseLeaderboardRecords(logger, rankCache, firstRows)
+	if err != nil {
+		return nil, err
+	}
+
+	// We went 'up' on the leaderboard, so reverse the first half of records.
+	for left, right := 0, len(firstRecords)-1; left < right; left, right = left+1, right-1 {
+		firstRecords[left], firstRecords[right] = firstRecords[right], firstRecords[left]
+	}
+
+	secondQuery := query
+	if sortOrder == LeaderboardSortOrderAscending {
+		// Lower score is better.
+		secondQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC"
+	} else {
+		// Higher score is better.
+		secondQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC"
+	}
+	secondLimit := limit / 2
+	if l := len(firstRecords); l < limit/2 {
+		secondLimit = limit - l
+	}
+	secondParams := append(params, secondLimit)
+	secondQuery += " LIMIT $6"
+
+	secondRows, err := db.Query(secondQuery, secondParams...)
+	if err != nil {
+		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
+		return nil, err
+	}
+	defer secondRows.Close()
+
+	secondRecords, err := parseLeaderboardRecords(logger, rankCache, secondRows)
+	if err != nil {
+		return nil, err
+	}
+
+	records := append(firstRecords, ownerRecord)
+	records = append(records, secondRecords...)
+
+	start := len(records) - int(limit)
+	if start < 0 {
+		start = 0
+	}
+
+	return records[start:], nil
+}
+
+func parseLeaderboardRecords(logger *zap.Logger, rankCache LeaderboardRankCache, rows *sql.Rows) ([]*api.LeaderboardRecord, error) {
 	records := make([]*api.LeaderboardRecord, 0, 10)
 
 	var dbLeaderboardId string
@@ -449,9 +601,8 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	var dbUpdateTime pq.NullTime
 	var dbExpiryTime pq.NullTime
 	for rows.Next() {
-		err = rows.Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
-		if err != nil {
-			logger.Error("Error parsing read all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
+		if err := rows.Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime); err != nil {
+			logger.Error("Could not execute leaderboard records list query", zap.Error(err))
 			return nil, err
 		}
 
@@ -472,27 +623,12 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 		if expiryTime := dbExpiryTime.Time.Unix(); expiryTime != 0 {
 			record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
 		}
+		if rankCache != nil {
+			record.Rank = rankCache.Get(dbLeaderboardId, uuid.Must(uuid.FromString(dbOwnerId)))
+		}
 
 		records = append(records, record)
 	}
 
 	return records, nil
-}
-
-func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
-	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
-	_, err := tx.Exec(query, userID.String())
-	if err != nil {
-		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-func calculateLeaderboardExpiry(leaderboard *Leaderboard, t time.Time) int64 {
-	if leaderboard.ResetSchedule != nil {
-		return leaderboard.ResetSchedule.Next(t).UTC().Unix()
-	}
-
-	return 0
 }
