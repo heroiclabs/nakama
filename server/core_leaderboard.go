@@ -109,6 +109,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
 		}
 
+		logger.Debug("Leaderboard record list query", zap.String("query", query), zap.Any("params", params))
 		rows, err := db.Query(query, params...)
 		if err != nil {
 			logger.Error("Error listing leaderboard records", zap.Error(err))

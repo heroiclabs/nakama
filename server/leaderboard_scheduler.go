@@ -177,14 +177,18 @@ WHERE id = $1`
 			ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
 			continue
 		}
-		tournament, err := parseTournament(rows)
-		if err != nil {
-			ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
-			continue
+		for rows.Next() {
+			tournament, err := parseTournament(rows)
+			if err != nil {
+				ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
+				continue
+			}
+			err = fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
+			if err != nil {
+				ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
+			}
 		}
 		rows.Close()
-
-		fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
 	}
 
 	ls.Update()
@@ -206,7 +210,9 @@ func (ls *LeaderboardScheduler) invokeExpiryElapse() {
 				if leaderboardOrTournament.ResetSchedule != nil {
 					nextReset = leaderboardOrTournament.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 				}
-				fnLeaderboardReset(leaderboardOrTournament, nextReset)
+				if err := fnLeaderboardReset(leaderboardOrTournament, nextReset); err != nil {
+					ls.logger.Warn("Failed to invoke leaderboard expiry callback", zap.Error(err))
+				}
 			}
 		} else {
 			query := `SELECT 
@@ -219,14 +225,18 @@ WHERE id = $1`
 				ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
 				continue
 			}
-			tournament, err := parseTournament(rows)
-			if err != nil {
-				ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
-				continue
+			for rows.Next() {
+				tournament, err := parseTournament(rows)
+				if err != nil {
+					ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
+					continue
+				}
+
+				if err := fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+					ls.logger.Warn("Failed to invoke tournament expiry callback", zap.Error(err))
+				}
 			}
 			rows.Close()
-
-			fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
 		}
 	}
 

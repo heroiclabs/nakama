@@ -21,6 +21,30 @@ local du = require("debug_utils")
   Test Tournament function calls from client libraries.
 --]]
 
+local function tournament_end_callback(_context, tournament, sessionEnd, expiry)
+  local records, owner_records, nc, pc = nk.leaderboard_records_list(tournament.id, nil, 1)
+  local user_id = records[1].owner_id
+  local metadata = { won = tournament.id }
+  nk.account_update_id(user_id, metadata)
+end
+nk.register_tournament_end(tournament_end_callback)
+
+local function tournament_reset_callback(_context, tournament, sessionEnd, expiry)
+  local records, owner_records, nc, pc = nk.leaderboard_records_list(tournament.id)
+  local user_id = records[1].owner_id
+  local metadata = { expiry_tournament = tournament.id }
+  nk.account_update_id(user_id, metadata)
+end
+nk.register_tournament_reset(tournament_reset_callback)
+
+local function leaderboard_reset_callback(_context, leaderboard, expiry)
+  local records, owner_records, nc, pc = nk.leaderboard_records_list(leaderboard.id)
+  local user_id = records[1].owner_id
+  local metadata = { expiry_leaderboard = leaderboard.id }
+  nk.account_update_id(user_id, metadata)
+end
+nk.register_leaderboard_reset(leaderboard_reset_callback)
+
 local function create_same_tournament_multiple_times(_context, payload)
   local args = nk.json_decode(payload)
   local id = nk.uuid_v4()
