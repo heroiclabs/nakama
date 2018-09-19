@@ -15,7 +15,10 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -1206,6 +1209,109 @@ func (n *RuntimeGoNakamaModule) TournamentAddAttempt(id, ownerID string, count i
 	}
 
 	return TournamentAddAttempt(n.logger, n.db, id, ownerID, count)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentJoin(id, ownerID, username string) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	if ownerID == "" {
+		return errors.New("expects a owner ID string")
+	} else if _, err := uuid.FromString(ownerID); err != nil {
+		return errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if username == "" {
+		return errors.New("expects a username string")
+	}
+
+	return TournamentJoin(n.logger, n.db, n.leaderboardCache, ownerID, username, id)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentList(ownerID string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
+	if ownerID == "" {
+		return nil, errors.New("expects a owner ID string")
+	} else if _, err := uuid.FromString(ownerID); err != nil {
+		return nil, errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if categoryStart < 0 || categoryStart >= 128 {
+		return nil, errors.New("categoryStart must be 0-127")
+	}
+	if categoryEnd < 0 || categoryEnd >= 128 {
+		return nil, errors.New("categoryEnd must be 0-127")
+	}
+	if startTime < 0 {
+		return nil, errors.New("startTime must be >= 0")
+	}
+	if endTime < 0 {
+		return nil, errors.New("endTime must be >= 0")
+	}
+	if endTime < startTime {
+		return nil, errors.New("endTime must be >= startTime")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
+	}
+
+	var cursorPtr *tournamentListCursor
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, errors.New("expects cursor to be valid when provided")
+		} else {
+			cursorPtr = &tournamentListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
+				return nil, errors.New("expects cursor to be valid when provided")
+			}
+		}
+	}
+
+	return TournamentList(n.logger, n.db, ownerID, full, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {
+	if id == "" {
+		return nil, errors.New("expects a tournament ID string")
+	}
+
+	owner, err := uuid.FromString(ownerID)
+	if err != nil {
+		return nil, errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if username == "" {
+		return nil, errors.New("expects a username string")
+	}
+
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, errors.Errorf("error encoding metadata: %v", err.Error())
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	return TournamentRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(id, ownerID string, limit int) ([]*api.LeaderboardRecord, error) {
+	if id == "" {
+		return nil, errors.New("expects a tournament ID string")
+	}
+
+	owner, err := uuid.FromString(ownerID)
+	if err != nil {
+		return nil, errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
+	}
+
+	return TournamentRecordsHaystack(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit)
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {

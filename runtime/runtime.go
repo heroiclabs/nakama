@@ -103,6 +103,8 @@ type Initializer interface {
 	RegisterAfterListLeaderboardRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.LeaderboardRecordList) error) error
 	RegisterBeforeWriteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, int)) error
 	RegisterAfterWriteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.LeaderboardRecord) error) error
+	RegisterBeforeListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, int)) error
+	RegisterAfterListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.LeaderboardRecordList) error) error
 	RegisterBeforeLinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error, int)) error
 	RegisterAfterLinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *empty.Empty) error) error
 	RegisterBeforeLinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AccountDevice) (*api.AccountDevice, error, int)) error
@@ -161,6 +163,21 @@ type Initializer interface {
 	RegisterMatchmakerMatched(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, entries []MatchmakerEntry) (string, error)) error
 
 	RegisterMatch(name string, fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule) (Match, error)) error
+
+	RegisterTournamentEnd(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, tournament *api.Tournament, end, reset int64) error) error
+	RegisterTournamentReset(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, tournament *api.Tournament, end, reset int64) error) error
+
+	RegisterLeaderboardReset(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, leaderboard Leaderboard, reset int64) error) error
+}
+
+type Leaderboard interface {
+	GetId() string
+	GetAuthoritative() bool
+	GetSortOrder() string
+	GetOperator() string
+	GetReset() string
+	GetMetadata() map[string]interface{}
+	GetCreateTime() int64
 }
 
 type PresenceMeta interface {
@@ -305,6 +322,10 @@ type NakamaModule interface {
 	TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
 	TournamentDelete(id string) error
 	TournamentAddAttempt(id, ownerID string, count int) error
+	TournamentJoin(id, ownerID, username string) error
+	TournamentList(ownerID string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
+	TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
+	TournamentRecordsHaystack(id, ownerID string, limit int) ([]*api.LeaderboardRecord, error)
 
 	GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
 	GroupUpdate(id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error

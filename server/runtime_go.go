@@ -48,6 +48,9 @@ type RuntimeGoInitialiser struct {
 	beforeReq         *RuntimeBeforeReqFunctions
 	afterReq          *RuntimeAfterReqFunctions
 	matchmakerMatched RuntimeMatchmakerMatchedFunction
+	tournamentEnd     RuntimeTournamentEndFunction
+	tournamentReset   RuntimeTournamentResetFunction
+	leaderboardReset  RuntimeLeaderboardResetFunction
 
 	match     map[string]func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)
 	matchLock *sync.RWMutex
@@ -574,6 +577,23 @@ func (ri *RuntimeGoInitialiser) RegisterAfterWriteLeaderboardRecord(fn func(ctx 
 	return nil
 }
 
+func (ri *RuntimeGoInitialiser) RegisterBeforeListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, int)) error {
+	ri.beforeReq.beforeListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code) {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
+		result, err, code := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return result, err, codes.Code(code)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterAfterListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecordList) error) error {
+	ri.afterReq.afterListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecordList) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitialiser) RegisterBeforeLinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error, int)) error {
 	ri.beforeReq.beforeLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
@@ -1049,6 +1069,30 @@ func (ri *RuntimeGoInitialiser) RegisterMatchmakerMatched(fn func(ctx context.Co
 	return nil
 }
 
+func (ri *RuntimeGoInitialiser) RegisterTournamentEnd(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, tournament *api.Tournament, end, reset int64) error) error {
+	ri.tournamentEnd = func(tournament *api.Tournament, end, reset int64) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", "", "", "")
+		return fn(ctx, ri.logger, ri.db, ri.nk, tournament, end, reset)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterTournamentReset(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, tournament *api.Tournament, end, reset int64) error) error {
+	ri.tournamentReset = func(tournament *api.Tournament, end, reset int64) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeTournamentReset, nil, 0, "", "", "", "", "")
+		return fn(ctx, ri.logger, ri.db, ri.nk, tournament, end, reset)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitialiser) RegisterLeaderboardReset(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, leaderboard runtime.Leaderboard, reset int64) error) error {
+	ri.leaderboardReset = func(leaderboard runtime.Leaderboard, reset int64) error {
+		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", "", "", "")
+		return fn(ctx, ri.logger, ri.db, ri.nk, leaderboard, reset)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitialiser) RegisterMatch(name string, fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)) error {
 	ri.matchLock.Lock()
 	ri.match[name] = fn
@@ -1056,7 +1100,7 @@ func (ri *RuntimeGoInitialiser) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, func(RuntimeMatchCreateFunction), func() []string, error) {
+func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, func(RuntimeMatchCreateFunction), func() []string, error) {
 	stdLogger := zap.NewStdLog(logger)
 	env := config.GetRuntime().Environment
 	nk := NewRuntimeGoNakamaModule(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router)
@@ -1122,21 +1166,21 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		p, err := plugin.Open(path)
 		if err != nil {
 			startupLogger.Error("Could not open Go module", zap.String("path", path), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		// Look up the required initialisation function.
 		f, err := p.Lookup("InitModule")
 		if err != nil {
 			startupLogger.Fatal("Error looking up InitModule function in Go module", zap.String("name", name))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		// Ensure the function has the correct signature.
 		fn, ok := f.(func(context.Context, *log.Logger, *sql.DB, runtime.NakamaModule, runtime.Initializer))
 		if !ok {
 			startupLogger.Fatal("Error reading InitModule function in Go module", zap.String("name", name))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error reading InitModule function in Go module")
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error reading InitModule function in Go module")
 		}
 
 		// Run the initialisation.
@@ -1144,5 +1188,5 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		modulePaths = append(modulePaths, relPath)
 	}
 
-	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, matchCreateFn, nk.SetMatchCreateFn, matchNamesListFn, nil
+	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, matchCreateFn, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, nk.SetMatchCreateFn, matchNamesListFn, nil
 }
