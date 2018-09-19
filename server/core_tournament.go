@@ -170,8 +170,7 @@ SELECT
 id, sort_order, reset_schedule, metadata, create_time, 
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
-WHERE 
-`
+WHERE`
 
 	filter := ""
 	if !full {
@@ -242,7 +241,7 @@ WHERE
 
 	query = query + filter
 
-	params = append(params, limit)
+	params = append(params, limit+1) // to ensure that there are more records, so the cursor is returned
 	query += " LIMIT $" + strconv.Itoa(len(params))
 
 	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
@@ -254,99 +253,29 @@ WHERE
 	defer rows.Close()
 
 	records := make([]*api.Tournament, 0)
-	var newCursor *tournamentListCursor
+	newCursor := &tournamentListCursor{}
 
-	var dbId string
-	var dbSortOrder int
-	var dbResetSchedule sql.NullString
-	var dbMetadata string
-	var dbCreateTime pq.NullTime
-	var dbCategory int
-	var dbDescription string
-	var dbDuration int
-	var dbEndTime pq.NullTime
-	var dbMaxSize int
-	var dbMaxNumScore int
-	var dbTitle string
-	var dbSize int
-	var dbStartTime pq.NullTime
-
+	count := 0
 	for rows.Next() {
-		if len(records) >= limit {
-			newCursor = &tournamentListCursor{
-				TournamentId: dbId,
-			}
-			break
-		}
-
-		err = rows.Scan(&dbId, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
-			&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
+		tournament, err := parseTournament(rows)
 		if err != nil {
 			logger.Error("Error parsing listed tournament records", zap.Error(err))
 			return nil, err
 		}
+		count++
 
-		canEnter := true
-		endActive := int64(0)
-		nextReset := int64(0)
-
-		now := time.Now().UTC()
-		if dbResetSchedule.Valid {
-			cron := cronexpr.MustParse(dbResetSchedule.String)
-			schedules := cron.NextN(now, 2)
-			sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
-
-			if dbStartTime.Time.UTC().After(now) {
-				endActive = 0
-			} else {
-				endActive = sessionStartTime + int64(dbDuration)
-			}
-			nextReset = schedules[0].Unix()
-		} else {
-			if dbStartTime.Time.UTC().After(now) {
-				endActive = 0
-			} else {
-				endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
-			}
+		if count <= limit {
+			records = append(records, tournament)
+		} else if count > limit {
+			newCursor.TournamentId = records[limit].Id
 		}
-
-		if endActive < now.Unix() {
-			canEnter = false
-		}
-
-		if canEnter && dbSize == dbMaxSize {
-			canEnter = false
-		}
-
-		tournament := &api.Tournament{
-			Id:          dbId,
-			Title:       dbTitle,
-			Description: dbDescription,
-			Category:    uint32(dbCategory),
-			SortOrder:   uint32(dbSortOrder),
-			Size:        uint32(dbSize),
-			MaxSize:     uint32(dbMaxSize),
-			MaxNumScore: uint32(dbMaxNumScore),
-			CanEnter:    canEnter,
-			EndActive:   uint32(endActive),
-			NextReset:   uint32(nextReset),
-			Metadata:    dbMetadata,
-			CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
-			StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
-		}
-
-		if dbEndTime.Time.Unix() > 0 {
-			tournament.EndTime = &timestamp.Timestamp{Seconds: dbEndTime.Time.UTC().Unix()}
-		}
-
-		records = append(records, tournament)
 	}
 
 	tournamentList := &api.TournamentList{
 		Tournaments: records,
 	}
 
-	if newCursor != nil {
+	if newCursor.TournamentId != "" {
 		cursorBuf := new(bytes.Buffer)
 		if gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Error creating tournament records list cursor", zap.Error(err))
@@ -675,4 +604,81 @@ func resetTournamentSize(logger *zap.Logger, db *sql.DB, leaderboardIds []string
 	if _, err := db.Exec("UPDATE leaderboard SET size = 0 WHERE id IN ("+strings.Join(index, ",")+")", params...); err != nil {
 		logger.Error("Could not reset leaderboard size", zap.Error(err), zap.Strings("ids", leaderboardIds))
 	}
+}
+
+func parseTournament(rows *sql.Rows) (*api.Tournament, error) {
+	var dbId string
+	var dbSortOrder int
+	var dbResetSchedule sql.NullString
+	var dbMetadata string
+	var dbCreateTime pq.NullTime
+	var dbCategory int
+	var dbDescription string
+	var dbDuration int
+	var dbEndTime pq.NullTime
+	var dbMaxSize int
+	var dbMaxNumScore int
+	var dbTitle string
+	var dbSize int
+	var dbStartTime pq.NullTime
+	err := rows.Scan(&dbId, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
+		&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
+	if err != nil {
+		return nil, err
+	}
+
+	canEnter := true
+	endActive := int64(0)
+	nextReset := int64(0)
+
+	now := time.Now().UTC()
+	if dbResetSchedule.Valid {
+		cron := cronexpr.MustParse(dbResetSchedule.String)
+		schedules := cron.NextN(now, 2)
+		sessionStartTime := schedules[0].Unix() - (schedules[1].Unix() - schedules[0].Unix())
+
+		if dbStartTime.Time.UTC().After(now) {
+			endActive = 0
+		} else {
+			endActive = sessionStartTime + int64(dbDuration)
+		}
+		nextReset = schedules[0].Unix()
+	} else {
+		if dbStartTime.Time.UTC().After(now) {
+			endActive = 0
+		} else {
+			endActive = dbStartTime.Time.UTC().Unix() + int64(dbDuration)
+		}
+	}
+
+	if endActive < now.Unix() {
+		canEnter = false
+	}
+
+	if canEnter && dbSize == dbMaxSize {
+		canEnter = false
+	}
+
+	tournament := &api.Tournament{
+		Id:          dbId,
+		Title:       dbTitle,
+		Description: dbDescription,
+		Category:    uint32(dbCategory),
+		SortOrder:   uint32(dbSortOrder),
+		Size:        uint32(dbSize),
+		MaxSize:     uint32(dbMaxSize),
+		MaxNumScore: uint32(dbMaxNumScore),
+		CanEnter:    canEnter,
+		EndActive:   uint32(endActive),
+		NextReset:   uint32(nextReset),
+		Metadata:    dbMetadata,
+		CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
+		StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
+	}
+
+	if dbEndTime.Time.Unix() > 0 {
+		tournament.EndTime = &timestamp.Timestamp{Seconds: dbEndTime.Time.UTC().Unix()}
+	}
+
+	return tournament, nil
 }

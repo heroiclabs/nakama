@@ -1059,7 +1059,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(id string) error {
 	return n.leaderboardCache.Delete(id)
 }
 
-func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
 	if id == "" {
 		return nil, nil, "", "", errors.New("expects a leaderboard ID string")
 	}
@@ -1070,7 +1070,15 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []str
 		}
 	}
 
-	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs)
+	if limit < 1 || limit > 10000 {
+		return nil, nil, "", "", errors.New("expects limit to be 1-10000")
+	}
+
+	if expiry < 0 {
+		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
+	}
+
+	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs, expiry)
 	if err != nil {
 		return nil, nil, "", "", err
 	}

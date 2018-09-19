@@ -16,7 +16,9 @@ package server
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -38,22 +40,69 @@ const (
 )
 
 type Leaderboard struct {
-	Id            string
-	Authoritative bool
-	SortOrder     int
-	Operator      int
-	ResetSchedule *cronexpr.Expression
-	Metadata      string
-	CreateTime    int64
-	Category      int
-	Description   string
-	Duration      int
-	EndTime       int64
-	JoinRequired  bool
-	MaxSize       int
-	MaxNumScore   int
-	Title         string
-	StartTime     int64
+	Id               string
+	Authoritative    bool
+	SortOrder        int
+	Operator         int
+	ResetScheduleStr string
+	ResetSchedule    *cronexpr.Expression
+	Metadata         string
+	CreateTime       int64
+	Category         int
+	Description      string
+	Duration         int
+	EndTime          int64
+	JoinRequired     bool
+	MaxSize          int
+	MaxNumScore      int
+	Title            string
+	StartTime        int64
+}
+
+func (l *Leaderboard) GetId() string {
+	return l.Id
+}
+func (l *Leaderboard) GetAuthoritative() bool {
+	return l.Authoritative
+}
+func (l *Leaderboard) GetSortOrder() string {
+	switch l.SortOrder {
+	case LeaderboardSortOrderAscending:
+		return "asc"
+	case LeaderboardSortOrderDescending:
+		fallthrough
+	default:
+		return "desc"
+	}
+}
+func (l *Leaderboard) GetOperator() string {
+	switch l.Operator {
+	case LeaderboardOperatorSet:
+		return "set"
+	case LeaderboardOperatorIncrement:
+		return "incr"
+	case LeaderboardOperatorBest:
+		fallthrough
+	default:
+		return "best"
+	}
+}
+func (l *Leaderboard) GetReset() string {
+	return l.ResetScheduleStr
+}
+func (l *Leaderboard) GetMetadata() map[string]interface{} {
+	metadata := make(map[string]interface{})
+	if l.Metadata == "" || l.Metadata == "{}" {
+		return metadata
+	}
+	if err := json.Unmarshal([]byte(l.Metadata), &metadata); err != nil {
+		log.Printf("Could not unmarshal leaderboard metadata into map[string]interface{}: %v \r\n", err)
+	}
+
+	return metadata
+}
+func (l *Leaderboard) GetCreateTime() int64 {
+	return l.CreateTime
 }
 
 type LeaderboardCache interface {
@@ -137,6 +186,7 @@ FROM leaderboard`
 			if err != nil {
 				startupLogger.Fatal("Error parsing leaderboard reset schedule from database", zap.Error(err))
 			}
+			leaderboard.ResetScheduleStr = resetSchedule.String
 			leaderboard.ResetSchedule = expr
 		}
 		if endTime.Valid {
@@ -209,13 +259,14 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 
 	// Then add to cache.
 	l.leaderboards[id] = &Leaderboard{
-		Id:            id,
-		Authoritative: authoritative,
-		SortOrder:     sortOrder,
-		Operator:      operator,
-		ResetSchedule: expr,
-		Metadata:      metadata,
-		CreateTime:    createTime.Time.Unix(),
+		Id:               id,
+		Authoritative:    authoritative,
+		SortOrder:        sortOrder,
+		Operator:         operator,
+		ResetScheduleStr: resetSchedule,
+		ResetSchedule:    expr,
+		Metadata:         metadata,
+		CreateTime:       createTime.Time.Unix(),
 	}
 
 	l.Unlock()
@@ -338,22 +389,23 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 
 	cron, _ := cronexpr.Parse(resetSchedule)
 	leaderboard = &Leaderboard{
-		Id:            id,
-		Authoritative: true,
-		SortOrder:     sortOrder,
-		Operator:      operator,
-		ResetSchedule: cron,
-		Metadata:      metadata,
-		CreateTime:    createTime.Time.Unix(),
-		Category:      category,
-		Description:   description,
-		Duration:      duration,
-		EndTime:       0,
-		JoinRequired:  joinRequired,
-		MaxSize:       maxSize,
-		MaxNumScore:   maxNumScore,
-		Title:         title,
-		StartTime:     dbStartTime.Time.Unix(),
+		Id:               id,
+		Authoritative:    true,
+		SortOrder:        sortOrder,
+		Operator:         operator,
+		ResetScheduleStr: resetSchedule,
+		ResetSchedule:    cron,
+		Metadata:         metadata,
+		CreateTime:       createTime.Time.Unix(),
+		Category:         category,
+		Description:      description,
+		Duration:         duration,
+		EndTime:          0,
+		JoinRequired:     joinRequired,
+		MaxSize:          maxSize,
+		MaxNumScore:      maxNumScore,
+		Title:            title,
+		StartTime:        dbStartTime.Time.Unix(),
 	}
 	if dbEndTime.Valid {
 		leaderboard.EndTime = dbEndTime.Time.Unix()

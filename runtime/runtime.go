@@ -17,10 +17,11 @@ package runtime
 import (
 	"context"
 	"database/sql"
+	"log"
+
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
-	"log"
 )
 
 const (
@@ -315,7 +316,7 @@ type NakamaModule interface {
 
 	LeaderboardCreate(id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
 	LeaderboardDelete(id string) error
-	LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
+	LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
 	LeaderboardRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(id, ownerID string) error
 

@@ -158,25 +158,79 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 }
 
 func (ls *LeaderboardScheduler) invokeEndActiveElapse() {
+	fn := ls.runtime.TournamentEnd()
+	if fn == nil {
+		return
+	}
+
 	ls.Lock()
 	ids := ls.nearEndActiveIds
 	ls.Unlock()
 	for _, id := range ids {
-		// TODO (zyro) - call win func
-		// ls.runtime...
+		query := `SELECT 
+id, sort_order, reset_schedule, metadata, create_time, 
+category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+FROM leaderboard
+WHERE id = $1`
+		rows, err := ls.db.Query(query, id)
+		if err != nil {
+			ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
+			continue
+		}
+		tournament, err := parseTournament(rows)
+		if err != nil {
+			ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
+			continue
+		}
+		rows.Close()
 
-		// TODO - remove the following line
-		ls.logger.Info("Duration elapsed for", zap.String("tournament_id", id))
+		fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
 	}
 
 	ls.Update()
 }
 
 func (ls *LeaderboardScheduler) invokeExpiryElapse() {
+	fnLeaderboardReset := ls.runtime.LeaderboardReset()
+	fnTournamentReset := ls.runtime.TournamentReset()
+
 	ls.Lock()
-	resetTournamentSize(ls.logger, ls.db, ls.nearExpiryIds)
+	ids := ls.nearEndActiveIds
 	ls.Unlock()
 
+	for _, id := range ids {
+		leaderboardOrTournament := ls.cache.Get(id)
+		if leaderboardOrTournament.Duration == 0 { //leaderboard
+			if fnLeaderboardReset != nil {
+				nextReset := int64(0)
+				if leaderboardOrTournament.ResetSchedule != nil {
+					nextReset = leaderboardOrTournament.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
+				}
+				fnLeaderboardReset(leaderboardOrTournament, nextReset)
+			}
+		} else {
+			query := `SELECT 
+id, sort_order, reset_schedule, metadata, create_time, 
+category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+FROM leaderboard
+WHERE id = $1`
+			rows, err := ls.db.Query(query, id)
+			if err != nil {
+				ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
+				continue
+			}
+			tournament, err := parseTournament(rows)
+			if err != nil {
+				ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
+				continue
+			}
+			rows.Close()
+
+			fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
+		}
+	}
+
+	resetTournamentSize(ls.logger, ls.db, ids)
 	ls.rankCache.TrimExpired()
 	ls.Update()
 }

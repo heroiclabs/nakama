@@ -50,14 +50,14 @@ type leaderboardRecordListCursor struct {
 	Rank          int64
 }
 
-func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string) (*api.LeaderboardRecordList, error) {
+func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string, overrideExpiry int64) (*api.LeaderboardRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
 	}
 
-	expiryTime := int64(0)
-	if leaderboard.ResetSchedule != nil {
+	expiryTime := overrideExpiry
+	if expiryTime == 0 && leaderboard.ResetSchedule != nil {
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 

@@ -3626,8 +3626,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 	}
 
 	limitNumber := l.OptInt(3, 0)
-	if limitNumber < 0 || limitNumber > 100 {
-		l.ArgError(3, "expects limit to be 1-100")
+	if limitNumber < 0 || limitNumber > 10000 {
+		l.ArgError(3, "expects limit to be 1-10000")
 		return 0
 	}
 	var limit *wrappers.Int32Value
@@ -3636,8 +3636,9 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 	}
 
 	cursor := l.OptString(4, "")
+	overrideExpiry := l.OptInt64(5, 0)
 
-	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.rankCache, id, limit, cursor, ownerIds)
+	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.rankCache, id, limit, cursor, ownerIds, overrideExpiry)
 	if err != nil {
 		l.RaiseError("error listing leaderboard records: %v", err.Error())
 		return 0
