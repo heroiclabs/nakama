@@ -1554,6 +1554,12 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		return cp.After[key]
 	case RuntimeExecutionModeMatchmaker:
 		return cp.Matchmaker
+	case RuntimeExecutionModeTournamentEnd:
+		return cp.TournamentEnd
+	case RuntimeExecutionModeTournamentReset:
+		return cp.TournamentReset
+	case RuntimeExecutionModeLeaderboardReset:
+		return cp.LeaderboardReset
 	}
 
 	return nil
