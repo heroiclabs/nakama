@@ -132,6 +132,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"base16_decode":               n.base16Decode,
 		"aes128_encrypt":              n.aes128Encrypt,
 		"aes128_decrypt":              n.aes128Decrypt,
+		"aes256_encrypt":              n.aes256Encrypt,
+		"aes256_decrypt":              n.aes256Decrypt,
 		"md5_hash":                    n.md5Hash,
 		"sha256_hash":                 n.sha256Hash,
 		"hmac_sha256_hash":            n.hmacSHA256Hash,
@@ -799,15 +801,15 @@ func (n *RuntimeLuaNakamaModule) base16Decode(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
+func aesEncrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
 		return 0
 	}
 	key := l.CheckString(2)
-	if len(key) != 16 {
-		l.ArgError(2, "expects key 16 bytes long")
+	if len(key) != keySize {
+		l.ArgError(2, fmt.Sprintf("expects key %v bytes long", keySize))
 		return 0
 	}
 
@@ -836,15 +838,15 @@ func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
+func aesDecrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
 		return 0
 	}
 	key := l.CheckString(2)
-	if len(key) != 16 {
-		l.ArgError(2, "expects key 16 bytes long")
+	if len(key) != keySize {
+		l.ArgError(2, fmt.Sprintf("expects key %v bytes long", keySize))
 		return 0
 	}
 
@@ -868,6 +870,22 @@ func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
 
 	l.Push(lua.LString(cipherText))
 	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
+	return aesEncrypt(l, 16)
+}
+
+func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
+	return aesDecrypt(l, 16)
+}
+
+func (n *RuntimeLuaNakamaModule) aes256Encrypt(l *lua.LState) int {
+	return aesEncrypt(l, 32)
+}
+
+func (n *RuntimeLuaNakamaModule) aes256Decrypt(l *lua.LState) int {
+	return aesDecrypt(l, 32)
 }
 
 func (n *RuntimeLuaNakamaModule) md5Hash(l *lua.LState) int {
