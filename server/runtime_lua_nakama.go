@@ -27,6 +27,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -47,6 +48,7 @@ import (
 )
 
 const RUNTIME_LUA_CALLBACKS = "runtime_lua_callbacks"
+const AES_256_BLOCK_SIZE = 32
 
 type RuntimeLuaCallbacks struct {
 	RPC        map[string]*lua.LFunction
@@ -132,6 +134,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"base16_decode":               n.base16Decode,
 		"aes128_encrypt":              n.aes128Encrypt,
 		"aes128_decrypt":              n.aes128Decrypt,
+		"aes256_encrypt":              n.aes256Encrypt,
+		"aes256_decrypt":              n.aes256Decrypt,
 		"md5_hash":                    n.md5Hash,
 		"sha256_hash":                 n.sha256Hash,
 		"hmac_sha256_hash":            n.hmacSHA256Hash,
@@ -799,7 +803,7 @@ func (n *RuntimeLuaNakamaModule) base16Decode(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
+func aesEncrypt(l *lua.LState, blockSize int) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
@@ -822,21 +826,21 @@ func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
 		return 0
 	}
 
-	cipherText := make([]byte, aes.BlockSize+len(input))
-	iv := cipherText[:aes.BlockSize]
+	cipherText := make([]byte, blockSize+len(input))
+	iv := cipherText[:blockSize]
 	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
 		l.RaiseError("error getting iv: %v", err.Error())
 		return 0
 	}
 
 	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(input))
+	stream.XORKeyStream(cipherText[blockSize:], []byte(input))
 
 	l.Push(lua.LString(cipherText))
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
+func aesDecrypt(l *lua.LState, blockSize int) int {
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects string")
@@ -848,7 +852,7 @@ func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
 		return 0
 	}
 
-	if len(input) < aes.BlockSize {
+	if len(input) < blockSize {
 		l.RaiseError("input too short")
 		return 0
 	}
@@ -860,14 +864,30 @@ func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
 	}
 
 	cipherText := []byte(input)
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
+	iv := cipherText[:blockSize]
+	cipherText = cipherText[blockSize:]
 
 	stream := cipher.NewCFBDecrypter(block, iv)
 	stream.XORKeyStream(cipherText, cipherText)
 
 	l.Push(lua.LString(cipherText))
 	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) aes128Encrypt(l *lua.LState) int {
+	return aesEncrypt(l, aes.BlockSize)
+}
+
+func (n *RuntimeLuaNakamaModule) aes128Decrypt(l *lua.LState) int {
+	return aesDecrypt(l, aes.BlockSize)
+}
+
+func (n *RuntimeLuaNakamaModule) aes256Encrypt(l *lua.LState) int {
+	return aesEncrypt(l, AES_256_BLOCK_SIZE)
+}
+
+func (n *RuntimeLuaNakamaModule) aes256Decrypt(l *lua.LState) int {
+	return aesDecrypt(l, AES_256_BLOCK_SIZE)
 }
 
 func (n *RuntimeLuaNakamaModule) md5Hash(l *lua.LState) int {
