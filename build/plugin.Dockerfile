@@ -1,6 +1,6 @@
-# docker build . --file ./plugin.Dockerfile --build-arg src=sample_go_module
+# docker build . --file ./build/plugin.Dockerfile --build-arg src=sample_go_module
 
-FROM golang:1.10-alpine3.7 as builder
+FROM golang:1.11-alpine3.7 as builder
 
 ARG src
 
