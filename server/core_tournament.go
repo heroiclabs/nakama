@@ -567,19 +567,19 @@ AND EXISTS (
 func calculateTournamentDeadlines(leaderboard *Leaderboard, t time.Time) (int64, int64, int64) {
 	if leaderboard.ResetSchedule != nil {
 		schedules := leaderboard.ResetSchedule.NextN(t, 2)
-		startActive := schedules[0].UTC().Unix() - (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
 
-		if startActive < leaderboard.StartTime {
-			// If we've not hit the first reset schedule
-			// let's wait for the first reset schedule after the start time.
-			// This is useful for when there is arbitrary start time + duration
-			// that doesn't fit a big enough window for a reset period.
-			// This problem could be avoided if the start time matches a reset period pattern (like exactly on the minute/hour).
+		startActive := schedules[0].UTC().Unix() - (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
+		endActive := startActive + int64(leaderboard.Duration)
+		expiryTime := schedules[0].UTC().Unix()
+
+		if leaderboard.StartTime > endActive {
+			// The start time after the end of the current active period but before the next reset.
+			// e.g. Reset schedule is daily at noon, duration is 1 hour, but time is currently 3pm.
 			startActive = leaderboard.ResetSchedule.Next(time.Unix(leaderboard.StartTime, 0).UTC()).UTC().Unix()
+			endActive = startActive + int64(leaderboard.Duration)
+			expiryTime = startActive + (schedules[1].UTC().Unix() - schedules[0].UTC().Unix())
 		}
 
-		endActive := startActive + int64(leaderboard.Duration)
-		expiryTime := schedules[0].Unix()
 		return startActive, endActive, expiryTime
 	} else {
 		endActive := int64(0)
