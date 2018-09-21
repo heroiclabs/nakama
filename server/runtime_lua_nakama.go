@@ -4113,11 +4113,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 		return 0
 	}
 
-	username := l.CheckString(3)
-	if username == "" {
-		l.ArgError(3, "expects a username string")
-		return 0
-	}
+	username := l.OptString(3, "")
 
 	score := l.OptInt64(4, 0)
 	subscore := l.OptInt64(5, 0)

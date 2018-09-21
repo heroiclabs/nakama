@@ -1095,6 +1095,8 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(id, ownerID, username str
 		return nil, errors.New("expects owner ID to be a valid identifier")
 	}
 
+	// Username is optional.
+
 	if score < 0 {
 		return nil, errors.New("expects score to be >= 0")
 	}
@@ -1289,9 +1291,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(id, ownerID, username stri
 		return nil, errors.New("expects owner ID to be a valid identifier")
 	}
 
-	if username == "" {
-		return nil, errors.New("expects a username string")
-	}
+	// Username is optional.
 
 	metadataStr := "{}"
 	if metadata != nil {
