@@ -3627,7 +3627,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 
 	limitNumber := l.OptInt(3, 0)
 	if limitNumber < 0 || limitNumber > 10000 {
-		l.ArgError(3, "expects limit to be 1-10000")
+		l.ArgError(3, "expects limit to be 0-10000")
 		return 0
 	}
 	var limit *wrappers.Int32Value
@@ -3957,7 +3957,7 @@ func (n *RuntimeLuaNakamaModule) tournamentAddAttempt(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentAddAttempt(n.logger, n.db, id, owner, count); err != nil {
+	if err := TournamentAddAttempt(n.logger, n.db, n.leaderboardCache, id, owner, count); err != nil {
 		l.RaiseError("error adding tournament attempts: %v", err.Error())
 	}
 	return 0

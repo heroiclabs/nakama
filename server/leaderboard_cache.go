@@ -59,6 +59,9 @@ type Leaderboard struct {
 	StartTime        int64
 }
 
+func (l *Leaderboard) IsTournament() bool {
+	return l.Duration != 0
+}
 func (l *Leaderboard) GetId() string {
 	return l.Id
 }
@@ -109,8 +112,7 @@ type LeaderboardCache interface {
 	Get(id string) *Leaderboard
 	GetAllLeaderboards() []*Leaderboard
 	Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error
-	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
-		description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
+	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata, description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
 	Delete(id string) error
 }
 
@@ -209,7 +211,7 @@ func (l *LocalLeaderboardCache) Get(id string) *Leaderboard {
 
 func (l *LocalLeaderboardCache) GetAllLeaderboards() []*Leaderboard {
 	l.RLock()
-	leaderboards := make([]*Leaderboard, 0)
+	leaderboards := make([]*Leaderboard, 0, len(l.leaderboards))
 	for _, v := range l.leaderboards {
 		leaderboards = append(leaderboards, v)
 	}

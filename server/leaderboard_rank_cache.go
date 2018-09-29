@@ -16,286 +16,347 @@ package server
 
 import (
 	"database/sql"
+	"github.com/heroiclabs/nakama/api"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
 type LeaderboardRankCache interface {
-	Get(leaderboardId string, ownerId uuid.UUID) int64
-	Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64
-	Delete(leaderboardId string, ownerId uuid.UUID)
-	DeleteLeaderboard(leaderboardId string)
-	TrimExpired()
+	Get(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) int64
+	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord)
+	Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerId uuid.UUID, score, subscore int64) int64
+	Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID)
+	DeleteLeaderboard(leaderboardId string, expiryUnix int64)
+	TrimExpired(nowUnix int64)
 }
 
 type RankData struct {
-	ownerId  uuid.UUID
-	score    int64
-	subscore int64
-	rank     int64
+	OwnerId  uuid.UUID
+	Score    int64
+	Subscore int64
+	Rank     int64
 }
 
 type RankMap struct {
 	sync.RWMutex
-	ranks     []*RankData
-	haystack  map[uuid.UUID]*RankData
-	sortOrder int
+	Ranks     []*RankData
+	Haystack  map[uuid.UUID]*RankData
+	SortOrder int
 }
 
 func (r RankMap) Len() int {
-	return len(r.ranks)
+	return len(r.Ranks)
 }
 func (r RankMap) Swap(i, j int) {
-	rank1 := r.ranks[i]
-	rank2 := r.ranks[j]
-	r.ranks[i], r.ranks[j] = rank2, rank1
-	rank1.rank, rank2.rank = rank2.rank, rank1.rank
+	rank1 := r.Ranks[i]
+	rank2 := r.Ranks[j]
+	r.Ranks[i], r.Ranks[j] = rank2, rank1
+	rank1.Rank, rank2.Rank = rank2.Rank, rank1.Rank
 }
 func (r RankMap) Less(i, j int) bool {
-	rank1 := r.ranks[i]
-	rank2 := r.ranks[j]
-	if r.sortOrder == LeaderboardSortOrderDescending {
+	rank1 := r.Ranks[i]
+	rank2 := r.Ranks[j]
+	if r.SortOrder == LeaderboardSortOrderDescending {
 		rank1, rank2 = rank2, rank1
 	}
 
-	if rank1.score < rank2.score {
+	if rank1.Score < rank2.Score {
 		return true
-	} else if rank2.score < rank1.score {
+	} else if rank2.Score < rank1.Score {
 		return false
 	}
 
-	if rank1.subscore <= rank2.subscore {
-		return true
-	}
-
-	// rank2.subscore > rank1.subscore
-	return false
+	return rank1.Subscore <= rank2.Subscore
 }
 
 type LeaderboardWithExpiry struct {
-	leaderboardId string
-	expiry        int64
+	LeaderboardId string
+	Expiry        int64
 }
 
 type LocalLeaderboardRankCache struct {
 	sync.RWMutex
-	cache        map[*LeaderboardWithExpiry]*RankMap
+	cache        map[LeaderboardWithExpiry]*RankMap
 	logger       *zap.Logger
-	blacklistIds []string
+	blacklistAll bool
+	blacklistIds map[string]struct{}
 }
 
 func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) *LocalLeaderboardRankCache {
 	cache := &LocalLeaderboardRankCache{
 		logger:       logger,
-		blacklistIds: config.BlacklistRankCache,
-		cache:        make(map[*LeaderboardWithExpiry]*RankMap, 0),
+		blacklistIds: make(map[string]struct{}, len(config.BlacklistRankCache)),
+		blacklistAll: len(config.BlacklistRankCache) == 1 && config.BlacklistRankCache[0] == "*",
+		cache:        make(map[LeaderboardWithExpiry]*RankMap, 0),
 	}
 
-	if len(cache.blacklistIds) == 1 && cache.blacklistIds[0] == "*" {
+	// If caching is disabled completely do not preload any records.
+	if cache.blacklistAll {
 		startupLogger.Info("Skipping leaderboard rank cache initialization")
 		return cache
 	}
 
 	startupLogger.Info("Initializing leaderboard rank cache")
-	if cached, skipped, err := cache.start(startupLogger, db, leaderboardCache); err != nil {
-		startupLogger.Fatal("Could not cache leaderboard ranks at start", zap.Error(err))
-		return nil
-	} else {
-		startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cached), zap.Strings("skipped", skipped))
-	}
 
-	return cache
-}
-
-func (l *LocalLeaderboardRankCache) start(startupLogger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache) ([]string, []string, error) {
 	skippedLeaderboards := make([]string, 0)
 	cachedLeaderboards := make([]string, 0)
 
+	nowTime := time.Now().UTC()
+
 	leaderboards := leaderboardCache.GetAllLeaderboards()
 	for _, leaderboard := range leaderboards {
-		for _, blacklistId := range l.blacklistIds {
-			if blacklistId == leaderboard.Id {
-				startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
-				skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
-				continue
-			}
+		if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
+			startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
+			skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
+			continue
 		}
+
 		cachedLeaderboards = append(cachedLeaderboards, leaderboard.Id)
 		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 
+		// Current expiry for this leaderboard.
+		var expiryUnix int64
+		if leaderboard.ResetSchedule != nil {
+			expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
+		}
+
+		// Prepare structure to receive rank data.
 		rankEntries := &RankMap{
-			ranks:     make([]*RankData, 0),
-			haystack:  make(map[uuid.UUID]*RankData),
-			sortOrder: leaderboard.SortOrder,
+			Ranks:     make([]*RankData, 0),
+			Haystack:  make(map[uuid.UUID]*RankData),
+			SortOrder: leaderboard.SortOrder,
 		}
-		leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboard.Id, 0}
-		l.cache[leaderboardWithExpiry] = rankEntries
+		key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
+		cache.cache[key] = rankEntries
 
+		// Look up all active records for this leaderboard.
 		query := `
-SELECT owner_id, score, subscore, expiry_time
+SELECT owner_id, score, subscore
 FROM leaderboard_record
-WHERE leaderboard_id = $1 AND (expiry_time > now() OR expiry_time = '1970-01-01 00:00:00')`
-		rows, err := db.Query(query, leaderboard.Id)
+WHERE leaderboard_id = $1 AND expiry_time = $2`
+		rows, err := db.Query(query, leaderboard.Id, time.Unix(expiryUnix, 0).UTC())
 		if err != nil {
-			startupLogger.Debug("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-			return cachedLeaderboards, skippedLeaderboards, err
+			startupLogger.Fatal("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+			return nil
 		}
 
+		// Process the records.
 		for rows.Next() {
-			var dbExpiry pq.NullTime
 			var ownerId string
-			rankData := &RankData{rank: int64(len(rankEntries.ranks) + 1)}
+			rankData := &RankData{Rank: int64(len(rankEntries.Ranks) + 1)}
 
-			if err = rows.Scan(&ownerId, &rankData.score, &rankData.subscore, &dbExpiry); err != nil {
-				startupLogger.Debug("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-				return cachedLeaderboards, skippedLeaderboards, err
+			if err = rows.Scan(&ownerId, &rankData.Score, &rankData.Subscore); err != nil {
+				startupLogger.Fatal("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+				return nil
 			}
 
-			rankData.ownerId = uuid.Must(uuid.FromString(ownerId))
-			if dbExpiry.Valid && dbExpiry.Time.UTC().Unix() != 0 {
-				expiryTime := dbExpiry.Time.UTC().Unix()
-				if leaderboardWithExpiry.expiry == 0 {
-					leaderboardWithExpiry.expiry = expiryTime
-				} else if leaderboardWithExpiry.expiry != expiryTime {
-					startupLogger.Warn("Encountered a leaderboard record with same leaderboard ID but different expiry times",
-						zap.String("leaderboard_id", leaderboard.Id),
-						zap.String("owner_id", ownerId),
-						zap.Int64("expiry_time", leaderboardWithExpiry.expiry),
-						zap.Int64("different_expiry_time", expiryTime))
+			rankData.OwnerId = uuid.Must(uuid.FromString(ownerId))
 
-					rankMap := &RankMap{
-						ranks:     make([]*RankData, 0),
-						haystack:  make(map[uuid.UUID]*RankData),
-						sortOrder: leaderboard.SortOrder,
-					}
-					leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboard.Id, 0}
-					l.cache[leaderboardWithExpiry] = rankMap
-				}
-			}
-
-			rankEntries.ranks = append(rankEntries.ranks, rankData)
-			rankEntries.haystack[rankData.ownerId] = rankData
+			rankEntries.Ranks = append(rankEntries.Ranks, rankData)
+			rankEntries.Haystack[rankData.OwnerId] = rankData
 		}
 		rows.Close()
 	}
 
-	for k, v := range l.cache {
-		startupLogger.Debug("Sorting leaderboard ranks", zap.String("leaderboard_id", k.leaderboardId), zap.Int("count", len(v.ranks)))
+	for k, v := range cache.cache {
+		startupLogger.Debug("Sorting leaderboard ranks", zap.String("leaderboard_id", k.LeaderboardId), zap.Int("count", len(v.Ranks)))
 		sort.Sort(v)
 	}
 
-	return cachedLeaderboards, skippedLeaderboards, nil
+	startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cachedLeaderboards), zap.Strings("skipped", skippedLeaderboards))
+	return cache
 }
 
-func (l *LocalLeaderboardRankCache) Get(leaderboardId string, ownerId uuid.UUID) int64 {
-	for _, blacklistId := range l.blacklistIds {
-		if blacklistId == leaderboardId {
-			return 0
-		}
+func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) int64 {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return 0
+	}
+	if _, ok := l.blacklistIds[leaderboardId]; ok {
+		// If rank caching is disabled for this particular leaderboard.
+		return 0
 	}
 
+	// Find rank map for this leaderboard/expiry pair.
+	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
 	l.RLock()
-	defer l.RUnlock()
-	for k, rankMap := range l.cache {
-		if k.leaderboardId == leaderboardId {
-			rankMap.RLock()
-			result := rankMap.haystack[ownerId].rank
-			rankMap.RUnlock()
-			return result
-		}
-	}
-	return 0
-}
-
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, leaderboardExpiry int64, ownerId uuid.UUID, score, subscore int64) int64 {
-	for _, blacklistId := range l.blacklistIds {
-		if blacklistId == leaderboardId {
-			return 0
-		}
-	}
-
-	l.RLock()
-	var rankMap *RankMap
-	for k, v := range l.cache {
-		if k.leaderboardId == leaderboardId && k.expiry == leaderboardExpiry {
-			rankMap = v
-		}
-	}
+	rankMap, ok := l.cache[key]
 	l.RUnlock()
+	if !ok {
+		return 0
+	}
 
-	if rankMap == nil {
-		// new leaderboard created after server start
-		l.Lock()
-		rankMap = &RankMap{
-			ranks:     make([]*RankData, 0),
-			haystack:  make(map[uuid.UUID]*RankData),
-			sortOrder: sortOrder,
+	// Find rank data for this owner.
+	rankMap.RLock()
+	rankData, ok := rankMap.Haystack[ownerId]
+	if !ok {
+		rankMap.RUnlock()
+		return 0
+	}
+	rank := rankData.Rank
+	rankMap.RUnlock()
+	return rank
+}
+
+func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord) {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return
+	}
+	if _, ok := l.blacklistIds[leaderboardId]; ok {
+		// If rank caching is disabled for this particular leaderboard.
+		return
+	}
+
+	if len(records) == 0 {
+		// Nothing to do.
+		return
+	}
+
+	// Find rank map for this leaderboard/expiry pair.
+	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
+	l.RLock()
+	rankMap, ok := l.cache[key]
+	l.RUnlock()
+	if !ok {
+		return
+	}
+
+	// Find rank data for each owner.
+	rankMap.RLock()
+	for _, record := range records {
+		rankData, ok := rankMap.Haystack[uuid.Must(uuid.FromString(record.OwnerId))]
+		if ok {
+			record.Rank = rankData.Rank
 		}
-		leaderboardWithExpiry := &LeaderboardWithExpiry{leaderboardId, leaderboardExpiry}
-		l.cache[leaderboardWithExpiry] = rankMap
+	}
+	rankMap.RUnlock()
+}
+
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerId uuid.UUID, score, subscore int64) int64 {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return 0
+	}
+	if _, ok := l.blacklistIds[leaderboardId]; ok {
+		// If rank caching is disabled for this particular leaderboard.
+		return 0
+	}
+
+	// Find the rank map for this leaderboard/expiry pair.
+	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
+	l.RLock()
+	rankMap, ok := l.cache[key]
+	l.RUnlock()
+	if !ok {
+		// No existing rank map for this leaderboard/expiry pair, prepare to create a new one.
+		newRankMap := &RankMap{
+			Ranks:     make([]*RankData, 0),
+			Haystack:  make(map[uuid.UUID]*RankData),
+			SortOrder: sortOrder,
+		}
+		l.Lock()
+		// Last check if rank map was created by another writer just after last read.
+		rankMap, ok = l.cache[key]
+		if !ok {
+			rankMap = newRankMap
+			l.cache[key] = rankMap
+		}
 		l.Unlock()
 	}
 
+	// Insert or update the score.
 	rankMap.Lock()
-	rankData := rankMap.haystack[ownerId]
-	if rankData != nil {
-		rankData.score = score
-		rankData.subscore = subscore
-	} else {
+	rankData, ok := rankMap.Haystack[ownerId]
+	if !ok {
 		rankData = &RankData{
-			ownerId:  ownerId,
-			score:    score,
-			subscore: subscore,
-			rank:     int64(len(rankMap.ranks) + 1),
+			OwnerId:  ownerId,
+			Score:    score,
+			Subscore: subscore,
+			Rank:     int64(len(rankMap.Ranks) + 1),
 		}
-		rankMap.haystack[ownerId] = rankData
-		rankMap.ranks = append(rankMap.ranks, rankData)
+		rankMap.Haystack[ownerId] = rankData
+		rankMap.Ranks = append(rankMap.Ranks, rankData)
+	} else {
+		rankData.Score = score
+		rankData.Subscore = subscore
 	}
 
+	// Re-sort the rank map then check the rank number assigned.
 	sort.Sort(rankMap)
+	rank := rankData.Rank
 	rankMap.Unlock()
 
-	return rankData.rank
+	return rank
 }
 
-func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, ownerId uuid.UUID) {
+func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) {
+	// Find the rank map for this leaderboard/expiry pair.
+	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
+
 	l.RLock()
-	for k, rankMap := range l.cache {
-		if k.leaderboardId == leaderboardId {
-			rankMap.Lock()
-			rankData := rankMap.haystack[ownerId]
-
-			index := rankData.rank - 1
-			rankMap.ranks = append(rankMap.ranks[:index], rankMap.ranks[index+1:]...)
-			delete(rankMap.haystack, ownerId)
-
-			rankMap.Unlock()
-		}
-	}
+	rankMap, ok := l.cache[key]
 	l.RUnlock()
+	if !ok {
+		// No rank map.
+		return
+	}
+
+	// Delete rank data for this owner.
+	rankMap.Lock()
+	rankData, ok := rankMap.Haystack[ownerId]
+	if !ok {
+		// No rank data.
+		rankMap.Unlock()
+		return
+	}
+
+	delete(rankMap.Haystack, ownerId)
+
+	rank := rankData.Rank
+	totalRanks := len(rankMap.Ranks)
+	switch {
+	case rank == 1:
+		// Dropping the first rank.
+		rankMap.Ranks = rankMap.Ranks[1:]
+	case rank == int64(totalRanks):
+		// Dropping the last rank.
+		rankMap.Ranks = rankMap.Ranks[:rank-1]
+
+		// No need to reshuffle ranks.
+		rankMap.Unlock()
+		return
+	default:
+		// Dropping a rank somewhere in the middle.
+		rankMap.Ranks = append(rankMap.Ranks[:rank-1], rankMap.Ranks[rank:]...)
+	}
+
+	// Shift ranks that were after the deleted record down by one rank number to fill the gap.
+	for i := int(rank) - 1; i < totalRanks; i++ {
+		rankMap.Ranks[i].Rank--
+	}
+	// No need to sort, ranks are still in order.
+	rankMap.Unlock()
 }
 
-func (l *LocalLeaderboardRankCache) DeleteLeaderboard(leaderboardId string) {
-	l.RLock()
-	for k := range l.cache {
-		if k.leaderboardId == leaderboardId {
-			delete(l.cache, k)
-		}
-	}
-	l.RUnlock()
-}
+func (l *LocalLeaderboardRankCache) DeleteLeaderboard(leaderboardId string, expiryUnix int64) {
+	// Delete the rank map for this leaderboard/expiry pair.
+	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
 
-func (l *LocalLeaderboardRankCache) TrimExpired() {
-	// used for the timer
 	l.Lock()
-	currentTime := time.Now().UTC().Unix()
-	for k := range l.cache {
-		if k.expiry <= currentTime {
+	delete(l.cache, key)
+	l.Unlock()
+}
+
+func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) {
+	// Used for the timer.
+	l.Lock()
+	for k, _ := range l.cache {
+		if k.Expiry <= nowUnix {
 			delete(l.cache, k)
 		}
 	}

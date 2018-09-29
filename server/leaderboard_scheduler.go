@@ -62,36 +62,15 @@ func (ls *LeaderboardScheduler) Stop() {
 
 func (ls *LeaderboardScheduler) Update() {
 	if ls.runtime == nil {
-		// in case the update is called during runtime VM init, skip setting timers until ready
+		// In case the update is called during runtime VM init, skip setting timers until ready.
 		return
 	}
 
-	endActive, endActiveIds, expiry, expiryIds := ls.findEndActiveAndExpiry()
-
-	ls.Lock()
-	ls.nearEndActiveIds = endActiveIds
-	ls.nearExpiryIds = expiryIds
-
-	if ls.endActiveTimer != nil {
-		ls.endActiveTimer.Stop()
-	}
-	if ls.expiryTimer != nil {
-		ls.expiryTimer.Stop()
-	}
-	if endActive > -1 {
-		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActive), zap.Strings("ids", ls.nearEndActiveIds))
-		ls.endActiveTimer = time.AfterFunc(endActive, ls.invokeEndActiveElapse)
-	}
-	if expiry > -1 {
-		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiry), zap.Strings("ids", ls.nearExpiryIds))
-		ls.expiryTimer = time.AfterFunc(expiry, ls.invokeExpiryElapse)
-	}
-	ls.Unlock()
-}
-
-func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []string, time.Duration, []string) {
-	leaderboards := ls.cache.GetAllLeaderboards()
 	now := time.Now().UTC()
+	nowUnix := now.Unix()
+
+	// Grab the set of known leaderboards.
+	leaderboards := ls.cache.GetAllLeaderboards()
 
 	earliestEndActive := int64(-1)
 	earliestExpiry := int64(-1)
@@ -100,15 +79,17 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 	expiryLeaderboardIds := make([]string, 0)
 
 	for _, l := range leaderboards {
-		if l.Duration > 0 { // a tournament
+		if l.Duration > 0 {
+			// Tournament.
 			_, endActive, expiry := calculateTournamentDeadlines(l, now)
 
-			if l.EndTime > 0 && l.EndTime < now.Unix() {
-				// tournament has ended permanently
+			if l.EndTime > 0 && l.EndTime < nowUnix {
+				// Tournament has ended permanently.
 				continue
 			}
 
-			if endActive > 0 && now.Before(time.Unix(endActive, 0).UTC()) {
+			// Check tournament end.
+			if endActive > 0 && nowUnix < endActive {
 				if earliestEndActive == -1 || endActive < earliestEndActive {
 					earliestEndActive = endActive
 					endActiveLeaderboardIds = []string{l.Id}
@@ -117,6 +98,7 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 				}
 			}
 
+			// Check tournament expiry.
 			if expiry > 0 {
 				if earliestExpiry == -1 || expiry < earliestExpiry {
 					earliestExpiry = expiry
@@ -126,12 +108,11 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 				}
 			}
 		} else {
-			expiry := int64(0)
+			// Leaderboard.
 			if l.ResetSchedule != nil {
-				expiry = l.ResetSchedule.Next(now).UTC().Unix()
-			}
+				// Leaderboards don't end, only check for expiry.
+				expiry := l.ResetSchedule.Next(now).UTC().Unix()
 
-			if expiry > 0 {
 				if earliestExpiry == -1 || expiry < earliestExpiry {
 					earliestExpiry = expiry
 					expiryLeaderboardIds = []string{l.Id}
@@ -143,21 +124,43 @@ func (ls *LeaderboardScheduler) findEndActiveAndExpiry() (time.Duration, []strin
 	}
 
 	endActiveDuration := time.Duration(-1)
-	expiryDuration := time.Duration(-1)
 	if earliestEndActive > -1 {
-		earliestEndActiveTime := time.Unix(earliestEndActive, 0).UTC()
-		endActiveDuration = earliestEndActiveTime.Sub(now)
+		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now)
 	}
 
+	expiryDuration := time.Duration(-1)
 	if earliestExpiry > -1 {
-		earliestExpiryTime := time.Unix(earliestExpiry, 0).UTC()
-		expiryDuration = earliestExpiryTime.Sub(now)
+		expiryDuration = time.Unix(earliestExpiry, 0).UTC().Sub(now)
 	}
 
-	return endActiveDuration, endActiveLeaderboardIds, expiryDuration, expiryLeaderboardIds
+	// Replace IDs earmarked for end and expiry, and restart timers as needed.
+	ls.Lock()
+	ls.nearEndActiveIds = endActiveLeaderboardIds
+	ls.nearExpiryIds = expiryLeaderboardIds
+
+	if ls.endActiveTimer != nil {
+		ls.endActiveTimer.Stop()
+	}
+	if ls.expiryTimer != nil {
+		ls.expiryTimer.Stop()
+	}
+	if endActiveDuration > -1 {
+		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", ls.nearEndActiveIds))
+		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
+			ls.invokeEndActiveElapse(time.Unix(earliestEndActive, 0).UTC())
+		})
+	}
+	if expiryDuration > -1 {
+		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", ls.nearExpiryIds))
+		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
+			ls.invokeExpiryElapse(time.Unix(earliestExpiry, 0).UTC())
+		})
+	}
+	ls.Unlock()
 }
 
-func (ls *LeaderboardScheduler) invokeEndActiveElapse() {
+func (ls *LeaderboardScheduler) invokeEndActiveElapse(t time.Time) {
+	// Skip processing if there is no tournament end callback registered.
 	fn := ls.runtime.TournamentEnd()
 	if fn == nil {
 		return
@@ -166,35 +169,34 @@ func (ls *LeaderboardScheduler) invokeEndActiveElapse() {
 	ls.Lock()
 	ids := ls.nearEndActiveIds
 	ls.Unlock()
+
+	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
+	ls.Update()
+
+	// Process the current set of tournament ends.
 	for _, id := range ids {
 		query := `SELECT 
 id, sort_order, reset_schedule, metadata, create_time, 
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
-		rows, err := ls.db.Query(query, id)
+		row := ls.db.QueryRow(query, id)
+		tournament, err := parseTournament(row, t)
 		if err != nil {
-			ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
+			ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", id))
 			continue
 		}
-		for rows.Next() {
-			tournament, err := parseTournament(rows)
-			if err != nil {
-				ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
-				continue
-			}
-			err = fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset))
-			if err != nil {
+
+		// Trigger callback on a goroutine so any extended processing does not block future scheduling.
+		go func() {
+			if err := fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
 				ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
 			}
-		}
-		rows.Close()
+		}()
 	}
-
-	ls.Update()
 }
 
-func (ls *LeaderboardScheduler) invokeExpiryElapse() {
+func (ls *LeaderboardScheduler) invokeExpiryElapse(t time.Time) {
 	fnLeaderboardReset := ls.runtime.LeaderboardReset()
 	fnTournamentReset := ls.runtime.TournamentReset()
 
@@ -202,45 +204,56 @@ func (ls *LeaderboardScheduler) invokeExpiryElapse() {
 	ids := ls.nearEndActiveIds
 	ls.Unlock()
 
+	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
+	ls.rankCache.TrimExpired(t.Unix())
+	ls.Update()
+
+	// Process the current set of leaderboard and tournament resets.
 	for _, id := range ids {
 		leaderboardOrTournament := ls.cache.Get(id)
-		if leaderboardOrTournament.Duration == 0 { //leaderboard
-			if fnLeaderboardReset != nil {
-				nextReset := int64(0)
-				if leaderboardOrTournament.ResetSchedule != nil {
-					nextReset = leaderboardOrTournament.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
-				}
-				if err := fnLeaderboardReset(leaderboardOrTournament, nextReset); err != nil {
-					ls.logger.Warn("Failed to invoke leaderboard expiry callback", zap.Error(err))
-				}
-			}
-		} else {
+		if leaderboardOrTournament.IsTournament() {
+			// Tournament, fetch most up to date info for size etc.
+			// Some processing is needed even if there is no runtime callback registered for tournament reset.
 			query := `SELECT 
 id, sort_order, reset_schedule, metadata, create_time, 
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
-			rows, err := ls.db.Query(query, id)
+			row := ls.db.QueryRow(query, id)
+			tournament, err := parseTournament(row, t)
 			if err != nil {
-				ls.logger.Error("Could not retrieve tournament to invoke tournament end callback", zap.Error(err), zap.String("id", id))
+				ls.logger.Error("Error retrieving tournament to invoke reset callback", zap.Error(err), zap.String("id", id))
 				continue
 			}
-			for rows.Next() {
-				tournament, err := parseTournament(rows)
-				if err != nil {
-					ls.logger.Error("Error parsing tournament to invoke end callback", zap.Error(err))
-					continue
+
+			// Reset tournament size in DB to make it immediately usable for the next active period.
+			if _, err := ls.db.Exec("UPDATE leaderboard SET size = 0 WHERE id = $1", id); err != nil {
+				ls.logger.Error("Could not reset leaderboard size", zap.Error(err), zap.String("id", id))
+			}
+
+			if fnTournamentReset != nil {
+				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
+				go func() {
+					if err := fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+						ls.logger.Warn("Failed to invoke tournament reset callback", zap.Error(err))
+					}
+				}()
+			}
+		} else {
+			// Leaderboard.
+			if fnLeaderboardReset != nil {
+				nextReset := int64(0)
+				if leaderboardOrTournament.ResetSchedule != nil {
+					nextReset = leaderboardOrTournament.ResetSchedule.Next(t).UTC().Unix()
 				}
 
-				if err := fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
-					ls.logger.Warn("Failed to invoke tournament expiry callback", zap.Error(err))
-				}
+				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
+				go func() {
+					if err := fnLeaderboardReset(leaderboardOrTournament, nextReset); err != nil {
+						ls.logger.Warn("Failed to invoke leaderboard reset callback", zap.Error(err))
+					}
+				}()
 			}
-			rows.Close()
 		}
 	}
-
-	resetTournamentSize(ls.logger, ls.db, ids)
-	ls.rankCache.TrimExpired()
-	ls.Update()
 }

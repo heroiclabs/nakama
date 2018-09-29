@@ -27,6 +27,11 @@ const (
 
 var ErrRowsAffectedCount = errors.New("rows_affected_count")
 
+// Interface to help utility functions accept either *sql.Row or *sql.Rows for scanning one row at a time.
+type Scannable interface {
+	Scan(dest ...interface{}) error
+}
+
 // A type that wraps an outgoing client-facing error together with an underlying cause error.
 type statusError struct {
 	code   codes.Code

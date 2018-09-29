@@ -257,7 +257,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			}
 
 			record := &api.LeaderboardRecord{
-				Rank:          rankCache.Get(leaderboardId, uuid.Must(uuid.FromString(dbOwnerId))),
+				// Rank filled in in bulk below.
 				LeaderboardId: leaderboardId,
 				OwnerId:       dbOwnerId,
 				Score:         dbScore,
@@ -278,6 +278,9 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 			ownerRecords = append(ownerRecords, record)
 		}
 	}
+
+	// Bulk fill in the ranks of any owner records requested.
+	rankCache.Fill(leaderboardId, expiryTime, ownerRecords)
 
 	return &api.LeaderboardRecordList{
 		Records:      records,
@@ -377,7 +380,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}
 
 	// ensure we have the latest dbscore, dbsubscore
-	newRank := rankCache.Insert(leaderboardId, leaderboard.SortOrder, expiryTime, uuid.Must(uuid.FromString(ownerId)), dbScore, dbSubscore)
+	newRank := rankCache.Insert(leaderboardId, expiryTime, leaderboard.SortOrder, uuid.Must(uuid.FromString(ownerId)), dbScore, dbSubscore)
 
 	record := &api.LeaderboardRecord{
 		Rank:          newRank,
@@ -423,7 +426,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 		return err
 	}
 
-	rankCache.Delete(leaderboardId, uuid.Must(uuid.FromString(ownerId)))
+	rankCache.Delete(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerId)))
 	return nil
 }
 
@@ -436,7 +439,7 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	}
 	defer rows.Close()
 
-	return parseLeaderboardRecords(logger, nil, rows)
+	return parseLeaderboardRecords(logger, rows)
 }
 
 func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
@@ -492,7 +495,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	}
 
 	ownerRecord := &api.LeaderboardRecord{
-		Rank:          rankCache.Get(leaderboardId, ownerId),
+		// Record populated later.
 		LeaderboardId: dbLeaderboardId,
 		OwnerId:       dbOwnerId,
 		Score:         dbScore,
@@ -511,6 +514,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	}
 
 	if limit == 1 {
+		ownerRecord.Rank = rankCache.Get(leaderboardId, expiryTime.Unix(), ownerId)
 		return []*api.LeaderboardRecord{ownerRecord}, nil
 	}
 
@@ -539,7 +543,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	}
 	defer firstRows.Close()
 
-	firstRecords, err := parseLeaderboardRecords(logger, rankCache, firstRows)
+	firstRecords, err := parseLeaderboardRecords(logger, firstRows)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +575,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	}
 	defer secondRows.Close()
 
-	secondRecords, err := parseLeaderboardRecords(logger, rankCache, secondRows)
+	secondRecords, err := parseLeaderboardRecords(logger, secondRows)
 	if err != nil {
 		return nil, err
 	}
@@ -584,10 +588,13 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 		start = 0
 	}
 
-	return records[start:], nil
+	records = records[start:]
+	rankCache.Fill(leaderboardId, expiryTime.Unix(), records)
+
+	return records, nil
 }
 
-func parseLeaderboardRecords(logger *zap.Logger, rankCache LeaderboardRankCache, rows *sql.Rows) ([]*api.LeaderboardRecord, error) {
+func parseLeaderboardRecords(logger *zap.Logger, rows *sql.Rows) ([]*api.LeaderboardRecord, error) {
 	records := make([]*api.LeaderboardRecord, 0, 10)
 
 	var dbLeaderboardId string
@@ -621,11 +628,9 @@ func parseLeaderboardRecords(logger *zap.Logger, rankCache LeaderboardRankCache,
 		if dbUsername.Valid {
 			record.Username = &wrappers.StringValue{Value: dbUsername.String}
 		}
-		if expiryTime := dbExpiryTime.Time.Unix(); expiryTime != 0 {
+		expiryTime := dbExpiryTime.Time.Unix()
+		if expiryTime != 0 {
 			record.ExpiryTime = &timestamp.Timestamp{Seconds: expiryTime}
-		}
-		if rankCache != nil {
-			record.Rank = rankCache.Get(dbLeaderboardId, uuid.Must(uuid.FromString(dbOwnerId)))
 		}
 
 		records = append(records, record)

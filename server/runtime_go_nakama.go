@@ -1070,15 +1070,18 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []str
 		}
 	}
 
-	if limit < 1 || limit > 10000 {
-		return nil, nil, "", "", errors.New("expects limit to be 1-10000")
+	var limitWrapper *wrappers.Int32Value
+	if limit < 0 || limit > 10000 {
+		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
+	} else {
+		limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
 	}
 
 	if expiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
 	}
 
-	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs, expiry)
+	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiry)
 	if err != nil {
 		return nil, nil, "", "", err
 	}
@@ -1218,7 +1221,7 @@ func (n *RuntimeGoNakamaModule) TournamentAddAttempt(id, ownerID string, count i
 		return errors.New("expects an attempt count number != 0")
 	}
 
-	return TournamentAddAttempt(n.logger, n.db, id, ownerID, count)
+	return TournamentAddAttempt(n.logger, n.db, n.leaderboardCache, id, ownerID, count)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentJoin(id, ownerID, username string) error {

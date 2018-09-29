@@ -47,6 +47,8 @@ ALTER TABLE leaderboard
   VALIDATE CONSTRAINT check_max_size,
   VALIDATE CONSTRAINT check_max_num_score;
 
+CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx ON leaderboard (duration, start_time, end_time DESC, category);
+
 CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
 
 ALTER TABLE leaderboard_record
