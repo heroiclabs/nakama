@@ -100,21 +100,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -148,21 +133,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -196,21 +166,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -244,29 +199,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "import",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -300,21 +232,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -348,21 +265,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -396,21 +298,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -525,14 +412,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "import",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -966,14 +845,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "reset",
-            "description": "Reset the current user's friends list.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -1396,8 +1267,8 @@
             "type": "string"
           },
           {
-            "name": "limit",
-            "description": "Max number of records to return. Between 1 and 100.",
+            "name": "limit.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1802,44 +1673,36 @@
         },
         "parameters": [
           {
-            "name": "category_start",
-            "description": "The start of the categories to include. Defaults to 0.",
+            "name": "category_start.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int64"
           },
           {
-            "name": "category_end",
-            "description": "The end of the categories to include. Defaults to 128.",
+            "name": "category_end.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int64"
           },
           {
-            "name": "start_time",
-            "description": "The start time for tournaments. Defaults to epoch.",
+            "name": "start_time.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int64"
           },
           {
-            "name": "end_time",
-            "description": "The end time for tournaments. Defaults to +1 year from current Unix time.",
+            "name": "end_time.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int64"
-          },
-          {
-            "name": "full",
-            "description": "Include tournaments that are full with players. Default to false.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           },
           {
             "name": "limit",
@@ -1848,13 +1711,6 @@
             "required": false,
             "type": "integer",
             "format": "int32"
-          },
-          {
-            "name": "owner_id",
-            "description": "Filter tournaments joined by the ID (optional).",
-            "in": "query",
-            "required": false,
-            "type": "string"
           },
           {
             "name": "cursor",
@@ -2005,8 +1861,8 @@
             "type": "string"
           },
           {
-            "name": "limit",
-            "description": "Max number of records to return. Between 1 and 100.",
+            "name": "limit.value",
+            "description": "The uint32 value.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -3228,6 +3084,17 @@
       "type": "object",
       "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
       "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    },
+    "protobufUInt32Value": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The uint32 value."
+        }
+      },
+      "description": "Wrapper message for `uint32`.\n\nThe JSON representation for `UInt32Value` is JSON number."
     }
   },
   "securityDefinitions": {

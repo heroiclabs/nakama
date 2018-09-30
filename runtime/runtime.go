@@ -324,7 +324,7 @@ type NakamaModule interface {
 	TournamentDelete(id string) error
 	TournamentAddAttempt(id, ownerID string, count int) error
 	TournamentJoin(id, ownerID, username string) error
-	TournamentList(ownerID string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
+	TournamentList(categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
 	TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
 	TournamentRecordsHaystack(id, ownerID string, limit int) ([]*api.LeaderboardRecord, error)
 

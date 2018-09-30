@@ -3992,67 +3992,57 @@ func (n *RuntimeLuaNakamaModule) tournamentJoin(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
-	owner := l.OptString(1, "")
-	if owner != "" {
-		if _, err := uuid.FromString(owner); err != nil {
-			l.ArgError(1, "expects owner ID to be a valid identifier")
-			return 0
-		}
-	}
-
-	full := l.OptBool(2, true)
-
-	categoryStart := l.OptInt(3, 0)
+	categoryStart := l.OptInt(1, 0)
 	if categoryStart < 0 || categoryStart >= 128 {
-		l.ArgError(3, "categoryStart must be 0-127")
+		l.ArgError(1, "categoryStart must be 0-127")
 		return 0
 	}
-	categoryEnd := l.OptInt(4, 0)
+	categoryEnd := l.OptInt(2, 0)
 	if categoryEnd < 0 || categoryEnd >= 128 {
-		l.ArgError(4, "categoryEnd must be 0-127")
+		l.ArgError(2, "categoryEnd must be 0-127")
 		return 0
 	}
 	if categoryStart > categoryEnd {
-		l.ArgError(4, "categoryEnd must be >= categoryStart")
+		l.ArgError(2, "categoryEnd must be >= categoryStart")
 		return 0
 	}
-	startTime := l.OptInt(5, 0)
+	startTime := l.OptInt(3, 0)
 	if startTime < 0 {
-		l.ArgError(5, "startTime must be >= 0")
+		l.ArgError(3, "startTime must be >= 0")
 		return 0
 	}
-	endTime := l.OptInt(6, 0)
+	endTime := l.OptInt(4, 0)
 	if endTime < 0 {
-		l.ArgError(6, "endTime must be >= 0")
+		l.ArgError(4, "endTime must be >= 0")
 		return 0
 	}
 	if startTime > endTime {
-		l.ArgError(6, "endTime must be >= startTime")
+		l.ArgError(4, "endTime must be >= startTime")
 		return 0
 	}
 
-	limit := l.OptInt(7, 10)
+	limit := l.OptInt(5, 10)
 	if limit < 1 || limit > 100 {
-		l.ArgError(7, "limit must be 1-100")
+		l.ArgError(5, "limit must be 1-100")
 		return 0
 	}
 
 	var cursor *tournamentListCursor
-	cursorStr := l.OptString(8, "")
+	cursorStr := l.OptString(6, "")
 	if cursorStr != "" {
 		if cb, err := base64.StdEncoding.DecodeString(cursorStr); err != nil {
-			l.ArgError(8, "expects cursor to be valid when provided")
+			l.ArgError(6, "expects cursor to be valid when provided")
 			return 0
 		} else {
 			cursor = &tournamentListCursor{}
 			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-				l.ArgError(8, "expects cursor to be valid when provided")
+				l.ArgError(6, "expects cursor to be valid when provided")
 				return 0
 			}
 		}
 	}
 
-	list, err := TournamentList(n.logger, n.db, owner, full, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
+	list, err := TournamentList(n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
 	if err != nil {
 		l.RaiseError("error listing tournaments: %v", err.Error())
 		return 0

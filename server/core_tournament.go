@@ -191,7 +191,7 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 	return nil
 }
 
-func TournamentList(logger *zap.Logger, db *sql.DB, ownerId string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
+func TournamentList(logger *zap.Logger, db *sql.DB, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
 	now := time.Now().UTC()
 
 	query := `

@@ -1242,12 +1242,7 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(id, ownerID, username string) err
 	return TournamentJoin(n.logger, n.db, n.leaderboardCache, ownerID, username, id)
 }
 
-func (n *RuntimeGoNakamaModule) TournamentList(ownerID string, full bool, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
-	if ownerID == "" {
-		return nil, errors.New("expects a owner ID string")
-	} else if _, err := uuid.FromString(ownerID); err != nil {
-		return nil, errors.New("expects owner ID to be a valid identifier")
-	}
+func (n *RuntimeGoNakamaModule) TournamentList(categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
 
 	if categoryStart < 0 || categoryStart >= 128 {
 		return nil, errors.New("categoryStart must be 0-127")
@@ -1281,7 +1276,7 @@ func (n *RuntimeGoNakamaModule) TournamentList(ownerID string, full bool, catego
 		}
 	}
 
-	return TournamentList(n.logger, n.db, ownerID, full, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+	return TournamentList(n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {

@@ -52,7 +52,7 @@ func (x ChannelJoin_Type) String() string {
 	return proto.EnumName(ChannelJoin_Type_name, int32(x))
 }
 func (ChannelJoin_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{2, 0}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{2, 0}
 }
 
 // The selection of possible error codes.
@@ -102,7 +102,7 @@ func (x Error_Code) String() string {
 	return proto.EnumName(Error_Code_name, int32(x))
 }
 func (Error_Code) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{9, 0}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{9, 0}
 }
 
 // An envelope for a realtime message.
@@ -149,7 +149,7 @@ func (m *Envelope) Reset()         { *m = Envelope{} }
 func (m *Envelope) String() string { return proto.CompactTextString(m) }
 func (*Envelope) ProtoMessage()    {}
 func (*Envelope) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{0}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{0}
 }
 func (m *Envelope) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Envelope.Unmarshal(m, b)
@@ -169,13 +169,6 @@ func (m *Envelope) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Envelope proto.InternalMessageInfo
 
-func (m *Envelope) GetCid() string {
-	if m != nil {
-		return m.Cid
-	}
-	return ""
-}
-
 type isEnvelope_Message interface {
 	isEnvelope_Message()
 }
@@ -183,188 +176,137 @@ type isEnvelope_Message interface {
 type Envelope_Channel struct {
 	Channel *Channel `protobuf:"bytes,2,opt,name=channel,proto3,oneof"`
 }
-
 type Envelope_ChannelJoin struct {
 	ChannelJoin *ChannelJoin `protobuf:"bytes,3,opt,name=channel_join,json=channelJoin,proto3,oneof"`
 }
-
 type Envelope_ChannelLeave struct {
 	ChannelLeave *ChannelLeave `protobuf:"bytes,4,opt,name=channel_leave,json=channelLeave,proto3,oneof"`
 }
-
 type Envelope_ChannelMessage struct {
 	ChannelMessage *api.ChannelMessage `protobuf:"bytes,5,opt,name=channel_message,json=channelMessage,proto3,oneof"`
 }
-
 type Envelope_ChannelMessageAck struct {
 	ChannelMessageAck *ChannelMessageAck `protobuf:"bytes,6,opt,name=channel_message_ack,json=channelMessageAck,proto3,oneof"`
 }
-
 type Envelope_ChannelMessageSend struct {
 	ChannelMessageSend *ChannelMessageSend `protobuf:"bytes,7,opt,name=channel_message_send,json=channelMessageSend,proto3,oneof"`
 }
-
 type Envelope_ChannelMessageUpdate struct {
 	ChannelMessageUpdate *ChannelMessageUpdate `protobuf:"bytes,8,opt,name=channel_message_update,json=channelMessageUpdate,proto3,oneof"`
 }
-
 type Envelope_ChannelMessageRemove struct {
 	ChannelMessageRemove *ChannelMessageRemove `protobuf:"bytes,9,opt,name=channel_message_remove,json=channelMessageRemove,proto3,oneof"`
 }
-
 type Envelope_ChannelPresenceEvent struct {
 	ChannelPresenceEvent *ChannelPresenceEvent `protobuf:"bytes,10,opt,name=channel_presence_event,json=channelPresenceEvent,proto3,oneof"`
 }
-
 type Envelope_Error struct {
 	Error *Error `protobuf:"bytes,11,opt,name=error,proto3,oneof"`
 }
-
 type Envelope_Match struct {
 	Match *Match `protobuf:"bytes,12,opt,name=match,proto3,oneof"`
 }
-
 type Envelope_MatchCreate struct {
 	MatchCreate *MatchCreate `protobuf:"bytes,13,opt,name=match_create,json=matchCreate,proto3,oneof"`
 }
-
 type Envelope_MatchData struct {
 	MatchData *MatchData `protobuf:"bytes,14,opt,name=match_data,json=matchData,proto3,oneof"`
 }
-
 type Envelope_MatchDataSend struct {
 	MatchDataSend *MatchDataSend `protobuf:"bytes,15,opt,name=match_data_send,json=matchDataSend,proto3,oneof"`
 }
-
 type Envelope_MatchJoin struct {
 	MatchJoin *MatchJoin `protobuf:"bytes,16,opt,name=match_join,json=matchJoin,proto3,oneof"`
 }
-
 type Envelope_MatchLeave struct {
 	MatchLeave *MatchLeave `protobuf:"bytes,17,opt,name=match_leave,json=matchLeave,proto3,oneof"`
 }
-
 type Envelope_MatchPresenceEvent struct {
 	MatchPresenceEvent *MatchPresenceEvent `protobuf:"bytes,18,opt,name=match_presence_event,json=matchPresenceEvent,proto3,oneof"`
 }
-
 type Envelope_MatchmakerAdd struct {
 	MatchmakerAdd *MatchmakerAdd `protobuf:"bytes,19,opt,name=matchmaker_add,json=matchmakerAdd,proto3,oneof"`
 }
-
 type Envelope_MatchmakerMatched struct {
 	MatchmakerMatched *MatchmakerMatched `protobuf:"bytes,20,opt,name=matchmaker_matched,json=matchmakerMatched,proto3,oneof"`
 }
-
 type Envelope_MatchmakerRemove struct {
 	MatchmakerRemove *MatchmakerRemove `protobuf:"bytes,21,opt,name=matchmaker_remove,json=matchmakerRemove,proto3,oneof"`
 }
-
 type Envelope_MatchmakerTicket struct {
 	MatchmakerTicket *MatchmakerTicket `protobuf:"bytes,22,opt,name=matchmaker_ticket,json=matchmakerTicket,proto3,oneof"`
 }
-
 type Envelope_Notifications struct {
 	Notifications *Notifications `protobuf:"bytes,23,opt,name=notifications,proto3,oneof"`
 }
-
 type Envelope_Rpc struct {
 	Rpc *api.Rpc `protobuf:"bytes,24,opt,name=rpc,proto3,oneof"`
 }
-
 type Envelope_Status struct {
 	Status *Status `protobuf:"bytes,25,opt,name=status,proto3,oneof"`
 }
-
 type Envelope_StatusFollow struct {
 	StatusFollow *StatusFollow `protobuf:"bytes,26,opt,name=status_follow,json=statusFollow,proto3,oneof"`
 }
-
 type Envelope_StatusPresenceEvent struct {
 	StatusPresenceEvent *StatusPresenceEvent `protobuf:"bytes,27,opt,name=status_presence_event,json=statusPresenceEvent,proto3,oneof"`
 }
-
 type Envelope_StatusUnfollow struct {
 	StatusUnfollow *StatusUnfollow `protobuf:"bytes,28,opt,name=status_unfollow,json=statusUnfollow,proto3,oneof"`
 }
-
 type Envelope_StatusUpdate struct {
 	StatusUpdate *StatusUpdate `protobuf:"bytes,29,opt,name=status_update,json=statusUpdate,proto3,oneof"`
 }
-
 type Envelope_StreamData struct {
 	StreamData *StreamData `protobuf:"bytes,30,opt,name=stream_data,json=streamData,proto3,oneof"`
 }
-
 type Envelope_StreamPresenceEvent struct {
 	StreamPresenceEvent *StreamPresenceEvent `protobuf:"bytes,31,opt,name=stream_presence_event,json=streamPresenceEvent,proto3,oneof"`
 }
 
-func (*Envelope_Channel) isEnvelope_Message() {}
-
-func (*Envelope_ChannelJoin) isEnvelope_Message() {}
-
-func (*Envelope_ChannelLeave) isEnvelope_Message() {}
-
-func (*Envelope_ChannelMessage) isEnvelope_Message() {}
-
-func (*Envelope_ChannelMessageAck) isEnvelope_Message() {}
-
-func (*Envelope_ChannelMessageSend) isEnvelope_Message() {}
-
+func (*Envelope_Channel) isEnvelope_Message()              {}
+func (*Envelope_ChannelJoin) isEnvelope_Message()          {}
+func (*Envelope_ChannelLeave) isEnvelope_Message()         {}
+func (*Envelope_ChannelMessage) isEnvelope_Message()       {}
+func (*Envelope_ChannelMessageAck) isEnvelope_Message()    {}
+func (*Envelope_ChannelMessageSend) isEnvelope_Message()   {}
 func (*Envelope_ChannelMessageUpdate) isEnvelope_Message() {}
-
 func (*Envelope_ChannelMessageRemove) isEnvelope_Message() {}
-
 func (*Envelope_ChannelPresenceEvent) isEnvelope_Message() {}
-
-func (*Envelope_Error) isEnvelope_Message() {}
-
-func (*Envelope_Match) isEnvelope_Message() {}
-
-func (*Envelope_MatchCreate) isEnvelope_Message() {}
-
-func (*Envelope_MatchData) isEnvelope_Message() {}
-
-func (*Envelope_MatchDataSend) isEnvelope_Message() {}
-
-func (*Envelope_MatchJoin) isEnvelope_Message() {}
-
-func (*Envelope_MatchLeave) isEnvelope_Message() {}
-
-func (*Envelope_MatchPresenceEvent) isEnvelope_Message() {}
-
-func (*Envelope_MatchmakerAdd) isEnvelope_Message() {}
-
-func (*Envelope_MatchmakerMatched) isEnvelope_Message() {}
-
-func (*Envelope_MatchmakerRemove) isEnvelope_Message() {}
-
-func (*Envelope_MatchmakerTicket) isEnvelope_Message() {}
-
-func (*Envelope_Notifications) isEnvelope_Message() {}
-
-func (*Envelope_Rpc) isEnvelope_Message() {}
-
-func (*Envelope_Status) isEnvelope_Message() {}
-
-func (*Envelope_StatusFollow) isEnvelope_Message() {}
-
-func (*Envelope_StatusPresenceEvent) isEnvelope_Message() {}
-
-func (*Envelope_StatusUnfollow) isEnvelope_Message() {}
-
-func (*Envelope_StatusUpdate) isEnvelope_Message() {}
-
-func (*Envelope_StreamData) isEnvelope_Message() {}
-
-func (*Envelope_StreamPresenceEvent) isEnvelope_Message() {}
+func (*Envelope_Error) isEnvelope_Message()                {}
+func (*Envelope_Match) isEnvelope_Message()                {}
+func (*Envelope_MatchCreate) isEnvelope_Message()          {}
+func (*Envelope_MatchData) isEnvelope_Message()            {}
+func (*Envelope_MatchDataSend) isEnvelope_Message()        {}
+func (*Envelope_MatchJoin) isEnvelope_Message()            {}
+func (*Envelope_MatchLeave) isEnvelope_Message()           {}
+func (*Envelope_MatchPresenceEvent) isEnvelope_Message()   {}
+func (*Envelope_MatchmakerAdd) isEnvelope_Message()        {}
+func (*Envelope_MatchmakerMatched) isEnvelope_Message()    {}
+func (*Envelope_MatchmakerRemove) isEnvelope_Message()     {}
+func (*Envelope_MatchmakerTicket) isEnvelope_Message()     {}
+func (*Envelope_Notifications) isEnvelope_Message()        {}
+func (*Envelope_Rpc) isEnvelope_Message()                  {}
+func (*Envelope_Status) isEnvelope_Message()               {}
+func (*Envelope_StatusFollow) isEnvelope_Message()         {}
+func (*Envelope_StatusPresenceEvent) isEnvelope_Message()  {}
+func (*Envelope_StatusUnfollow) isEnvelope_Message()       {}
+func (*Envelope_StatusUpdate) isEnvelope_Message()         {}
+func (*Envelope_StreamData) isEnvelope_Message()           {}
+func (*Envelope_StreamPresenceEvent) isEnvelope_Message()  {}
 
 func (m *Envelope) GetMessage() isEnvelope_Message {
 	if m != nil {
 		return m.Message
 	}
 	return nil
+}
+
+func (m *Envelope) GetCid() string {
+	if m != nil {
+		return m.Cid
+	}
+	return ""
 }
 
 func (m *Envelope) GetChannel() *Channel {
@@ -1200,7 +1142,7 @@ func (m *Channel) Reset()         { *m = Channel{} }
 func (m *Channel) String() string { return proto.CompactTextString(m) }
 func (*Channel) ProtoMessage()    {}
 func (*Channel) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{1}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{1}
 }
 func (m *Channel) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Channel.Unmarshal(m, b)
@@ -1260,7 +1202,7 @@ func (m *ChannelJoin) Reset()         { *m = ChannelJoin{} }
 func (m *ChannelJoin) String() string { return proto.CompactTextString(m) }
 func (*ChannelJoin) ProtoMessage()    {}
 func (*ChannelJoin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{2}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{2}
 }
 func (m *ChannelJoin) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelJoin.Unmarshal(m, b)
@@ -1321,7 +1263,7 @@ func (m *ChannelLeave) Reset()         { *m = ChannelLeave{} }
 func (m *ChannelLeave) String() string { return proto.CompactTextString(m) }
 func (*ChannelLeave) ProtoMessage()    {}
 func (*ChannelLeave) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{3}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{3}
 }
 func (m *ChannelLeave) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelLeave.Unmarshal(m, b)
@@ -1373,7 +1315,7 @@ func (m *ChannelMessageAck) Reset()         { *m = ChannelMessageAck{} }
 func (m *ChannelMessageAck) String() string { return proto.CompactTextString(m) }
 func (*ChannelMessageAck) ProtoMessage()    {}
 func (*ChannelMessageAck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{4}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{4}
 }
 func (m *ChannelMessageAck) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelMessageAck.Unmarshal(m, b)
@@ -1457,7 +1399,7 @@ func (m *ChannelMessageSend) Reset()         { *m = ChannelMessageSend{} }
 func (m *ChannelMessageSend) String() string { return proto.CompactTextString(m) }
 func (*ChannelMessageSend) ProtoMessage()    {}
 func (*ChannelMessageSend) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{5}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{5}
 }
 func (m *ChannelMessageSend) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelMessageSend.Unmarshal(m, b)
@@ -1508,7 +1450,7 @@ func (m *ChannelMessageUpdate) Reset()         { *m = ChannelMessageUpdate{} }
 func (m *ChannelMessageUpdate) String() string { return proto.CompactTextString(m) }
 func (*ChannelMessageUpdate) ProtoMessage()    {}
 func (*ChannelMessageUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{6}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{6}
 }
 func (m *ChannelMessageUpdate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelMessageUpdate.Unmarshal(m, b)
@@ -1564,7 +1506,7 @@ func (m *ChannelMessageRemove) Reset()         { *m = ChannelMessageRemove{} }
 func (m *ChannelMessageRemove) String() string { return proto.CompactTextString(m) }
 func (*ChannelMessageRemove) ProtoMessage()    {}
 func (*ChannelMessageRemove) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{7}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{7}
 }
 func (m *ChannelMessageRemove) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelMessageRemove.Unmarshal(m, b)
@@ -1615,7 +1557,7 @@ func (m *ChannelPresenceEvent) Reset()         { *m = ChannelPresenceEvent{} }
 func (m *ChannelPresenceEvent) String() string { return proto.CompactTextString(m) }
 func (*ChannelPresenceEvent) ProtoMessage()    {}
 func (*ChannelPresenceEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{8}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{8}
 }
 func (m *ChannelPresenceEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChannelPresenceEvent.Unmarshal(m, b)
@@ -1673,7 +1615,7 @@ func (m *Error) Reset()         { *m = Error{} }
 func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 func (*Error) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{9}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{9}
 }
 func (m *Error) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Error.Unmarshal(m, b)
@@ -1737,7 +1679,7 @@ func (m *Match) Reset()         { *m = Match{} }
 func (m *Match) String() string { return proto.CompactTextString(m) }
 func (*Match) ProtoMessage()    {}
 func (*Match) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{10}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{10}
 }
 func (m *Match) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Match.Unmarshal(m, b)
@@ -1810,7 +1752,7 @@ func (m *MatchCreate) Reset()         { *m = MatchCreate{} }
 func (m *MatchCreate) String() string { return proto.CompactTextString(m) }
 func (*MatchCreate) ProtoMessage()    {}
 func (*MatchCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{11}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{11}
 }
 func (m *MatchCreate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchCreate.Unmarshal(m, b)
@@ -1849,7 +1791,7 @@ func (m *MatchData) Reset()         { *m = MatchData{} }
 func (m *MatchData) String() string { return proto.CompactTextString(m) }
 func (*MatchData) ProtoMessage()    {}
 func (*MatchData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{12}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{12}
 }
 func (m *MatchData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchData.Unmarshal(m, b)
@@ -1916,7 +1858,7 @@ func (m *MatchDataSend) Reset()         { *m = MatchDataSend{} }
 func (m *MatchDataSend) String() string { return proto.CompactTextString(m) }
 func (*MatchDataSend) ProtoMessage()    {}
 func (*MatchDataSend) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{13}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{13}
 }
 func (m *MatchDataSend) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchDataSend.Unmarshal(m, b)
@@ -1979,7 +1921,7 @@ func (m *MatchJoin) Reset()         { *m = MatchJoin{} }
 func (m *MatchJoin) String() string { return proto.CompactTextString(m) }
 func (*MatchJoin) ProtoMessage()    {}
 func (*MatchJoin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{14}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{14}
 }
 func (m *MatchJoin) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchJoin.Unmarshal(m, b)
@@ -2006,14 +1948,12 @@ type isMatchJoin_Id interface {
 type MatchJoin_MatchId struct {
 	MatchId string `protobuf:"bytes,1,opt,name=match_id,json=matchId,proto3,oneof"`
 }
-
 type MatchJoin_Token struct {
 	Token string `protobuf:"bytes,2,opt,name=token,proto3,oneof"`
 }
 
 func (*MatchJoin_MatchId) isMatchJoin_Id() {}
-
-func (*MatchJoin_Token) isMatchJoin_Id() {}
+func (*MatchJoin_Token) isMatchJoin_Id()   {}
 
 func (m *MatchJoin) GetId() isMatchJoin_Id {
 	if m != nil {
@@ -2115,7 +2055,7 @@ func (m *MatchLeave) Reset()         { *m = MatchLeave{} }
 func (m *MatchLeave) String() string { return proto.CompactTextString(m) }
 func (*MatchLeave) ProtoMessage()    {}
 func (*MatchLeave) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{15}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{15}
 }
 func (m *MatchLeave) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchLeave.Unmarshal(m, b)
@@ -2159,7 +2099,7 @@ func (m *MatchPresenceEvent) Reset()         { *m = MatchPresenceEvent{} }
 func (m *MatchPresenceEvent) String() string { return proto.CompactTextString(m) }
 func (*MatchPresenceEvent) ProtoMessage()    {}
 func (*MatchPresenceEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{16}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{16}
 }
 func (m *MatchPresenceEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchPresenceEvent.Unmarshal(m, b)
@@ -2221,7 +2161,7 @@ func (m *MatchmakerAdd) Reset()         { *m = MatchmakerAdd{} }
 func (m *MatchmakerAdd) String() string { return proto.CompactTextString(m) }
 func (*MatchmakerAdd) ProtoMessage()    {}
 func (*MatchmakerAdd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{17}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{17}
 }
 func (m *MatchmakerAdd) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchmakerAdd.Unmarshal(m, b)
@@ -2299,7 +2239,7 @@ func (m *MatchmakerMatched) Reset()         { *m = MatchmakerMatched{} }
 func (m *MatchmakerMatched) String() string { return proto.CompactTextString(m) }
 func (*MatchmakerMatched) ProtoMessage()    {}
 func (*MatchmakerMatched) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{18}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{18}
 }
 func (m *MatchmakerMatched) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchmakerMatched.Unmarshal(m, b)
@@ -2319,13 +2259,6 @@ func (m *MatchmakerMatched) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MatchmakerMatched proto.InternalMessageInfo
 
-func (m *MatchmakerMatched) GetTicket() string {
-	if m != nil {
-		return m.Ticket
-	}
-	return ""
-}
-
 type isMatchmakerMatched_Id interface {
 	isMatchmakerMatched_Id()
 }
@@ -2333,20 +2266,25 @@ type isMatchmakerMatched_Id interface {
 type MatchmakerMatched_MatchId struct {
 	MatchId string `protobuf:"bytes,2,opt,name=match_id,json=matchId,proto3,oneof"`
 }
-
 type MatchmakerMatched_Token struct {
 	Token string `protobuf:"bytes,3,opt,name=token,proto3,oneof"`
 }
 
 func (*MatchmakerMatched_MatchId) isMatchmakerMatched_Id() {}
-
-func (*MatchmakerMatched_Token) isMatchmakerMatched_Id() {}
+func (*MatchmakerMatched_Token) isMatchmakerMatched_Id()   {}
 
 func (m *MatchmakerMatched) GetId() isMatchmakerMatched_Id {
 	if m != nil {
 		return m.Id
 	}
 	return nil
+}
+
+func (m *MatchmakerMatched) GetTicket() string {
+	if m != nil {
+		return m.Ticket
+	}
+	return ""
 }
 
 func (m *MatchmakerMatched) GetMatchId() string {
@@ -2459,7 +2397,7 @@ func (m *MatchmakerMatched_MatchmakerUser) Reset()         { *m = MatchmakerMatc
 func (m *MatchmakerMatched_MatchmakerUser) String() string { return proto.CompactTextString(m) }
 func (*MatchmakerMatched_MatchmakerUser) ProtoMessage()    {}
 func (*MatchmakerMatched_MatchmakerUser) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{18, 0}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{18, 0}
 }
 func (m *MatchmakerMatched_MatchmakerUser) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchmakerMatched_MatchmakerUser.Unmarshal(m, b)
@@ -2513,7 +2451,7 @@ func (m *MatchmakerRemove) Reset()         { *m = MatchmakerRemove{} }
 func (m *MatchmakerRemove) String() string { return proto.CompactTextString(m) }
 func (*MatchmakerRemove) ProtoMessage()    {}
 func (*MatchmakerRemove) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{19}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{19}
 }
 func (m *MatchmakerRemove) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchmakerRemove.Unmarshal(m, b)
@@ -2553,7 +2491,7 @@ func (m *MatchmakerTicket) Reset()         { *m = MatchmakerTicket{} }
 func (m *MatchmakerTicket) String() string { return proto.CompactTextString(m) }
 func (*MatchmakerTicket) ProtoMessage()    {}
 func (*MatchmakerTicket) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{20}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{20}
 }
 func (m *MatchmakerTicket) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MatchmakerTicket.Unmarshal(m, b)
@@ -2593,7 +2531,7 @@ func (m *Notifications) Reset()         { *m = Notifications{} }
 func (m *Notifications) String() string { return proto.CompactTextString(m) }
 func (*Notifications) ProtoMessage()    {}
 func (*Notifications) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{21}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{21}
 }
 func (m *Notifications) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Notifications.Unmarshal(m, b)
@@ -2633,7 +2571,7 @@ func (m *Status) Reset()         { *m = Status{} }
 func (m *Status) String() string { return proto.CompactTextString(m) }
 func (*Status) ProtoMessage()    {}
 func (*Status) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{22}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{22}
 }
 func (m *Status) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Status.Unmarshal(m, b)
@@ -2673,7 +2611,7 @@ func (m *StatusFollow) Reset()         { *m = StatusFollow{} }
 func (m *StatusFollow) String() string { return proto.CompactTextString(m) }
 func (*StatusFollow) ProtoMessage()    {}
 func (*StatusFollow) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{23}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{23}
 }
 func (m *StatusFollow) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StatusFollow.Unmarshal(m, b)
@@ -2715,7 +2653,7 @@ func (m *StatusPresenceEvent) Reset()         { *m = StatusPresenceEvent{} }
 func (m *StatusPresenceEvent) String() string { return proto.CompactTextString(m) }
 func (*StatusPresenceEvent) ProtoMessage()    {}
 func (*StatusPresenceEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{24}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{24}
 }
 func (m *StatusPresenceEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StatusPresenceEvent.Unmarshal(m, b)
@@ -2762,7 +2700,7 @@ func (m *StatusUnfollow) Reset()         { *m = StatusUnfollow{} }
 func (m *StatusUnfollow) String() string { return proto.CompactTextString(m) }
 func (*StatusUnfollow) ProtoMessage()    {}
 func (*StatusUnfollow) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{25}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{25}
 }
 func (m *StatusUnfollow) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StatusUnfollow.Unmarshal(m, b)
@@ -2802,7 +2740,7 @@ func (m *StatusUpdate) Reset()         { *m = StatusUpdate{} }
 func (m *StatusUpdate) String() string { return proto.CompactTextString(m) }
 func (*StatusUpdate) ProtoMessage()    {}
 func (*StatusUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{26}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{26}
 }
 func (m *StatusUpdate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StatusUpdate.Unmarshal(m, b)
@@ -2848,7 +2786,7 @@ func (m *Stream) Reset()         { *m = Stream{} }
 func (m *Stream) String() string { return proto.CompactTextString(m) }
 func (*Stream) ProtoMessage()    {}
 func (*Stream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{27}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{27}
 }
 func (m *Stream) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Stream.Unmarshal(m, b)
@@ -2913,7 +2851,7 @@ func (m *StreamData) Reset()         { *m = StreamData{} }
 func (m *StreamData) String() string { return proto.CompactTextString(m) }
 func (*StreamData) ProtoMessage()    {}
 func (*StreamData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{28}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{28}
 }
 func (m *StreamData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamData.Unmarshal(m, b)
@@ -2971,7 +2909,7 @@ func (m *StreamPresenceEvent) Reset()         { *m = StreamPresenceEvent{} }
 func (m *StreamPresenceEvent) String() string { return proto.CompactTextString(m) }
 func (*StreamPresenceEvent) ProtoMessage()    {}
 func (*StreamPresenceEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{29}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{29}
 }
 func (m *StreamPresenceEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamPresenceEvent.Unmarshal(m, b)
@@ -3033,7 +2971,7 @@ func (m *UserPresence) Reset()         { *m = UserPresence{} }
 func (m *UserPresence) String() string { return proto.CompactTextString(m) }
 func (*UserPresence) ProtoMessage()    {}
 func (*UserPresence) Descriptor() ([]byte, []int) {
-	return fileDescriptor_realtime_8400ba652bdad301, []int{30}
+	return fileDescriptor_realtime_b67c34684a4c813f, []int{30}
 }
 func (m *UserPresence) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UserPresence.Unmarshal(m, b)
@@ -3130,9 +3068,9 @@ func init() {
 	proto.RegisterEnum("nakama.realtime.Error_Code", Error_Code_name, Error_Code_value)
 }
 
-func init() { proto.RegisterFile("rtapi/realtime.proto", fileDescriptor_realtime_8400ba652bdad301) }
+func init() { proto.RegisterFile("rtapi/realtime.proto", fileDescriptor_realtime_b67c34684a4c813f) }
 
-var fileDescriptor_realtime_8400ba652bdad301 = []byte{
+var fileDescriptor_realtime_b67c34684a4c813f = []byte{
 	// 2127 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x59, 0xcd, 0x73, 0xe3, 0x48,
 	0x15, 0xb7, 0xfc, 0x95, 0xf8, 0x25, 0x4e, 0x9c, 0x8e, 0x27, 0xa3, 0x75, 0x76, 0x32, 0x83, 0x66,

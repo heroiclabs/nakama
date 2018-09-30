@@ -226,12 +226,6 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 
 	var incomingCursor *tournamentListCursor
 
-	if in.GetOwnerId() != "" {
-		if _, err := uuid.FromString(in.GetOwnerId()); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Owner ID is invalid.")
-		}
-	}
-
 	if in.GetCursor() != "" {
 		if cb, err := base64.StdEncoding.DecodeString(in.GetCursor()); err != nil {
 			return nil, ErrLeaderboardInvalidCursor
@@ -280,12 +274,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
-	full := false
-	if in.GetFull() != nil {
-		full = in.GetFull().GetValue()
-	}
-
-	records, err := TournamentList(s.logger, s.db, in.GetOwnerId(), full, categoryStart, categoryEnd, startTime, endTime, limit, incomingCursor)
+	records, err := TournamentList(s.logger, s.db, categoryStart, categoryEnd, startTime, endTime, limit, incomingCursor)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing tournaments.")
 	}

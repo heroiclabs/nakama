@@ -1110,12 +1110,8 @@ message ListTournamentsRequest {
   google.protobuf.UInt32Value start_time = 3;
   // The end time for tournaments. Defaults to +1 year from current Unix time.
   google.protobuf.UInt32Value end_time = 4;
-  // Include tournaments that are full with players. Default to false.
-  google.protobuf.BoolValue full = 5;
   // Max number of records to return. Between 1 and 100.
   google.protobuf.Int32Value limit = 6;
-  // Filter tournaments joined by the ID (optional).
-  string owner_id = 7;
   // A next page cursor for listings (optional).
   string cursor = 8;
 }
