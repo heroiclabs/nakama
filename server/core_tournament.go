@@ -94,11 +94,11 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, cache LeaderboardCache
 	leaderboard := cache.Get(leaderboardId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
-		return nil
+		return ErrTournamentNotFound
 	}
 	if !leaderboard.IsTournament() {
 		// Leaderboard exists but is not a tournament, treat it as success.
-		return nil
+		return ErrTournamentNotFound
 	}
 
 	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3`
@@ -115,7 +115,7 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 	leaderboard := cache.Get(tournamentId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
-		return nil
+		return ErrTournamentNotFound
 	}
 	if !leaderboard.IsTournament() {
 		// Leaderboard exists but is not a tournament.
