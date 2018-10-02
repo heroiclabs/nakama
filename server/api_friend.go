@@ -33,7 +33,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Frie
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListFriendsFunction; fn != nil {
+	if fn := s.runtime.BeforeListFriends(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -65,7 +65,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *empty.Empty) (*api.Frie
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListFriendsFunction; fn != nil {
+	if fn := s.runtime.AfterListFriends(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -88,7 +88,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAddFriendsFunction; fn != nil {
+	if fn := s.runtime.BeforeAddFriends(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -154,7 +154,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAddFriendsFunction; fn != nil {
+	if fn := s.runtime.AfterAddFriends(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -177,7 +177,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeDeleteFriendsFunction; fn != nil {
+	if fn := s.runtime.BeforeDeleteFriends(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -243,7 +243,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterDeleteFriendsFunction; fn != nil {
+	if fn := s.runtime.AfterDeleteFriends(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -266,7 +266,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeBlockFriendsFunction; fn != nil {
+	if fn := s.runtime.BeforeBlockFriends(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -331,7 +331,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterBlockFriendsFunction; fn != nil {
+	if fn := s.runtime.AfterBlockFriends(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -352,7 +352,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 
 func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeImportFacebookFriendsFunction; fn != nil {
+	if fn := s.runtime.BeforeImportFacebookFriends(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -389,7 +389,7 @@ func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFac
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterImportFacebookFriendsFunction; fn != nil {
+	if fn := s.runtime.AfterImportFacebookFriends(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

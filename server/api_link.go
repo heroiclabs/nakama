@@ -39,7 +39,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkCustomFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkCustom(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -93,7 +93,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkCustomFunction; fn != nil {
+	if fn := s.runtime.AfterLinkCustom(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -116,7 +116,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkDeviceFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkDevice(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -193,7 +193,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkDeviceFunction; fn != nil {
+	if fn := s.runtime.AfterLinkDevice(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -216,7 +216,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkEmailFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkEmail(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -277,7 +277,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkEmailFunction; fn != nil {
+	if fn := s.runtime.AfterLinkEmail(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -300,7 +300,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkFacebookFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkFacebook(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -360,7 +360,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkFacebookFunction; fn != nil {
+	if fn := s.runtime.AfterLinkFacebook(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -383,7 +383,7 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkGameCenterFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkGameCenter(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -448,7 +448,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkGameCenterFunction; fn != nil {
+	if fn := s.runtime.AfterLinkGameCenter(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -471,7 +471,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkGoogleFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkGoogle(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -526,7 +526,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkGoogleFunction; fn != nil {
+	if fn := s.runtime.AfterLinkGoogle(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -549,7 +549,7 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeLinkSteamFunction; fn != nil {
+	if fn := s.runtime.BeforeLinkSteam(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -608,7 +608,7 @@ AND (NOT EXISTS
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterLinkSteamFunction; fn != nil {
+	if fn := s.runtime.AfterLinkSteam(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

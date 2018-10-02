@@ -592,6 +592,11 @@
           "type": "string",
           "format": "int64",
           "description": "The rank of this record."
+        },
+        "max_num_score": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of score updates allowed by the owner."
         }
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."

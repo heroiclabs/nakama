@@ -21,24 +21,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/heroiclabs/nakama/social"
-	"github.com/yuin/gopher-lua"
-	"go.opencensus.io/stats"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc/codes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama/runtime"
+	"github.com/heroiclabs/nakama/social"
+	"github.com/yuin/gopher-lua"
+	"go.opencensus.io/stats"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"google.golang.org/grpc/codes"
 )
 
 const LTSentinel = lua.LValueType(-1)
@@ -73,18 +75,19 @@ func (mc *RuntimeLuaModuleCache) Add(m *RuntimeLuaModule) {
 
 type RuntimeProviderLua struct {
 	sync.Mutex
-	logger            *zap.Logger
-	db                *sql.DB
-	jsonpbMarshaler   *jsonpb.Marshaler
-	jsonpbUnmarshaler *jsonpb.Unmarshaler
-	config            Config
-	socialClient      *social.Client
-	leaderboardCache  LeaderboardCache
-	sessionRegistry   *SessionRegistry
-	matchRegistry     MatchRegistry
-	tracker           Tracker
-	router            MessageRouter
-	stdLibs           map[string]lua.LGFunction
+	logger               *zap.Logger
+	db                   *sql.DB
+	jsonpbMarshaler      *jsonpb.Marshaler
+	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	sessionRegistry      *SessionRegistry
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
+	stdLibs              map[string]lua.LGFunction
 
 	once         *sync.Once
 	poolCh       chan *RuntimeLua
@@ -95,7 +98,7 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	moduleCache := &RuntimeLuaModuleCache{
 		Names:   make([]string, 0),
 		Modules: make(map[string]*RuntimeLuaModule, 0),
@@ -119,7 +122,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		var err error
 		if content, err = ioutil.ReadFile(path); err != nil {
 			startupLogger.Error("Could not read Lua module", zap.String("path", path), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		relPath, _ := filepath.Rel(rootPath, path)
@@ -152,6 +155,9 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	beforeReqFunctions := &RuntimeBeforeReqFunctions{}
 	afterReqFunctions := &RuntimeAfterReqFunctions{}
 	var matchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
+	var tournamentEndFunction RuntimeTournamentEndFunction
+	var tournamentResetFunction RuntimeTournamentResetFunction
+	var leaderboardResetFunction RuntimeLeaderboardResetFunction
 
 	allMatchCreateFn := func(logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
 		core, err := goMatchCreateFn(logger, id, node, name, labelUpdateFn)
@@ -161,22 +167,23 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		if core != nil {
 			return core, nil
 		}
-		return NewRuntimeLuaMatchCore(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name, labelUpdateFn)
+		return NewRuntimeLuaMatchCore(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name, labelUpdateFn)
 	}
 
 	runtimeProviderLua := &RuntimeProviderLua{
-		logger:            logger,
-		db:                db,
-		jsonpbMarshaler:   jsonpbMarshaler,
-		jsonpbUnmarshaler: jsonpbUnmarshaler,
-		config:            config,
-		socialClient:      socialClient,
-		leaderboardCache:  leaderboardCache,
-		sessionRegistry:   sessionRegistry,
-		matchRegistry:     matchRegistry,
-		tracker:           tracker,
-		router:            router,
-		stdLibs:           stdLibs,
+		logger:               logger,
+		db:                   db,
+		jsonpbMarshaler:      jsonpbMarshaler,
+		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		sessionRegistry:      sessionRegistry,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
+		stdLibs:              stdLibs,
 
 		once:     once,
 		poolCh:   make(chan *RuntimeLua, config.GetRuntime().MaxCount),
@@ -184,7 +191,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		// Set the current count assuming we'll warm up the pool in a moment.
 		currentCount: config.GetRuntime().MinCount,
 		newFn: func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -196,7 +203,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 
 	startupLogger.Info("Evaluating Lua runtime modules")
 
-	r, err := newRuntimeLuaVM(logger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, func(execMode RuntimeExecutionMode, id string) {
+	r, err := newRuntimeLuaVM(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
@@ -442,6 +449,14 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						}
 						return result.(*api.WriteLeaderboardRecordRequest), nil, 0
 					}
+				case "listleaderboardrecordsaroundowner":
+					beforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListLeaderboardRecordsAroundOwnerRequest), nil, 0
+					}
 				case "linkcustom":
 					beforeReqFunctions.beforeLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
@@ -553,6 +568,46 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 							return nil, err, code
 						}
 						return result.(*api.DeleteStorageObjectsRequest), nil, 0
+					}
+				case "jointournament":
+					beforeReqFunctions.beforeJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.JoinTournamentRequest), nil, 0
+					}
+				case "listtournamentrecords":
+					beforeReqFunctions.beforeListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentRecordsRequest), nil, 0
+					}
+				case "listtournaments":
+					beforeReqFunctions.beforeListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentsRequest), nil, 0
+					}
+				case "writetournamentrecord":
+					beforeReqFunctions.beforeWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.WriteTournamentRecordRequest), nil, 0
+					}
+				case "listtournamentrecordsaroundowner":
+					beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListTournamentRecordsAroundOwnerRequest), nil, 0
 					}
 				case "unlinkcustom":
 					beforeReqFunctions.beforeUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
@@ -744,6 +799,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					afterReqFunctions.afterWriteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error {
 						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
 					}
+				case "listleaderboardrecordsaroundowner":
+					afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
 				case "linkcustom":
 					afterReqFunctions.afterLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
 						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
@@ -800,6 +859,26 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					afterReqFunctions.afterDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
 						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
 					}
+				case "jointournament":
+					afterReqFunctions.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournamentrecords":
+					afterReqFunctions.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournaments":
+					afterReqFunctions.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "writetournamentrecord":
+					afterReqFunctions.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
+				case "listtournamentrecordsaroundowner":
+					afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error {
+						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
+					}
 				case "unlinkcustom":
 					afterReqFunctions.afterUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error {
 						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out)
@@ -838,10 +917,22 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 			matchmakerMatchedFunction = func(entries []*MatchmakerEntry) (string, bool, error) {
 				return runtimeProviderLua.MatchmakerMatched(entries)
 			}
+		case RuntimeExecutionModeTournamentEnd:
+			tournamentEndFunction = func(tournament *api.Tournament, end, reset int64) error {
+				return runtimeProviderLua.TournamentEnd(tournament, end, reset)
+			}
+		case RuntimeExecutionModeTournamentReset:
+			tournamentResetFunction = func(tournament *api.Tournament, end, reset int64) error {
+				return runtimeProviderLua.TournamentReset(tournament, end, reset)
+			}
+		case RuntimeExecutionModeLeaderboardReset:
+			leaderboardResetFunction = func(leaderboard runtime.Leaderboard, reset int64) error {
+				return runtimeProviderLua.LeaderboardReset(leaderboard, reset)
+			}
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	r.Stop()
 
@@ -858,7 +949,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	}
 	startupLogger.Info("Allocated minimum runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, allMatchCreateFn, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, allMatchCreateFn, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
 func (rp *RuntimeProviderLua) Rpc(id string, queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
@@ -1193,6 +1284,143 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(entries []*MatchmakerEntry) (str
 	return "", false, errors.New("Unexpected return type from runtime Matchmaker Matched hook, must be string or nil.")
 }
 
+func (rp *RuntimeProviderLua) TournamentEnd(tournament *api.Tournament, end, reset int64) error {
+	runtime := rp.Get()
+	lf := runtime.GetCallback(RuntimeExecutionModeTournamentEnd, "")
+	if lf == nil {
+		rp.Put(runtime)
+		return errors.New("Runtime Tournament End function not found.")
+	}
+
+	ctx := NewRuntimeLuaContext(runtime.vm, runtime.luaEnv, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", "", "", "")
+
+	tournamentTable := runtime.vm.CreateTable(0, 13)
+
+	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
+	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
+	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
+	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
+	if tournament.SortOrder == LeaderboardSortOrderAscending {
+		tournamentTable.RawSetString("sort_order", lua.LString("asc"))
+	} else {
+		tournamentTable.RawSetString("sort_order", lua.LString("desc"))
+	}
+	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
+	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
+	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
+	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
+	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	if err != nil {
+		rp.Put(runtime)
+		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(runtime.vm, metadataMap)
+	tournamentTable.RawSetString("metadata", metadataTable)
+	tournamentTable.RawSetString("create_time", lua.LNumber(tournament.CreateTime.Seconds))
+	tournamentTable.RawSetString("start_time", lua.LNumber(tournament.StartTime.Seconds))
+
+	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	rp.Put(runtime)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Tournament End hook, must be string or nil.")
+}
+
+func (rp *RuntimeProviderLua) TournamentReset(tournament *api.Tournament, end, reset int64) error {
+	runtime := rp.Get()
+	lf := runtime.GetCallback(RuntimeExecutionModeTournamentReset, "")
+	if lf == nil {
+		rp.Put(runtime)
+		return errors.New("Runtime Tournament Reset function not found.")
+	}
+
+	ctx := NewRuntimeLuaContext(runtime.vm, runtime.luaEnv, RuntimeExecutionModeTournamentReset, nil, 0, "", "", "", "", "")
+
+	tournamentTable := runtime.vm.CreateTable(0, 13)
+
+	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
+	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
+	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
+	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
+	if tournament.SortOrder == LeaderboardSortOrderAscending {
+		tournamentTable.RawSetString("sort_order", lua.LString("asc"))
+	} else {
+		tournamentTable.RawSetString("sort_order", lua.LString("desc"))
+	}
+	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
+	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
+	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
+	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
+	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	if err != nil {
+		rp.Put(runtime)
+		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(runtime.vm, metadataMap)
+	tournamentTable.RawSetString("metadata", metadataTable)
+	tournamentTable.RawSetString("create_time", lua.LNumber(tournament.CreateTime.Seconds))
+	tournamentTable.RawSetString("start_time", lua.LNumber(tournament.StartTime.Seconds))
+
+	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	rp.Put(runtime)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Tournament Reset hook: %v", err.Error())
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Tournament Reset hook, must be string or nil.")
+}
+
+func (rp *RuntimeProviderLua) LeaderboardReset(leaderboard runtime.Leaderboard, reset int64) error {
+	runtime := rp.Get()
+	lf := runtime.GetCallback(RuntimeExecutionModeLeaderboardReset, "")
+	if lf == nil {
+		rp.Put(runtime)
+		return errors.New("Runtime Leaderboard Reset function not found.")
+	}
+
+	ctx := NewRuntimeLuaContext(runtime.vm, runtime.luaEnv, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", "", "", "")
+
+	leaderboardTable := runtime.vm.CreateTable(0, 13)
+
+	leaderboardTable.RawSetString("id", lua.LString(leaderboard.GetId()))
+	leaderboardTable.RawSetString("authoritative", lua.LBool(leaderboard.GetAuthoritative()))
+	leaderboardTable.RawSetString("sort_order", lua.LString(leaderboard.GetSortOrder()))
+	leaderboardTable.RawSetString("operator", lua.LString(leaderboard.GetOperator()))
+	leaderboardTable.RawSetString("reset", lua.LString(leaderboard.GetReset()))
+	metadataTable := RuntimeLuaConvertMap(runtime.vm, leaderboard.GetMetadata())
+	leaderboardTable.RawSetString("metadata", metadataTable)
+	leaderboardTable.RawSetString("create_time", lua.LNumber(leaderboard.GetCreateTime()))
+
+	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, leaderboardTable, lua.LNumber(reset))
+	rp.Put(runtime)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Leaderboard Reset hook, must be string or nil.")
+}
+
 func (rp *RuntimeProviderLua) Get() *RuntimeLua {
 	select {
 	case r := <-rp.poolCh:
@@ -1326,6 +1554,12 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		return cp.After[key]
 	case RuntimeExecutionModeMatchmaker:
 		return cp.Matchmaker
+	case RuntimeExecutionModeTournamentEnd:
+		return cp.TournamentEnd
+	case RuntimeExecutionModeTournamentReset:
+		return cp.TournamentReset
+	case RuntimeExecutionModeLeaderboardReset:
+		return cp.LeaderboardReset
 	}
 
 	return nil
@@ -1350,16 +1584,16 @@ func (r *RuntimeLua) InvokeFunction(execMode RuntimeExecutionMode, fn *lua.LFunc
 	return RuntimeLuaConvertLuaValue(retValue), nil, 0
 }
 
-func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payload lua.LValue) (lua.LValue, error, codes.Code) {
+func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payloads ...lua.LValue) (lua.LValue, error, codes.Code) {
 	l.Push(LSentinel)
 	l.Push(fn)
 
 	nargs := 1
 	l.Push(ctx)
 
-	if payload != nil {
-		nargs = 2
+	for _, payload := range payloads {
 		l.Push(payload)
+		nargs++
 	}
 
 	err := l.PCall(nargs, lua.MultRet, nil)
@@ -1418,7 +1652,7 @@ func (r *RuntimeLua) Stop() {
 	r.vm.Close()
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -1431,7 +1665,7 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, matchCreateFn, announceCallback)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, matchCreateFn, announceCallback)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger: logger,

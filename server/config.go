@@ -43,6 +43,7 @@ type Config interface {
 	GetRuntime() *RuntimeConfig
 	GetMatch() *MatchConfig
 	GetConsole() *ConsoleConfig
+	GetLeaderboard() *LeaderboardConfig
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -203,18 +204,19 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 }
 
 type config struct {
-	Name     string          `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config   string          `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	Datadir  string          `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Logger   *LoggerConfig   `yaml:"logger" json:"logger" usage:"Logger levels and output."`
-	Metrics  *MetricsConfig  `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
-	Session  *SessionConfig  `yaml:"session" json:"session" usage:"Session authentication settings."`
-	Socket   *SocketConfig   `yaml:"socket" json:"socket" usage:"Socket configuration."`
-	Database *DatabaseConfig `yaml:"database" json:"database" usage:"Database connection settings."`
-	Social   *SocialConfig   `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
-	Runtime  *RuntimeConfig  `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
-	Match    *MatchConfig    `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
-	Console  *ConsoleConfig  `yaml:"console" json:"console" usage:"Console settings."`
+	Name        string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
+	Config      string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	Datadir     string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Logger      *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
+	Metrics     *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
+	Session     *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket      *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database    *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social      *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime     *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match       *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Console     *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
+	Leaderboard *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -224,17 +226,18 @@ func NewConfig(logger *zap.Logger) *config {
 		logger.Fatal("Error getting current working directory.", zap.Error(err))
 	}
 	return &config{
-		Name:     "nakama",
-		Datadir:  filepath.Join(cwd, "data"),
-		Logger:   NewLoggerConfig(),
-		Metrics:  NewMetricsConfig(),
-		Session:  NewSessionConfig(),
-		Socket:   NewSocketConfig(),
-		Database: NewDatabaseConfig(),
-		Social:   NewSocialConfig(),
-		Runtime:  NewRuntimeConfig(),
-		Match:    NewMatchConfig(),
-		Console:  NewConsoleConfig(),
+		Name:        "nakama",
+		Datadir:     filepath.Join(cwd, "data"),
+		Logger:      NewLoggerConfig(),
+		Metrics:     NewMetricsConfig(),
+		Session:     NewSessionConfig(),
+		Socket:      NewSocketConfig(),
+		Database:    NewDatabaseConfig(),
+		Social:      NewSocialConfig(),
+		Runtime:     NewRuntimeConfig(),
+		Match:       NewMatchConfig(),
+		Console:     NewConsoleConfig(),
+		Leaderboard: NewLeaderboardConfig(),
 	}
 }
 
@@ -280,6 +283,10 @@ func (c *config) GetMatch() *MatchConfig {
 
 func (c *config) GetConsole() *ConsoleConfig {
 	return c.Console
+}
+
+func (c *config) GetLeaderboard() *LeaderboardConfig {
+	return c.Leaderboard
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -453,8 +460,8 @@ func NewMatchConfig() *MatchConfig {
 // ConsoleConfig is configuration relevant to the embedded console.
 type ConsoleConfig struct {
 	Port     int    `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
-	Username string `yaml:"username" json:"username" usage:"Username for the embedded console."`
-	Password string `yaml:"password" json:"password" usage:"Password for the embedded console."`
+	Username string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
+	Password string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
 }
 
 // NewConsoleConfig creates a new ConsoleConfig struct.
@@ -463,5 +470,17 @@ func NewConsoleConfig() *ConsoleConfig {
 		Port:     7351,
 		Username: "admin",
 		Password: "password",
+	}
+}
+
+// LeaderboardConfig is configuration relevant to the leaderboard system.
+type LeaderboardConfig struct {
+	BlacklistRankCache []string `yaml:"blacklist_rank_cache" json:"blacklist_rank_cache" usage:"Disable rank cache for leaderboards with matching identifiers. To disable rank cache entirely, use '*', otherwise leave blank to enable rank cache."`
+}
+
+// NewLeaderboardConfig creates a new LeaderboardConfig struct.
+func NewLeaderboardConfig() *LeaderboardConfig {
+	return &LeaderboardConfig{
+		BlacklistRankCache: []string{""},
 	}
 }

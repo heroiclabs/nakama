@@ -32,7 +32,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeListChannelMessagesFunction; fn != nil {
+	if fn := s.runtime.BeforeListChannelMessages(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -90,7 +90,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 	}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterListChannelMessagesFunction; fn != nil {
+	if fn := s.runtime.AfterListChannelMessages(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

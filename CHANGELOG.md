@@ -6,8 +6,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - New Go code runtime for custom functions and authoritative match handlers.
+- New Tournaments feature.
+- Runtime custom function triggers for leaderboard and tournament resets.
+- Lua runtime AES-256 functions.
 - Lua runtime token generator function now returns a second value representing the token's expiry.
 - Add local cache for in-memory storage to the Lua runtime.
+
+### Changed
+- Improved Postgres compatibility on TIMESTAMPTZ types.
 
 ### Fixed
 - Correctly merge new friend records when importing from Facebook.

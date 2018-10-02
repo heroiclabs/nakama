@@ -15,8 +15,15 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -28,39 +35,40 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"strings"
-	"sync"
-	"time"
 )
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
-	logger           *zap.Logger
-	db               *sql.DB
-	config           Config
-	socialClient     *social.Client
-	leaderboardCache LeaderboardCache
-	sessionRegistry  *SessionRegistry
-	matchRegistry    MatchRegistry
-	tracker          Tracker
-	router           MessageRouter
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	leaderboardScheduler *LeaderboardScheduler
+	sessionRegistry      *SessionRegistry
+	matchRegistry        MatchRegistry
+	tracker              Tracker
+	router               MessageRouter
 
 	node string
 
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
-		logger:           logger,
-		db:               db,
-		config:           config,
-		socialClient:     socialClient,
-		leaderboardCache: leaderboardCache,
-		sessionRegistry:  sessionRegistry,
-		matchRegistry:    matchRegistry,
-		tracker:          tracker,
-		router:           router,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		leaderboardScheduler: leaderboardScheduler,
+		sessionRegistry:      sessionRegistry,
+		matchRegistry:        matchRegistry,
+		tracker:              tracker,
+		router:               router,
 
 		node: config.GetName(),
 	}
@@ -1033,7 +1041,14 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(id string, authoritative bool,
 		metadataStr = string(metadataBytes)
 	}
 
-	return n.leaderboardCache.Create(id, authoritative, sort, oper, resetSchedule, metadataStr)
+	err := n.leaderboardCache.Create(id, authoritative, sort, oper, resetSchedule, metadataStr)
+	if err != nil {
+		return err
+	}
+
+	n.leaderboardScheduler.Update()
+
+	return nil
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardDelete(id string) error {
@@ -1044,7 +1059,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(id string) error {
 	return n.leaderboardCache.Delete(id)
 }
 
-func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
 	if id == "" {
 		return nil, nil, "", "", errors.New("expects a leaderboard ID string")
 	}
@@ -1055,7 +1070,18 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(id string, ownerIDs []str
 		}
 	}
 
-	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, id, &wrappers.Int32Value{Value: int32(limit)}, cursor, ownerIDs)
+	var limitWrapper *wrappers.Int32Value
+	if limit < 0 || limit > 10000 {
+		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
+	} else {
+		limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
+	}
+
+	if expiry < 0 {
+		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
+	}
+
+	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiry)
 	if err != nil {
 		return nil, nil, "", "", err
 	}
@@ -1071,6 +1097,8 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(id, ownerID, username str
 	if _, err := uuid.FromString(ownerID); err != nil {
 		return nil, errors.New("expects owner ID to be a valid identifier")
 	}
+
+	// Username is optional.
 
 	if score < 0 {
 		return nil, errors.New("expects score to be >= 0")
@@ -1088,7 +1116,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(id, ownerID, username str
 		metadataStr = string(metadataBytes)
 	}
 
-	return LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+	return LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(id, ownerID string) error {
@@ -1100,7 +1128,196 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(id, ownerID string) erro
 		return errors.New("expects owner ID to be a valid identifier")
 	}
 
-	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, uuid.Nil, id, ownerID)
+	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	sort := LeaderboardSortOrderDescending
+	switch sortOrder {
+	case "desc":
+		sort = LeaderboardSortOrderDescending
+	case "asc":
+		sort = LeaderboardSortOrderAscending
+	default:
+		return errors.New("expects sort order to be 'asc' or 'desc'")
+	}
+
+	oper := LeaderboardOperatorBest
+	switch operator {
+	case "best":
+		oper = LeaderboardOperatorBest
+	case "set":
+		oper = LeaderboardOperatorSet
+	case "incr":
+		oper = LeaderboardOperatorIncrement
+	default:
+		return errors.New("expects sort order to be 'best', 'set', or 'incr'")
+	}
+
+	if resetSchedule != "" {
+		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			return errors.New("expects reset schedule to be a valid CRON expression")
+		}
+	}
+
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return errors.Errorf("error encoding metadata: %v", err.Error())
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	if category < 0 || category >= 128 {
+		return errors.New("category must be 0-127")
+	}
+	if startTime < 0 {
+		return errors.New("startTime must be >= 0")
+	}
+	if endTime < 0 {
+		return errors.New("endTime must be >= 0")
+	}
+	if endTime < startTime {
+		return errors.New("endTime must be >= startTime")
+	}
+	if duration < 0 {
+		return errors.New("duration must be >= 0")
+	}
+	if maxSize < 0 {
+		return errors.New("maxSize must be >= 0")
+	}
+	if maxNumScore < 0 {
+		return errors.New("maxNumScore must be >= 0")
+	}
+
+	return TournamentCreate(n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentDelete(id string) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	return TournamentDelete(n.logger, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentAddAttempt(id, ownerID string, count int) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	if ownerID == "" {
+		return errors.New("expects a owner ID string")
+	} else if _, err := uuid.FromString(ownerID); err != nil {
+		return errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if count == 0 {
+		return errors.New("expects an attempt count number != 0")
+	}
+
+	return TournamentAddAttempt(n.logger, n.db, n.leaderboardCache, id, ownerID, count)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentJoin(id, ownerID, username string) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	if ownerID == "" {
+		return errors.New("expects a owner ID string")
+	} else if _, err := uuid.FromString(ownerID); err != nil {
+		return errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if username == "" {
+		return errors.New("expects a username string")
+	}
+
+	return TournamentJoin(n.logger, n.db, n.leaderboardCache, ownerID, username, id)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentList(categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
+
+	if categoryStart < 0 || categoryStart >= 128 {
+		return nil, errors.New("categoryStart must be 0-127")
+	}
+	if categoryEnd < 0 || categoryEnd >= 128 {
+		return nil, errors.New("categoryEnd must be 0-127")
+	}
+	if startTime < 0 {
+		return nil, errors.New("startTime must be >= 0")
+	}
+	if endTime < 0 {
+		return nil, errors.New("endTime must be >= 0")
+	}
+	if endTime < startTime {
+		return nil, errors.New("endTime must be >= startTime")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
+	}
+
+	var cursorPtr *tournamentListCursor
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, errors.New("expects cursor to be valid when provided")
+		} else {
+			cursorPtr = &tournamentListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
+				return nil, errors.New("expects cursor to be valid when provided")
+			}
+		}
+	}
+
+	return TournamentList(n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {
+	if id == "" {
+		return nil, errors.New("expects a tournament ID string")
+	}
+
+	owner, err := uuid.FromString(ownerID)
+	if err != nil {
+		return nil, errors.New("expects owner ID to be a valid identifier")
+	}
+
+	// Username is optional.
+
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, errors.Errorf("error encoding metadata: %v", err.Error())
+		}
+		metadataStr = string(metadataBytes)
+	}
+
+	return TournamentRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(id, ownerID string, limit int) ([]*api.LeaderboardRecord, error) {
+	if id == "" {
+		return nil, errors.New("expects a tournament ID string")
+	}
+
+	owner, err := uuid.FromString(ownerID)
+	if err != nil {
+		return nil, errors.New("expects owner ID to be a valid identifier")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
+	}
+
+	return TournamentRecordsHaystack(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit)
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {

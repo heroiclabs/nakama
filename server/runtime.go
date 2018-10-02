@@ -16,6 +16,11 @@ package server
 
 import (
 	"database/sql"
+	"github.com/heroiclabs/nakama/runtime"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -25,9 +30,6 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 var (
@@ -43,112 +45,129 @@ type (
 	RuntimeBeforeRtFunction func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error)
 	RuntimeAfterRtFunction  func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error
 
-	RuntimeBeforeGetAccountFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
-	RuntimeAfterGetAccountFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error
-	RuntimeBeforeUpdateAccountFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
-	RuntimeAfterUpdateAccountFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeAuthenticateCustomFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
-	RuntimeAfterAuthenticateCustomFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateDeviceFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code)
-	RuntimeAfterAuthenticateDeviceFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateEmailFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateEmailRequest) (*api.AuthenticateEmailRequest, error, codes.Code)
-	RuntimeAfterAuthenticateEmailFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateFacebookFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code)
-	RuntimeAfterAuthenticateFacebookFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateGameCenterFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code)
-	RuntimeAfterAuthenticateGameCenterFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateGoogleFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
-	RuntimeAfterAuthenticateGoogleFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeAuthenticateSteamFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code)
-	RuntimeAfterAuthenticateSteamFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
-	RuntimeBeforeListChannelMessagesFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
-	RuntimeAfterListChannelMessagesFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList) error
-	RuntimeBeforeListFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
-	RuntimeAfterListFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error
-	RuntimeBeforeAddFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code)
-	RuntimeAfterAddFriendsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeDeleteFriendsFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code)
-	RuntimeAfterDeleteFriendsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeBlockFriendsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code)
-	RuntimeAfterBlockFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeImportFacebookFriendsFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code)
-	RuntimeAfterImportFacebookFriendsFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeCreateGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code)
-	RuntimeAfterCreateGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group) error
-	RuntimeBeforeUpdateGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code)
-	RuntimeAfterUpdateGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeDeleteGroupFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code)
-	RuntimeAfterDeleteGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeJoinGroupFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code)
-	RuntimeAfterJoinGroupFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLeaveGroupFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code)
-	RuntimeAfterLeaveGroupFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeAddGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code)
-	RuntimeAfterAddGroupUsersFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeKickGroupUsersFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code)
-	RuntimeAfterKickGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforePromoteGroupUsersFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
-	RuntimeAfterPromoteGroupUsersFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeListGroupUsersFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code)
-	RuntimeAfterListGroupUsersFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList) error
-	RuntimeBeforeListUserGroupsFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code)
-	RuntimeAfterListUserGroupsFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList) error
-	RuntimeBeforeListGroupsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code)
-	RuntimeAfterListGroupsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList) error
-	RuntimeBeforeDeleteLeaderboardRecordFunction func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code)
-	RuntimeAfterDeleteLeaderboardRecordFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeListLeaderboardRecordsFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code)
-	RuntimeAfterListLeaderboardRecordsFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
-	RuntimeBeforeWriteLeaderboardRecordFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code)
-	RuntimeAfterWriteLeaderboardRecordFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error
-	RuntimeBeforeLinkCustomFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
-	RuntimeAfterLinkCustomFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkDeviceFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
-	RuntimeAfterLinkDeviceFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkEmailFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
-	RuntimeAfterLinkEmailFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkFacebookFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
-	RuntimeAfterLinkFacebookFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkGameCenterFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
-	RuntimeAfterLinkGameCenterFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkGoogleFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
-	RuntimeAfterLinkGoogleFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeLinkSteamFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
-	RuntimeAfterLinkSteamFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeListMatchesFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
-	RuntimeAfterListMatchesFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList) error
-	RuntimeBeforeListNotificationsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
-	RuntimeAfterListNotificationsFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList) error
-	RuntimeBeforeDeleteNotificationFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
-	RuntimeAfterDeleteNotificationFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeListStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code)
-	RuntimeAfterListStorageObjectsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList) error
-	RuntimeBeforeReadStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code)
-	RuntimeAfterReadStorageObjectsFunction       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects) error
-	RuntimeBeforeWriteStorageObjectsFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code)
-	RuntimeAfterWriteStorageObjectsFunction      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks) error
-	RuntimeBeforeDeleteStorageObjectsFunction    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code)
-	RuntimeAfterDeleteStorageObjectsFunction     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkCustomFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
-	RuntimeAfterUnlinkCustomFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkDeviceFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
-	RuntimeAfterUnlinkDeviceFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkEmailFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
-	RuntimeAfterUnlinkEmailFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkFacebookFunction          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
-	RuntimeAfterUnlinkFacebookFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkGameCenterFunction        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
-	RuntimeAfterUnlinkGameCenterFunction         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkGoogleFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
-	RuntimeAfterUnlinkGoogleFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeUnlinkSteamFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
-	RuntimeAfterUnlinkSteamFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
-	RuntimeBeforeGetUsersFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
-	RuntimeAfterGetUsersFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users) error
+	RuntimeBeforeGetAccountFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeAfterGetAccountFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error
+	RuntimeBeforeUpdateAccountFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
+	RuntimeAfterUpdateAccountFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeAuthenticateCustomFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
+	RuntimeAfterAuthenticateCustomFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateDeviceFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code)
+	RuntimeAfterAuthenticateDeviceFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateEmailFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateEmailRequest) (*api.AuthenticateEmailRequest, error, codes.Code)
+	RuntimeAfterAuthenticateEmailFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateFacebookFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code)
+	RuntimeAfterAuthenticateFacebookFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateGameCenterFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code)
+	RuntimeAfterAuthenticateGameCenterFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateGoogleFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
+	RuntimeAfterAuthenticateGoogleFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeAuthenticateSteamFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code)
+	RuntimeAfterAuthenticateSteamFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
+	RuntimeBeforeListChannelMessagesFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
+	RuntimeAfterListChannelMessagesFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList) error
+	RuntimeBeforeListFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeAfterListFriendsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error
+	RuntimeBeforeAddFriendsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code)
+	RuntimeAfterAddFriendsFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeDeleteFriendsFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code)
+	RuntimeAfterDeleteFriendsFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeBlockFriendsFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code)
+	RuntimeAfterBlockFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeImportFacebookFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code)
+	RuntimeAfterImportFacebookFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeCreateGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code)
+	RuntimeAfterCreateGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group) error
+	RuntimeBeforeUpdateGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code)
+	RuntimeAfterUpdateGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeDeleteGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code)
+	RuntimeAfterDeleteGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeJoinGroupFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code)
+	RuntimeAfterJoinGroupFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLeaveGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code)
+	RuntimeAfterLeaveGroupFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeAddGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code)
+	RuntimeAfterAddGroupUsersFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeKickGroupUsersFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code)
+	RuntimeAfterKickGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforePromoteGroupUsersFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
+	RuntimeAfterPromoteGroupUsersFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListGroupUsersFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code)
+	RuntimeAfterListGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList) error
+	RuntimeBeforeListUserGroupsFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code)
+	RuntimeAfterListUserGroupsFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList) error
+	RuntimeBeforeListGroupsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code)
+	RuntimeAfterListGroupsFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList) error
+	RuntimeBeforeDeleteLeaderboardRecordFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code)
+	RuntimeAfterDeleteLeaderboardRecordFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListLeaderboardRecordsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code)
+	RuntimeAfterListLeaderboardRecordsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
+	RuntimeBeforeWriteLeaderboardRecordFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code)
+	RuntimeAfterWriteLeaderboardRecordFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error
+	RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code)
+	RuntimeAfterListLeaderboardRecordsAroundOwnerFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
+	RuntimeBeforeLinkCustomFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
+	RuntimeAfterLinkCustomFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkDeviceFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
+	RuntimeAfterLinkDeviceFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkEmailFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
+	RuntimeAfterLinkEmailFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkFacebookFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
+	RuntimeAfterLinkFacebookFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkGameCenterFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
+	RuntimeAfterLinkGameCenterFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkGoogleFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
+	RuntimeAfterLinkGoogleFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeLinkSteamFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
+	RuntimeAfterLinkSteamFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListMatchesFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
+	RuntimeAfterListMatchesFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList) error
+	RuntimeBeforeListNotificationsFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
+	RuntimeAfterListNotificationsFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList) error
+	RuntimeBeforeDeleteNotificationFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
+	RuntimeAfterDeleteNotificationFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterListStorageObjectsFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList) error
+	RuntimeBeforeReadStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterReadStorageObjectsFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects) error
+	RuntimeBeforeWriteStorageObjectsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterWriteStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks) error
+	RuntimeBeforeDeleteStorageObjectsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code)
+	RuntimeAfterDeleteStorageObjectsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeJoinTournamentFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code)
+	RuntimeAfterJoinTournamentFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeListTournamentRecordsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code)
+	RuntimeAfterListTournamentRecordsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error
+	RuntimeBeforeListTournamentsFunction                   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code)
+	RuntimeAfterListTournamentsFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList) error
+	RuntimeBeforeWriteTournamentRecordFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code)
+	RuntimeAfterWriteTournamentRecordFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord) error
+	RuntimeBeforeListTournamentRecordsAroundOwnerFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code)
+	RuntimeAfterListTournamentRecordsAroundOwnerFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error
+	RuntimeBeforeUnlinkCustomFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
+	RuntimeAfterUnlinkCustomFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkDeviceFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
+	RuntimeAfterUnlinkDeviceFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkEmailFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
+	RuntimeAfterUnlinkEmailFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkFacebookFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
+	RuntimeAfterUnlinkFacebookFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkGameCenterFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
+	RuntimeAfterUnlinkGameCenterFunction                   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkGoogleFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
+	RuntimeAfterUnlinkGoogleFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeUnlinkSteamFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
+	RuntimeAfterUnlinkSteamFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeBeforeGetUsersFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
+	RuntimeAfterGetUsersFunction                           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users) error
 
 	RuntimeMatchmakerMatchedFunction func(entries []*MatchmakerEntry) (string, bool, error)
 
 	RuntimeMatchCreateFunction func(logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error)
+
+	RuntimeTournamentEndFunction   func(tournament *api.Tournament, end, reset int64) error
+	RuntimeTournamentResetFunction func(tournament *api.Tournament, end, reset int64) error
+
+	RuntimeLeaderboardResetFunction func(leaderboard runtime.Leaderboard, reset int64) error
 )
 
 type RuntimeExecutionMode int
@@ -161,6 +180,9 @@ const (
 	RuntimeExecutionModeMatch
 	RuntimeExecutionModeMatchmaker
 	RuntimeExecutionModeMatchCreate
+	RuntimeExecutionModeTournamentEnd
+	RuntimeExecutionModeTournamentReset
+	RuntimeExecutionModeLeaderboardReset
 )
 
 func (e RuntimeExecutionMode) String() string {
@@ -179,6 +201,12 @@ func (e RuntimeExecutionMode) String() string {
 		return "matchmaker"
 	case RuntimeExecutionModeMatchCreate:
 		return "match_create"
+	case RuntimeExecutionModeTournamentEnd:
+		return "tournament_end"
+	case RuntimeExecutionModeTournamentReset:
+		return "tournament_reset"
+	case RuntimeExecutionModeLeaderboardReset:
+		return "leaderboard_reset"
 	}
 
 	return ""
@@ -193,111 +221,123 @@ type RuntimeMatchCore interface {
 }
 
 type RuntimeBeforeReqFunctions struct {
-	beforeGetAccountFunction              RuntimeBeforeGetAccountFunction
-	beforeUpdateAccountFunction           RuntimeBeforeUpdateAccountFunction
-	beforeAuthenticateCustomFunction      RuntimeBeforeAuthenticateCustomFunction
-	beforeAuthenticateDeviceFunction      RuntimeBeforeAuthenticateDeviceFunction
-	beforeAuthenticateEmailFunction       RuntimeBeforeAuthenticateEmailFunction
-	beforeAuthenticateFacebookFunction    RuntimeBeforeAuthenticateFacebookFunction
-	beforeAuthenticateGameCenterFunction  RuntimeBeforeAuthenticateGameCenterFunction
-	beforeAuthenticateGoogleFunction      RuntimeBeforeAuthenticateGoogleFunction
-	beforeAuthenticateSteamFunction       RuntimeBeforeAuthenticateSteamFunction
-	beforeListChannelMessagesFunction     RuntimeBeforeListChannelMessagesFunction
-	beforeListFriendsFunction             RuntimeBeforeListFriendsFunction
-	beforeAddFriendsFunction              RuntimeBeforeAddFriendsFunction
-	beforeDeleteFriendsFunction           RuntimeBeforeDeleteFriendsFunction
-	beforeBlockFriendsFunction            RuntimeBeforeBlockFriendsFunction
-	beforeImportFacebookFriendsFunction   RuntimeBeforeImportFacebookFriendsFunction
-	beforeCreateGroupFunction             RuntimeBeforeCreateGroupFunction
-	beforeUpdateGroupFunction             RuntimeBeforeUpdateGroupFunction
-	beforeDeleteGroupFunction             RuntimeBeforeDeleteGroupFunction
-	beforeJoinGroupFunction               RuntimeBeforeJoinGroupFunction
-	beforeLeaveGroupFunction              RuntimeBeforeLeaveGroupFunction
-	beforeAddGroupUsersFunction           RuntimeBeforeAddGroupUsersFunction
-	beforeKickGroupUsersFunction          RuntimeBeforeKickGroupUsersFunction
-	beforePromoteGroupUsersFunction       RuntimeBeforePromoteGroupUsersFunction
-	beforeListGroupUsersFunction          RuntimeBeforeListGroupUsersFunction
-	beforeListUserGroupsFunction          RuntimeBeforeListUserGroupsFunction
-	beforeListGroupsFunction              RuntimeBeforeListGroupsFunction
-	beforeDeleteLeaderboardRecordFunction RuntimeBeforeDeleteLeaderboardRecordFunction
-	beforeListLeaderboardRecordsFunction  RuntimeBeforeListLeaderboardRecordsFunction
-	beforeWriteLeaderboardRecordFunction  RuntimeBeforeWriteLeaderboardRecordFunction
-	beforeLinkCustomFunction              RuntimeBeforeLinkCustomFunction
-	beforeLinkDeviceFunction              RuntimeBeforeLinkDeviceFunction
-	beforeLinkEmailFunction               RuntimeBeforeLinkEmailFunction
-	beforeLinkFacebookFunction            RuntimeBeforeLinkFacebookFunction
-	beforeLinkGameCenterFunction          RuntimeBeforeLinkGameCenterFunction
-	beforeLinkGoogleFunction              RuntimeBeforeLinkGoogleFunction
-	beforeLinkSteamFunction               RuntimeBeforeLinkSteamFunction
-	beforeListMatchesFunction             RuntimeBeforeListMatchesFunction
-	beforeListNotificationsFunction       RuntimeBeforeListNotificationsFunction
-	beforeDeleteNotificationFunction      RuntimeBeforeDeleteNotificationFunction
-	beforeListStorageObjectsFunction      RuntimeBeforeListStorageObjectsFunction
-	beforeReadStorageObjectsFunction      RuntimeBeforeReadStorageObjectsFunction
-	beforeWriteStorageObjectsFunction     RuntimeBeforeWriteStorageObjectsFunction
-	beforeDeleteStorageObjectsFunction    RuntimeBeforeDeleteStorageObjectsFunction
-	beforeUnlinkCustomFunction            RuntimeBeforeUnlinkCustomFunction
-	beforeUnlinkDeviceFunction            RuntimeBeforeUnlinkDeviceFunction
-	beforeUnlinkEmailFunction             RuntimeBeforeUnlinkEmailFunction
-	beforeUnlinkFacebookFunction          RuntimeBeforeUnlinkFacebookFunction
-	beforeUnlinkGameCenterFunction        RuntimeBeforeUnlinkGameCenterFunction
-	beforeUnlinkGoogleFunction            RuntimeBeforeUnlinkGoogleFunction
-	beforeUnlinkSteamFunction             RuntimeBeforeUnlinkSteamFunction
-	beforeGetUsersFunction                RuntimeBeforeGetUsersFunction
+	beforeGetAccountFunction                        RuntimeBeforeGetAccountFunction
+	beforeUpdateAccountFunction                     RuntimeBeforeUpdateAccountFunction
+	beforeAuthenticateCustomFunction                RuntimeBeforeAuthenticateCustomFunction
+	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
+	beforeAuthenticateEmailFunction                 RuntimeBeforeAuthenticateEmailFunction
+	beforeAuthenticateFacebookFunction              RuntimeBeforeAuthenticateFacebookFunction
+	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
+	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
+	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
+	beforeListChannelMessagesFunction               RuntimeBeforeListChannelMessagesFunction
+	beforeListFriendsFunction                       RuntimeBeforeListFriendsFunction
+	beforeAddFriendsFunction                        RuntimeBeforeAddFriendsFunction
+	beforeDeleteFriendsFunction                     RuntimeBeforeDeleteFriendsFunction
+	beforeBlockFriendsFunction                      RuntimeBeforeBlockFriendsFunction
+	beforeImportFacebookFriendsFunction             RuntimeBeforeImportFacebookFriendsFunction
+	beforeCreateGroupFunction                       RuntimeBeforeCreateGroupFunction
+	beforeUpdateGroupFunction                       RuntimeBeforeUpdateGroupFunction
+	beforeDeleteGroupFunction                       RuntimeBeforeDeleteGroupFunction
+	beforeJoinGroupFunction                         RuntimeBeforeJoinGroupFunction
+	beforeLeaveGroupFunction                        RuntimeBeforeLeaveGroupFunction
+	beforeAddGroupUsersFunction                     RuntimeBeforeAddGroupUsersFunction
+	beforeKickGroupUsersFunction                    RuntimeBeforeKickGroupUsersFunction
+	beforePromoteGroupUsersFunction                 RuntimeBeforePromoteGroupUsersFunction
+	beforeListGroupUsersFunction                    RuntimeBeforeListGroupUsersFunction
+	beforeListUserGroupsFunction                    RuntimeBeforeListUserGroupsFunction
+	beforeListGroupsFunction                        RuntimeBeforeListGroupsFunction
+	beforeDeleteLeaderboardRecordFunction           RuntimeBeforeDeleteLeaderboardRecordFunction
+	beforeListLeaderboardRecordsFunction            RuntimeBeforeListLeaderboardRecordsFunction
+	beforeWriteLeaderboardRecordFunction            RuntimeBeforeWriteLeaderboardRecordFunction
+	beforeListLeaderboardRecordsAroundOwnerFunction RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction
+	beforeLinkCustomFunction                        RuntimeBeforeLinkCustomFunction
+	beforeLinkDeviceFunction                        RuntimeBeforeLinkDeviceFunction
+	beforeLinkEmailFunction                         RuntimeBeforeLinkEmailFunction
+	beforeLinkFacebookFunction                      RuntimeBeforeLinkFacebookFunction
+	beforeLinkGameCenterFunction                    RuntimeBeforeLinkGameCenterFunction
+	beforeLinkGoogleFunction                        RuntimeBeforeLinkGoogleFunction
+	beforeLinkSteamFunction                         RuntimeBeforeLinkSteamFunction
+	beforeListMatchesFunction                       RuntimeBeforeListMatchesFunction
+	beforeListNotificationsFunction                 RuntimeBeforeListNotificationsFunction
+	beforeDeleteNotificationFunction                RuntimeBeforeDeleteNotificationFunction
+	beforeListStorageObjectsFunction                RuntimeBeforeListStorageObjectsFunction
+	beforeReadStorageObjectsFunction                RuntimeBeforeReadStorageObjectsFunction
+	beforeWriteStorageObjectsFunction               RuntimeBeforeWriteStorageObjectsFunction
+	beforeDeleteStorageObjectsFunction              RuntimeBeforeDeleteStorageObjectsFunction
+	beforeJoinTournamentFunction                    RuntimeBeforeJoinTournamentFunction
+	beforeListTournamentRecordsFunction             RuntimeBeforeListTournamentRecordsFunction
+	beforeListTournamentsFunction                   RuntimeBeforeListTournamentsFunction
+	beforeWriteTournamentRecordFunction             RuntimeBeforeWriteTournamentRecordFunction
+	beforeListTournamentRecordsAroundOwnerFunction  RuntimeBeforeListTournamentRecordsAroundOwnerFunction
+	beforeUnlinkCustomFunction                      RuntimeBeforeUnlinkCustomFunction
+	beforeUnlinkDeviceFunction                      RuntimeBeforeUnlinkDeviceFunction
+	beforeUnlinkEmailFunction                       RuntimeBeforeUnlinkEmailFunction
+	beforeUnlinkFacebookFunction                    RuntimeBeforeUnlinkFacebookFunction
+	beforeUnlinkGameCenterFunction                  RuntimeBeforeUnlinkGameCenterFunction
+	beforeUnlinkGoogleFunction                      RuntimeBeforeUnlinkGoogleFunction
+	beforeUnlinkSteamFunction                       RuntimeBeforeUnlinkSteamFunction
+	beforeGetUsersFunction                          RuntimeBeforeGetUsersFunction
 }
 
 type RuntimeAfterReqFunctions struct {
-	afterGetAccountFunction              RuntimeAfterGetAccountFunction
-	afterUpdateAccountFunction           RuntimeAfterUpdateAccountFunction
-	afterAuthenticateCustomFunction      RuntimeAfterAuthenticateCustomFunction
-	afterAuthenticateDeviceFunction      RuntimeAfterAuthenticateDeviceFunction
-	afterAuthenticateEmailFunction       RuntimeAfterAuthenticateEmailFunction
-	afterAuthenticateFacebookFunction    RuntimeAfterAuthenticateFacebookFunction
-	afterAuthenticateGameCenterFunction  RuntimeAfterAuthenticateGameCenterFunction
-	afterAuthenticateGoogleFunction      RuntimeAfterAuthenticateGoogleFunction
-	afterAuthenticateSteamFunction       RuntimeAfterAuthenticateSteamFunction
-	afterListChannelMessagesFunction     RuntimeAfterListChannelMessagesFunction
-	afterListFriendsFunction             RuntimeAfterListFriendsFunction
-	afterAddFriendsFunction              RuntimeAfterAddFriendsFunction
-	afterDeleteFriendsFunction           RuntimeAfterDeleteFriendsFunction
-	afterBlockFriendsFunction            RuntimeAfterBlockFriendsFunction
-	afterImportFacebookFriendsFunction   RuntimeAfterImportFacebookFriendsFunction
-	afterCreateGroupFunction             RuntimeAfterCreateGroupFunction
-	afterUpdateGroupFunction             RuntimeAfterUpdateGroupFunction
-	afterDeleteGroupFunction             RuntimeAfterDeleteGroupFunction
-	afterJoinGroupFunction               RuntimeAfterJoinGroupFunction
-	afterLeaveGroupFunction              RuntimeAfterLeaveGroupFunction
-	afterAddGroupUsersFunction           RuntimeAfterAddGroupUsersFunction
-	afterKickGroupUsersFunction          RuntimeAfterKickGroupUsersFunction
-	afterPromoteGroupUsersFunction       RuntimeAfterPromoteGroupUsersFunction
-	afterListGroupUsersFunction          RuntimeAfterListGroupUsersFunction
-	afterListUserGroupsFunction          RuntimeAfterListUserGroupsFunction
-	afterListGroupsFunction              RuntimeAfterListGroupsFunction
-	afterDeleteLeaderboardRecordFunction RuntimeAfterDeleteLeaderboardRecordFunction
-	afterListLeaderboardRecordsFunction  RuntimeAfterListLeaderboardRecordsFunction
-	afterWriteLeaderboardRecordFunction  RuntimeAfterWriteLeaderboardRecordFunction
-	afterLinkCustomFunction              RuntimeAfterLinkCustomFunction
-	afterLinkDeviceFunction              RuntimeAfterLinkDeviceFunction
-	afterLinkEmailFunction               RuntimeAfterLinkEmailFunction
-	afterLinkFacebookFunction            RuntimeAfterLinkFacebookFunction
-	afterLinkGameCenterFunction          RuntimeAfterLinkGameCenterFunction
-	afterLinkGoogleFunction              RuntimeAfterLinkGoogleFunction
-	afterLinkSteamFunction               RuntimeAfterLinkSteamFunction
-	afterListMatchesFunction             RuntimeAfterListMatchesFunction
-	afterListNotificationsFunction       RuntimeAfterListNotificationsFunction
-	afterDeleteNotificationFunction      RuntimeAfterDeleteNotificationFunction
-	afterListStorageObjectsFunction      RuntimeAfterListStorageObjectsFunction
-	afterReadStorageObjectsFunction      RuntimeAfterReadStorageObjectsFunction
-	afterWriteStorageObjectsFunction     RuntimeAfterWriteStorageObjectsFunction
-	afterDeleteStorageObjectsFunction    RuntimeAfterDeleteStorageObjectsFunction
-	afterUnlinkCustomFunction            RuntimeAfterUnlinkCustomFunction
-	afterUnlinkDeviceFunction            RuntimeAfterUnlinkDeviceFunction
-	afterUnlinkEmailFunction             RuntimeAfterUnlinkEmailFunction
-	afterUnlinkFacebookFunction          RuntimeAfterUnlinkFacebookFunction
-	afterUnlinkGameCenterFunction        RuntimeAfterUnlinkGameCenterFunction
-	afterUnlinkGoogleFunction            RuntimeAfterUnlinkGoogleFunction
-	afterUnlinkSteamFunction             RuntimeAfterUnlinkSteamFunction
-	afterGetUsersFunction                RuntimeAfterGetUsersFunction
+	afterGetAccountFunction                        RuntimeAfterGetAccountFunction
+	afterUpdateAccountFunction                     RuntimeAfterUpdateAccountFunction
+	afterAuthenticateCustomFunction                RuntimeAfterAuthenticateCustomFunction
+	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
+	afterAuthenticateEmailFunction                 RuntimeAfterAuthenticateEmailFunction
+	afterAuthenticateFacebookFunction              RuntimeAfterAuthenticateFacebookFunction
+	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
+	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
+	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
+	afterListChannelMessagesFunction               RuntimeAfterListChannelMessagesFunction
+	afterListFriendsFunction                       RuntimeAfterListFriendsFunction
+	afterAddFriendsFunction                        RuntimeAfterAddFriendsFunction
+	afterDeleteFriendsFunction                     RuntimeAfterDeleteFriendsFunction
+	afterBlockFriendsFunction                      RuntimeAfterBlockFriendsFunction
+	afterImportFacebookFriendsFunction             RuntimeAfterImportFacebookFriendsFunction
+	afterCreateGroupFunction                       RuntimeAfterCreateGroupFunction
+	afterUpdateGroupFunction                       RuntimeAfterUpdateGroupFunction
+	afterDeleteGroupFunction                       RuntimeAfterDeleteGroupFunction
+	afterJoinGroupFunction                         RuntimeAfterJoinGroupFunction
+	afterLeaveGroupFunction                        RuntimeAfterLeaveGroupFunction
+	afterAddGroupUsersFunction                     RuntimeAfterAddGroupUsersFunction
+	afterKickGroupUsersFunction                    RuntimeAfterKickGroupUsersFunction
+	afterPromoteGroupUsersFunction                 RuntimeAfterPromoteGroupUsersFunction
+	afterListGroupUsersFunction                    RuntimeAfterListGroupUsersFunction
+	afterListUserGroupsFunction                    RuntimeAfterListUserGroupsFunction
+	afterListGroupsFunction                        RuntimeAfterListGroupsFunction
+	afterDeleteLeaderboardRecordFunction           RuntimeAfterDeleteLeaderboardRecordFunction
+	afterListLeaderboardRecordsFunction            RuntimeAfterListLeaderboardRecordsFunction
+	afterWriteLeaderboardRecordFunction            RuntimeAfterWriteLeaderboardRecordFunction
+	afterListLeaderboardRecordsAroundOwnerFunction RuntimeAfterListLeaderboardRecordsAroundOwnerFunction
+	afterLinkCustomFunction                        RuntimeAfterLinkCustomFunction
+	afterLinkDeviceFunction                        RuntimeAfterLinkDeviceFunction
+	afterLinkEmailFunction                         RuntimeAfterLinkEmailFunction
+	afterLinkFacebookFunction                      RuntimeAfterLinkFacebookFunction
+	afterLinkGameCenterFunction                    RuntimeAfterLinkGameCenterFunction
+	afterLinkGoogleFunction                        RuntimeAfterLinkGoogleFunction
+	afterLinkSteamFunction                         RuntimeAfterLinkSteamFunction
+	afterListMatchesFunction                       RuntimeAfterListMatchesFunction
+	afterListNotificationsFunction                 RuntimeAfterListNotificationsFunction
+	afterDeleteNotificationFunction                RuntimeAfterDeleteNotificationFunction
+	afterListStorageObjectsFunction                RuntimeAfterListStorageObjectsFunction
+	afterReadStorageObjectsFunction                RuntimeAfterReadStorageObjectsFunction
+	afterWriteStorageObjectsFunction               RuntimeAfterWriteStorageObjectsFunction
+	afterDeleteStorageObjectsFunction              RuntimeAfterDeleteStorageObjectsFunction
+	afterJoinTournamentFunction                    RuntimeAfterJoinTournamentFunction
+	afterListTournamentRecordsFunction             RuntimeAfterListTournamentRecordsFunction
+	afterListTournamentsFunction                   RuntimeAfterListTournamentsFunction
+	afterWriteTournamentRecordFunction             RuntimeAfterWriteTournamentRecordFunction
+	afterListTournamentRecordsAroundOwnerFunction  RuntimeAfterListTournamentRecordsAroundOwnerFunction
+	afterUnlinkCustomFunction                      RuntimeAfterUnlinkCustomFunction
+	afterUnlinkDeviceFunction                      RuntimeAfterUnlinkDeviceFunction
+	afterUnlinkEmailFunction                       RuntimeAfterUnlinkEmailFunction
+	afterUnlinkFacebookFunction                    RuntimeAfterUnlinkFacebookFunction
+	afterUnlinkGameCenterFunction                  RuntimeAfterUnlinkGameCenterFunction
+	afterUnlinkGoogleFunction                      RuntimeAfterUnlinkGoogleFunction
+	afterUnlinkSteamFunction                       RuntimeAfterUnlinkSteamFunction
+	afterGetUsersFunction                          RuntimeAfterGetUsersFunction
 }
 
 type Runtime struct {
@@ -310,9 +350,14 @@ type Runtime struct {
 	afterReqFunctions  *RuntimeAfterReqFunctions
 
 	matchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
+
+	tournamentEndFunction   RuntimeTournamentEndFunction
+	tournamentResetFunction RuntimeTournamentResetFunction
+
+	leaderboardResetFunction RuntimeLeaderboardResetFunction
 }
 
-func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) (*Runtime, error) {
+func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) (*Runtime, error) {
 	runtimeConfig := config.GetRuntime()
 	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 
@@ -337,13 +382,13 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		return nil, err
 	}
 
-	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, runtimeConfig.Path, paths)
+	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, runtimeConfig.Path, paths)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, err
 	}
 
-	luaModules, luaRpcFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, sessionRegistry, matchRegistry, tracker, router, goMatchCreateFn, runtimeConfig.Path, paths)
+	luaModules, luaRpcFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, luaTournamentEndFunction, luaTournamentResetFunction, luaLeaderboardResetFunction, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, goMatchCreateFn, runtimeConfig.Path, paths)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, err
@@ -479,6 +524,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeWriteLeaderboardRecordFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "writeleaderboardrecord"))
 	}
+	if allBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
+	}
 	if allBeforeReqFunctions.beforeLinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkcustom"))
 	}
@@ -520,6 +568,21 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allBeforeReqFunctions.beforeDeleteStorageObjectsFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if allBeforeReqFunctions.beforeJoinTournamentFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "jointournament"))
+	}
+	if allBeforeReqFunctions.beforeListTournamentRecordsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listtournamentrecords"))
+	}
+	if allBeforeReqFunctions.beforeListTournamentsFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listtournaments"))
+	}
+	if allBeforeReqFunctions.beforeWriteTournamentRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "writetournamentrecord"))
+	}
+	if allBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
 	if allBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkcustom"))
@@ -661,6 +724,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeWriteLeaderboardRecordFunction = goBeforeReqFunctions.beforeWriteLeaderboardRecordFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "writeleaderboardrecord"))
 	}
+	if goBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction != nil {
+		allBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction = goBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
+	}
 	if goBeforeReqFunctions.beforeLinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeLinkCustomFunction = goBeforeReqFunctions.beforeLinkCustomFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkcustom"))
@@ -716,6 +783,26 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeDeleteStorageObjectsFunction != nil {
 		allBeforeReqFunctions.beforeDeleteStorageObjectsFunction = goBeforeReqFunctions.beforeDeleteStorageObjectsFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if goBeforeReqFunctions.beforeJoinTournamentFunction != nil {
+		allBeforeReqFunctions.beforeJoinTournamentFunction = goBeforeReqFunctions.beforeJoinTournamentFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "jointournament"))
+	}
+	if goBeforeReqFunctions.beforeListTournamentRecordsFunction != nil {
+		allBeforeReqFunctions.beforeListTournamentRecordsFunction = goBeforeReqFunctions.beforeListTournamentRecordsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listtournamentrecords"))
+	}
+	if goBeforeReqFunctions.beforeListTournamentsFunction != nil {
+		allBeforeReqFunctions.beforeListTournamentsFunction = goBeforeReqFunctions.beforeListTournamentsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listtournaments"))
+	}
+	if goBeforeReqFunctions.beforeWriteTournamentRecordFunction != nil {
+		allBeforeReqFunctions.beforeWriteTournamentRecordFunction = goBeforeReqFunctions.beforeWriteTournamentRecordFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "writetournamentrecord"))
+	}
+	if goBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction != nil {
+		allBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = goBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
 	if goBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkCustomFunction = goBeforeReqFunctions.beforeUnlinkCustomFunction
@@ -838,6 +925,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterWriteLeaderboardRecordFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "writeleaderboardrecord"))
 	}
+	if allAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
+	}
 	if allAfterReqFunctions.afterLinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkcustom"))
 	}
@@ -879,6 +969,21 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allAfterReqFunctions.afterDeleteStorageObjectsFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletestorageobjects"))
+	}
+	if allAfterReqFunctions.afterJoinTournamentFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "jointournament"))
+	}
+	if allAfterReqFunctions.afterListTournamentRecordsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listtournamentrecords"))
+	}
+	if allAfterReqFunctions.afterListTournamentsFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listtournaments"))
+	}
+	if allAfterReqFunctions.afterWriteTournamentRecordFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "writetournamentrecord"))
+	}
+	if allAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
 	if allAfterReqFunctions.afterUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkcustom"))
@@ -1020,6 +1125,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterWriteLeaderboardRecordFunction = goAfterReqFunctions.afterWriteLeaderboardRecordFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "writeleaderboardrecord"))
 	}
+	if goAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction != nil {
+		allAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = goAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
+	}
 	if goAfterReqFunctions.afterLinkCustomFunction != nil {
 		allAfterReqFunctions.afterLinkCustomFunction = goAfterReqFunctions.afterLinkCustomFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkcustom"))
@@ -1076,6 +1185,26 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterDeleteStorageObjectsFunction = goAfterReqFunctions.afterDeleteStorageObjectsFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletestorageobjects"))
 	}
+	if goAfterReqFunctions.afterJoinTournamentFunction != nil {
+		allAfterReqFunctions.afterJoinTournamentFunction = goAfterReqFunctions.afterJoinTournamentFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "jointournament"))
+	}
+	if goAfterReqFunctions.afterListTournamentRecordsFunction != nil {
+		allAfterReqFunctions.afterListTournamentRecordsFunction = goAfterReqFunctions.afterListTournamentRecordsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listtournamentrecords"))
+	}
+	if goAfterReqFunctions.afterListTournamentsFunction != nil {
+		allAfterReqFunctions.afterListTournamentsFunction = goAfterReqFunctions.afterListTournamentsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listtournaments"))
+	}
+	if goAfterReqFunctions.afterWriteTournamentRecordFunction != nil {
+		allAfterReqFunctions.afterWriteTournamentRecordFunction = goAfterReqFunctions.afterWriteTournamentRecordFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "writetournamentrecord"))
+	}
+	if goAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction != nil {
+		allAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = goAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
+	}
 	if goAfterReqFunctions.afterUnlinkCustomFunction != nil {
 		allAfterReqFunctions.afterUnlinkCustomFunction = goAfterReqFunctions.afterUnlinkCustomFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkcustom"))
@@ -1119,6 +1248,36 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered Lua runtime Matchmaker Matched function invocation")
 	}
 
+	var allTournamentEndFunction RuntimeTournamentEndFunction
+	switch {
+	case goTournamentEndFunction != nil:
+		allTournamentEndFunction = goTournamentEndFunction
+		startupLogger.Info("Registered Go runtime Tournament End function invocation")
+	case luaTournamentEndFunction != nil:
+		allTournamentEndFunction = luaTournamentEndFunction
+		startupLogger.Info("Registered Lua runtime Tournament End function invocation")
+	}
+
+	var allTournamentResetFunction RuntimeTournamentResetFunction
+	switch {
+	case goTournamentResetFunction != nil:
+		allTournamentResetFunction = goTournamentResetFunction
+		startupLogger.Info("Registered Go runtime Tournament Reset function invocation")
+	case luaTournamentResetFunction != nil:
+		allTournamentResetFunction = luaTournamentResetFunction
+		startupLogger.Info("Registered Lua runtime Tournament Reset function invocation")
+	}
+
+	var allLeaderboardResetFunction RuntimeLeaderboardResetFunction
+	switch {
+	case goLeaderboardResetFunction != nil:
+		allLeaderboardResetFunction = goLeaderboardResetFunction
+		startupLogger.Info("Registered Go runtime Leaderboard Reset function invocation")
+	case luaLeaderboardResetFunction != nil:
+		allLeaderboardResetFunction = luaLeaderboardResetFunction
+		startupLogger.Info("Registered Lua runtime Leaderboard Reset function invocation")
+	}
+
 	// Lua matches are not registered the same, list only Go ones.
 	goMatchNames := goMatchNamesListFn()
 	for _, name := range goMatchNames {
@@ -1132,6 +1291,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		beforeReqFunctions:        allBeforeReqFunctions,
 		afterReqFunctions:         allAfterReqFunctions,
 		matchmakerMatchedFunction: allMatchmakerMatchedFunction,
+		tournamentEndFunction:     allTournamentEndFunction,
+		tournamentResetFunction:   allTournamentResetFunction,
+		leaderboardResetFunction:  allLeaderboardResetFunction,
 	}, nil
 }
 
@@ -1147,7 +1309,7 @@ func (r *Runtime) AfterRt(id string) RuntimeAfterRtFunction {
 	return r.afterRtFunctions[id]
 }
 
-func (r *Runtime) RuntimeBeforeGetAccount() RuntimeBeforeGetAccountFunction {
+func (r *Runtime) BeforeGetAccount() RuntimeBeforeGetAccountFunction {
 	return r.beforeReqFunctions.beforeGetAccountFunction
 }
 
@@ -1379,6 +1541,14 @@ func (r *Runtime) AfterWriteLeaderboardRecord() RuntimeAfterWriteLeaderboardReco
 	return r.afterReqFunctions.afterWriteLeaderboardRecordFunction
 }
 
+func (r *Runtime) BeforeListLeaderboardRecordsAroundOwner() RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction {
+	return r.beforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction
+}
+
+func (r *Runtime) AfterListLeaderboardRecordsAroundOwner() RuntimeAfterListLeaderboardRecordsAroundOwnerFunction {
+	return r.afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction
+}
+
 func (r *Runtime) BeforeLinkCustom() RuntimeBeforeLinkCustomFunction {
 	return r.beforeReqFunctions.beforeLinkCustomFunction
 }
@@ -1491,6 +1661,46 @@ func (r *Runtime) AfterDeleteStorageObjects() RuntimeAfterDeleteStorageObjectsFu
 	return r.afterReqFunctions.afterDeleteStorageObjectsFunction
 }
 
+func (r *Runtime) BeforeJoinTournament() RuntimeBeforeJoinTournamentFunction {
+	return r.beforeReqFunctions.beforeJoinTournamentFunction
+}
+
+func (r *Runtime) AfterJoinTournament() RuntimeAfterJoinTournamentFunction {
+	return r.afterReqFunctions.afterJoinTournamentFunction
+}
+
+func (r *Runtime) BeforeListTournamentRecords() RuntimeBeforeListTournamentRecordsFunction {
+	return r.beforeReqFunctions.beforeListTournamentRecordsFunction
+}
+
+func (r *Runtime) AfterListTournamentRecords() RuntimeAfterListTournamentRecordsFunction {
+	return r.afterReqFunctions.afterListTournamentRecordsFunction
+}
+
+func (r *Runtime) BeforeListTournaments() RuntimeBeforeListTournamentsFunction {
+	return r.beforeReqFunctions.beforeListTournamentsFunction
+}
+
+func (r *Runtime) AfterListTournaments() RuntimeAfterListTournamentsFunction {
+	return r.afterReqFunctions.afterListTournamentsFunction
+}
+
+func (r *Runtime) BeforeWriteTournamentRecord() RuntimeBeforeWriteTournamentRecordFunction {
+	return r.beforeReqFunctions.beforeWriteTournamentRecordFunction
+}
+
+func (r *Runtime) AfterWriteTournamentRecord() RuntimeAfterWriteTournamentRecordFunction {
+	return r.afterReqFunctions.afterWriteTournamentRecordFunction
+}
+
+func (r *Runtime) BeforeListTournamentRecordsAroundOwner() RuntimeBeforeListTournamentRecordsAroundOwnerFunction {
+	return r.beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction
+}
+
+func (r *Runtime) AfterListTournamentRecordsAroundOwner() RuntimeAfterListTournamentRecordsAroundOwnerFunction {
+	return r.afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction
+}
+
 func (r *Runtime) BeforeUnlinkCustom() RuntimeBeforeUnlinkCustomFunction {
 	return r.beforeReqFunctions.beforeUnlinkCustomFunction
 }
@@ -1557,4 +1767,16 @@ func (r *Runtime) AfterGetUsers() RuntimeAfterGetUsersFunction {
 
 func (r *Runtime) MatchmakerMatched() RuntimeMatchmakerMatchedFunction {
 	return r.matchmakerMatchedFunction
+}
+
+func (r *Runtime) TournamentEnd() RuntimeTournamentEndFunction {
+	return r.tournamentEndFunction
+}
+
+func (r *Runtime) TournamentReset() RuntimeTournamentResetFunction {
+	return r.tournamentResetFunction
+}
+
+func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {
+	return r.leaderboardResetFunction
 }

@@ -337,8 +337,8 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 
 	if meta.Persistence {
 		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, CAST($10::BIGINT AS TIMESTAMPTZ), CAST($10::BIGINT AS TIMESTAMPTZ))`
-		_, err := p.db.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, message.CreateTime.Seconds)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+		_, err := p.db.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
 		if err != nil {
 			logger.Error("Error persisting channel message", zap.Error(err))
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -416,8 +416,8 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 	if meta.Persistence {
 		// First find and update the referenced message.
 		var dbCreateTime pq.NullTime
-		query := "UPDATE message SET update_time = CAST($5::BIGINT AS TIMESTAMPTZ), username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
-		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId, message.Content, message.Username, message.UpdateTime.Seconds).Scan(&dbCreateTime)
+		query := "UPDATE message SET update_time = $5, username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
+		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId, message.Content, message.Username, time.Unix(message.UpdateTime.Seconds, 0).UTC()).Scan(&dbCreateTime)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

@@ -40,7 +40,7 @@ var (
 
 func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.AuthenticateCustomRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateCustomFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateCustom(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -94,7 +94,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateCustomFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateCustom(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -115,7 +115,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.AuthenticateDeviceRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateDeviceFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateDevice(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -169,7 +169,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateDeviceFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateDevice(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -190,7 +190,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateEmailRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateEmailFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateEmail(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -251,7 +251,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateEmailFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateEmail(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -272,7 +272,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateFacebookFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateFacebook(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -327,7 +327,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateFacebookFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateFacebook(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -348,7 +348,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateGameCenterFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateGameCenter(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -410,7 +410,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateGameCenterFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateGameCenter(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -431,7 +431,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateGoogleFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateGoogle(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -481,7 +481,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateGoogleFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateGoogle(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
@@ -502,7 +502,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
 	// Before hook.
-	if fn := s.runtime.beforeReqFunctions.beforeAuthenticateSteamFunction; fn != nil {
+	if fn := s.runtime.BeforeAuthenticateSteam(); fn != nil {
 		// Stats measurement start boundary.
 		fullMethod := ctx.Value(ctxFullMethodKey{}).(string)
 		name := fmt.Sprintf("%v-before", fullMethod)
@@ -556,7 +556,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
-	if fn := s.runtime.afterReqFunctions.afterAuthenticateSteamFunction; fn != nil {
+	if fn := s.runtime.AfterAuthenticateSteam(); fn != nil {
 		// Stats measurement start boundary.
 		name := fmt.Sprintf("%v-after", ctx.Value(ctxFullMethodKey{}).(string))
 		statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))

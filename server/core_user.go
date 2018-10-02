@@ -136,7 +136,7 @@ func UnbanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
 		params = append(params, id)
 	}
 
-	query := "UPDATE users SET disable_time = CAST(0 AS TIMESTAMPTZ) WHERE id IN (" + strings.Join(statements, ", ") + ")"
+	query := "UPDATE users SET disable_time = '1970-01-01 00:00:00' WHERE id IN (" + strings.Join(statements, ", ") + ")"
 	_, err := db.Exec(query, params...)
 	if err != nil {
 		logger.Error("Error unbanning user accounts.", zap.Error(err), zap.Strings("ids", ids))
