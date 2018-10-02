@@ -101,8 +101,13 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, cache LeaderboardCache
 		return ErrTournamentNotFound
 	}
 
-	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3`
-	_, err := db.Exec(query, count, leaderboardId, owner)
+	expiryTime := int64(0)
+	if leaderboard.ResetSchedule != nil {
+		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
+	}
+
+	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3 AND expiry_time = $4`
+	_, err := db.Exec(query, count, leaderboardId, owner, time.Unix(expiryTime, 0).UTC())
 	if err != nil {
 		logger.Error("Could not increment max attempt counter", zap.Error(err))
 	} else {
@@ -230,6 +235,8 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 		params = append(params, cursor.TournamentId)
 	}
 
+	query += " LIMIT $5"
+
 	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
 	rows, err := db.Query(query, params...)
 	if err != nil {
@@ -294,13 +301,13 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	var subscoreAbs int64
 	switch leaderboard.Operator {
 	case LeaderboardOperatorIncrement:
-		opSql = "score = leaderboard_record.score + $8::BIGINT, subscore = leaderboard_record.subscore + $9::BIGINT"
+		opSql = "score = leaderboard_record.score + $5::BIGINT, subscore = leaderboard_record.subscore + $6::BIGINT"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
 	case LeaderboardOperatorSet:
-		opSql = "score = $8::BIGINT, subscore = $9::BIGINT"
+		opSql = "score = $5::BIGINT, subscore = $6::BIGINT"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
@@ -310,10 +317,10 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSql = "score = ((leaderboard_record.score + $8::BIGINT - abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT - abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+			opSql = "score = ((leaderboard_record.score + $5::BIGINT - abs(leaderboard_record.score - $5::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $6::BIGINT - abs(leaderboard_record.subscore - $6::BIGINT)) / 2)::BIGINT"
 		} else {
 			// Higher score is better.
-			opSql = "score = ((leaderboard_record.score + $8::BIGINT + abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT + abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+			opSql = "score = ((leaderboard_record.score + $5::BIGINT + abs(leaderboard_record.score - $5::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $6::BIGINT + abs(leaderboard_record.subscore - $6::BIGINT)) / 2)::BIGINT"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
@@ -328,21 +335,20 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	} else {
 		params = append(params, username)
 	}
-	params = append(params, scoreAbs, subscoreAbs)
+	params = append(params, expiryTime, scoreDelta, subscoreDelta)
 	if metadata == "" {
 		params = append(params, nil)
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, expiryTime, scoreDelta, subscoreDelta)
 
 	if leaderboard.JoinRequired {
 		// If join is required then the user must already have a record to update.
 		// There's also no need to increment the number of records tracked for this tournament.
 
 		query := `UPDATE leaderboard_record
-              SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
-              WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $7 AND (max_num_score = 0 OR num_score < max_num_score)`
+              SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
+              WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)`
 
 		res, err := db.Exec(query, params...)
 		if err != nil {
@@ -358,13 +364,14 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		// Update or insert a new record. Maybe increment number of records tracked for this tournament.
 
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
-            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7, $10)
+            VALUES ($1, $2, $3, $8, $9, COALESCE($7, '{}'::JSONB), $4, $10)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()
-						RETURNING num_score`
-		params = append(params, leaderboard.MaxNumScore)
+            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), update_time = now()
+						RETURNING num_score, max_num_score`
+		params = append(params, scoreAbs, subscoreAbs, leaderboard.MaxNumScore)
 
 		var dbNumScore int
+		var dbMaxNumScore int
 
 		tx, err := db.Begin()
 		if err != nil {
@@ -373,12 +380,12 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		}
 
 		if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
-			if err := tx.QueryRow(query, params).Scan(&dbNumScore); err != nil {
+			if err := tx.QueryRow(query, params...).Scan(&dbNumScore, &dbMaxNumScore); err != nil {
 				return err
 			}
 
 			// Check if the max number of submissions has been reached.
-			if leaderboard.MaxNumScore > 0 && dbNumScore > leaderboard.MaxNumScore {
+			if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
 				return ErrTournamentWriteMaxNumScoreReached
 			}
 
@@ -458,35 +465,6 @@ func TournamentRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache 
 	expiryTime := time.Unix(expiry, 0).UTC()
 
 	return getLeaderboardRecordsHaystack(logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
-}
-
-func getJoinedTournaments(logger *zap.Logger, db *sql.DB, ownerId string) ([]interface{}, error) {
-	result := make([]interface{}, 0)
-	query := `SELECT leaderboard_id FROM leaderboard_record WHERE (owner_id = $1 AND expiry_time > now()) OR (owner_id = $1 AND expiry_time = '1970-01-01 00:00:00')`
-	logger.Debug("Finding joined tournaments", zap.String("query", query))
-	rows, err := db.Query(query, ownerId)
-	if err != nil {
-		logger.Error("Could not list leaderboard records belonging to owner", zap.Error(err), zap.String("owner_id", ownerId))
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			if err == sql.ErrNoRows {
-				return make([]interface{}, 0), nil
-			}
-			logger.Error("Failed to parse database results", zap.Error(err))
-			return nil, err
-		}
-
-		result = append(result, id)
-	}
-
-	logger.Debug("Found joined tournaments", zap.Any("tournament_ids", result))
-
-	return result, nil
 }
 
 func calculateTournamentDeadlines(leaderboard *Leaderboard, t time.Time) (int64, int64, int64) {
