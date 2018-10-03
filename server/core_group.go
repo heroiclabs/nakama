@@ -285,10 +285,6 @@ FROM groups
 WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 	rows, err := db.Query(query, groupID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			logger.Info("Group does not exist.", zap.Error(err), zap.String("group_id", groupID.String()))
-			return ErrGroupNotFound
-		}
 		logger.Error("Could not look up group while trying to join it.", zap.Error(err))
 		return err
 	}
@@ -298,6 +294,11 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 	if err != nil {
 		logger.Error("Could not parse groups.", zap.Error(err))
 		return err
+	}
+
+	if len(groups) == 0 {
+		logger.Info("Group does not exist.", zap.Error(err), zap.String("group_id", groupID.String()))
+		return ErrGroupNotFound
 	}
 
 	group := groups[0]
