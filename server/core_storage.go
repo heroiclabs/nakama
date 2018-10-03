@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"context"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -34,7 +35,7 @@ import (
 
 type storageCursor struct {
 	Key    string
-	UserID []byte
+	UserID uuid.UUID
 	Read   int32
 }
 
@@ -286,7 +287,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		}
 
 		if lastObject.UserId != "" {
-			newCursor.UserID = uuid.FromStringOrNil(lastObject.UserId).Bytes()
+			newCursor.UserID = uuid.FromStringOrNil(lastObject.UserId)
 		}
 
 		cursorBuf := new(bytes.Buffer)
