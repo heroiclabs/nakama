@@ -28,16 +28,26 @@ This will produce a `.so` file (platform dependant) that you'll need to place in
 
 If you are running Nakama through the [Docker image](https://heroiclabs.com/docs/install-docker-quickstart/), you'll need to also compile the plugin via the provided docker builder recipe. This is a known limitation in the Go compile toolchain as it cannot cross-compile plugins.
 
-Download the content of the `plugin.Dockerfile` onto your system and run the following command:
+Copy the content of the [`plugin.Dockerfile`](https://github.com/heroiclabs/nakama/blob/master/build/plugin.Dockerfile) onto your system and run the following command:
 
 ```
-docker build . --file ./plugin.Dockerfile --build-arg src=<ModuleName>
+docker build <DockerContext> --file "/absolute/path/to/plugin.Dockerfile" --build-arg src="relative/path/to/<ModuleName>"
 ```
 
-Make sure that you replace `<ModuleName>` with the absolute path to your plugin source file. Docker will then compile your plugin. To load the compiled plugin, you'll need to extract the shared object from the docker container:
+1. Ensure that you change the `<DockerContext>` folder with the absolute path to your project folder.
+2. Ensure that the `<ModuleName>` folder is inside the `<DockerContext>` project folder you referenced above.
+3. Ensure that you update the absolute path of the `plugin.Dockerfile`.
+
+For example:
 
 ```
-docker run --rm --entrypoint cat <ContainerId> /go/build/<ModuleName>.so > ~/Desktop/<ModuleName>.so
+docker build "/go/src/github.com/heroiclabs/nakama" --file "/home/plugin.Dockerfile" --build-arg src="sample_go_module"
+```
+
+Docker will then compile your plugin. To load the compiled plugin, you'll need to extract the shared object from the docker container:
+
+```
+docker run --rm --entrypoint cat <ContainerId> /go/build/<ModuleName>.so > /home/<ModuleName>.so
 ```
 
 Make sure that you change the `<ContainerId>` with the actual container identifier. You can do this by running
