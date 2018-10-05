@@ -34,6 +34,7 @@ import (
 type Config interface {
 	GetName() string
 	GetDataDir() string
+	GetShutdown() *ShutdownConfig
 	GetLogger() *LoggerConfig
 	GetMetrics() *MetricsConfig
 	GetSession() *SessionConfig
@@ -94,6 +95,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	// Fail fast on invalid values.
 	if l := len(mainConfig.Name); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
+	}
+	if mainConfig.GetShutdown().GracePeriodSec < 0 {
+		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown.grace_period_sec", mainConfig.GetShutdown().GracePeriodSec))
 	}
 	if mainConfig.GetSocket().ServerKey == "" {
 		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
@@ -207,6 +211,7 @@ type config struct {
 	Name        string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
 	Config      string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
 	Datadir     string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Shutdown    *ShutdownConfig    `yaml:"shutdown" json:"shutdown" usage:"Shutdown behaviour and settings."`
 	Logger      *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
 	Metrics     *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
 	Session     *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
@@ -228,6 +233,7 @@ func NewConfig(logger *zap.Logger) *config {
 	return &config{
 		Name:        "nakama",
 		Datadir:     filepath.Join(cwd, "data"),
+		Shutdown:    NewShutdownConfig(),
 		Logger:      NewLoggerConfig(),
 		Metrics:     NewMetricsConfig(),
 		Session:     NewSessionConfig(),
@@ -247,6 +253,10 @@ func (c *config) GetName() string {
 
 func (c *config) GetDataDir() string {
 	return c.Datadir
+}
+
+func (c *config) GetShutdown() *ShutdownConfig {
+	return c.Shutdown
 }
 
 func (c *config) GetLogger() *LoggerConfig {
@@ -289,14 +299,26 @@ func (c *config) GetLeaderboard() *LeaderboardConfig {
 	return c.Leaderboard
 }
 
+// ShutdownConfig is configuration relevant to server shutdown behaviour.
+type ShutdownConfig struct {
+	GracePeriodSec int `yaml:"grace_period_sec" json:"grace_period_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 60 seconds. If 0 the server will shut down immediately when it receives a termination singal."`
+}
+
+// NewShutdownConfig creates a new ShutdownConfig struct.
+func NewShutdownConfig() *ShutdownConfig {
+	return &ShutdownConfig{
+		GracePeriodSec: 60,
+	}
+}
+
 // LoggerConfig is configuration relevant to logging levels and output.
 type LoggerConfig struct {
-	Level  string `yaml:"level" json:"level" usage:"Log level to set. Valid values are 'debug', 'info', 'warn', 'error'. "`
+	Level  string `yaml:"level" json:"level" usage:"Log level to set. Valid values are 'debug', 'info', 'warn', 'error'."`
 	Stdout bool   `yaml:"stdout" json:"stdout" usage:"Log to standard console output (as well as to a file if set)."`
 	File   string `yaml:"file" json:"file" usage:"Log output to a file (as well as stdout if set). Make sure that the directory and the file is writable."`
 }
 
-// NewLogConfig creates a new LoggerConfig struct.
+// NewLoggerConfig creates a new LoggerConfig struct.
 func NewLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
 		Level:  "info",
