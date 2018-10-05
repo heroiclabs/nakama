@@ -27,7 +27,7 @@ LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 
 RUN mkdir -p /nakama/data/modules && \
-  apk --no-cache add ca-certificates curl iproute2
+  apk --no-cache add ca-certificates curl iproute2 unzip rsync git
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build/nakama" /nakama/
