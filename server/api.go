@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"github.com/heroiclabs/nakama/api"
 	"net"
 	"net/http"
 	"strings"
@@ -38,7 +39,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcRuntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/apigrpc"
 	"github.com/heroiclabs/nakama/social"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
@@ -106,7 +107,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	}
 
 	// Register and start GRPC server.
-	api.RegisterNakamaServer(grpcServer, s)
+	apigrpc.RegisterNakamaServer(grpcServer, s)
 	startupLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port-1))
@@ -152,7 +153,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	} else {
 		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
-	if err := api.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
+	if err := apigrpc.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		startupLogger.Fatal("API server gateway registration failed", zap.Error(err))
 	}
 

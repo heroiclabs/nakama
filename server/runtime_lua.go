@@ -965,6 +965,12 @@ func (rp *RuntimeProviderLua) Rpc(id string, queryParams map[string][]string, us
 
 	if fnErr != nil {
 		rp.logger.Error("Runtime RPC function caused an error", zap.String("id", id), zap.Error(fnErr))
+
+		if code <= 0 || code >= 17 {
+			// If error is present but code is invalid then default to 13 (Internal) as the error code.
+			code = 13
+		}
+
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {

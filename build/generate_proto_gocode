@@ -37,8 +37,11 @@ protoc_flags=(-I/usr/local/include -I../ -I$GOPATH/src -I$GOPATH/src/github.com/
 
 api_pbfile="../api/api.proto"
 protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${api_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${api_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${api_pbfile}" || exit 1
+
+apigrpc_pbfile="../apigrpc/apigrpc.proto"
+protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${apigrpc_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
+protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
 
 console_pbfile="../console/console.proto"
 protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${console_pbfile}" || exit 1

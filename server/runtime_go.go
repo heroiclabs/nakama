@@ -61,6 +61,10 @@ func (ri *RuntimeGoInitialiser) RegisterRpc(id string, fn func(ctx context.Conte
 	ri.rpc[id] = func(queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeRPC, queryParams, expiry, userID, username, sessionID, clientIP, clientPort)
 		result, fnErr, code := fn(ctx, ri.logger, ri.db, ri.nk, payload)
+		if fnErr != nil && (code <= 0 || code >= 17) {
+			// If error is present but code is invalid then default to 13 (Internal) as the error code.
+			code = 13
+		}
 		return result, fnErr, codes.Code(code)
 	}
 	return nil
