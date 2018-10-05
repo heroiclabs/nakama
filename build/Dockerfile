@@ -1,6 +1,6 @@
 # docker build . --rm --build-arg version=2.0.4 --build-arg commit=master -t heroiclabs/nakama:2.0.4
 
-FROM golang:1.11-alpine3.7 as builder
+FROM golang:1.11.1-alpine3.7 as builder
 
 ARG commit
 
