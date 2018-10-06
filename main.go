@@ -138,20 +138,51 @@ func main() {
 
 	// Wait for a termination signal.
 	<-c
-	startupLogger.Info("Shutting down")
 
-	// Gracefully stop server components.
+	graceSeconds := config.GetShutdownGraceSec()
+
+	// If a shutdown grace period is allowed, prepare a timer.
+	var timer *time.Timer
+	timerCh := make(<-chan time.Time, 1)
+	if graceSeconds != 0 {
+		timer = time.NewTimer(time.Duration(graceSeconds) * time.Second)
+		timerCh = timer.C
+		startupLogger.Info("Shutdown started - use CTRL^C to force stop server", zap.Int("grace_period_sec", graceSeconds))
+	} else {
+		// No grace period.
+		startupLogger.Info("Shutdown started")
+	}
+
+	// Stop any running authoritative matches and do not accept any new ones.
+	select {
+	case <-matchRegistry.Stop(graceSeconds):
+		// Graceful shutdown has completed.
+	case <-timerCh:
+		// Timer has expired, terminate matches immediately.
+		startupLogger.Info("Shutdown grace period expired")
+		<-matchRegistry.Stop(0)
+	case <-c:
+		// A second interrupt has been received.
+		startupLogger.Info("Skipping graceful shutdown")
+		<-matchRegistry.Stop(0)
+	}
+	if timer != nil {
+		timer.Stop()
+	}
+
+	// Gracefully stop remaining server components.
 	apiServer.Stop()
 	consoleServer.Stop()
 	metrics.Stop(logger)
 	leaderboardScheduler.Stop()
-	matchRegistry.Stop()
 	tracker.Stop()
 	sessionRegistry.Stop()
 
 	if gaenabled {
 		ga.SendSessionStop(telemetryClient, gacode, cookie)
 	}
+
+	startupLogger.Info("Shutdown complete")
 
 	os.Exit(0)
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"sync"
@@ -81,7 +82,7 @@ type MatchRegistry interface {
 	// This can list across both authoritative and relayed matches.
 	ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match
 	// Stop the match registry and close all matches it's tracking.
-	Stop()
+	Stop(graceSeconds int) chan struct{}
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
 	JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string)
@@ -105,6 +106,9 @@ type LocalMatchRegistry struct {
 	tracker Tracker
 	node    string
 	matches map[uuid.UUID]*MatchHandler
+
+	stopped   *atomic.Bool
+	stoppedCh chan struct{}
 }
 
 func NewLocalMatchRegistry(logger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
@@ -114,10 +118,18 @@ func NewLocalMatchRegistry(logger *zap.Logger, config Config, tracker Tracker, n
 		tracker: tracker,
 		node:    node,
 		matches: make(map[uuid.UUID]*MatchHandler),
+
+		stopped:   atomic.NewBool(false),
+		stoppedCh: make(chan struct{}, 2),
 	}
 }
 
 func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, label *atomic.String, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error) {
+	if r.stopped.Load() {
+		// Server is shutting down, reject new matches.
+		return nil, errors.New("shutdown in progress")
+	}
+
 	match, err := NewMatchHandler(logger, r.config, r, core, label, id, r.node, params)
 	if err != nil {
 		return nil, err
@@ -140,8 +152,19 @@ func (r *LocalMatchRegistry) GetMatch(id uuid.UUID) *MatchHandler {
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.Lock()
 	delete(r.matches, id)
+	matchesRemaining := len(r.matches)
 	r.Unlock()
 	r.tracker.UntrackByStream(stream)
+
+	// If there are no more matches in this registry and a shutdown was initiated then signal
+	// that the process is complete.
+	if matchesRemaining == 0 && r.stopped.Load() {
+		select {
+		case r.stoppedCh <- struct{}{}:
+		default:
+			// Ignore if the signal has already been sent.
+		}
+	}
 }
 
 func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match {
@@ -271,13 +294,45 @@ func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.Bool
 	return results
 }
 
-func (r *LocalMatchRegistry) Stop() {
-	r.Lock()
-	for id, mh := range r.matches {
-		mh.Close()
-		delete(r.matches, id)
+func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
+	// Mark the match registry as stopped, but allow further calls here to signal periodic termination to any matches still running.
+	r.stopped.Store(true)
+
+	// Graceful shutdown not allowed/required, or grace period has expired.
+	if graceSeconds == 0 {
+		r.RLock()
+		for id, mh := range r.matches {
+			mh.Close()
+			delete(r.matches, id)
+		}
+		r.RUnlock()
+		// Termination was triggered and there are no active matches.
+		select {
+		case r.stoppedCh <- struct{}{}:
+		default:
+			// Ignore if the signal has already been sent.
+		}
+		return r.stoppedCh
 	}
-	r.Unlock()
+
+	r.RLock()
+	if len(r.matches) == 0 {
+		// Termination was triggered and there are no active matches.
+		select {
+		case r.stoppedCh <- struct{}{}:
+		default:
+			// Ignore if the signal has already been sent.
+		}
+		r.RUnlock()
+		return r.stoppedCh
+	}
+
+	for _, mh := range r.matches {
+		// Don't care if the call queue is full, match is supposed to end anyway.
+		mh.QueueCall(Terminate(graceSeconds))
+	}
+	r.RUnlock()
+	return r.stoppedCh
 }
 
 func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string) {

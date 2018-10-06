@@ -105,3 +105,12 @@ func (m *Match) MatchLoop(ctx context.Context, logger *log.Logger, db *sql.DB, n
 	}
 	return state
 }
+
+func (m *Match) MatchTerminate(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, graceSeconds int) interface{} {
+	if state.(*MatchState).debug {
+		logger.Printf("match terminate match_id %v tick %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), tick)
+		logger.Printf("match terminate match_id %v grace seconds %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), graceSeconds)
+	}
+
+	return state
+}

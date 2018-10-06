@@ -292,3 +292,30 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 		mh.state = state
 	}
 }
+
+func Terminate(graceSeconds int) func(mh *MatchHandler) {
+	return func(mh *MatchHandler) {
+		if mh.stopped.Load() {
+			return
+		}
+
+		state, err := mh.core.MatchTerminate(mh.tick, mh.state, graceSeconds)
+		if err != nil {
+			mh.Stop()
+			mh.logger.Warn("Stopping match after error from match_terminate execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
+			return
+		}
+		if state == nil {
+			mh.Stop()
+			mh.logger.Info("Match terminate returned nil or no state, stopping match")
+			return
+		}
+
+		mh.state = state
+
+		// If grace period is 0 end the match immediately after the callback returns.
+		if graceSeconds == 0 {
+			mh.Stop()
+		}
+	}
+}

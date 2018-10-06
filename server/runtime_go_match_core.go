@@ -139,6 +139,11 @@ func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh ch
 	return newState, nil
 }
 
+func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
+	newState := r.match.MatchTerminate(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, graceSeconds)
+	return newState, nil
+}
+
 func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {
 	var presenceIDs []*PresenceID
 	if presences != nil {

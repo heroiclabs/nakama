@@ -46,6 +46,7 @@ type RuntimeLuaMatchCore struct {
 	joinFn        lua.LValue
 	leaveFn       lua.LValue
 	loopFn        lua.LValue
+	terminateFn   lua.LValue
 	ctx           *lua.LTable
 	dispatcher    *lua.LTable
 }
@@ -108,8 +109,8 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		return nil, errors.New("match_join_attempt not found or not a function")
 	}
 	joinFn := tab.RawGet(lua.LString("match_join"))
-	if joinFn == nil || joinFn.Type() != lua.LTFunction {
-		joinFn = nil
+	if joinFn.Type() != lua.LTFunction {
+		return nil, errors.New("match_join not found or not a function")
 	}
 	leaveFn := tab.RawGet(lua.LString("match_leave"))
 	if leaveFn.Type() != lua.LTFunction {
@@ -118,6 +119,10 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 	loopFn := tab.RawGet(lua.LString("match_loop"))
 	if loopFn.Type() != lua.LTFunction {
 		return nil, errors.New("match_loop not found or not a function")
+	}
+	terminateFn := tab.RawGet(lua.LString("match_terminate"))
+	if terminateFn.Type() != lua.LTFunction {
+		return nil, errors.New("match_terminate not found or not a function")
 	}
 
 	core := &RuntimeLuaMatchCore{
@@ -143,6 +148,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		joinFn:        joinFn,
 		leaveFn:       leaveFn,
 		loopFn:        loopFn,
+		terminateFn:   terminateFn,
 		ctx:           ctx,
 		// dispatcher set below.
 	}
@@ -423,6 +429,36 @@ func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh c
 	// Check for and remove the sentinel value, will fail if there are any extra return values.
 	if sentinel := r.vm.Get(-1); sentinel.Type() != LTSentinel {
 		return nil, errors.New("Match loop returned too many values, stopping match")
+	}
+	r.vm.Pop(1)
+
+	return newState, nil
+}
+
+func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
+	// Execute the match_terminate call.
+	r.vm.Push(LSentinel)
+	r.vm.Push(r.terminateFn)
+	r.vm.Push(r.ctx)
+	r.vm.Push(r.dispatcher)
+	r.vm.Push(lua.LNumber(tick))
+	r.vm.Push(state.(lua.LValue))
+	r.vm.Push(lua.LNumber(graceSeconds))
+
+	err := r.vm.PCall(5, lua.MultRet, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the resulting state.
+	newState := r.vm.Get(-1)
+	if newState.Type() == lua.LTNil || newState.Type() == LTSentinel {
+		return nil, nil
+	}
+	r.vm.Pop(1)
+	// Check for and remove the sentinel value, will fail if there are any extra return values.
+	if sentinel := r.vm.Get(-1); sentinel.Type() != LTSentinel {
+		return nil, errors.New("Match terminate returned too many values, stopping match")
 	}
 	r.vm.Pop(1)
 
