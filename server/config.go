@@ -34,7 +34,7 @@ import (
 type Config interface {
 	GetName() string
 	GetDataDir() string
-	GetShutdown() *ShutdownConfig
+	GetShutdownGraceSec() int
 	GetLogger() *LoggerConfig
 	GetMetrics() *MetricsConfig
 	GetSession() *SessionConfig
@@ -96,8 +96,8 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if l := len(mainConfig.Name); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
-	if mainConfig.GetShutdown().GracePeriodSec < 0 {
-		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown.grace_period_sec", mainConfig.GetShutdown().GracePeriodSec))
+	if mainConfig.ShutdownGraceSec < 0 {
+		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown_grace_sec", mainConfig.ShutdownGraceSec))
 	}
 	if mainConfig.GetSocket().ServerKey == "" {
 		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
@@ -208,20 +208,20 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 }
 
 type config struct {
-	Name        string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config      string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	Datadir     string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Shutdown    *ShutdownConfig    `yaml:"shutdown" json:"shutdown" usage:"Shutdown behaviour and settings."`
-	Logger      *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
-	Metrics     *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
-	Session     *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
-	Socket      *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
-	Database    *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
-	Social      *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
-	Runtime     *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
-	Match       *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
-	Console     *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
-	Leaderboard *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
+	Name             string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
+	Config           string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	ShutdownGraceSec int                `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
+	Datadir          string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
+	Metrics          *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
+	Session          *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
+	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -231,19 +231,19 @@ func NewConfig(logger *zap.Logger) *config {
 		logger.Fatal("Error getting current working directory.", zap.Error(err))
 	}
 	return &config{
-		Name:        "nakama",
-		Datadir:     filepath.Join(cwd, "data"),
-		Shutdown:    NewShutdownConfig(),
-		Logger:      NewLoggerConfig(),
-		Metrics:     NewMetricsConfig(),
-		Session:     NewSessionConfig(),
-		Socket:      NewSocketConfig(),
-		Database:    NewDatabaseConfig(),
-		Social:      NewSocialConfig(),
-		Runtime:     NewRuntimeConfig(),
-		Match:       NewMatchConfig(),
-		Console:     NewConsoleConfig(),
-		Leaderboard: NewLeaderboardConfig(),
+		Name:             "nakama",
+		Datadir:          filepath.Join(cwd, "data"),
+		ShutdownGraceSec: 0,
+		Logger:           NewLoggerConfig(),
+		Metrics:          NewMetricsConfig(),
+		Session:          NewSessionConfig(),
+		Socket:           NewSocketConfig(),
+		Database:         NewDatabaseConfig(),
+		Social:           NewSocialConfig(),
+		Runtime:          NewRuntimeConfig(),
+		Match:            NewMatchConfig(),
+		Console:          NewConsoleConfig(),
+		Leaderboard:      NewLeaderboardConfig(),
 	}
 }
 
@@ -255,8 +255,8 @@ func (c *config) GetDataDir() string {
 	return c.Datadir
 }
 
-func (c *config) GetShutdown() *ShutdownConfig {
-	return c.Shutdown
+func (c *config) GetShutdownGraceSec() int {
+	return c.ShutdownGraceSec
 }
 
 func (c *config) GetLogger() *LoggerConfig {
@@ -297,18 +297,6 @@ func (c *config) GetConsole() *ConsoleConfig {
 
 func (c *config) GetLeaderboard() *LeaderboardConfig {
 	return c.Leaderboard
-}
-
-// ShutdownConfig is configuration relevant to server shutdown behaviour.
-type ShutdownConfig struct {
-	GracePeriodSec int `yaml:"grace_period_sec" json:"grace_period_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 60 seconds. If 0 the server will shut down immediately when it receives a termination singal."`
-}
-
-// NewShutdownConfig creates a new ShutdownConfig struct.
-func NewShutdownConfig() *ShutdownConfig {
-	return &ShutdownConfig{
-		GracePeriodSec: 60,
-	}
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.

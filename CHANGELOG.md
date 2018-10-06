@@ -15,7 +15,6 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Improved Postgres compatibility on TIMESTAMPTZ types.
-- Graceful shutdown is now enabled by default.
 
 ### Fixed
 - Correctly merge new friend records when importing from Facebook.

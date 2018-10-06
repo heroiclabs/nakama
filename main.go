@@ -139,8 +139,7 @@ func main() {
 	// Wait for a termination signal.
 	<-c
 
-	graceSeconds := config.GetShutdown().GracePeriodSec
-	startupLogger.Info("Shutting down - a second interrupt will skip graceful shutdown", zap.Int("grace_period_sec", graceSeconds))
+	graceSeconds := config.GetShutdownGraceSec()
 
 	// If a shutdown grace period is allowed, prepare a timer.
 	var timer *time.Timer
@@ -148,6 +147,10 @@ func main() {
 	if graceSeconds != 0 {
 		timer = time.NewTimer(time.Duration(graceSeconds) * time.Second)
 		timerCh = timer.C
+		startupLogger.Info("Shutdown started - use CTRL^C to force stop server", zap.Int("grace_period_sec", graceSeconds))
+	} else {
+		// No grace period.
+		startupLogger.Info("Shutdown started")
 	}
 
 	// Stop any running authoritative matches and do not accept any new ones.
@@ -156,6 +159,7 @@ func main() {
 		// Graceful shutdown has completed.
 	case <-timerCh:
 		// Timer has expired, terminate matches immediately.
+		startupLogger.Info("Shutdown grace period expired")
 		<-matchRegistry.Stop(0)
 	case <-c:
 		// A second interrupt has been received.
