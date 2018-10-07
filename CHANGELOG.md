@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Lua runtime token generator function now returns a second value representing the token's expiry.
 - Add local cache for in-memory storage to the Lua runtime.
 - Graceful server shutdown and match termination.
+- Expose incoming request data in runtime after hooks.
 
 ### Changed
 - Improved Postgres compatibility on TIMESTAMPTZ types.

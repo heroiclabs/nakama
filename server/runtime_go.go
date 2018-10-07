@@ -115,9 +115,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeGetAccount(fn func(ctx context.Con
 }
 
 func (ri *RuntimeGoInitializer) RegisterAfterGetAccount(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Account) error) error {
-	ri.afterReq.afterGetAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Account) error {
+	ri.afterReq.afterGetAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out)
 	}
 	return nil
 }
@@ -142,10 +142,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUpdateAccount(fn func(ctx context.
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUpdateAccount(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUpdateAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUpdateAccount(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.UpdateAccountRequest) error) error {
+	ri.afterReq.afterUpdateAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -170,10 +170,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateCustom(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateCustomRequest) error) error {
+	ri.afterReq.afterAuthenticateCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateCustomRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -198,10 +198,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateDevice(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateDeviceRequest) error) error {
+	ri.afterReq.afterAuthenticateDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateDeviceRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -226,10 +226,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateEmail(fn func(ctx cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateEmailRequest) error) error {
+	ri.afterReq.afterAuthenticateEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateEmailRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -254,10 +254,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateFacebook(fn func(ctx c
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateFacebookRequest) error) error {
+	ri.afterReq.afterAuthenticateFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -282,10 +282,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateGameCenter(fn func(ctx
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateGameCenterRequest) error) error {
+	ri.afterReq.afterAuthenticateGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -310,10 +310,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateGoogle(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateGoogleRequest) error) error {
+	ri.afterReq.afterAuthenticateGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -338,10 +338,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateSteam(fn func(ctx cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session) error) error {
-	ri.afterReq.afterAuthenticateSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Session) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateSteamRequest) error) error {
+	ri.afterReq.afterAuthenticateSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -366,10 +366,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListChannelMessages(fn func(ctx co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListChannelMessages(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.ChannelMessageList) error) error {
-	ri.afterReq.afterListChannelMessagesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ChannelMessageList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListChannelMessages(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error) error {
+	ri.afterReq.afterListChannelMessagesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -422,10 +422,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAddFriends(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAddFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterAddFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAddFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AddFriendsRequest) error) error {
+	ri.afterReq.afterAddFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -450,10 +450,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteFriends(fn func(ctx context.
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterDeleteFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterDeleteFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterDeleteFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.DeleteFriendsRequest) error) error {
+	ri.afterReq.afterDeleteFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -478,10 +478,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeBlockFriends(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterBlockFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterBlockFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterBlockFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.BlockFriendsRequest) error) error {
+	ri.afterReq.afterBlockFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -506,10 +506,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeImportFacebookFriends(fn func(ctx 
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterImportFacebookFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterImportFacebookFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterImportFacebookFriends(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ImportFacebookFriendsRequest) error) error {
+	ri.afterReq.afterImportFacebookFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -534,10 +534,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeCreateGroup(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterCreateGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Group) error) error {
-	ri.afterReq.afterCreateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Group) error {
+func (ri *RuntimeGoInitializer) RegisterAfterCreateGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Group, in *api.CreateGroupRequest) error) error {
+	ri.afterReq.afterCreateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group, in *api.CreateGroupRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -562,10 +562,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUpdateGroup(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUpdateGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUpdateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUpdateGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.UpdateGroupRequest) error) error {
+	ri.afterReq.afterUpdateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -590,10 +590,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteGroup(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterDeleteGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterDeleteGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterDeleteGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.DeleteGroupRequest) error) error {
+	ri.afterReq.afterDeleteGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -618,10 +618,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeJoinGroup(fn func(ctx context.Cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterJoinGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterJoinGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterJoinGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.JoinGroupRequest) error) error {
+	ri.afterReq.afterJoinGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -646,10 +646,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLeaveGroup(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLeaveGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLeaveGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLeaveGroup(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LeaveGroupRequest) error) error {
+	ri.afterReq.afterLeaveGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -674,10 +674,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAddGroupUsers(fn func(ctx context.
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAddGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterAddGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAddGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AddGroupUsersRequest) error) error {
+	ri.afterReq.afterAddGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -702,10 +702,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeKickGroupUsers(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterKickGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterKickGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterKickGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.KickGroupUsersRequest) error) error {
+	ri.afterReq.afterKickGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -730,10 +730,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforePromoteGroupUsers(fn func(ctx cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterPromoteGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterPromoteGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterPromoteGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.PromoteGroupUsersRequest) error) error {
+	ri.afterReq.afterPromoteGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -758,10 +758,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListGroupUsers(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.GroupUserList) error) error {
-	ri.afterReq.afterListGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GroupUserList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListGroupUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.GroupUserList, in *api.ListGroupUsersRequest) error) error {
+	ri.afterReq.afterListGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList, in *api.ListGroupUsersRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -786,10 +786,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListUserGroups(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListUserGroups(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.UserGroupList) error) error {
-	ri.afterReq.afterListUserGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UserGroupList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListUserGroups(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.UserGroupList, in *api.ListUserGroupsRequest) error) error {
+	ri.afterReq.afterListUserGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList, in *api.ListUserGroupsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -814,10 +814,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListGroups(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListGroups(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.GroupList) error) error {
-	ri.afterReq.afterListGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GroupList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListGroups(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.GroupList, in *api.ListGroupsRequest) error) error {
+	ri.afterReq.afterListGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList, in *api.ListGroupsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -842,10 +842,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteLeaderboardRecord(fn func(ct
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterDeleteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterDeleteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterDeleteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.DeleteLeaderboardRecordRequest) error) error {
+	ri.afterReq.afterDeleteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -870,10 +870,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListLeaderboardRecords(fn func(ctx
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecordList) error) error {
-	ri.afterReq.afterListLeaderboardRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecordList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsRequest) error) error {
+	ri.afterReq.afterListLeaderboardRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -898,10 +898,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteLeaderboardRecord(fn func(ctx
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterWriteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecord) error) error {
-	ri.afterReq.afterWriteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecord) error {
+func (ri *RuntimeGoInitializer) RegisterAfterWriteLeaderboardRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecord, in *api.WriteLeaderboardRecordRequest) error) error {
+	ri.afterReq.afterWriteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteLeaderboardRecordRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -926,10 +926,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListLeaderboardRecordsAroundOwner(
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecordList) error) error {
-	ri.afterReq.afterListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecordList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error) error {
+	ri.afterReq.afterListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -954,10 +954,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkCustom(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountCustom) error) error {
+	ri.afterReq.afterLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -982,10 +982,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkDevice(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountDevice) error) error {
+	ri.afterReq.afterLinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1010,10 +1010,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkEmail(fn func(ctx context.Cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountEmail) error) error {
+	ri.afterReq.afterLinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1038,10 +1038,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebook(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkFacebookRequest) error) error {
+	ri.afterReq.afterLinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1066,10 +1066,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkGameCenter(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGameCenter) error) error {
+	ri.afterReq.afterLinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1094,10 +1094,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkGoogle(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGoogle) error) error {
+	ri.afterReq.afterLinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1122,10 +1122,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkSteam(fn func(ctx context.Cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterLinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountSteam) error) error {
+	ri.afterReq.afterLinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1150,10 +1150,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListMatches(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListMatches(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.MatchList) error) error {
-	ri.afterReq.afterListMatchesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.MatchList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListMatches(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.MatchList, in *api.ListMatchesRequest) error) error {
+	ri.afterReq.afterListMatchesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1178,10 +1178,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListNotifications(fn func(ctx cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListNotifications(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.NotificationList) error) error {
-	ri.afterReq.afterListNotificationsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.NotificationList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListNotifications(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.NotificationList, in *api.ListNotificationsRequest) error) error {
+	ri.afterReq.afterListNotificationsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList, in *api.ListNotificationsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1206,10 +1206,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteNotification(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterDeleteNotification(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterDeleteNotificationFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterDeleteNotification(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.DeleteNotificationsRequest) error) error {
+	ri.afterReq.afterDeleteNotificationFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1234,10 +1234,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListStorageObjects(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjectList) error) error {
-	ri.afterReq.afterListStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.StorageObjectList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjectList, in *api.ListStorageObjectsRequest) error) error {
+	ri.afterReq.afterListStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList, in *api.ListStorageObjectsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1262,10 +1262,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeReadStorageObjects(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterReadStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjects) error) error {
-	ri.afterReq.afterReadStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.StorageObjects) error {
+func (ri *RuntimeGoInitializer) RegisterAfterReadStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjects, in *api.ReadStorageObjectsRequest) error) error {
+	ri.afterReq.afterReadStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects, in *api.ReadStorageObjectsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1290,10 +1290,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteStorageObjects(fn func(ctx co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterWriteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjectAcks) error) error {
-	ri.afterReq.afterWriteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.StorageObjectAcks) error {
+func (ri *RuntimeGoInitializer) RegisterAfterWriteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.StorageObjectAcks, in *api.WriteStorageObjectsRequest) error) error {
+	ri.afterReq.afterWriteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks, in *api.WriteStorageObjectsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1318,10 +1318,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteStorageObjects(fn func(ctx c
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterDeleteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterDeleteStorageObjects(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.DeleteStorageObjectsRequest) error) error {
+	ri.afterReq.afterDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1346,10 +1346,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeJoinTournament(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterJoinTournament(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.JoinTournamentRequest) error) error {
+	ri.afterReq.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1374,10 +1374,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournamentRecords(fn func(ctx 
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList) error) error {
-	ri.afterReq.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentRecordList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListTournamentRecords(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList, in *api.ListTournamentRecordsRequest) error) error {
+	ri.afterReq.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1402,10 +1402,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournaments(fn func(ctx contex
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentList) error) error {
-	ri.afterReq.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListTournaments(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentList, in *api.ListTournamentsRequest) error) error {
+	ri.afterReq.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList, in *api.ListTournamentsRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1430,10 +1430,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteTournamentRecord(fn func(ctx 
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecord) error) error {
-	ri.afterReq.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaderboardRecord) error {
+func (ri *RuntimeGoInitializer) RegisterAfterWriteTournamentRecord(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.LeaderboardRecord, in *api.WriteTournamentRecordRequest) error) error {
+	ri.afterReq.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteTournamentRecordRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1458,10 +1458,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournamentRecordsAroundOwner(f
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList) error) error {
-	ri.afterReq.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.TournamentRecordList) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error) error {
+	ri.afterReq.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
@@ -1486,10 +1486,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkCustom(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkCustom(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountCustom) error) error {
+	ri.afterReq.afterUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1514,10 +1514,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkDevice(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkDevice(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountDevice) error) error {
+	ri.afterReq.afterUnlinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1542,10 +1542,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkEmail(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkEmail(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountEmail) error) error {
+	ri.afterReq.afterUnlinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1570,10 +1570,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkFacebook(fn func(ctx context
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkFacebook(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebook) error) error {
+	ri.afterReq.afterUnlinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1598,10 +1598,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkGameCenter(fn func(ctx conte
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkGameCenter(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGameCenter) error) error {
+	ri.afterReq.afterUnlinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1626,10 +1626,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkGoogle(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkGoogle(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGoogle) error) error {
+	ri.afterReq.afterUnlinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1654,10 +1654,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkSteam(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.afterReq.afterUnlinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkSteam(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountSteam) error) error {
+	ri.afterReq.afterUnlinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }
@@ -1682,10 +1682,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeGetUsers(fn func(ctx context.Conte
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterGetUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Users) error) error {
-	ri.afterReq.afterGetUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Users) error {
+func (ri *RuntimeGoInitializer) RegisterAfterGetUsers(fn func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Users, in *api.GetUsersRequest) error) error {
+	ri.afterReq.afterGetUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error {
 		ctx := NewRuntimeGoContext(ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
-		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}
 	return nil
 }
