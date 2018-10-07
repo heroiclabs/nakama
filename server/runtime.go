@@ -23,7 +23,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
@@ -45,10 +44,10 @@ type (
 	RuntimeBeforeRtFunction func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error)
 	RuntimeAfterRtFunction  func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error
 
-	RuntimeBeforeGetAccountFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeBeforeGetAccountFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code)
 	RuntimeAfterGetAccountFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error
 	RuntimeBeforeUpdateAccountFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
-	RuntimeAfterUpdateAccountFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUpdateAccountFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeAuthenticateCustomFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
 	RuntimeAfterAuthenticateCustomFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
 	RuntimeBeforeAuthenticateDeviceFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code)
@@ -65,32 +64,32 @@ type (
 	RuntimeAfterAuthenticateSteamFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session) error
 	RuntimeBeforeListChannelMessagesFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
 	RuntimeAfterListChannelMessagesFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList) error
-	RuntimeBeforeListFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *empty.Empty) (*empty.Empty, error, codes.Code)
+	RuntimeBeforeListFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code)
 	RuntimeAfterListFriendsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error
 	RuntimeBeforeAddFriendsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code)
-	RuntimeAfterAddFriendsFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterAddFriendsFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeDeleteFriendsFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code)
-	RuntimeAfterDeleteFriendsFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterDeleteFriendsFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeBlockFriendsFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code)
-	RuntimeAfterBlockFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterBlockFriendsFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeImportFacebookFriendsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code)
-	RuntimeAfterImportFacebookFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterImportFacebookFriendsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeCreateGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code)
 	RuntimeAfterCreateGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group) error
 	RuntimeBeforeUpdateGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code)
-	RuntimeAfterUpdateGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUpdateGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeDeleteGroupFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code)
-	RuntimeAfterDeleteGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterDeleteGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeJoinGroupFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code)
-	RuntimeAfterJoinGroupFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterJoinGroupFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLeaveGroupFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code)
-	RuntimeAfterLeaveGroupFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLeaveGroupFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeAddGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code)
-	RuntimeAfterAddGroupUsersFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterAddGroupUsersFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeKickGroupUsersFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code)
-	RuntimeAfterKickGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterKickGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforePromoteGroupUsersFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
-	RuntimeAfterPromoteGroupUsersFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterPromoteGroupUsersFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeListGroupUsersFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code)
 	RuntimeAfterListGroupUsersFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList) error
 	RuntimeBeforeListUserGroupsFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code)
@@ -98,7 +97,7 @@ type (
 	RuntimeBeforeListGroupsFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code)
 	RuntimeAfterListGroupsFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList) error
 	RuntimeBeforeDeleteLeaderboardRecordFunction           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code)
-	RuntimeAfterDeleteLeaderboardRecordFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterDeleteLeaderboardRecordFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeListLeaderboardRecordsFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code)
 	RuntimeAfterListLeaderboardRecordsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
 	RuntimeBeforeWriteLeaderboardRecordFunction            func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code)
@@ -106,25 +105,25 @@ type (
 	RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code)
 	RuntimeAfterListLeaderboardRecordsAroundOwnerFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList) error
 	RuntimeBeforeLinkCustomFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
-	RuntimeAfterLinkCustomFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkCustomFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkDeviceFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
-	RuntimeAfterLinkDeviceFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkDeviceFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkEmailFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
-	RuntimeAfterLinkEmailFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkEmailFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkFacebookFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
-	RuntimeAfterLinkFacebookFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkFacebookFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkGameCenterFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
-	RuntimeAfterLinkGameCenterFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkGameCenterFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkGoogleFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
-	RuntimeAfterLinkGoogleFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkGoogleFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeLinkSteamFunction                         func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
-	RuntimeAfterLinkSteamFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterLinkSteamFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeListMatchesFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
 	RuntimeAfterListMatchesFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList) error
 	RuntimeBeforeListNotificationsFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
 	RuntimeAfterListNotificationsFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList) error
 	RuntimeBeforeDeleteNotificationFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
-	RuntimeAfterDeleteNotificationFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterDeleteNotificationFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeListStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code)
 	RuntimeAfterListStorageObjectsFunction                 func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList) error
 	RuntimeBeforeReadStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code)
@@ -132,9 +131,9 @@ type (
 	RuntimeBeforeWriteStorageObjectsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code)
 	RuntimeAfterWriteStorageObjectsFunction                func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks) error
 	RuntimeBeforeDeleteStorageObjectsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code)
-	RuntimeAfterDeleteStorageObjectsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterDeleteStorageObjectsFunction               func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeJoinTournamentFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code)
-	RuntimeAfterJoinTournamentFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterJoinTournamentFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeListTournamentRecordsFunction             func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code)
 	RuntimeAfterListTournamentRecordsFunction              func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error
 	RuntimeBeforeListTournamentsFunction                   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code)
@@ -144,19 +143,19 @@ type (
 	RuntimeBeforeListTournamentRecordsAroundOwnerFunction  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code)
 	RuntimeAfterListTournamentRecordsAroundOwnerFunction   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList) error
 	RuntimeBeforeUnlinkCustomFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
-	RuntimeAfterUnlinkCustomFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkCustomFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkDeviceFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
-	RuntimeAfterUnlinkDeviceFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkDeviceFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkEmailFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
-	RuntimeAfterUnlinkEmailFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkEmailFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkFacebookFunction                    func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
-	RuntimeAfterUnlinkFacebookFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkFacebookFunction                     func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkGameCenterFunction                  func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
-	RuntimeAfterUnlinkGameCenterFunction                   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkGameCenterFunction                   func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkGoogleFunction                      func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
-	RuntimeAfterUnlinkGoogleFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkGoogleFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeUnlinkSteamFunction                       func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
-	RuntimeAfterUnlinkSteamFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *empty.Empty) error
+	RuntimeAfterUnlinkSteamFunction                        func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeGetUsersFunction                          func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
 	RuntimeAfterGetUsersFunction                           func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users) error
 
