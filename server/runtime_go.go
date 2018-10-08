@@ -64,9 +64,9 @@ func (ri *RuntimeGoInitializer) RegisterRpc(id string, fn func(ctx context.Conte
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -102,9 +102,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeGetAccount(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return runtimeErr.Cause(), codes.Internal
+					return runtimeErr, codes.Internal
 				}
-				return runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return fnErr, codes.Internal
@@ -130,9 +130,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUpdateAccount(fn func(ctx context.
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -158,9 +158,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateCustom(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -186,9 +186,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateDevice(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -214,9 +214,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateEmail(fn func(ctx cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -242,9 +242,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateFacebook(fn func(ctx c
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -270,9 +270,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateGameCenter(fn func(ctx
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -298,9 +298,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateGoogle(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -326,9 +326,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateSteam(fn func(ctx cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -354,9 +354,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListChannelMessages(fn func(ctx co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -382,9 +382,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListFriends(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return runtimeErr.Cause(), codes.Internal
+					return runtimeErr, codes.Internal
 				}
-				return runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return fnErr, codes.Internal
@@ -410,9 +410,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAddFriends(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -438,9 +438,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteFriends(fn func(ctx context.
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -466,9 +466,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeBlockFriends(fn func(ctx context.C
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -494,9 +494,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeImportFacebookFriends(fn func(ctx 
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -522,9 +522,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeCreateGroup(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -550,9 +550,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUpdateGroup(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -578,9 +578,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteGroup(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -606,9 +606,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeJoinGroup(fn func(ctx context.Cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -634,9 +634,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLeaveGroup(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -662,9 +662,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAddGroupUsers(fn func(ctx context.
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -690,9 +690,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeKickGroupUsers(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -718,9 +718,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforePromoteGroupUsers(fn func(ctx cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -746,9 +746,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListGroupUsers(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -774,9 +774,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListUserGroups(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -802,9 +802,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListGroups(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -830,9 +830,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteLeaderboardRecord(fn func(ct
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -858,9 +858,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListLeaderboardRecords(fn func(ctx
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -886,9 +886,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteLeaderboardRecord(fn func(ctx
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -914,9 +914,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListLeaderboardRecordsAroundOwner(
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -942,9 +942,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkCustom(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -970,9 +970,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkDevice(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -998,9 +998,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkEmail(fn func(ctx context.Cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1026,9 +1026,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebook(fn func(ctx context.C
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1054,9 +1054,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkGameCenter(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1082,9 +1082,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkGoogle(fn func(ctx context.Con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1110,9 +1110,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkSteam(fn func(ctx context.Cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1138,9 +1138,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListMatches(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1166,9 +1166,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListNotifications(fn func(ctx cont
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1194,9 +1194,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteNotification(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1222,9 +1222,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListStorageObjects(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1250,9 +1250,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeReadStorageObjects(fn func(ctx con
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1278,9 +1278,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteStorageObjects(fn func(ctx co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1306,9 +1306,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeDeleteStorageObjects(fn func(ctx c
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1334,9 +1334,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeJoinTournament(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1362,9 +1362,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournamentRecords(fn func(ctx 
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1390,9 +1390,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournaments(fn func(ctx contex
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1418,9 +1418,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeWriteTournamentRecord(fn func(ctx 
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1446,9 +1446,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeListTournamentRecordsAroundOwner(f
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1474,9 +1474,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkCustom(fn func(ctx context.C
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1502,9 +1502,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkDevice(fn func(ctx context.C
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1530,9 +1530,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkEmail(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1558,9 +1558,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkFacebook(fn func(ctx context
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1586,9 +1586,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkGameCenter(fn func(ctx conte
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1614,9 +1614,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkGoogle(fn func(ctx context.C
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1642,9 +1642,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkSteam(fn func(ctx context.Co
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal
@@ -1670,9 +1670,9 @@ func (ri *RuntimeGoInitializer) RegisterBeforeGetUsers(fn func(ctx context.Conte
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return result, runtimeErr.Cause(), codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return result, runtimeErr.Cause(), codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
 			return result, fnErr, codes.Internal

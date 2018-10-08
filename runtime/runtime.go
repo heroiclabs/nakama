@@ -17,7 +17,6 @@ package runtime
 import (
 	"context"
 	"database/sql"
-	"github.com/pkg/errors"
 	"log"
 
 	"github.com/heroiclabs/nakama/api"
@@ -40,31 +39,17 @@ const (
 	RUNTIME_CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-var UnknownRuntimeError = errors.New("unknown runtime error")
-
 type Error struct {
-	error
-	Code int
+	Message string
+	Code    int
 }
 
-func (e *Error) Cause() error {
-	if e.error == nil {
-		// If the error was constructed manually and the cause is missing.
-		return UnknownRuntimeError
-	}
-	return e.error
+func (e *Error) Error() string {
+	return e.Message
 }
 
-func NewErrorWithCause(cause error, code int) *Error {
-	if cause == nil {
-		// In case the supplied error cause is nil.
-		return &Error{error: UnknownRuntimeError, Code: code}
-	}
-	return &Error{error: cause, Code: code}
-}
-
-func NewErrorWithMessage(message string, code int) *Error {
-	return &Error{error: errors.New(message), Code: code}
+func NewError(message string, code int) *Error {
+	return &Error{Message: message, Code: code}
 }
 
 type Initializer interface {
