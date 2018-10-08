@@ -103,7 +103,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -178,7 +178,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -260,7 +260,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -336,7 +336,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -419,7 +419,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -490,7 +490,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -565,7 +565,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session)
+		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
