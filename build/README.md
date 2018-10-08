@@ -59,6 +59,7 @@ With the release generated we can create the official container image.
 1. Build the container image.
 
    ```
+   cd build
    docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=v2.1.0 -t heroiclabs/nakama:2.1.0
    ```
 
@@ -75,7 +76,8 @@ With the official release image generated we can create a container image to hel
 1. Build the container image.
 
    ```
-   docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=v2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
+   cd build/pluginbuilder
+   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=v2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
    ```
 
 2. Push the image to the container registry.

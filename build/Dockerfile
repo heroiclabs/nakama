@@ -23,26 +23,26 @@ ENV GOOS linux
 ENV GOARCH amd64
 ENV CGO_ENABLED 1
 
-RUN apk --no-cache add ca-certificates gcc musl-dev git
-
-WORKDIR /go/src/github.com/heroiclabs/
-RUN git config --global advice.detachedHead false && \
-  git clone -q -n https://github.com/heroiclabs/nakama nakama
+RUN apk --no-cache add ca-certificates gcc musl-dev git && \
+    git config --global advice.detachedHead false && \
+    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/src/github.com/heroiclabs/nakama
 
 WORKDIR /go/src/github.com/heroiclabs/nakama
-RUN git checkout -q "$commit" && \
-  go build -o /go/build/nakama -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+RUN git checkout --quiet "$commit" && \
+    go build -o /go/build/nakama -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
 FROM alpine:3.7
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
+
+ARG version
 
 LABEL version=$version
 LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 
 RUN mkdir -p /nakama/data/modules && \
-  apk --no-cache add ca-certificates curl iproute2 unzip rsync git
+    apk --no-cache add ca-certificates curl iproute2 unzip rsync git
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build/nakama" /nakama/
