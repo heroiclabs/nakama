@@ -39,7 +39,7 @@ These steps are run for each new release.
 3. Execute the cross-compiled build helper.
 
    ```
-   xgo --targets=darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" --branch v2.1.0 github.com/heroiclabs/nakama
+   xgo --targets=darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" github.com/heroiclabs/nakama
    ```
 
    This will build binaries for all target platforms supported officially by Heroic Labs.
@@ -60,13 +60,15 @@ With the release generated we can create the official container image.
 
    ```
    cd build
-   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=v2.1.0 -t heroiclabs/nakama:2.1.0
+   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
    ```
 
 2. Push the image to the container registry.
 
    ```
+   docker tag <CONTAINERID> heroiclabs/nakama:latest
    docker push heroiclabs/nakama:2.1.0
+   docker push heroiclabs/nakama:latest
    ```
 
 ## Build Plugin Builder Image
@@ -77,11 +79,13 @@ With the official release image generated we can create a container image to hel
 
    ```
    cd build/pluginbuilder
-   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=v2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
+   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
    ```
 
 2. Push the image to the container registry.
 
    ```
+   docker tag <CONTAINERID> heroiclabs/nakama-pluginbuilder:latest
    docker push heroiclabs/nakama-pluginbuilder:2.1.0
+   docker push heroiclabs/nakama-pluginbuilder:latest
    ```
