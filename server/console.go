@@ -87,8 +87,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 
 	grpcGatewayRouter := mux.NewRouter()
 
-	grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
-	grpcGatewayRouter.PathPrefix("/assets/").Handler(console.Handler()).Methods("GET")
+	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
+	// grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
+	// grpcGatewayRouter.PathPrefix("/assets/").Handler(console.Handler()).Methods("GET")
 
 	grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
 		zpages.Handler.ServeHTTP(w, r)

@@ -17,27 +17,43 @@ package main
 import (
 	"context"
 	"database/sql"
+	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/runtime"
 	"log"
 )
 
-func InitModule(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) {
-	initializer.RegisterRpc("go_echo_sample", rpcEcho)
-	initializer.RegisterBeforeRt("ChannelJoin", beforeChannelJoin)
-	initializer.RegisterMatch("match", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error) {
+func InitModule(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
+	if err := initializer.RegisterRpc("go_echo_sample", rpcEcho); err != nil {
+		return err
+	}
+	if err := initializer.RegisterBeforeRt("ChannelJoin", beforeChannelJoin); err != nil {
+		return err
+	}
+	if err := initializer.RegisterAfterGetAccount(afterGetAccount); err != nil {
+		return err
+	}
+	if err := initializer.RegisterMatch("match", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error) {
 		return &Match{}, nil
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
-func rpcEcho(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error, int) {
+func rpcEcho(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
 	logger.Print("RUNNING IN GO")
-	return payload, nil, 0
+	return payload, nil
 }
 
 func beforeChannelJoin(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
 	logger.Printf("Intercepted request to join channel '%v'", envelope.GetChannelJoin().Target)
 	return envelope, nil
+}
+
+func afterGetAccount(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.Account) error {
+	logger.Printf("Intercepted response to get account '%v'", in)
+	return nil
 }
 
 type MatchState struct {

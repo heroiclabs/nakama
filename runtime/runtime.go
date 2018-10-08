@@ -283,24 +283,23 @@ type StorageDelete struct {
 }
 
 type NakamaModule interface {
-	AuthenticateCustom(id, username string, create bool) (string, string, bool, error)
-	AuthenticateDevice(id, username string, create bool) (string, string, bool, error)
-	AuthenticateEmail(email, password, username string, create bool) (string, string, bool, error)
-	AuthenticateFacebook(token string, importFriends bool, username string, create bool) (string, string, bool, error)
-	AuthenticateGameCenter(playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error)
-	AuthenticateGoogle(token, username string, create bool) (string, string, bool, error)
-	AuthenticateSteam(token, username string, create bool) (string, string, bool, error)
+	AuthenticateCustom(ctx context.Context, id, username string, create bool) (string, string, bool, error)
+	AuthenticateDevice(ctx context.Context, id, username string, create bool) (string, string, bool, error)
+	AuthenticateEmail(ctx context.Context, email, password, username string, create bool) (string, string, bool, error)
+	AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error)
+	AuthenticateGameCenter(ctx context.Context, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error)
+	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
+	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
 	AuthenticateTokenGenerate(userID, username string, exp int64) (string, int64, error)
 
-	AccountGetId(userID string) (*api.Account, error)
-	// TODO nullable fields?
-	AccountUpdateId(userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error
+	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
+	AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error
 
-	UsersGetId(userIDs []string) ([]*api.User, error)
-	UsersGetUsername(usernames []string) ([]*api.User, error)
-	UsersBanId(userIDs []string) error
-	UsersUnbanId(userIDs []string) error
+	UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error)
+	UsersGetUsername(ctx context.Context, usernames []string) ([]*api.User, error)
+	UsersBanId(ctx context.Context, userIDs []string) error
+	UsersUnbanId(ctx context.Context, userIDs []string) error
 
 	StreamUserList(mode uint8, subject, descriptor, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
 	StreamUserGet(mode uint8, subject, descriptor, label, userID, sessionID string) (PresenceMeta, error)
@@ -312,38 +311,38 @@ type NakamaModule interface {
 	StreamSend(mode uint8, subject, descriptor, label, data string) error
 
 	MatchCreate(module string, params map[string]interface{}) (string, error)
-	MatchList(limit int, authoritative bool, label string, minSize, maxSize int) []*api.Match
+	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int) []*api.Match
 
-	NotificationSend(userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
-	NotificationsSend(notifications []*NotificationSend) error
+	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
+	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 
-	WalletUpdate(userID string, changeset, metadata map[string]interface{}) error
-	WalletsUpdate(updates []*WalletUpdate) error
-	WalletLedgerUpdate(itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
-	WalletLedgerList(userID string) ([]WalletLedgerItem, error)
+	WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}) error
+	WalletsUpdate(ctx context.Context, updates []*WalletUpdate) error
+	WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
+	WalletLedgerList(ctx context.Context, userID string) ([]WalletLedgerItem, error)
 
-	StorageList(userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error)
-	StorageRead(reads []*StorageRead) ([]*api.StorageObject, error)
-	StorageWrite(writes []*StorageWrite) ([]*api.StorageObjectAck, error)
-	StorageDelete(deletes []*StorageDelete) error
+	StorageList(ctx context.Context, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error)
+	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
+	StorageWrite(ctx context.Context, writes []*StorageWrite) ([]*api.StorageObjectAck, error)
+	StorageDelete(ctx context.Context, deletes []*StorageDelete) error
 
-	LeaderboardCreate(id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
-	LeaderboardDelete(id string) error
-	LeaderboardRecordsList(id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
-	LeaderboardRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
-	LeaderboardRecordDelete(id, ownerID string) error
+	LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
+	LeaderboardDelete(ctx context.Context, id string) error
+	LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
+	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
+	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 
-	TournamentCreate(id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
-	TournamentDelete(id string) error
-	TournamentAddAttempt(id, ownerID string, count int) error
-	TournamentJoin(id, ownerID, username string) error
-	TournamentList(categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
-	TournamentRecordWrite(id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
-	TournamentRecordsHaystack(id, ownerID string, limit int) ([]*api.LeaderboardRecord, error)
+	TournamentCreate(ctx context.Context, id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
+	TournamentDelete(ctx context.Context, id string) error
+	TournamentAddAttempt(ctx context.Context, id, ownerID string, count int) error
+	TournamentJoin(ctx context.Context, id, ownerID, username string) error
+	TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
+	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
+	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int) ([]*api.LeaderboardRecord, error)
 
-	GroupCreate(userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
-	GroupUpdate(id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
-	GroupDelete(id string) error
-	GroupUsersList(id string) ([]*api.GroupUserList_GroupUser, error)
-	UserGroupsList(userID string) ([]*api.UserGroupList_UserGroup, error)
+	GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
+	GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
+	GroupDelete(ctx context.Context, id string) error
+	GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error)
+	UserGroupsList(ctx context.Context, userID string) ([]*api.UserGroupList_UserGroup, error)
 }
