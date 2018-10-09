@@ -15,7 +15,8 @@
 * **Chat** - 1-on-1, group, and global chat between users. Persist messages for chat history.
 * **Multiplayer** - Realtime, or turn-based active and passive multiplayer.
 * **Leaderboards** - Dynamic, seasonal, get top members, or members around a user. Have as many as you need.
-* **Runtime code** - Extend the server with custom logic written in Lua.
+* **Tournaments** - Invite players to compete together over prizes. Link many together to create leagues.
+* **Runtime code** - Extend the server with custom logic written in Lua or native Go code.
 * **Matchmaker**, **dashboard**, **metrics**, and [more](https://heroiclabs.com/docs).
 
 Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://gitter.im/heroiclabs/nakama) for more info.
