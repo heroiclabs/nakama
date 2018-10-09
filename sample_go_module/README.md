@@ -1,59 +1,125 @@
 # Nakama Go Runtime
 
-Nakama Go Runtime uses the [Go Plugin](https://golang.org/pkg/plugin/) package to run custom server logic. If you've used the existing [Nakama Lua Runtime](https://heroiclabs.com/docs/runtime-code-basics/), then it should be pretty straight forward to use the Go Runtime as the APIs are very similar.
+The game server includes support to develop native code in Go with the [plugin](https://golang.org/pkg/plugin/) package from the Go stdlib. It's used to enable compiled shared objects to be loaded by the game server at startup.
 
-You can find more information about the Nakama Go Runtime on the [website](https://heroiclabs.com/docs/runtime-code-basics/).
+The Go runtime support can be used to develop authoritative multiplayer match handlers, RPC functions, hook into messages processed by the server, and extend the server with any other custom logic. It offers the same capabilities as the [Lua runtime](https://heroiclabs.com/docs/runtime-code-basics/) support but has the advantage that any package from the Go ecosystem can be used.
 
-## Plugin depedencies
+For more information and a discussion of the pros/cons with the Go runtime have a look at the [docs](https://heroiclabs.com/docs).
 
-You'll need to ensure that you have `heroiclabs/nakama/rtapi` and `heroiclabs/nakama/runtime` available in your `GOPATH`. You can then begin to implement the neccessary function that Nakama needs to interact with your plugin. Ensure that you have implemented the `InitModule` function as Nakama uses this as the entry point to your plugin.
+## Minimal example
 
-You can find more information about the Nakama Go Runtime on the [website](https://heroiclabs.com/docs/runtime-code-basics/).
-
-## Build plugin
-
-### Binary
-
-If you are running Nakama as a [binary](https://heroiclabs.com/docs/install-binary/), then you can easily build your plugin and instruct Nakama to load the shared object.
-
-To do so, simply run the following command to build the plugin:
+Here's the smallest example of a Go module written with the server runtime.
 
 ```
-go build -buildmode=plugin
+package main
+
+import (
+  "context"
+  "database/sql"
+  "log"
+
+  "github.com/heroiclabs/nakama/runtime"
+)
+
+func InitModule(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
+  logger.Println("module loaded")
+  return nil
+}
 ```
 
-This will produce a `.so` file (platform dependant) that you'll need to place in the [modules directory](https://heroiclabs.com/docs/runtime-code-basics/#load-modules) of Nakama. You can then [start Nakama](https://heroiclabs.com/docs/install-start-server/#start-nakama) as usual.
+## Setup a project
 
-### Docker 
+To setup your own project to build modules for the game server you can follow these steps.
 
-If you are running Nakama through the [Docker image](https://heroiclabs.com/docs/install-docker-quickstart/), you'll need to also compile the plugin via the provided docker builder recipe. This is a known limitation in the Go compile toolchain as it cannot cross-compile plugins.
+1. Download and install the Go toolchain. It's recommended you follow the [official instructions](https://golang.org/doc/install).
 
-Copy the content of the [`plugin.Dockerfile`](https://github.com/heroiclabs/nakama/blob/master/build/plugin.Dockerfile) onto your system and run the following command:
+2. Setup your GOPATH environment variable. Most use `$HOME/go` as the `$GOPATH`.
 
-```
-docker build <DockerContext> --file "/absolute/path/to/plugin.Dockerfile" --build-arg src="relative/path/to/<ModuleName>"
-```
+   You can temporarily setup the environment variable with `export` but for it to persist you should add it to your shell environment.
 
-1. Ensure that you change the `<DockerContext>` folder with the absolute path to your project folder.
-2. Ensure that the `<ModuleName>` folder is inside the `<DockerContext>` project folder you referenced above.
-3. Ensure that you update the absolute path of the `plugin.Dockerfile`.
+   ```
+   export GOPATH=$HOME/go
+   ```
 
-For example:
+3. Use "go get" to download the server locally.
 
-```
-docker build "/go/src/github.com/heroiclabs/nakama" --file "/home/plugin.Dockerfile" --build-arg src="sample_go_module"
-```
+   ```
+   go get -d github.com/heroiclabs/nakama
+   ```
 
-Docker will then compile your plugin. To load the compiled plugin, you'll need to extract the shared object from the docker container:
+4. Build the game server from source if you want.
 
-```
-docker run --rm --entrypoint cat <ContainerId> /go/build/<ModuleName>.so > /home/<ModuleName>.so
-```
+   ```
+   cd $GOPATH/src/github.com/heroiclabs/nakama
+   env CGO_ENABLED=1 go build
+   ```
 
-Make sure that you change the `<ContainerId>` with the actual container identifier. You can do this by running
+5. Setup a folder for your own server code.
 
-```
-docker images
-```
+   ```
+   mkdir -p $GOPATH/src/some_project
+   cd $GOPATH/src/some_project
+   ```
 
-The compiled shared object file is on your desktop. You can move the shared object to a folder that you've assigned as your runtime module folder. Have a look at [this](https://heroiclabs.com/docs/install-start-server/#lua-modules) for more info.
+6. You'll need to copy the main server dependencies into your project.
+
+   ```
+   cp -r $GOPATH/src/github.com/heroiclabs/nakama/vendor .
+   # Add some Go code. See an example above.
+   go build --buildmode=plugin -o ./modules/some_project.so
+   ```
+
+   __NOTE__: It is not possible to build plugins on Windows with the native compiler toolchain but they can be cross-compiled and run with Docker. See more details below.
+
+7. Start the game server to load your plugin code. (Also make sure you run the database).
+
+   ```
+   $GOPATH/src/github.com/heroiclabs/nakama/nakama --runtime.path $GOPATH/src/plugin_project/modules
+   ```
+   
+   __TIP__: You don't have to build and run Nakama from source. You can also download a prebuilt binary for your platform.
+
+## Build process
+
+In a regular development cycle you will often recompile your code and rerun the server.
+
+1. Develop and compile your code.
+
+   ```
+   go build --buildmode=plugin
+   ```
+   
+2. Use "--runtime.path" when you start the server to load modules at startup.
+
+For more information on how the server loads modules have a look at [these](https://heroiclabs.com/docs/runtime-code-basics/#load-modules) docs. For general instructions on how to run the server give [these](https://heroiclabs.com/docs/install-start-server/#start-nakama) docs a read.
+
+### Docker builds
+
+It's often easiest to run the game server with Docker Compose. It will start the game server and database server together in the right sequence and wraps the process up into a single command. You'll need the Docker engine installed to use it.
+
+For Windows development and environments where you want to use our official Docker images to run your containers we provide a container image to help you build your code.
+
+1. Use the Docker plugin helper container to compile your project.
+
+   ```
+   cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
+   docker run --rm -v "$PWD:/go/build/tempbuild" heroiclabs/nakama-pluginbuilder:2.1.0 build --buildmode=plugin -o ./modules/plugin_project.so
+   ```
+   
+   In the command above we bind mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
+
+2. Use our official Docker Compose [file](https://heroiclabs.com/docs/install-docker-quickstart/#using-docker-compose) to run all containers together and load in your custom module.
+
+   ```
+   docker-compose -f ./docker-compose.yml up
+   ```
+
+   By default the server will be started and look in a folder relative to the current dir called "./modules" to load code.
+
+   __TIP__: Use the same version of your plugin builder image as used in the Docker Compose file for the server version. i.e. "heroiclabs/nakama:2.1.0" <> "heroiclabs/nakama-pluginbuilder:2.1.0"
+
+## Bigger Example
+
+Have a look in this folder for more examples on how to create and use various parts of the game server Go runtime support.
+
+https://github.com/heroiclabs/nakama/tree/master/sample_go_module
