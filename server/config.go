@@ -430,8 +430,8 @@ func NewSocialConfig() *SocialConfig {
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
 	Environment   map[string]string
-	Env           []string `yaml:"env" json:"env"`
-	Path          string   `yaml:"path" json:"path" usage:"Path for the server to scan for *.lua files."`
+	Env           []string `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
+	Path          string   `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
 	HTTPKey       string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
 	MinCount      int      `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
 	MaxCount      int      `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 256."`
