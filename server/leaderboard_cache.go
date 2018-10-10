@@ -484,13 +484,17 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 	}
 
 	if cron != nil {
-		startTimeUtc := time.Unix(int64(startTime), 0).UTC()
-		nextReset := cron.Next(startTimeUtc).Unix()
-		if (endTime > 0) && (int64(endTime) <= nextReset) {
+		schedules := cron.NextN(time.Unix(int64(startTime), 0).UTC(), 2)
+		firstResetUnix := schedules[0].UTC().Unix()
+		secondResetUnix := schedules[1].UTC().Unix()
+
+		// Check that the end time (if specified) is at least strictly after the first active period start time.
+		if (endTime > 0) && (int64(endTime) <= firstResetUnix) {
 			return fmt.Errorf("tournament end time cannot be before first reset schedule - either increase end time or change/disable reset schedule")
 		}
 
-		if nextReset < int64(startTime+duration) {
+		// Check that the gap between resets is >= the duration of each tournament round.
+		if secondResetUnix-firstResetUnix < int64(duration) {
 			return fmt.Errorf("tournament cannot be scheduled to be reset while it is ongoing - either decrease duration or change/disable reset schedule")
 		}
 	}

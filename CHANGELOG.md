@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Use leaderboard expires rather than end active IDs with leaderboard resets.
+- Better validation of tournament duration when a reset schedule is set.
 
 ## [2.1.0] - 2018-10-08
 ### Added
