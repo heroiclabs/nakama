@@ -93,6 +93,8 @@ In a regular development cycle you will often recompile your code and rerun the 
 
 For more information on how the server loads modules have a look at [these](https://heroiclabs.com/docs/runtime-code-basics/#load-modules) docs. For general instructions on how to run the server give [these](https://heroiclabs.com/docs/install-start-server/#start-nakama) docs a read.
 
+__HINT__: Due to a problem noted in this [issue](https://github.com/jaegertracing/jaeger/issues/422#issuecomment-360954600) it's necessary for the plugin to have the exact same vendored dependencies as the server binary for the final builds to be binary compatible. This should be resolved in the Go 1.12 release.
+
 ### Docker builds
 
 It's often easiest to run the game server with Docker Compose. It will start the game server and database server together in the right sequence and wraps the process up into a single command. You'll need the Docker engine installed to use it.
@@ -103,10 +105,10 @@ For Windows development and environments where you want to use our official Dock
 
    ```
    cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
-   docker run --rm -v "$PWD:/go/build/tempbuild" heroiclabs/nakama-pluginbuilder:2.1.0 build --buildmode=plugin -o ./modules/plugin_project.so
+   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.1.0 build --buildmode=plugin -o ./modules/plugin_project.so
    ```
    
-   In the command above we bind mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
+   In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
 
 2. Use our official Docker Compose [file](https://heroiclabs.com/docs/install-docker-quickstart/#using-docker-compose) to run all containers together and load in your custom module.
 
