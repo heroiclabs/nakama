@@ -201,7 +201,7 @@ func (ls *LeaderboardScheduler) invokeExpiryElapse(t time.Time) {
 	fnTournamentReset := ls.runtime.TournamentReset()
 
 	ls.Lock()
-	ids := ls.nearEndActiveIds
+	ids := ls.nearExpiryIds
 	ls.Unlock()
 
 	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
