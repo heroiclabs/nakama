@@ -44,7 +44,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+		err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -55,7 +55,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 		stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
 	}
 
-	user, err := GetAccount(s.logger, s.db, s.tracker, userID)
+	user, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
@@ -73,7 +73,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, user)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, user)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -97,7 +97,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -120,7 +120,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		}
 	}
 
-	err := UpdateAccount(s.db, s.logger, userID, username, in.GetDisplayName(), in.GetTimezone(), in.GetLocation(), in.GetLangTag(), in.GetAvatarUrl(), nil)
+	err := UpdateAccount(ctx, s.logger, s.db, userID, username, in.GetDisplayName(), in.GetTimezone(), in.GetLocation(), in.GetLangTag(), in.GetAvatarUrl(), nil)
 	if err != nil {
 		if _, ok := err.(*pq.Error); ok {
 			return nil, status.Error(codes.Internal, "Error while trying to update account.")
@@ -138,7 +138,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()

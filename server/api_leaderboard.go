@@ -46,7 +46,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -66,7 +66,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}
 
-	err := LeaderboardRecordDelete(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String())
+	err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String())
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardAuthoritative {
@@ -85,7 +85,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -107,7 +107,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -145,7 +145,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 		}
 	}
 
-	records, err := LeaderboardRecordsList(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, 0)
+	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, 0)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardInvalidCursor {
@@ -164,7 +164,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -189,7 +189,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -216,7 +216,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 		}
 	}
 
-	record, err := LeaderboardRecordWrite(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String(), username, in.Record.Score, in.Record.Subscore, in.Record.Metadata)
+	record, err := LeaderboardRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String(), username, in.Record.Score, in.Record.Subscore, in.Record.Metadata)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardAuthoritative {
@@ -235,7 +235,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
+		fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -257,7 +257,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -294,7 +294,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
 	}
 
-	records, err := LeaderboardRecordsHaystack(s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit)
+	records, err := LeaderboardRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err != nil {
@@ -313,7 +313,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
 
 		// Stats measurement end boundary.
 		span.End()

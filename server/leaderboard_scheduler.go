@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"sync"
 	"time"
@@ -33,14 +34,21 @@ type LeaderboardScheduler struct {
 	expiryTimer      *time.Timer
 	nearEndActiveIds []string
 	nearExpiryIds    []string
+
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
 }
 
 func NewLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache) *LeaderboardScheduler {
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	return &LeaderboardScheduler{
 		logger:    logger,
 		db:        db,
 		cache:     cache,
 		rankCache: rankCache,
+
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
 	}
 }
 
@@ -51,6 +59,7 @@ func (ls *LeaderboardScheduler) Start(runtime *Runtime) {
 
 func (ls *LeaderboardScheduler) Stop() {
 	ls.Lock()
+	ls.ctxCancelFn()
 	if ls.endActiveTimer != nil {
 		ls.endActiveTimer.Stop()
 	}
@@ -180,7 +189,7 @@ id, sort_order, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
-		row := ls.db.QueryRow(query, id)
+		row := ls.db.QueryRowContext(ls.ctx, query, id)
 		tournament, err := parseTournament(row, t)
 		if err != nil {
 			ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", id))
@@ -219,7 +228,7 @@ id, sort_order, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
-			row := ls.db.QueryRow(query, id)
+			row := ls.db.QueryRowContext(ls.ctx, query, id)
 			tournament, err := parseTournament(row, t)
 			if err != nil {
 				ls.logger.Error("Error retrieving tournament to invoke reset callback", zap.Error(err), zap.String("id", id))
@@ -227,7 +236,7 @@ WHERE id = $1`
 			}
 
 			// Reset tournament size in DB to make it immediately usable for the next active period.
-			if _, err := ls.db.Exec("UPDATE leaderboard SET size = 0 WHERE id = $1", id); err != nil {
+			if _, err := ls.db.ExecContext(ls.ctx, "UPDATE leaderboard SET size = 0 WHERE id = $1", id); err != nil {
 				ls.logger.Error("Could not reset leaderboard size", zap.Error(err), zap.String("id", id))
 			}
 

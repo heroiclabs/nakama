@@ -310,7 +310,7 @@ type NakamaModule interface {
 	StreamClose(mode uint8, subject, descriptor, label string) error
 	StreamSend(mode uint8, subject, descriptor, label, data string) error
 
-	MatchCreate(module string, params map[string]interface{}) (string, error)
+	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int) []*api.Match
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error

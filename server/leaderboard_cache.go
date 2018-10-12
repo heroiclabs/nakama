@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -111,9 +112,9 @@ func (l *Leaderboard) GetCreateTime() int64 {
 type LeaderboardCache interface {
 	Get(id string) *Leaderboard
 	GetAllLeaderboards() []*Leaderboard
-	Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error
-	CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata, description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
-	Delete(id string) error
+	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error
+	CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata, description, title string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type LocalLeaderboardCache struct {
@@ -219,7 +220,7 @@ func (l *LocalLeaderboardCache) GetAllLeaderboards() []*Leaderboard {
 	return leaderboards
 }
 
-func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error {
+func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) error {
 	l.Lock()
 	if _, ok := l.leaderboards[id]; ok {
 		// Creation is an idempotent operation.
@@ -252,7 +253,7 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 		params = append(params, resetSchedule)
 	}
 	var createTime pq.NullTime
-	err = l.db.QueryRow(query, params...).Scan(&createTime)
+	err = l.db.QueryRowContext(ctx, query, params...).Scan(&createTime)
 	if err != nil {
 		l.Unlock()
 		l.logger.Error("Error creating leaderboard", zap.Error(err))
@@ -276,7 +277,7 @@ func (l *LocalLeaderboardCache) Create(id string, authoritative bool, sortOrder,
 	return nil
 }
 
-func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator int, resetSchedule, metadata,
+func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
 
 	if err := checkTournamentConfig(resetSchedule, startTime, endTime, duration, maxSize, maxNumScore); err != nil {
@@ -383,7 +384,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	var createTime pq.NullTime
 	var dbStartTime pq.NullTime
 	var dbEndTime pq.NullTime
-	err := l.db.QueryRow(query, params...).Scan(&createTime, &dbStartTime, &dbEndTime)
+	err := l.db.QueryRowContext(ctx, query, params...).Scan(&createTime, &dbStartTime, &dbEndTime)
 	if err != nil {
 		l.logger.Error("Error creating tournament", zap.Error(err))
 		return nil, err
@@ -420,7 +421,7 @@ func (l *LocalLeaderboardCache) CreateTournament(id string, sortOrder, operator 
 	return leaderboard, nil
 }
 
-func (l *LocalLeaderboardCache) Delete(id string) error {
+func (l *LocalLeaderboardCache) Delete(ctx context.Context, id string) error {
 	l.Lock()
 	_, leaderboardFound := l.leaderboards[id]
 	l.Unlock()
@@ -432,7 +433,7 @@ func (l *LocalLeaderboardCache) Delete(id string) error {
 
 	// Delete from database first.
 	query := "DELETE FROM leaderboard WHERE id = $1"
-	_, err := l.db.Exec(query, id)
+	_, err := l.db.ExecContext(ctx, query, id)
 	if err != nil {
 		l.logger.Error("Error deleting leaderboard", zap.Error(err))
 		return err

@@ -49,7 +49,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -74,7 +74,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Invalid custom ID, must be 6-128 bytes.")
 	}
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET custom_id = $2, update_time = now()
 WHERE (id = $1)
@@ -102,7 +102,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -126,7 +126,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -151,7 +151,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error linking Device ID.")
@@ -159,14 +159,14 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 
 	err = crdb.ExecuteInTx(ctx, tx, func() error {
 		var dbDeviceIdLinkedUser int64
-		err := tx.QueryRow("SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
+		err := tx.QueryRowContext(ctx, "SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
 		if err != nil {
 			s.logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 
 		if dbDeviceIdLinkedUser == 0 {
-			_, err = tx.Exec("INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
+			_, err = tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 			if err != nil {
 				if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
@@ -176,7 +176,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 			}
 		}
 
-		_, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Debug("Cannot update users table while linking.", zap.Error(err), zap.Any("input", in))
 			return err
@@ -202,7 +202,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -226,7 +226,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -257,7 +257,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	cleanEmail := strings.ToLower(in.Email)
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET email = $2, password = $3, update_time = now()
 WHERE (id = $1)
@@ -286,7 +286,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -310,7 +310,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -330,13 +330,13 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	facebookProfile, err := s.socialClient.GetFacebookProfile(in.Account.Token)
+	facebookProfile, err := s.socialClient.GetFacebookProfile(ctx, in.Account.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET facebook_id = $2, update_time = now()
 WHERE (id = $1)
@@ -356,7 +356,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if in.Import == nil || in.Import.Value {
-		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
+		importFacebookFriends(ctx, s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 
 	// After hook.
@@ -369,7 +369,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -393,7 +393,7 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -423,13 +423,13 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 		return nil, status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
 	}
 
-	valid, err := s.socialClient.CheckGameCenterID(in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
+	valid, err := s.socialClient.CheckGameCenterID(ctx, in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
 	if !valid || err != nil {
 		s.logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
 	}
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET gamecenter_id = $2, update_time = now()
 WHERE (id = $1)
@@ -457,7 +457,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -481,7 +481,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -501,13 +501,13 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
 
-	googleProfile, err := s.socialClient.CheckGoogleToken(in.Token)
+	googleProfile, err := s.socialClient.CheckGoogleToken(ctx, in.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET google_id = $2, update_time = now()
 WHERE (id = $1)
@@ -535,7 +535,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -559,7 +559,7 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -583,13 +583,13 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
 	}
 
-	steamProfile, err := s.socialClient.GetSteamProfile(s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
+	steamProfile, err := s.socialClient.GetSteamProfile(ctx, s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Steam profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
-	res, err := s.db.Exec(`
+	res, err := s.db.ExecContext(ctx, `
 UPDATE users
 SET steam_id = $2, update_time = now()
 WHERE (id = $1)
@@ -617,7 +617,7 @@ AND (NOT EXISTS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()

@@ -53,6 +53,16 @@ func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
 
 var LSentinel = lua.LValue(&LSentinelType{})
 
+type RuntimeLuaCallbacks struct {
+	RPC              map[string]*lua.LFunction
+	Before           map[string]*lua.LFunction
+	After            map[string]*lua.LFunction
+	Matchmaker       *lua.LFunction
+	TournamentEnd    *lua.LFunction
+	TournamentReset  *lua.LFunction
+	LeaderboardReset *lua.LFunction
+}
+
 type RuntimeLuaModule struct {
 	Name    string
 	Path    string
@@ -158,8 +168,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
 
-	allMatchCreateFn := func(logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(logger, id, node, name, labelUpdateFn)
+	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
+		core, err := goMatchCreateFn(ctx, logger, id, node, name, labelUpdateFn)
 		if err != nil {
 			return nil, err
 		}
@@ -205,468 +215,468 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	r, err := newRuntimeLuaVM(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
-			rpcFunctions[id] = func(queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
-				return runtimeProviderLua.Rpc(id, queryParams, userID, username, expiry, sessionID, clientIP, clientPort, payload)
+			rpcFunctions[id] = func(ctx context.Context, queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
+				return runtimeProviderLua.Rpc(ctx, id, queryParams, userID, username, expiry, sessionID, clientIP, clientPort, payload)
 			}
 		case RuntimeExecutionModeBefore:
 			if strings.HasPrefix(id, strings.ToLower(RTAPI_PREFIX)) {
-				beforeRtFunctions[id] = func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
-					return runtimeProviderLua.BeforeRt(id, logger, userID, username, expiry, sessionID, clientIP, clientPort, envelope)
+				beforeRtFunctions[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
+					return runtimeProviderLua.BeforeRt(ctx, id, logger, userID, username, expiry, sessionID, clientIP, clientPort, envelope)
 				}
 			} else if strings.HasPrefix(id, strings.ToLower(API_PREFIX)) {
 				shortId := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
 				switch shortId {
 				case "getaccount":
-					beforeReqFunctions.beforeGetAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
-						_, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, nil)
+					beforeReqFunctions.beforeGetAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
+						_, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil)
 						if err != nil {
 							return err, code
 						}
 						return nil, 0
 					}
 				case "updateaccount":
-					beforeReqFunctions.beforeUpdateAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUpdateAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.UpdateAccountRequest), nil, 0
 					}
 				case "authenticatecustom":
-					beforeReqFunctions.beforeAuthenticateCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateCustomRequest), nil, 0
 					}
 				case "authenticatedevice":
-					beforeReqFunctions.beforeAuthenticateDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateDeviceRequest), nil, 0
 					}
 				case "authenticateemail":
-					beforeReqFunctions.beforeAuthenticateEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateEmailRequest) (*api.AuthenticateEmailRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateEmailRequest) (*api.AuthenticateEmailRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateEmailRequest), nil, 0
 					}
 				case "authenticatefacebook":
-					beforeReqFunctions.beforeAuthenticateFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateFacebookRequest), nil, 0
 					}
 				case "authenticategamecenter":
-					beforeReqFunctions.beforeAuthenticateGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateGameCenterRequest), nil, 0
 					}
 				case "authenticategoogle":
-					beforeReqFunctions.beforeAuthenticateGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateGoogleRequest), nil, 0
 					}
 				case "authenticatesteam":
-					beforeReqFunctions.beforeAuthenticateSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAuthenticateSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateSteamRequest), nil, 0
 					}
 				case "listchannelmessages":
-					beforeReqFunctions.beforeListChannelMessagesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListChannelMessagesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListChannelMessagesRequest), nil, 0
 					}
 				case "listfriends":
-					beforeReqFunctions.beforeListFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
-						_, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, nil)
+					beforeReqFunctions.beforeListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
+						_, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil)
 						if err != nil {
 							return err, code
 						}
 						return nil, 0
 					}
 				case "addfriends":
-					beforeReqFunctions.beforeAddFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAddFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AddFriendsRequest), nil, 0
 					}
 				case "deletefriends":
-					beforeReqFunctions.beforeDeleteFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeDeleteFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.DeleteFriendsRequest), nil, 0
 					}
 				case "blockfriends":
-					beforeReqFunctions.beforeBlockFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeBlockFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) (*api.BlockFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.BlockFriendsRequest), nil, 0
 					}
 				case "importfacebookfriends":
-					beforeReqFunctions.beforeImportFacebookFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeImportFacebookFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ImportFacebookFriendsRequest), nil, 0
 					}
 				case "creategroup":
-					beforeReqFunctions.beforeCreateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeCreateGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.CreateGroupRequest), nil, 0
 					}
 				case "updategroup":
-					beforeReqFunctions.beforeUpdateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUpdateGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.UpdateGroupRequest), nil, 0
 					}
 				case "deletegroup":
-					beforeReqFunctions.beforeDeleteGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeDeleteGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) (*api.DeleteGroupRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.DeleteGroupRequest), nil, 0
 					}
 				case "joingroup":
-					beforeReqFunctions.beforeJoinGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeJoinGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) (*api.JoinGroupRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.JoinGroupRequest), nil, 0
 					}
 				case "leavegroup":
-					beforeReqFunctions.beforeLeaveGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLeaveGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) (*api.LeaveGroupRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.LeaveGroupRequest), nil, 0
 					}
 				case "addgroupusers":
-					beforeReqFunctions.beforeAddGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeAddGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AddGroupUsersRequest), nil, 0
 					}
 				case "kickgroupusers":
-					beforeReqFunctions.beforeKickGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeKickGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.KickGroupUsersRequest), nil, 0
 					}
 				case "promotegroupusers":
-					beforeReqFunctions.beforePromoteGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforePromoteGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.PromoteGroupUsersRequest), nil, 0
 					}
 				case "listgroupusers":
-					beforeReqFunctions.beforeListGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListGroupUsersRequest), nil, 0
 					}
 				case "listusergroups":
-					beforeReqFunctions.beforeListUserGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListUserGroupsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListUserGroupsRequest), nil, 0
 					}
 				case "listgroups":
-					beforeReqFunctions.beforeListGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListGroupsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListGroupsRequest) (*api.ListGroupsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListGroupsRequest), nil, 0
 					}
 				case "deleteleaderboardrecord":
-					beforeReqFunctions.beforeDeleteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeDeleteLeaderboardRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.DeleteLeaderboardRecordRequest), nil, 0
 					}
 				case "listleaderboardrecords":
-					beforeReqFunctions.beforeListLeaderboardRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListLeaderboardRecordsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListLeaderboardRecordsRequest), nil, 0
 					}
 				case "writeleaderboardrecord":
-					beforeReqFunctions.beforeWriteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeWriteLeaderboardRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.WriteLeaderboardRecordRequest), nil, 0
 					}
 				case "listleaderboardrecordsaroundowner":
-					beforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListLeaderboardRecordsAroundOwnerRequest), nil, 0
 					}
 				case "linkcustom":
-					beforeReqFunctions.beforeLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountCustom), nil, 0
 					}
 				case "linkdevice":
-					beforeReqFunctions.beforeLinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountDevice), nil, 0
 					}
 				case "linkemail":
-					beforeReqFunctions.beforeLinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountEmail), nil, 0
 					}
 				case "linkfacebook":
-					beforeReqFunctions.beforeLinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.LinkFacebookRequest), nil, 0
 					}
 				case "linkgamecenter":
-					beforeReqFunctions.beforeLinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountGameCenter), nil, 0
 					}
 				case "linkgoogle":
-					beforeReqFunctions.beforeLinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountGoogle), nil, 0
 					}
 				case "linksteam":
-					beforeReqFunctions.beforeLinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeLinkSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountSteam), nil, 0
 					}
 				case "listmatches":
-					beforeReqFunctions.beforeListMatchesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListMatchesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListMatchesRequest), nil, 0
 					}
 				case "listnotifications":
-					beforeReqFunctions.beforeListNotificationsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListNotificationsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListNotificationsRequest), nil, 0
 					}
 				case "deletenotification":
-					beforeReqFunctions.beforeDeleteNotificationFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeDeleteNotificationFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.DeleteNotificationsRequest), nil, 0
 					}
 				case "liststorageobjects":
-					beforeReqFunctions.beforeListStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListStorageObjectsRequest), nil, 0
 					}
 				case "readstorageobjects":
-					beforeReqFunctions.beforeReadStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeReadStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ReadStorageObjectsRequest), nil, 0
 					}
 				case "writestorageobjects":
-					beforeReqFunctions.beforeWriteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeWriteStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteStorageObjectsRequest) (*api.WriteStorageObjectsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.WriteStorageObjectsRequest), nil, 0
 					}
 				case "deletestorageobjects":
-					beforeReqFunctions.beforeDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeDeleteStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) (*api.DeleteStorageObjectsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.DeleteStorageObjectsRequest), nil, 0
 					}
 				case "jointournament":
-					beforeReqFunctions.beforeJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeJoinTournamentFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) (*api.JoinTournamentRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.JoinTournamentRequest), nil, 0
 					}
 				case "listtournamentrecords":
-					beforeReqFunctions.beforeListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListTournamentRecordsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsRequest) (*api.ListTournamentRecordsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListTournamentRecordsRequest), nil, 0
 					}
 				case "listtournaments":
-					beforeReqFunctions.beforeListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListTournamentsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentsRequest) (*api.ListTournamentsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListTournamentsRequest), nil, 0
 					}
 				case "writetournamentrecord":
-					beforeReqFunctions.beforeWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeWriteTournamentRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.WriteTournamentRecordRequest) (*api.WriteTournamentRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.WriteTournamentRecordRequest), nil, 0
 					}
 				case "listtournamentrecordsaroundowner":
-					beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.ListTournamentRecordsAroundOwnerRequest), nil, 0
 					}
 				case "unlinkcustom":
-					beforeReqFunctions.beforeUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountCustom), nil, 0
 					}
 				case "unlinkdevice":
-					beforeReqFunctions.beforeUnlinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountDevice), nil, 0
 					}
 				case "unlinkemail":
-					beforeReqFunctions.beforeUnlinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountEmail), nil, 0
 					}
 				case "unlinkfacebook":
-					beforeReqFunctions.beforeUnlinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountFacebook), nil, 0
 					}
 				case "unlinkgamecenter":
-					beforeReqFunctions.beforeUnlinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountGameCenter), nil, 0
 					}
 				case "unlinkgoogle":
-					beforeReqFunctions.beforeUnlinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountGoogle), nil, 0
 					}
 				case "unlinksteam":
-					beforeReqFunctions.beforeUnlinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeUnlinkSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
 						return result.(*api.AccountSteam), nil, 0
 					}
 				case "getusers":
-					beforeReqFunctions.beforeGetUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code) {
-						result, err, code := runtimeProviderLua.BeforeReq(id, logger, userID, username, expiry, clientIP, clientPort, in)
+					beforeReqFunctions.beforeGetUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
@@ -676,239 +686,239 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 			}
 		case RuntimeExecutionModeAfter:
 			if strings.HasPrefix(id, strings.ToLower(RTAPI_PREFIX)) {
-				afterRtFunctions[id] = func(logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error {
-					return runtimeProviderLua.AfterRt(id, logger, userID, username, expiry, sessionID, clientIP, clientPort, envelope)
+				afterRtFunctions[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error {
+					return runtimeProviderLua.AfterRt(ctx, id, logger, userID, username, expiry, sessionID, clientIP, clientPort, envelope)
 				}
 			} else if strings.HasPrefix(id, strings.ToLower(API_PREFIX)) {
 				shortId := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
 				switch shortId {
 				case "getaccount":
-					afterReqFunctions.afterGetAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, nil)
+					afterReqFunctions.afterGetAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Account) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, nil)
 					}
 				case "updateaccount":
-					afterReqFunctions.afterUpdateAccountFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUpdateAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "authenticatecustom":
-					afterReqFunctions.afterAuthenticateCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateCustomRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateCustomRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticatedevice":
-					afterReqFunctions.afterAuthenticateDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateDeviceRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateDeviceRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticateemail":
-					afterReqFunctions.afterAuthenticateEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateEmailRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateEmailRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticatefacebook":
-					afterReqFunctions.afterAuthenticateFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticategamecenter":
-					afterReqFunctions.afterAuthenticateGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticategoogle":
-					afterReqFunctions.afterAuthenticateGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticatesteam":
-					afterReqFunctions.afterAuthenticateSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterAuthenticateSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listchannelmessages":
-					afterReqFunctions.afterListChannelMessagesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListChannelMessagesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listfriends":
-					afterReqFunctions.afterListFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, nil)
+					afterReqFunctions.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, nil)
 					}
 				case "addfriends":
-					afterReqFunctions.afterAddFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterAddFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "deletefriends":
-					afterReqFunctions.afterDeleteFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterDeleteFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "blockfriends":
-					afterReqFunctions.afterBlockFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterBlockFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "importfacebookfriends":
-					afterReqFunctions.afterImportFacebookFriendsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterImportFacebookFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "creategroup":
-					afterReqFunctions.afterCreateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group, in *api.CreateGroupRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterCreateGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Group, in *api.CreateGroupRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "updategroup":
-					afterReqFunctions.afterUpdateGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUpdateGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "deletegroup":
-					afterReqFunctions.afterDeleteGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterDeleteGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteGroupRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "joingroup":
-					afterReqFunctions.afterJoinGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterJoinGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinGroupRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "leavegroup":
-					afterReqFunctions.afterLeaveGroupFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLeaveGroupFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "addgroupusers":
-					afterReqFunctions.afterAddGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterAddGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "kickgroupusers":
-					afterReqFunctions.afterKickGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterKickGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "promotegroupusers":
-					afterReqFunctions.afterPromoteGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterPromoteGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "listgroupusers":
-					afterReqFunctions.afterListGroupUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList, in *api.ListGroupUsersRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupUserList, in *api.ListGroupUsersRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listusergroups":
-					afterReqFunctions.afterListUserGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList, in *api.ListUserGroupsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListUserGroupsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.UserGroupList, in *api.ListUserGroupsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listgroups":
-					afterReqFunctions.afterListGroupsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList, in *api.ListGroupsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListGroupsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.GroupList, in *api.ListGroupsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "deleteleaderboardrecord":
-					afterReqFunctions.afterDeleteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterDeleteLeaderboardRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "listleaderboardrecords":
-					afterReqFunctions.afterListLeaderboardRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListLeaderboardRecordsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "writeleaderboardrecord":
-					afterReqFunctions.afterWriteLeaderboardRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteLeaderboardRecordRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterWriteLeaderboardRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteLeaderboardRecordRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listleaderboardrecordsaroundowner":
-					afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "linkcustom":
-					afterReqFunctions.afterLinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkdevice":
-					afterReqFunctions.afterLinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkemail":
-					afterReqFunctions.afterLinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkfacebook":
-					afterReqFunctions.afterLinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkgamecenter":
-					afterReqFunctions.afterLinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkgoogle":
-					afterReqFunctions.afterLinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linksteam":
-					afterReqFunctions.afterLinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterLinkSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "listmatches":
-					afterReqFunctions.afterListMatchesFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListMatchesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listnotifications":
-					afterReqFunctions.afterListNotificationsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList, in *api.ListNotificationsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListNotificationsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.NotificationList, in *api.ListNotificationsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "deletenotification":
-					afterReqFunctions.afterDeleteNotificationFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterDeleteNotificationFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "liststorageobjects":
-					afterReqFunctions.afterListStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList, in *api.ListStorageObjectsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList, in *api.ListStorageObjectsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "readstorageobjects":
-					afterReqFunctions.afterReadStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects, in *api.ReadStorageObjectsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterReadStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjects, in *api.ReadStorageObjectsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "writestorageobjects":
-					afterReqFunctions.afterWriteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks, in *api.WriteStorageObjectsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterWriteStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.StorageObjectAcks, in *api.WriteStorageObjectsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "deletestorageobjects":
-					afterReqFunctions.afterDeleteStorageObjectsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterDeleteStorageObjectsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.DeleteStorageObjectsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "jointournament":
-					afterReqFunctions.afterJoinTournamentFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterJoinTournamentFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.JoinTournamentRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "listtournamentrecords":
-					afterReqFunctions.afterListTournamentRecordsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListTournamentRecordsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listtournaments":
-					afterReqFunctions.afterListTournamentsFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList, in *api.ListTournamentsRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListTournamentsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentList, in *api.ListTournamentsRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "writetournamentrecord":
-					afterReqFunctions.afterWriteTournamentRecordFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteTournamentRecordRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterWriteTournamentRecordFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteTournamentRecordRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listtournamentrecordsaroundowner":
-					afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "unlinkcustom":
-					afterReqFunctions.afterUnlinkCustomFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkdevice":
-					afterReqFunctions.afterUnlinkDeviceFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkemail":
-					afterReqFunctions.afterUnlinkEmailFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkEmailFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkfacebook":
-					afterReqFunctions.afterUnlinkFacebookFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkgamecenter":
-					afterReqFunctions.afterUnlinkGameCenterFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkgoogle":
-					afterReqFunctions.afterUnlinkGoogleFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinksteam":
-					afterReqFunctions.afterUnlinkSteamFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
+					afterReqFunctions.afterUnlinkSteamFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil, in)
 					}
 				case "getusers":
-					afterReqFunctions.afterGetUsersFunction = func(logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error {
-						return runtimeProviderLua.AfterReq(id, logger, userID, username, expiry, clientIP, clientPort, out, in)
+					afterReqFunctions.afterGetUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				}
 			}
@@ -951,7 +961,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, allMatchCreateFn, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
-func (rp *RuntimeProviderLua) Rpc(id string, queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
+func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
 	runtime := rp.Get()
 	lf := runtime.GetCallback(RuntimeExecutionModeRPC, id)
 	if lf == nil {
@@ -959,7 +969,9 @@ func (rp *RuntimeProviderLua) Rpc(id string, queryParams map[string][]string, us
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
 
+	runtime.vm.SetContext(ctx)
 	result, fnErr, code := runtime.InvokeFunction(RuntimeExecutionModeRPC, lf, queryParams, userID, username, expiry, sessionID, clientIP, clientPort, payload)
+	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
 	if fnErr != nil {
@@ -999,7 +1011,7 @@ func (rp *RuntimeProviderLua) Rpc(id string, queryParams map[string][]string, us
 	}
 }
 
-func (rp *RuntimeProviderLua) BeforeRt(id string, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
+func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
 	runtime := rp.Get()
 	lf := runtime.GetCallback(RuntimeExecutionModeBefore, id)
 	if lf == nil {
@@ -1020,7 +1032,9 @@ func (rp *RuntimeProviderLua) BeforeRt(id string, logger *zap.Logger, userID, us
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
+	runtime.vm.SetContext(ctx)
 	result, fnErr, _ := runtime.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
 	if fnErr != nil {
@@ -1060,7 +1074,7 @@ func (rp *RuntimeProviderLua) BeforeRt(id string, logger *zap.Logger, userID, us
 	return envelope, nil
 }
 
-func (rp *RuntimeProviderLua) AfterRt(id string, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error {
+func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *zap.Logger, userID, username string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) error {
 	runtime := rp.Get()
 	lf := runtime.GetCallback(RuntimeExecutionModeAfter, id)
 	if lf == nil {
@@ -1081,7 +1095,9 @@ func (rp *RuntimeProviderLua) AfterRt(id string, logger *zap.Logger, userID, use
 		return errors.New("Could not run runtime After function.")
 	}
 
+	runtime.vm.SetContext(ctx)
 	_, fnErr, _ := runtime.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
 	if fnErr != nil {
@@ -1106,7 +1122,7 @@ func (rp *RuntimeProviderLua) AfterRt(id string, logger *zap.Logger, userID, use
 	return nil
 }
 
-func (rp *RuntimeProviderLua) BeforeReq(id string, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, req interface{}) (interface{}, error, codes.Code) {
+func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, req interface{}) (interface{}, error, codes.Code) {
 	runtime := rp.Get()
 	lf := runtime.GetCallback(RuntimeExecutionModeBefore, id)
 	if lf == nil {
@@ -1138,7 +1154,9 @@ func (rp *RuntimeProviderLua) BeforeReq(id string, logger *zap.Logger, userID, u
 		}
 	}
 
+	runtime.vm.SetContext(ctx)
 	result, fnErr, code := runtime.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, expiry, "", clientIP, clientPort, reqMap)
+	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
 	if fnErr != nil {
@@ -1179,7 +1197,7 @@ func (rp *RuntimeProviderLua) BeforeReq(id string, logger *zap.Logger, userID, u
 	return req, nil, 0
 }
 
-func (rp *RuntimeProviderLua) AfterReq(id string, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, res interface{}, req interface{}) error {
+func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, res interface{}, req interface{}) error {
 	runtime := rp.Get()
 	lf := runtime.GetCallback(RuntimeExecutionModeAfter, id)
 	if lf == nil {
@@ -1233,7 +1251,9 @@ func (rp *RuntimeProviderLua) AfterReq(id string, logger *zap.Logger, userID, us
 		}
 	}
 
+	runtime.vm.SetContext(ctx)
 	_, fnErr, _ := runtime.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, expiry, "", clientIP, clientPort, resMap, reqMap)
+	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
 	if fnErr != nil {
@@ -1500,9 +1520,10 @@ func (rp *RuntimeProviderLua) Put(r *RuntimeLua) {
 }
 
 type RuntimeLua struct {
-	logger *zap.Logger
-	vm     *lua.LState
-	luaEnv *lua.LTable
+	logger    *zap.Logger
+	vm        *lua.LState
+	luaEnv    *lua.LTable
+	callbacks *RuntimeLuaCallbacks
 }
 
 func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
@@ -1577,27 +1598,22 @@ func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
 	return nil
 }
 
-func (r *RuntimeLua) NewStateThread() (*lua.LState, context.CancelFunc) {
-	return r.vm, nil
-}
-
 func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunction {
-	cp := r.vm.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
 	switch e {
 	case RuntimeExecutionModeRPC:
-		return cp.RPC[key]
+		return r.callbacks.RPC[key]
 	case RuntimeExecutionModeBefore:
-		return cp.Before[key]
+		return r.callbacks.Before[key]
 	case RuntimeExecutionModeAfter:
-		return cp.After[key]
+		return r.callbacks.After[key]
 	case RuntimeExecutionModeMatchmaker:
-		return cp.Matchmaker
+		return r.callbacks.Matchmaker
 	case RuntimeExecutionModeTournamentEnd:
-		return cp.TournamentEnd
+		return r.callbacks.TournamentEnd
 	case RuntimeExecutionModeTournamentReset:
-		return cp.TournamentReset
+		return r.callbacks.TournamentReset
 	case RuntimeExecutionModeLeaderboardReset:
-		return cp.LeaderboardReset
+		return r.callbacks.LeaderboardReset
 	}
 
 	return nil
@@ -1690,7 +1706,7 @@ func (r *RuntimeLua) Stop() {
 	r.vm.Close()
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -1698,17 +1714,42 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, config Config, socialClient
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
+	vm.SetContext(context.Background())
 	for name, lib := range stdLibs {
 		vm.Push(vm.NewFunction(lib))
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, matchCreateFn, announceCallback)
+	callbacks := &RuntimeLuaCallbacks{
+		RPC:    make(map[string]*lua.LFunction),
+		Before: make(map[string]*lua.LFunction),
+		After:  make(map[string]*lua.LFunction),
+	}
+	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
+		switch e {
+		case RuntimeExecutionModeRPC:
+			callbacks.RPC[key] = fn
+		case RuntimeExecutionModeBefore:
+			callbacks.Before[key] = fn
+		case RuntimeExecutionModeAfter:
+			callbacks.After[key] = fn
+		case RuntimeExecutionModeMatchmaker:
+			callbacks.Matchmaker = fn
+		case RuntimeExecutionModeTournamentEnd:
+			callbacks.TournamentEnd = fn
+		case RuntimeExecutionModeTournamentReset:
+			callbacks.TournamentReset = fn
+		case RuntimeExecutionModeLeaderboardReset:
+			callbacks.LeaderboardReset = fn
+		}
+	}
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, matchCreateFn, registerCallbackFn, announceCallbackFn)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
-		logger: logger,
-		vm:     vm,
-		luaEnv: RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
+		logger:    logger,
+		vm:        vm,
+		luaEnv:    RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
+		callbacks: callbacks,
 	}
 
 	return r, r.loadModules(moduleCache)

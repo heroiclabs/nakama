@@ -45,7 +45,7 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, caller.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, caller.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -78,7 +78,7 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 		userID = uid
 	}
 
-	storageObjectList, code, listingError := StorageListObjects(s.logger, s.db, caller, userID, in.GetCollection(), limit, in.GetCursor())
+	storageObjectList, code, listingError := StorageListObjects(ctx, s.logger, s.db, caller, userID, in.GetCollection(), limit, in.GetCursor())
 
 	if listingError != nil {
 		if code == codes.Internal {
@@ -97,7 +97,7 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, caller.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, storageObjectList, in)
+		fn(ctx, s.logger, caller.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, storageObjectList, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -121,7 +121,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -153,7 +153,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 		}
 	}
 
-	objects, err := StorageReadObjects(s.logger, s.db, userID, in.GetObjectIds())
+	objects, err := StorageReadObjects(ctx, s.logger, s.db, userID, in.GetObjectIds())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error reading storage objects.")
 	}
@@ -168,7 +168,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, objects, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, objects, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -192,7 +192,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -239,7 +239,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 
 	userObjects := map[uuid.UUID][]*api.WriteStorageObject{userID: in.GetObjects()}
 
-	acks, code, err := StorageWriteObjects(s.logger, s.db, false, userObjects)
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, false, userObjects)
 	if err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error writing storage objects.")
@@ -257,7 +257,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, acks, in)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, acks, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -281,7 +281,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -309,7 +309,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 
 	objectIDs := map[uuid.UUID][]*api.DeleteStorageObjectId{userID: in.GetObjectIds()}
 
-	if code, err := StorageDeleteObjects(s.logger, s.db, false, objectIDs); err != nil {
+	if code, err := StorageDeleteObjects(ctx, s.logger, s.db, false, objectIDs); err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error deleting storage objects.")
 		}
@@ -326,7 +326,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()

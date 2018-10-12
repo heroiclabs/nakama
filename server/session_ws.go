@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -44,6 +45,9 @@ type sessionWS struct {
 	clientIP   string
 	clientPort string
 
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
+
 	jsonpbMarshaler        *jsonpb.Marshaler
 	jsonpbUnmarshaler      *jsonpb.Unmarshaler
 	queuePriorityThreshold int
@@ -69,6 +73,8 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 
 	sessionLogger.Info("New WebSocket session connected")
 
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
 	return &sessionWS{
 		logger:     sessionLogger,
 		config:     config,
@@ -78,6 +84,9 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		expiry:     expiry,
 		clientIP:   clientIP,
 		clientPort: clientPort,
+
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
 
 		jsonpbMarshaler:        jsonpbMarshaler,
 		jsonpbUnmarshaler:      jsonpbUnmarshaler,
@@ -90,8 +99,8 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		matchmaker:      matchmaker,
 		tracker:         tracker,
 
-		stopped: false,
-		conn:    conn,
+		stopped:                false,
+		conn:                   conn,
 		receivedMessageCounter: config.GetSocket().PingBackoffThreshold,
 		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
 		outgoingCh:             make(chan []byte, config.GetSocket().OutgoingQueueSize),
@@ -117,6 +126,10 @@ func (s *sessionWS) ClientIP() string {
 
 func (s *sessionWS) ClientPort() string {
 	return s.clientPort
+}
+
+func (s *sessionWS) Context() context.Context {
+	return s.ctx
 }
 
 func (s *sessionWS) Username() string {
@@ -309,6 +322,9 @@ func (s *sessionWS) cleanupClosedConnection() {
 	s.stopped = true
 	s.Unlock()
 
+	// Cancel any ongoing operations tied to this session.
+	s.ctxCancelFn()
+
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", s.conn.RemoteAddr().String()))
 	}
@@ -336,6 +352,9 @@ func (s *sessionWS) Close() {
 	}
 	s.stopped = true
 	s.Unlock()
+
+	// Cancel any ongoing operations tied to this session.
+	s.ctxCancelFn()
 
 	// Expect the caller of this session.Close() to clean up external resources (like presences) separately.
 

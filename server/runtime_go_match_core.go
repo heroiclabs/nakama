@@ -45,10 +45,13 @@ type RuntimeGoMatchCore struct {
 	db        *sql.DB
 	nk        runtime.NakamaModule
 	ctx       context.Context
+
+	ctxCancelFn context.CancelFunc
 }
 
 func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn func(string), stdLogger *log.Logger, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
-	ctx := NewRuntimeGoContext(env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_NODE, node)
 
@@ -75,6 +78,8 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, trac
 		db:        db,
 		nk:        nk,
 		ctx:       ctx,
+
+		ctxCancelFn: ctxCancelFn,
 	}, nil
 }
 
@@ -142,6 +147,10 @@ func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh ch
 func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
 	newState := r.match.MatchTerminate(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, graceSeconds)
 	return newState, nil
+}
+
+func (r *RuntimeGoMatchCore) Cancel() {
+	r.ctxCancelFn()
 }
 
 func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {

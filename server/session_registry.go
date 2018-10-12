@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"sync"
 
 	"github.com/gofrs/uuid"
@@ -35,6 +36,8 @@ type Session interface {
 	UserID() uuid.UUID
 	ClientIP() string
 	ClientPort() string
+
+	Context() context.Context
 
 	Username() string
 	SetUsername(string)

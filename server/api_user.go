@@ -40,7 +40,7 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -82,7 +82,7 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 		facebookIDs = in.GetFacebookIds()
 	}
 
-	users, err := GetUsers(s.logger, s.db, s.tracker, ids, usernames, facebookIDs)
+	users, err := GetUsers(ctx, s.logger, s.db, s.tracker, ids, usernames, facebookIDs)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving user accounts.")
 	}
@@ -97,7 +97,7 @@ func (s *ApiServer) GetUsers(ctx context.Context, in *api.GetUsersRequest) (*api
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, users, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, users, in)
 
 		// Stats measurement end boundary.
 		span.End()

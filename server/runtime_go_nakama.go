@@ -92,7 +92,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateCustom(ctx context.Context, id, user
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateCustom(n.logger, n.db, id, username, create)
+	return AuthenticateCustom(ctx, n.logger, n.db, id, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateDevice(ctx context.Context, id, username string, create bool) (string, string, bool, error) {
@@ -112,7 +112,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateDevice(ctx context.Context, id, user
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateDevice(n.logger, n.db, id, username, create)
+	return AuthenticateDevice(ctx, n.logger, n.db, id, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, password, username string, create bool) (string, string, bool, error) {
@@ -142,7 +142,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 
 	cleanEmail := strings.ToLower(email)
 
-	return AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	return AuthenticateEmail(ctx, n.logger, n.db, cleanEmail, password, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error) {
@@ -158,9 +158,9 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, token, username, create)
 	if err == nil && importFriends {
-		importFacebookFriends(n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		importFacebookFriends(ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	return dbUserID, dbUsername, created, err
@@ -194,7 +194,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, play
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateGameCenter(n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
+	return AuthenticateGameCenter(ctx, n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
@@ -210,7 +210,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateGoogle(n.logger, n.db, n.socialClient, token, username, create)
+	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
@@ -230,7 +230,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateSteam(n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+	return AuthenticateSteam(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64) (string, int64, error) {
@@ -261,7 +261,7 @@ func (n *RuntimeGoNakamaModule) AccountGetId(ctx context.Context, userID string)
 		return nil, errors.New("invalid user id")
 	}
 
-	return GetAccount(n.logger, n.db, n.tracker, u)
+	return GetAccount(ctx, n.logger, n.db, n.tracker, u)
 }
 
 func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error {
@@ -285,7 +285,7 @@ func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, use
 	langWrapper := &wrappers.StringValue{Value: langTag}
 	avatarWrapper := &wrappers.StringValue{Value: avatarUrl}
 
-	return UpdateAccount(n.db, n.logger, u, username, displayNameWrapper, timezoneWrapper, locationWrapper, langWrapper, avatarWrapper, metadataWrapper)
+	return UpdateAccount(ctx, n.logger, n.db, u, username, displayNameWrapper, timezoneWrapper, locationWrapper, langWrapper, avatarWrapper, metadataWrapper)
 }
 
 func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error) {
@@ -299,7 +299,7 @@ func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string
 		}
 	}
 
-	users, err := GetUsers(n.logger, n.db, n.tracker, userIDs, nil, nil)
+	users, err := GetUsers(ctx, n.logger, n.db, n.tracker, userIDs, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +318,7 @@ func (n *RuntimeGoNakamaModule) UsersGetUsername(ctx context.Context, usernames 
 		}
 	}
 
-	users, err := GetUsers(n.logger, n.db, n.tracker, nil, usernames, nil)
+	users, err := GetUsers(ctx, n.logger, n.db, n.tracker, nil, usernames, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func (n *RuntimeGoNakamaModule) UsersBanId(ctx context.Context, userIDs []string
 		}
 	}
 
-	return BanUsers(n.logger, n.db, userIDs)
+	return BanUsers(ctx, n.logger, n.db, userIDs)
 }
 
 func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []string) error {
@@ -351,7 +351,7 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 		}
 	}
 
-	return UnbanUsers(n.logger, n.db, userIDs)
+	return UnbanUsers(ctx, n.logger, n.db, userIDs)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
@@ -628,7 +628,7 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) MatchCreate(module string, params map[string]interface{}) (string, error) {
+func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {
 	if module == "" {
 		return "", errors.New("expects module name")
 	}
@@ -642,7 +642,7 @@ func (n *RuntimeGoNakamaModule) MatchCreate(module string, params map[string]int
 	n.RLock()
 	fn := n.matchCreateFn
 	n.RUnlock()
-	core, err := fn(matchLogger, id, n.node, module, labelUpdateFn)
+	core, err := fn(ctx, matchLogger, id, n.node, module, labelUpdateFn)
 	if err != nil {
 		return "", err
 	}
@@ -710,7 +710,7 @@ func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, su
 		uid: nots,
 	}
 
-	return NotificationSend(n.logger, n.db, n.router, notifications)
+	return NotificationSend(ctx, n.logger, n.db, n.router, notifications)
 }
 
 func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notifications []*runtime.NotificationSend) error {
@@ -761,7 +761,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 		ns[uid] = no
 	}
 
-	return NotificationSend(n.logger, n.db, n.router, ns)
+	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
 func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}) error {
@@ -778,7 +778,7 @@ func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string,
 		}
 	}
 
-	return UpdateWallets(n.logger, n.db, []*walletUpdate{&walletUpdate{
+	return UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{&walletUpdate{
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),
@@ -814,7 +814,7 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 		}
 	}
 
-	return UpdateWallets(n.logger, n.db, walletUpdates)
+	return UpdateWallets(ctx, n.logger, n.db, walletUpdates)
 }
 
 func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (runtime.WalletLedgerItem, error) {
@@ -828,7 +828,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID s
 		return nil, errors.Errorf("failed to convert metadata: %s", err.Error())
 	}
 
-	return UpdateWalletLedger(n.logger, n.db, id, string(metadataBytes))
+	return UpdateWalletLedger(ctx, n.logger, n.db, id, string(metadataBytes))
 }
 
 func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID string) ([]runtime.WalletLedgerItem, error) {
@@ -837,7 +837,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 		return nil, errors.New("expects a valid user id")
 	}
 
-	items, err := ListWalletLedger(n.logger, n.db, uid)
+	items, err := ListWalletLedger(ctx, n.logger, n.db, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -859,7 +859,7 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collect
 		}
 	}
 
-	objectList, _, err := StorageListObjects(n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
+	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
 	if err != nil {
 		return nil, "", err
 	}
@@ -897,7 +897,7 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, reads []*runtim
 		}
 	}
 
-	objects, err := StorageReadObjects(n.logger, n.db, uuid.Nil, objectIDs)
+	objects, err := StorageReadObjects(ctx, n.logger, n.db, uuid.Nil, objectIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -950,7 +950,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 		}
 	}
 
-	acks, _, err := StorageWriteObjects(n.logger, n.db, true, data)
+	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, true, data)
 	if err != nil {
 		return nil, err
 	}
@@ -995,7 +995,7 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 		}
 	}
 
-	_, err := StorageDeleteObjects(n.logger, n.db, true, objectIDs)
+	_, err := StorageDeleteObjects(ctx, n.logger, n.db, true, objectIDs)
 
 	return err
 }
@@ -1042,7 +1042,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		metadataStr = string(metadataBytes)
 	}
 
-	err := n.leaderboardCache.Create(id, authoritative, sort, oper, resetSchedule, metadataStr)
+	err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
 	if err != nil {
 		return err
 	}
@@ -1057,7 +1057,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 		return errors.New("expects a leaderboard ID string")
 	}
 
-	return n.leaderboardCache.Delete(id)
+	return n.leaderboardCache.Delete(ctx, id)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
@@ -1082,7 +1082,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
 	}
 
-	list, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiry)
+	list, err := LeaderboardRecordsList(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiry)
 	if err != nil {
 		return nil, nil, "", "", err
 	}
@@ -1117,7 +1117,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, 
 		metadataStr = string(metadataBytes)
 	}
 
-	return LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+	return LeaderboardRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error {
@@ -1129,7 +1129,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id,
 		return errors.New("expects owner ID to be a valid identifier")
 	}
 
-	return LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
+	return LeaderboardRecordDelete(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
@@ -1196,7 +1196,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		return errors.New("maxNumScore must be >= 0")
 	}
 
-	return TournamentCreate(n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	return TournamentCreate(ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentDelete(ctx context.Context, id string) error {
@@ -1204,7 +1204,7 @@ func (n *RuntimeGoNakamaModule) TournamentDelete(ctx context.Context, id string)
 		return errors.New("expects a tournament ID string")
 	}
 
-	return TournamentDelete(n.logger, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
+	return TournamentDelete(ctx, n.logger, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentAddAttempt(ctx context.Context, id, ownerID string, count int) error {
@@ -1222,7 +1222,7 @@ func (n *RuntimeGoNakamaModule) TournamentAddAttempt(ctx context.Context, id, ow
 		return errors.New("expects an attempt count number != 0")
 	}
 
-	return TournamentAddAttempt(n.logger, n.db, n.leaderboardCache, id, ownerID, count)
+	return TournamentAddAttempt(ctx, n.logger, n.db, n.leaderboardCache, id, ownerID, count)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID, username string) error {
@@ -1240,7 +1240,7 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID,
 		return errors.New("expects a username string")
 	}
 
-	return TournamentJoin(n.logger, n.db, n.leaderboardCache, ownerID, username, id)
+	return TournamentJoin(ctx, n.logger, n.db, n.leaderboardCache, ownerID, username, id)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
@@ -1277,7 +1277,7 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 		}
 	}
 
-	return TournamentList(n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+	return TournamentList(ctx, n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {
@@ -1301,7 +1301,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 		metadataStr = string(metadataBytes)
 	}
 
-	return TournamentRecordWrite(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr)
+	return TournamentRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int) ([]*api.LeaderboardRecord, error) {
@@ -1318,7 +1318,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 		return nil, errors.New("limit must be 1-100")
 	}
 
-	return TournamentRecordsHaystack(n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit)
+	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit)
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {
@@ -1352,7 +1352,7 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 		return nil, errors.New("expects max_count to be > 0 and <= 100")
 	}
 
-	return CreateGroup(n.logger, n.db, uid, cid, name, langTag, description, avatarUrl, metadataStr, open, maxCount)
+	return CreateGroup(ctx, n.logger, n.db, uid, cid, name, langTag, description, avatarUrl, metadataStr, open, maxCount)
 }
 
 func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error {
@@ -1406,7 +1406,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		maxCountValue = maxCount
 	}
 
-	return UpdateGroup(n.logger, n.db, groupID, uuid.Nil, creatorIDByte, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creatorIDByte, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
 }
 
 func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) error {
@@ -1415,7 +1415,7 @@ func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) erro
 		return errors.New("expects group ID to be a valid identifier")
 	}
 
-	return DeleteGroup(n.logger, n.db, groupID, uuid.Nil)
+	return DeleteGroup(ctx, n.logger, n.db, groupID, uuid.Nil)
 }
 
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error) {
@@ -1424,7 +1424,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) (
 		return nil, errors.New("expects group ID to be a valid identifier")
 	}
 
-	users, err := ListGroupUsers(n.logger, n.db, n.tracker, groupID)
+	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1438,7 +1438,7 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 		return nil, errors.New("expects user ID to be a valid identifier")
 	}
 
-	groups, err := ListUserGroups(n.logger, n.db, uid)
+	groups, err := ListUserGroups(ctx, n.logger, n.db, uid)
 	if err != nil {
 		return nil, err
 	}

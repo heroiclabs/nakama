@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetUsers(logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
+func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
 	facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
@@ -78,7 +79,7 @@ WHERE`
 		query = query + " facebook_id IN (" + strings.Join(facebookStatements, ", ") + ")"
 	}
 
-	rows, err := db.Query(query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving user accounts.", zap.Error(err), zap.Strings("user_ids", ids), zap.Strings("usernames", usernames), zap.Strings("facebook_ids", fbIDs))
 		return nil, err
@@ -102,8 +103,8 @@ WHERE`
 	return users, nil
 }
 
-func DeleteUser(tx *sql.Tx, userID uuid.UUID) (int64, error) {
-	res, err := tx.Exec("DELETE FROM users WHERE id = $1", userID)
+func DeleteUser(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (int64, error) {
+	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
 		return 0, err
 	}
@@ -111,7 +112,7 @@ func DeleteUser(tx *sql.Tx, userID uuid.UUID) (int64, error) {
 	return res.RowsAffected()
 }
 
-func BanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
+func BanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string) error {
 	statements := make([]string, 0, len(ids))
 	params := make([]interface{}, 0, len(ids))
 	for i, id := range ids {
@@ -120,7 +121,7 @@ func BanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
 	}
 
 	query := "UPDATE users SET disable_time = now() WHERE id IN (" + strings.Join(statements, ", ") + ")"
-	_, err := db.Exec(query, params...)
+	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error banning user accounts.", zap.Error(err), zap.Strings("ids", ids))
 		return err
@@ -128,7 +129,7 @@ func BanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
 	return nil
 }
 
-func UnbanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
+func UnbanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string) error {
 	statements := make([]string, 0, len(ids))
 	params := make([]interface{}, 0, len(ids))
 	for i, id := range ids {
@@ -137,7 +138,7 @@ func UnbanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
 	}
 
 	query := "UPDATE users SET disable_time = '1970-01-01 00:00:00' WHERE id IN (" + strings.Join(statements, ", ") + ")"
-	_, err := db.Exec(query, params...)
+	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error unbanning user accounts.", zap.Error(err), zap.Strings("ids", ids))
 		return err
@@ -145,9 +146,9 @@ func UnbanUsers(logger *zap.Logger, db *sql.DB, ids []string) error {
 	return nil
 }
 
-func UserExistsAndDoesNotBlock(db *sql.DB, checkUserID, blocksUserID uuid.UUID) (bool, error) {
+func UserExistsAndDoesNotBlock(ctx context.Context, db *sql.DB, checkUserID, blocksUserID uuid.UUID) (bool, error) {
 	var count int
-	err := db.QueryRow(`
+	err := db.QueryRowContext(ctx, `
 SELECT COUNT(id) FROM users
 WHERE id = $1::UUID AND NOT EXISTS (
 	SELECT state FROM user_edge
@@ -202,7 +203,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	}, nil
 }
 
-func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
+func fetchUserID(ctx context.Context, db *sql.DB, usernames []string) ([]string, error) {
 	ids := make([]string, 0)
 	if len(usernames) == 0 {
 		return ids, nil
@@ -219,7 +220,7 @@ func fetchUserID(db *sql.DB, usernames []string) ([]string, error) {
 	}
 
 	query := "SELECT id FROM users WHERE username IN (" + strings.Join(statements, ", ") + ")"
-	rows, err := db.Query(query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ids, nil

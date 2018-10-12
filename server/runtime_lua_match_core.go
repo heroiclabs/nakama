@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -49,6 +50,8 @@ type RuntimeLuaMatchCore struct {
 	terminateFn   lua.LValue
 	ctx           *lua.LTable
 	dispatcher    *lua.LTable
+
+	ctxCancelFn context.CancelFunc
 }
 
 func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
@@ -59,14 +62,16 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
+	goCtx, ctxCancelFn := context.WithCancel(context.Background())
+	vm.SetContext(goCtx)
 	for name, lib := range stdLibs {
 		vm.Push(vm.NewFunction(lib))
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
 
-	allMatchCreateFn := func(logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(logger, id, node, name, labelUpdateFn)
+	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
+		core, err := goMatchCreateFn(ctx, logger, id, node, name, labelUpdateFn)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +81,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		return NewRuntimeLuaMatchCore(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name, labelUpdateFn)
 	}
 
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, allMatchCreateFn, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, allMatchCreateFn, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	// Create the context to be used throughout this match.
@@ -151,6 +156,8 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		terminateFn:   terminateFn,
 		ctx:           ctx,
 		// dispatcher set below.
+
+		ctxCancelFn: ctxCancelFn,
 	}
 
 	core.dispatcher = vm.SetFuncs(vm.CreateTable(0, 3), map[string]lua.LGFunction{
@@ -463,6 +470,10 @@ func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state interface{}, grac
 	r.vm.Pop(1)
 
 	return newState, nil
+}
+
+func (r *RuntimeLuaMatchCore) Cancel() {
+	r.ctxCancelFn()
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {

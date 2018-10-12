@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Improved cancellation of ongoing work when clients disconnect.
+
 ### Fixed
 - Use leaderboard expires rather than end active IDs with leaderboard resets.
 - Better validation of tournament duration when a reset schedule is set.

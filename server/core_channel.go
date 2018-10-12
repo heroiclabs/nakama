@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -54,7 +55,7 @@ type channelMessageListCursor struct {
 	IsNext           bool
 }
 
-func ChannelMessagesList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelId string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
+func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelId string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
 	if cursor != "" {
 		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
@@ -86,7 +87,7 @@ func ChannelMessagesList(logger *zap.Logger, db *sql.DB, caller uuid.UUID, strea
 
 	// If it's a group, check membership.
 	if !uuid.Equal(uuid.Nil, caller) && stream.Mode == StreamModeGroup {
-		allowed, err := groupCheckUserPermission(logger, db, stream.Subject, caller, 2)
+		allowed, err := groupCheckUserPermission(ctx, logger, db, stream.Subject, caller, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +118,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
 	}
 
-	rows, err := db.Query(query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error listing channel messages", zap.Error(err))
 		return nil, err
@@ -217,9 +218,9 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	}, nil
 }
 
-func GetChannelMessages(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.ChannelMessage, error) {
+func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.ChannelMessage, error) {
 	query := "SELECT id, code, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time FROM message WHERE sender_id = $1::UUID"
-	rows, err := db.Query(query, userID)
+	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Error("Error listing channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return nil, err

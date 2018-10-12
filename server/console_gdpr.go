@@ -29,8 +29,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ConsoleServer) RecordAccountDeletion(tx *sql.Tx, userID uuid.UUID) error {
-	if _, err := tx.Exec(`INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
+func (s *ConsoleServer) RecordAccountDeletion(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
 		s.logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", userID.String()))
 		return err
 	}
@@ -44,7 +44,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	// Core user account.
-	account, err := GetAccount(s.logger, s.db, nil, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, nil, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
@@ -54,28 +54,28 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	// Friends.
-	friends, err := GetFriendIDs(s.logger, s.db, userID)
+	friends, err := GetFriendIDs(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch friend IDs", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
 	// Messages.
-	messages, err := GetChannelMessages(s.logger, s.db, userID)
+	messages, err := GetChannelMessages(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch messages", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
 	// Leaderboard records.
-	leaderboardRecords, err := LeaderboardRecordReadAll(s.logger, s.db, userID)
+	leaderboardRecords, err := LeaderboardRecordReadAll(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch leaderboard records", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
 	groups := make([]*api.Group, 0)
-	groupUsers, err := ListUserGroups(s.logger, s.db, userID)
+	groupUsers, err := ListUserGroups(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
@@ -85,21 +85,21 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	// Notifications.
-	notifications, err := NotificationList(s.logger, s.db, userID, 0, "", nil)
+	notifications, err := NotificationList(ctx, s.logger, s.db, userID, 0, "", nil)
 	if err != nil {
 		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
 	// Storage objects where user is the owner.
-	storageObjects, err := StorageReadAllUserObjects(s.logger, s.db, userID)
+	storageObjects, err := StorageReadAllUserObjects(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
 	// History of user's wallet.
-	walletLedgers, err := ListWalletLedger(s.logger, s.db, userID)
+	walletLedgers, err := ListWalletLedger(ctx, s.logger, s.db, userID)
 	if err != nil {
 		s.logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")

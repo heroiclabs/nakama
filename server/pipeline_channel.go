@@ -118,7 +118,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 			return
 		}
 		// Check if the other user exists and has not blocked this user.
-		allowed, err := UserExistsAndDoesNotBlock(p.db, uid, userID)
+		allowed, err := UserExistsAndDoesNotBlock(session.Context(), p.db, uid, userID)
 		if err != nil {
 			logger.Warn("Failed to execute query to check user and friend block state", zap.Error(err), zap.String("uid", userID.String()), zap.String("friend", uid.String()))
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -153,7 +153,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 			}}})
 			return
 		}
-		allowed, err := groupCheckUserPermission(logger, p.db, gid, session.UserID(), 2)
+		allowed, err := groupCheckUserPermission(session.Context(), logger, p.db, gid, session.UserID(), 2)
 		if err != nil {
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -243,7 +243,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 					},
 				}
 
-				NotificationSend(logger, p.db, p.router, notifications)
+				NotificationSend(session.Context(), logger, p.db, p.router, notifications)
 			}
 		}
 	}
@@ -338,7 +338,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	if meta.Persistence {
 		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-		_, err := p.db.Exec(query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
+		_, err := p.db.ExecContext(session.Context(), query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
 		if err != nil {
 			logger.Error("Error persisting channel message", zap.Error(err))
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -417,7 +417,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 		// First find and update the referenced message.
 		var dbCreateTime pq.NullTime
 		query := "UPDATE message SET update_time = $5, username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
-		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId, message.Content, message.Username, time.Unix(message.UpdateTime.Seconds, 0).UTC()).Scan(&dbCreateTime)
+		err := p.db.QueryRowContext(session.Context(), query, incoming.MessageId, message.SenderId, message.Content, message.Username, time.Unix(message.UpdateTime.Seconds, 0).UTC()).Scan(&dbCreateTime)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -497,7 +497,7 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 		// First find and remove the referenced message.
 		var dbCreateTime pq.NullTime
 		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time"
-		err := p.db.QueryRow(query, incoming.MessageId, message.SenderId).Scan(&dbCreateTime)
+		err := p.db.QueryRowContext(session.Context(), query, incoming.MessageId, message.SenderId).Scan(&dbCreateTime)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

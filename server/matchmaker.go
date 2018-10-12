@@ -130,7 +130,7 @@ func (m *LocalMatchmaker) Add(session Session, query string, minCount int, maxCo
 	}
 
 	m.Lock()
-	result, err := m.index.Search(search)
+	result, err := m.index.SearchInContext(session.Context(), search)
 	if err != nil {
 		m.Unlock()
 		return ticket, nil, err

@@ -68,22 +68,22 @@ func (w *walletLedger) GetMetadata() map[string]interface{} {
 	return w.Metadata
 }
 
-func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) error {
+func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*walletUpdate) error {
 	if len(updates) == 0 {
 		return nil
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, update := range updates {
 			var wallet sql.NullString
 			query := "SELECT wallet FROM users WHERE id = $1::UUID"
-			err := tx.QueryRow(query, update.UserID).Scan(&wallet)
+			err := tx.QueryRowContext(ctx, query, update.UserID).Scan(&wallet)
 			if err != nil {
 				logger.Debug("Error retrieving user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
@@ -109,7 +109,7 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 			}
 
 			query = "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1::UUID"
-			_, err = tx.Exec(query, update.UserID, string(walletData))
+			_, err = tx.ExecContext(ctx, query, update.UserID, string(walletData))
 			if err != nil {
 				logger.Debug("Error writing user wallet.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
@@ -122,7 +122,7 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 			}
 
 			query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1::UUID, $2::UUID, $3, $4)"
-			_, err = tx.Exec(query, uuid.Must(uuid.NewV4()), update.UserID, changesetData, update.Metadata)
+			_, err = tx.ExecContext(ctx, query, uuid.Must(uuid.NewV4()), update.UserID, changesetData, update.Metadata)
 			if err != nil {
 				logger.Debug("Error writing user wallet ledger.", zap.String("user_id", update.UserID.String()), zap.Error(err))
 				return err
@@ -137,14 +137,14 @@ func UpdateWallets(logger *zap.Logger, db *sql.DB, updates []*walletUpdate) erro
 	return nil
 }
 
-func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {
+func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {
 	// Metadata is expected to already be a valid JSON string.
 	var userId string
 	var changeset sql.NullString
 	var createTime pq.NullTime
 	var updateTime pq.NullTime
 	query := "UPDATE wallet_ledger SET update_time = now(), metadata = metadata || $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
-	err := db.QueryRow(query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
+	err := db.QueryRowContext(ctx, query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
 	if err != nil {
 		logger.Error("Error updating user wallet ledger.", zap.String("id", id.String()), zap.Error(err))
 		return nil, err
@@ -165,10 +165,10 @@ func UpdateWalletLedger(logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata s
 	}, nil
 }
 
-func ListWalletLedger(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*walletLedger, error) {
+func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*walletLedger, error) {
 	results := make([]*walletLedger, 0)
 	query := "SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID"
-	rows, err := db.Query(query, userID)
+	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Error("Error retrieving user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
 		return nil, err

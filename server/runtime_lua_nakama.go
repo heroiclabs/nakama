@@ -16,7 +16,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -49,18 +48,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const RUNTIME_LUA_CALLBACKS = "runtime_lua_callbacks"
-
-type RuntimeLuaCallbacks struct {
-	RPC              map[string]*lua.LFunction
-	Before           map[string]*lua.LFunction
-	After            map[string]*lua.LFunction
-	Matchmaker       *lua.LFunction
-	TournamentEnd    *lua.LFunction
-	TournamentReset  *lua.LFunction
-	LeaderboardReset *lua.LFunction
-}
-
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
@@ -75,19 +62,15 @@ type RuntimeLuaNakamaModule struct {
 	router               MessageRouter
 	once                 *sync.Once
 	localCache           *RuntimeLuaLocalCache
-	announceCallback     func(RuntimeExecutionMode, string)
+	registerCallbackFn   func(RuntimeExecutionMode, string, *lua.LFunction)
+	announceCallbackFn   func(RuntimeExecutionMode, string)
 	client               *http.Client
 
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallback func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
-	l.SetContext(context.WithValue(context.Background(), RUNTIME_LUA_CALLBACKS, &RuntimeLuaCallbacks{
-		RPC:    make(map[string]*lua.LFunction),
-		Before: make(map[string]*lua.LFunction),
-		After:  make(map[string]*lua.LFunction),
-	}))
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -102,7 +85,8 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, so
 		router:               router,
 		once:                 once,
 		localCache:           localCache,
-		announceCallback:     announceCallback,
+		registerCallbackFn:   registerCallbackFn,
+		announceCallbackFn:   announceCallbackFn,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -224,14 +208,11 @@ func (n *RuntimeLuaNakamaModule) registerRPC(l *lua.LState) int {
 
 	id = strings.ToLower(id)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	//if _, ok := rc.RPC[id]; ok {
-	//	l.RaiseError("rpc id already registered")
-	//	return 0
-	//}
-	rc.RPC[id] = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeRPC, id)
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeRPC, id, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeRPC, id)
 	}
 	return 0
 }
@@ -247,14 +228,11 @@ func (n *RuntimeLuaNakamaModule) registerReqBefore(l *lua.LState) int {
 
 	id = strings.ToLower(API_PREFIX + id)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	//if _, ok := rc.Before[id]; ok {
-	//	l.RaiseError("before id already registered")
-	//	return 0
-	//}
-	rc.Before[id] = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeBefore, id)
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeBefore, id, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeBefore, id)
 	}
 	return 0
 }
@@ -270,14 +248,11 @@ func (n *RuntimeLuaNakamaModule) registerReqAfter(l *lua.LState) int {
 
 	id = strings.ToLower(API_PREFIX + id)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	//if _, ok := rc.After[id]; ok {
-	//	l.RaiseError("after id already registered")
-	//	return 0
-	//}
-	rc.After[id] = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeAfter, id)
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeAfter, id, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeAfter, id)
 	}
 	return 0
 }
@@ -293,14 +268,11 @@ func (n *RuntimeLuaNakamaModule) registerRTBefore(l *lua.LState) int {
 
 	id = strings.ToLower(RTAPI_PREFIX + id)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	//if _, ok := rc.Before[id]; ok {
-	//	l.RaiseError("before id already registered")
-	//	return 0
-	//}
-	rc.Before[id] = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeBefore, id)
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeBefore, id, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeBefore, id)
 	}
 	return 0
 }
@@ -316,14 +288,11 @@ func (n *RuntimeLuaNakamaModule) registerRTAfter(l *lua.LState) int {
 
 	id = strings.ToLower(RTAPI_PREFIX + id)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	if _, ok := rc.After[id]; ok {
-		//l.RaiseError("before id already registered")
-		return 0
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeAfter, id, fn)
 	}
-	rc.After[id] = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeAfter, id)
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeAfter, id)
 	}
 	return 0
 }
@@ -331,14 +300,11 @@ func (n *RuntimeLuaNakamaModule) registerRTAfter(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) registerMatchmakerMatched(l *lua.LState) int {
 	fn := l.CheckFunction(1)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	if rc.Matchmaker != nil {
-		//l.RaiseError("matchmaker matched already registered")
-		return 0
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeMatchmaker, "", fn)
 	}
-	rc.Matchmaker = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeMatchmaker, "")
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeMatchmaker, "")
 	}
 	return 0
 }
@@ -346,14 +312,11 @@ func (n *RuntimeLuaNakamaModule) registerMatchmakerMatched(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) registerTournamentEnd(l *lua.LState) int {
 	fn := l.CheckFunction(1)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	if rc.TournamentEnd != nil {
-		//l.RaiseError("tournament end already registered")
-		return 0
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeTournamentEnd, "", fn)
 	}
-	rc.TournamentEnd = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeTournamentEnd, "")
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeTournamentEnd, "")
 	}
 	return 0
 }
@@ -361,14 +324,11 @@ func (n *RuntimeLuaNakamaModule) registerTournamentEnd(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) registerTournamentReset(l *lua.LState) int {
 	fn := l.CheckFunction(1)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	if rc.TournamentReset != nil {
-		//l.RaiseError("tournament reset already registered")
-		return 0
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeTournamentReset, "", fn)
 	}
-	rc.TournamentReset = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeTournamentReset, "")
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeTournamentReset, "")
 	}
 	return 0
 }
@@ -376,14 +336,11 @@ func (n *RuntimeLuaNakamaModule) registerTournamentReset(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) registerLeaderboardReset(l *lua.LState) int {
 	fn := l.CheckFunction(1)
 
-	rc := l.Context().Value(RUNTIME_LUA_CALLBACKS).(*RuntimeLuaCallbacks)
-	if rc.LeaderboardReset != nil {
-		//l.RaiseError("leaderboard reset already registered")
-		return 0
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeLeaderboardReset, "", fn)
 	}
-	rc.LeaderboardReset = fn
-	if n.announceCallback != nil {
-		n.announceCallback(RuntimeExecutionModeLeaderboardReset, "")
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
 	}
 	return 0
 }
@@ -536,7 +493,7 @@ func (n *RuntimeLuaNakamaModule) sqlExec(l *lua.LState) int {
 		}
 	}
 
-	result, err := n.db.Exec(query, params...)
+	result, err := n.db.ExecContext(l.Context(), query, params...)
 	if err != nil {
 		l.RaiseError("sql exec error: %v", err.Error())
 		return 0
@@ -568,7 +525,7 @@ func (n *RuntimeLuaNakamaModule) sqlQuery(l *lua.LState) int {
 		}
 	}
 
-	rows, err := n.db.Query(query, params...)
+	rows, err := n.db.QueryContext(l.Context(), query, params...)
 	if err != nil {
 		l.RaiseError("sql query error: %v", err.Error())
 		return 0
@@ -1073,7 +1030,7 @@ func (n *RuntimeLuaNakamaModule) authenticateCustom(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateCustom(n.logger, n.db, id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateCustom(l.Context(), n.logger, n.db, id, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1114,7 +1071,7 @@ func (n *RuntimeLuaNakamaModule) authenticateDevice(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateDevice(n.logger, n.db, id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateDevice(l.Context(), n.logger, n.db, id, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1170,7 +1127,7 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 
 	cleanEmail := strings.ToLower(email)
 
-	dbUserID, dbUsername, created, err := AuthenticateEmail(n.logger, n.db, cleanEmail, password, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateEmail(l.Context(), n.logger, n.db, cleanEmail, password, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1208,7 +1165,7 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1216,7 +1173,7 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	// Import friends if requested.
 	if importFriends {
-		importFacebookFriends(n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		importFacebookFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -1273,7 +1230,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(8, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGameCenter(n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(l.Context(), n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1308,7 +1265,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGoogle(n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(l.Context(), n.logger, n.db, n.socialClient, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1348,7 +1305,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateSteam(n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateSteam(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1438,7 +1395,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	account, err := GetAccount(n.logger, n.db, n.tracker, userID)
+	account, err := GetAccount(l.Context(), n.logger, n.db, n.tracker, userID)
 	if err != nil {
 		l.RaiseError("failed to get account: %s", err.Error())
 		return 0
@@ -1546,7 +1503,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(n.logger, n.db, n.tracker, userIDStrings, nil, nil)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDStrings, nil, nil)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
@@ -1629,7 +1586,7 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(n.logger, n.db, n.tracker, nil, usernameStrings, nil)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, nil, usernameStrings, nil)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
@@ -1713,7 +1670,7 @@ func (n *RuntimeLuaNakamaModule) usersBanId(l *lua.LState) int {
 	}
 
 	// Ban the user accounts.
-	err := BanUsers(n.logger, n.db, userIDStrings)
+	err := BanUsers(l.Context(), n.logger, n.db, userIDStrings)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to ban users: %s", err.Error()))
 		return 0
@@ -1756,7 +1713,7 @@ func (n *RuntimeLuaNakamaModule) usersUnbanId(l *lua.LState) int {
 	}
 
 	// Unban the user accounts.
-	err := UnbanUsers(n.logger, n.db, userIDStrings)
+	err := UnbanUsers(l.Context(), n.logger, n.db, userIDStrings)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to unban users: %s", err.Error()))
 		return 0
@@ -2500,7 +2457,7 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	labelUpdateFn := func(input string) {
 		label.Store(input)
 	}
-	core, err := n.matchCreateFn(matchLogger, id, n.node, name, labelUpdateFn)
+	core, err := n.matchCreateFn(l.Context(), matchLogger, id, n.node, name, labelUpdateFn)
 	if err != nil {
 		l.RaiseError("error creating match: %v", err.Error())
 		return 0
@@ -2635,7 +2592,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 		userID: nots,
 	}
 
-	if err := NotificationSend(n.logger, n.db, n.router, notifications); err != nil {
+	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
@@ -2788,7 +2745,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 		return 0
 	}
 
-	if err := NotificationSend(n.logger, n.db, n.router, notifications); err != nil {
+	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
@@ -2828,7 +2785,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		}
 	}
 
-	if err = UpdateWallets(n.logger, n.db, []*walletUpdate{&walletUpdate{
+	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{&walletUpdate{
 		UserID:    userID,
 		Changeset: changesetMap,
 		Metadata:  string(metadataBytes),
@@ -2928,7 +2885,7 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UpdateWallets(n.logger, n.db, updates); err != nil {
+	if err := UpdateWallets(l.Context(), n.logger, n.db, updates); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 	return 0
@@ -2960,7 +2917,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	item, err := UpdateWalletLedger(n.logger, n.db, itemID, string(metadataBytes))
+	item, err := UpdateWalletLedger(l.Context(), n.logger, n.db, itemID, string(metadataBytes))
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet ledger: %s", err.Error()))
 		return 0
@@ -2994,7 +2951,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 		return 0
 	}
 
-	items, err := ListWalletLedger(n.logger, n.db, userID)
+	items, err := ListWalletLedger(l.Context(), n.logger, n.db, userID)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve user wallet ledger: %s", err.Error()))
 		return 0
@@ -3037,7 +2994,7 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 		userID = uid
 	}
 
-	objectList, _, err := StorageListObjects(n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)
+	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list storage objects: %s", err.Error()))
 		return 0
@@ -3180,7 +3137,7 @@ func (n *RuntimeLuaNakamaModule) storageRead(l *lua.LState) int {
 		return 0
 	}
 
-	objects, err := StorageReadObjects(n.logger, n.db, uuid.Nil, objectIDs)
+	objects, err := StorageReadObjects(l.Context(), n.logger, n.db, uuid.Nil, objectIDs)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to read storage objects: %s", err.Error()))
 		return 0
@@ -3368,7 +3325,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 0
 	}
 
-	acks, _, err := StorageWriteObjects(n.logger, n.db, true, data)
+	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, true, data)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
 		return 0
@@ -3501,7 +3458,7 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if _, err := StorageDeleteObjects(n.logger, n.db, true, objectIDs); err != nil {
+	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, true, objectIDs); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 
@@ -3563,7 +3520,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	if err := n.leaderboardCache.Create(id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+	if err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
 
@@ -3578,7 +3535,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.leaderboardCache.Delete(id); err != nil {
+	if err := n.leaderboardCache.Delete(l.Context(), id); err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
 	return 0
@@ -3638,7 +3595,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 	cursor := l.OptString(4, "")
 	overrideExpiry := l.OptInt64(5, 0)
 
-	records, err := LeaderboardRecordsList(n.logger, n.db, n.leaderboardCache, n.rankCache, id, limit, cursor, ownerIds, overrideExpiry)
+	records, err := LeaderboardRecordsList(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, limit, cursor, ownerIds, overrideExpiry)
 	if err != nil {
 		l.RaiseError("error listing leaderboard records: %v", err.Error())
 		return 0
@@ -3770,7 +3727,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := LeaderboardRecordWrite(n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
+	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0
@@ -3822,7 +3779,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LeaderboardRecordDelete(n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId); err != nil {
+	if err := LeaderboardRecordDelete(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId); err != nil {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0
@@ -3916,7 +3873,7 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 	}
 	joinRequired := l.OptBool(14, false)
 
-	if err := TournamentCreate(n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+	if err := TournamentCreate(l.Context(), n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
 		l.RaiseError("error creating tournament: %v", err.Error())
 	}
 	return 0
@@ -3929,7 +3886,7 @@ func (n *RuntimeLuaNakamaModule) tournamentDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentDelete(n.logger, n.leaderboardCache, n.rankCache, n.leaderboardScheduler, id); err != nil {
+	if err := TournamentDelete(l.Context(), n.logger, n.leaderboardCache, n.rankCache, n.leaderboardScheduler, id); err != nil {
 		l.RaiseError("error deleting tournament: %v", err.Error())
 	}
 	return 0
@@ -3957,7 +3914,7 @@ func (n *RuntimeLuaNakamaModule) tournamentAddAttempt(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentAddAttempt(n.logger, n.db, n.leaderboardCache, id, owner, count); err != nil {
+	if err := TournamentAddAttempt(l.Context(), n.logger, n.db, n.leaderboardCache, id, owner, count); err != nil {
 		l.RaiseError("error adding tournament attempts: %v", err.Error())
 	}
 	return 0
@@ -3985,7 +3942,7 @@ func (n *RuntimeLuaNakamaModule) tournamentJoin(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentJoin(n.logger, n.db, n.leaderboardCache, userID, username, id); err != nil {
+	if err := TournamentJoin(l.Context(), n.logger, n.db, n.leaderboardCache, userID, username, id); err != nil {
 		l.RaiseError("error joining tournament: %v", err.Error())
 	}
 	return 0
@@ -4042,7 +3999,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		}
 	}
 
-	list, err := TournamentList(n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
+	list, err := TournamentList(l.Context(), n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
 	if err != nil {
 		l.RaiseError("error listing tournaments: %v", err.Error())
 		return 0
@@ -4120,7 +4077,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := TournamentRecordWrite(n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr)
+	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr)
 	if err != nil {
 		l.RaiseError("error writing tournament record: %v", err.Error())
 	}
@@ -4177,7 +4134,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	records, err := TournamentRecordsHaystack(n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit)
+	records, err := TournamentRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit)
 	if err != nil {
 		l.RaiseError("error listing tournament records haystack: %v", err.Error())
 		return 0
@@ -4262,7 +4219,7 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 		return 0
 	}
 
-	group, err := CreateGroup(n.logger, n.db, userID, creatorID, name, lang, desc, avatarURL, metadataStr, open, maxCount)
+	group, err := CreateGroup(l.Context(), n.logger, n.db, userID, creatorID, name, lang, desc, avatarURL, metadataStr, open, maxCount)
 	if err != nil {
 		l.RaiseError("error while trying to create group: %v", err.Error())
 		return 0
@@ -4365,7 +4322,7 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 		maxCount = maxCountInt
 	}
 
-	if err = UpdateGroup(n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
+	if err = UpdateGroup(l.Context(), n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
 		l.RaiseError("error while trying to update group: %v", err.Error())
 		return 0
 	}
@@ -4380,7 +4337,7 @@ func (n *RuntimeLuaNakamaModule) groupDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err = DeleteGroup(n.logger, n.db, groupID, uuid.Nil); err != nil {
+	if err = DeleteGroup(l.Context(), n.logger, n.db, groupID, uuid.Nil); err != nil {
 		l.RaiseError("error while trying to delete group: %v", err.Error())
 		return 0
 	}
@@ -4395,7 +4352,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 		return 0
 	}
 
-	res, err := ListGroupUsers(n.logger, n.db, n.tracker, groupID)
+	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID)
 	if err != nil {
 		l.RaiseError("error while trying to list users in a  group: %v", err.Error())
 		return 0
@@ -4457,7 +4414,7 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 		return 0
 	}
 
-	res, err := ListUserGroups(n.logger, n.db, userID)
+	res, err := ListUserGroups(l.Context(), n.logger, n.db, userID)
 	if err != nil {
 		l.RaiseError("error while trying to list groups for a user: %v", err.Error())
 		return 0
@@ -4551,7 +4508,7 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
 	}
 
-	if err = UpdateAccount(n.db, n.logger, userID, username, displayName, timezone, location, lang, avatar, metadata); err != nil {
+	if err = UpdateAccount(l.Context(), n.logger, n.db, userID, username, displayName, timezone, location, lang, avatar, metadata); err != nil {
 		l.RaiseError("error while trying to update user: %v", err.Error())
 		return 0
 	}
