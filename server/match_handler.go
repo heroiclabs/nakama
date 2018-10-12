@@ -100,9 +100,11 @@ type MatchHandler struct {
 func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, core RuntimeMatchCore, label *atomic.String, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
 	state, rateInt, labelStr, err := core.MatchInit(params)
 	if err != nil {
+		core.Cancel()
 		return nil, err
 	}
 	if state == nil {
+		core.Cancel()
 		return nil, errors.New("Match initial state must not be nil")
 	}
 	label.Store(labelStr)
@@ -175,6 +177,7 @@ func (mh *MatchHandler) Close() {
 	if !mh.stopped.CAS(false, true) {
 		return
 	}
+	mh.core.Cancel()
 	close(mh.stopCh)
 	mh.ticker.Stop()
 }

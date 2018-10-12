@@ -47,7 +47,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -86,7 +86,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 		}
 	}
 
-	notificationList, err := NotificationList(s.logger, s.db, userID, limit, cursor, nc)
+	notificationList, err := NotificationList(ctx, s.logger, s.db, userID, limit, cursor, nc)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
 	}
@@ -101,7 +101,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, notificationList, in)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, notificationList, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -125,7 +125,7 @@ func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotif
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -145,7 +145,7 @@ func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotif
 		return &empty.Empty{}, nil
 	}
 
-	if err := NotificationDelete(s.logger, s.db, userID, in.GetIds()); err != nil {
+	if err := NotificationDelete(ctx, s.logger, s.db, userID, in.GetIds()); err != nil {
 		return nil, status.Error(codes.Internal, "Error while deleting notifications.")
 	}
 
@@ -159,7 +159,7 @@ func (s *ApiServer) DeleteNotifications(ctx context.Context, in *api.DeleteNotif
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()

@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -50,7 +51,7 @@ type leaderboardRecordListCursor struct {
 	Rank          int64
 }
 
-func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string, overrideExpiry int64) (*api.LeaderboardRecordList, error) {
+func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrappers.Int32Value, cursor string, ownerIds []string, overrideExpiry int64) (*api.LeaderboardRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -110,7 +111,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		}
 
 		logger.Debug("Leaderboard record list query", zap.String("query", query), zap.Any("params", params))
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error listing leaderboard records", zap.Error(err))
 			return nil, err
@@ -231,7 +232,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 		}
 
 		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id IN (" + strings.Join(statements, ", ") + ")"
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error reading leaderboard records", zap.Error(err))
 			return nil, err
@@ -290,7 +291,7 @@ func LeaderboardRecordsList(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}, nil
 }
 
-func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -358,7 +359,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	}
 	params = append(params, time.Unix(expiryTime, 0).UTC(), scoreDelta, subscoreDelta)
 
-	_, err := db.Exec(query, params...)
+	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -373,7 +374,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	err = db.QueryRow(query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC()).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	err = db.QueryRowContext(ctx, query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC()).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -404,7 +405,7 @@ func LeaderboardRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lea
 	return record, nil
 }
 
-func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId string) error {
+func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerId string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil
@@ -420,7 +421,7 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 	}
 
 	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	_, err := db.Exec(query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC())
+	_, err := db.ExecContext(ctx, query, leaderboardId, ownerId, time.Unix(expiryTime, 0).UTC())
 	if err != nil {
 		logger.Error("Error deleting leaderboard record", zap.Error(err))
 		return err
@@ -430,9 +431,9 @@ func LeaderboardRecordDelete(logger *zap.Logger, db *sql.DB, leaderboardCache Le
 	return nil
 }
 
-func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.LeaderboardRecord, error) {
+func LeaderboardRecordReadAll(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.LeaderboardRecord, error) {
 	query := "SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time FROM leaderboard_record WHERE owner_id = $1"
-	rows, err := db.Query(query, userID.String())
+	rows, err := db.QueryContext(ctx, query, userID.String())
 	if err != nil {
 		logger.Error("Error reading all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return nil, err
@@ -442,9 +443,9 @@ func LeaderboardRecordReadAll(logger *zap.Logger, db *sql.DB, userID uuid.UUID) 
 	return parseLeaderboardRecords(logger, rows)
 }
 
-func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
+func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
 	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
-	_, err := tx.Exec(query, userID.String())
+	_, err := tx.ExecContext(ctx, query, userID.String())
 	if err != nil {
 		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return err
@@ -452,7 +453,7 @@ func LeaderboardRecordsDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUI
 	return nil
 }
 
-func LeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
+func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -464,10 +465,10 @@ func LeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC()
 	}
 
-	return getLeaderboardRecordsHaystack(logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
 }
 
-func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache LeaderboardRankCache, ownerId uuid.UUID, limit int, leaderboardId string, sortOrder int, expiryTime time.Time) ([]*api.LeaderboardRecord, error) {
+func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, rankCache LeaderboardRankCache, ownerId uuid.UUID, limit int, leaderboardId string, sortOrder int, expiryTime time.Time) ([]*api.LeaderboardRecord, error) {
 	var dbLeaderboardId string
 	var dbOwnerId string
 	var dbUsername sql.NullString
@@ -486,7 +487,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 		AND leaderboard_id = $2
 		AND expiry_time = $3`
 	logger.Debug("Leaderboard haystack lookup", zap.String("query", findQuery))
-	err := db.QueryRow(findQuery, ownerId, leaderboardId, expiryTime).Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
+	err := db.QueryRowContext(ctx, findQuery, ownerId, leaderboardId, expiryTime).Scan(&dbLeaderboardId, &dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
 	if err == sql.ErrNoRows {
 		return []*api.LeaderboardRecord{}, nil
 	} else if err != nil {
@@ -536,7 +537,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	firstParams := append(params, limit)
 	firstQuery += " LIMIT $6"
 
-	firstRows, err := db.Query(firstQuery, firstParams...)
+	firstRows, err := db.QueryContext(ctx, firstQuery, firstParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
 		return nil, err
@@ -568,7 +569,7 @@ func getLeaderboardRecordsHaystack(logger *zap.Logger, db *sql.DB, rankCache Lea
 	secondParams := append(params, secondLimit)
 	secondQuery += " LIMIT $6"
 
-	secondRows, err := db.Query(secondQuery, secondParams...)
+	secondRows, err := db.QueryContext(ctx, secondQuery, secondParams...)
 	if err != nil {
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
 		return nil, err

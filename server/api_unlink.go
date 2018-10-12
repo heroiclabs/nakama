@@ -47,7 +47,7 @@ func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*e
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -78,7 +78,7 @@ AND ((facebook_id IS NOT NULL
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
-	res, err := s.db.Exec(query, userID, in.Id)
+	res, err := s.db.ExecContext(ctx, query, userID, in.Id)
 
 	if err != nil {
 		s.logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
@@ -97,7 +97,7 @@ AND ((facebook_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -121,7 +121,7 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -141,7 +141,7 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 		return nil, status.Error(codes.InvalidArgument, "A device ID must be supplied.")
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not unlink Device ID.")
@@ -158,7 +158,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
      OR custom_id IS NOT NULL))
    OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
 
-		res, err := tx.Exec(query, userID, in.Id)
+		res, err := tx.ExecContext(ctx, query, userID, in.Id)
 		if err != nil {
 			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
@@ -167,7 +167,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			return StatusError(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.", ErrRowsAffectedCount)
 		}
 
-		res, err = tx.Exec("UPDATE users SET update_time = now() WHERE id = $1", userID)
+		res, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
 			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
@@ -197,7 +197,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -221,7 +221,7 @@ func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -253,7 +253,7 @@ AND ((facebook_id IS NOT NULL
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
 	cleanEmail := strings.ToLower(in.Email)
-	res, err := s.db.Exec(query, userID, cleanEmail)
+	res, err := s.db.ExecContext(ctx, query, userID, cleanEmail)
 
 	if err != nil {
 		s.logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
@@ -272,7 +272,7 @@ AND ((facebook_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -296,7 +296,7 @@ func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook)
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -316,7 +316,7 @@ func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook)
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	facebookProfile, err := s.socialClient.GetFacebookProfile(in.Token)
+	facebookProfile, err := s.socialClient.GetFacebookProfile(ctx, in.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
@@ -333,7 +333,7 @@ AND ((custom_id IS NOT NULL
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
-	res, err := s.db.Exec(query, userID, facebookProfile.ID)
+	res, err := s.db.ExecContext(ctx, query, userID, facebookProfile.ID)
 
 	if err != nil {
 		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
@@ -352,7 +352,7 @@ AND ((custom_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -376,7 +376,7 @@ func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCen
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -406,7 +406,7 @@ func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCen
 		return nil, status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
 	}
 
-	valid, err := s.socialClient.CheckGameCenterID(in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
+	valid, err := s.socialClient.CheckGameCenterID(ctx, in.PlayerId, in.BundleId, in.TimestampSeconds, in.Salt, in.Signature, in.PublicKeyUrl)
 	if !valid || err != nil {
 		s.logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
@@ -423,7 +423,7 @@ AND ((custom_id IS NOT NULL
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
-	res, err := s.db.Exec(query, userID, in.PlayerId)
+	res, err := s.db.ExecContext(ctx, query, userID, in.PlayerId)
 
 	if err != nil {
 		s.logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
@@ -442,7 +442,7 @@ AND ((custom_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -466,7 +466,7 @@ func (s *ApiServer) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle) (*e
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -486,7 +486,7 @@ func (s *ApiServer) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle) (*e
 		return nil, status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
 
-	googleProfile, err := s.socialClient.CheckGoogleToken(in.Token)
+	googleProfile, err := s.socialClient.CheckGoogleToken(ctx, in.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
@@ -503,7 +503,7 @@ AND ((custom_id IS NOT NULL
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
-	res, err := s.db.Exec(query, userID, googleProfile.Sub)
+	res, err := s.db.ExecContext(ctx, query, userID, googleProfile.Sub)
 
 	if err != nil {
 		s.logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
@@ -522,7 +522,7 @@ AND ((custom_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -546,7 +546,7 @@ func (s *ApiServer) UnlinkSteam(ctx context.Context, in *api.AccountSteam) (*emp
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -570,7 +570,7 @@ func (s *ApiServer) UnlinkSteam(ctx context.Context, in *api.AccountSteam) (*emp
 		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
 	}
 
-	steamProfile, err := s.socialClient.GetSteamProfile(s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
+	steamProfile, err := s.socialClient.GetSteamProfile(ctx, s.config.GetSocial().Steam.PublisherKey, s.config.GetSocial().Steam.AppID, in.Token)
 	if err != nil {
 		s.logger.Info("Could not authenticate Steam profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
@@ -587,7 +587,7 @@ AND ((custom_id IS NOT NULL
      OR
      EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
 
-	res, err := s.db.Exec(query, userID, strconv.FormatUint(steamProfile.SteamID, 10))
+	res, err := s.db.ExecContext(ctx, query, userID, strconv.FormatUint(steamProfile.SteamID, 10))
 
 	if err != nil {
 		s.logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))
@@ -606,7 +606,7 @@ AND ((custom_id IS NOT NULL
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()

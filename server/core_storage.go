@@ -39,7 +39,7 @@ type storageCursor struct {
 	Read   int32
 }
 
-func StorageListObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
+func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
 	var sc *storageCursor = nil
 	if cursor != "" {
 		sc = &storageCursor{}
@@ -58,17 +58,17 @@ func StorageListObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerI
 	var resultErr error
 	if uuid.Equal(caller, uuid.Nil) {
 		// disregard permissions
-		result, resultErr = StorageListObjectsUser(logger, db, true, ownerID, collection, limit, cursor, sc)
+		result, resultErr = StorageListObjectsUser(ctx, logger, db, true, ownerID, collection, limit, cursor, sc)
 	} else if uuid.Equal(ownerID, uuid.Nil) {
 		// not authoritative but trying to list global data from context of a user.
-		result, resultErr = StorageListObjectsPublicRead(logger, db, collection, limit, cursor, sc)
+		result, resultErr = StorageListObjectsPublicRead(ctx, logger, db, collection, limit, cursor, sc)
 	} else {
 		if uuid.Equal(caller, ownerID) {
 			// trying to list own user data
-			result, resultErr = StorageListObjectsUser(logger, db, false, ownerID, collection, limit, cursor, sc)
+			result, resultErr = StorageListObjectsUser(ctx, logger, db, false, ownerID, collection, limit, cursor, sc)
 		} else {
 			// trying to list someone else's data
-			result, resultErr = StorageListObjectsPublicReadUser(logger, db, ownerID, collection, limit, cursor, sc)
+			result, resultErr = StorageListObjectsPublicReadUser(ctx, logger, db, ownerID, collection, limit, cursor, sc)
 		}
 	}
 
@@ -79,7 +79,7 @@ func StorageListObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerI
 	return result, codes.OK, nil
 }
 
-func StorageListObjectsPublicRead(logger *zap.Logger, db *sql.DB, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
+func StorageListObjectsPublicRead(ctx context.Context, logger *zap.Logger, db *sql.DB, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, limit}
 	if storageCursor != nil {
@@ -95,7 +95,7 @@ LIMIT $2`
 
 	var objects *api.StorageObjectList
 	err := ExecuteRetryable(func() error {
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
@@ -118,7 +118,7 @@ LIMIT $2`
 	return objects, err
 }
 
-func StorageListObjectsPublicReadUser(logger *zap.Logger, db *sql.DB, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
+func StorageListObjectsPublicReadUser(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, userID, limit}
 	if storageCursor != nil {
@@ -134,7 +134,7 @@ LIMIT $3`
 
 	var objects *api.StorageObjectList
 	err := ExecuteRetryable(func() error {
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
@@ -157,7 +157,7 @@ LIMIT $3`
 	return objects, err
 }
 
-func StorageListObjectsUser(logger *zap.Logger, db *sql.DB, authoritative bool, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
+func StorageListObjectsUser(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, userID, limit}
 	if storageCursor != nil {
@@ -181,7 +181,7 @@ LIMIT $3`
 
 	var objects *api.StorageObjectList
 	err := ExecuteRetryable(func() error {
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
@@ -204,7 +204,7 @@ LIMIT $3`
 	return objects, err
 }
 
-func StorageReadAllUserObjects(logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.StorageObject, error) {
+func StorageReadAllUserObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.StorageObject, error) {
 	query := `
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
@@ -212,7 +212,7 @@ WHERE user_id = $1`
 
 	var objects []*api.StorageObject
 	err := ExecuteRetryable(func() error {
-		rows, err := db.Query(query, userID)
+		rows, err := db.QueryContext(ctx, query, userID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				objects = make([]*api.StorageObject, 0)
@@ -300,7 +300,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	return objectList, nil
 }
 
-func StorageReadObjects(logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
+func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
 	params := make([]interface{}, 0)
 
 	whereClause := ""
@@ -334,7 +334,7 @@ WHERE
 
 	var objects *api.StorageObjects
 	err := ExecuteRetryable(func() error {
-		rows, err := db.Query(query, params...)
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
@@ -376,19 +376,19 @@ WHERE
 	return objects, err
 }
 
-func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
+func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
 	acks := &api.StorageObjectAcks{}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, codes.Internal, err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for ownerID, userObjects := range objects {
 			for _, object := range userObjects {
-				ack, writeErr := storageWriteObject(logger, tx, authoritativeWrite, ownerID, object)
+				ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, ownerID, object)
 				if writeErr != nil {
 					if writeErr == sql.ErrNoRows {
 						return StatusError(codes.InvalidArgument, "Storage write rejected.", errors.New("Storage write rejected - not found, version check failed, or permission denied."))
@@ -413,7 +413,7 @@ func StorageWriteObjects(logger *zap.Logger, db *sql.DB, authoritativeWrite bool
 	return acks, codes.OK, nil
 }
 
-func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID uuid.UUID, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
+func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID uuid.UUID, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
 	permissionRead := int32(1)
 	if object.GetPermissionRead() != nil {
 		permissionRead = object.GetPermissionRead().GetValue()
@@ -432,7 +432,7 @@ func storageWriteObject(logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool,
 		ack.UserId = ownerID.String()
 	}
 
-	if err := tx.QueryRow(query, params...).Scan(&ack.Collection, &ack.Key, &ack.Version); err != nil {
+	if err := tx.QueryRowContext(ctx, query, params...).Scan(&ack.Collection, &ack.Key, &ack.Version); err != nil {
 		if err != sql.ErrNoRows {
 			logger.Debug("Could not write storage object.", zap.Error(err), zap.String("query", query), zap.Any("object", object))
 		}
@@ -525,14 +525,14 @@ RETURNING collection, key, version`
 	return query, params
 }
 
-func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
-	tx, err := db.Begin()
+func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return codes.Internal, err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for ownerID, objectIDs := range userObjectIDs {
 			for _, objectID := range objectIDs {
 				params := []interface{}{objectID.GetCollection(), objectID.GetKey(), ownerID}
@@ -547,7 +547,7 @@ func StorageDeleteObjects(logger *zap.Logger, db *sql.DB, authoritativeDelete bo
 					query += fmt.Sprintf(" AND version = $4")
 				}
 
-				result, err := tx.Exec(query, params...)
+				result, err := tx.ExecContext(ctx, query, params...)
 				if err != nil {
 					logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", objectID))
 					return err

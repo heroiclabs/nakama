@@ -46,10 +46,10 @@ type tournamentListCursor struct {
 	TournamentId string
 }
 
-func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, scheduler *LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
+func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler *LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
-	leaderboard, err := cache.CreateTournament(leaderboardId, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	leaderboard, err := cache.CreateTournament(ctx, leaderboardId, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func TournamentCreate(logger *zap.Logger, cache LeaderboardCache, scheduler *Lea
 	return nil
 }
 
-func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler *LeaderboardScheduler, leaderboardId string) error {
+func TournamentDelete(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler *LeaderboardScheduler, leaderboardId string) error {
 	leaderboard := cache.Get(leaderboardId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
@@ -76,7 +76,7 @@ func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, rankCache Lead
 		expiryUnix = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
-	if err := cache.Delete(leaderboardId); err != nil {
+	if err := cache.Delete(ctx, leaderboardId); err != nil {
 		return err
 	}
 
@@ -86,7 +86,7 @@ func TournamentDelete(logger *zap.Logger, cache LeaderboardCache, rankCache Lead
 	return nil
 }
 
-func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, owner string, count int) error {
+func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, owner string, count int) error {
 	if count == 0 {
 		// No-op.
 		return nil
@@ -107,7 +107,7 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, cache LeaderboardCache
 	}
 
 	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3 AND expiry_time = $4`
-	_, err := db.Exec(query, count, leaderboardId, owner, time.Unix(expiryTime, 0).UTC())
+	_, err := db.ExecContext(ctx, query, count, leaderboardId, owner, time.Unix(expiryTime, 0).UTC())
 	if err != nil {
 		logger.Error("Could not increment max attempt counter", zap.Error(err))
 	} else {
@@ -116,7 +116,7 @@ func TournamentAddAttempt(logger *zap.Logger, db *sql.DB, cache LeaderboardCache
 	return nil
 }
 
-func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owner, username, tournamentId string) error {
+func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owner, username, tournamentId string) error {
 	leaderboard := cache.Get(tournamentId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
@@ -144,19 +144,19 @@ func TournamentJoin(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owne
 		expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		query := `INSERT INTO leaderboard_record 
 (leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score) 
 VALUES 
 ($1, $2, $3, $4, $5, $6)
 ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
-		result, err := tx.Exec(query, tournamentId, owner, time.Unix(expiryTime, 0).UTC(), username, 0, leaderboard.MaxNumScore)
+		result, err := tx.ExecContext(ctx, query, tournamentId, owner, time.Unix(expiryTime, 0).UTC(), username, 0, leaderboard.MaxNumScore)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 		}
 
 		query = "UPDATE leaderboard SET size = size+1 WHERE id = $1 AND size < max_size"
-		result, err = tx.Exec(query, tournamentId)
+		result, err = tx.ExecContext(ctx, query, tournamentId)
 		if err != nil {
 			return err
 		}
@@ -196,7 +196,7 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 	return nil
 }
 
-func TournamentList(logger *zap.Logger, db *sql.DB, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
+func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
 	now := time.Now().UTC()
 
 	query := `
@@ -238,7 +238,7 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 	query += " LIMIT $5"
 
 	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
-	rows, err := db.Query(query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Could not retrieve tournaments", zap.Error(err))
 		return nil, err
@@ -280,7 +280,7 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 	return tournamentList, nil
 }
 
-func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	nowTime := time.Now().UTC()
@@ -350,7 +350,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
               SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
               WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)`
 
-		res, err := db.Exec(query, params...)
+		res, err := db.ExecContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error writing tournament record", zap.Error(err))
 			return nil, err
@@ -373,14 +373,14 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 		var dbNumScore int
 		var dbMaxNumScore int
 
-		tx, err := db.Begin()
+		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			logger.Error("Could not begin database transaction.", zap.Error(err))
 			return nil, err
 		}
 
-		if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
-			if err := tx.QueryRow(query, params...).Scan(&dbNumScore, &dbMaxNumScore); err != nil {
+		if err := crdb.ExecuteInTx(ctx, tx, func() error {
+			if err := tx.QueryRowContext(ctx, query, params...).Scan(&dbNumScore, &dbMaxNumScore); err != nil {
 				return err
 			}
 
@@ -391,7 +391,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 
 			// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
 			if dbNumScore <= 1 {
-				res, err := tx.Exec("UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
+				res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
 				if err != nil {
 					logger.Error("Error updating tournament size", zap.Error(err))
 					return err
@@ -422,7 +422,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	query := "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	err := db.QueryRow(query, leaderboard.Id, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	err := db.QueryRowContext(ctx, query, leaderboard.Id, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
@@ -453,7 +453,7 @@ func TournamentRecordWrite(logger *zap.Logger, db *sql.DB, leaderboardCache Lead
 	return record, nil
 }
 
-func TournamentRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
+func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -464,7 +464,7 @@ func TournamentRecordsHaystack(logger *zap.Logger, db *sql.DB, leaderboardCache 
 	_, _, expiry := calculateTournamentDeadlines(leaderboard, time.Now().UTC())
 	expiryTime := time.Unix(expiry, 0).UTC()
 
-	return getLeaderboardRecordsHaystack(logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
 }
 
 func calculateTournamentDeadlines(leaderboard *Leaderboard, t time.Time) (int64, int64, int64) {

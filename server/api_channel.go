@@ -42,7 +42,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -80,7 +80,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 		return nil, status.Error(codes.InvalidArgument, "Invalid channel ID.")
 	}
 
-	messageList, err := ChannelMessagesList(s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
+	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
 	if err == ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err == ErrChannelGroupNotFound {
@@ -99,7 +99,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, messageList, in)
+		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, messageList, in)
 
 		// Stats measurement end boundary.
 		span.End()

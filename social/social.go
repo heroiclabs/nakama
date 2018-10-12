@@ -16,6 +16,7 @@ package social
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
@@ -143,11 +144,11 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 }
 
 // GetFacebookProfile retrieves the user's Facebook Profile given the accessToken
-func (c *Client) GetFacebookProfile(accessToken string) (*FacebookProfile, error) {
+func (c *Client) GetFacebookProfile(ctx context.Context, accessToken string) (*FacebookProfile, error) {
 	path := "https://graph.facebook.com/v2.12/me?access_token=" + url.QueryEscape(accessToken) +
 		"&fields=" + url.QueryEscape("name,email,gender,locale,timezone")
 	var profile FacebookProfile
-	err := c.request("facebook profile", path, nil, &profile)
+	err := c.request(ctx, "facebook profile", path, nil, &profile)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +157,7 @@ func (c *Client) GetFacebookProfile(accessToken string) (*FacebookProfile, error
 
 // GetFacebookFriends queries the Facebook Graph.
 // Token is expected to also have the "user_friends" permission.
-func (c *Client) GetFacebookFriends(accessToken string) ([]FacebookProfile, error) {
+func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]FacebookProfile, error) {
 	friends := make([]FacebookProfile, 0)
 	after := ""
 	for {
@@ -166,7 +167,7 @@ func (c *Client) GetFacebookFriends(accessToken string) ([]FacebookProfile, erro
 			path += "&after=" + after
 		}
 		var currentFriends facebookFriends
-		err := c.request("facebook friends", path, nil, &currentFriends)
+		err := c.request(ctx, "facebook friends", path, nil, &currentFriends)
 		if err != nil {
 			return friends, err
 		}
@@ -180,7 +181,7 @@ func (c *Client) GetFacebookFriends(accessToken string) ([]FacebookProfile, erro
 }
 
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
-func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
+func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
 	c.RLock()
 	if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
 		// Release the read lock and perform a certificate refresh.
@@ -188,7 +189,7 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 		c.Lock()
 		if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
 			certs := make(map[string]string, 3)
-			err := c.request("google cert", "https://www.googleapis.com/oauth2/v1/certs", nil, &certs)
+			err := c.request(ctx, "google cert", "https://www.googleapis.com/oauth2/v1/certs", nil, &certs)
 			if err != nil {
 				c.Unlock()
 				return nil, err
@@ -375,7 +376,7 @@ func (c *Client) CheckGoogleToken(idToken string) (*GoogleProfile, error) {
 }
 
 // CheckGameCenterID checks to see validity of the GameCenter playerID
-func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) (bool, error) {
+func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) (bool, error) {
 	pub, err := url.Parse(publicKeyURL)
 	if err != nil {
 		return false, fmt.Errorf("gamecenter check error: invalid public key url: %v", err.Error())
@@ -395,7 +396,7 @@ func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp i
 		return false, errors.New("gamecenter check error: error decoding signature")
 	}
 
-	body, err := c.requestRaw("apple public key url", publicKeyURL, nil)
+	body, err := c.requestRaw(ctx, "apple public key url", publicKeyURL, nil)
 	if err != nil {
 		return false, err
 	}
@@ -429,19 +430,19 @@ func (c *Client) CheckGameCenterID(playerID string, bundleID string, timestamp i
 // GetSteamProfile retrieves the user's Steam Profile.
 // Key and App ID should be configured at the application level.
 // See: https://partner.steamgames.com/documentation/auth#client_to_backend_webapi
-func (c *Client) GetSteamProfile(publisherKey string, appID int, ticket string) (*SteamProfile, error) {
+func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID int, ticket string) (*SteamProfile, error) {
 	path := "https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v0001/?format=json" +
 		"&key=" + url.QueryEscape(publisherKey) + "&appid=" + strconv.Itoa(appID) + "&ticket=" + url.QueryEscape(ticket)
 	var profile SteamProfile
-	err := c.request("steam profile", path, nil, &profile)
+	err := c.request(ctx, "steam profile", path, nil, &profile)
 	if err != nil {
 		return nil, err
 	}
 	return &profile, nil
 }
 
-func (c *Client) request(provider, path string, headers map[string]string, to interface{}) error {
-	body, err := c.requestRaw(provider, path, headers)
+func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to interface{}) error {
+	body, err := c.requestRaw(ctx, provider, path, headers)
 	if err != nil {
 		return err
 	}
@@ -452,11 +453,12 @@ func (c *Client) request(provider, path string, headers map[string]string, to in
 	return nil
 }
 
-func (c *Client) requestRaw(provider, path string, headers map[string]string) ([]byte, error) {
+func (c *Client) requestRaw(ctx context.Context, provider, path string, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
+	req = req.WithContext(ctx)
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}

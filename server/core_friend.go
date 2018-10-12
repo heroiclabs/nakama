@@ -31,12 +31,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetFriendIDs(logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Friends, error) {
+func GetFriendIDs(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Friends, error) {
 	query := `
 SELECT id, state
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 
-	rows, err := db.Query(query, userID)
+	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Error("Error retrieving friends.", zap.Error(err))
 		return nil, err
@@ -72,14 +72,14 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.Friends{Friends: friends}, nil
 }
 
-func GetFriends(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Friends, error) {
+func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Friends, error) {
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
 	create_time, users.update_time, state
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 
-	rows, err := db.Query(query, userID)
+	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Error("Error retrieving friends.", zap.Error(err))
 		return nil, err
@@ -139,7 +139,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.Friends{Friends: friends}, nil
 }
 
-func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
+func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range friendIDs {
 		uniqueFriendIDs[fid] = struct{}{}
@@ -147,15 +147,15 @@ func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, use
 
 	notificationToSend := make(map[string]bool)
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
-			isFriendAccept, addFriendErr := addFriend(logger, tx, userID, id)
+			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
 			} else if addFriendErr != sql.ErrNoRows { // Check to see if friend had blocked user.
@@ -189,15 +189,15 @@ func AddFriends(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, use
 		}}
 	}
 
-	NotificationSend(logger, db, messageRouter, notifications)
+	NotificationSend(ctx, logger, db, messageRouter, notifications)
 
 	return nil
 }
 
 // Returns "true" if accepting an invite, otherwise false
-func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
+func addFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
 	// Check to see if user has already blocked friend, if so ignore.
-	rows, err := tx.Query("SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
+	rows, err := tx.QueryContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
@@ -210,7 +210,7 @@ func addFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string
 	rows.Close()
 
 	// Mark an invite as accepted, if one was in place.
-	res, err := tx.Exec(`
+	res, err := tx.ExecContext(ctx, `
 UPDATE user_edge SET state = 0, update_time = now()
 WHERE (source_id = $1 AND destination_id = $2 AND state = 2)
 OR (source_id = $2 AND destination_id = $1 AND state = 1)
@@ -229,7 +229,7 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 	position := time.Now().UTC().UnixNano()
 
 	// If no edge updates took place, it's either a new invite being set up, or user was blocked off by friend.
-	_, err = tx.Exec(`
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
 SELECT source_id, destination_id, state, position, update_time
 FROM (VALUES
@@ -255,7 +255,7 @@ ON CONFLICT (source_id, destination_id) DO NOTHING
 	// This check is done by comparing the the timestamp(position) to the timestamp available.
 	// i.e. only increase count when the relationship was first formed.
 	// This is caused by an existing bug in CockroachDB: https://github.com/cockroachdb/cockroach/issues/10264
-	if res, err = tx.Exec(`
+	if res, err = tx.ExecContext(ctx, `
 UPDATE users
 SET edge_count = edge_count +1, update_time = now()
 WHERE
@@ -283,21 +283,21 @@ AND EXISTS
 	return false, nil
 }
 
-func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range ids {
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
-			if deleteFriendErr := deleteFriend(logger, tx, currentUser, id); deleteFriendErr != nil {
+			if deleteFriendErr := deleteFriend(ctx, logger, tx, currentUser, id); deleteFriendErr != nil {
 				return deleteFriendErr
 			}
 		}
@@ -310,8 +310,8 @@ func DeleteFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []
 	return nil
 }
 
-func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
-	res, err := tx.Exec("DELETE FROM user_edge WHERE (source_id = $1 AND destination_id = $2) OR (source_id = $2 AND destination_id = $1 AND state <> 3)", userID, friendID)
+func deleteFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
+	res, err := tx.ExecContext(ctx, "DELETE FROM user_edge WHERE (source_id = $1 AND destination_id = $2) OR (source_id = $2 AND destination_id = $1 AND state <> 3)", userID, friendID)
 	if err != nil {
 		logger.Debug("Failed to delete user edge relationships.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return err
@@ -321,12 +321,12 @@ func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID str
 		logger.Debug("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return nil
 	} else if rowsAffected == 1 {
-		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID", userID); err != nil {
+		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID", userID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return err
 		}
 	} else if rowsAffected == 2 {
-		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id IN ($1, $2)", userID, friendID); err != nil {
+		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id IN ($1, $2)", userID, friendID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return err
 		}
@@ -338,21 +338,21 @@ func deleteFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID str
 	return nil
 }
 
-func BlockFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range ids {
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
-			if blockFriendErr := blockFriend(logger, tx, currentUser, id); blockFriendErr != nil {
+			if blockFriendErr := blockFriend(ctx, logger, tx, currentUser, id); blockFriendErr != nil {
 				return blockFriendErr
 			}
 		}
@@ -365,9 +365,9 @@ func BlockFriends(logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []s
 	return nil
 }
 
-func blockFriend(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
+func blockFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
 	// Try to update any previous edge between these users.
-	res, err := tx.Exec("UPDATE user_edge SET state = 3, update_time = now() WHERE source_id = $1 AND destination_id = $2",
+	res, err := tx.ExecContext(ctx, "UPDATE user_edge SET state = 3, update_time = now() WHERE source_id = $1 AND destination_id = $2",
 		userID, friendID)
 
 	if err != nil {
@@ -385,7 +385,7 @@ FROM (VALUES
   ($1::UUID, $2::UUID, 3, $3::BIGINT, now())
 ) AS ue(source_id, destination_id, state, position, update_time)
 WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)`
-		res, err = tx.Exec(query, userID, friendID, position)
+		res, err = tx.ExecContext(ctx, query, userID, friendID, position)
 		if err != nil {
 			logger.Debug("Failed to block user.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return err
@@ -397,21 +397,21 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)`
 		}
 
 		// Update the edge count.
-		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count + 1, update_time = now() WHERE id = $1", userID); err != nil {
+		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count + 1, update_time = now() WHERE id = $1", userID); err != nil {
 			logger.Debug("Failed to update user edge count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return err
 		}
 	}
 
 	// Delete opposite relationship if user hasn't blocked you already
-	res, err = tx.Exec("DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state != 3", friendID, userID)
+	res, err = tx.ExecContext(ctx, "DELETE FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state != 3", friendID, userID)
 	if err != nil {
 		logger.Debug("Failed to update user edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return err
 	}
 
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 1 {
-		if _, err = tx.Exec("UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1", friendID); err != nil {
+		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1", friendID); err != nil {
 			logger.Debug("Failed to update user edge count.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return err
 		}

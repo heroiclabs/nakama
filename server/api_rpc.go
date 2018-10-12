@@ -85,7 +85,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		s.logger.Debug("Could not extract client address from request.", zap.Error(err))
 	}
 
-	result, fnErr, code := fn(queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
+	result, fnErr, code := fn(ctx, queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
 	if fnErr != nil {
 		return nil, status.Error(code, fnErr.Error())
 	}

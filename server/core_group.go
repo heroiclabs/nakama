@@ -52,7 +52,7 @@ type groupListCursor struct {
 	ID        uuid.UUID
 }
 
-func CreateGroup(logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
+func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
 	if uuid.Equal(uuid.Nil, userID) {
 		logger.Panic("This function must be used with non-system user ID.")
 	}
@@ -100,15 +100,15 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 		}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, err
 	}
 
 	var group *api.Group
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
-		rows, err := tx.Query(query, params...)
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Debug("Could not create group.", zap.Error(err))
 			return err
@@ -126,7 +126,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 		}
 
 		group = groups[0]
-		_, err = groupAddUser(db, tx, uuid.Must(uuid.FromString(group.Id)), userID, 0)
+		_, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, 0)
 		if err != nil {
 			logger.Debug("Could not add user to group.", zap.Error(err))
 			return err
@@ -144,9 +144,9 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	return group, nil
 }
 
-func UpdateGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID []byte, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
+func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID []byte, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
 	if !uuid.Equal(uuid.Nil, userID) {
-		allowedUser, err := groupCheckUserPermission(logger, db, groupID, userID, 1)
+		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 1)
 		if err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func UpdateGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.
 	}
 
 	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')"
-	res, err := db.Exec(query, params...)
+	res, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			logger.Info("Could not update group as it already exists.", zap.String("group_id", groupID.String()))
@@ -248,10 +248,10 @@ func UpdateGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.
 	}
 }
 
-func DeleteGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
 	if !uuid.Equal(uuid.Nil, userID) {
 		// only super-admins can delete group.
-		allowedUser, err := groupCheckUserPermission(logger, db, groupID, userID, 0)
+		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 0)
 		if err != nil {
 			return err
 		}
@@ -262,14 +262,14 @@ func DeleteGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.
 		}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
-		return deleteGroup(logger, tx, groupID)
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+		return deleteGroup(ctx, logger, tx, groupID)
 	}); err != nil {
 		logger.Error("Error deleting group.", zap.Error(err))
 		return err
@@ -278,12 +278,12 @@ func DeleteGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.
 	return nil
 }
 
-func JoinGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
 	query := `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups 
 WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
-	rows, err := db.Query(query, groupID)
+	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
 		logger.Error("Could not look up group while trying to join it.", zap.Error(err))
 		return err
@@ -310,7 +310,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 	state := 2
 	if !group.Open.Value {
 		state = 3
-		_, err = groupAddUser(db, nil, uuid.Must(uuid.FromString(group.Id)), userID, state)
+		_, err = groupAddUser(ctx, db, nil, uuid.Must(uuid.FromString(group.Id)), userID, state)
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -325,14 +325,14 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 		return nil
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(context.Background(), tx, func() error {
-		_, err = groupAddUser(db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state)
+	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+		_, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state)
 		if err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -344,7 +344,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 		}
 
 		query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-		_, err := tx.Exec(query, groupID)
+		_, err := tx.ExecContext(ctx, query, groupID)
 		if err != nil {
 			logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
@@ -360,10 +360,10 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 	return nil
 }
 
-func LeaveGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
 	var myState sql.NullInt64
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-	if err := db.QueryRow(query, groupID, userID).Scan(&myState); err != nil {
+	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&myState); err != nil {
 		if err == sql.ErrNoRows {
 			logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return nil // Completed successfully.
@@ -376,7 +376,7 @@ func LeaveGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.U
 		// check for other superadmins
 		var otherSuperadminCount sql.NullInt64
 		query := "SELECT COUNT(destination_id) FROM group_edge WHERE source_id = $1::UUID AND destination_id != $2::UUID AND state = 0"
-		if err := db.QueryRow(query, groupID, userID).Scan(&otherSuperadminCount); err != nil {
+		if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&otherSuperadminCount); err != nil {
 			logger.Error("Could not look up superadmin count group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
 		}
@@ -387,16 +387,16 @@ func LeaveGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.U
 		}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		query = "DELETE FROM group_edge WHERE (source_id = $1::UUID AND destination_id = $2::UUID) OR (source_id = $2::UUID AND destination_id = $1::UUID)"
 		// don't need to check affectedRows as we've confirmed the existence of the relationship above
-		if _, err = tx.Exec(query, groupID, userID); err != nil {
+		if _, err = tx.ExecContext(ctx, query, groupID, userID); err != nil {
 			logger.Debug("Could not delete group_edge relationships.", zap.Error(err))
 			return err
 		}
@@ -404,7 +404,7 @@ func LeaveGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.U
 		// check to ensure we are not decrementing the count when the relationship was an invite.
 		if myState.Int64 < 3 {
 			query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE (id = $1::UUID) AND (disable_time = '1970-01-01 00:00:00')"
-			res, err := tx.Exec(query, groupID)
+			res, err := tx.ExecContext(ctx, query, groupID)
 			if err != nil {
 				logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return err
@@ -431,11 +431,11 @@ func LeaveGroup(logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.U
 	return nil
 }
 
-func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	if !uuid.Equal(uuid.Nil, caller) {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-		if err := db.QueryRow(query, groupID, caller).Scan(&dbState); err != nil {
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
 			if err == sql.ErrNoRows {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return ErrGroupPermissionDenied
@@ -452,7 +452,7 @@ func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uui
 
 	var groupExists sql.NullBool
 	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')"
-	err := db.QueryRow(query, groupID).Scan(&groupExists)
+	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
 	if err != nil {
 		logger.Error("Could not look up group when adding users.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return err
@@ -462,13 +462,13 @@ func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uui
 		return ErrGroupNotFound
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			if uuid.Equal(caller, uid) {
 				continue
@@ -477,18 +477,18 @@ func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uui
 			incrementEdgeCount := true
 			var userExists sql.NullBool
 			query := "SELECT EXISTS(SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID)"
-			if err := tx.QueryRow(query, groupID, uid).Scan(&userExists); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid).Scan(&userExists); err != nil {
 				logger.Debug("Could not retrieve user state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 				return err
 			}
 
 			if !userExists.Bool {
-				if _, err = groupAddUser(db, tx, groupID, uid, 2); err != nil {
+				if _, err = groupAddUser(ctx, db, tx, groupID, uid, 2); err != nil {
 					logger.Debug("Could not add user to group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
 				}
 			} else {
-				res, err := groupUpdateUserState(db, tx, groupID, uid, 3, 2)
+				res, err := groupUpdateUserState(ctx, db, tx, groupID, uid, 3, 2)
 				if err != nil {
 					logger.Debug("Could not update user state in group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
@@ -500,7 +500,7 @@ func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uui
 
 			if incrementEdgeCount {
 				query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-				res, err := tx.Exec(query, groupID)
+				res, err := tx.ExecContext(ctx, query, groupID)
 				if err != nil {
 					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
@@ -523,12 +523,12 @@ func AddGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uui
 	return nil
 }
 
-func KickGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if !uuid.Equal(uuid.Nil, caller) {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-		if err := db.QueryRow(query, groupID, caller).Scan(&dbState); err != nil {
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
 			if err == sql.ErrNoRows {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return ErrGroupPermissionDenied
@@ -544,13 +544,13 @@ func KickGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uu
 		}
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			// shouldn't kick self
 			if uuid.Equal(caller, uid) {
@@ -596,7 +596,7 @@ RETURNING state`
 
 			var deletedState sql.NullInt64
 			logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
-			if err := tx.QueryRow(query, params...).Scan(&deletedState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
 				if err == sql.ErrNoRows {
 					// ignore - move to the next uid
 					continue
@@ -609,7 +609,7 @@ RETURNING state`
 			// make sure that we kicked valid members, not invites
 			if deletedState.Int64 < 3 {
 				query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
-				_, err = tx.Exec(query, groupID)
+				_, err = tx.ExecContext(ctx, query, groupID)
 				if err != nil {
 					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
@@ -625,12 +625,12 @@ RETURNING state`
 	return nil
 }
 
-func PromoteGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if !uuid.Equal(uuid.Nil, caller) {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-		if err := db.QueryRow(query, groupID, caller).Scan(&dbState); err != nil {
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
 			if err == sql.ErrNoRows {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return ErrGroupPermissionDenied
@@ -648,7 +648,7 @@ func PromoteGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID
 
 	var groupExists sql.NullBool
 	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')"
-	err := db.QueryRow(query, groupID).Scan(&groupExists)
+	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
 	if err != nil {
 		logger.Error("Could not look up group when promoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return err
@@ -658,13 +658,13 @@ func PromoteGroupUsers(logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID
 		return ErrGroupNotFound
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			if uuid.Equal(caller, uid) {
 				continue
@@ -679,7 +679,7 @@ OR
 RETURNING state`
 
 			var newState sql.NullInt64
-			if err := tx.QueryRow(query, groupID, uid, myState).Scan(&newState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState).Scan(&newState); err != nil {
 				if err == sql.ErrNoRows {
 					continue
 				}
@@ -689,7 +689,7 @@ RETURNING state`
 
 			if newState.Int64 == 2 {
 				query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-				_, err := tx.Exec(query, groupID)
+				_, err := tx.ExecContext(ctx, query, groupID)
 				if err != nil {
 					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()))
 					return err
@@ -705,7 +705,7 @@ RETURNING state`
 	return nil
 }
 
-func ListGroupUsers(logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID) (*api.GroupUserList, error) {
+func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID) (*api.GroupUserList, error) {
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.lang_tag, u.location, u.timezone, u.metadata,
@@ -714,7 +714,7 @@ SELECT u.id, u.username, u.display_name, u.avatar_url,
 FROM users u, group_edge ge
 WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-01-01 00:00:00'`
 
-	rows, err := db.Query(query, groupID)
+	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrGroupNotFound
@@ -790,7 +790,7 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 	return &api.GroupUserList{GroupUsers: groupUsers}, nil
 }
 
-func ListUserGroups(logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.UserGroupList, error) {
+func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.UserGroupList, error) {
 	query := `
 SELECT id, creator_id, name, description, avatar_url, 
 lang_tag, metadata, groups.state, edge_count, max_count, 
@@ -799,7 +799,7 @@ FROM groups
 JOIN group_edge ON (group_edge.source_id = id)
 WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
 
-	rows, err := db.Query(query, userID)
+	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrGroupNotFound
@@ -873,7 +873,7 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
 	return &api.UserGroupList{UserGroups: userGroups}, nil
 }
 
-func ListGroups(logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
+func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
 	params := []interface{}{limit}
 	query := ""
 
@@ -934,7 +934,7 @@ LIMIT $1`
 	}
 
 	groupList := &api.GroupList{Groups: make([]*api.Group, 0)}
-	rows, err := db.Query(query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return groupList, nil
@@ -1024,7 +1024,7 @@ func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
 	return groups, nil
 }
 
-func groupAddUser(db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, state int) (int64, error) {
+func groupAddUser(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, state int) (int64, error) {
 	query := `
 INSERT INTO group_edge 
 	(position, state, source_id, destination_id)
@@ -1037,9 +1037,9 @@ VALUES
 	var res sql.Result
 	var err error
 	if tx != nil {
-		res, err = tx.Exec(query, position, state, groupID, userID)
+		res, err = tx.ExecContext(ctx, query, position, state, groupID, userID)
 	} else {
-		res, err = db.Exec(query, position, state, groupID, userID)
+		res, err = db.ExecContext(ctx, query, position, state, groupID, userID)
 	}
 
 	if err != nil {
@@ -1053,7 +1053,7 @@ VALUES
 	}
 }
 
-func groupUpdateUserState(db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, fromState int, toState int) (int64, error) {
+func groupUpdateUserState(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, fromState int, toState int) (int64, error) {
 	query := `
 UPDATE group_edge SET 
 	update_time = now(), state = $4 
@@ -1065,9 +1065,9 @@ OR
 	var res sql.Result
 	var err error
 	if tx != nil {
-		res, err = tx.Exec(query, groupID, userID, fromState, toState)
+		res, err = tx.ExecContext(ctx, query, groupID, userID, fromState, toState)
 	} else {
-		res, err = db.Exec(query, groupID, userID, fromState, toState)
+		res, err = db.ExecContext(ctx, query, groupID, userID, fromState, toState)
 	}
 
 	if err != nil {
@@ -1081,10 +1081,10 @@ OR
 	}
 }
 
-func groupCheckUserPermission(logger *zap.Logger, db *sql.DB, groupID, userID uuid.UUID, state int) (bool, error) {
+func groupCheckUserPermission(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID, userID uuid.UUID, state int) (bool, error) {
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 	var dbState int
-	if err := db.QueryRow(query, groupID, userID).Scan(&dbState); err != nil {
+	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&dbState); err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
 		}
@@ -1094,9 +1094,9 @@ func groupCheckUserPermission(logger *zap.Logger, db *sql.DB, groupID, userID uu
 	return dbState <= state, nil
 }
 
-func deleteGroup(logger *zap.Logger, tx *sql.Tx, groupID uuid.UUID) error {
+func deleteGroup(ctx context.Context, logger *zap.Logger, tx *sql.Tx, groupID uuid.UUID) error {
 	query := "DELETE FROM groups WHERE id = $1::UUID"
-	res, err := tx.Exec(query, groupID)
+	res, err := tx.ExecContext(ctx, query, groupID)
 	if err != nil {
 		logger.Debug("Could not delete group.", zap.Error(err))
 		return err
@@ -1111,7 +1111,7 @@ func deleteGroup(logger *zap.Logger, tx *sql.Tx, groupID uuid.UUID) error {
 	}
 
 	query = "DELETE FROM group_edge WHERE source_id = $1::UUID OR destination_id = $1::UUID"
-	if _, err = tx.Exec(query, groupID); err != nil {
+	if _, err = tx.ExecContext(ctx, query, groupID); err != nil {
 		logger.Debug("Could not delete group_edge relationships.", zap.Error(err))
 		return err
 	}
@@ -1119,7 +1119,7 @@ func deleteGroup(logger *zap.Logger, tx *sql.Tx, groupID uuid.UUID) error {
 	return nil
 }
 
-func deleteRelationship(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, groupID uuid.UUID) error {
+func deleteRelationship(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, groupID uuid.UUID) error {
 	query := `
 DELETE FROM group_edge
 WHERE
@@ -1132,7 +1132,7 @@ RETURNING state`
 
 	var deletedState sql.NullInt64
 	logger.Debug("Removing relationship from group.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
-	if err := tx.QueryRow(query, userID, groupID).Scan(&deletedState); err != nil {
+	if err := tx.QueryRowContext(ctx, query, userID, groupID).Scan(&deletedState); err != nil {
 		if err != sql.ErrNoRows {
 			logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
@@ -1141,7 +1141,7 @@ RETURNING state`
 
 	if deletedState.Int64 < 3 {
 		query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
-		_, err := tx.Exec(query, groupID)
+		_, err := tx.ExecContext(ctx, query, groupID)
 		if err != nil {
 			logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
@@ -1151,13 +1151,13 @@ RETURNING state`
 	return nil
 }
 
-func GroupDeleteAll(logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
+func GroupDeleteAll(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
 	query := `
 SELECT id, edge_count, group_edge.state FROM groups 
 JOIN group_edge ON (group_edge.source_id = id)
 WHERE group_edge.destination_id = $1`
 
-	rows, err := tx.Query(query, userID)
+	rows, err := tx.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Debug("Could not list groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
 		return err
@@ -1193,7 +1193,7 @@ WHERE group_edge.destination_id = $1`
 	countOtherSuperadminsQuery := "SELECT COUNT(source_id) FROM group_edge WHERE source_id = $1 AND destination_id != $2 AND state = 0"
 	for _, g := range checkForOtherSuperadmins {
 		var otherSuperadminCount sql.NullInt64
-		err := tx.QueryRow(countOtherSuperadminsQuery, g, userID).Scan(&otherSuperadminCount)
+		err := tx.QueryRowContext(ctx, countOtherSuperadminsQuery, g, userID).Scan(&otherSuperadminCount)
 		if err != nil {
 			logger.Error("Could not parse rows when listing other superadmins.", zap.Error(err), zap.String("group_id", g.String()), zap.String("user_id", userID.String()))
 			return err
@@ -1207,13 +1207,13 @@ WHERE group_edge.destination_id = $1`
 	}
 
 	for _, g := range deleteGroupsAndRelationships {
-		if err := deleteGroup(logger, tx, g); err != nil {
+		if err := deleteGroup(ctx, logger, tx, g); err != nil {
 			return err
 		}
 	}
 
 	for _, g := range deleteRelationships {
-		err := deleteRelationship(logger, tx, userID, g)
+		err := deleteRelationship(ctx, logger, tx, userID, g)
 		if err != nil {
 			return err
 		}

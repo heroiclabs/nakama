@@ -34,14 +34,14 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
 
-	if err := crdb.ExecuteInTx(context.Background(), tx, func() error {
-		count, err := DeleteUser(tx, userID)
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+		count, err := DeleteUser(ctx, tx, userID)
 		if err != nil {
 			s.logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", in.Id))
 			return err
@@ -50,20 +50,20 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 			return nil
 		}
 
-		err = LeaderboardRecordsDeleteAll(s.logger, tx, userID)
+		err = LeaderboardRecordsDeleteAll(ctx, s.logger, tx, userID)
 		if err != nil {
 			s.logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", in.Id))
 			return err
 		}
 
-		err = GroupDeleteAll(s.logger, tx, userID)
+		err = GroupDeleteAll(ctx, s.logger, tx, userID)
 		if err != nil {
 			s.logger.Debug("Could not delete groups and relationships.", zap.Error(err), zap.String("user_id", in.Id))
 			return err
 		}
 
 		if in.RecordDeletion == nil || in.RecordDeletion.GetValue() {
-			return s.RecordAccountDeletion(tx, userID)
+			return s.RecordAccountDeletion(ctx, tx, userID)
 		}
 
 		return nil
@@ -75,9 +75,9 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
 	query := "TRUNCATE TABLE users, leaderboard, groups CASCADE"
-	_, err := s.db.Exec(query)
+	_, err := s.db.ExecContext(ctx, query)
 
 	if err != nil {
 		s.logger.Error("Error occurred while trying to deleting all users.", zap.Error(err))
@@ -94,7 +94,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountIdReq
 	}
 
 	// Core user account.
-	account, err := GetAccount(s.logger, s.db, nil, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, nil, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
@@ -106,8 +106,8 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountIdReq
 	return account, nil
 }
 
-func (s *ConsoleServer) ListAccounts(context.Context, *empty.Empty) (*console.AccountList, error) {
-	rows, err := s.db.Query("SELECT id FROM users WHERE id != $1 ORDER BY update_time DESC LIMIT 100", uuid.Nil)
+func (s *ConsoleServer) ListAccounts(ctx context.Context, in *empty.Empty) (*console.AccountList, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM users WHERE id != $1 ORDER BY update_time DESC LIMIT 100", uuid.Nil)
 	if err != nil {
 		s.logger.Error("Could not list users.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
@@ -125,7 +125,7 @@ func (s *ConsoleServer) ListAccounts(context.Context, *empty.Empty) (*console.Ac
 
 	accounts := make([]*api.Account, 0)
 	for _, id := range userIDs {
-		account, err := GetAccount(s.logger, s.db, nil, uuid.Must(uuid.FromString(id)))
+		account, err := GetAccount(ctx, s.logger, s.db, nil, uuid.Must(uuid.FromString(id)))
 		if err != nil {
 			s.logger.Error("Could not get user while listing.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")

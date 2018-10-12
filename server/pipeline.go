@@ -152,7 +152,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 			span := trace.NewSpan(name, nil, trace.StartOptions{})
 
 			// Actual before hook function execution.
-			hookResult, hookErr := fn(logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
+			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 
 			// Stats measurement end boundary.
 			span.End()
@@ -200,7 +200,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 			span := trace.NewSpan(name, nil, trace.StartOptions{})
 
 			// Actual after hook function execution.
-			fn(logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
+			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 
 			// Stats measurement end boundary.
 			span.End()

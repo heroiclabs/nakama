@@ -50,7 +50,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -85,7 +85,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateCustom(s.logger, s.db, in.Account.Id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateCustom(ctx, s.logger, s.db, in.Account.Id, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -125,7 +125,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -160,7 +160,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateDevice(s.logger, s.db, in.Account.Id, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateDevice(ctx, s.logger, s.db, in.Account.Id, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -200,7 +200,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -242,7 +242,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateEmail(s.logger, s.db, cleanEmail, email.Password, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateEmail(ctx, s.logger, s.db, cleanEmail, email.Password, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -282,7 +282,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -313,14 +313,14 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, s.logger, s.db, s.socialClient, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
 
 	// Import friends if requested.
 	if in.Import == nil || in.Import.Value {
-		importFacebookFriends(s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, false)
+		importFacebookFriends(ctx, s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, false)
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername)
@@ -336,7 +336,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -358,7 +358,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -401,7 +401,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateGameCenter(s.logger, s.db, s.socialClient, in.Account.PlayerId, in.Account.BundleId, in.Account.TimestampSeconds, in.Account.Salt, in.Account.Signature, in.Account.PublicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(ctx, s.logger, s.db, s.socialClient, in.Account.PlayerId, in.Account.BundleId, in.Account.TimestampSeconds, in.Account.Salt, in.Account.Signature, in.Account.PublicKeyUrl, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +419,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -441,7 +441,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -472,7 +472,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateGoogle(s.logger, s.db, s.socialClient, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(ctx, s.logger, s.db, s.socialClient, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +490,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -512,7 +512,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(s.logger, "", "", 0, clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, "", "", 0, clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -547,7 +547,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, err := AuthenticateSteam(s.logger, s.db, s.socialClient, s.config.GetSocial().Steam.AppID, s.config.GetSocial().Steam.PublisherKey, in.Account.Token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateSteam(ctx, s.logger, s.db, s.socialClient, s.config.GetSocial().Steam.AppID, s.config.GetSocial().Steam.PublisherKey, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
 	}
@@ -565,7 +565,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()

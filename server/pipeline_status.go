@@ -57,7 +57,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 
 	query := "SELECT COUNT(id) FROM users WHERE id IN (" + strings.Join(statements, ", ") + ")"
 	var dbCount int
-	err := p.db.QueryRow(query, userIDs...).Scan(&dbCount)
+	err := p.db.QueryRowContext(session.Context(), query, userIDs...).Scan(&dbCount)
 	if err != nil {
 		logger.Error("Error checking users in status follow", zap.Error(err))
 		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

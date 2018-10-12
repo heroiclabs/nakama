@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"strconv"
 	"strings"
@@ -30,7 +31,7 @@ import (
 
 var ErrAccountNotFound = errors.New("account not found")
 
-func GetAccount(logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
+func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
@@ -57,7 +58,7 @@ SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadat
 FROM users
 WHERE id = $1`
 
-	if err := db.QueryRow(query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrAccountNotFound
 		}
@@ -65,7 +66,7 @@ WHERE id = $1`
 		return nil, err
 	}
 
-	rows, err := db.Query(`SELECT id FROM user_device WHERE user_id = $1`, userID)
+	rows, err := db.QueryContext(ctx, "SELECT id FROM user_device WHERE user_id = $1", userID)
 	if err != nil {
 		logger.Error("Error retrieving user account.", zap.Error(err))
 		return nil, err
@@ -126,9 +127,7 @@ WHERE id = $1`
 	}, nil
 }
 
-func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username string,
-	displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {
-
+func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {
 	index := 1
 	statements := make([]string, 0)
 	params := make([]interface{}, 0)
@@ -206,7 +205,7 @@ func UpdateAccount(db *sql.DB, logger *zap.Logger, userID uuid.UUID, username st
 
 	query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index)
 
-	if _, err := db.Exec(query, params...); err != nil {
+	if _, err := db.ExecContext(ctx, query, params...); err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 			return errors.New("Username is already in use.")
 		}

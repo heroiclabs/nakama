@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -45,7 +46,7 @@ type notificationCacheableCursor struct {
 	CreateTime     int64
 }
 
-func NotificationSend(logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
+func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
 	persistentNotifications := make(map[uuid.UUID][]*api.Notification)
 	for userID, ns := range notifications {
 		for _, userNotification := range ns {
@@ -62,7 +63,7 @@ func NotificationSend(logger *zap.Logger, db *sql.DB, messageRouter MessageRoute
 
 	// Store any persistent notifications.
 	if len(persistentNotifications) > 0 {
-		if err := NotificationSave(logger, db, persistentNotifications); err != nil {
+		if err := NotificationSave(ctx, logger, db, persistentNotifications); err != nil {
 			return err
 		}
 	}
@@ -81,7 +82,7 @@ func NotificationSend(logger *zap.Logger, db *sql.DB, messageRouter MessageRoute
 	return nil
 }
 
-func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
+func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
 	params := []interface{}{userID}
 
 	limitQuery := " "
@@ -96,7 +97,7 @@ func NotificationList(logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit in
 		params = append(params, pq.NullTime{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
-	rows, err := db.Query(`
+	rows, err := db.QueryContext(ctx, `
 SELECT id, subject, content, code, sender_id, create_time
 FROM notification
 WHERE user_id = $1`+cursorQuery+`
@@ -156,7 +157,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 	return notificationList, nil
 }
 
-func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs []string) error {
+func NotificationDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs []string) error {
 	statements := make([]string, 0, len(notificationIDs))
 	params := make([]interface{}, 0, len(notificationIDs)+1)
 	params = append(params, userID)
@@ -169,7 +170,7 @@ func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notifi
 
 	query := "DELETE FROM notification WHERE user_id = $1 AND id IN (" + strings.Join(statements, ", ") + ")"
 	logger.Debug("Delete notification query", zap.String("query", query), zap.Any("params", params))
-	_, err := db.Exec(query, params...)
+	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Could not delete notifications.", zap.Error(err))
 		return err
@@ -178,7 +179,7 @@ func NotificationDelete(logger *zap.Logger, db *sql.DB, userID uuid.UUID, notifi
 	return nil
 }
 
-func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID][]*api.Notification) error {
+func NotificationSave(ctx context.Context, logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID][]*api.Notification) error {
 	statements := make([]string, 0, len(notifications))
 	params := make([]interface{}, 0, len(notifications))
 	counter := 0
@@ -205,7 +206,7 @@ func NotificationSave(logger *zap.Logger, db *sql.DB, notifications map[uuid.UUI
 
 	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
 
-	if _, err := db.Exec(query, params...); err != nil {
+	if _, err := db.ExecContext(ctx, query, params...); err != nil {
 		logger.Error("Could not save notifications.", zap.Error(err))
 		return err
 	}
