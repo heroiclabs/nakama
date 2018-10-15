@@ -260,7 +260,7 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 		if count <= limit {
 			records = append(records, tournament)
 		} else if count > limit {
-			newCursor.TournamentId = records[limit].Id
+			newCursor.TournamentId = records[limit-1].Id
 		}
 	}
 
