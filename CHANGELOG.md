@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Use leaderboard expires rather than end active IDs with leaderboard resets.
 - Better validation of tournament duration when a reset schedule is set.
+- Set default matchmaker input query if none supplied with the request.
 
 ## [2.1.0] - 2018-10-08
 ### Added

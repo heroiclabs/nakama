@@ -16,11 +16,12 @@ package server
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
-	"time"
 )
 
 func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -46,8 +47,13 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		return
 	}
 
+	query := incoming.Query
+	if query == "" {
+		query = "*"
+	}
+
 	// Run matchmaker add.
-	ticket, entries, err := p.matchmaker.Add(session, incoming.Query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
+	ticket, entries, err := p.matchmaker.Add(session, query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
 	if err != nil {
 		logger.Error("Error adding to matchmaker", zap.Error(err))
 		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
