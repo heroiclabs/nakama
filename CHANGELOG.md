@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Improved cancellation of ongoing work when clients disconnect.
+- Improved validation of dispatcher broadcast message filters.
 
 ### Fixed
 - Use leaderboard expires rather than end active IDs with leaderboard resets.

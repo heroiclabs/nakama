@@ -501,7 +501,7 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 			pt, ok := p.(*lua.LTable)
 			if !ok {
 				conversionError = true
-				l.ArgError(1, "expects a valid set of presences")
+				l.ArgError(3, "expects a valid set of presences")
 				return
 			}
 
@@ -512,14 +512,14 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 					sid, err := uuid.FromString(v.String())
 					if err != nil {
 						conversionError = true
-						l.ArgError(1, "expects each presence to have a valid session_id")
+						l.ArgError(3, "expects each presence to have a valid session_id")
 						return
 					}
 					presenceID.SessionID = sid
 				case "node":
 					if v.Type() != lua.LTString {
 						conversionError = true
-						l.ArgError(1, "expects node to be string")
+						l.ArgError(3, "expects node to be string")
 						return
 					}
 					presenceID.Node = v.String()
@@ -527,7 +527,7 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 			})
 			if presenceID.SessionID == uuid.Nil || presenceID.Node == "" {
 				conversionError = true
-				l.ArgError(1, "expects each presence to have a valid session_id and node")
+				l.ArgError(3, "expects each presence to have a valid session_id and node")
 				return
 			}
 			if conversionError {
@@ -590,29 +590,61 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 
 	if presenceIDs != nil {
 		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
-		actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
-		for i := 0; i < len(presenceIDs); i++ {
-			found := false
-			presenceID := presenceIDs[i]
-			for j := 0; j < len(actualPresenceIDs); j++ {
-				if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
-					// If it matches, drop it.
-					actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
-					actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
-					found = true
-					break
+		if len(presenceIDs) == 1 {
+			// Shorter validation cycle if there is only one intended recipient.
+			presenceValue := filter.RawGetInt(1)
+			if presenceValue == lua.LNil {
+				l.ArgError(3, "expects each presence to be non-nil")
+				return 0
+			}
+			presenceTable, ok := presenceValue.(*lua.LTable)
+			if !ok {
+				l.ArgError(3, "expects each presence to be a table")
+				return 0
+			}
+			userIDValue := presenceTable.RawGetString("user_id")
+			if userIDValue == nil {
+				l.ArgError(3, "expects each presence to have a valid user_id")
+				return 0
+			}
+			if userIDValue.Type() != lua.LTString {
+				l.ArgError(3, "expects each presence to have a valid user_id")
+				return 0
+			}
+			userID, err := uuid.FromString(userIDValue.String())
+			if err != nil {
+				l.ArgError(3, "expects each presence to have a valid user_id")
+				return 0
+			}
+			if r.tracker.GetBySessionIDStreamUserID(presenceIDs[0].Node, presenceIDs[0].SessionID, r.stream, userID) == nil {
+				// The one intended recipient is not a match member.
+				return 0
+			}
+		} else {
+			actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
+			for i := 0; i < len(presenceIDs); i++ {
+				found := false
+				presenceID := presenceIDs[i]
+				for j := 0; j < len(actualPresenceIDs); j++ {
+					if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
+						// If it matches, drop it.
+						actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
+						actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
+						found = true
+						break
+					}
+				}
+				if !found {
+					// If this presence wasn't in the filters, it's not needed.
+					presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+					presenceIDs = presenceIDs[:len(presenceIDs)-1]
+					i--
 				}
 			}
-			if !found {
-				// If this presence wasn't in the filters, it's not needed.
-				presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-				presenceIDs = presenceIDs[:len(presenceIDs)-1]
-				i--
+			if len(presenceIDs) == 0 {
+				// None of the target presenceIDs existed in the list of match members.
+				return 0
 			}
-		}
-		if len(presenceIDs) == 0 {
-			// None of the target presenceIDs existed in the list of match members.
-			return 0
 		}
 	}
 

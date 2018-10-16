@@ -179,17 +179,24 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	}
 
 	// Stats measurement start boundary.
-	name := fmt.Sprintf("nakama.rtapi.%v", pipelineName)
-	statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-	startNanos := time.Now().UTC().UnixNano()
-	span := trace.NewSpan(name, nil, trace.StartOptions{})
+	var span *trace.Span
+	var startNanos int64
+	var statsCtx context.Context
+	if pipelineName != "matchDataSend" {
+		name := fmt.Sprintf("nakama.rtapi.%v", pipelineName)
+		statsCtx, _ = tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
+		startNanos = time.Now().UTC().UnixNano()
+		span = trace.NewSpan(name, nil, trace.StartOptions{})
+	}
 
 	// Actual function execution.
 	pipelineFn(logger, session, envelope)
 
 	// Stats measurement end boundary.
-	span.End()
-	stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
+	if span != nil {
+		span.End()
+		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
+	}
 
 	if messageName != "" {
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {

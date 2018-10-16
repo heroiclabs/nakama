@@ -198,29 +198,42 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 
 	if presenceIDs != nil {
 		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
-		actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
-		for i := 0; i < len(presenceIDs); i++ {
-			found := false
-			presenceID := presenceIDs[i]
-			for j := 0; j < len(actualPresenceIDs); j++ {
-				if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
-					// If it matches, drop it.
-					actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
-					actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
-					found = true
-					break
+		if len(presenceIDs) == 1 {
+			// Shorter validation cycle if there is only one intended recipient.
+			userID, err := uuid.FromString(presences[0].GetUserId())
+			if err != nil {
+				return errors.New("Presence contains an invalid User ID")
+			}
+			if r.tracker.GetBySessionIDStreamUserID(presenceIDs[0].Node, presenceIDs[0].SessionID, r.stream, userID) == nil {
+				// The one intended recipient is not a match member.
+				return nil
+			}
+		} else {
+			// Validate multiple filtered recipients.
+			actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
+			for i := 0; i < len(presenceIDs); i++ {
+				found := false
+				presenceID := presenceIDs[i]
+				for j := 0; j < len(actualPresenceIDs); j++ {
+					if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
+						// If it matches, drop it.
+						actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
+						actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
+						found = true
+						break
+					}
+				}
+				if !found {
+					// If this presence wasn't in the filters, it's not needed.
+					presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+					presenceIDs = presenceIDs[:len(presenceIDs)-1]
+					i--
 				}
 			}
-			if !found {
-				// If this presence wasn't in the filters, it's not needed.
-				presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-				presenceIDs = presenceIDs[:len(presenceIDs)-1]
-				i--
+			if len(presenceIDs) == 0 {
+				// None of the target presenceIDs existed in the list of match members.
+				return nil
 			}
-		}
-		if len(presenceIDs) == 0 {
-			// None of the target presenceIDs existed in the list of match members.
-			return nil
 		}
 	}
 
