@@ -65,6 +65,7 @@ type sessionWS struct {
 	pingTimer              *time.Timer
 	outgoingCh             chan []byte
 	outgoingStopCh         chan struct{}
+	pingTimerResetCh       chan time.Duration
 }
 
 func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
@@ -105,6 +106,7 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
 		outgoingCh:             make(chan []byte, config.GetSocket().OutgoingQueueSize),
 		outgoingStopCh:         make(chan struct{}),
+		pingTimerResetCh:       make(chan time.Duration),
 	}
 }
 
@@ -149,7 +151,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
 	s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
 	s.conn.SetPongHandler(func(string) error {
-		s.pingTimer.Reset(s.pingPeriodDuration)
+		s.pingTimerResetCh <- s.pingPeriodDuration
 		s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
 		return nil
 	})
@@ -173,7 +175,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 		s.receivedMessageCounter--
 		if s.receivedMessageCounter <= 0 {
 			s.receivedMessageCounter = s.config.GetSocket().PingBackoffThreshold
-			s.pingTimer.Reset(s.pingPeriodDuration)
+			s.pingTimerResetCh <- s.pingPeriodDuration
 			s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration))
 		}
 
@@ -211,6 +213,8 @@ func (s *sessionWS) processOutgoing() {
 				// If ping fails the session will be stopped, clean up the loop.
 				return
 			}
+		case duration := <-s.pingTimerResetCh:
+			s.pingTimer.Reset(duration)
 		case payload := <-s.outgoingCh:
 			s.Lock()
 			if s.stopped {
@@ -233,13 +237,13 @@ func (s *sessionWS) processOutgoing() {
 
 func (s *sessionWS) pingNow() bool {
 	s.Lock()
+	defer s.Unlock()
+
 	if s.stopped {
-		s.Unlock()
 		return false
 	}
 	s.conn.SetWriteDeadline(time.Now().Add(s.writeWaitDuration))
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
-	s.Unlock()
 	if err != nil {
 		s.logger.Warn("Could not send ping, closing channel", zap.String("remoteAddress", s.conn.RemoteAddr().String()), zap.Error(err))
 		// The connection has already failed.
