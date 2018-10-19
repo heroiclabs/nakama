@@ -247,7 +247,7 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 				}
 			} else {
 				// Existing value is not a map or float.
-				return nil, errors.Errorf("unknown existing wallet value type at path '%v'", currentPath)
+				return nil, errors.Errorf("unknown existing wallet value type at path '%v'. Expecting map or float64", currentPath)
 			}
 		} else {
 			// No existing value for this field.
@@ -265,7 +265,7 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 				wallet[k] = changesetValue
 			} else {
 				// Incoming value is not a map or float.
-				return nil, errors.Errorf("unknown update changeset value type at path '%v'", currentPath)
+				return nil, errors.Errorf("unknown update changeset value type at path '%v'. Expecting map or float64", currentPath)
 			}
 		}
 	}
