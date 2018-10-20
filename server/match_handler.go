@@ -230,14 +230,14 @@ func loop(mh *MatchHandler) {
 	mh.tick++
 }
 
-func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string) func(mh *MatchHandler) {
+func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
 		if mh.stopped.Load() {
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
 
-		state, allow, reason, err := mh.core.MatchJoinAttempt(mh.tick, mh.state, userID, sessionID, username, node)
+		state, allow, reason, err := mh.core.MatchJoinAttempt(mh.tick, mh.state, userID, sessionID, username, node, metadata)
 		if err != nil {
 			mh.Stop()
 			mh.logger.Warn("Stopping match after error from match_join_attempt execution", zap.Int64("tick", mh.tick), zap.Error(err))

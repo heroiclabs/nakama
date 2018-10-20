@@ -233,12 +233,17 @@ func (r *RuntimeLuaMatchCore) MatchInit(params map[string]interface{}) (interfac
 	return state, rateInt, labelStr, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string) (interface{}, bool, string, error) {
+func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error) {
 	presence := r.vm.CreateTable(0, 4)
 	presence.RawSetString("user_id", lua.LString(userID.String()))
 	presence.RawSetString("session_id", lua.LString(sessionID.String()))
 	presence.RawSetString("username", lua.LString(username))
 	presence.RawSetString("node", lua.LString(node))
+
+	metadataTable := r.vm.CreateTable(0, len(metadata))
+	for k, v := range metadata {
+		metadataTable.RawSetString(k, lua.LString(v))
+	}
 
 	// Execute the match_join_attempt call.
 	r.vm.Push(LSentinel)
@@ -248,8 +253,9 @@ func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, us
 	r.vm.Push(lua.LNumber(tick))
 	r.vm.Push(state.(lua.LValue))
 	r.vm.Push(presence)
+	r.vm.Push(metadataTable)
 
-	err := r.vm.PCall(5, lua.MultRet, nil)
+	err := r.vm.PCall(6, lua.MultRet, nil)
 	if err != nil {
 		return nil, false, "", err
 	}

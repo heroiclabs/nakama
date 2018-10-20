@@ -99,7 +99,7 @@ func (r *RuntimeGoMatchCore) MatchInit(params map[string]interface{}) (interface
 	return state, tickRate, label, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string) (interface{}, bool, string, error) {
+func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error) {
 	presence := &MatchPresence{
 		Node:      node,
 		UserID:    userID,
@@ -107,7 +107,7 @@ func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, use
 		Username:  username,
 	}
 
-	newState, allow, reason := r.match.MatchJoinAttempt(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, presence)
+	newState, allow, reason := r.match.MatchJoinAttempt(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, presence, metadata)
 	return newState, allow, reason, nil
 }
 

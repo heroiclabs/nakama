@@ -82,9 +82,9 @@ func (m *Match) MatchInit(ctx context.Context, logger *log.Logger, db *sql.DB, n
 	return state, tickRate, label
 }
 
-func (m *Match) MatchJoinAttempt(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, presence runtime.Presence) (interface{}, bool, string) {
+func (m *Match) MatchJoinAttempt(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, presence runtime.Presence, metadata map[string]string) (interface{}, bool, string) {
 	if state.(*MatchState).debug {
-		logger.Printf("match join attempt username %v user_id %v session_id %v node %v", presence.GetUsername(), presence.GetUserId(), presence.GetSessionId(), presence.GetNodeId())
+		logger.Printf("match join attempt username %v user_id %v session_id %v node %v with metadata %v", presence.GetUsername(), presence.GetUserId(), presence.GetSessionId(), presence.GetNodeId(), metadata)
 	}
 
 	return state, true, ""

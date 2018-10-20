@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - More flexible query-based filter when listing realtime multiplayer matches.
 - Runtime function to batch get groups by group ID.
+- Allow authoritative match join attempts to carry metadata from the client.
 
 ### Changed
 - Improved cancellation of ongoing work when clients disconnect.
