@@ -97,7 +97,7 @@ type MatchRegistry interface {
 	Stop(graceSeconds int) chan struct{}
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
-	JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string)
+	JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string)
 	// Notify a match handler that one or more users have successfully joined the match.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Join(id uuid.UUID, presences []*MatchPresence)
@@ -422,7 +422,7 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 	return r.stoppedCh
 }
 
-func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string) (bool, bool, string, string) {
+func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string) {
 	if node != r.node {
 		return false, false, "", ""
 	}
@@ -437,7 +437,7 @@ func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sess
 	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
-	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode)) {
+	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode, metadata)) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
 		return true, false, "", ""
 	}

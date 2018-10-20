@@ -173,7 +173,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		// The user is not yet part of the match, attempt to join.
 		if mode == StreamModeMatchAuthoritative {
 			// If it's an authoritative match, ask the match handler if it will allow the join.
-			found, allow, reason, l = p.matchRegistry.JoinAttempt(matchID, node, session.UserID(), session.ID(), username, p.node)
+			found, allow, reason, l = p.matchRegistry.JoinAttempt(matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
 		}
 		if !found {
 			// Match did not exist.

@@ -86,13 +86,21 @@ Presence is the user attempting to join the match. Format:
   node: "name of the Nakama node the user is connected to"
 }
 
+Metadata is an optional set of arbitrary key-value pairs received from the client. These may contain information
+the client wishes to supply to the match handler in order to process the join attempt, for example: authentication or
+match passwords, client version information, preferences etc. Format:
+{
+  key: "value"
+}
+
 Expected return these values (all required) in order:
 1. An (optionally) updated state. May be any non-nil Lua term, or nil to end the match.
 2. Boolean true if the join attempt should be allowed, false otherwise.
 --]]
-local function match_join_attempt(context, dispatcher, tick, state, presence)
+local function match_join_attempt(context, dispatcher, tick, state, presence, metadata)
   if state.debug then
     print("match join attempt:\n" .. du.print_r(presence))
+    print("match join attempt metadata:\n" .. du.print_r(metadata))
   end
   return state, true
 end
