@@ -15,7 +15,10 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/blevesearch/bleve"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
@@ -33,7 +36,14 @@ var (
 	MatchFilterAny           = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr, StreamModeMatchAuthoritative: MatchFilterPtr}
 	MatchFilterRelayed       = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
 	MatchFilterAuthoritative = map[uint8]*uint8{StreamModeMatchAuthoritative: MatchFilterPtr}
+
+	ErrMatchLabelTooLong = errors.New("match label too long, must be 0-2048 bytes")
 )
+
+type MatchIndexEntry struct {
+	Label       map[string]interface{} `json:"label"`
+	LabelString string                 `json:"label_string"`
+}
 
 type MatchPresence struct {
 	Node      string
@@ -78,9 +88,11 @@ type MatchRegistry interface {
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
+	// Update the label entry for a given match.
+	UpdateMatchLabel(id uuid.UUID, label string, x int) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
-	ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match
+	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
 	// Stop the match registry and close all matches it's tracking.
 	Stop(graceSeconds int) chan struct{}
 
@@ -106,18 +118,27 @@ type LocalMatchRegistry struct {
 	tracker Tracker
 	node    string
 	matches map[uuid.UUID]*MatchHandler
+	index   bleve.Index
 
 	stopped   *atomic.Bool
 	stoppedCh chan struct{}
 }
 
-func NewLocalMatchRegistry(logger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
+	mapping := bleve.NewIndexMapping()
+
+	index, err := bleve.NewMemOnly(mapping)
+	if err != nil {
+		startupLogger.Fatal("Failed to create match registry index", zap.Error(err))
+	}
+
 	return &LocalMatchRegistry{
 		logger:  logger,
 		config:  config,
 		tracker: tracker,
 		node:    node,
 		matches: make(map[uuid.UUID]*MatchHandler),
+		index:   index,
 
 		stopped:   atomic.NewBool(false),
 		stoppedCh: make(chan struct{}, 2),
@@ -155,6 +176,7 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	matchesRemaining := len(r.matches)
 	r.Unlock()
 	r.tracker.UntrackByStream(stream)
+	r.index.Delete(id.String())
 
 	// If there are no more matches in this registry and a shutdown was initiated then signal
 	// that the process is complete.
@@ -167,131 +189,195 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	}
 }
 
-func (r *LocalMatchRegistry) ListMatches(limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value) []*api.Match {
+func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string, x int) error {
+	if len(label) > 2048 {
+		return ErrMatchLabelTooLong
+	}
+	var labelJSON map[string]interface{}
+	// Doesn't matter if this is not JSON.
+	json.Unmarshal([]byte(label), &labelJSON)
+	return r.index.Index(id.String(), &MatchIndexEntry{
+		Label:       labelJSON,
+		LabelString: label,
+	})
+}
+
+func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error) {
+	if limit == 0 {
+		return make([]*api.Match, 0), nil
+	}
+
 	var modes map[uint8]*uint8
-	if authoritative == nil {
-		modes = MatchFilterAny
-	} else if authoritative.Value {
+	var labelResults *bleve.SearchResult
+	if query != nil {
+		if authoritative != nil && !authoritative.Value {
+			// A filter on query is requested but authoritative matches are not allowed.
+			return make([]*api.Match, 0), nil
+		}
+
+		// If there are filters other than query, we don't know which matches will work so get more than the limit.
+		count := limit
+		if minSize != nil || maxSize != nil {
+			c, err := r.index.DocCount()
+			if err != nil {
+				return nil, fmt.Errorf("error listing matches count: %v", err.Error())
+			}
+			count = int(c)
+		}
+
+		// Apply the query filter to the set of known match labels.
+		queryString := query.Value
+		if queryString == "" {
+			queryString = "*"
+		}
+		indexQuery := bleve.NewQueryStringQuery(queryString)
+		search := bleve.NewSearchRequestOptions(indexQuery, count, 0, false)
+		search.Fields = []string{"label_string"}
+		var err error
+		labelResults, err = r.index.SearchInContext(ctx, search)
+		if err != nil {
+			return nil, fmt.Errorf("error listing matches by query: %v", err.Error())
+		}
+
+		// Because we have a query filter only authoritative matches are eligible.
 		modes = MatchFilterAuthoritative
+	} else if label != nil {
+		if authoritative != nil && !authoritative.Value {
+			// A filter on label is requested but authoritative matches are not allowed.
+			return make([]*api.Match, 0), nil
+		}
+
+		// If there are filters other than label, we don't know which matches will work so get more than the limit.
+		count := limit
+		if minSize != nil || maxSize != nil {
+			c, err := r.index.DocCount()
+			if err != nil {
+				return nil, fmt.Errorf("error listing matches count: %v", err.Error())
+			}
+			count = int(c)
+		}
+
+		// Apply the label filter to the set of known match labels.
+		indexQuery := bleve.NewMatchQuery(label.Value)
+		indexQuery.SetField("label_string")
+		search := bleve.NewSearchRequestOptions(indexQuery, int(count), 0, false)
+		search.Fields = []string{"label_string"}
+		var err error
+		labelResults, err = r.index.SearchInContext(ctx, search)
+		if err != nil {
+			return nil, fmt.Errorf("error listing matches by label: %v", err.Error())
+		}
+
+		// Because we have a query filter only authoritative matches are eligible.
+		modes = MatchFilterAuthoritative
+	} else if authoritative == nil || authoritative.Value {
+		// Not using label/query filter but we still need access to the indexed labels to return them
+		// if authoritative matches may be included in the results.
+		count, err := r.index.DocCount()
+		if err != nil {
+			return nil, fmt.Errorf("error listing matches count: %v", err.Error())
+		}
+		indexQuery := bleve.NewMatchAllQuery()
+		search := bleve.NewSearchRequestOptions(indexQuery, int(count), 0, false)
+		search.Fields = []string{"label_string"}
+		labelResults, err = r.index.SearchInContext(ctx, search)
+		if err != nil {
+			return nil, fmt.Errorf("error listing matches by label: %v", err.Error())
+		}
+
+		if authoritative == nil {
+			// Expect a possible mix of authoritative and relayed matches.
+			modes = MatchFilterAny
+		} else {
+			// Authoritative was strictly true even if there was no label/query filter.
+			modes = MatchFilterAuthoritative
+		}
 	} else {
+		// Authoritative was strictly false, and there was no label/query filter.
 		modes = MatchFilterRelayed
 	}
 
-	// Initial list of candidate matches.
+	if labelResults != nil && labelResults.Hits.Len() == 0 && authoritative != nil && !authoritative.Value {
+		// No results based on label/query, no point in further filtering by size.
+		return make([]*api.Match, 0), nil
+	}
+
+	// Match labels will only be nil if there is no label filter, no query filter, and authoritative is strictly false.
+	// Therefore authoritative matches will never be part of this listing at all.
+	var matchLabels map[uuid.UUID]*wrappers.StringValue
+	if labelResults != nil {
+		matchLabels = make(map[uuid.UUID]*wrappers.StringValue, labelResults.Hits.Len())
+		for _, hit := range labelResults.Hits {
+			if l, ok := hit.Fields["label_string"]; ok {
+				if ls, ok := l.(string); ok {
+					matchLabels[uuid.FromStringOrNil(hit.ID)] = &wrappers.StringValue{Value: ls}
+				}
+			}
+		}
+	}
+
+	// Look up tracker info to determine match sizes.
+	// This info is needed even if there is no min/max size filter because it's returned in results.
 	matches := r.tracker.CountByStreamModeFilter(modes)
 
 	// Results.
 	results := make([]*api.Match, 0, limit)
 
-	// Track authoritative matches that have been checked already, if authoritative results are allowed.
-	var checked map[uuid.UUID]struct{}
-	if authoritative == nil || authoritative.Value {
-		checked = make(map[uuid.UUID]struct{})
-	}
-
-	// Maybe filter by label.
+	// Intersection of matches listed from stream and matches listed from label index, if any.
 	for stream, size := range matches {
-		if stream.Mode == StreamModeMatchRelayed {
-			if label != nil {
-				// Any label filter fails for relayed matches.
-				continue
-			}
-			if minSize != nil && minSize.Value > size {
-				// Too few users.
-				continue
-			}
-			if maxSize != nil && maxSize.Value < size {
-				// Too many users.
-				continue
-			}
-
-			matchID := fmt.Sprintf("%v.", stream.Subject.String())
-			results = append(results, &api.Match{
-				MatchId:       matchID,
-				Authoritative: false,
-				// No label.
-				Size: size,
-			})
-			if len(results) == limit {
-				break
-			}
-		} else if stream.Mode == StreamModeMatchAuthoritative {
-			// Authoritative matches that have already been checked.
-			checked[stream.Subject] = struct{}{}
-
-			if minSize != nil && minSize.Value > size {
-				// Too few users.
-				continue
-			}
-			if maxSize != nil && maxSize.Value < size {
-				// Too many users.
-				continue
-			}
-
-			mh := r.GetMatch(stream.Subject)
-			if mh == nil {
-				continue
-			}
-			mhLabel := mh.Label.Load()
-			if label != nil && label.Value != mhLabel {
-				continue
-			}
-			results = append(results, &api.Match{
-				MatchId:       mh.IDStr,
-				Authoritative: true,
-				Label:         &wrappers.StringValue{Value: mhLabel},
-				Size:          size,
-			})
-			if len(results) == limit {
-				break
-			}
-		} else {
+		if stream.Mode != StreamModeMatchRelayed && stream.Mode != StreamModeMatchAuthoritative {
 			r.logger.Warn("Ignoring unknown stream mode in match listing operation", zap.Uint8("mode", stream.Mode))
-		}
-	}
-
-	// Return results here if:
-	// 1. We have enough results.
-	// or
-	// 2. Not enough results, but we're not allowed to return potentially empty authoritative matches.
-	if len(results) == limit || ((authoritative != nil && !authoritative.Value) || (minSize != nil && minSize.Value > 0)) {
-		return results
-	}
-
-	// Otherwise look for empty matches to help fulfil the request, but ensure no duplicates.
-	r.RLock()
-	for _, mh := range r.matches {
-		if _, ok := checked[mh.ID]; ok {
-			// Already checked and discarded this match for failing a filter, skip it.
 			continue
 		}
-		mhLabel := mh.Label.Load()
-		if label != nil && label.Value != mhLabel {
-			// Label mismatch.
+
+		label, ok := matchLabels[stream.Subject]
+		if ok {
+			delete(matchLabels, stream.Subject)
+		} else if matchLabels != nil && stream.Mode == StreamModeMatchAuthoritative {
+			// Not eligible based on the label/query.
 			continue
 		}
-		size := int32(r.tracker.CountByStream(mh.Stream))
+
 		if minSize != nil && minSize.Value > size {
-			// Too few users.
+			// Not eligible based on minimum size.
 			continue
 		}
+
 		if maxSize != nil && maxSize.Value < size {
-			// Too many users.
+			// Not eligible based on maximum size.
 			continue
 		}
+
 		results = append(results, &api.Match{
-			MatchId:       mh.IDStr,
-			Authoritative: true,
-			Label:         &wrappers.StringValue{Value: mhLabel},
+			MatchId:       fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
+			Authoritative: stream.Mode == StreamModeMatchAuthoritative,
+			Label:         label,
 			Size:          size,
+		})
+		if len(results) == limit {
+			return results, nil
+		}
+	}
+
+	// Return incomplete results here if we're not allowed to return potentially empty authoritative matches.
+	if (authoritative != nil && !authoritative.Value) || (minSize != nil && minSize.Value > 0) {
+		return results, nil
+	}
+
+	// All we have left now are empty authoritative matches that we already know matched label/query filter if any.
+	for id, label := range matchLabels {
+		results = append(results, &api.Match{
+			MatchId:       fmt.Sprintf("%v.%v", id.String(), r.node),
+			Authoritative: true,
+			Label:         label,
+			Size:          0,
 		})
 		if len(results) == limit {
 			break
 		}
 	}
-	r.RUnlock()
 
-	return results
+	return results, nil
 }
 
 func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
@@ -304,6 +390,7 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 		for id, mh := range r.matches {
 			mh.Close()
 			delete(r.matches, id)
+			// No need to clean up label index.
 		}
 		r.RUnlock()
 		// Termination was triggered and there are no active matches.

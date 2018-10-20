@@ -4,14 +4,21 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- More flexible query-based filter when listing realtime multiplayer matches.
+- Runtime function to batch get groups by group ID.
+
 ### Changed
 - Improved cancellation of ongoing work when clients disconnect.
 - Improved validation of dispatcher broadcast message filters.
+- Set maximum size of authoritative match labels to 2048 bytes.
 
 ### Fixed
 - Use leaderboard expires rather than end active IDs with leaderboard resets.
 - Better validation of tournament duration when a reset schedule is set.
 - Set default matchmaker input query if none supplied with the request.
+- Removed a potential race condition when session ping backoff triggers alongside a timed ping.
+- Errors returned by InitModule hooks from Go runtime plugins will now correctly halt startup.
 
 ## [2.1.0] - 2018-10-08
 ### Added

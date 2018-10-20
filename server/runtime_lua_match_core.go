@@ -34,7 +34,7 @@ type RuntimeLuaMatchCore struct {
 	tracker       Tracker
 	router        MessageRouter
 
-	labelUpdateFn func(string)
+	labelUpdateFn RuntimeMatchLabelUpdateFunction
 
 	id     uuid.UUID
 	node   string
@@ -54,7 +54,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -70,7 +70,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		vm.Call(1, 0)
 	}
 
-	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
+	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error) {
 		core, err := goMatchCreateFn(ctx, logger, id, node, name, labelUpdateFn)
 		if err != nil {
 			return nil, err
@@ -733,7 +733,11 @@ func (r *RuntimeLuaMatchCore) matchKick(l *lua.LState) int {
 func (r *RuntimeLuaMatchCore) matchLabelUpdate(l *lua.LState) int {
 	input := l.OptString(1, "")
 
-	r.labelUpdateFn(input)
+	if err := r.labelUpdateFn(input); err != nil {
+		l.RaiseError("error updating match label: %v", err.Error())
+		return 0
+	}
+
 	// This must be executed from inside a match call so safe to update here.
 	r.ctx.RawSetString(__RUNTIME_LUA_CTX_MATCH_LABEL, lua.LString(input))
 	return 0

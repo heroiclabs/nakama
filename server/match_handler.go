@@ -107,6 +107,10 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		core.Cancel()
 		return nil, errors.New("Match initial state must not be nil")
 	}
+	err = matchRegistry.UpdateMatchLabel(id, labelStr, 0)
+	if err != nil {
+		return nil, err
+	}
 	label.Store(labelStr)
 
 	// Construct the match.

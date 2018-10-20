@@ -873,10 +873,45 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
 	return &api.UserGroupList{UserGroups: userGroups}, nil
 }
 
-func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
-	params := []interface{}{limit}
-	query := ""
+func GetGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string) ([]*api.Group, error) {
+	if len(ids) == 0 {
+		return make([]*api.Group, 0), nil
+	}
 
+	statements := make([]string, 0, len(ids))
+	params := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		statements = append(statements, "$"+strconv.Itoa(i+1))
+		params = append(params, id)
+	}
+
+	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00'
+AND id IN (` + strings.Join(statements, ",") + `)`
+	rows, err := db.QueryContext(ctx, query, params...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return make([]*api.Group, 0), nil
+		}
+		logger.Error("Could not get groups.", zap.Error(err))
+		return nil, err
+	}
+	// Rows closed in groupConvertRows()
+
+	groups, err := groupConvertRows(rows)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return make([]*api.Group, 0), nil
+		}
+		logger.Error("Could not get groups.", zap.Error(err))
+		return nil, err
+	}
+
+	return groups, nil
+}
+
+func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
 	var cursor *groupListCursor = nil
 	if cursorStr != "" {
 		cursor = &groupListCursor{}
@@ -891,6 +926,8 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string
 		}
 	}
 
+	var query string
+	params := []interface{}{limit}
 	if name == "" {
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time

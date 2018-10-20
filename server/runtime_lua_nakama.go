@@ -185,6 +185,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournament_list":             n.tournamentList,
 		"tournament_record_write":     n.tournamentRecordWrite,
 		"tournament_records_haystack": n.tournamentRecordsHaystack,
+		"groups_get_id":               n.groupsGetId,
 		"group_create":                n.groupCreate,
 		"group_update":                n.groupUpdate,
 		"group_delete":                n.groupDelete,
@@ -2454,8 +2455,12 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	id := uuid.Must(uuid.NewV4())
 	matchLogger := n.logger.With(zap.String("mid", id.String()))
 	label := atomic.NewString("")
-	labelUpdateFn := func(input string) {
+	labelUpdateFn := func(input string) error {
+		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
+			return err
+		}
 		label.Store(input)
+		return nil
 	}
 	core, err := n.matchCreateFn(l.Context(), matchLogger, id, n.node, name, labelUpdateFn)
 	if err != nil {
@@ -2519,7 +2524,20 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 		maxSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
 	}
 
-	results := n.matchRegistry.ListMatches(limit, authoritative, label, minSize, maxSize)
+	var query *wrappers.StringValue
+	if v := l.Get(6); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTString {
+			l.ArgError(6, "expects query string or nil")
+			return 0
+		}
+		query = &wrappers.StringValue{Value: lua.LVAsString(v)}
+	}
+
+	results, err := n.matchRegistry.ListMatches(l.Context(), limit, authoritative, label, minSize, maxSize, query)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to list matches: %s", err.Error()))
+		return 0
+	}
 
 	matches := l.CreateTable(len(results), 0)
 	for i, result := range results {
@@ -4176,6 +4194,79 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 	}
 	l.Push(recordsTable)
 
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) groupsGetId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid group id list")
+		return 0
+	}
+	if input.Len() == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+	groupIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid group id data")
+		return 0
+	}
+	if len(groupIDs) == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	// Input individual ID validation.
+	groupIDStrings := make([]string, 0, len(groupIDs))
+	for _, id := range groupIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each group id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each group id must be a valid id string")
+			return 0
+		} else {
+			groupIDStrings = append(groupIDStrings, ids)
+		}
+	}
+
+	// Get the groups.
+	groups, err := GetGroups(l.Context(), n.logger, n.db, groupIDStrings)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get groups: %s", err.Error()))
+		return 0
+	}
+
+	groupsTable := l.CreateTable(len(groups), 0)
+	for i, g := range groups {
+		gt := l.CreateTable(0, 12)
+		gt.RawSetString("id", lua.LString(g.Id))
+		gt.RawSetString("creator_id", lua.LString(g.CreatorId))
+		gt.RawSetString("name", lua.LString(g.Name))
+		gt.RawSetString("description", lua.LString(g.Description))
+		gt.RawSetString("avatar_url", lua.LString(g.AvatarUrl))
+		gt.RawSetString("lang_tag", lua.LString(g.LangTag))
+		gt.RawSetString("open", lua.LBool(g.Open.Value))
+		gt.RawSetString("edge_count", lua.LNumber(g.EdgeCount))
+		gt.RawSetString("max_count", lua.LNumber(g.MaxCount))
+		gt.RawSetString("create_time", lua.LNumber(g.CreateTime.Seconds))
+		gt.RawSetString("update_time", lua.LNumber(g.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		gt.RawSetString("metadata", metadataTable)
+
+		groupsTable.RawSetInt(i+1, gt)
+	}
+
+	l.Push(groupsTable)
 	return 1
 }
 

@@ -162,7 +162,8 @@ type (
 
 	RuntimeMatchmakerMatchedFunction func(entries []*MatchmakerEntry) (string, bool, error)
 
-	RuntimeMatchCreateFunction func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error)
+	RuntimeMatchCreateFunction      func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error)
+	RuntimeMatchLabelUpdateFunction func(string) error
 
 	RuntimeTournamentEndFunction   func(tournament *api.Tournament, end, reset int64) error
 	RuntimeTournamentResetFunction func(tournament *api.Tournament, end, reset int64) error

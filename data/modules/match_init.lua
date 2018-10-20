@@ -14,8 +14,6 @@
  limitations under the License.
 --]]
 
---require("nakama").match_create("match", {debug = true})
-
 local nk = require("nakama")
 
 --[[

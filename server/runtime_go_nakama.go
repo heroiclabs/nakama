@@ -636,8 +636,12 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 	id := uuid.Must(uuid.NewV4())
 	matchLogger := n.logger.With(zap.String("mid", id.String()))
 	label := atomic.NewString("")
-	labelUpdateFn := func(input string) {
+	labelUpdateFn := func(input string) error {
+		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
+			return err
+		}
 		label.Store(input)
+		return nil
 	}
 	n.RLock()
 	fn := n.matchCreateFn
@@ -659,13 +663,20 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 	return mh.IDStr, nil
 }
 
-func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int) []*api.Match {
+func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error) {
 	authoritativeWrapper := &wrappers.BoolValue{Value: authoritative}
-	labelWrapper := &wrappers.StringValue{Value: label}
+	var labelWrapper *wrappers.StringValue
+	if label != "" {
+		labelWrapper = &wrappers.StringValue{Value: label}
+	}
+	var queryWrapper *wrappers.StringValue
+	if query != "" {
+		queryWrapper = &wrappers.StringValue{Value: query}
+	}
 	minSizeWrapper := &wrappers.Int32Value{Value: int32(minSize)}
 	maxSizeWrapper := &wrappers.Int32Value{Value: int32(maxSize)}
 
-	return n.matchRegistry.ListMatches(limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper)
+	return n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
 }
 
 func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error {
@@ -1319,6 +1330,25 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 	}
 
 	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit)
+}
+
+func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error) {
+	if len(groupIDs) == 0 {
+		return make([]*api.Group, 0), nil
+	}
+
+	for _, id := range groupIDs {
+		if _, err := uuid.FromString(id); err != nil {
+			return nil, errors.New("each group id must be a valid id string")
+		}
+	}
+
+	groups, err := GetGroups(ctx, n.logger, n.db, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return groups, nil
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {

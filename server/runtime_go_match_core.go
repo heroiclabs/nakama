@@ -32,7 +32,7 @@ type RuntimeGoMatchCore struct {
 	tracker       Tracker
 	router        MessageRouter
 
-	labelUpdateFn func(string)
+	labelUpdateFn RuntimeMatchLabelUpdateFunction
 
 	match runtime.Match
 
@@ -49,7 +49,7 @@ type RuntimeGoMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn func(string), stdLogger *log.Logger, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, stdLogger *log.Logger, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -284,7 +284,10 @@ func (r *RuntimeGoMatchCore) MatchKick(presences []runtime.Presence) error {
 }
 
 func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
-	r.labelUpdateFn(label)
+	if err := r.labelUpdateFn(label); err != nil {
+		return fmt.Errorf("error updating match label: %v", err.Error())
+	}
+
 	// This must be executed from inside a match call so safe to update here.
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)
 	return nil

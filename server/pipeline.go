@@ -18,16 +18,10 @@ import (
 	"database/sql"
 	"fmt"
 
-	"context"
-	"strings"
-	"time"
-
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
-	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"strings"
 )
 
 type Pipeline struct {
@@ -76,54 +70,38 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	}
 
 	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope)
-	var pipelineName string
 
 	switch envelope.Message.(type) {
 	case *rtapi.Envelope_ChannelJoin:
 		pipelineFn = p.channelJoin
-		pipelineName = "channelJoin"
 	case *rtapi.Envelope_ChannelLeave:
 		pipelineFn = p.channelLeave
-		pipelineName = "channelLeave"
 	case *rtapi.Envelope_ChannelMessageSend:
 		pipelineFn = p.channelMessageSend
-		pipelineName = "channelMessageSend"
 	case *rtapi.Envelope_ChannelMessageUpdate:
 		pipelineFn = p.channelMessageUpdate
-		pipelineName = "channelMessageUpdate"
 	case *rtapi.Envelope_ChannelMessageRemove:
 		pipelineFn = p.channelMessageRemove
-		pipelineName = "channelMessageRemove"
 	case *rtapi.Envelope_MatchCreate:
 		pipelineFn = p.matchCreate
-		pipelineName = "matchCreate"
 	case *rtapi.Envelope_MatchDataSend:
 		pipelineFn = p.matchDataSend
-		pipelineName = "matchDataSend"
 	case *rtapi.Envelope_MatchJoin:
 		pipelineFn = p.matchJoin
-		pipelineName = "matchJoin"
 	case *rtapi.Envelope_MatchLeave:
 		pipelineFn = p.matchLeave
-		pipelineName = "matchLeave"
 	case *rtapi.Envelope_MatchmakerAdd:
 		pipelineFn = p.matchmakerAdd
-		pipelineName = "matchmakerAdd"
 	case *rtapi.Envelope_MatchmakerRemove:
 		pipelineFn = p.matchmakerRemove
-		pipelineName = "matchmakerRemove"
 	case *rtapi.Envelope_Rpc:
 		pipelineFn = p.rpc
-		pipelineName = fmt.Sprintf("rpc.%v", strings.ToLower(envelope.GetRpc().Id))
 	case *rtapi.Envelope_StatusFollow:
 		pipelineFn = p.statusFollow
-		pipelineName = "statusFollow"
 	case *rtapi.Envelope_StatusUnfollow:
 		pipelineFn = p.statusUnfollow
-		pipelineName = "statusUnfollow"
 	case *rtapi.Envelope_StatusUpdate:
 		pipelineFn = p.statusUpdate
-		pipelineName = "statusUpdate"
 	default:
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
@@ -145,18 +123,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		messageNameID = strings.ToLower(messageName)
 
 		if fn := p.runtime.BeforeRt(messageNameID); fn != nil {
-			// Stats measurement start boundary.
-			name := fmt.Sprintf("nakama.rtapi.%v-before", pipelineName)
-			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-			startNanos := time.Now().UTC().UnixNano()
-			span := trace.NewSpan(name, nil, trace.StartOptions{})
-
-			// Actual before hook function execution.
 			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
-
-			// Stats measurement end boundary.
-			span.End()
-			stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 
 			if hookErr != nil {
 				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -178,40 +145,11 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		}
 	}
 
-	// Stats measurement start boundary.
-	var span *trace.Span
-	var startNanos int64
-	var statsCtx context.Context
-	if pipelineName != "matchDataSend" {
-		name := fmt.Sprintf("nakama.rtapi.%v", pipelineName)
-		statsCtx, _ = tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-		startNanos = time.Now().UTC().UnixNano()
-		span = trace.NewSpan(name, nil, trace.StartOptions{})
-	}
-
-	// Actual function execution.
 	pipelineFn(logger, session, envelope)
-
-	// Stats measurement end boundary.
-	if span != nil {
-		span.End()
-		stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
-	}
 
 	if messageName != "" {
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
-			// Stats measurement start boundary.
-			name := fmt.Sprintf("nakama.rtapi.%v-after", pipelineName)
-			statsCtx, _ := tag.New(context.Background(), tag.Upsert(MetricsFunction, name))
-			startNanos := time.Now().UTC().UnixNano()
-			span := trace.NewSpan(name, nil, trace.StartOptions{})
-
-			// Actual after hook function execution.
 			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
-
-			// Stats measurement end boundary.
-			span.End()
-			stats.Record(statsCtx, MetricsRtapiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsRtapiCount.M(1))
 		}
 	}
 

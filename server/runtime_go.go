@@ -1744,7 +1744,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 
 	match := make(map[string]func(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error), 0)
 	matchLock := &sync.RWMutex{}
-	matchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn func(string)) (RuntimeMatchCore, error) {
+	matchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error) {
 		matchLock.RLock()
 		fn, ok := match[name]
 		matchLock.RUnlock()
@@ -1821,7 +1821,10 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		}
 
 		// Run the initialisation.
-		fn(context.Background(), stdLogger, db, nk, initializer)
+		if err = fn(context.Background(), stdLogger, db, nk, initializer); err != nil {
+			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name))
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
+		}
 		modulePaths = append(modulePaths, relPath)
 	}
 

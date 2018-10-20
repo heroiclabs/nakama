@@ -67,6 +67,9 @@ func (s *ApiServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest)
 	if in.Label != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
 		return nil, status.Error(codes.InvalidArgument, "Label filtering is not supported for non-authoritative matches.")
 	}
+	if in.Query != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
+		return nil, status.Error(codes.InvalidArgument, "Query filtering is not supported for non-authoritative matches.")
+	}
 
 	if in.MinSize != nil && in.MinSize.Value < 0 {
 		return nil, status.Error(codes.InvalidArgument, "Minimum size must be 0 or above.")
@@ -78,7 +81,11 @@ func (s *ApiServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest)
 		return nil, status.Error(codes.InvalidArgument, "Maximum size must be greater than or equal to minimum size when both are specified.")
 	}
 
-	results := s.matchRegistry.ListMatches(limit, in.Authoritative, in.Label, in.MinSize, in.MaxSize)
+	results, err := s.matchRegistry.ListMatches(ctx, limit, in.Authoritative, in.Label, in.MinSize, in.MaxSize, in.Query)
+	if err != nil {
+		s.logger.Error("Error listing matches", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error listing matches.")
+	}
 
 	list := &api.MatchList{Matches: results}
 

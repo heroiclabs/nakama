@@ -42,7 +42,7 @@ local function match_init(context, params)
     print("match init context:\n" .. du.print_r(context) .. "match init params:\n" .. du.print_r(params))
   end
   local tick_rate = 1
-  local label = "skill=100-150"
+  local label = (params and params.label) or "skill=100-150"
 
   return state, tick_rate, label
 end
