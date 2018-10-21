@@ -52,4 +52,8 @@ function M.match_loop(context, dispatcher, tick, state, messages)
   end
 end
 
+function M.match_terminate(context, dispatcher, tick, state, grace_seconds)
+  return nil
+end
+
 return M
