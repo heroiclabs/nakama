@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
 ## [2.1.1] - 2018-10-21
 ### Added
 - More flexible query-based filter when listing realtime multiplayer matches.
