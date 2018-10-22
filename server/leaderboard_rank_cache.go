@@ -16,10 +16,11 @@ package server
 
 import (
 	"database/sql"
-	"github.com/heroiclabs/nakama/api"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/heroiclabs/nakama/api"
 
 	"github.com/gofrs/uuid"
 	"go.uber.org/zap"
@@ -336,7 +337,7 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 	}
 
 	// Shift ranks that were after the deleted record down by one rank number to fill the gap.
-	for i := int(rank) - 1; i < totalRanks; i++ {
+	for i := int(rank) - 1; i < totalRanks-1; i++ {
 		rankMap.Ranks[i].Rank--
 	}
 	// No need to sort, ranks are still in order.
