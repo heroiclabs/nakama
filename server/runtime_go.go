@@ -1822,7 +1822,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 
 		// Run the initialisation.
 		if err = fn(context.Background(), stdLogger, db, nk, initializer); err != nil {
-			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name))
+			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name), zap.Error(err))
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
 		}
 		modulePaths = append(modulePaths, relPath)

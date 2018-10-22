@@ -4,6 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Log more error information when InitModule hooks from Go runtime plugins return errors.
+
+### Fixed
+- Improve leaderboard rank re-calculation when removing a leaderboard record.
 
 ## [2.1.1] - 2018-10-21
 ### Added
