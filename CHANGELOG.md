@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Ensure runtime environment values are exposed through the Go runtime InitModule context.
+
 ### Changed
 - Log more error information when InitModule hooks from Go runtime plugins return errors.
 

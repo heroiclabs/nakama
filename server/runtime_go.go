@@ -1790,6 +1790,9 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		matchLock: matchLock,
 	}
 
+	// The baseline context that will be passed to all InitModule calls.
+	ctx := NewRuntimeGoContext(context.Background(), env, RuntimeExecutionModeRunOnce, nil, 0, "", "", "", "", "")
+
 	modulePaths := make([]string, 0)
 	for _, path := range paths {
 		if strings.ToLower(filepath.Ext(path)) != ".so" {
@@ -1821,7 +1824,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		}
 
 		// Run the initialisation.
-		if err = fn(context.Background(), stdLogger, db, nk, initializer); err != nil {
+		if err = fn(ctx, stdLogger, db, nk, initializer); err != nil {
 			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name), zap.Error(err))
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
 		}
