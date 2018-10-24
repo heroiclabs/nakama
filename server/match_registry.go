@@ -209,6 +209,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 	var modes map[uint8]*uint8
 	var labelResults *bleve.SearchResult
+	var orderRequired bool
 	if query != nil {
 		if authoritative != nil && !authoritative.Value {
 			// A filter on query is requested but authoritative matches are not allowed.
@@ -241,6 +242,8 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 		// Because we have a query filter only authoritative matches are eligible.
 		modes = MatchFilterAuthoritative
+		// The query may contain boosting, in which case the order of results matters.
+		orderRequired = true
 	} else if label != nil {
 		if authoritative != nil && !authoritative.Value {
 			// A filter on label is requested but authoritative matches are not allowed.
@@ -301,6 +304,63 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		// No results based on label/query, no point in further filtering by size.
 		return make([]*api.Match, 0), nil
 	}
+
+	// There is a query which may contain boosted search terms, which means order of results matters.
+	if orderRequired {
+		// Look up tracker info to determine match sizes.
+		// This info is needed even if there is no min/max size filter because it's returned in results.
+		matches := r.tracker.CountByStreamModeFilter(modes)
+		matchSizes := make(map[string]int32, len(matches))
+		for stream, size := range matches {
+			matchSizes[fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label)] = size
+		}
+
+		// Results.
+		results := make([]*api.Match, 0, limit)
+
+		for _, hit := range labelResults.Hits {
+			id := fmt.Sprintf("%v.%v", hit.ID, r.node)
+
+			// Size may be 0.
+			size := matchSizes[id]
+
+			if minSize != nil && minSize.Value > size {
+				// Not eligible based on minimum size.
+				continue
+			}
+
+			if maxSize != nil && maxSize.Value < size {
+				// Not eligible based on maximum size.
+				continue
+			}
+
+			var labelString string
+			if l, ok := hit.Fields["label_string"]; ok {
+				if labelString, ok = l.(string); !ok {
+					r.logger.Warn("Field not a string in match registry label cache: label_string")
+					continue
+				}
+			} else {
+				r.logger.Warn("Field not found in match registry label cache: label_string")
+				continue
+			}
+
+			results = append(results, &api.Match{
+				MatchId:       id,
+				Authoritative: true,
+				Label:         &wrappers.StringValue{Value: labelString},
+				Size:          size,
+			})
+			if len(results) == limit {
+				return results, nil
+			}
+		}
+
+		// We're in the query case, non-authoritative matches are not eligible so return what we can.
+		return results, nil
+	}
+
+	// It was not a query so ordering does not matter, move on to process the minimal set possible in any order.
 
 	// Match labels will only be nil if there is no label filter, no query filter, and authoritative is strictly false.
 	// Therefore authoritative matches will never be part of this listing at all.

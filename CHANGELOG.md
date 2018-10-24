@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Log more error information when InitModule hooks from Go runtime plugins return errors.
+- Preserve order expected in match listings based on query term boosting.
 
 ### Fixed
 - Improve leaderboard rank re-calculation when removing a leaderboard record.
