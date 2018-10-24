@@ -3,13 +3,13 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.1.2] - 2018-10-25
 ### Added
 - Ensure runtime environment values are exposed through the Go runtime InitModule context.
 
 ### Changed
 - Log more error information when InitModule hooks from Go runtime plugins return errors.
-- Preserve order expected in match listings based on query term boosting.
+- Preserve order expected in match listings generated with boosted query terms.
 
 ### Fixed
 - Improve leaderboard rank re-calculation when removing a leaderboard record.
