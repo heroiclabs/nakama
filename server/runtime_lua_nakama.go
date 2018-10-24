@@ -494,7 +494,12 @@ func (n *RuntimeLuaNakamaModule) sqlExec(l *lua.LState) int {
 		}
 	}
 
-	result, err := n.db.ExecContext(l.Context(), query, params...)
+	var result sql.Result
+	var err error
+	err = ExecuteRetryable(func() error {
+		result, err = n.db.ExecContext(l.Context(), query, params...)
+		return err
+	})
 	if err != nil {
 		l.RaiseError("sql exec error: %v", err.Error())
 		return 0
@@ -526,7 +531,12 @@ func (n *RuntimeLuaNakamaModule) sqlQuery(l *lua.LState) int {
 		}
 	}
 
-	rows, err := n.db.QueryContext(l.Context(), query, params...)
+	var rows *sql.Rows
+	var err error
+	err = ExecuteRetryable(func() error {
+		rows, err = n.db.QueryContext(l.Context(), query, params...)
+		return err
+	})
 	if err != nil {
 		l.RaiseError("sql query error: %v", err.Error())
 		return 0

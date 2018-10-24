@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Improved error handling in Lua runtime custom SQL function calls.
 
 ## [2.1.2] - 2018-10-25
 ### Added
