@@ -301,17 +301,30 @@ func (c *config) GetLeaderboard() *LeaderboardConfig {
 
 // LoggerConfig is configuration relevant to logging levels and output.
 type LoggerConfig struct {
-	Level  string `yaml:"level" json:"level" usage:"Log level to set. Valid values are 'debug', 'info', 'warn', 'error'."`
-	Stdout bool   `yaml:"stdout" json:"stdout" usage:"Log to standard console output (as well as to a file if set)."`
-	File   string `yaml:"file" json:"file" usage:"Log output to a file (as well as stdout if set). Make sure that the directory and the file is writable."`
+	Level      string `yaml:"level" json:"level" usage:"Log level to set. Valid values are 'debug', 'info', 'warn', 'error'."`
+	Stdout     bool   `yaml:"stdout" json:"stdout" usage:"Log to standard console output (as well as to a file if set)."`
+	File       string `yaml:"file" json:"file" usage:"Log output to a file (as well as stdout if set). Make sure that the directory and the file is writable."`
+	Rotating   bool   `yaml:"rotating" json:"rotating" usage:"Rotate log files. Default is false."`
+	// reference: https://godoc.org/gopkg.in/natefinch/lumberjack.v2
+	MaxSize    int    `yaml:"maxsize" json:"maxsize" usage:"The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes."`
+	MaxAge     int    ` yaml:"maxage" json:"maxage" usage:"The maximum number of days to retain old log files based on the timestamp encoded in their filename. The default is not to remove old log files based on age."`
+	MaxBackups int    `yaml:"maxbackups" json:"maxbackups" usage:"The maximum number of old log files to retain. The default is to retain all old log files (though MaxAge may still cause them to get deleted.)"`
+	LocalTime  bool   `yaml:"localtime" json:"localtime" usage:"This determines if the time used for formatting the timestamps in backup files is the computer's local time.  The default is to use UTC time."`
+	Compress   bool   `yaml:"compress" json:"compress" usage:"This determines if the rotated log files should be compressed using gzip."`
 }
 
 // NewLoggerConfig creates a new LoggerConfig struct.
 func NewLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
-		Level:  "info",
-		Stdout: true,
-		File:   "",
+		Level:      "info",
+		Stdout:     true,
+		File:       "",
+		Rotating:   false,
+		MaxSize:    0,
+		MaxAge:     0,
+		MaxBackups: 0,
+		LocalTime:  false,
+		Compress:   false,
 	}
 }
 
