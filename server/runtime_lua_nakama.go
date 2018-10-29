@@ -2813,11 +2813,13 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		}
 	}
 
+	updateLedger := l.OptBool(4, true)
+
 	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{&walletUpdate{
 		UserID:    userID,
 		Changeset: changesetMap,
 		Metadata:  string(metadataBytes),
-	}}); err != nil {
+	}}, updateLedger); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 	return 0
@@ -2913,7 +2915,9 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UpdateWallets(l.Context(), n.logger, n.db, updates); err != nil {
+	updateLedger := l.OptBool(2, false)
+
+	if err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 	return 0

@@ -775,7 +775,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
-func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}) error {
+func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}, updateLedger bool) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects a valid user id")
@@ -793,10 +793,10 @@ func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string,
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),
-	}})
+	}}, updateLedger)
 }
 
-func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate) error {
+func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) error {
 	size := len(updates)
 	if size == 0 {
 		return nil
@@ -825,7 +825,7 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 		}
 	}
 
-	return UpdateWallets(ctx, n.logger, n.db, walletUpdates)
+	return UpdateWallets(ctx, n.logger, n.db, walletUpdates, updateLedger)
 }
 
 func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (runtime.WalletLedgerItem, error) {
