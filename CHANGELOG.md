@@ -6,6 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Improved error handling in Lua runtime custom SQL function calls.
+- Authoritative match join attempts are now cancelled faster when the client session closes.
+
+### Fixed
+- Correctly support arbitrary database schema names that may contain special characters.
 
 ## [2.1.2] - 2018-10-25
 ### Added

@@ -46,7 +46,7 @@ type tournamentListCursor struct {
 	TournamentId string
 }
 
-func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler *LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
+func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
 	leaderboard, err := cache.CreateTournament(ctx, leaderboardId, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
@@ -63,7 +63,7 @@ func TournamentCreate(ctx context.Context, logger *zap.Logger, cache Leaderboard
 	return nil
 }
 
-func TournamentDelete(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler *LeaderboardScheduler, leaderboardId string) error {
+func TournamentDelete(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, leaderboardId string) error {
 	leaderboard := cache.Get(leaderboardId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.

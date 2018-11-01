@@ -43,7 +43,6 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -55,7 +54,7 @@ type RuntimeLuaNakamaModule struct {
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	rankCache            LeaderboardRankCache
-	leaderboardScheduler *LeaderboardScheduler
+	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      *SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -70,7 +69,7 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -2445,8 +2444,8 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 
 func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	// Parse the name of the Lua module that should handle the match.
-	name := l.CheckString(1)
-	if name == "" {
+	module := l.CheckString(1)
+	if module == "" {
 		l.ArgError(1, "expects module name")
 		return 0
 	}
@@ -2462,31 +2461,13 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 		}
 	}
 
-	id := uuid.Must(uuid.NewV4())
-	matchLogger := n.logger.With(zap.String("mid", id.String()))
-	label := atomic.NewString("")
-	labelUpdateFn := func(input string) error {
-		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
-			return err
-		}
-		label.Store(input)
-		return nil
-	}
-	core, err := n.matchCreateFn(l.Context(), matchLogger, id, n.node, name, labelUpdateFn)
+	id, err := n.matchRegistry.CreateMatch(l.Context(), n.logger, n.matchCreateFn, module, paramsMap)
 	if err != nil {
-		l.RaiseError("error creating match: %v", err.Error())
+		l.RaiseError(err.Error())
 		return 0
 	}
 
-	// Start the match.
-	mh, err := n.matchRegistry.NewMatch(matchLogger, id, label, core, paramsMap)
-	if err != nil {
-		l.RaiseError("error creating match: %v", err.Error())
-		return 0
-	}
-
-	// Return the match ID in a form that can be directly sent to clients.
-	l.Push(lua.LString(mh.IDStr))
+	l.Push(lua.LString(id))
 	return 1
 }
 
@@ -3552,7 +3533,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	if err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+	if _, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
 

@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -107,7 +108,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		core.Cancel()
 		return nil, errors.New("Match initial state must not be nil")
 	}
-	err = matchRegistry.UpdateMatchLabel(id, labelStr, 0)
+	err = matchRegistry.UpdateMatchLabel(id, labelStr)
 	if err != nil {
 		return nil, err
 	}
@@ -230,8 +231,17 @@ func loop(mh *MatchHandler) {
 	mh.tick++
 }
 
-func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) func(mh *MatchHandler) {
+func JoinAttempt(ctx context.Context, resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) func(mh *MatchHandler) {
 	return func(mh *MatchHandler) {
+		select {
+		case <-ctx.Done():
+			// Do not process the match join attempt through the match handler if the client has gone away between
+			// when this call was inserted into the match call queue and when it's due for processing.
+			resultCh <- &MatchJoinResult{Allow: false}
+			return
+		default:
+		}
+
 		if mh.stopped.Load() {
 			resultCh <- &MatchJoinResult{Allow: false}
 			return

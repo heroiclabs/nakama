@@ -54,7 +54,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -81,7 +81,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, config Config, socia
 		return NewRuntimeLuaMatchCore(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name, labelUpdateFn)
 	}
 
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, vm, sessionRegistry, matchRegistry, tracker, router, once, localCache, allMatchCreateFn, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, router, once, localCache, allMatchCreateFn, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	// Create the context to be used throughout this match.

@@ -34,7 +34,6 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/pkg/errors"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +45,7 @@ type RuntimeGoNakamaModule struct {
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
-	leaderboardScheduler *LeaderboardScheduler
+	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      *SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -57,7 +56,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -633,34 +632,11 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 		return "", errors.New("expects module name")
 	}
 
-	id := uuid.Must(uuid.NewV4())
-	matchLogger := n.logger.With(zap.String("mid", id.String()))
-	label := atomic.NewString("")
-	labelUpdateFn := func(input string) error {
-		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
-			return err
-		}
-		label.Store(input)
-		return nil
-	}
 	n.RLock()
 	fn := n.matchCreateFn
 	n.RUnlock()
-	core, err := fn(ctx, matchLogger, id, n.node, module, labelUpdateFn)
-	if err != nil {
-		return "", err
-	}
-	if core == nil {
-		return "", errors.New("error creating match: not found")
-	}
 
-	// Start the match.
-	mh, err := n.matchRegistry.NewMatch(matchLogger, id, label, core, params)
-	if err != nil {
-		return "", errors.Errorf("error creating match: %v", err.Error())
-	}
-
-	return mh.IDStr, nil
+	return n.matchRegistry.CreateMatch(ctx, n.logger, fn, module, params)
 }
 
 func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error) {
@@ -1053,7 +1029,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		metadataStr = string(metadataBytes)
 	}
 
-	err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
+	_, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
 	if err != nil {
 		return err
 	}

@@ -344,6 +344,8 @@ type RuntimeAfterReqFunctions struct {
 }
 
 type Runtime struct {
+	matchCreateFunction RuntimeMatchCreateFunction
+
 	rpcFunctions map[string]RuntimeRpcFunction
 
 	beforeRtFunctions map[string]RuntimeBeforeRtFunction
@@ -360,7 +362,7 @@ type Runtime struct {
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 }
 
-func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) (*Runtime, error) {
+func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) (*Runtime, error) {
 	runtimeConfig := config.GetRuntime()
 	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 
@@ -1288,6 +1290,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 
 	return &Runtime{
+		matchCreateFunction:       allMatchCreateFn,
 		rpcFunctions:              allRpcFunctions,
 		beforeRtFunctions:         allBeforeRtFunctions,
 		afterRtFunctions:          allAfterRtFunctions,
@@ -1298,6 +1301,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		tournamentResetFunction:   allTournamentResetFunction,
 		leaderboardResetFunction:  allLeaderboardResetFunction,
 	}, nil
+}
+
+func (r *Runtime) MatchCreateFunction() RuntimeMatchCreateFunction {
+	return r.matchCreateFunction
 }
 
 func (r *Runtime) Rpc(id string) RuntimeRpcFunction {

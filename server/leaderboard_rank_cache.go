@@ -30,9 +30,9 @@ type LeaderboardRankCache interface {
 	Get(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) int64
 	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord)
 	Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerId uuid.UUID, score, subscore int64) int64
-	Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID)
-	DeleteLeaderboard(leaderboardId string, expiryUnix int64)
-	TrimExpired(nowUnix int64)
+	Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) bool
+	DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool
+	TrimExpired(nowUnix int64) bool
 }
 
 type RankData struct {
@@ -87,7 +87,7 @@ type LocalLeaderboardRankCache struct {
 	blacklistIds map[string]struct{}
 }
 
-func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) *LocalLeaderboardRankCache {
+func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) LeaderboardRankCache {
 	cache := &LocalLeaderboardRankCache{
 		logger:       logger,
 		blacklistIds: make(map[string]struct{}, len(config.BlacklistRankCache)),
@@ -295,7 +295,16 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 	return rank
 }
 
-func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) {
+func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) bool {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return false
+	}
+	if _, ok := l.blacklistIds[leaderboardId]; ok {
+		// If rank caching is disabled for this particular leaderboard.
+		return false
+	}
+
 	// Find the rank map for this leaderboard/expiry pair.
 	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
 
@@ -304,7 +313,7 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 	l.RUnlock()
 	if !ok {
 		// No rank map.
-		return
+		return true
 	}
 
 	// Delete rank data for this owner.
@@ -313,7 +322,7 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 	if !ok {
 		// No rank data.
 		rankMap.Unlock()
-		return
+		return true
 	}
 
 	delete(rankMap.Haystack, ownerId)
@@ -330,7 +339,7 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 
 		// No need to reshuffle ranks.
 		rankMap.Unlock()
-		return
+		return true
 	default:
 		// Dropping a rank somewhere in the middle.
 		rankMap.Ranks = append(rankMap.Ranks[:rank-1], rankMap.Ranks[rank:]...)
@@ -342,18 +351,36 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 	}
 	// No need to sort, ranks are still in order.
 	rankMap.Unlock()
+
+	return true
 }
 
-func (l *LocalLeaderboardRankCache) DeleteLeaderboard(leaderboardId string, expiryUnix int64) {
+func (l *LocalLeaderboardRankCache) DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return false
+	}
+	if _, ok := l.blacklistIds[leaderboardId]; ok {
+		// If rank caching is disabled for this particular leaderboard.
+		return false
+	}
+
 	// Delete the rank map for this leaderboard/expiry pair.
 	key := LeaderboardWithExpiry{LeaderboardId: leaderboardId, Expiry: expiryUnix}
 
 	l.Lock()
 	delete(l.cache, key)
 	l.Unlock()
+
+	return true
 }
 
-func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) {
+func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) bool {
+	if l.blacklistAll {
+		// If all rank caching is disabled.
+		return false
+	}
+
 	// Used for the timer.
 	l.Lock()
 	for k, _ := range l.cache {
@@ -362,4 +389,6 @@ func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) {
 		}
 	}
 	l.Unlock()
+
+	return true
 }

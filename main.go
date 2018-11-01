@@ -102,7 +102,7 @@ func main() {
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
 	leaderboardRankCache := server.NewLocalLeaderboardRankCache(logger, startupLogger, db, config.GetLeaderboard(), leaderboardCache)
-	leaderboardScheduler := server.NewLeaderboardScheduler(logger, db, leaderboardCache, leaderboardRankCache)
+	leaderboardScheduler := server.NewLocalLeaderboardScheduler(logger, db, leaderboardCache, leaderboardRankCache)
 	matchRegistry := server.NewLocalMatchRegistry(logger, startupLogger, config, tracker, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
