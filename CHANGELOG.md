@@ -3,7 +3,10 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.1.3] - 2018-11-02
+### Added
+- Add option to skip virtual wallet ledger writes if not needed.
+
 ### Changed
 - Improved error handling in Lua runtime custom SQL function calls.
 - Authoritative match join attempts are now cancelled faster when the client session closes.
