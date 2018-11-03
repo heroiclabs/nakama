@@ -281,6 +281,7 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/join";
   }
 
+  // Attempt to join an open and running tournament.
   rpc JoinTournament (api.JoinTournamentRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/tournament/{tournament_id}/join";
   }
@@ -376,6 +377,7 @@ service Nakama {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}";
   }
 
+  // List leaderboard records that belong to a user.
   rpc ListLeaderboardRecordsAroundOwner (api.ListLeaderboardRecordsAroundOwnerRequest) returns (api.LeaderboardRecordList) {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}/owner/{owner_id}";
   }
@@ -410,6 +412,7 @@ service Nakama {
     option (google.api.http).get = "/v2/tournament/{tournament_id}";
   }
 
+  // List tournament records for a given owner.
   rpc ListTournamentRecordsAroundOwner (api.ListTournamentRecordsAroundOwnerRequest) returns (api.TournamentRecordList) {
     option (google.api.http).get = "/v2/tournament/{tournament_id}/owner/{owner_id}";
   }
