@@ -627,6 +627,33 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	return nil
 }
 
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, descriptor, label string, msg *rtapi.Envelope) error {
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	var err error
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if descriptor != "" {
+		stream.Descriptor, err = uuid.FromString(descriptor)
+		if err != nil {
+			return errors.New("stream descriptor must be a valid identifier")
+		}
+	}
+	if msg == nil {
+		return errors.New("expects a valid message")
+	}
+
+	n.router.SendToStream(n.logger, stream, msg)
+
+	return nil
+}
+
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {
 	if module == "" {
 		return "", errors.New("expects module name")
