@@ -17,9 +17,10 @@ package server
 import (
 	"context"
 	"database/sql"
-	"go.uber.org/atomic"
 	"sync"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"go.uber.org/zap"
 )

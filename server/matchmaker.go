@@ -15,8 +15,9 @@
 package server
 
 import (
-	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
 	"sync"
+
+	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
 
 	"github.com/blevesearch/bleve"
 	"github.com/gofrs/uuid"
