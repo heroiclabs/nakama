@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Correctly handle context cancellation in single-statement database operations.
 
 ## [2.1.3] - 2018-11-02
 ### Added

@@ -69,7 +69,7 @@ func StatusError(code codes.Code, msg string, cause error) error {
 // Retry functions that perform non-transactional database operations.
 func ExecuteRetryable(fn func() error) error {
 	if err := fn(); err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "CR000" || pqErr.Code == "40001" {
+		if pqErr, ok := err.(*pq.Error); ok && (pqErr.Code == "CR000" || pqErr.Code == "40001") {
 			// A recognised error type that can be retried.
 			return ExecuteRetryable(fn)
 		}
