@@ -309,6 +309,7 @@ type NakamaModule interface {
 	StreamCount(mode uint8, subject, descriptor, label string) (int, error)
 	StreamClose(mode uint8, subject, descriptor, label string) error
 	StreamSend(mode uint8, subject, descriptor, label, data string) error
+	StreamSendRaw(mode uint8, subject, descriptor, label string, msg *rtapi.Envelope) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error)
