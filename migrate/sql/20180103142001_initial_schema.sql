@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
     destination_id UUID        NOT NULL,
-    state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite(1), invited(2), blocked(3), deleted(4), archived(5)
+    state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite_sent(1), invite_received(2), blocked(3), deleted(4), archived(5)
 
     UNIQUE (source_id, destination_id)
 );

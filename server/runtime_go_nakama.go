@@ -278,11 +278,26 @@ func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, use
 		metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
 	}
 
-	displayNameWrapper := &wrappers.StringValue{Value: displayName}
-	timezoneWrapper := &wrappers.StringValue{Value: timezone}
-	locationWrapper := &wrappers.StringValue{Value: location}
-	langWrapper := &wrappers.StringValue{Value: langTag}
-	avatarWrapper := &wrappers.StringValue{Value: avatarUrl}
+	var displayNameWrapper *wrappers.StringValue
+	if displayName != "" {
+		displayNameWrapper = &wrappers.StringValue{Value: displayName}
+	}
+	var timezoneWrapper *wrappers.StringValue
+	if timezone != "" {
+		timezoneWrapper = &wrappers.StringValue{Value: timezone}
+	}
+	var locationWrapper *wrappers.StringValue
+	if location != "" {
+		locationWrapper = &wrappers.StringValue{Value: location}
+	}
+	var langWrapper *wrappers.StringValue
+	if langTag != "" {
+		langWrapper = &wrappers.StringValue{Value: langTag}
+	}
+	var avatarWrapper *wrappers.StringValue
+	if avatarUrl != "" {
+		avatarWrapper = &wrappers.StringValue{Value: avatarUrl}
+	}
 
 	return UpdateAccount(ctx, n.logger, n.db, u, username, displayNameWrapper, timezoneWrapper, locationWrapper, langWrapper, avatarWrapper, metadataWrapper)
 }

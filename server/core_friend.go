@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"time"
 
 	"context"
@@ -60,8 +61,10 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		}
 
 		friends = append(friends, &api.Friend{
-			User:  user,
-			State: int32(state.Int64),
+			User: user,
+			State: &wrappers.Int32Value{
+				Value: int32(state.Int64),
+			},
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -127,8 +130,10 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		}
 
 		friends = append(friends, &api.Friend{
-			User:  user,
-			State: int32(state.Int64) + 1,
+			User: user,
+			State: &wrappers.Int32Value{
+				Value: int32(state.Int64),
+			},
 		})
 	}
 	if err = rows.Err(); err != nil {

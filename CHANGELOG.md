@@ -4,7 +4,17 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New runtime function to send raw realtime envelope data through streams.
+
+### Changed
+- Change error message on database errors raised during authentication operations.
+- New default for maximum number of open database connections.
+- Friend state indicators are no longer offset when sent to clients.
+- Group state indicators are no longer offset when sent to clients.
+
 ### Fixed
+- Correctly handle optional parameters in runtime functions to update account information.
 - Correctly handle context cancellation in single-statement database operations.
 
 ## [2.1.3] - 2018-11-02

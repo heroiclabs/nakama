@@ -28,6 +28,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/jsonpb"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -50,6 +51,7 @@ import (
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
+	jsonpbUnmarshaler    *jsonpb.Unmarshaler
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -69,10 +71,11 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
+		jsonpbUnmarshaler:    jsonpbUnmarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -160,6 +163,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
+		"stream_send_raw":             n.streamSendRaw,
 		"match_create":                n.matchCreate,
 		"match_list":                  n.matchList,
 		"notification_send":           n.notificationSend,
@@ -2442,6 +2446,96 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(1)
+	if streamTable == nil {
+		l.ArgError(1, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	conversionError := false
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
+				return
+			}
+			stream.Subject = sid
+		case "descriptor":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a string")
+				return
+			}
+			did, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream descriptor must be a valid identifier")
+				return
+			}
+			stream.Subject = did
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+
+	envelopeMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
+	envelopeBytes, err := json.Marshal(envelopeMap)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("failed to convert envlope: %s", err.Error()))
+		return 0
+	}
+
+	envelope := &rtapi.Envelope{}
+	err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), envelope)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("not a valid envlope: %s", err.Error()))
+		return 0
+	}
+
+	streamWire := &rtapi.Stream{
+		Mode:  int32(stream.Mode),
+		Label: stream.Label,
+	}
+	if stream.Subject != uuid.Nil {
+		streamWire.Subject = stream.Subject.String()
+	}
+	if stream.Descriptor != uuid.Nil {
+		streamWire.Descriptor_ = stream.Descriptor.String()
+	}
+	n.router.SendToStream(n.logger, stream, envelope)
+
+	return 0
+}
+
 func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	// Parse the name of the Lua module that should handle the match.
 	module := l.CheckString(1)
@@ -4484,7 +4578,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 
 		gt := l.CreateTable(0, 2)
 		ut.RawSetString("user", ut)
-		ut.RawSetString("state", lua.LNumber(ug.State))
+		ut.RawSetString("state", lua.LNumber(ug.State.Value))
 
 		groupUsers.RawSetInt(i+1, gt)
 	}
@@ -4534,7 +4628,7 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 
 		ugt := l.CreateTable(0, 2)
 		ugt.RawSetString("group", gt)
-		ugt.RawSetString("state", lua.LNumber(ug.State))
+		ugt.RawSetString("state", lua.LNumber(ug.State.Value))
 
 		userGroups.RawSetInt(i+1, ugt)
 	}
@@ -4566,31 +4660,31 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 
 	displayNameL := l.Get(4)
 	var displayName *wrappers.StringValue
-	if displayNameL != nil {
+	if displayNameL != lua.LNil {
 		displayName = &wrappers.StringValue{Value: l.OptString(4, "")}
 	}
 
 	timezoneL := l.Get(5)
 	var timezone *wrappers.StringValue
-	if timezoneL != nil {
+	if timezoneL != lua.LNil {
 		timezone = &wrappers.StringValue{Value: l.OptString(5, "")}
 	}
 
 	locationL := l.Get(6)
 	var location *wrappers.StringValue
-	if locationL != nil {
+	if locationL != lua.LNil {
 		location = &wrappers.StringValue{Value: l.OptString(6, "")}
 	}
 
 	langL := l.Get(7)
 	var lang *wrappers.StringValue
-	if langL != nil {
+	if langL != lua.LNil {
 		lang = &wrappers.StringValue{Value: l.OptString(7, "")}
 	}
 
 	avatarL := l.Get(8)
 	var avatar *wrappers.StringValue
-	if avatarL != nil {
+	if avatarL != lua.LNil {
 		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
 	}
 

@@ -773,17 +773,13 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 		}
 
-		groupUser := &api.GroupUserList_GroupUser{User: user}
-		switch state.Int64 {
-		case 0:
-			groupUser.State = int32(api.GroupUserList_GroupUser_SUPERADMIN)
-		case 1:
-			groupUser.State = int32(api.GroupUserList_GroupUser_ADMIN)
-		case 2:
-			groupUser.State = int32(api.GroupUserList_GroupUser_MEMBER)
-		case 3:
-			groupUser.State = int32(api.GroupUserList_GroupUser_JOIN_REQUEST)
+		groupUser := &api.GroupUserList_GroupUser{
+			User: user,
+			State: &wrappers.Int32Value{
+				Value: int32(state.Int64),
+			},
 		}
+
 		groupUsers = append(groupUsers, groupUser)
 	}
 
@@ -855,16 +851,11 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
 			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 		}
 
-		userGroup := &api.UserGroupList_UserGroup{Group: group}
-		switch userState.Int64 {
-		case 0:
-			userGroup.State = int32(api.UserGroupList_UserGroup_SUPERADMIN)
-		case 1:
-			userGroup.State = int32(api.UserGroupList_UserGroup_ADMIN)
-		case 2:
-			userGroup.State = int32(api.UserGroupList_UserGroup_MEMBER)
-		case 3:
-			userGroup.State = int32(api.UserGroupList_UserGroup_JOIN_REQUEST)
+		userGroup := &api.UserGroupList_UserGroup{
+			Group: group,
+			State: &wrappers.Int32Value{
+				Value: int32(userState.Int64),
+			},
 		}
 
 		userGroups = append(userGroups, userGroup)
