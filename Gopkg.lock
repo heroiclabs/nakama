@@ -44,6 +44,7 @@
   packages = [
     ".",
     "analysis",
+    "analysis/analyzer/keyword",
     "analysis/analyzer/standard",
     "analysis/datetime/flexible",
     "analysis/datetime/optional",
@@ -51,6 +52,7 @@
     "analysis/token/lowercase",
     "analysis/token/porter",
     "analysis/token/stop",
+    "analysis/tokenizer/single",
     "analysis/tokenizer/unicode",
     "document",
     "geo",
@@ -657,6 +659,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/blevesearch/bleve",
+    "github.com/blevesearch/bleve/analysis/analyzer/keyword",
     "github.com/cockroachdb/cockroach-go/crdb",
     "github.com/dgrijalva/jwt-go",
     "github.com/go-yaml/yaml",
