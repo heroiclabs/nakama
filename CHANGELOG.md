@@ -3,20 +3,20 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.2.0] - 2018-11-11
 ### Added
 - New runtime function to send raw realtime envelope data through streams.
 
 ### Changed
-- Change error message on database errors raised during authentication operations.
-- New default for maximum number of open database connections.
-- Friend state indicators are no longer offset when sent to clients.
-- Group state indicators are no longer offset when sent to clients.
-- Increased metrics default report frequency to 60sec. 
+- Improve error message on database errors raised during authentication operations.
+- Set new default of 100 maximum number of open database connections.
+- Friendship state is no longer offset by one when sent to clients.
+- Group membership state is no longer offset by one when sent to clients.
+- Set new default metrics report frequency to 60 seconds. 
 
 ### Fixed
-- Correctly handle optional parameters in runtime functions to update account information.
-- Correctly handle context cancellation in single-statement database operations.
+- Account update optional inputs are not updated unless set in runtime functions.
+- Fix boolean logic with context cancellation in single-statement database operations.
 
 ## [2.1.3] - 2018-11-02
 ### Added
