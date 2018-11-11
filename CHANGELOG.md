@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New default for maximum number of open database connections.
 - Friend state indicators are no longer offset when sent to clients.
 - Group state indicators are no longer offset when sent to clients.
+- Increased metrics default report frequency to 60sec. 
 
 ### Fixed
 - Correctly handle optional parameters in runtime functions to update account information.

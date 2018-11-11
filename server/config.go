@@ -317,7 +317,7 @@ func NewLoggerConfig() *LoggerConfig {
 
 // MetricsConfig is configuration relevant to metrics capturing and output.
 type MetricsConfig struct {
-	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 10 seconds."`
+	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 60 seconds."`
 	StackdriverProjectID string `yaml:"stackdriver_projectid" json:"stackdriver_projectid" usage:"This is the identifier of the Stackdriver project the server is uploading the stats data to. Setting this enables metrics to be exported to Stackdriver."`
 	Namespace            string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus or prefix for Stackdriver metrics. It will always prepend node name."`
 	PrometheusPort       int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
@@ -326,7 +326,7 @@ type MetricsConfig struct {
 // NewMetricsConfig creates a new MatricsConfig struct.
 func NewMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
-		ReportingFreqSec:     10,
+		ReportingFreqSec:     60,
 		StackdriverProjectID: "",
 		Namespace:            "",
 		PrometheusPort:       0,
