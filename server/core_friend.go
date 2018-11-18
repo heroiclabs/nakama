@@ -19,8 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/wrappers"
 
 	"context"
 
@@ -202,23 +203,24 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 // Returns "true" if accepting an invite, otherwise false
 func addFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
 	// Check to see if user has already blocked friend, if so ignore.
-	rows, err := tx.QueryContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
-			return false, sql.ErrNoRows
-		}
+	var blockState int
+	err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&blockState)
+	// ignore if the error is sql.ErrNoRows as means block was not found - continue as intended.
+	if err != nil && err != sql.ErrNoRows {
+		// genuine DB error was found.
 		logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
+	} else if err == nil {
+		// the block was found, return early.
+		logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
+		return false, nil
 	}
-	// We don't need the result, it only matters if there was one.
-	rows.Close()
 
 	// Mark an invite as accepted, if one was in place.
 	res, err := tx.ExecContext(ctx, `
 UPDATE user_edge SET state = 0, update_time = now()
-WHERE (source_id = $1 AND destination_id = $2 AND state = 2)
-OR (source_id = $2 AND destination_id = $1 AND state = 1)
+WHERE (source_id = $1 AND destination_id = $2 AND state = 1)
+OR (source_id = $2 AND destination_id = $1 AND state = 2)
   `, friendID, userID)
 	if err != nil {
 		logger.Debug("Failed to update user state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
@@ -238,8 +240,8 @@ OR (source_id = $2 AND destination_id = $1 AND state = 1)
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
 SELECT source_id, destination_id, state, position, update_time
 FROM (VALUES
-  ($1::UUID, $2::UUID, 2, $3::BIGINT, now()),
-  ($2::UUID, $1::UUID, 1, $3::BIGINT, now())
+  ($1::UUID, $2::UUID, 1, $3::BIGINT, now()),
+  ($2::UUID, $1::UUID, 2, $3::BIGINT, now())
 ) AS ue(source_id, destination_id, state, position, update_time)
 WHERE
 	EXISTS (SELECT id FROM users WHERE id = $2::UUID)

@@ -5,6 +5,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Fixed
+- Set friend state correctly when initially adding friends.
 
 ## [2.2.0] - 2018-11-11
 ### Added
