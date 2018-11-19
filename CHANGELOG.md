@@ -4,9 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
 ### Fixed
 - Set friend state correctly when initially adding friends.
+- Join events on tournaments with an end time set now allow users to submit scores.
 
 ## [2.2.0] - 2018-11-11
 ### Added

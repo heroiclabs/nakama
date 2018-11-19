@@ -58,8 +58,13 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	expiryTime := overrideExpiry
-	if expiryTime == 0 && leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
+	if expiryTime == 0 {
+		now := time.Now().UTC()
+		if leaderboard.IsTournament() {
+			_, _, expiryTime = calculateTournamentDeadlines(leaderboard, now)
+		} else if leaderboard.ResetSchedule != nil {
+			expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
+		}
 	}
 
 	records := make([]*api.LeaderboardRecord, 0)

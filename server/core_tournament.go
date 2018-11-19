@@ -133,15 +133,10 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
-	startActive, endActive, _ := calculateTournamentDeadlines(leaderboard, now)
+	startActive, endActive, expiryTime := calculateTournamentDeadlines(leaderboard, now)
 	if startActive > nowUnix || endActive <= nowUnix {
 		logger.Info("Cannot join tournament outside of tournament duration.")
 		return ErrTournamentOutsideDuration
-	}
-
-	expiryTime := int64(0)
-	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -349,7 +344,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := `UPDATE leaderboard_record
               SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
               WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)`
-
+		logger.Debug("Tournament update query", zap.String("query", query), zap.Any("params", params))
 		res, err := db.ExecContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error writing tournament record", zap.Error(err))
