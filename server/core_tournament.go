@@ -558,6 +558,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		Metadata:    dbMetadata,
 		CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
 		StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
+		Duration:    uint32(dbDuration),
 	}
 
 	if dbEndTime.Time.Unix() > 0 {

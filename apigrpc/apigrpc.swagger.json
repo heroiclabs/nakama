@@ -2964,6 +2964,11 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the tournament will be stopped."
+        },
+        "duration": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX timestamp for duration of a tournament."
         }
       },
       "description": "A tournament on the server."
