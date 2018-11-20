@@ -1212,7 +1212,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 	if endTime < 0 {
 		return errors.New("endTime must be >= 0")
 	}
-	if endTime < startTime {
+	if endTime != 0 && endTime < startTime {
 		return errors.New("endTime must be >= startTime")
 	}
 	if duration < 0 {
