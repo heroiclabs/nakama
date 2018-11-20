@@ -3,13 +3,14 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.2.1] - 2018-11-20
 ### Added
-- New duration field in the tournament API. 
+- New duration field in the tournament API.
 
 ### Fixed
 - Set friend state correctly when initially adding friends.
-- Join events on tournaments with an end time set now allow users to submit scores.
+- Allow tournaments to be created to start in the future but with no end time.
+- Join events on tournaments with an end time set but no reset now allow users to submit scores.
 
 ## [2.2.0] - 2018-11-11
 ### Added
