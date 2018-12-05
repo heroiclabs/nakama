@@ -144,7 +144,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	return group, nil
 }
 
-func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID []byte, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
+func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
 	if !uuid.Equal(uuid.Nil, userID) {
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 1)
 		if err != nil {
@@ -168,7 +168,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	}
 
 	if lang != nil {
-		statements = append(statements, "lang = $"+strconv.Itoa(index))
+		statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
 		params = append(params, lang.GetValue())
 		index++
 	}
@@ -215,8 +215,8 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		index++
 	}
 
-	if creatorID != nil {
-		statements = append(statements, "creator_id = $"+strconv.Itoa(index)+"::UUID")
+	if creatorID != uuid.Nil {
+		statements = append(statements, "creator_id = $"+strconv.Itoa(index))
 		params = append(params, creatorID)
 	}
 

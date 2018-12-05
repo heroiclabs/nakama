@@ -1414,13 +1414,13 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		nameWrapper = &wrappers.StringValue{Value: name}
 	}
 
-	var creatorIDByte []byte
+	creator := uuid.Nil
 	if creatorID != "" {
-		cuid, err := uuid.FromString(creatorID)
+		var err error
+		creator, err = uuid.FromString(creatorID)
 		if err != nil {
 			return errors.New("expects creator ID to be a valid identifier")
 		}
-		creatorIDByte = cuid.Bytes()
 	}
 
 	var langTagWrapper *wrappers.StringValue
@@ -1454,7 +1454,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		maxCountValue = maxCount
 	}
 
-	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creatorIDByte, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
 }
 
 func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) error {

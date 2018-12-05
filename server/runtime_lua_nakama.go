@@ -4450,14 +4450,14 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	}
 
 	creatorIDStr := l.OptString(3, "")
-	var creatorID []byte
+	creatorID := uuid.Nil
 	if creatorIDStr != "" {
-		cuid, err := uuid.FromString(creatorIDStr)
+		var err error
+		creatorID, err = uuid.FromString(creatorIDStr)
 		if err != nil {
 			l.ArgError(3, "expects creator ID to be a valid identifier")
 			return 0
 		}
-		creatorID = cuid.Bytes()
 	}
 
 	langStr := l.OptString(4, "")

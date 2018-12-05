@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.
+- Use correct parameter type for creator ID in group update queries.
 
 ## [2.2.1] - 2018-11-20
 ### Added

@@ -142,7 +142,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 		}
 	}
 
-	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
+	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
 	if err != nil {
 		if err == ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
