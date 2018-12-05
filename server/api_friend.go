@@ -119,12 +119,15 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		if userID.String() == id {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
 		}
-		if _, err := uuid.FromString(id); err != nil {
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
 	for _, u := range in.GetUsernames() {
+		if u == "" {
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
 		}
@@ -206,13 +209,16 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 		if userID.String() == id {
 			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
 		}
-		if _, err := uuid.FromString(id); err != nil {
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
+		if u == "" {
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
 		}
@@ -295,13 +301,16 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 		if userID.String() == id {
 			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
 		}
-		if _, err := uuid.FromString(id); err != nil {
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID '"+id+"'.")
 		}
 	}
 
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
+		if u == "" {
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
 		}

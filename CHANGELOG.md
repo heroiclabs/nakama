@@ -7,6 +7,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.
 - Use correct parameter type for creator ID in group update queries.
+- Use correct parameter name for lang tag in group update queries.
+- Do not allow users to send friend requests to the root user.
 
 ## [2.2.1] - 2018-11-20
 ### Added
