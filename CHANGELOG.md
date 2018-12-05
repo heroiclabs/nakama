@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Correctly report execution mode in Lua runtime after hooks.
 
 ## [2.2.1] - 2018-11-20
 ### Added

@@ -1252,7 +1252,7 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 	}
 
 	runtime.vm.SetContext(ctx)
-	_, fnErr, _ := runtime.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, expiry, "", clientIP, clientPort, resMap, reqMap)
+	_, fnErr, _ := runtime.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, expiry, "", clientIP, clientPort, resMap, reqMap)
 	runtime.vm.SetContext(context.Background())
 	rp.Put(runtime)
 
