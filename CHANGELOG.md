@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Rejoining a match the user is already part of will now return the match label.
+
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.
 - Use correct parameter type for creator ID in group update queries.

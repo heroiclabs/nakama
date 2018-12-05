@@ -95,6 +95,8 @@ type MatchRegistry interface {
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
+	// Get the label for a match.
+	GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error)
 	// Update the label entry for a given match.
 	UpdateMatchLabel(id uuid.UUID, label string) error
 	// List (and optionally filter) currently running matches.
@@ -224,6 +226,26 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 			// Ignore if the signal has already been sent.
 		}
 	}
+}
+
+func (r *LocalMatchRegistry) GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error) {
+	query := bleve.NewDocIDQuery([]string{fmt.Sprintf("%v.%v", id.String(), node)})
+	search := bleve.NewSearchRequestOptions(query, 1, 0, false)
+	search.Fields = []string{"label_string"}
+	results, err := r.index.SearchInContext(ctx, search)
+	if err != nil {
+		return "", fmt.Errorf("error getting match label: %v", err.Error())
+	}
+	if results.Hits.Len() == 0 {
+		// No such match or label is not available yet.
+		return "", nil
+	}
+	label, ok := results.Hits[0].Fields["label_string"].(string)
+	if !ok {
+		// Label was not a string, should not happen.
+		return "", errors.New("error getting match label: not a valid label string")
+	}
+	return label, nil
 }
 
 func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
