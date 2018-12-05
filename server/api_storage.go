@@ -147,7 +147,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 		}
 
 		if object.GetUserId() != "" {
-			if uid, err := uuid.FromString(object.GetUserId()); err != nil || uuid.Equal(uid, uuid.Nil) {
+			if uid, err := uuid.FromString(object.GetUserId()); err != nil || uid == uuid.Nil {
 				return nil, status.Error(codes.InvalidArgument, "Invalid user ID - make sure user ID is a valid UUID.")
 			}
 		}

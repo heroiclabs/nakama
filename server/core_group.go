@@ -53,7 +53,7 @@ type groupListCursor struct {
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
-	if uuid.Equal(uuid.Nil, userID) {
+	if userID == uuid.Nil {
 		logger.Panic("This function must be used with non-system user ID.")
 	}
 
@@ -145,7 +145,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 }
 
 func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
-	if !uuid.Equal(uuid.Nil, userID) {
+	if userID != uuid.Nil {
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 1)
 		if err != nil {
 			return err
@@ -249,7 +249,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 }
 
 func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
-	if !uuid.Equal(uuid.Nil, userID) {
+	if userID != uuid.Nil {
 		// only super-admins can delete group.
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 0)
 		if err != nil {
@@ -432,7 +432,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 }
 
 func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -470,7 +470,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 
@@ -525,7 +525,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 
 func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -553,7 +553,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			// shouldn't kick self
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 
@@ -627,7 +627,7 @@ RETURNING state`
 
 func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -666,7 +666,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 

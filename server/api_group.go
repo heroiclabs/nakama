@@ -423,7 +423,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)
@@ -505,7 +505,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)
@@ -584,7 +584,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)

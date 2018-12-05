@@ -86,7 +86,7 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	}
 
 	// If it's a group, check membership.
-	if !uuid.Equal(uuid.Nil, caller) && stream.Mode == StreamModeGroup {
+	if caller != uuid.Nil && stream.Mode == StreamModeGroup {
 		allowed, err := groupCheckUserPermission(ctx, logger, db, stream.Subject, caller, 2)
 		if err != nil {
 			return nil, err

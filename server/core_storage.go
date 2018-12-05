@@ -56,14 +56,14 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 
 	var result *api.StorageObjectList
 	var resultErr error
-	if uuid.Equal(caller, uuid.Nil) {
+	if caller == uuid.Nil {
 		// disregard permissions
 		result, resultErr = StorageListObjectsUser(ctx, logger, db, true, ownerID, collection, limit, cursor, sc)
-	} else if uuid.Equal(ownerID, uuid.Nil) {
+	} else if ownerID == uuid.Nil {
 		// not authoritative but trying to list global data from context of a user.
 		result, resultErr = StorageListObjectsPublicRead(ctx, logger, db, collection, limit, cursor, sc)
 	} else {
-		if uuid.Equal(caller, ownerID) {
+		if caller == ownerID {
 			// trying to list own user data
 			result, resultErr = StorageListObjectsUser(ctx, logger, db, false, ownerID, collection, limit, cursor, sc)
 		} else {
@@ -310,7 +310,8 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 			whereClause += " OR "
 		}
 
-		if uuid.Equal(caller, uuid.Nil) { // Disregard permissions if called authoritatively.
+		if caller == uuid.Nil {
+			// Disregard permissions if called authoritatively.
 			whereClause += fmt.Sprintf(" (collection = $%v AND key = $%v AND user_id = $%v) ", l+1, l+2, l+3)
 			if id.UserId == "" {
 				params = append(params, id.Collection, id.Key, uuid.Nil)
@@ -360,7 +361,7 @@ WHERE
 			o.CreateTime.Seconds = createTime.Time.Unix()
 			o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-			if !uuid.Equal(uuid.FromStringOrNil(userID.String), uuid.Nil) {
+			if uuid.FromStringOrNil(userID.String) != uuid.Nil {
 				o.UserId = userID.String
 			}
 			funcObjects.Objects = append(funcObjects.Objects, o)
@@ -428,7 +429,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 	query, params := getStorageWriteQuery(authoritativeWrite, object.GetVersion(), params)
 
 	ack := &api.StorageObjectAck{}
-	if !uuid.Equal(ownerID, uuid.Nil) {
+	if ownerID != uuid.Nil {
 		ack.UserId = ownerID.String()
 	}
 

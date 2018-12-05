@@ -2824,7 +2824,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 		} else if len(notification.Content) == 0 {
 			l.ArgError(1, "expects content to be provided and be valid JSON")
 			return
-		} else if uuid.Equal(uuid.Nil, userID) {
+		} else if userID == uuid.Nil {
 			l.ArgError(1, "expects user_id to be provided and be a valid UUID")
 			return
 		} else if notification.Code == 0 {
