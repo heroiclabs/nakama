@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Lua runtime tournament listings now return duration, end active, and end time fields.
+- Lua runtime tournament end hooks now contain duration, end active, and end time fields.
+- Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
 
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.

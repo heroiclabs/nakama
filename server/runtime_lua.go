@@ -1352,7 +1352,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(tournament *api.Tournament, end, res
 
 	ctx := NewRuntimeLuaContext(runtime.vm, runtime.luaEnv, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", "", "", "")
 
-	tournamentTable := runtime.vm.CreateTable(0, 13)
+	tournamentTable := runtime.vm.CreateTable(0, 16)
 
 	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
@@ -1366,6 +1366,8 @@ func (rp *RuntimeProviderLua) TournamentEnd(tournament *api.Tournament, end, res
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
+	tournamentTable.RawSetString("duration", lua.LNumber(tournament.Duration))
+	tournamentTable.RawSetString("end_active", lua.LNumber(tournament.EndActive))
 	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
 	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
 	metadataMap := make(map[string]interface{})
@@ -1378,6 +1380,11 @@ func (rp *RuntimeProviderLua) TournamentEnd(tournament *api.Tournament, end, res
 	tournamentTable.RawSetString("metadata", metadataTable)
 	tournamentTable.RawSetString("create_time", lua.LNumber(tournament.CreateTime.Seconds))
 	tournamentTable.RawSetString("start_time", lua.LNumber(tournament.StartTime.Seconds))
+	if tournament.EndTime == nil {
+		tournamentTable.RawSetString("end_time", lua.LNil)
+	} else {
+		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
+	}
 
 	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	rp.Put(runtime)
@@ -1403,7 +1410,7 @@ func (rp *RuntimeProviderLua) TournamentReset(tournament *api.Tournament, end, r
 
 	ctx := NewRuntimeLuaContext(runtime.vm, runtime.luaEnv, RuntimeExecutionModeTournamentReset, nil, 0, "", "", "", "", "")
 
-	tournamentTable := runtime.vm.CreateTable(0, 13)
+	tournamentTable := runtime.vm.CreateTable(0, 16)
 
 	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
@@ -1417,6 +1424,8 @@ func (rp *RuntimeProviderLua) TournamentReset(tournament *api.Tournament, end, r
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
+	tournamentTable.RawSetString("duration", lua.LNumber(tournament.Duration))
+	tournamentTable.RawSetString("end_active", lua.LNumber(tournament.EndActive))
 	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
 	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
 	metadataMap := make(map[string]interface{})
@@ -1429,6 +1438,11 @@ func (rp *RuntimeProviderLua) TournamentReset(tournament *api.Tournament, end, r
 	tournamentTable.RawSetString("metadata", metadataTable)
 	tournamentTable.RawSetString("create_time", lua.LNumber(tournament.CreateTime.Seconds))
 	tournamentTable.RawSetString("start_time", lua.LNumber(tournament.StartTime.Seconds))
+	if tournament.EndTime == nil {
+		tournamentTable.RawSetString("end_time", lua.LNil)
+	} else {
+		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
+	}
 
 	retValue, err, _ := runtime.invokeFunction(runtime.vm, lf, ctx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	rp.Put(runtime)
