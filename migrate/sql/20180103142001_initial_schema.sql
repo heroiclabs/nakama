@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS user_device (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     id      VARCHAR(128) NOT NULL,
-    user_id UUID         NOT NULL
+    user_id UUID         NOT NULL,
+
+    UNIQUE (user_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS user_edge (
