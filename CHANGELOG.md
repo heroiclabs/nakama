@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Lua runtime tournament listings now return duration, end active, and end time fields.
+
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.
 

@@ -4114,7 +4114,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 
 	tournaments := l.CreateTable(len(list.Tournaments), 0)
 	for i, t := range list.Tournaments {
-		tt := l.CreateTable(0, 13)
+		tt := l.CreateTable(0, 16)
 
 		tt.RawSetString("id", lua.LString(t.Id))
 		tt.RawSetString("title", lua.LString(t.Title))
@@ -4128,6 +4128,8 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		tt.RawSetString("size", lua.LNumber(t.Size))
 		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
 		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
+		tt.RawSetString("duration", lua.LNumber(t.Duration))
+		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
 		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
 		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))
 		metadataMap := make(map[string]interface{})
@@ -4140,6 +4142,11 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		tt.RawSetString("metadata", metadataTable)
 		tt.RawSetString("create_time", lua.LNumber(t.CreateTime.Seconds))
 		tt.RawSetString("start_time", lua.LNumber(t.StartTime.Seconds))
+		if t.EndTime == nil {
+			tt.RawSetString("end_time", lua.LNil)
+		} else {
+			tt.RawSetString("end_time", lua.LNumber(t.EndTime.Seconds))
+		}
 
 		tournaments.RawSetInt(i+1, tt)
 	}
