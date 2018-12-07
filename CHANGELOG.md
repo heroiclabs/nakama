@@ -25,6 +25,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Leaderboard and tournament reset runtime callbacks now receive the correct reset time.
 - Tournament end runtime callbacks now receive the correct end time.
 - Leaderboard and tournament runtime callbacks no longer trigger twice when time delays are observed.
+- Check group max allowed user when promoting a user.
 
 ## [2.2.1] - 2018-11-20
 ### Added
