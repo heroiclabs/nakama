@@ -154,7 +154,7 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	for _, l := range leaderboards {
 		if l.Duration > 0 {
 			// Tournament.
-			_, endActive, expiry := calculateTournamentDeadlines(l, now)
+			_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, now)
 
 			if l.EndTime > 0 && l.EndTime < nowUnix {
 				// Tournament has ended permanently.

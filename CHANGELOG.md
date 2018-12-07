@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use correct parameter type for creator ID in group update queries.
 - Use correct parameter name for lang tag in group update queries.
 - Do not allow users to send friend requests to the root user.
+- Tournament listings now report correct active periods if the start time is in the future.
 
 ## [2.2.1] - 2018-11-20
 ### Added
