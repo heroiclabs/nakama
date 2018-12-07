@@ -19,6 +19,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use correct parameter name for lang tag in group update queries.
 - Do not allow users to send friend requests to the root user.
 - Tournament listings now report correct active periods if the start time is in the future.
+- Leaderboard and tournament reset runtime callbacks now receive the correct reset time.
+- Tournament end runtime callbacks now receive the correct end time.
+- Leaderboard and tournament runtime callbacks no longer trigger twice when time delays are observed.
 
 ## [2.2.1] - 2018-11-20
 ### Added

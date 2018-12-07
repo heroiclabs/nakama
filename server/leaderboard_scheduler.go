@@ -198,12 +198,12 @@ func (ls *LocalLeaderboardScheduler) Update() {
 
 	endActiveDuration := time.Duration(-1)
 	if earliestEndActive > -1 {
-		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now)
+		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now) + time.Second
 	}
 
 	expiryDuration := time.Duration(-1)
 	if earliestExpiry > -1 {
-		expiryDuration = time.Unix(earliestExpiry, 0).UTC().Sub(now)
+		expiryDuration = time.Unix(earliestExpiry, 0).UTC().Sub(now) + time.Second
 	}
 
 	// Replace IDs earmarked for end and expiry, and restart timers as needed.
@@ -230,13 +230,13 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	if endActiveDuration > -1 {
 		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", ls.nearEndActiveIds))
 		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
-			ls.invokeEndActiveElapse(time.Unix(earliestEndActive, 0).UTC())
+			ls.invokeEndActiveElapse(time.Unix(earliestEndActive-1, 0).UTC())
 		})
 	}
 	if expiryDuration > -1 {
 		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", ls.nearExpiryIds))
 		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
-			ls.invokeExpiryElapse(time.Unix(earliestExpiry, 0).UTC())
+			ls.invokeExpiryElapse(time.Unix(earliestExpiry-1, 0).UTC())
 		})
 	}
 	ls.Unlock()
