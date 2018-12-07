@@ -141,6 +141,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetMatch().CallQueueSize < 1 {
 		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", mainConfig.GetMatch().CallQueueSize))
 	}
+	if mainConfig.GetMatch().JoinAttemptQueueSize < 1 {
+		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", mainConfig.GetMatch().JoinAttemptQueueSize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -455,15 +458,17 @@ func NewRuntimeConfig() *RuntimeConfig {
 
 // MatchConfig is configuration relevant to authoritative realtime multiplayer matches.
 type MatchConfig struct {
-	InputQueueSize int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
-	CallQueueSize  int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
+	InputQueueSize       int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
+	CallQueueSize        int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
+	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
 func NewMatchConfig() *MatchConfig {
 	return &MatchConfig{
-		InputQueueSize: 128,
-		CallQueueSize:  128,
+		InputQueueSize:       128,
+		CallQueueSize:        128,
+		JoinAttemptQueueSize: 128,
 	}
 }
 

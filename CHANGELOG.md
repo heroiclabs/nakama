@@ -8,10 +8,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Lua runtime tournament listings now return duration, end active, and end time fields.
 - Lua runtime tournament end hooks now contain duration, end active, and end time fields.
 - Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
+- Separate configuration for maximum number of concurrent join requests to authoritative matches.
 
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.
 - Allow tournament joins before the start of the tournament active period.
+- Authoritative matches now complete their stop phase faster to avoid unnecessary processing.
+- Authoritative match join attempts now have their own bounded queue and no longer count towards the match call queue limit.
 
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.

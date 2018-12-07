@@ -537,7 +537,7 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 
 	for _, mh := range r.matches {
 		// Don't care if the call queue is full, match is supposed to end anyway.
-		mh.QueueCall(Terminate(graceSeconds))
+		mh.QueueTerminate(graceSeconds)
 	}
 	r.RUnlock()
 	return r.stoppedCh
@@ -558,9 +558,9 @@ func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node
 	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
-	if !mh.QueueCall(JoinAttempt(ctx, resultCh, userID, sessionID, username, fromNode, metadata)) {
+	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, fromNode, metadata) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
-		return true, false, "", ""
+		return true, false, "Match is not currently accepting join requests", ""
 	}
 
 	// Set up a limit to how long the call will wait, default is 10 seconds.
@@ -588,7 +588,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then joins don't matter anyway.
-	mh.QueueCall(Join(presences))
+	mh.QueueJoin(presences)
 }
 
 func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
@@ -602,7 +602,7 @@ func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
-	mh.QueueCall(Leave(presences))
+	mh.QueueLeave(presences)
 }
 
 func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPresence) {
