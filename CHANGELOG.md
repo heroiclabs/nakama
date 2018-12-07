@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.
+- Allow tournament joins before the start of the tournament active period.
 
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.

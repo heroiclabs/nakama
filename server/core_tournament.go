@@ -133,8 +133,8 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
-	startActive, endActive, expiryTime := calculateTournamentDeadlines(leaderboard, now)
-	if startActive > nowUnix || endActive <= nowUnix {
+	_, endActive, expiryTime := calculateTournamentDeadlines(leaderboard, now)
+	if endActive <= nowUnix {
 		logger.Info("Cannot join tournament outside of tournament duration.")
 		return ErrTournamentOutsideDuration
 	}
