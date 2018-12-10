@@ -689,16 +689,24 @@ RETURNING state`
 
 			if newState.Int64 == 2 {
 				query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-				_, err := tx.ExecContext(ctx, query, groupID)
+				res, err := tx.ExecContext(ctx, query, groupID)
 				if err != nil {
-					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()))
+					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
 					return err
+				}
+
+				if rowsAffected, err := res.RowsAffected(); err != nil {
+					logger.Debug("Could not retrieve affect rows.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
+					return err
+				} else if rowsAffected == 0 {
+					logger.Debug("Did not update group edge count - check edge count has not reached max count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return ErrGroupFull
 				}
 			}
 		}
 		return nil
 	}); err != nil {
-		logger.Error("Error promote users from group.", zap.Error(err))
+		logger.Error("Error promote users in group.", zap.Error(err))
 		return err
 	}
 

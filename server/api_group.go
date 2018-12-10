@@ -16,6 +16,8 @@ package server
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -26,7 +28,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest) (*api.Group, error) {
@@ -594,6 +595,8 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	if err != nil {
 		if err == ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		} else if err == ErrGroupFull {
+			return nil, status.Error(codes.InvalidArgument, "Group is full.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
 	}

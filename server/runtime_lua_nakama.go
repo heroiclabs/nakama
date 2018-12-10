@@ -28,13 +28,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/jsonpb"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -4401,8 +4402,8 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 	maxCount := l.OptInt(9, 0)
-	if maxCount < 0 || maxCount > 100 {
-		l.ArgError(9, "expects max_count to be > 0 and <= 100")
+	if maxCount < 1 || maxCount > 100 {
+		l.ArgError(9, "expects max_count to be >= 1 and <= 100")
 		return 0
 	}
 

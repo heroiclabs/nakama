@@ -17,11 +17,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
-	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
