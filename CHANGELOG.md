@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Lua runtime tournament end hooks now contain duration, end active, and end time fields.
 - Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
 - Separate configuration for maximum number of concurrent join requests to authoritative matches.
+- New runtime function to kick users from a group.
 
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.

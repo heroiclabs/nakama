@@ -1466,6 +1466,31 @@ func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) erro
 	return DeleteGroup(ctx, n.logger, n.db, groupID, uuid.Nil)
 }
 
+func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error {
+	group, err := uuid.FromString(groupID)
+	if err != nil {
+		return errors.New("expects group ID to be a valid identifier")
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	users := make([]uuid.UUID, 0, len(userIDs))
+	for _, userID := range userIDs {
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			return errors.New("expects each user ID to be a valid identifier")
+		}
+		if uid == uuid.Nil {
+			return errors.New("cannot kick the root user")
+		}
+		users = append(users, uid)
+	}
+
+	return KickGroupUsers(ctx, n.logger, n.db, uuid.Nil, group, users)
+}
+
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error) {
 	groupID, err := uuid.FromString(id)
 	if err != nil {

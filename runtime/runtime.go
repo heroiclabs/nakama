@@ -345,6 +345,7 @@ type NakamaModule interface {
 	GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
 	GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
 	GroupDelete(ctx context.Context, id string) error
+	GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error
 	GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error)
 	UserGroupsList(ctx context.Context, userID string) ([]*api.UserGroupList_UserGroup, error)
 }

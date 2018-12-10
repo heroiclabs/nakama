@@ -4532,6 +4532,54 @@ func (n *RuntimeLuaNakamaModule) groupDelete(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot kick the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	if err := KickGroupUsers(l.Context(), n.logger, n.db, uuid.Nil, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to kick users from a group: %v", err.Error())
+	}
+	return 0
+}
+
 func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	groupID, err := uuid.FromString(l.CheckString(1))
 	if err != nil {
@@ -4541,7 +4589,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 
 	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID)
 	if err != nil {
-		l.RaiseError("error while trying to list users in a  group: %v", err.Error())
+		l.RaiseError("error while trying to list users in a group: %v", err.Error())
 		return 0
 	}
 
