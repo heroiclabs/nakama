@@ -700,9 +700,8 @@ RETURNING state`
 					return err
 				} else if rowsAffected == 0 {
 					logger.Debug("Did not update group edge count - check edge count has not reached max count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return errors.New("Did not update group - check edge count has not reached max count")
+					return ErrGroupFull
 				}
-
 			}
 		}
 		return nil
