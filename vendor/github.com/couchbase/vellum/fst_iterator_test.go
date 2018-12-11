@@ -605,6 +605,7 @@ func TestRegexpSearch(t *testing.T) {
 		"thurs": 5,
 		"tues":  3,
 	}
+
 	got := map[string]uint64{}
 	itr, err := fst.Search(r, nil, nil)
 	for err == nil {
@@ -617,5 +618,47 @@ func TestRegexpSearch(t *testing.T) {
 	}
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("expected %v, got: %v", want, got)
+	}
+
+	got = map[string]uint64{}
+	itr, err = fst.Search(r, []byte("t"), nil)
+	for err == nil {
+		key, val := itr.Current()
+		got[string(key)] = val
+		err = itr.Next()
+	}
+	if err != ErrIteratorDone {
+		t.Errorf("iterator error: %v", err)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("with start key t, expected %v, got: %v", want, got)
+	}
+
+	got = map[string]uint64{}
+	itr, err = fst.Search(r, nil, []byte("u"))
+	for err == nil {
+		key, val := itr.Current()
+		got[string(key)] = val
+		err = itr.Next()
+	}
+	if err != ErrIteratorDone {
+		t.Errorf("iterator error: %v", err)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("with end key u, expected %v, got: %v", want, got)
+	}
+
+	got = map[string]uint64{}
+	itr, err = fst.Search(r, []byte("t"), []byte("u"))
+	for err == nil {
+		key, val := itr.Current()
+		got[string(key)] = val
+		err = itr.Next()
+	}
+	if err != ErrIteratorDone {
+		t.Errorf("iterator error: %v", err)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("with start key t, end key u, expected %v, got: %v", want, got)
 	}
 }

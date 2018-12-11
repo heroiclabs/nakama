@@ -22,11 +22,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// asciiCmd represents the snapshots command
+// asciiCmd represents the ascii command
 var asciiCmd = &cobra.Command{
 	Use:   "ascii",
-	Short: "ascii prints details an ascii representation of the  snapshots in the index",
-	Long:  `The ascii command prints an ascii representation of the  snapshots in the index.`,
+	Short: "ascii prints an ascii representation of the segments in a snapshot",
+	Long:  `The ascii command prints an ascii representation of the segments in a given snapshot.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if len(args) < 2 {

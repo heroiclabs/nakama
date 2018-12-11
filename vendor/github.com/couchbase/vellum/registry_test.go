@@ -19,10 +19,11 @@ import "testing"
 // FIXME add tests for MRU
 
 func TestRegistry(t *testing.T) {
-	r := newRegistry(10, 1)
+	p := &builderNodePool{}
+	r := newRegistry(p, 10, 1)
 
 	n1 := &builderNode{
-		trans: []*transition{
+		trans: []transition{
 			{
 				in:   'a',
 				addr: 1,

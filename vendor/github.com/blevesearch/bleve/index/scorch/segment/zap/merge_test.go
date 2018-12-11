@@ -26,7 +26,6 @@ import (
 	"github.com/blevesearch/bleve/analysis"
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index"
-	"github.com/blevesearch/bleve/index/scorch/segment/mem"
 )
 
 func TestMerge(t *testing.T) {
@@ -34,14 +33,14 @@ func TestMerge(t *testing.T) {
 	_ = os.RemoveAll("/tmp/scorch2.zap")
 	_ = os.RemoveAll("/tmp/scorch3.zap")
 
-	memSegment := buildMemSegmentMulti()
-	err := PersistSegment(memSegment, "/tmp/scorch.zap", 1024)
+	testSeg, _, _ := buildTestSegmentMulti()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	memSegment2 := buildMemSegmentMulti2()
-	err = PersistSegment(memSegment2, "/tmp/scorch2.zap", 1024)
+	testSeg2, _, _ := buildTestSegmentMulti2()
+	err = PersistSegmentBase(testSeg2, "/tmp/scorch2.zap")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +71,7 @@ func TestMerge(t *testing.T) {
 	segsToMerge[0] = segment.(*Segment)
 	segsToMerge[1] = segment2.(*Segment)
 
-	_, err = Merge(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/scorch3.zap", 1024)
+	_, _, err = Merge(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/scorch3.zap", 1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,8 +120,8 @@ func TestMergeWithEmptySegmentsFirst(t *testing.T) {
 func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int) {
 	_ = os.RemoveAll("/tmp/scorch.zap")
 
-	memSegment := buildMemSegmentMulti()
-	err := PersistSegment(memSegment, "/tmp/scorch.zap", 1024)
+	testSeg, _, _ := buildTestSegmentMulti()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +147,8 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 
 		_ = os.RemoveAll("/tmp/" + fname)
 
-		emptySegment := mem.NewFromAnalyzedDocs([]*index.AnalysisResult{})
-		err = PersistSegment(emptySegment, "/tmp/"+fname, 1024)
+		emptySegment, _, _ := AnalysisResultsToSegmentBase([]*index.AnalysisResult{}, 1024)
+		err = PersistSegmentBase(emptySegment, "/tmp/"+fname)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +175,7 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 
 	drops := make([]*roaring.Bitmap, len(segsToMerge))
 
-	_, err = Merge(segsToMerge, drops, "/tmp/scorch3.zap", 1024)
+	_, _, err = Merge(segsToMerge, drops, "/tmp/scorch3.zap", 1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +217,7 @@ func testMergeWithSelf(t *testing.T, segCur *Segment, expectedCount uint64) {
 		segsToMerge := make([]*Segment, 1)
 		segsToMerge[0] = segCur
 
-		_, err := Merge(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/"+fname, 1024)
+		_, _, err := Merge(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/"+fname, 1024, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -333,8 +332,8 @@ func compareSegments(a, b *Segment) string {
 						fieldName, next.Term, aplist.Count(), bplist.Count()))
 				}
 
-				apitr := aplist.Iterator()
-				bpitr := bplist.Iterator()
+				apitr := aplist.Iterator(true, true, true, nil)
+				bpitr := bplist.Iterator(true, true, true, nil)
 				if (apitr != nil) != (bpitr != nil) {
 					rv = append(rv, fmt.Sprintf("field %s, term: %s, postingsList.Iterator() results different: %v %v",
 						fieldName, next.Term, apitr, bpitr))
@@ -343,7 +342,7 @@ func compareSegments(a, b *Segment) string {
 
 				for {
 					apitrn, aerr := apitr.Next()
-					bpitrn, aerr := bpitr.Next()
+					bpitrn, berr := bpitr.Next()
 					if aerr != berr {
 						rv = append(rv, fmt.Sprintf("field %s, term: %s, postingsListIterator Next() errors different: %v %v",
 							fieldName, next.Term, aerr, berr))
@@ -407,8 +406,8 @@ func compareSegments(a, b *Segment) string {
 						err = a.VisitDocument(apitrn.Number(),
 							func(field string, typ byte, value []byte, pos []uint64) bool {
 								afields[field+"-typ"] = typ
-								afields[field+"-value"] = value
-								afields[field+"-pos"] = pos
+								afields[field+"-value"] = append([]byte(nil), value...)
+								afields[field+"-pos"] = append([]uint64(nil), pos...)
 								return true
 							})
 						if err != nil {
@@ -418,8 +417,8 @@ func compareSegments(a, b *Segment) string {
 						err = b.VisitDocument(bpitrn.Number(),
 							func(field string, typ byte, value []byte, pos []uint64) bool {
 								bfields[field+"-typ"] = typ
-								bfields[field+"-value"] = value
-								bfields[field+"-pos"] = pos
+								bfields[field+"-value"] = append([]byte(nil), value...)
+								bfields[field+"-pos"] = append([]uint64(nil), pos...)
 								return true
 							})
 						if err != nil {
@@ -462,8 +461,8 @@ func testMergeAndDrop(t *testing.T, docsToDrop []*roaring.Bitmap) {
 	_ = os.RemoveAll("/tmp/scorch.zap")
 	_ = os.RemoveAll("/tmp/scorch2.zap")
 
-	memSegment := buildMemSegmentMulti()
-	err := PersistSegment(memSegment, "/tmp/scorch.zap", 1024)
+	testSeg, _, _ := buildTestSegmentMulti()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,8 +477,8 @@ func testMergeAndDrop(t *testing.T, docsToDrop []*roaring.Bitmap) {
 		}
 	}()
 
-	memSegment2 := buildMemSegmentMulti2()
-	err = PersistSegment(memSegment2, "/tmp/scorch2.zap", 1024)
+	testSeg2, _, _ := buildTestSegmentMulti2()
+	err = PersistSegmentBase(testSeg2, "/tmp/scorch2.zap")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -565,8 +564,8 @@ func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*
 
 		_ = os.RemoveAll("/tmp/" + fname)
 
-		memSegment := buildMemSegmentMultiHelper(docIds)
-		err := PersistSegment(memSegment, "/tmp/"+fname, 1024)
+		testSeg, _, _ := buildTestSegmentMultiHelper(docIds)
+		err := PersistSegmentBase(testSeg, "/tmp/"+fname)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -590,7 +589,7 @@ func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*
 func testMergeAndDropSegments(t *testing.T, segsToMerge []*Segment, docsToDrop []*roaring.Bitmap, expectedNumDocs uint64) {
 	_ = os.RemoveAll("/tmp/scorch-merged.zap")
 
-	_, err := Merge(segsToMerge, docsToDrop, "/tmp/scorch-merged.zap", 1024)
+	_, _, err := Merge(segsToMerge, docsToDrop, "/tmp/scorch-merged.zap", 1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -616,11 +615,11 @@ func testMergeAndDropSegments(t *testing.T, segsToMerge []*Segment, docsToDrop [
 	testMergeWithSelf(t, segm.(*Segment), expectedNumDocs)
 }
 
-func buildMemSegmentMulti2() *mem.Segment {
-	return buildMemSegmentMultiHelper([]string{"c", "d"})
+func buildTestSegmentMulti2() (*SegmentBase, uint64, error) {
+	return buildTestSegmentMultiHelper([]string{"c", "d"})
 }
 
-func buildMemSegmentMultiHelper(docIds []string) *mem.Segment {
+func buildTestSegmentMultiHelper(docIds []string) (*SegmentBase, uint64, error) {
 	doc := &document.Document{
 		ID: "c",
 		Fields: []document.Field{
@@ -778,7 +777,91 @@ func buildMemSegmentMultiHelper(docIds []string) *mem.Segment {
 		}
 	}
 
-	segment := mem.NewFromAnalyzedDocs(results)
+	return AnalysisResultsToSegmentBase(results, 1024)
+}
 
-	return segment
+func TestMergeBytesWritten(t *testing.T) {
+	_ = os.RemoveAll("/tmp/scorch.zap")
+	_ = os.RemoveAll("/tmp/scorch2.zap")
+	_ = os.RemoveAll("/tmp/scorch3.zap")
+
+	testSeg, _, _ := buildTestSegmentMulti()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testSeg2, _, _ := buildTestSegmentMulti2()
+	err = PersistSegmentBase(testSeg2, "/tmp/scorch2.zap")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	segment, err := Open("/tmp/scorch.zap")
+	if err != nil {
+		t.Fatalf("error opening segment: %v", err)
+	}
+	defer func() {
+		cerr := segment.Close()
+		if cerr != nil {
+			t.Fatalf("error closing segment: %v", err)
+		}
+	}()
+
+	segment2, err := Open("/tmp/scorch2.zap")
+	if err != nil {
+		t.Fatalf("error opening segment: %v", err)
+	}
+	defer func() {
+		cerr := segment2.Close()
+		if cerr != nil {
+			t.Fatalf("error closing segment: %v", err)
+		}
+	}()
+
+	segsToMerge := make([]*Segment, 2)
+	segsToMerge[0] = segment.(*Segment)
+	segsToMerge[1] = segment2.(*Segment)
+
+	_, nBytes, err := Merge(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/scorch3.zap", 1024, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if nBytes == 0 {
+		t.Fatalf("expected a non zero total_compaction_written_bytes")
+	}
+
+	segm, err := Open("/tmp/scorch3.zap")
+	if err != nil {
+		t.Fatalf("error opening merged segment: %v", err)
+	}
+	seg3 := segm.(*Segment)
+	defer func() {
+		cerr := seg3.Close()
+		if cerr != nil {
+			t.Fatalf("error closing segment: %v", err)
+		}
+	}()
+
+	if seg3.Path() != "/tmp/scorch3.zap" {
+		t.Fatalf("wrong path")
+	}
+	if seg3.Count() != 4 {
+		t.Fatalf("wrong count")
+	}
+	if len(seg3.Fields()) != 5 {
+		t.Fatalf("wrong # fields: %#v\n", seg3.Fields())
+	}
+
+	testMergeWithSelf(t, seg3, 4)
+}
+
+func TestUnder32Bits(t *testing.T) {
+	if !under32Bits(0) || !under32Bits(uint64(0x7fffffff)) {
+		t.Errorf("under32Bits bad")
+	}
+	if under32Bits(uint64(0x80000000)) || under32Bits(uint64(0x80000001)) {
+		t.Errorf("under32Bits wrong")
+	}
 }

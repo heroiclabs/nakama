@@ -57,7 +57,7 @@ func TestMetricsStore(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected WriteJSON to be unmarshallable")
 	}
-	if len(m) <= 0 {
+	if len(m) == 0 {
 		t.Errorf("expected some entries")
 	}
 

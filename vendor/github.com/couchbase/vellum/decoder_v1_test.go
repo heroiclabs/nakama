@@ -37,10 +37,10 @@ func TestShortHeader(t *testing.T) {
 func TestDecoderRootLen(t *testing.T) {
 	d := newDecoderV1([]byte{1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0})
 	if d.getLen() != 1 {
-		t.Fatalf("expected parsed footer length 1, got %d", d.len)
+		t.Fatalf("expected parsed footer length 1, got %d", d.getLen())
 	}
 	if d.getRoot() != 2 {
-		t.Fatalf("expected parsed footer length 2, got %d", d.len)
+		t.Fatalf("expected parsed footer length 2, got %d", d.getLen())
 	}
 }
 

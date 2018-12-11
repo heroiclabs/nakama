@@ -41,6 +41,12 @@ import (
 //     go test -v -run TestScorchVersusUpsideDownBolt ./test
 //     VERBOSE=1 FOCUS=Trista go test -v -run TestScorchVersusUpsideDownBolt ./test
 //
+
+func init() {
+	// override for tests
+	scorch.DefaultPersisterNapTimeMSec = 1
+}
+
 func TestScorchVersusUpsideDownBoltAll(t *testing.T) {
 	(&VersusTest{
 		t:                    t,
@@ -247,7 +253,7 @@ func testVersusSearches(vt *VersusTest, searchTemplates []string, idxA, idxB ble
 		// definitely find at least one document.
 		"bodyWord": func(i int) string {
 			body := vt.Bodies[vt.CurAttempt%len(vt.Bodies)]
-			if len(body) <= 0 {
+			if len(body) == 0 {
 				return ""
 			}
 			return body[i%len(body)]
@@ -316,27 +322,39 @@ func testVersusSearches(vt *VersusTest, searchTemplates []string, idxA, idxB ble
 			// putting the hits from A & B into maps.
 			hitsA := hitsById(resA)
 			hitsB := hitsById(resB)
+			for id, hitA := range hitsA {
+				hitB := hitsB[id]
+				if len(hitA.FieldTermLocations) == 0 {
+					hitA.FieldTermLocations = nil
+				}
+				if len(hitB.FieldTermLocations) == 0 {
+					hitB.FieldTermLocations = nil
+				}
+				if !reflect.DeepEqual(hitA, hitB) {
+					t.Errorf("\n  driving from hitsA\n    hitA: %#v,\n    hitB: %#v", hitA, hitB)
+					idx, _ := strconv.Atoi(id)
+					t.Errorf("\n    doc: %d, body: %s", idx, strings.Join(vt.Bodies[idx], " "))
+				}
+			}
+			for id, hitB := range hitsB {
+				hitA := hitsA[id]
+				if len(hitA.FieldTermLocations) == 0 {
+					hitA.FieldTermLocations = nil
+				}
+				if len(hitB.FieldTermLocations) == 0 {
+					hitB.FieldTermLocations = nil
+				}
+				if !reflect.DeepEqual(hitA, hitB) {
+					t.Errorf("\n  driving from hitsB\n    hitA: %#v,\n    hitB: %#v", hitA, hitB)
+					idx, _ := strconv.Atoi(id)
+					t.Errorf("\n    doc: %d, body: %s", idx, strings.Join(vt.Bodies[idx], " "))
+				}
+			}
 			if !reflect.DeepEqual(hitsA, hitsB) {
 				t.Errorf("=========\nsearch: (%d) %s,\n res hits mismatch,\n len(hitsA): %d,\n len(hitsB): %d",
 					i, bufBytes, len(hitsA), len(hitsB))
 				t.Errorf("\n  hitsA: %#v,\n  hitsB: %#v",
 					hitsA, hitsB)
-				for id, hitA := range hitsA {
-					hitB := hitsB[id]
-					if !reflect.DeepEqual(hitA, hitB) {
-						t.Errorf("\n  driving from hitsA\n    hitA: %#v,\n    hitB: %#v", hitA, hitB)
-						idx, _ := strconv.Atoi(id)
-						t.Errorf("\n    doc: %d, body: %s", idx, strings.Join(vt.Bodies[idx], " "))
-					}
-				}
-				for id, hitB := range hitsB {
-					hitA := hitsA[id]
-					if !reflect.DeepEqual(hitA, hitB) {
-						t.Errorf("\n  driving from hitsB\n    hitA: %#v,\n    hitB: %#v", hitA, hitB)
-						idx, _ := strconv.Atoi(id)
-						t.Errorf("\n    doc: %d, body: %s", idx, strings.Join(vt.Bodies[idx], " "))
-					}
-				}
 			}
 
 			resA.Hits = nil

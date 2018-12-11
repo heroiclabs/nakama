@@ -17,7 +17,9 @@ package zap
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 
+	"github.com/blevesearch/bleve/index/scorch/segment/zap"
 	"github.com/couchbase/vellum"
 	"github.com/spf13/cobra"
 )
@@ -36,15 +38,15 @@ var dictCmd = &cobra.Command{
 
 		addr, err := segment.DictAddr(args[1])
 		if err != nil {
-			return fmt.Errorf("error determing address: %v", err)
+			return fmt.Errorf("error determining address: %v", err)
 		}
 		fmt.Printf("dictionary for field starts at %d (%x)\n", addr, addr)
 
 		vellumLen, read := binary.Uvarint(data[addr : addr+binary.MaxVarintLen64])
 		fmt.Printf("vellum length: %d\n", vellumLen)
 		fstBytes := data[addr+uint64(read) : addr+uint64(read)+vellumLen]
-		fmt.Printf("raw vellum data % x\n", fstBytes)
-		fmt.Printf("dictionary:\n\n")
+		fmt.Printf("raw vellum data:\n % x\n", fstBytes)
+		fmt.Printf("dictionary:\n")
 		if fstBytes != nil {
 			fst, err := vellum.Load(fstBytes)
 			if err != nil {
@@ -54,7 +56,14 @@ var dictCmd = &cobra.Command{
 			itr, err := fst.Iterator(nil, nil)
 			for err == nil {
 				currTerm, currVal := itr.Current()
-				fmt.Printf("%s - %d (%x)\n", currTerm, currVal, currVal)
+				extra := ""
+				if currVal&zap.FSTValEncodingMask == zap.FSTValEncoding1Hit {
+					docNum, normBits := zap.FSTValDecode1Hit(currVal)
+					norm := math.Float32frombits(uint32(normBits))
+					extra = fmt.Sprintf("-- docNum: %d, norm: %f", docNum, norm)
+				}
+
+				fmt.Printf(" %s - %d (%x) %s\n", currTerm, currVal, currVal, extra)
 				err = itr.Next()
 			}
 			if err != nil && err != vellum.ErrIteratorDone {

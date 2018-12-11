@@ -140,3 +140,16 @@ func TestFuzzySearch(t *testing.T) {
 		}
 	}
 }
+
+func TestFuzzySearchLimitErrors(t *testing.T) {
+	explainTrue := search.SearcherOptions{Explain: true}
+	_, err := NewFuzzySearcher(nil, "water", 3, 3, "desc", 1.0, explainTrue)
+	if err == nil {
+		t.Fatal("`fuzziness exceeds max (2)` error expected")
+	}
+
+	_, err = NewFuzzySearcher(nil, "water", 3, -1, "desc", 1.0, explainTrue)
+	if err == nil {
+		t.Fatal("`invalid fuzziness, negative` error expected")
+	}
+}

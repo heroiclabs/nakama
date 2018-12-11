@@ -26,12 +26,12 @@ import (
 const Name = "stemmer_snowball"
 
 type SnowballStemmer struct {
-	langauge string
+	language string
 }
 
 func NewSnowballStemmer(language string) *SnowballStemmer {
 	return &SnowballStemmer{
-		langauge: language,
+		language: language,
 	}
 }
 
@@ -39,7 +39,7 @@ func (s *SnowballStemmer) Filter(input analysis.TokenStream) analysis.TokenStrea
 	for _, token := range input {
 		// if it is not a protected keyword, stem it
 		if !token.KeyWord {
-			stemmed, _ := snowball.Stem(string(token.Term), s.langauge, true)
+			stemmed, _ := snowball.Stem(string(token.Term), s.language, true)
 			token.Term = []byte(stemmed)
 		}
 	}

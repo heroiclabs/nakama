@@ -29,8 +29,6 @@ func init() {
 
 type decoderV1 struct {
 	data []byte
-	root uint64
-	len  uint64
 }
 
 func newDecoderV1(data []byte) *decoderV1 {

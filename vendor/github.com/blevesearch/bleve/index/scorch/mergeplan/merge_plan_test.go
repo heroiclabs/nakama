@@ -17,10 +17,12 @@ package mergeplan
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 // Implements the Segment interface for testing,
@@ -399,6 +401,62 @@ func TestManySameSizedSegmentsWithDeletesBetweenMerges(t *testing.T) {
 	if numPlansWithTasks <= 0 {
 		t.Errorf("expected some plans with tasks")
 	}
+}
+
+func TestValidateMergePlannerOptions(t *testing.T) {
+	o := &MergePlanOptions{
+		MaxSegmentSize:       1 << 32,
+		MaxSegmentsPerTier:   3,
+		TierGrowth:           3.0,
+		SegmentsPerMergeTask: 3,
+	}
+	err := ValidateMergePlannerOptions(o)
+	if err != ErrMaxSegmentSizeTooLarge {
+		t.Error("Validation expected to fail as the MaxSegmentSize exceeds limit")
+	}
+}
+
+func TestPlanMaxSegmentSizeLimit(t *testing.T) {
+	o := &MergePlanOptions{
+		MaxSegmentSize:       20,
+		MaxSegmentsPerTier:   5,
+		TierGrowth:           3.0,
+		SegmentsPerMergeTask: 5,
+		FloorSegmentSize:     5,
+	}
+	segments := makeLinearSegments(20)
+
+	s := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(s)
+
+	max := 20
+	min := 5
+	randomInRange := func() int64 {
+		return int64(r.Intn(max-min) + min)
+	}
+	for i := 1; i < 20; i++ {
+		o.MaxSegmentSize = randomInRange()
+		plans, err := Plan(segments, o)
+		if err != nil {
+			t.Errorf("Plan failed, err: %v", err)
+		}
+		if len(plans.Tasks) == 0 {
+			t.Errorf("expected some plans with tasks")
+		}
+
+		for _, task := range plans.Tasks {
+			var totalLiveSize int64
+			for _, segs := range task.Segments {
+				totalLiveSize += segs.LiveSize()
+
+			}
+			if totalLiveSize >= o.MaxSegmentSize {
+				t.Errorf("merged segments size: %d exceeding the MaxSegmentSize"+
+					"limit: %d", totalLiveSize, o.MaxSegmentSize)
+			}
+		}
+	}
+
 }
 
 // ----------------------------------------

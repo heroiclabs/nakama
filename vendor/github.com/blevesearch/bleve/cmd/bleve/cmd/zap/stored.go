@@ -58,11 +58,16 @@ var storedCmd = &cobra.Command{
 		fmt.Printf("Raw meta: % x\n", meta)
 		raw := data[storedStartAddr+n+metaLen : storedStartAddr+n+metaLen+dataLen]
 		fmt.Printf("Raw data (len %d): % x\n", len(raw), raw)
-		uncompressed, err := snappy.Decode(nil, raw)
+
+		// handle _id field special case
+		idFieldValLen, _ := binary.Uvarint(meta)
+		fmt.Printf("Raw _id (len %d): % x\n", idFieldValLen, raw[:idFieldValLen])
+		fmt.Printf("Raw fields (len %d): % x\n", dataLen-idFieldValLen, raw[idFieldValLen:])
+		uncompressed, err := snappy.Decode(nil, raw[idFieldValLen:])
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Uncompressed data (len %d): % x\n", len(uncompressed), uncompressed)
+		fmt.Printf("Uncompressed fields (len %d): % x\n", len(uncompressed), uncompressed)
 
 		return nil
 	},

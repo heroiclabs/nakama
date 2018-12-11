@@ -27,6 +27,10 @@ var cfgFile string
 
 var idx bleve.Index
 
+// DefaultOpenReadOnly allows some distributions of this command to default
+// to always opening the index read-only
+var DefaultOpenReadOnly = false
+
 const canMutateBleveIndex = "canMutateBleveIndex"
 
 // CanMutateBleveIndex returns true if the command is capable
@@ -52,8 +56,11 @@ var RootCmd = &cobra.Command{
 		if len(args) < 1 {
 			return fmt.Errorf("must specify path to index")
 		}
+		runtimeConfig := map[string]interface{}{
+			"read_only": DefaultOpenReadOnly,
+		}
 		var err error
-		idx, err = bleve.Open(args[0])
+		idx, err = bleve.OpenUsing(args[0], runtimeConfig)
 		if err != nil {
 			return fmt.Errorf("error opening bleve index: %v", err)
 		}

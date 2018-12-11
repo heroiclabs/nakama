@@ -22,10 +22,10 @@ import (
 	"github.com/blevesearch/bleve/analysis"
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index"
-	"github.com/blevesearch/bleve/index/scorch/segment/mem"
+	"github.com/couchbase/vellum/levenshtein"
 )
 
-func buildMemSegmentForDict() *mem.Segment {
+func buildTestSegmentForDict() (*SegmentBase, uint64, error) {
 	doc := &document.Document{
 		ID: "a",
 		Fields: []document.Field{
@@ -99,17 +99,15 @@ func buildMemSegmentForDict() *mem.Segment {
 		},
 	}
 
-	segment := mem.NewFromAnalyzedDocs(results)
-
-	return segment
+	return AnalysisResultsToSegmentBase(results, 1024)
 }
 
 func TestDictionary(t *testing.T) {
 
 	_ = os.RemoveAll("/tmp/scorch.zap")
 
-	memSegment := buildMemSegmentForDict()
-	err := PersistSegment(memSegment, "/tmp/scorch.zap", 1024)
+	testSeg, _, _ := buildTestSegmentForDict()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
@@ -179,5 +177,105 @@ func TestDictionary(t *testing.T) {
 
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("expected: %v, got: %v", expected, got)
+	}
+}
+
+func TestDictionaryError(t *testing.T) {
+
+	_ = os.RemoveAll("/tmp/scorch.zap")
+
+	testSeg, _, _ := buildTestSegmentForDict()
+	err := PersistSegmentBase(testSeg, "/tmp/scorch.zap")
+	if err != nil {
+		t.Fatalf("error persisting segment: %v", err)
+	}
+
+	segment, err := Open("/tmp/scorch.zap")
+	if err != nil {
+		t.Fatalf("error opening segment: %v", err)
+	}
+	defer func() {
+		cerr := segment.Close()
+		if cerr != nil {
+			t.Fatalf("error closing segment: %v", err)
+		}
+	}()
+
+	dict, err := segment.Dictionary("desc")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := levenshtein.New("summer", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itr := dict.AutomatonIterator(a, nil, nil)
+	if itr == nil {
+		t.Fatalf("got nil itr")
+	}
+	nxt, err := itr.Next()
+	if nxt != nil {
+		t.Fatalf("expected nil next")
+	}
+	if err != nil {
+		t.Fatalf("expected nil error from iterator, got: %v", err)
+	}
+
+	a, err = levenshtein.New("cat", 1) // cat & bat
+	if err != nil {
+		t.Fatal(err)
+	}
+	itr = dict.AutomatonIterator(a, nil, nil)
+	if itr == nil {
+		t.Fatalf("got nil itr")
+	}
+	for i := 0; i < 2; i++ {
+		nxt, err = itr.Next()
+		if nxt == nil || err != nil {
+			t.Fatalf("expected non-nil next and nil err, got: %v, %v", nxt, err)
+		}
+	}
+	nxt, err = itr.Next()
+	if nxt != nil || err != nil {
+		t.Fatalf("expected nil next and nil err, got: %v, %v", nxt, err)
+	}
+
+	a, err = levenshtein.New("cat", 2) // cat & bat
+	if err != nil {
+		t.Fatal(err)
+	}
+	itr = dict.AutomatonIterator(a, nil, nil)
+	if itr == nil {
+		t.Fatalf("got nil itr")
+	}
+	for i := 0; i < 2; i++ {
+		nxt, err = itr.Next()
+		if nxt == nil || err != nil {
+			t.Fatalf("expected non-nil next and nil err, got: %v, %v", nxt, err)
+		}
+	}
+	nxt, err = itr.Next()
+	if nxt != nil || err != nil {
+		t.Fatalf("expected nil next and nil err, got: %v, %v", nxt, err)
+	}
+
+	a, err = levenshtein.New("cat", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itr = dict.AutomatonIterator(a, nil, nil)
+	if itr == nil {
+		t.Fatalf("got nil itr")
+	}
+	for i := 0; i < 5; i++ {
+		nxt, err = itr.Next()
+		if nxt == nil || err != nil {
+			t.Fatalf("expected non-nil next and nil err, got: %v, %v", nxt, err)
+		}
+	}
+	nxt, err = itr.Next()
+	if nxt != nil || err != nil {
+		t.Fatalf("expected nil next and nil err, got: %v, %v", nxt, err)
 	}
 }

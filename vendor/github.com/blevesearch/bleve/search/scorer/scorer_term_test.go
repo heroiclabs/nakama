@@ -156,6 +156,10 @@ func TestTermScorer(t *testing.T) {
 			DocumentMatchPool: search.NewDocumentMatchPool(1, 0),
 		}
 		actual := scorer.Score(ctx, test.termMatch)
+		actual.Complete(nil)
+		if len(actual.FieldTermLocations) == 0 {
+			actual.FieldTermLocations = nil
+		}
 
 		if !reflect.DeepEqual(actual, test.result) {
 			t.Errorf("expected %#v got %#v for %#v", test.result, actual, test.termMatch)
