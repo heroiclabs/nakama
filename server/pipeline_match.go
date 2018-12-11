@@ -294,10 +294,18 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(incoming.MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
+		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid match ID",
+		}}})
 		return
 	}
 	matchID, err := uuid.FromString(matchIDComponents[0])
 	if err != nil {
+		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid match ID",
+		}}})
 		return
 	}
 

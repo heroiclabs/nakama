@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
 - Separate configuration for maximum number of concurrent join requests to authoritative matches.
 - New runtime function to kick users from a group.
+- Clients sending data to an invalid match ID will now receive an uncollated error.
 
 ### Changed
 - Rejoining a match the user is already part of will now return the match label.
