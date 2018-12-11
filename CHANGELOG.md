@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
+- WebSocket connections can now use pure Protobuf binary messaging.
 - Lua runtime tournament listings now return duration, end active, and end time fields.
 - Lua runtime tournament end hooks now contain duration, end active, and end time fields.
 - Lua runtime tournament reset hooks now contain duration, end active, and end time fields.

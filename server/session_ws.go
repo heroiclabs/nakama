@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ type sessionWS struct {
 	logger     *zap.Logger
 	config     Config
 	id         uuid.UUID
+	format     SessionFormat
 	userID     uuid.UUID
 	username   *atomic.String
 	expiry     int64
@@ -50,6 +52,7 @@ type sessionWS struct {
 
 	jsonpbMarshaler        *jsonpb.Marshaler
 	jsonpbUnmarshaler      *jsonpb.Unmarshaler
+	wsMessageType          int
 	queuePriorityThreshold int
 	pingPeriodDuration     time.Duration
 	pongWaitDuration       time.Duration
@@ -68,18 +71,24 @@ type sessionWS struct {
 	outgoingStopCh         chan struct{}
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
-	sessionLogger.Info("New WebSocket session connected")
+	sessionLogger.Info("New WebSocket session connected", zap.Uint8("format", uint8(format)))
 
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	wsMessageType := websocket.TextMessage
+	if format == SessionFormatProtobuf {
+		wsMessageType = websocket.BinaryMessage
+	}
 
 	return &sessionWS{
 		logger:     sessionLogger,
 		config:     config,
 		id:         sessionID,
+		format:     format,
 		userID:     userID,
 		username:   atomic.NewString(username),
 		expiry:     expiry,
@@ -91,6 +100,7 @@ func NewSessionWS(logger *zap.Logger, config Config, userID uuid.UUID, username 
 
 		jsonpbMarshaler:        jsonpbMarshaler,
 		jsonpbUnmarshaler:      jsonpbUnmarshaler,
+		wsMessageType:          wsMessageType,
 		queuePriorityThreshold: (config.GetSocket().OutgoingQueueSize / 3) * 2,
 		pingPeriodDuration:     time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
 		pongWaitDuration:       time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
@@ -159,7 +169,7 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 	go s.processOutgoing()
 
 	for {
-		_, data, err := s.conn.ReadMessage()
+		messageType, data, err := s.conn.ReadMessage()
 		if err != nil {
 			// Ignore "normal" WebSocket errors.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
@@ -170,6 +180,12 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 			}
 			break
 		}
+		if messageType != s.wsMessageType {
+			// Expected text but received binary, or expected binary but received text.
+			// Disconnect client if it attempts to use this kind of mixed protocol mode.
+			s.logger.Debug("Received unexpected WebSocket message type", zap.Int("expected", s.wsMessageType), zap.Int("actual", messageType))
+			break
+		}
 
 		s.receivedMessageCounter--
 		if s.receivedMessageCounter <= 0 {
@@ -178,21 +194,29 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 		}
 
 		request := &rtapi.Envelope{}
-		if err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request); err != nil {
+		switch s.format {
+		case SessionFormatProtobuf:
+			err = proto.Unmarshal(data, request)
+		case SessionFormatJson:
+			fallthrough
+		default:
+			err = s.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(data), request)
+		}
+		if err != nil {
 			// If the payload is malformed the client is incompatible or misbehaving, either way disconnect it now.
-			s.logger.Warn("Received malformed payload", zap.String("data", string(data)))
+			s.logger.Warn("Received malformed payload", zap.Binary("data", data))
 			break
-		} else {
-			switch request.Cid {
-			case "":
-				if !processRequest(s.logger, s, request) {
-					break
-				}
-			default:
-				requestLogger := s.logger.With(zap.String("cid", request.Cid))
-				if !processRequest(requestLogger, s, request) {
-					break
-				}
+		}
+
+		switch request.Cid {
+		case "":
+			if !processRequest(s.logger, s, request) {
+				break
+			}
+		default:
+			requestLogger := s.logger.With(zap.String("cid", request.Cid))
+			if !processRequest(requestLogger, s, request) {
+				break
 			}
 		}
 	}
@@ -238,7 +262,7 @@ func (s *sessionWS) processOutgoing() {
 			}
 			// Process the outgoing message queue.
 			s.conn.SetWriteDeadline(time.Now().Add(s.writeWaitDuration))
-			if err := s.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+			if err := s.conn.WriteMessage(s.wsMessageType, payload); err != nil {
 				s.Unlock()
 				s.logger.Warn("Could not write message", zap.Error(err))
 				return
@@ -268,22 +292,34 @@ func (s *sessionWS) pingNow() bool {
 }
 
 func (s *sessionWS) Format() SessionFormat {
-	return SessionFormatJson
+	return s.format
 }
 
 func (s *sessionWS) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
-	payload, err := s.jsonpbMarshaler.MarshalToString(envelope)
+	var payload []byte
+	var err error
+	switch s.format {
+	case SessionFormatProtobuf:
+		payload, err = proto.Marshal(envelope)
+	case SessionFormatJson:
+		fallthrough
+	default:
+		var buf bytes.Buffer
+		if err = s.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
+			payload = buf.Bytes()
+		}
+	}
 	if err != nil {
-		s.logger.Warn("Could not marshal to json", zap.Error(err))
+		s.logger.Warn("Could not marshal envelope", zap.Error(err))
 		return err
 	}
 
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		switch envelope.Message.(type) {
 		case *rtapi.Envelope_Error:
-			s.logger.Debug("Sending error message", zap.String("payload", payload))
+			s.logger.Debug("Sending error message", zap.Binary("payload", payload))
 		default:
-			s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.String("payload", payload))
+			s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.Any("envelope", envelope))
 		}
 	}
 
