@@ -1765,17 +1765,17 @@ func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = "stream subcontext must be a string"
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = "stream subcontext must be a valid identifier"
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = "stream label must be a string"
@@ -1873,19 +1873,19 @@ func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -1972,19 +1972,19 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2087,19 +2087,19 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2199,19 +2199,19 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2265,19 +2265,19 @@ func (n *RuntimeLuaNakamaModule) streamCount(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2332,19 +2332,19 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subject = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2398,19 +2398,19 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2434,8 +2434,8 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	if stream.Subject != uuid.Nil {
 		streamWire.Subject = stream.Subject.String()
 	}
-	if stream.Descriptor != uuid.Nil {
-		streamWire.Descriptor_ = stream.Descriptor.String()
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
 	}
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
@@ -2482,19 +2482,19 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2529,8 +2529,8 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 	if stream.Subject != uuid.Nil {
 		streamWire.Subject = stream.Subject.String()
 	}
-	if stream.Descriptor != uuid.Nil {
-		streamWire.Descriptor_ = stream.Descriptor.String()
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
 	}
 	n.router.SendToStream(n.logger, stream, envelope)
 

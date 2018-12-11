@@ -368,7 +368,7 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 	return UnbanUsers(ctx, n.logger, n.db, userIDs)
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
+func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -380,10 +380,10 @@ func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, 
 			return nil, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return nil, errors.New("stream descriptor must be a valid identifier")
+			return nil, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -395,7 +395,7 @@ func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, 
 	return runtimePresences, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, label, userID, sessionID string) (runtime.PresenceMeta, error) {
+func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (runtime.PresenceMeta, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("expects valid user id")
@@ -416,10 +416,10 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, l
 			return nil, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return nil, errors.New("stream descriptor must be a valid identifier")
+			return nil, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -429,7 +429,7 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, l
 	return nil, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
+func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return false, errors.New("expects valid user id")
@@ -450,10 +450,10 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, 
 			return false, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return false, errors.New("stream descriptor must be a valid identifier")
+			return false, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -477,7 +477,7 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, 
 	return newlyTracked, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) error {
+func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects valid user id")
@@ -498,10 +498,10 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -524,7 +524,7 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor, label, userID, sessionID string) error {
+func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects valid user id")
@@ -545,10 +545,10 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor,
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -557,7 +557,7 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor,
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, descriptor, label string) (int, error) {
+func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -569,17 +569,17 @@ func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, descriptor, lab
 			return 0, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return 0, errors.New("stream descriptor must be a valid identifier")
+			return 0, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
 	return n.tracker.CountByStream(stream), nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, label string) error {
+func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, label string) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -591,10 +591,10 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, lab
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -603,7 +603,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, lab
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, label, data string) error {
+func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -615,10 +615,10 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -629,8 +629,8 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	if stream.Subject != uuid.Nil {
 		streamWire.Subject = stream.Subject.String()
 	}
-	if stream.Descriptor != uuid.Nil {
-		streamWire.Descriptor_ = stream.Descriptor.String()
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
 	}
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
@@ -642,7 +642,7 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, descriptor, label string, msg *rtapi.Envelope) error {
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -654,10 +654,10 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, descriptor, l
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 	if msg == nil {

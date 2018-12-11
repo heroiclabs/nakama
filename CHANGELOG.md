@@ -13,6 +13,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Clients sending data to an invalid match ID will now receive an uncollated error.
 
 ### Changed
+- Rename stream 'descriptor' field to 'subcontext' to avoid protocol naming conflict.
+- Rename Facebook authentication and link 'import' field to avoid language keyword conflict.
 - Rejoining a match the user is already part of will now return the match label.
 - Allow tournament joins before the start of the tournament active period.
 - Authoritative matches now complete their stop phase faster to avoid unnecessary processing.
@@ -28,6 +30,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Tournament end runtime callbacks now receive the correct end time.
 - Leaderboard and tournament runtime callbacks no longer trigger twice when time delays are observed.
 - Check group max allowed user when promoting a user.
+- Correct Lua runtime decoding of stream identifying parameters.
 
 ## [2.2.1] - 2018-11-20
 ### Added

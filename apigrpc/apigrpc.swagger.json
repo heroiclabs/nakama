@@ -261,7 +261,7 @@
             "type": "string"
           },
           {
-            "name": "import",
+            "name": "sync",
             "description": "Import Facebook friends for the user.",
             "in": "query",
             "required": false,
@@ -527,7 +527,7 @@
             }
           },
           {
-            "name": "import",
+            "name": "sync",
             "description": "Import Facebook friends for the user.",
             "in": "query",
             "required": false,

@@ -159,7 +159,7 @@ message AuthenticateFacebookRequest {
   // Set the username on the account at register. Must be unique.
   string username = 3;
   // Import Facebook friends for the user.
-  google.protobuf.BoolValue import = 4;
+  google.protobuf.BoolValue sync = 4;
 }
 
 // Authenticate against the server with Apple's Game Center.
@@ -465,7 +465,7 @@ message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
-  google.protobuf.BoolValue import = 4;
+  google.protobuf.BoolValue sync = 4;
 }
 
 // List a channel's message history.

@@ -301,15 +301,15 @@ type NakamaModule interface {
 	UsersBanId(ctx context.Context, userIDs []string) error
 	UsersUnbanId(ctx context.Context, userIDs []string) error
 
-	StreamUserList(mode uint8, subject, descriptor, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
-	StreamUserGet(mode uint8, subject, descriptor, label, userID, sessionID string) (PresenceMeta, error)
-	StreamUserJoin(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error)
-	StreamUserUpdate(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) error
-	StreamUserLeave(mode uint8, subject, descriptor, label, userID, sessionID string) error
-	StreamCount(mode uint8, subject, descriptor, label string) (int, error)
-	StreamClose(mode uint8, subject, descriptor, label string) error
-	StreamSend(mode uint8, subject, descriptor, label, data string) error
-	StreamSendRaw(mode uint8, subject, descriptor, label string, msg *rtapi.Envelope) error
+	StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
+	StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (PresenceMeta, error)
+	StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error)
+	StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error
+	StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error
+	StreamCount(mode uint8, subject, subcontext, label string) (int, error)
+	StreamClose(mode uint8, subject, subcontext, label string) error
+	StreamSend(mode uint8, subject, subcontext, label, data string) error
+	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error)

@@ -355,7 +355,7 @@ AND (NOT EXISTS
 	}
 
 	// Import friends if requested.
-	if in.Import == nil || in.Import.Value {
+	if in.Sync == nil || in.Sync.Value {
 		importFacebookFriends(ctx, s.logger, s.db, s.router, s.socialClient, userID.(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, false)
 	}
 

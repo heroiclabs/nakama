@@ -137,10 +137,10 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		// Assign the ID pair in a consistent order.
 		if uid.String() > userID.String() {
 			stream.Subject = userID
-			stream.Descriptor = uid
+			stream.Subcontext = uid
 		} else {
 			stream.Subject = uid
-			stream.Descriptor = userID
+			stream.Subcontext = userID
 		}
 		stream.Mode = StreamModeDM
 	case int32(rtapi.ChannelJoin_GROUP):
@@ -213,7 +213,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		userID := session.UserID()
 		otherUserID := stream.Subject
 		if userID == otherUserID {
-			otherUserID = stream.Descriptor
+			otherUserID = stream.Subcontext
 		}
 
 		otherUserPresent := false
@@ -338,7 +338,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	if meta.Persistence {
 		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-		_, err := p.db.ExecContext(session.Context(), query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Descriptor, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
+		_, err := p.db.ExecContext(session.Context(), query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Subcontext, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
 		if err != nil {
 			logger.Error("Error persisting channel message", zap.Error(err))
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
