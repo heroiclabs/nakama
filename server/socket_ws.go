@@ -41,10 +41,18 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 	// This handler will be attached to the API Gateway server.
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Check format.
-		format := SessionFormatJson
-		if r.URL.Query().Get("format") == "protobuf" {
-			// All other cases including invalid values default to JSON session format.
+		var format SessionFormat
+		switch r.URL.Query().Get("format") {
+		case "protobuf":
 			format = SessionFormatProtobuf
+		case "json":
+			fallthrough
+		case "":
+			format = SessionFormatJson
+		default:
+			// Invalid values are rejected.
+			http.Error(w, "Invalid format parameter", 400)
+			return
 		}
 
 		// Check authentication.

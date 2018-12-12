@@ -66,6 +66,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 				payloadProtobuf, err = proto.Marshal(envelope)
 				if err != nil {
 					logger.Error("Could not marshal message", zap.Error(err))
+					return
 				}
 			}
 			err = session.SendBytes(isStream, mode, payloadProtobuf)
@@ -79,6 +80,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 					payloadJson = buf.Bytes()
 				} else {
 					logger.Error("Could not marshal message", zap.Error(err))
+					return
 				}
 			}
 			err = session.SendBytes(isStream, mode, payloadJson)
