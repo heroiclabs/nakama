@@ -15,7 +15,9 @@
 package server
 
 import (
+	"bytes"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
 )
@@ -45,19 +47,45 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 		return
 	}
 
-	payload, err := r.jsonpbMarshaler.MarshalToString(envelope)
-	if err != nil {
-		logger.Error("Could not marshall message to json", zap.Error(err))
-		return
-	}
-	payloadBytes := []byte(payload)
+	// Prepare payload variables but do not initialize until we hit a session that needs them to avoid unnecessary work.
+	var payloadProtobuf []byte
+	var payloadJson []byte
+
 	for _, presenceID := range presenceIDs {
 		session := r.sessionRegistry.Get(presenceID.SessionID)
 		if session == nil {
 			logger.Debug("No session to route to", zap.String("sid", presenceID.SessionID.String()))
 			continue
 		}
-		if err := session.SendBytes(isStream, mode, payloadBytes); err != nil {
+
+		var err error
+		switch session.Format() {
+		case SessionFormatProtobuf:
+			if payloadProtobuf == nil {
+				// Marshal the payload now that we know this format is needed.
+				payloadProtobuf, err = proto.Marshal(envelope)
+				if err != nil {
+					logger.Error("Could not marshal message", zap.Error(err))
+					return
+				}
+			}
+			err = session.SendBytes(isStream, mode, payloadProtobuf)
+		case SessionFormatJson:
+			fallthrough
+		default:
+			if payloadJson == nil {
+				// Marshal the payload now that we know this format is needed.
+				var buf bytes.Buffer
+				if err = r.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
+					payloadJson = buf.Bytes()
+				} else {
+					logger.Error("Could not marshal message", zap.Error(err))
+					return
+				}
+			}
+			err = session.SendBytes(isStream, mode, payloadJson)
+		}
+		if err != nil {
 			logger.Error("Failed to route to", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
 		}
 	}
