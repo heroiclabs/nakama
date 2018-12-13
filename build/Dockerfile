@@ -26,7 +26,7 @@ ENV CGO_ENABLED 1
 
 RUN apk --no-cache add ca-certificates gcc musl-dev git && \
     git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/src/github.com/heroiclabs/nakama
+    git clone --quiet --no-checkout https://github.com/kevhong/nakama /go/src/github.com/heroiclabs/nakama
 
 WORKDIR /go/src/github.com/heroiclabs/nakama
 RUN git checkout --quiet "$commit" && \
@@ -42,8 +42,8 @@ LABEL version=$version
 LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 
-RUN mkdir -p /nakama/data/modules && \
-    apk --no-cache add ca-certificates curl iproute2 unzip rsync git
+#RUN mkdir -p /nakama/data/modules && \
+#    apk --no-cache add ca-certificates curl iproute2 unzip rsync git
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build/nakama" /nakama/
