@@ -19,6 +19,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"strings"
 )
 
@@ -38,7 +39,12 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 	}
 
 	consoleLogger := NewJSONLogger(os.Stdout, zapLevel)
-	fileLogger := NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel)
+	var fileLogger *zap.Logger
+	if config.GetLogger().Rotating {
+		fileLogger = NewRotatingJSONFileLogger(consoleLogger, config, zapLevel)
+	} else {
+		fileLogger = NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel)
+	}
 
 	if fileLogger != nil {
 		multiLogger := NewMultiLogger(consoleLogger, fileLogger)
@@ -82,7 +88,15 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 }
 
 func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
-	jsonEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+	jsonEncoder := newJSONEncoder()
+
+	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), level)
+	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	return zap.New(core, options...)
+}
+
+func newJSONEncoder() zapcore.Encoder {
+	return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
 		NameKey:        "logger",
@@ -94,8 +108,37 @@ func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
 		EncodeDuration: zapcore.StringDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
+}
 
-	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), level)
+func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level zapcore.Level) *zap.Logger {
+	fpath := config.GetLogger().File
+	if len(fpath) == 0 {
+		consoleLogger.Fatal("Rotating log file is enabled. But log file name is empty.")
+		return nil
+	}
+
+	output, err := os.OpenFile(fpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		consoleLogger.Fatal("Could not create log file", zap.Error(err))
+		return nil
+	}
+	output.Close()
+
+	jsonEncoder := newJSONEncoder()
+	// lumberjack.Logger is already safe for concurrent use, so we don't need to lock it.
+	w := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   fpath,
+		MaxSize:    config.GetLogger().MaxSize,
+		MaxAge:     config.GetLogger().MaxAge,
+		MaxBackups: config.GetLogger().MaxBackups,
+		LocalTime:  config.GetLogger().LocalTime,
+		Compress:   config.GetLogger().Compress,
+	})
+	core := zapcore.NewCore(
+		jsonEncoder,
+		w,
+		level,
+	)
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
 	return zap.New(core, options...)
 }
