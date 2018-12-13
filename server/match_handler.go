@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"strconv"
 )
 
 type MatchDataMessage struct {
@@ -218,9 +219,19 @@ func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
 		return
 	default:
 		// Match input queue is full, the handler isn't processing fast enough or there's too much incoming data.
-		mh.logger.Warn("Match handler data processing too slow, dropping data message")
+		mh.logger.Warn("Match handler data processing too slow, dropping data message of: " + printMatchDataMessage(m))
 		return
 	}
+}
+
+func printMatchDataMessage(m *MatchDataMessage) string {
+	return "{ MatchDataMessage: userId: " + m.UserID.String() +
+		" sessionId: " + m.SessionID.String() +
+		" userName: " + m.Username +
+		" node: " + m.Node +
+		" opCode: " + strconv.FormatInt(m.OpCode, 64) +
+		" data: " + string(m.Data) +
+		" receiveTime: " + strconv.FormatInt(m.ReceiveTime, 64)
 }
 
 func loop(mh *MatchHandler) {
