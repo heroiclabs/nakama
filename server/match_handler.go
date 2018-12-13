@@ -231,7 +231,7 @@ func printMatchDataMessage(m *MatchDataMessage) string {
 		" node: " + m.Node +
 		" opCode: " + strconv.FormatInt(m.OpCode, 64) +
 		" data: " + string(m.Data) +
-		" receiveTime: " + strconv.FormatInt(m.ReceiveTime, 64)
+		" receiveTime: " + strconv.FormatInt(m.ReceiveTime, 64) + "}"
 }
 
 func loop(mh *MatchHandler) {
