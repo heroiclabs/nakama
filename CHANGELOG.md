@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Separate configuration for maximum number of concurrent join requests to authoritative matches.
 - New runtime function to kick users from a group.
 - Clients sending data to an invalid match ID will now receive an uncollated error.
+- Optional log file rotation.
 
 ### Changed
 - Rename stream 'descriptor' field to 'subcontext' to avoid protocol naming conflict.

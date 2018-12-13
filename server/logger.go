@@ -40,7 +40,7 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 
 	consoleLogger := NewJSONLogger(os.Stdout, zapLevel)
 	var fileLogger *zap.Logger
-	if config.GetLogger().Rotating {
+	if config.GetLogger().Rotation {
 		fileLogger = NewRotatingJSONFileLogger(consoleLogger, config, zapLevel)
 	} else {
 		fileLogger = NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel)
@@ -62,18 +62,45 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 	return consoleLogger, consoleLogger
 }
 
-func NewJSONFileLogger(consoleLogger *zap.Logger, fpath string, level zapcore.Level) *zap.Logger {
-	if len(fpath) == 0 {
+func NewJSONFileLogger(consoleLogger *zap.Logger, fileName string, level zapcore.Level) *zap.Logger {
+	if len(fileName) == 0 {
 		return nil
 	}
 
-	output, err := os.OpenFile(fpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	output, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		consoleLogger.Fatal("Could not create log file", zap.Error(err))
 		return nil
 	}
 
 	return NewJSONLogger(output, level)
+}
+
+func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level zapcore.Level) *zap.Logger {
+	fileName := config.GetLogger().File
+	if len(fileName) == 0 {
+		consoleLogger.Fatal("Rotating log file is enabled but log file name is empty")
+		return nil
+	}
+	if err := os.MkdirAll(fileName, 0755); err != nil {
+		consoleLogger.Fatal("Could not create log directory", zap.Error(err))
+		return nil
+	}
+
+	jsonEncoder := newJSONEncoder()
+
+	// lumberjack.Logger is already safe for concurrent use, so we don't need to lock it.
+	writeSyncer := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   fileName,
+		MaxSize:    config.GetLogger().MaxSize,
+		MaxAge:     config.GetLogger().MaxAge,
+		MaxBackups: config.GetLogger().MaxBackups,
+		LocalTime:  config.GetLogger().LocalTime,
+		Compress:   config.GetLogger().Compress,
+	})
+	core := zapcore.NewCore(jsonEncoder, writeSyncer, level)
+	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	return zap.New(core, options...)
 }
 
 func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
@@ -95,6 +122,7 @@ func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
 	return zap.New(core, options...)
 }
 
+// Create a new JSON log encoder with the correct settings.
 func newJSONEncoder() zapcore.Encoder {
 	return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
@@ -108,37 +136,4 @@ func newJSONEncoder() zapcore.Encoder {
 		EncodeDuration: zapcore.StringDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
-}
-
-func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level zapcore.Level) *zap.Logger {
-	fpath := config.GetLogger().File
-	if len(fpath) == 0 {
-		consoleLogger.Fatal("Rotating log file is enabled. But log file name is empty.")
-		return nil
-	}
-
-	output, err := os.OpenFile(fpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		consoleLogger.Fatal("Could not create log file", zap.Error(err))
-		return nil
-	}
-	output.Close()
-
-	jsonEncoder := newJSONEncoder()
-	// lumberjack.Logger is already safe for concurrent use, so we don't need to lock it.
-	w := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   fpath,
-		MaxSize:    config.GetLogger().MaxSize,
-		MaxAge:     config.GetLogger().MaxAge,
-		MaxBackups: config.GetLogger().MaxBackups,
-		LocalTime:  config.GetLogger().LocalTime,
-		Compress:   config.GetLogger().Compress,
-	})
-	core := zapcore.NewCore(
-		jsonEncoder,
-		w,
-		level,
-	)
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
-	return zap.New(core, options...)
 }
