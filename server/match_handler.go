@@ -224,14 +224,18 @@ func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
 	}
 }
 
+
 func printMatchDataMessage(m *MatchDataMessage) string {
+	if m == nil {
+		return "{ NIL matchDataMessage }"
+	}
 	return "{ MatchDataMessage: userId: " + m.UserID.String() +
 		" sessionId: " + m.SessionID.String() +
 		" userName: " + m.Username +
 		" node: " + m.Node +
-		" opCode: " + strconv.FormatInt(m.OpCode, 64) +
+		" opCode: " + strconv.FormatInt(m.OpCode, 10) +
 		" data: " + string(m.Data) +
-		" receiveTime: " + strconv.FormatInt(m.ReceiveTime, 64) + "}"
+		" receiveTime: " + strconv.FormatInt(m.ReceiveTime, 10) + "}"
 }
 
 func loop(mh *MatchHandler) {
