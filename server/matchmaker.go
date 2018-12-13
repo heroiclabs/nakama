@@ -17,6 +17,8 @@ package server
 import (
 	"sync"
 
+	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
+
 	"github.com/blevesearch/bleve"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/runtime"
@@ -90,6 +92,8 @@ type LocalMatchmaker struct {
 
 func NewLocalMatchmaker(startupLogger *zap.Logger, node string) Matchmaker {
 	mapping := bleve.NewIndexMapping()
+	mapping.DefaultAnalyzer = keyword.Name
+
 	index, err := bleve.NewMemOnly(mapping)
 	if err != nil {
 		startupLogger.Fatal("Failed to create matchmaker index", zap.Error(err))

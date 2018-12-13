@@ -64,7 +64,7 @@ When connected you'll see server output which describes all settings the server 
 
 ## Usage
 
-Nakama supports a variety of protocols optimized for various gameplay or app use cases. For request/response it can use GRPC with a HTTP1.1+JSON fallback (REST). For realtime communication you can use WebSockets or rUDP.
+Nakama supports a variety of protocols optimized for various gameplay or app use cases. For request/response it can use GRPC or the HTTP1.1+JSON fallback (REST). For realtime communication you can use WebSockets or rUDP.
 
 For example with the REST API to authenticate a user account with a custom identifier.
 

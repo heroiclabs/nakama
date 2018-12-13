@@ -35,7 +35,7 @@ var snapshotCmd = &cobra.Command{
 				return err
 			}
 			for _, snapshotEpoch := range snapshotEpochs {
-				fmt.Printf("%d\n", snapshotEpoch)
+				fmt.Printf("snapshot epoch: %d\n", snapshotEpoch)
 			}
 		} else if len(args) < 3 {
 			snapshotEpoch, err := strconv.ParseUint(args[1], 10, 64)

@@ -211,6 +211,7 @@ type NakamaClient interface {
 	ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
 	JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Attempt to join an open and running tournament.
 	JoinTournament(ctx context.Context, in *api.JoinTournamentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Kick a set of users from a group.
 	KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
@@ -240,6 +241,7 @@ type NakamaClient interface {
 	ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRequest, opts ...grpc.CallOption) (*api.GroupUserList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
+	// List leaderboard records that belong to a user.
 	ListLeaderboardRecordsAroundOwner(ctx context.Context, in *api.ListLeaderboardRecordsAroundOwnerRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
 	// Fetch list of running matches.
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
@@ -251,6 +253,7 @@ type NakamaClient interface {
 	ListTournaments(ctx context.Context, in *api.ListTournamentsRequest, opts ...grpc.CallOption) (*api.TournamentList, error)
 	// List tournament records.
 	ListTournamentRecords(ctx context.Context, in *api.ListTournamentRecordsRequest, opts ...grpc.CallOption) (*api.TournamentRecordList, error)
+	// List tournament records for a given owner.
 	ListTournamentRecordsAroundOwner(ctx context.Context, in *api.ListTournamentRecordsAroundOwnerRequest, opts ...grpc.CallOption) (*api.TournamentRecordList, error)
 	// List groups the current user belongs to.
 	ListUserGroups(ctx context.Context, in *api.ListUserGroupsRequest, opts ...grpc.CallOption) (*api.UserGroupList, error)
@@ -869,6 +872,7 @@ type NakamaServer interface {
 	ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*empty.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
 	JoinGroup(context.Context, *api.JoinGroupRequest) (*empty.Empty, error)
+	// Attempt to join an open and running tournament.
 	JoinTournament(context.Context, *api.JoinTournamentRequest) (*empty.Empty, error)
 	// Kick a set of users from a group.
 	KickGroupUsers(context.Context, *api.KickGroupUsersRequest) (*empty.Empty, error)
@@ -898,6 +902,7 @@ type NakamaServer interface {
 	ListGroupUsers(context.Context, *api.ListGroupUsersRequest) (*api.GroupUserList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
+	// List leaderboard records that belong to a user.
 	ListLeaderboardRecordsAroundOwner(context.Context, *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error)
 	// Fetch list of running matches.
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
@@ -909,6 +914,7 @@ type NakamaServer interface {
 	ListTournaments(context.Context, *api.ListTournamentsRequest) (*api.TournamentList, error)
 	// List tournament records.
 	ListTournamentRecords(context.Context, *api.ListTournamentRecordsRequest) (*api.TournamentRecordList, error)
+	// List tournament records for a given owner.
 	ListTournamentRecordsAroundOwner(context.Context, *api.ListTournamentRecordsAroundOwnerRequest) (*api.TournamentRecordList, error)
 	// List groups the current user belongs to.
 	ListUserGroups(context.Context, *api.ListUserGroupsRequest) (*api.UserGroupList, error)

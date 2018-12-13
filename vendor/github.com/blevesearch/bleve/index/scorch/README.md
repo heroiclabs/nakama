@@ -302,7 +302,7 @@ Map local bitsets into global number space (global meaning cross-segment but sti
 IndexSnapshot already should have mapping something like:
 0 - Offset 0
 1 - Offset 3 (because segment 0 had 3 docs)
-2 - Offset 4 (becuase segment 1 had 1 doc)
+2 - Offset 4 (because segment 1 had 1 doc)
 
 This maps to search result bitset:
 

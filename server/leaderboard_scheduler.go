@@ -20,10 +20,20 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"go.uber.org/zap"
 )
 
-type LeaderboardScheduler struct {
+type LeaderboardScheduler interface {
+	Start(runtime *Runtime)
+	Pause()
+	Resume()
+	Stop()
+	Update()
+}
+
+type LocalLeaderboardScheduler struct {
 	sync.Mutex
 	logger           *zap.Logger
 	db               *sql.DB
@@ -35,43 +45,97 @@ type LeaderboardScheduler struct {
 	nearEndActiveIds []string
 	nearExpiryIds    []string
 
+	active *atomic.Uint32
+
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 }
 
-func NewLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache) *LeaderboardScheduler {
+func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache) LeaderboardScheduler {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
-	return &LeaderboardScheduler{
+	return &LocalLeaderboardScheduler{
 		logger:    logger,
 		db:        db,
 		cache:     cache,
 		rankCache: rankCache,
+
+		active: atomic.NewUint32(1),
 
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 	}
 }
 
-func (ls *LeaderboardScheduler) Start(runtime *Runtime) {
+func (ls *LocalLeaderboardScheduler) Start(runtime *Runtime) {
 	ls.runtime = runtime
 	ls.Update()
 }
 
-func (ls *LeaderboardScheduler) Stop() {
+func (ls *LocalLeaderboardScheduler) Pause() {
+	if !ls.active.CAS(1, 0) {
+		// Already paused.
+		return
+	}
+
 	ls.Lock()
-	ls.ctxCancelFn()
 	if ls.endActiveTimer != nil {
-		ls.endActiveTimer.Stop()
+		if !ls.endActiveTimer.Stop() {
+			select {
+			case <-ls.endActiveTimer.C:
+			default:
+			}
+		}
 	}
 	if ls.expiryTimer != nil {
-		ls.expiryTimer.Stop()
+		if !ls.expiryTimer.Stop() {
+			select {
+			case <-ls.expiryTimer.C:
+			default:
+			}
+		}
 	}
 	ls.Unlock()
 }
 
-func (ls *LeaderboardScheduler) Update() {
+func (ls *LocalLeaderboardScheduler) Resume() {
+	if !ls.active.CAS(0, 1) {
+		// Already active.
+		return
+	}
+
+	ls.Update()
+}
+
+func (ls *LocalLeaderboardScheduler) Stop() {
+	ls.Lock()
+	ls.ctxCancelFn()
+	if ls.endActiveTimer != nil {
+		if !ls.endActiveTimer.Stop() {
+			select {
+			case <-ls.endActiveTimer.C:
+			default:
+			}
+		}
+	}
+	if ls.expiryTimer != nil {
+		if !ls.expiryTimer.Stop() {
+			select {
+			case <-ls.expiryTimer.C:
+			default:
+			}
+		}
+	}
+	ls.Unlock()
+}
+
+func (ls *LocalLeaderboardScheduler) Update() {
 	if ls.runtime == nil {
 		// In case the update is called during runtime VM init, skip setting timers until ready.
+		return
+	}
+
+	if ls.active.Load() != 1 {
+		// Not active.
 		return
 	}
 
@@ -90,7 +154,7 @@ func (ls *LeaderboardScheduler) Update() {
 	for _, l := range leaderboards {
 		if l.Duration > 0 {
 			// Tournament.
-			_, endActive, expiry := calculateTournamentDeadlines(l, now)
+			_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, now)
 
 			if l.EndTime > 0 && l.EndTime < nowUnix {
 				// Tournament has ended permanently.
@@ -134,12 +198,12 @@ func (ls *LeaderboardScheduler) Update() {
 
 	endActiveDuration := time.Duration(-1)
 	if earliestEndActive > -1 {
-		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now)
+		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now) + time.Second
 	}
 
 	expiryDuration := time.Duration(-1)
 	if earliestExpiry > -1 {
-		expiryDuration = time.Unix(earliestExpiry, 0).UTC().Sub(now)
+		expiryDuration = time.Unix(earliestExpiry, 0).UTC().Sub(now) + time.Second
 	}
 
 	// Replace IDs earmarked for end and expiry, and restart timers as needed.
@@ -148,27 +212,42 @@ func (ls *LeaderboardScheduler) Update() {
 	ls.nearExpiryIds = expiryLeaderboardIds
 
 	if ls.endActiveTimer != nil {
-		ls.endActiveTimer.Stop()
+		if !ls.endActiveTimer.Stop() {
+			select {
+			case <-ls.endActiveTimer.C:
+			default:
+			}
+		}
 	}
 	if ls.expiryTimer != nil {
-		ls.expiryTimer.Stop()
+		if !ls.expiryTimer.Stop() {
+			select {
+			case <-ls.expiryTimer.C:
+			default:
+			}
+		}
 	}
 	if endActiveDuration > -1 {
 		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", ls.nearEndActiveIds))
 		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
-			ls.invokeEndActiveElapse(time.Unix(earliestEndActive, 0).UTC())
+			ls.invokeEndActiveElapse(time.Unix(earliestEndActive-1, 0).UTC())
 		})
 	}
 	if expiryDuration > -1 {
 		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", ls.nearExpiryIds))
 		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
-			ls.invokeExpiryElapse(time.Unix(earliestExpiry, 0).UTC())
+			ls.invokeExpiryElapse(time.Unix(earliestExpiry-1, 0).UTC())
 		})
 	}
 	ls.Unlock()
 }
 
-func (ls *LeaderboardScheduler) invokeEndActiveElapse(t time.Time) {
+func (ls *LocalLeaderboardScheduler) invokeEndActiveElapse(t time.Time) {
+	if ls.active.Load() != 1 {
+		// Not active.
+		return
+	}
+
 	// Skip processing if there is no tournament end callback registered.
 	fn := ls.runtime.TournamentEnd()
 	if fn == nil {
@@ -205,7 +284,12 @@ WHERE id = $1`
 	}
 }
 
-func (ls *LeaderboardScheduler) invokeExpiryElapse(t time.Time) {
+func (ls *LocalLeaderboardScheduler) invokeExpiryElapse(t time.Time) {
+	if ls.active.Load() != 1 {
+		// Not active.
+		return
+	}
+
 	fnLeaderboardReset := ls.runtime.LeaderboardReset()
 	fnTournamentReset := ls.runtime.TournamentReset()
 

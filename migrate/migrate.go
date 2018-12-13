@@ -148,7 +148,7 @@ func Parse(args []string, logger *zap.Logger) {
 	}
 	logger.Info("Database information", zap.String("version", dbVersion))
 
-	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbname)); err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorDuplicateDatabase {
 			logger.Info("Using existing database", zap.String("name", dbname))
 		} else {

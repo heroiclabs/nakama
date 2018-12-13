@@ -15,6 +15,8 @@
 package collector
 
 import (
+	"reflect"
+
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/search"
@@ -23,6 +25,18 @@ import (
 type stubSearcher struct {
 	index   int
 	matches []*search.DocumentMatch
+}
+
+func (ss *stubSearcher) Size() int {
+	sizeInBytes := int(reflect.TypeOf(*ss).Size())
+
+	for _, entry := range ss.matches {
+		if entry != nil {
+			sizeInBytes += entry.Size()
+		}
+	}
+
+	return sizeInBytes
 }
 
 func (ss *stubSearcher) Next(ctx *search.SearchContext) (*search.DocumentMatch, error) {
@@ -75,6 +89,10 @@ func (ss *stubSearcher) DocumentMatchPoolSize() int {
 }
 
 type stubReader struct{}
+
+func (sr *stubReader) Size() int {
+	return 0
+}
 
 func (sr *stubReader) TermFieldReader(term []byte, field string, includeFreq, includeNorm, includeTermVectors bool) (index.TermFieldReader, error) {
 	return nil, nil
@@ -142,4 +160,17 @@ func (sr *stubReader) DumpFields() chan interface{} {
 
 func (sr *stubReader) Close() error {
 	return nil
+}
+
+func (sr *stubReader) DocValueReader(fields []string) (index.DocValueReader, error) {
+	return &DocValueReader{i: sr, fields: fields}, nil
+}
+
+type DocValueReader struct {
+	i      *stubReader
+	fields []string
+}
+
+func (dvr *DocValueReader) VisitDocValues(id index.IndexInternalID, visitor index.DocumentFieldTermVisitor) error {
+	return dvr.i.DocumentVisitFieldTerms(id, dvr.fields, visitor)
 }

@@ -24,14 +24,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6ae849fd4cfda8751fa6332e63cbd6685bfa24027de5309d26b2d06c21003138"
-  name = "github.com/Smerity/govarint"
-  packages = ["."]
-  pruneopts = ""
-  revision = "7265e41f48f15fd61751e16da866af3c704bb3ab"
-
-[[projects]]
-  branch = "master"
   digest = "1:c0bec5f9b98d0bc872ff5e834fac186b807b656683bd29cb82fb207a1513fabb"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -39,11 +31,12 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  digest = "1:35b1f0fb65dd639625d24ad63d22b8e802c3ab7ab871ba0113d49dadab8a287e"
+  digest = "1:109a9e34c738730a57b729573cceffd58d082250337e5d7185c9ff8de3162a85"
   name = "github.com/blevesearch/bleve"
   packages = [
     ".",
     "analysis",
+    "analysis/analyzer/keyword",
     "analysis/analyzer/standard",
     "analysis/datetime/flexible",
     "analysis/datetime/optional",
@@ -51,6 +44,7 @@
     "analysis/token/lowercase",
     "analysis/token/porter",
     "analysis/token/stop",
+    "analysis/tokenizer/single",
     "analysis/tokenizer/unicode",
     "document",
     "geo",
@@ -58,7 +52,6 @@
     "index/scorch",
     "index/scorch/mergeplan",
     "index/scorch/segment",
-    "index/scorch/segment/mem",
     "index/scorch/segment/zap",
     "index/store",
     "index/store/boltdb",
@@ -78,10 +71,10 @@
     "search/query",
     "search/scorer",
     "search/searcher",
+    "size",
   ]
   pruneopts = ""
-  revision = "1a319cdf5bf77dc8cee35a6b99f908792c2547ef"
-  version = "v0.7.0"
+  revision = "89a815df0798b34feb44e4d3ade3c3a9d338aa63"
 
 [[projects]]
   digest = "1:b9a6b4e079fea1e137c0f8caeb65030978a8dee9f37df5a6ffd9fabe98cdd32e"
@@ -116,15 +109,16 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bf1ffbd0316073dc09af00d78f79eac88770e48a3ae1d045efb273dd6c495243"
+  digest = "1:21aee7b432ce1298869959e614776826b3a7f7777722589879f027fbee819820"
   name = "github.com/couchbase/vellum"
   packages = [
     ".",
+    "levenshtein2",
     "regexp",
     "utf8",
   ]
   pruneopts = ""
-  revision = "d4af51308df0a8259faf1c746cb262a799c5df93"
+  revision = "dd17fb852690c5b0068b26995fb4e63a2f7cb1c1"
 
 [[projects]]
   digest = "1:56c130d885a4aacae1dd9c7b71cfe39912c7ebc1ff7d2b46083c8812996dc43b"
@@ -665,6 +659,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/blevesearch/bleve",
+    "github.com/blevesearch/bleve/analysis/analyzer/keyword",
     "github.com/cockroachdb/cockroach-go/crdb",
     "github.com/dgrijalva/jwt-go",
     "github.com/go-yaml/yaml",

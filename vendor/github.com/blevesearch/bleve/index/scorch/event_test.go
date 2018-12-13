@@ -22,8 +22,13 @@ import (
 )
 
 func TestEventBatchIntroductionStart(t *testing.T) {
+	testConfig := CreateConfig("TestEventBatchIntroductionStart")
+	err := InitTest(testConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		err := DestroyTest()
+		err := DestroyTest(testConfig)
 		if err != nil {
 			t.Fatal(err)
 		}

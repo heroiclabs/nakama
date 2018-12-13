@@ -16,18 +16,17 @@ package zap
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 )
 
-func TestChunkContentCoder(t *testing.T) {
+func TestChunkedContentCoder(t *testing.T) {
 
 	tests := []struct {
 		maxDocNum uint64
 		chunkSize uint64
 		docNums   []uint64
 		vals      [][]byte
-		expected  string
+		expected  []byte
 	}{
 		{
 			maxDocNum: 0,
@@ -35,7 +34,10 @@ func TestChunkContentCoder(t *testing.T) {
 			docNums:   []uint64{0},
 			vals:      [][]byte{[]byte("bleve")},
 			// 1 chunk, chunk-0 length 11(b), value
-			expected: string([]byte{0x1, 0xb, 0x1, 0x0, 0x0, 0x05, 0x05, 0x10, 0x62, 0x6c, 0x65, 0x76, 0x65}),
+			expected: []byte{0x1, 0x0, 0x5, 0x5, 0x10, 0x62, 0x6c, 0x65, 0x76, 0x65,
+				0xa,
+				0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
+				0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1},
 		},
 		{
 			maxDocNum: 1,
@@ -46,15 +48,18 @@ func TestChunkContentCoder(t *testing.T) {
 				[]byte("scorch"),
 			},
 
-			expected: string([]byte{0x02, 0x0c, 0x0c, 0x01, 0x00, 0x00, 0x06, 0x06, 0x14,
-				0x75, 0x70, 0x73, 0x69, 0x64, 0x65, 0x01, 0x01, 0x00, 0x06, 0x06,
-				0x14, 0x73, 0x63, 0x6f, 0x72, 0x63, 0x68}),
+			expected: []byte{0x1, 0x0, 0x6, 0x6, 0x14, 0x75, 0x70, 0x73, 0x69, 0x64,
+				0x65, 0x1, 0x1, 0x6, 0x6, 0x14, 0x73, 0x63, 0x6f, 0x72, 0x63, 0x68,
+				0xb, 0x16,
+				0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2,
+				0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2},
 		},
 	}
 
 	for _, test := range tests {
 
-		cic := newChunkedContentCoder(test.chunkSize, test.maxDocNum)
+		var actual bytes.Buffer
+		cic := newChunkedContentCoder(test.chunkSize, test.maxDocNum, &actual, false)
 		for i, docNum := range test.docNums {
 			err := cic.Add(docNum, test.vals[i])
 			if err != nil {
@@ -62,14 +67,59 @@ func TestChunkContentCoder(t *testing.T) {
 			}
 		}
 		_ = cic.Close()
-		var actual bytes.Buffer
-		_, err := cic.Write(&actual)
+		_, err := cic.Write()
 		if err != nil {
 			t.Fatalf("error writing: %v", err)
 		}
 
-		if !reflect.DeepEqual(test.expected, string(actual.Bytes())) {
-			t.Errorf("got % s, expected % s", string(actual.Bytes()), test.expected)
+		if !bytes.Equal(test.expected, actual.Bytes()) {
+			t.Errorf("got:%s, expected:%s", string(actual.Bytes()), string(test.expected))
 		}
+	}
+}
+
+func TestChunkedContentCoders(t *testing.T) {
+	maxDocNum := uint64(5)
+	chunkSize := uint64(1)
+	docNums := []uint64{0, 1, 2, 3, 4, 5}
+	vals := [][]byte{
+		[]byte("scorch"),
+		[]byte("does"),
+		[]byte("better"),
+		[]byte("than"),
+		[]byte("upside"),
+		[]byte("down"),
+	}
+
+	var actual1, actual2 bytes.Buffer
+	// chunkedContentCoder that writes out at the end
+	cic1 := newChunkedContentCoder(chunkSize, maxDocNum, &actual1, false)
+	// chunkedContentCoder that writes out in chunks
+	cic2 := newChunkedContentCoder(chunkSize, maxDocNum, &actual2, true)
+
+	for i, docNum := range docNums {
+		err := cic1.Add(docNum, vals[i])
+		if err != nil {
+			t.Fatalf("error adding to intcoder: %v", err)
+		}
+		err = cic2.Add(docNum, vals[i])
+		if err != nil {
+			t.Fatalf("error adding to intcoder: %v", err)
+		}
+	}
+	_ = cic1.Close()
+	_ = cic2.Close()
+
+	_, err := cic1.Write()
+	if err != nil {
+		t.Fatalf("error writing: %v", err)
+	}
+	_, err = cic2.Write()
+	if err != nil {
+		t.Fatalf("error writing: %v", err)
+	}
+
+	if !bytes.Equal(actual1.Bytes(), actual2.Bytes()) {
+		t.Errorf("%s != %s", string(actual1.Bytes()), string(actual2.Bytes()))
 	}
 }

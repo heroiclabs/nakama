@@ -35,6 +35,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -43,7 +45,6 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/yuin/gopher-lua"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -51,11 +52,12 @@ import (
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
+	jsonpbUnmarshaler    *jsonpb.Unmarshaler
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	rankCache            LeaderboardRankCache
-	leaderboardScheduler *LeaderboardScheduler
+	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      *SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -70,10 +72,11 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, l *lua.LState, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
+		jsonpbUnmarshaler:    jsonpbUnmarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -161,6 +164,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
+		"stream_send_raw":             n.streamSendRaw,
 		"match_create":                n.matchCreate,
 		"match_list":                  n.matchList,
 		"notification_send":           n.notificationSend,
@@ -1761,17 +1765,17 @@ func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
-				conversionError = "stream descriptor must be a string"
+				conversionError = "stream subcontext must be a string"
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
-				conversionError = "stream descriptor must be a valid identifier"
+				conversionError = "stream subcontext must be a valid identifier"
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = "stream label must be a string"
@@ -1869,19 +1873,19 @@ func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -1968,19 +1972,19 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2083,19 +2087,19 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2195,19 +2199,19 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2261,19 +2265,19 @@ func (n *RuntimeLuaNakamaModule) streamCount(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2328,19 +2332,19 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subject = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2394,19 +2398,19 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 				return
 			}
 			stream.Subject = sid
-		case "descriptor":
+		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
-			did, err := uuid.FromString(v.String())
+			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(3, "stream descriptor must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
-			stream.Subject = did
+			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
@@ -2430,8 +2434,8 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	if stream.Subject != uuid.Nil {
 		streamWire.Subject = stream.Subject.String()
 	}
-	if stream.Descriptor != uuid.Nil {
-		streamWire.Descriptor_ = stream.Descriptor.String()
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
 	}
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
@@ -2443,10 +2447,100 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(1)
+	if streamTable == nil {
+		l.ArgError(1, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	conversionError := false
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
+				return
+			}
+			stream.Subject = sid
+		case "subcontext":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream subcontext must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream subcontext must be a valid identifier")
+				return
+			}
+			stream.Subcontext = sid
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+
+	envelopeMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
+	envelopeBytes, err := json.Marshal(envelopeMap)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("failed to convert envlope: %s", err.Error()))
+		return 0
+	}
+
+	envelope := &rtapi.Envelope{}
+	err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), envelope)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("not a valid envlope: %s", err.Error()))
+		return 0
+	}
+
+	streamWire := &rtapi.Stream{
+		Mode:  int32(stream.Mode),
+		Label: stream.Label,
+	}
+	if stream.Subject != uuid.Nil {
+		streamWire.Subject = stream.Subject.String()
+	}
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
+	}
+	n.router.SendToStream(n.logger, stream, envelope)
+
+	return 0
+}
+
 func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	// Parse the name of the Lua module that should handle the match.
-	name := l.CheckString(1)
-	if name == "" {
+	module := l.CheckString(1)
+	if module == "" {
 		l.ArgError(1, "expects module name")
 		return 0
 	}
@@ -2462,31 +2556,13 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 		}
 	}
 
-	id := uuid.Must(uuid.NewV4())
-	matchLogger := n.logger.With(zap.String("mid", id.String()))
-	label := atomic.NewString("")
-	labelUpdateFn := func(input string) error {
-		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
-			return err
-		}
-		label.Store(input)
-		return nil
-	}
-	core, err := n.matchCreateFn(l.Context(), matchLogger, id, n.node, name, labelUpdateFn)
+	id, err := n.matchRegistry.CreateMatch(l.Context(), n.logger, n.matchCreateFn, module, paramsMap)
 	if err != nil {
-		l.RaiseError("error creating match: %v", err.Error())
+		l.RaiseError(err.Error())
 		return 0
 	}
 
-	// Start the match.
-	mh, err := n.matchRegistry.NewMatch(matchLogger, id, label, core, paramsMap)
-	if err != nil {
-		l.RaiseError("error creating match: %v", err.Error())
-		return 0
-	}
-
-	// Return the match ID in a form that can be directly sent to clients.
-	l.Push(lua.LString(mh.IDStr))
+	l.Push(lua.LString(id))
 	return 1
 }
 
@@ -2749,7 +2825,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 		} else if len(notification.Content) == 0 {
 			l.ArgError(1, "expects content to be provided and be valid JSON")
 			return
-		} else if uuid.Equal(uuid.Nil, userID) {
+		} else if userID == uuid.Nil {
 			l.ArgError(1, "expects user_id to be provided and be a valid UUID")
 			return
 		} else if notification.Code == 0 {
@@ -2813,11 +2889,13 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		}
 	}
 
+	updateLedger := l.OptBool(4, true)
+
 	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{&walletUpdate{
 		UserID:    userID,
 		Changeset: changesetMap,
 		Metadata:  string(metadataBytes),
-	}}); err != nil {
+	}}, updateLedger); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 	return 0
@@ -2913,7 +2991,9 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UpdateWallets(l.Context(), n.logger, n.db, updates); err != nil {
+	updateLedger := l.OptBool(2, false)
+
+	if err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 	return 0
@@ -3548,7 +3628,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	if err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+	if _, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
 
@@ -4035,7 +4115,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 
 	tournaments := l.CreateTable(len(list.Tournaments), 0)
 	for i, t := range list.Tournaments {
-		tt := l.CreateTable(0, 13)
+		tt := l.CreateTable(0, 16)
 
 		tt.RawSetString("id", lua.LString(t.Id))
 		tt.RawSetString("title", lua.LString(t.Title))
@@ -4049,6 +4129,8 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		tt.RawSetString("size", lua.LNumber(t.Size))
 		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
 		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
+		tt.RawSetString("duration", lua.LNumber(t.Duration))
+		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
 		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
 		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))
 		metadataMap := make(map[string]interface{})
@@ -4061,6 +4143,11 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		tt.RawSetString("metadata", metadataTable)
 		tt.RawSetString("create_time", lua.LNumber(t.CreateTime.Seconds))
 		tt.RawSetString("start_time", lua.LNumber(t.StartTime.Seconds))
+		if t.EndTime == nil {
+			tt.RawSetString("end_time", lua.LNil)
+		} else {
+			tt.RawSetString("end_time", lua.LNumber(t.EndTime.Seconds))
+		}
 
 		tournaments.RawSetInt(i+1, tt)
 	}
@@ -4315,8 +4402,8 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 	maxCount := l.OptInt(9, 0)
-	if maxCount < 0 || maxCount > 100 {
-		l.ArgError(9, "expects max_count to be > 0 and <= 100")
+	if maxCount < 1 || maxCount > 100 {
+		l.ArgError(9, "expects max_count to be >= 1 and <= 100")
 		return 0
 	}
 
@@ -4371,14 +4458,14 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	}
 
 	creatorIDStr := l.OptString(3, "")
-	var creatorID []byte
+	creatorID := uuid.Nil
 	if creatorIDStr != "" {
-		cuid, err := uuid.FromString(creatorIDStr)
+		var err error
+		creatorID, err = uuid.FromString(creatorIDStr)
 		if err != nil {
 			l.ArgError(3, "expects creator ID to be a valid identifier")
 			return 0
 		}
-		creatorID = cuid.Bytes()
 	}
 
 	langStr := l.OptString(4, "")
@@ -4446,6 +4533,54 @@ func (n *RuntimeLuaNakamaModule) groupDelete(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot kick the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	if err := KickGroupUsers(l.Context(), n.logger, n.db, uuid.Nil, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to kick users from a group: %v", err.Error())
+	}
+	return 0
+}
+
 func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	groupID, err := uuid.FromString(l.CheckString(1))
 	if err != nil {
@@ -4455,7 +4590,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 
 	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID)
 	if err != nil {
-		l.RaiseError("error while trying to list users in a  group: %v", err.Error())
+		l.RaiseError("error while trying to list users in a group: %v", err.Error())
 		return 0
 	}
 
@@ -4499,7 +4634,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 
 		gt := l.CreateTable(0, 2)
 		ut.RawSetString("user", ut)
-		ut.RawSetString("state", lua.LNumber(ug.State))
+		ut.RawSetString("state", lua.LNumber(ug.State.Value))
 
 		groupUsers.RawSetInt(i+1, gt)
 	}
@@ -4549,7 +4684,7 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 
 		ugt := l.CreateTable(0, 2)
 		ugt.RawSetString("group", gt)
-		ugt.RawSetString("state", lua.LNumber(ug.State))
+		ugt.RawSetString("state", lua.LNumber(ug.State.Value))
 
 		userGroups.RawSetInt(i+1, ugt)
 	}
@@ -4581,31 +4716,31 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 
 	displayNameL := l.Get(4)
 	var displayName *wrappers.StringValue
-	if displayNameL != nil {
+	if displayNameL != lua.LNil {
 		displayName = &wrappers.StringValue{Value: l.OptString(4, "")}
 	}
 
 	timezoneL := l.Get(5)
 	var timezone *wrappers.StringValue
-	if timezoneL != nil {
+	if timezoneL != lua.LNil {
 		timezone = &wrappers.StringValue{Value: l.OptString(5, "")}
 	}
 
 	locationL := l.Get(6)
 	var location *wrappers.StringValue
-	if locationL != nil {
+	if locationL != lua.LNil {
 		location = &wrappers.StringValue{Value: l.OptString(6, "")}
 	}
 
 	langL := l.Get(7)
 	var lang *wrappers.StringValue
-	if langL != nil {
+	if langL != lua.LNil {
 		lang = &wrappers.StringValue{Value: l.OptString(7, "")}
 	}
 
 	avatarL := l.Get(8)
 	var avatar *wrappers.StringValue
-	if avatarL != nil {
+	if avatarL != lua.LNil {
 		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
 	}
 

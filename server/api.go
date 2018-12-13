@@ -19,11 +19,12 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"github.com/heroiclabs/nakama/api"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/heroiclabs/nakama/api"
 
 	"google.golang.org/grpc/peer"
 

@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/lib/pq"
@@ -68,7 +69,7 @@ func (w *walletLedger) GetMetadata() map[string]interface{} {
 	return w.Metadata
 }
 
-func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*walletUpdate) error {
+func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*walletUpdate, updateLedger bool) error {
 	if len(updates) == 0 {
 		return nil
 	}
@@ -115,17 +116,19 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 				return err
 			}
 
-			changesetData, err := json.Marshal(update.Changeset)
-			if err != nil {
-				logger.Debug("Error converting new user wallet changeset.", zap.String("user_id", update.UserID.String()), zap.Error(err))
-				return err
-			}
+			if updateLedger {
+				changesetData, err := json.Marshal(update.Changeset)
+				if err != nil {
+					logger.Debug("Error converting new user wallet changeset.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+					return err
+				}
 
-			query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1::UUID, $2::UUID, $3, $4)"
-			_, err = tx.ExecContext(ctx, query, uuid.Must(uuid.NewV4()), update.UserID, changesetData, update.Metadata)
-			if err != nil {
-				logger.Debug("Error writing user wallet ledger.", zap.String("user_id", update.UserID.String()), zap.Error(err))
-				return err
+				query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1::UUID, $2::UUID, $3, $4)"
+				_, err = tx.ExecContext(ctx, query, uuid.Must(uuid.NewV4()), update.UserID, changesetData, update.Metadata)
+				if err != nil {
+					logger.Debug("Error writing user wallet ledger.", zap.String("user_id", update.UserID.String()), zap.Error(err))
+					return err
+				}
 			}
 		}
 		return nil

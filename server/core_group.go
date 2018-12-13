@@ -53,7 +53,7 @@ type groupListCursor struct {
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
-	if uuid.Equal(uuid.Nil, userID) {
+	if userID == uuid.Nil {
 		logger.Panic("This function must be used with non-system user ID.")
 	}
 
@@ -144,8 +144,8 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	return group, nil
 }
 
-func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID []byte, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
-	if !uuid.Equal(uuid.Nil, userID) {
+func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
+	if userID != uuid.Nil {
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 1)
 		if err != nil {
 			return err
@@ -168,7 +168,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	}
 
 	if lang != nil {
-		statements = append(statements, "lang = $"+strconv.Itoa(index))
+		statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
 		params = append(params, lang.GetValue())
 		index++
 	}
@@ -215,8 +215,8 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		index++
 	}
 
-	if creatorID != nil {
-		statements = append(statements, "creator_id = $"+strconv.Itoa(index)+"::UUID")
+	if creatorID != uuid.Nil {
+		statements = append(statements, "creator_id = $"+strconv.Itoa(index))
 		params = append(params, creatorID)
 	}
 
@@ -249,7 +249,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 }
 
 func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
-	if !uuid.Equal(uuid.Nil, userID) {
+	if userID != uuid.Nil {
 		// only super-admins can delete group.
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 0)
 		if err != nil {
@@ -432,7 +432,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 }
 
 func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -470,7 +470,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 
@@ -525,7 +525,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 
 func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -553,7 +553,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			// shouldn't kick self
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 
@@ -627,7 +627,7 @@ RETURNING state`
 
 func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
-	if !uuid.Equal(uuid.Nil, caller) {
+	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
@@ -666,7 +666,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
-			if uuid.Equal(caller, uid) {
+			if uid == caller {
 				continue
 			}
 
@@ -689,16 +689,24 @@ RETURNING state`
 
 			if newState.Int64 == 2 {
 				query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-				_, err := tx.ExecContext(ctx, query, groupID)
+				res, err := tx.ExecContext(ctx, query, groupID)
 				if err != nil {
-					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()))
+					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
 					return err
+				}
+
+				if rowsAffected, err := res.RowsAffected(); err != nil {
+					logger.Debug("Could not retrieve affect rows.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
+					return err
+				} else if rowsAffected == 0 {
+					logger.Debug("Did not update group edge count - check edge count has not reached max count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return ErrGroupFull
 				}
 			}
 		}
 		return nil
 	}); err != nil {
-		logger.Error("Error promote users from group.", zap.Error(err))
+		logger.Error("Error promote users in group.", zap.Error(err))
 		return err
 	}
 
@@ -773,17 +781,13 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 			Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 		}
 
-		groupUser := &api.GroupUserList_GroupUser{User: user}
-		switch state.Int64 {
-		case 0:
-			groupUser.State = int32(api.GroupUserList_GroupUser_SUPERADMIN)
-		case 1:
-			groupUser.State = int32(api.GroupUserList_GroupUser_ADMIN)
-		case 2:
-			groupUser.State = int32(api.GroupUserList_GroupUser_MEMBER)
-		case 3:
-			groupUser.State = int32(api.GroupUserList_GroupUser_JOIN_REQUEST)
+		groupUser := &api.GroupUserList_GroupUser{
+			User: user,
+			State: &wrappers.Int32Value{
+				Value: int32(state.Int64),
+			},
 		}
+
 		groupUsers = append(groupUsers, groupUser)
 	}
 
@@ -855,16 +859,11 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
 			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 		}
 
-		userGroup := &api.UserGroupList_UserGroup{Group: group}
-		switch userState.Int64 {
-		case 0:
-			userGroup.State = int32(api.UserGroupList_UserGroup_SUPERADMIN)
-		case 1:
-			userGroup.State = int32(api.UserGroupList_UserGroup_ADMIN)
-		case 2:
-			userGroup.State = int32(api.UserGroupList_UserGroup_MEMBER)
-		case 3:
-			userGroup.State = int32(api.UserGroupList_UserGroup_JOIN_REQUEST)
+		userGroup := &api.UserGroupList_UserGroup{
+			Group: group,
+			State: &wrappers.Int32Value{
+				Value: int32(userState.Int64),
+			},
 		}
 
 		userGroups = append(userGroups, userGroup)

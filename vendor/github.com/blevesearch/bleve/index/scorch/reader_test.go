@@ -15,6 +15,7 @@
 package scorch
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 
@@ -23,15 +24,20 @@ import (
 )
 
 func TestIndexReader(t *testing.T) {
+	cfg := CreateConfig("TestIndexReader")
+	err := InitTest(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		err := DestroyTest()
+		err := DestroyTest(cfg)
 		if err != nil {
-			t.Fatal(err)
+			t.Log(err)
 		}
 	}()
 
 	analysisQueue := index.NewAnalysisQueue(1)
-	idx, err := NewScorch(Name, testConfig, analysisQueue)
+	idx, err := NewScorch(Name, cfg, analysisQueue)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,9 +177,10 @@ func TestIndexReader(t *testing.T) {
 	if !match.ID.Equals(internalID2) {
 		t.Errorf("Expected ID '2', got '%s'", match.ID)
 	}
-	// NOTE: no point in changing this to internal id 3, there is no id 3
-	// the test is looking for something that doens't exist and this doesn't
-	match, err = reader.Advance(index.IndexInternalID("3"), nil)
+	// have to manually construct bogus id, because it doesn't exist
+	internalID3 := make([]byte, 8)
+	binary.BigEndian.PutUint64(internalID3, 3)
+	match, err = reader.Advance(index.IndexInternalID(internalID3), nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -212,15 +219,20 @@ func TestIndexReader(t *testing.T) {
 }
 
 func TestIndexDocIdReader(t *testing.T) {
+	cfg := CreateConfig("TestIndexDocIdReader")
+	err := InitTest(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		err := DestroyTest()
+		err := DestroyTest(cfg)
 		if err != nil {
-			t.Fatal(err)
+			t.Log(err)
 		}
 	}()
 
 	analysisQueue := index.NewAnalysisQueue(1)
-	idx, err := NewScorch(Name, testConfig, analysisQueue)
+	idx, err := NewScorch(Name, cfg, analysisQueue)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,15 +335,20 @@ func TestIndexDocIdReader(t *testing.T) {
 }
 
 func TestIndexDocIdOnlyReader(t *testing.T) {
+	cfg := CreateConfig("TestIndexDocIdOnlyReader")
+	err := InitTest(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		err := DestroyTest()
+		err := DestroyTest(cfg)
 		if err != nil {
-			t.Fatal(err)
+			t.Log(err)
 		}
 	}()
 
 	analysisQueue := index.NewAnalysisQueue(1)
-	idx, err := NewScorch(Name, testConfig, analysisQueue)
+	idx, err := NewScorch(Name, cfg, analysisQueue)
 	if err != nil {
 		t.Fatal(err)
 	}

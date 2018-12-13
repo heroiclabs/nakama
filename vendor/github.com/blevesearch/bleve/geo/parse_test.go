@@ -87,7 +87,7 @@ func TestExtractGeoPoint(t *testing.T) {
 			lat:     7.5,
 			success: true,
 		},
-		// struct with lng alterante
+		// struct with lng alternate
 		{
 			in: struct {
 				Lng float64
@@ -140,6 +140,23 @@ func TestExtractGeoPoint(t *testing.T) {
 			lon:     3.4,
 			lat:     5.9,
 			success: true,
+		},
+		// values are nil (not supported)
+		{
+			in: map[string]interface{}{
+				"lat": nil,
+				"lon": nil,
+			},
+			lon:     0,
+			lat:     0,
+			success: false,
+		},
+		// input is nil
+		{
+			in:      nil,
+			lon:     0,
+			lat:     0,
+			success: false,
 		},
 	}
 

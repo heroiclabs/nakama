@@ -19,12 +19,13 @@ import (
 	"strings"
 
 	"crypto"
+	"time"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
-	"time"
 )
 
 type matchDataFilter struct {
@@ -173,7 +174,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		// The user is not yet part of the match, attempt to join.
 		if mode == StreamModeMatchAuthoritative {
 			// If it's an authoritative match, ask the match handler if it will allow the join.
-			found, allow, reason, l = p.matchRegistry.JoinAttempt(matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
+			found, allow, reason, l = p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
 		}
 		if !found {
 			// Match did not exist.
@@ -208,6 +209,20 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			return
 		}
 		meta = &m
+	} else if mode == StreamModeMatchAuthoritative {
+		// The user was already in the match, and it's an authoritative match.
+		// Look up the match label to return it anyway.
+		l, err := p.matchRegistry.GetMatchLabel(session.Context(), matchID, node)
+		if err != nil {
+			// There was a problem looking up the label.
+			logger.Error("Error looking up match label", zap.String("match_id", matchIDString), zap.String("node", node), zap.Error(err))
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Match label lookup failed.",
+			}}})
+			return
+		}
+		label = &wrappers.StringValue{Value: l}
 	}
 
 	// Whether the user has just (successfully) joined the match or was already a member, return the match info anyway.
@@ -279,10 +294,18 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(incoming.MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
+		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid match ID",
+		}}})
 		return
 	}
 	matchID, err := uuid.FromString(matchIDComponents[0])
 	if err != nil {
+		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Invalid match ID",
+		}}})
 		return
 	}
 

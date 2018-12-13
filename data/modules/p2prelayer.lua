@@ -37,6 +37,10 @@ function M.match_join_attempt(context, dispatcher, tick, state, presence)
   return state, true
 end
 
+function M.match_join(context, dispatcher, tick, state, presences)
+  return state
+end
+
 function M.match_leave(context, dispatcher, tick, state, presence)
   return state
 end

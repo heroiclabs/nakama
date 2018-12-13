@@ -18,13 +18,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/blevesearch/bleve/analysis/tokenizer/exception"
 	"github.com/blevesearch/bleve/analysis/tokenizer/regexp"
 	"github.com/blevesearch/bleve/document"
-	"github.com/blevesearch/bleve/numeric"
 )
 
 var mappingSource = []byte(`{
@@ -870,6 +870,7 @@ func TestMappingForGeo(t *testing.T) {
 	mapping.DefaultMapping = thingMapping
 
 	geopoints := []interface{}{}
+	expect := [][]float64{} // to contain expected [lon,lat] for geopoints
 
 	// geopoint as a struct
 	geopoints = append(geopoints, struct {
@@ -882,6 +883,7 @@ func TestMappingForGeo(t *testing.T) {
 			Lat: -90,
 		},
 	})
+	expect = append(expect, []float64{-180, -90})
 
 	// geopoint as a map
 	geopoints = append(geopoints, struct {
@@ -894,8 +896,9 @@ func TestMappingForGeo(t *testing.T) {
 			"lat": -90,
 		},
 	})
+	expect = append(expect, []float64{-180, -90})
 
-	// geopoint as a slice
+	// geopoint as a slice, format: {lon, lat}
 	geopoints = append(geopoints, struct {
 		Name     string        `json:"name"`
 		Location []interface{} `json:"location"`
@@ -905,6 +908,55 @@ func TestMappingForGeo(t *testing.T) {
 			-180, -90,
 		},
 	})
+	expect = append(expect, []float64{-180, -90})
+
+	// geopoint as a string, format: "lat,lon"
+	geopoints = append(geopoints, struct {
+		Name     string        `json:"name"`
+		Location []interface{} `json:"location"`
+	}{
+		Name: "string",
+		Location: []interface{}{
+			"-90,-180",
+		},
+	})
+	expect = append(expect, []float64{-180, -90})
+
+	// geopoint as a string, format: "lat , lon" with leading/trailing whitespaces
+	geopoints = append(geopoints, struct {
+		Name     string        `json:"name"`
+		Location []interface{} `json:"location"`
+	}{
+		Name: "string",
+		Location: []interface{}{
+			"-90    ,    -180",
+		},
+	})
+	expect = append(expect, []float64{-180, -90})
+
+	// geopoint as a string - geohash
+	geopoints = append(geopoints, struct {
+		Name     string        `json:"name"`
+		Location []interface{} `json:"location"`
+	}{
+		Name: "string",
+		Location: []interface{}{
+			"000000000000",
+		},
+	})
+	expect = append(expect, []float64{-180, -90})
+
+	// geopoint as a string - geohash
+	geopoints = append(geopoints, struct {
+		Name     string        `json:"name"`
+		Location []interface{} `json:"location"`
+	}{
+		Name: "string",
+		Location: []interface{}{
+			"drm3btev3e86",
+		},
+	})
+	expect = append(expect, []float64{-71.34, 41.12})
 
 	for i, geopoint := range geopoints {
 		doc := document.NewDocument(string(i))
@@ -917,10 +969,24 @@ func TestMappingForGeo(t *testing.T) {
 		for _, f := range doc.Fields {
 			if f.Name() == "location" {
 				foundGeo = true
-				got := f.Value()
-				expect := []byte(numeric.MustNewPrefixCodedInt64(0, 0))
-				if !reflect.DeepEqual(got, expect) {
-					t.Errorf("expected geo value: %v, got %v", expect, got)
+				geoF, ok := f.(*document.GeoPointField)
+				if !ok {
+					t.Errorf("expected a geopoint field!")
+				}
+				lon, err := geoF.Lon()
+				if err != nil {
+					t.Errorf("error in fetching lon, err: %v", err)
+				}
+				lat, err := geoF.Lat()
+				if err != nil {
+					t.Errorf("error in fetching lat, err: %v", err)
+				}
+				// round obtained lon, lat to 2 decimal places
+				roundLon, _ := strconv.ParseFloat(fmt.Sprintf("%.2f", lon), 64)
+				roundLat, _ := strconv.ParseFloat(fmt.Sprintf("%.2f", lat), 64)
+				if roundLon != expect[i][0] || roundLat != expect[i][1] {
+					t.Errorf("expected geo point: {%v, %v}, got {%v, %v}",
+						expect[i][0], expect[i][1], lon, lat)
 				}
 			}
 		}
@@ -950,7 +1016,7 @@ func TestMappingForTextMarshaler(t *testing.T) {
 		},
 	}
 
-	// first verify that when using a mapping that doesn't explicity
+	// first verify that when using a mapping that doesn't explicitly
 	// map the stuct field as text, then we traverse inside the struct
 	// and do our best
 	m := NewIndexMapping()
@@ -970,7 +1036,7 @@ func TestMappingForTextMarshaler(t *testing.T) {
 		t.Errorf("expected field value to be '%s', got: '%s'", tm.Marshalable.Extra, string(doc.Fields[0].Value()))
 	}
 
-	// now verify that when a mapping explicity
+	// now verify that when a mapping explicitly
 	m = NewIndexMapping()
 	txt := NewTextFieldMapping()
 	m.DefaultMapping.AddFieldMappingsAt("Marshalable", txt)
@@ -1004,7 +1070,7 @@ func TestMappingForNilTextMarshaler(t *testing.T) {
 		Marshalable: nil,
 	}
 
-	// now verify that when a mapping explicity
+	// now verify that when a mapping explicitly
 	m := NewIndexMapping()
 	txt := NewTextFieldMapping()
 	m.DefaultMapping.AddFieldMappingsAt("Marshalable", txt)

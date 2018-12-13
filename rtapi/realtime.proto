@@ -391,8 +391,8 @@ message Stream {
   int32 mode = 1;
   // Subject is the primary identifier, if any.
   string subject = 2;
-  // Descriptor is a secondary identifier, if any.
-  string descriptor = 3;
+  // Subcontext is a secondary identifier, if any.
+  string subcontext = 3;
   // The label is an arbitrary identifying string, if the stream has one.
   string label = 4;
 }

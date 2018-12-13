@@ -4,8 +4,69 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- WebSocket connections can now use pure Protobuf binary messaging.
+- Lua runtime tournament listings now return duration, end active, and end time fields.
+- Lua runtime tournament end hooks now contain duration, end active, and end time fields.
+- Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
+- Separate configuration for maximum number of concurrent join requests to authoritative matches.
+- New runtime function to kick users from a group.
+- Clients sending data to an invalid match ID will now receive an uncollated error.
+
+### Changed
+- Rename stream 'descriptor' field to 'subcontext' to avoid protocol naming conflict.
+- Rename Facebook authentication and link 'import' field to avoid language keyword conflict.
+- Rejoining a match the user is already part of will now return the match label.
+- Allow tournament joins before the start of the tournament active period.
+- Authoritative matches now complete their stop phase faster to avoid unnecessary processing.
+- Authoritative match join attempts now have their own bounded queue and no longer count towards the match call queue limit.
+
+### Fixed
+- Correctly report execution mode in Lua runtime after hooks.
+- Use correct parameter type for creator ID in group update queries.
+- Use correct parameter name for lang tag in group update queries.
+- Do not allow users to send friend requests to the root user.
+- Tournament listings now report correct active periods if the start time is in the future.
+- Leaderboard and tournament reset runtime callbacks now receive the correct reset time.
+- Tournament end runtime callbacks now receive the correct end time.
+- Leaderboard and tournament runtime callbacks no longer trigger twice when time delays are observed.
+- Check group max allowed user when promoting a user.
+- Correct Lua runtime decoding of stream identifying parameters.
+
+## [2.2.1] - 2018-11-20
+### Added
+- New duration field in the tournament API.
+
+### Fixed
+- Set friend state correctly when initially adding friends.
+- Allow tournaments to be created to start in the future but with no end time.
+- Join events on tournaments with an end time set but no reset now allow users to submit scores.
+
+## [2.2.0] - 2018-11-11
+### Added
+- New runtime function to send raw realtime envelope data through streams.
+
+### Changed
+- Improve error message on database errors raised during authentication operations.
+- Set new default of 100 maximum number of open database connections.
+- Friendship state is no longer offset by one when sent to clients.
+- Group membership state is no longer offset by one when sent to clients.
+- Set new default metrics report frequency to 60 seconds. 
+
+### Fixed
+- Account update optional inputs are not updated unless set in runtime functions.
+- Fix boolean logic with context cancellation in single-statement database operations.
+
+## [2.1.3] - 2018-11-02
+### Added
+- Add option to skip virtual wallet ledger writes if not needed.
+
 ### Changed
 - Improved error handling in Lua runtime custom SQL function calls.
+- Authoritative match join attempts are now cancelled faster when the client session closes.
+
+### Fixed
+- Correctly support arbitrary database schema names that may contain special characters.
 
 ## [2.1.2] - 2018-10-25
 ### Added

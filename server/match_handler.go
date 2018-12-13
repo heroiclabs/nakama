@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -83,11 +84,12 @@ type MatchHandler struct {
 	tick int64
 
 	// Control elements.
-	inputCh chan *MatchDataMessage
-	ticker  *time.Ticker
-	callCh  chan func(*MatchHandler)
-	stopCh  chan struct{}
-	stopped *atomic.Bool
+	inputCh       chan *MatchDataMessage
+	ticker        *time.Ticker
+	callCh        chan func(*MatchHandler)
+	joinAttemptCh chan func(*MatchHandler)
+	stopCh        chan struct{}
+	stopped       *atomic.Bool
 
 	// Configuration set by match init.
 	Label *atomic.String
@@ -107,7 +109,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		core.Cancel()
 		return nil, errors.New("Match initial state must not be nil")
 	}
-	err = matchRegistry.UpdateMatchLabel(id, labelStr, 0)
+	err = matchRegistry.UpdateMatchLabel(id, labelStr)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +135,10 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 
 		inputCh: make(chan *MatchDataMessage, config.GetMatch().InputQueueSize),
 		// Ticker below.
-		callCh:  make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
-		stopCh:  make(chan struct{}),
-		stopped: atomic.NewBool(false),
+		callCh:        make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
+		joinAttemptCh: make(chan func(mh *MatchHandler), config.GetMatch().JoinAttemptQueueSize),
+		stopCh:        make(chan struct{}),
+		stopped:       atomic.NewBool(false),
 
 		Label: label,
 		Rate:  rateInt,
@@ -155,12 +158,15 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 				return
 			case <-mh.ticker.C:
 				// Tick, queue a match loop invocation.
-				if !mh.QueueCall(loop) {
+				if !mh.queueCall(loop) {
 					return
 				}
 			case call := <-mh.callCh:
-				// An invocation to one of the match functions.
+				// An invocation to one of the match functions, not including join attempts.
 				call(mh)
+			case joinAttempt := <-mh.joinAttemptCh:
+				// An invocation to the join attempt match function.
+				joinAttempt(mh)
 			}
 		}
 	}()
@@ -186,7 +192,11 @@ func (mh *MatchHandler) Close() {
 	mh.ticker.Stop()
 }
 
-func (mh *MatchHandler) QueueCall(f func(*MatchHandler)) bool {
+func (mh *MatchHandler) queueCall(f func(*MatchHandler)) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
 	select {
 	case mh.callCh <- f:
 		return true
@@ -199,6 +209,10 @@ func (mh *MatchHandler) QueueCall(f func(*MatchHandler)) bool {
 }
 
 func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
+	if mh.stopped.Load() {
+		return
+	}
+
 	select {
 	case mh.inputCh <- m:
 		return
@@ -230,8 +244,21 @@ func loop(mh *MatchHandler) {
 	mh.tick++
 }
 
-func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) func(mh *MatchHandler) {
-	return func(mh *MatchHandler) {
+func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
+	joinAttempt := func(mh *MatchHandler) {
+		select {
+		case <-ctx.Done():
+			// Do not process the match join attempt through the match handler if the client has gone away between
+			// when this call was inserted into the match call queue and when it's due for processing.
+			resultCh <- &MatchJoinResult{Allow: false}
+			return
+		default:
+		}
+
 		if mh.stopped.Load() {
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
@@ -254,10 +281,24 @@ func JoinAttempt(resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, us
 		mh.state = state
 		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label.Load()}
 	}
+
+	select {
+	case mh.joinAttemptCh <- joinAttempt:
+		return true
+	default:
+		// Match join queue is full, the handler isn't processing these fast enough or there are just too many.
+		// Not necessarily a match processing speed problem, so the match is not closed for these.
+		mh.logger.Warn("Match handler join attempt queue full")
+		return false
+	}
 }
 
-func Join(joins []*MatchPresence) func(mh *MatchHandler) {
-	return func(mh *MatchHandler) {
+func (mh *MatchHandler) QueueJoin(joins []*MatchPresence) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
+	join := func(mh *MatchHandler) {
 		if mh.stopped.Load() {
 			return
 		}
@@ -276,10 +317,16 @@ func Join(joins []*MatchPresence) func(mh *MatchHandler) {
 
 		mh.state = state
 	}
+
+	return mh.queueCall(join)
 }
 
-func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
-	return func(mh *MatchHandler) {
+func (mh *MatchHandler) QueueLeave(leaves []*MatchPresence) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
+	leave := func(mh *MatchHandler) {
 		if mh.stopped.Load() {
 			return
 		}
@@ -298,10 +345,16 @@ func Leave(leaves []*MatchPresence) func(mh *MatchHandler) {
 
 		mh.state = state
 	}
+
+	return mh.queueCall(leave)
 }
 
-func Terminate(graceSeconds int) func(mh *MatchHandler) {
-	return func(mh *MatchHandler) {
+func (mh *MatchHandler) QueueTerminate(graceSeconds int) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
+	terminate := func(mh *MatchHandler) {
 		if mh.stopped.Load() {
 			return
 		}
@@ -325,4 +378,6 @@ func Terminate(graceSeconds int) func(mh *MatchHandler) {
 			mh.Stop()
 		}
 	}
+
+	return mh.queueCall(terminate)
 }

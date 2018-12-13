@@ -319,7 +319,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	}
 
 	// Import friends if requested.
-	if in.Import == nil || in.Import.Value {
+	if in.Sync == nil || in.Sync.Value {
 		importFacebookFriends(ctx, s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, false)
 	}
 

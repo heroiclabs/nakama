@@ -261,7 +261,7 @@
             "type": "string"
           },
           {
-            "name": "import",
+            "name": "sync",
             "description": "Import Facebook friends for the user.",
             "in": "query",
             "required": false,
@@ -527,7 +527,7 @@
             }
           },
           {
-            "name": "import",
+            "name": "sync",
             "description": "Import Facebook friends for the user.",
             "in": "query",
             "required": false,
@@ -1371,6 +1371,7 @@
     },
     "/v2/leaderboard/{leaderboard_id}/owner/{owner_id}": {
       "get": {
+        "summary": "List leaderboard records that belong to a user.",
         "operationId": "ListLeaderboardRecordsAroundOwner",
         "responses": {
           "200": {
@@ -1947,6 +1948,7 @@
     },
     "/v2/tournament/{tournament_id}/join": {
       "post": {
+        "summary": "Attempt to join an open and running tournament.",
         "operationId": "JoinTournament",
         "responses": {
           "200": {
@@ -1972,6 +1974,7 @@
     },
     "/v2/tournament/{tournament_id}/owner/{owner_id}": {
       "get": {
+        "summary": "List tournament records for a given owner.",
         "operationId": "ListTournamentRecordsAroundOwner",
         "responses": {
           "200": {
@@ -2961,6 +2964,11 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the tournament will be stopped."
+        },
+        "duration": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX timestamp for duration of a tournament."
         }
       },
       "description": "A tournament on the server."

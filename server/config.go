@@ -141,6 +141,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetMatch().CallQueueSize < 1 {
 		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", mainConfig.GetMatch().CallQueueSize))
 	}
+	if mainConfig.GetMatch().JoinAttemptQueueSize < 1 {
+		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", mainConfig.GetMatch().JoinAttemptQueueSize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -330,7 +333,7 @@ func NewLoggerConfig() *LoggerConfig {
 
 // MetricsConfig is configuration relevant to metrics capturing and output.
 type MetricsConfig struct {
-	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 10 seconds."`
+	ReportingFreqSec     int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 60 seconds."`
 	StackdriverProjectID string `yaml:"stackdriver_projectid" json:"stackdriver_projectid" usage:"This is the identifier of the Stackdriver project the server is uploading the stats data to. Setting this enables metrics to be exported to Stackdriver."`
 	Namespace            string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus or prefix for Stackdriver metrics. It will always prepend node name."`
 	PrometheusPort       int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
@@ -339,7 +342,7 @@ type MetricsConfig struct {
 // NewMetricsConfig creates a new MatricsConfig struct.
 func NewMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
-		ReportingFreqSec:     10,
+		ReportingFreqSec:     60,
 		StackdriverProjectID: "",
 		Namespace:            "",
 		PrometheusPort:       0,
@@ -403,10 +406,10 @@ func NewSocketConfig() *SocketConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage.
 type DatabaseConfig struct {
-	Addresses         []string `yaml:"address" json:"address" usage:"List of CockroachDB servers (username:password@address:port/dbname)."`
-	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created."`
-	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database."`
-	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database."`
+	Addresses         []string `yaml:"address" json:"address" usage:"List of database servers (username:password@address:port/dbname). Default 'root@127.0.0.1:26257'."`
+	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created. Default 0 (unlimited)."`
+	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database. Default 100."`
+	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database. Default 100."`
 }
 
 // NewDatabaseConfig creates a new DatabaseConfig struct.
@@ -414,7 +417,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Addresses:         []string{"root@127.0.0.1:26257"},
 		ConnMaxLifetimeMs: 0,
-		MaxOpenConns:      0,
+		MaxOpenConns:      100,
 		MaxIdleConns:      100,
 	}
 }
@@ -468,15 +471,17 @@ func NewRuntimeConfig() *RuntimeConfig {
 
 // MatchConfig is configuration relevant to authoritative realtime multiplayer matches.
 type MatchConfig struct {
-	InputQueueSize int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
-	CallQueueSize  int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
+	InputQueueSize       int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
+	CallQueueSize        int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
+	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
 func NewMatchConfig() *MatchConfig {
 	return &MatchConfig{
-		InputQueueSize: 128,
-		CallQueueSize:  128,
+		InputQueueSize:       128,
+		CallQueueSize:        128,
+		JoinAttemptQueueSize: 128,
 	}
 }
 

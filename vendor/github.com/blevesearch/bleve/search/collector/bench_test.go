@@ -15,13 +15,13 @@
 package collector
 
 import (
+	"context"
 	"math/rand"
 	"strconv"
 	"testing"
 
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/search"
-	"golang.org/x/net/context"
 )
 
 type createCollector func() search.Collector

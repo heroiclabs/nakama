@@ -48,10 +48,10 @@ var docvalueCmd = &cobra.Command{
 
 		// iterate through fields index
 		var fieldInv []string
-		var id, read, fieldLoc uint64
-		var nread int
+		var id uint64
 		for fieldsIndexOffset+(8*id) < fieldsIndexEnd {
-			addr := binary.BigEndian.Uint64(data[fieldsIndexOffset+(8*id) : fieldsIndexOffset+(8*id)+8])
+			addr := binary.BigEndian.Uint64(
+				data[fieldsIndexOffset+(8*id) : fieldsIndexOffset+(8*id)+8])
 			var n uint64
 			_, read := binary.Uvarint(data[addr+n : fieldsIndexEnd])
 			n += uint64(read)
@@ -67,162 +67,160 @@ var docvalueCmd = &cobra.Command{
 		}
 
 		dvLoc := segment.DocValueOffset()
-		fieldDvLoc, total, fdvread := uint64(0), uint64(0), int(0)
-
+		var n int
 		var fieldName string
 		var fieldID uint16
+		var fieldDvSize float64
+		var read, fieldStartLoc, fieldEndLoc uint64
+		var fieldChunkCount, fieldDvStart, fieldDvEnd, totalDvSize uint64
+		var fieldChunkLens []uint64
 
 		// if no fields are specified then print the docValue offsets for all fields set
 		for id, field := range fieldInv {
-			fieldLoc, fdvread = binary.Uvarint(data[dvLoc+read : dvLoc+read+binary.MaxVarintLen64])
-			if fdvread <= 0 {
-				return fmt.Errorf("loadDvIterators: failed to read the docvalue offsets for field %d", fieldID)
+			fieldStartLoc, n = binary.Uvarint(
+				data[dvLoc+read : dvLoc+read+binary.MaxVarintLen64])
+			if n <= 0 {
+				return fmt.Errorf("loadDvIterators: failed to read the "+
+					" docvalue offsets for field %d", fieldID)
 			}
-			read += uint64(fdvread)
-			if fieldLoc == math.MaxUint64 {
-				fmt.Printf("fieldID: %d '%s' docvalue at %d (%x) not persisted \n", id, field, fieldLoc, fieldLoc)
+
+			read += uint64(n)
+			fieldEndLoc, n = binary.Uvarint(
+				data[dvLoc+read : dvLoc+read+binary.MaxVarintLen64])
+			if n <= 0 {
+				return fmt.Errorf("Failed to read the docvalue offset "+
+					"end for field %d", fieldID)
+			}
+
+			read += uint64(n)
+			if fieldStartLoc == math.MaxUint64 && len(args) == 1 {
+				fmt.Printf("FieldID: %d '%s' docvalue at %d (%x) not "+
+					" persisted \n", id, field, fieldStartLoc, fieldStartLoc)
 				continue
 			}
 
-			var offset, clen, numChunks uint64
-			numChunks, nread = binary.Uvarint(data[fieldLoc : fieldLoc+binary.MaxVarintLen64])
-			if nread <= 0 {
-				return fmt.Errorf("failed to read the field "+
-					"doc values for field %s", fieldName)
+			var chunkOffsetsPosition, offset, numChunks uint64
+			if fieldEndLoc-fieldStartLoc > 16 {
+				numChunks = binary.BigEndian.Uint64(data[fieldEndLoc-8 : fieldEndLoc])
+				// read the length of chunk offsets
+				chunkOffsetsLen := binary.BigEndian.Uint64(data[fieldEndLoc-16 : fieldEndLoc-8])
+				// acquire position of chunk offsets
+				chunkOffsetsPosition = (fieldEndLoc - 16) - chunkOffsetsLen
 			}
-			offset += uint64(nread)
 
-			// read the length of chunks
-			totalSize := uint64(0)
+			// read the chunk offsets
 			chunkLens := make([]uint64, numChunks)
+			dvSize := uint64(0)
 			for i := 0; i < int(numChunks); i++ {
-				clen, nread = binary.Uvarint(data[fieldLoc+offset : fieldLoc+offset+binary.MaxVarintLen64])
-				if nread <= 0 {
-					return fmt.Errorf("corrupted chunk length for chunk number: %d", i)
+				length, read := binary.Uvarint(
+					data[chunkOffsetsPosition+offset : chunkOffsetsPosition+offset+
+						binary.MaxVarintLen64])
+				if read <= 0 {
+					return fmt.Errorf("Corrupted chunk offset during segment load")
 				}
 
-				chunkLens[i] = clen
-				totalSize += clen
-				offset += uint64(nread)
+				offset += uint64(read)
+				chunkLens[i] = length
+				dvSize += length
 			}
 
-			total += totalSize
+			totalDvSize += dvSize
+			// if no field args are given, then print out the dv locations for all fields
 			if len(args) == 1 {
-				// if no field args are given, then print out the dv locations for all fields
-				mbsize := float64(totalSize) / (1024 * 1024)
-				fmt.Printf("fieldID: %d '%s' docvalue at %d (%x) numChunks %d  diskSize %.3f MB\n", id, field, fieldLoc, fieldLoc, numChunks, mbsize)
+				mbsize := float64(dvSize) / (1024 * 1024)
+				fmt.Printf("FieldID: %d '%s' docvalue at %d (%x) numChunks "+
+					"%d  diskSize %.6f MB\n", id, field, fieldStartLoc,
+					fieldStartLoc, numChunks, mbsize)
 				continue
 			}
 
-			if field != args[1] {
-				continue
-			} else {
-				fieldDvLoc = fieldLoc
+			// if the field is the requested one for more details,
+			// then remember the details
+			if field == args[1] {
+				fieldDvStart = fieldStartLoc
+				fieldDvEnd = fieldEndLoc
 				fieldName = field
 				fieldID = uint16(id)
+				fieldDvSize = float64(dvSize) / (1024 * 1024)
+				fieldChunkLens = append(fieldChunkLens, chunkLens...)
+				fieldChunkCount = numChunks
 			}
-
 		}
 
-		mbsize := float64(total) / (1024 * 1024)
-		fmt.Printf("Total Doc Values Size on Disk: %.3f MB\n", mbsize)
+		mbsize := float64(totalDvSize) / (1024 * 1024)
+		fmt.Printf("Total Doc Values Size on Disk: %.6f MB\n", mbsize)
 
 		// done with the fields dv locs printing for the given zap file
 		if len(args) == 1 {
 			return nil
 		}
 
-		if fieldName == "" || fieldDvLoc == 0 {
-			return fmt.Errorf("no field found for given field arg: %s", args[1])
-		}
-
-		// read the number of chunks
-		var offset, clen, numChunks uint64
-		numChunks, nread = binary.Uvarint(data[fieldDvLoc : fieldDvLoc+binary.MaxVarintLen64])
-		if nread <= 0 {
-			return fmt.Errorf("failed to read the field "+
-				"doc values for field %s", fieldName)
-		}
-		offset += uint64(nread)
-
-		if len(args) == 2 {
-			fmt.Printf("number of chunks: %d\n", numChunks)
-		}
-
-		// read the length of chunks
-		chunkLens := make([]uint64, numChunks)
-		for i := 0; i < int(numChunks); i++ {
-			clen, nread = binary.Uvarint(data[fieldDvLoc+offset : fieldDvLoc+offset+binary.MaxVarintLen64])
-			if nread <= 0 {
-				return fmt.Errorf("corrupted chunk length for chunk number: %d", i)
-			}
-
-			chunkLens[i] = clen
-			offset += uint64(nread)
-			if len(args) == 2 {
-				fmt.Printf("chunk: %d size: %d \n", i, clen)
-			}
-			/*
-				TODO => dump all chunk headers??
-				if len(args) == 3 && args[2] == ">" {
-					dumpChunkDocNums(data, )
-
-				}*/
+		if fieldName == "" || fieldDvEnd == 0 {
+			return fmt.Errorf("No docvalue persisted for given field arg: %s",
+				args[1])
 		}
 
 		if len(args) == 2 {
+			fmt.Printf("FieldID: %d '%s' docvalue at %d (%x) numChunks "+
+				"%d  diskSize %.6f MB\n", fieldID, fieldName, fieldDvStart,
+				fieldDvStart, fieldChunkCount, fieldDvSize)
+			fmt.Printf("Number of docvalue chunks: %d\n", fieldChunkCount)
 			return nil
 		}
 
 		localDocNum, err := strconv.Atoi(args[2])
 		if err != nil {
-			return fmt.Errorf("unable to parse doc number: %v", err)
+			return fmt.Errorf("Unable to parse doc number: %v", err)
 		}
 
 		if localDocNum >= int(segment.NumDocs()) {
-			return fmt.Errorf("invalid doc number %d (valid 0 - %d)", localDocNum, segment.NumDocs()-1)
+			return fmt.Errorf("Invalid doc number %d (valid 0 - %d)",
+				localDocNum, segment.NumDocs()-1)
 		}
 
 		// find the chunkNumber where the docValues are stored
 		docInChunk := uint64(localDocNum) / uint64(segment.ChunkFactor())
 
-		if numChunks < docInChunk {
-			return fmt.Errorf("no chunk exists for chunk number: %d for localDocNum: %d", docInChunk, localDocNum)
+		if fieldChunkCount < docInChunk {
+			return fmt.Errorf("No chunk exists for chunk number: %d for "+
+				"localDocNum: %d", docInChunk, localDocNum)
 		}
 
-		destChunkDataLoc := fieldDvLoc + offset
-		for i := 0; i < int(docInChunk); i++ {
-			destChunkDataLoc += chunkLens[i]
-		}
-		curChunkSize := chunkLens[docInChunk]
+		start, end := readChunkBoundary(int(docInChunk), fieldChunkLens)
+		destChunkDataLoc := fieldDvStart + start
+		curChunkEnd := fieldDvStart + end
 
 		// read the number of docs reside in the chunk
-		numDocs := uint64(0)
-		numDocs, nread = binary.Uvarint(data[destChunkDataLoc : destChunkDataLoc+binary.MaxVarintLen64])
-		if nread <= 0 {
-			return fmt.Errorf("failed to read the target chunk: %d", docInChunk)
+		var numDocs uint64
+		var nr int
+		numDocs, nr = binary.Uvarint(
+			data[destChunkDataLoc : destChunkDataLoc+binary.MaxVarintLen64])
+		if nr <= 0 {
+			return fmt.Errorf("Failed to read the chunk")
 		}
-		chunkMetaLoc := destChunkDataLoc + uint64(nread)
 
-		offset = uint64(0)
+		chunkMetaLoc := destChunkDataLoc + uint64(nr)
 		curChunkHeader := make([]zap.MetaData, int(numDocs))
+		offset := uint64(0)
 		for i := 0; i < int(numDocs); i++ {
-			curChunkHeader[i].DocNum, nread = binary.Uvarint(data[chunkMetaLoc+offset : chunkMetaLoc+offset+binary.MaxVarintLen64])
-			offset += uint64(nread)
-			curChunkHeader[i].DocDvLoc, nread = binary.Uvarint(data[chunkMetaLoc+offset : chunkMetaLoc+offset+binary.MaxVarintLen64])
-			offset += uint64(nread)
-			curChunkHeader[i].DocDvLen, nread = binary.Uvarint(data[chunkMetaLoc+offset : chunkMetaLoc+offset+binary.MaxVarintLen64])
-			offset += uint64(nread)
+			curChunkHeader[i].DocNum, nr = binary.Uvarint(
+				data[chunkMetaLoc+offset : chunkMetaLoc+offset+binary.MaxVarintLen64])
+			offset += uint64(nr)
+			curChunkHeader[i].DocDvOffset, nr = binary.Uvarint(
+				data[chunkMetaLoc+offset : chunkMetaLoc+offset+binary.MaxVarintLen64])
+			offset += uint64(nr)
 		}
 
 		compressedDataLoc := chunkMetaLoc + offset
-		dataLength := destChunkDataLoc + curChunkSize - compressedDataLoc
+		dataLength := curChunkEnd - compressedDataLoc
 		curChunkData := data[compressedDataLoc : compressedDataLoc+dataLength]
 
-		start, length := getDocValueLocs(uint64(localDocNum), curChunkHeader)
-		if start == math.MaxUint64 || length == math.MaxUint64 {
-			fmt.Printf("no field values found for localDocNum: %d\n", localDocNum)
-			fmt.Printf("Try docNums present in chunk: %s\n", metaDataDocNums(curChunkHeader))
+		start, end = getDocValueLocs(uint64(localDocNum), curChunkHeader)
+		if start == math.MaxUint64 || end == math.MaxUint64 {
+			fmt.Printf("No field values found for localDocNum: %d\n",
+				localDocNum)
+			fmt.Printf("Try docNums present in chunk: %s\n",
+				metaDataDocNums(curChunkHeader))
 			return nil
 		}
 		// uncompress the already loaded data
@@ -234,8 +232,9 @@ var docvalueCmd = &cobra.Command{
 
 		var termSeparator byte = 0xff
 		var termSeparatorSplitSlice = []byte{termSeparator}
+
 		// pick the terms for the given docNum
-		uncompressed = uncompressed[start : start+length]
+		uncompressed = uncompressed[start:end]
 		for {
 			i := bytes.Index(uncompressed, termSeparatorSplitSlice)
 			if i < 0 {
@@ -255,7 +254,7 @@ func getDocValueLocs(docNum uint64, metaHeader []zap.MetaData) (uint64, uint64) 
 		return metaHeader[i].DocNum >= docNum
 	})
 	if i < len(metaHeader) && metaHeader[i].DocNum == docNum {
-		return metaHeader[i].DocDvLoc, metaHeader[i].DocDvLen
+		return zap.ReadDocValueBoundary(i, metaHeader)
 	}
 	return math.MaxUint64, math.MaxUint64
 }
@@ -266,6 +265,14 @@ func metaDataDocNums(metaHeader []zap.MetaData) string {
 		docNums += fmt.Sprintf("%d", meta.DocNum) + ", "
 	}
 	return docNums
+}
+
+func readChunkBoundary(chunk int, offsets []uint64) (uint64, uint64) {
+	var start uint64
+	if chunk > 0 {
+		start = offsets[chunk-1]
+	}
+	return start, offsets[chunk]
 }
 
 func init() {

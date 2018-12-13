@@ -15,9 +15,8 @@
 package collector
 
 import (
+	"context"
 	"testing"
-
-	"golang.org/x/net/context"
 
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/search"

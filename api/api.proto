@@ -159,7 +159,7 @@ message AuthenticateFacebookRequest {
   // Set the username on the account at register. Must be unique.
   string username = 3;
   // Import Facebook friends for the user.
-  google.protobuf.BoolValue import = 4;
+  google.protobuf.BoolValue sync = 4;
 }
 
 // Authenticate against the server with Apple's Game Center.
@@ -292,22 +292,20 @@ message DeleteStorageObjectsRequest {
 message Friend {
   // The friendship status.
   enum State {
-    // Default case. Assumed as FRIEND state.
-    STATE_UNSPECIFIED = 0;
     // The user is a friend of the current user.
-    FRIEND = 1;
-    // The user has sent an invite to the current user.
-    INVITE_SENT = 2;
-    // The current user has sent an invite to this user.
-    INVITE_RECEIVED = 3;
+    FRIEND = 0;
+    // The current user has sent an invite to the user.
+    INVITE_SENT = 1;
+    // The current user has received an invite from this user.
+    INVITE_RECEIVED = 2;
     // The current user has blocked this user.
-    BLOCKED = 4;
+    BLOCKED = 3;
   }
 
   // The user object.
   User user = 1;
   // The friend status.
-  int32 state = 2; // one of "Friend.State".
+  google.protobuf.Int32Value state = 2; // one of "Friend.State".
 }
 
 // A collection of zero or more friends of the user.
@@ -368,22 +366,20 @@ message GroupUserList {
   message GroupUser {
     // The group role status.
     enum State {
-      // Default case. Assumed as SUPERADMIN state.
-      STATE_UNSPECIFIED = 0;
       // The user is a superadmin with full control of the group.
-      SUPERADMIN = 1;
+      SUPERADMIN = 0;
       // The user is an admin with additional privileges.
-      ADMIN = 2;
+      ADMIN = 1;
       // The user is a regular member.
-      MEMBER = 3;
+      MEMBER = 2;
       // The user has requested to join the group
-      JOIN_REQUEST = 4;
+      JOIN_REQUEST = 3;
     }
 
     // User.
     User user = 1;
     // Their relationship to the group.
-    int32 state = 2;
+    google.protobuf.Int32Value state = 2;
   }
 
   // User-role pairs for a group.
@@ -469,7 +465,7 @@ message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
-  google.protobuf.BoolValue import = 4;
+  google.protobuf.BoolValue sync = 4;
 }
 
 // List a channel's message history.
@@ -776,6 +772,8 @@ message Tournament {
   google.protobuf.Timestamp start_time = 14;
   // The UNIX time when the tournament will be stopped.
   google.protobuf.Timestamp end_time = 15;
+  // The UNIX timestamp for duration of a tournament.
+  uint32 duration = 16;
 }
 
 // A list of tournaments.
@@ -872,22 +870,20 @@ message UserGroupList {
   message UserGroup {
     // The group role status.
     enum State {
-      // Default case. Assumed as SUPERADMIN state.
-      STATE_UNSPECIFIED = 0;
       // The user is a superadmin with full control of the group.
-      SUPERADMIN = 1;
+      SUPERADMIN = 0;
       // The user is an admin with additional privileges.
-      ADMIN = 2;
+      ADMIN = 1;
       // The user is a regular member.
-      MEMBER = 3;
+      MEMBER = 2;
       // The user has requested to join the group
-      JOIN_REQUEST = 4;
+      JOIN_REQUEST = 3;
     }
 
     // Group.
     Group group = 1;
     // The user's relationship to the group.
-    int32 state = 2;
+    google.protobuf.Int32Value state = 2;
   }
 
   // Group-role pairs for a user.

@@ -17,11 +17,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
-	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -147,7 +148,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 		}
 
 		if object.GetUserId() != "" {
-			if uid, err := uuid.FromString(object.GetUserId()); err != nil || uuid.Equal(uid, uuid.Nil) {
+			if uid, err := uuid.FromString(object.GetUserId()); err != nil || uid == uuid.Nil {
 				return nil, status.Error(codes.InvalidArgument, "Invalid user ID - make sure user ID is a valid UUID.")
 			}
 		}

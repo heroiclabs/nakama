@@ -94,7 +94,7 @@ func TestTermRangeSearch(t *testing.T) {
 			inclusiveMax: true,
 			want:         nil,
 		},
-		// max nil sees everyting after marty
+		// max nil sees everything after marty
 		{
 			min:          []byte("marty"),
 			max:          nil,
@@ -103,7 +103,7 @@ func TestTermRangeSearch(t *testing.T) {
 			inclusiveMax: true,
 			want:         []string{"1", "2", "4"},
 		},
-		// min nil sees everyting before ravi
+		// min nil sees everything before ravi
 		{
 			min:          nil,
 			max:          []byte("ravi"),

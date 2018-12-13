@@ -40,6 +40,21 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 
 	// This handler will be attached to the API Gateway server.
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Check format.
+		var format SessionFormat
+		switch r.URL.Query().Get("format") {
+		case "protobuf":
+			format = SessionFormatProtobuf
+		case "json":
+			fallthrough
+		case "":
+			format = SessionFormatJson
+		default:
+			// Invalid values are rejected.
+			http.Error(w, "Invalid format parameter", 400)
+			return
+		}
+
 		// Check authentication.
 		token := r.URL.Query().Get("token")
 		if token == "" {
@@ -90,7 +105,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
+		s := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
 
 		// Add to the session registry.
 		sessionRegistry.add(s)

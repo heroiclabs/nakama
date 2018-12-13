@@ -23,7 +23,7 @@ import (
 
 var ascii bool
 
-// internalCmd represents the snapshots command
+// internalCmd represents the internal command
 var internalCmd = &cobra.Command{
 	Use:   "internal",
 	Short: "internal prints the internal k/v pairs in a snapshot",

@@ -16,6 +16,8 @@ package server
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -26,7 +28,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest) (*api.Group, error) {
@@ -142,7 +143,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 		}
 	}
 
-	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
+	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
 	if err != nil {
 		if err == ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
@@ -423,7 +424,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)
@@ -505,7 +506,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)
@@ -584,7 +585,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
 	for _, id := range in.GetUserIds() {
 		uid := uuid.FromStringOrNil(id)
-		if uuid.Equal(uuid.Nil, uid) {
+		if uid == uuid.Nil {
 			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
 		}
 		userIDs = append(userIDs, uid)
@@ -594,6 +595,8 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	if err != nil {
 		if err == ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		} else if err == ErrGroupFull {
+			return nil, status.Error(codes.InvalidArgument, "Group is full.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
 	}

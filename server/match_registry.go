@@ -18,15 +18,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 var (
@@ -37,10 +39,13 @@ var (
 	MatchFilterRelayed       = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
 	MatchFilterAuthoritative = map[uint8]*uint8{StreamModeMatchAuthoritative: MatchFilterPtr}
 
+	MaxLabelSize = 2048
+
 	ErrMatchLabelTooLong = errors.New("match label too long, must be 0-2048 bytes")
 )
 
 type MatchIndexEntry struct {
+	Node        string                 `json:"node"`
 	Label       map[string]interface{} `json:"label"`
 	LabelString string                 `json:"label_string"`
 }
@@ -81,15 +86,19 @@ type MatchJoinResult struct {
 }
 
 type MatchRegistry interface {
-	// Create and start a new match, given a Lua module name.
+	// Create and start a new match, given a Lua module name or registered Go match function.
+	CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
+	// Register and initialise a match that's ready to run.
 	NewMatch(logger *zap.Logger, id uuid.UUID, label *atomic.String, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match handler by ID, only from the local node.
 	GetMatch(id uuid.UUID) *MatchHandler
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
+	// Get the label for a match.
+	GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error)
 	// Update the label entry for a given match.
-	UpdateMatchLabel(id uuid.UUID, label string, x int) error
+	UpdateMatchLabel(id uuid.UUID, label string) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
 	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
@@ -97,7 +106,7 @@ type MatchRegistry interface {
 	Stop(graceSeconds int) chan struct{}
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
-	JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string)
+	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string)
 	// Notify a match handler that one or more users have successfully joined the match.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Join(id uuid.UUID, presences []*MatchPresence)
@@ -126,6 +135,7 @@ type LocalMatchRegistry struct {
 
 func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
 	mapping := bleve.NewIndexMapping()
+	mapping.DefaultAnalyzer = keyword.Name
 
 	index, err := bleve.NewMemOnly(mapping)
 	if err != nil {
@@ -143,6 +153,35 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 		stopped:   atomic.NewBool(false),
 		stoppedCh: make(chan struct{}, 2),
 	}
+}
+
+func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
+	id := uuid.Must(uuid.NewV4())
+	matchLogger := logger.With(zap.String("mid", id.String()))
+	label := atomic.NewString("")
+	labelUpdateFn := func(input string) error {
+		if err := r.UpdateMatchLabel(id, input); err != nil {
+			return err
+		}
+		label.Store(input)
+		return nil
+	}
+
+	core, err := createFn(ctx, matchLogger, id, r.node, module, labelUpdateFn)
+	if err != nil {
+		return "", err
+	}
+	if core == nil {
+		return "", errors.New("error creating match: not found")
+	}
+
+	// Start the match.
+	mh, err := r.NewMatch(matchLogger, id, label, core, params)
+	if err != nil {
+		return "", fmt.Errorf("error creating match: %v", err.Error())
+	}
+
+	return mh.IDStr, nil
 }
 
 func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, label *atomic.String, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error) {
@@ -176,7 +215,7 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	matchesRemaining := len(r.matches)
 	r.Unlock()
 	r.tracker.UntrackByStream(stream)
-	r.index.Delete(id.String())
+	r.index.Delete(fmt.Sprintf("%v.%v", id.String(), r.node))
 
 	// If there are no more matches in this registry and a shutdown was initiated then signal
 	// that the process is complete.
@@ -189,14 +228,36 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	}
 }
 
-func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string, x int) error {
-	if len(label) > 2048 {
+func (r *LocalMatchRegistry) GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error) {
+	query := bleve.NewDocIDQuery([]string{fmt.Sprintf("%v.%v", id.String(), node)})
+	search := bleve.NewSearchRequestOptions(query, 1, 0, false)
+	search.Fields = []string{"label_string"}
+	results, err := r.index.SearchInContext(ctx, search)
+	if err != nil {
+		return "", fmt.Errorf("error getting match label: %v", err.Error())
+	}
+	if results.Hits.Len() == 0 {
+		// No such match or label is not available yet.
+		return "", nil
+	}
+	label, ok := results.Hits[0].Fields["label_string"].(string)
+	if !ok {
+		// Label was not a string, should not happen.
+		return "", errors.New("error getting match label: not a valid label string")
+	}
+	return label, nil
+}
+
+func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
+	if len(label) > MaxLabelSize {
 		return ErrMatchLabelTooLong
 	}
+
 	var labelJSON map[string]interface{}
 	// Doesn't matter if this is not JSON.
 	json.Unmarshal([]byte(label), &labelJSON)
-	return r.index.Index(id.String(), &MatchIndexEntry{
+	return r.index.Index(fmt.Sprintf("%v.%v", id.String(), r.node), &MatchIndexEntry{
+		Node:        r.node,
 		Label:       labelJSON,
 		LabelString: label,
 	})
@@ -319,10 +380,8 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		results := make([]*api.Match, 0, limit)
 
 		for _, hit := range labelResults.Hits {
-			id := fmt.Sprintf("%v.%v", hit.ID, r.node)
-
 			// Size may be 0.
-			size := matchSizes[id]
+			size := matchSizes[hit.ID]
 
 			if minSize != nil && minSize.Value > size {
 				// Not eligible based on minimum size.
@@ -346,7 +405,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			}
 
 			results = append(results, &api.Match{
-				MatchId:       id,
+				MatchId:       hit.ID,
 				Authoritative: true,
 				Label:         &wrappers.StringValue{Value: labelString},
 				Size:          size,
@@ -364,13 +423,13 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 	// Match labels will only be nil if there is no label filter, no query filter, and authoritative is strictly false.
 	// Therefore authoritative matches will never be part of this listing at all.
-	var matchLabels map[uuid.UUID]*wrappers.StringValue
+	var matchLabels map[string]*wrappers.StringValue
 	if labelResults != nil {
-		matchLabels = make(map[uuid.UUID]*wrappers.StringValue, labelResults.Hits.Len())
+		matchLabels = make(map[string]*wrappers.StringValue, labelResults.Hits.Len())
 		for _, hit := range labelResults.Hits {
 			if l, ok := hit.Fields["label_string"]; ok {
 				if ls, ok := l.(string); ok {
-					matchLabels[uuid.FromStringOrNil(hit.ID)] = &wrappers.StringValue{Value: ls}
+					matchLabels[hit.ID] = &wrappers.StringValue{Value: ls}
 				}
 			}
 		}
@@ -390,9 +449,11 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			continue
 		}
 
-		label, ok := matchLabels[stream.Subject]
+		id := fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label)
+
+		label, ok := matchLabels[id]
 		if ok {
-			delete(matchLabels, stream.Subject)
+			delete(matchLabels, id)
 		} else if matchLabels != nil && stream.Mode == StreamModeMatchAuthoritative {
 			// Not eligible based on the label/query.
 			continue
@@ -409,7 +470,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 
 		results = append(results, &api.Match{
-			MatchId:       fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
+			MatchId:       id,
 			Authoritative: stream.Mode == StreamModeMatchAuthoritative,
 			Label:         label,
 			Size:          size,
@@ -427,7 +488,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 	// All we have left now are empty authoritative matches that we already know matched label/query filter if any.
 	for id, label := range matchLabels {
 		results = append(results, &api.Match{
-			MatchId:       fmt.Sprintf("%v.%v", id.String(), r.node),
+			MatchId:       id,
 			Authoritative: true,
 			Label:         label,
 			Size:          0,
@@ -476,13 +537,13 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 
 	for _, mh := range r.matches {
 		// Don't care if the call queue is full, match is supposed to end anyway.
-		mh.QueueCall(Terminate(graceSeconds))
+		mh.QueueTerminate(graceSeconds)
 	}
 	r.RUnlock()
 	return r.stoppedCh
 }
 
-func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string) {
+func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string) {
 	if node != r.node {
 		return false, false, "", ""
 	}
@@ -497,20 +558,20 @@ func (r *LocalMatchRegistry) JoinAttempt(id uuid.UUID, node string, userID, sess
 	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
-	if !mh.QueueCall(JoinAttempt(resultCh, userID, sessionID, username, fromNode, metadata)) {
+	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, fromNode, metadata) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
-		return true, false, "", ""
+		return true, false, "Match is not currently accepting join requests", ""
 	}
 
 	// Set up a limit to how long the call will wait, default is 10 seconds.
-	ticker := time.NewTicker(time.Second * 10)
+	timer := time.NewTimer(time.Second * 10)
 	select {
-	case <-ticker.C:
-		ticker.Stop()
+	case <-timer.C:
 		// The join attempt has timed out, join is assumed to be rejected.
 		return true, false, "", ""
 	case r := <-resultCh:
-		ticker.Stop()
+		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.
+		timer.Stop()
 		// The join attempt has returned a result.
 		return true, r.Allow, r.Reason, r.Label
 	}
@@ -527,7 +588,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then joins don't matter anyway.
-	mh.QueueCall(Join(presences))
+	mh.QueueJoin(presences)
 }
 
 func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
@@ -541,7 +602,7 @@ func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
-	mh.QueueCall(Leave(presences))
+	mh.QueueLeave(presences)
 }
 
 func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPresence) {

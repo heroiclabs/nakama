@@ -177,13 +177,13 @@ func TestBuilderNodeEquiv(t *testing.T) {
 			"both states final, same transitions, but different trans val",
 			&builderNode{
 				final: true,
-				trans: []*transition{
+				trans: []transition{
 					{in: 'a', out: 7},
 				},
 			},
 			&builderNode{
 				final: true,
-				trans: []*transition{
+				trans: []transition{
 					{in: 'a', out: 9},
 				},
 			},

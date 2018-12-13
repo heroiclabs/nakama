@@ -1,5 +1,7 @@
 # zap file format
 
+Advanced ZAP File Format Documentation is [here](zap.md).
+
 The file is written in the reverse order that we typically access data.  This helps us write in one pass since later sections of the file require file offsets of things we've already written.
 
 Current usage:
@@ -28,7 +30,7 @@ Current usage:
     - produce a slice of metadata bytes and data bytes
     - produce these slices in field id order
     - field value is appended to the data slice
-    - metadata slice is govarint encoded with the following values for each field value
+    - metadata slice is varint encoded with the following values for each field value
       - field id (uint16)
       - field type (byte)
       - field value start offset in uncompressed data slice (uint64)
@@ -53,7 +55,7 @@ With this index and a known document number, we have direct access to all the st
 ## posting details (freq/norm) section
 
 - for each posting list
-  - produce a slice containing multiple consecutive chunks (each chunk is govarint stream)
+  - produce a slice containing multiple consecutive chunks (each chunk is varint stream)
   - produce a slice remembering offsets of where each chunk starts
   - preparation phase:
     - for each hit in the posting list
@@ -71,7 +73,7 @@ If you know the doc number you're interested in, this format lets you jump to th
 ## posting details (location) section
 
 - for each posting list
-  - produce a slice containing multiple consecutive chunks (each chunk is govarint stream)
+  - produce a slice containing multiple consecutive chunks (each chunk is varint stream)
   - produce a slice remembering offsets of where each chunk starts
   - preparation phase:
     - for each hit in the posting list
@@ -90,16 +92,6 @@ If you know the doc number you're interested in, this format lets you jump to th
 
 If you know the doc number you're interested in, this format lets you jump to the correct chunk (docNum/chunkFactor) directly and then seek within that chunk until you find it.
 
-## bitmaps of hits with location info
-
-- for each posting list
-  - preparation phase:
-    - encode roaring bitmap (inidicating which hits have location details indexed) posting list to bytes (so we know the length)
-  - file writing phase:
-    - remember the start position for this bitmap
-    - write length of encoded roaring bitmap
-    - write the serialized roaring bitmap data
-
 ## postings list section
 
 - for each posting list
@@ -109,7 +101,6 @@ If you know the doc number you're interested in, this format lets you jump to th
     - remember the start position for this posting list
     - write freq/norm details offset (remembered from previous, as varint uint64)
     - write location details offset (remembered from previous, as varint uint64)
-    - write location bitmap offset (remembered from pervious, as varint uint64)
     - write length of encoded roaring bitmap
     - write the serialized roaring bitmap data
 

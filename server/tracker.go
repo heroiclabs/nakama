@@ -46,7 +46,7 @@ type PresenceID struct {
 type PresenceStream struct {
 	Mode       uint8
 	Subject    uuid.UUID
-	Descriptor uuid.UUID
+	Subcontext uuid.UUID
 	Label      string
 }
 
@@ -750,8 +750,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		if stream.Subject != uuid.Nil {
 			streamWire.Subject = stream.Subject.String()
 		}
-		if stream.Descriptor != uuid.Nil {
-			streamWire.Descriptor_ = stream.Descriptor.String()
+		if stream.Subcontext != uuid.Nil {
+			streamWire.Subcontext = stream.Subcontext.String()
 		}
 
 		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.
@@ -826,8 +826,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		if stream.Subject != uuid.Nil {
 			streamWire.Subject = stream.Subject.String()
 		}
-		if stream.Descriptor != uuid.Nil {
-			streamWire.Descriptor_ = stream.Descriptor.String()
+		if stream.Subcontext != uuid.Nil {
+			streamWire.Subcontext = stream.Subcontext.String()
 		}
 
 		// Find the list of event recipients first so we can skip event encoding work if it's not necessary.

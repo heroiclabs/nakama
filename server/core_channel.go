@@ -47,7 +47,7 @@ type ChannelIdToStreamResult struct {
 type channelMessageListCursor struct {
 	StreamMode       uint8
 	StreamSubject    string
-	StreamDescriptor string
+	StreamSubcontext string
 	StreamLabel      string
 	CreateTime       int64
 	Id               string
@@ -76,8 +76,8 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 		} else if stream.Subject.String() != incomingCursor.StreamSubject {
 			// Stream subject does not match.
 			return nil, ErrChannelCursorInvalid
-		} else if stream.Descriptor.String() != incomingCursor.StreamDescriptor {
-			// Stream descriptor does not match.
+		} else if stream.Subcontext.String() != incomingCursor.StreamSubcontext {
+			// Stream subcontext does not match.
 			return nil, ErrChannelCursorInvalid
 		} else if stream.Label != incomingCursor.StreamLabel {
 			// Stream label does not match.
@@ -86,7 +86,7 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	}
 
 	// If it's a group, check membership.
-	if !uuid.Equal(uuid.Nil, caller) && stream.Mode == StreamModeGroup {
+	if caller != uuid.Nil && stream.Mode == StreamModeGroup {
 		allowed, err := groupCheckUserPermission(ctx, logger, db, stream.Subject, caller, 2)
 		if err != nil {
 			return nil, err
@@ -113,7 +113,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 	}
 	query += " LIMIT $5"
-	params := []interface{}{stream.Mode, stream.Subject, stream.Descriptor, stream.Label, limit + 1}
+	params := []interface{}{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
 	if incomingCursor != nil {
 		params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
 	}
@@ -140,7 +140,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			nextCursor = &channelMessageListCursor{
 				StreamMode:       stream.Mode,
 				StreamSubject:    stream.Subject.String(),
-				StreamDescriptor: stream.Descriptor.String(),
+				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
 				CreateTime:       dbCreateTime.Time.Unix(),
 				Id:               dbId,
@@ -173,7 +173,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			prevCursor = &channelMessageListCursor{
 				StreamMode:       stream.Mode,
 				StreamSubject:    stream.Subject.String(),
-				StreamDescriptor: stream.Descriptor.String(),
+				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
 				CreateTime:       dbCreateTime.Time.Unix(),
 				Id:               dbId,
@@ -233,13 +233,13 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 	var dbUsername string
 	var dbStreamMode uint8
 	var dbStreamSubject string
-	var dbStreamDescriptor string
+	var dbStreamSubcontext string
 	var dbStreamLabel string
 	var dbContent string
 	var dbCreateTime pq.NullTime
 	var dbUpdateTime pq.NullTime
 	for rows.Next() {
-		err = rows.Scan(&dbId, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamDescriptor, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
+		err = rows.Scan(&dbId, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamSubcontext, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
 			logger.Error("Error parsing listed channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
 			return nil, err
@@ -248,7 +248,7 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 		channelId, err := StreamToChannelId(PresenceStream{
 			Mode:       dbStreamMode,
 			Subject:    uuid.FromStringOrNil(dbStreamSubject),
-			Descriptor: uuid.FromStringOrNil(dbStreamDescriptor),
+			Subcontext: uuid.FromStringOrNil(dbStreamSubcontext),
 			Label:      dbStreamLabel,
 		})
 		if err != nil {
@@ -290,7 +290,7 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 	switch components[0] {
 	case "2":
 		// StreamModeChannel.
-		// Expect no subject or descriptor.
+		// Expect no subject or subcontext.
 		if components[1] != "" || components[2] != "" {
 			return nil, ErrChannelIdInvalid
 		}
@@ -300,7 +300,7 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 		}
 		stream.Label = components[3]
 	case "3":
-		// Expect no descriptor or label.
+		// Expect no subcontext or label.
 		if components[2] != "" || components[3] != "" {
 			return nil, ErrChannelIdInvalid
 		}
@@ -325,9 +325,9 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 				return nil, ErrChannelIdInvalid
 			}
 		}
-		// Descriptor.
+		// Subcontext.
 		if components[2] != "" {
-			if stream.Descriptor, err = uuid.FromString(components[2]); err != nil {
+			if stream.Subcontext, err = uuid.FromString(components[2]); err != nil {
 				return nil, ErrChannelIdInvalid
 			}
 		}
@@ -349,10 +349,10 @@ func StreamToChannelId(stream PresenceStream) (string, error) {
 	if stream.Subject != uuid.Nil {
 		subject = stream.Subject.String()
 	}
-	descriptor := ""
-	if stream.Descriptor != uuid.Nil {
-		descriptor = stream.Descriptor.String()
+	subcontext := ""
+	if stream.Subcontext != uuid.Nil {
+		subcontext = stream.Subcontext.String()
 	}
 
-	return fmt.Sprintf("%v.%v.%v.%v", stream.Mode, subject, descriptor, stream.Label), nil
+	return fmt.Sprintf("%v.%v.%v.%v", stream.Mode, subject, subcontext, stream.Label), nil
 }

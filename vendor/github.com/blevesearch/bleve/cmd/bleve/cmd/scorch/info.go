@@ -37,7 +37,7 @@ var infoCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("count: %d\n", count)
+		fmt.Printf("doc count: %d\n", count)
 
 		// var numSnapshots int
 		// var rootSnapshot uint64

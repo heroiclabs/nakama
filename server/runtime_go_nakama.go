@@ -34,7 +34,6 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 	"github.com/heroiclabs/nakama/social"
 	"github.com/pkg/errors"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +45,7 @@ type RuntimeGoNakamaModule struct {
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
-	leaderboardScheduler *LeaderboardScheduler
+	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      *SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -57,7 +56,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler *LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -279,11 +278,26 @@ func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, use
 		metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
 	}
 
-	displayNameWrapper := &wrappers.StringValue{Value: displayName}
-	timezoneWrapper := &wrappers.StringValue{Value: timezone}
-	locationWrapper := &wrappers.StringValue{Value: location}
-	langWrapper := &wrappers.StringValue{Value: langTag}
-	avatarWrapper := &wrappers.StringValue{Value: avatarUrl}
+	var displayNameWrapper *wrappers.StringValue
+	if displayName != "" {
+		displayNameWrapper = &wrappers.StringValue{Value: displayName}
+	}
+	var timezoneWrapper *wrappers.StringValue
+	if timezone != "" {
+		timezoneWrapper = &wrappers.StringValue{Value: timezone}
+	}
+	var locationWrapper *wrappers.StringValue
+	if location != "" {
+		locationWrapper = &wrappers.StringValue{Value: location}
+	}
+	var langWrapper *wrappers.StringValue
+	if langTag != "" {
+		langWrapper = &wrappers.StringValue{Value: langTag}
+	}
+	var avatarWrapper *wrappers.StringValue
+	if avatarUrl != "" {
+		avatarWrapper = &wrappers.StringValue{Value: avatarUrl}
+	}
 
 	return UpdateAccount(ctx, n.logger, n.db, u, username, displayNameWrapper, timezoneWrapper, locationWrapper, langWrapper, avatarWrapper, metadataWrapper)
 }
@@ -354,7 +368,7 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 	return UnbanUsers(ctx, n.logger, n.db, userIDs)
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
+func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -366,10 +380,10 @@ func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, 
 			return nil, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return nil, errors.New("stream descriptor must be a valid identifier")
+			return nil, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -381,7 +395,7 @@ func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, descriptor, 
 	return runtimePresences, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, label, userID, sessionID string) (runtime.PresenceMeta, error) {
+func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (runtime.PresenceMeta, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("expects valid user id")
@@ -402,10 +416,10 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, l
 			return nil, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return nil, errors.New("stream descriptor must be a valid identifier")
+			return nil, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -415,7 +429,7 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, descriptor, l
 	return nil, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
+func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return false, errors.New("expects valid user id")
@@ -436,10 +450,10 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, 
 			return false, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return false, errors.New("stream descriptor must be a valid identifier")
+			return false, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -463,7 +477,7 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, descriptor, 
 	return newlyTracked, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor, label, userID, sessionID string, hidden, persistence bool, status string) error {
+func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects valid user id")
@@ -484,10 +498,10 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -510,7 +524,7 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, descriptor
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor, label, userID, sessionID string) error {
+func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects valid user id")
@@ -531,10 +545,10 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor,
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -543,7 +557,7 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, descriptor,
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, descriptor, label string) (int, error) {
+func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -555,17 +569,17 @@ func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, descriptor, lab
 			return 0, errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return 0, errors.New("stream descriptor must be a valid identifier")
+			return 0, errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
 	return n.tracker.CountByStream(stream), nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, label string) error {
+func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, label string) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -577,10 +591,10 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, lab
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -589,7 +603,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, descriptor, lab
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, label, data string) error {
+func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -601,10 +615,10 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 			return errors.New("stream subject must be a valid identifier")
 		}
 	}
-	if descriptor != "" {
-		stream.Descriptor, err = uuid.FromString(descriptor)
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
 		if err != nil {
-			return errors.New("stream descriptor must be a valid identifier")
+			return errors.New("stream subcontext must be a valid identifier")
 		}
 	}
 
@@ -615,8 +629,8 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	if stream.Subject != uuid.Nil {
 		streamWire.Subject = stream.Subject.String()
 	}
-	if stream.Descriptor != uuid.Nil {
-		streamWire.Descriptor_ = stream.Descriptor.String()
+	if stream.Subcontext != uuid.Nil {
+		streamWire.Subcontext = stream.Subcontext.String()
 	}
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
@@ -628,39 +642,43 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, descriptor, labe
 	return nil
 }
 
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope) error {
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	var err error
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
+		if err != nil {
+			return errors.New("stream subcontext must be a valid identifier")
+		}
+	}
+	if msg == nil {
+		return errors.New("expects a valid message")
+	}
+
+	n.router.SendToStream(n.logger, stream, msg)
+
+	return nil
+}
+
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {
 	if module == "" {
 		return "", errors.New("expects module name")
 	}
 
-	id := uuid.Must(uuid.NewV4())
-	matchLogger := n.logger.With(zap.String("mid", id.String()))
-	label := atomic.NewString("")
-	labelUpdateFn := func(input string) error {
-		if err := n.matchRegistry.UpdateMatchLabel(id, input, 0); err != nil {
-			return err
-		}
-		label.Store(input)
-		return nil
-	}
 	n.RLock()
 	fn := n.matchCreateFn
 	n.RUnlock()
-	core, err := fn(ctx, matchLogger, id, n.node, module, labelUpdateFn)
-	if err != nil {
-		return "", err
-	}
-	if core == nil {
-		return "", errors.New("error creating match: not found")
-	}
 
-	// Start the match.
-	mh, err := n.matchRegistry.NewMatch(matchLogger, id, label, core, params)
-	if err != nil {
-		return "", errors.Errorf("error creating match: %v", err.Error())
-	}
-
-	return mh.IDStr, nil
+	return n.matchRegistry.CreateMatch(ctx, n.logger, fn, module, params)
 }
 
 func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error) {
@@ -775,7 +793,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
-func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}) error {
+func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}, updateLedger bool) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects a valid user id")
@@ -793,10 +811,10 @@ func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string,
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),
-	}})
+	}}, updateLedger)
 }
 
-func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate) error {
+func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) error {
 	size := len(updates)
 	if size == 0 {
 		return nil
@@ -825,7 +843,7 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 		}
 	}
 
-	return UpdateWallets(ctx, n.logger, n.db, walletUpdates)
+	return UpdateWallets(ctx, n.logger, n.db, walletUpdates, updateLedger)
 }
 
 func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (runtime.WalletLedgerItem, error) {
@@ -1053,7 +1071,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		metadataStr = string(metadataBytes)
 	}
 
-	err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
+	_, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
 	if err != nil {
 		return err
 	}
@@ -1194,7 +1212,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 	if endTime < 0 {
 		return errors.New("endTime must be >= 0")
 	}
-	if endTime < startTime {
+	if endTime != 0 && endTime < startTime {
 		return errors.New("endTime must be >= startTime")
 	}
 	if duration < 0 {
@@ -1396,13 +1414,13 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		nameWrapper = &wrappers.StringValue{Value: name}
 	}
 
-	var creatorIDByte []byte
+	creator := uuid.Nil
 	if creatorID != "" {
-		cuid, err := uuid.FromString(creatorID)
+		var err error
+		creator, err = uuid.FromString(creatorID)
 		if err != nil {
 			return errors.New("expects creator ID to be a valid identifier")
 		}
-		creatorIDByte = cuid.Bytes()
 	}
 
 	var langTagWrapper *wrappers.StringValue
@@ -1436,7 +1454,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		maxCountValue = maxCount
 	}
 
-	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creatorIDByte, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
 }
 
 func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) error {
@@ -1446,6 +1464,31 @@ func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) erro
 	}
 
 	return DeleteGroup(ctx, n.logger, n.db, groupID, uuid.Nil)
+}
+
+func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error {
+	group, err := uuid.FromString(groupID)
+	if err != nil {
+		return errors.New("expects group ID to be a valid identifier")
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	users := make([]uuid.UUID, 0, len(userIDs))
+	for _, userID := range userIDs {
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			return errors.New("expects each user ID to be a valid identifier")
+		}
+		if uid == uuid.Nil {
+			return errors.New("cannot kick the root user")
+		}
+		users = append(users, uid)
+	}
+
+	return KickGroupUsers(ctx, n.logger, n.db, uuid.Nil, group, users)
 }
 
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error) {
