@@ -23,6 +23,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/apigrpc"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/server"
 	"go.uber.org/zap"
@@ -85,6 +86,9 @@ func (d *DummySession) ClientIP() string {
 }
 func (d *DummySession) ClientPort() string {
 	return ""
+}
+func (d *DummySession) Context() context.Context {
+	return context.Background()
 }
 func (d *DummySession) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
 	d.messages = append(d.messages, envelope)
@@ -155,11 +159,11 @@ func NewAPIServer(t *testing.T, runtime *server.Runtime) (*server.ApiServer, *se
 	router := &DummyMessageRouter{}
 	tracker := &server.LocalTracker{}
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtime)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, tracker, router, pipeline, runtime)
+	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, tracker, router, pipeline, runtime)
 	return apiServer, pipeline
 }
 
-func NewSession(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {
+func NewSession(t *testing.T, customID string) (*grpc.ClientConn, apigrpc.NakamaClient, *api.Session, context.Context) {
 	ctx := context.Background()
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("defaultkey:")),
@@ -169,7 +173,7 @@ func NewSession(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClie
 		t.Fatal(err)
 	}
 
-	client := api.NewNakamaClient(conn)
+	client := apigrpc.NewNakamaClient(conn)
 	session, err := client.AuthenticateCustom(outgoingCtx, &api.AuthenticateCustomRequest{
 		Account: &api.AccountCustom{
 			Id: customID,
@@ -183,7 +187,7 @@ func NewSession(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClie
 	return conn, client, session, outgoingCtx
 }
 
-func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn, api.NakamaClient, *api.Session, context.Context) {
+func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn, apigrpc.NakamaClient, *api.Session, context.Context) {
 	conn, _, session, _ := NewSession(t, customID)
 	conn.Close()
 
@@ -196,7 +200,7 @@ func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn,
 		t.Fatal(err)
 	}
 
-	client := api.NewNakamaClient(conn)
+	client := apigrpc.NewNakamaClient(conn)
 	return conn, client, session, outgoingCtx
 }
 

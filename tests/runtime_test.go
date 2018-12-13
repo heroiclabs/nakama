@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -320,7 +321,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
 	payload := "Hello World"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -398,7 +399,7 @@ nakama.register_rpc(test, "test")`,
 		t.Fatal("Expected RPC function to be registered")
 	}
 
-	result, err, _ := fn(nil, "", "", 0, "", "", "", "")
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +430,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,7 +461,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,7 +492,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +523,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -579,7 +580,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(nil, "", "", 0, "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +613,7 @@ nakama.register_rpc(test, "test")`,
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	result, err, _ := fn(nil, "", "", 0, "", "", "", string(hash))
+	result, err, _ := fn(context.Background(), nil, "", "", 0, "", "", "", string(hash))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -980,7 +981,7 @@ local users = nk.group_users_list(group.id)
 for i, u in ipairs(users)
 do
   assert(u.user.id == user_id, "'u.id' must be equal to user_id")
-	assert(u.state == 1, "'u.state' must be equal to 1 / superadmin")
+	assert(u.state == 0, "'u.state' must be equal to 0 / superadmin")
 end
 
 local groups = nk.user_groups_list(user_id)
@@ -988,7 +989,7 @@ for i, g in ipairs(groups)
 do
 	print(nk.json_encode(g))
   assert(g.group.name == group_update_name, "'g.name' must be equal to group_update_name")
-	assert(g.state == 1, "'g.state' must be equal to 1 / superadmin")
+	assert(g.state == 0, "'g.state' must be equal to 0 / superadmin")
 end
 
 nk.group_delete(group.id)`,

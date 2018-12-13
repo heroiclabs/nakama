@@ -21,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow tournament joins before the start of the tournament active period.
 - Authoritative matches now complete their stop phase faster to avoid unnecessary processing.
 - Authoritative match join attempts now have their own bounded queue and no longer count towards the match call queue limit.
+- Lua runtime group create function now sets the correct default max size if one is not specified.
 
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.
@@ -33,6 +34,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Leaderboard and tournament runtime callbacks no longer trigger twice when time delays are observed.
 - Check group max allowed user when promoting a user.
 - Correct Lua runtime decoding of stream identifying parameters.
+- Correctly use optional parameters when they are passed to group creation operations.
 
 ## [2.2.1] - 2018-11-20
 ### Added

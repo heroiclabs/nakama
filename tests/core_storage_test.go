@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"crypto/md5"
 	"fmt"
 	"testing"
@@ -40,7 +41,7 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -55,7 +56,7 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 			Collection: "testcollection",
 			Key:        key,
 		}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData.Objects, "data was nil")
@@ -101,7 +102,7 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 1},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -140,7 +141,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -160,7 +161,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -181,7 +182,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
 
-	acks, code, err = server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err = server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not 0")
@@ -205,7 +206,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -226,7 +227,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
 
-	acks, code, err = server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err = server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -247,7 +248,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -270,7 +271,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -290,7 +291,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
 
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -317,7 +318,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -340,7 +341,7 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -380,7 +381,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 				PermissionRead:  &wrappers.Int32Value{Value: 1},
 				PermissionWrite: &wrappers.Int32Value{Value: 1},
 			}}}
-	allAcks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	allAcks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -432,7 +433,7 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 				PermissionRead:  &wrappers.Int32Value{Value: 1},
 				PermissionWrite: &wrappers.Int32Value{Value: 1},
 			}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -458,7 +459,7 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 		Key:        key,
 	}}
 
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
 	assert.Len(t, readData.Objects, 1, "data length was not 1")
@@ -493,7 +494,7 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 				PermissionRead:  &wrappers.Int32Value{Value: 1},
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not 0")
@@ -514,7 +515,7 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 		UserId:     uid.String(),
 	}}
 
-	readData, err := server.StorageReadObjects(logger, db, uid, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uid, ids)
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
 	assert.Len(t, readData.Objects, 1, "data length was not 1")
@@ -542,7 +543,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -565,7 +566,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -584,7 +585,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -608,7 +609,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -627,7 +628,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err = server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err = server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -654,7 +655,7 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -681,7 +682,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -700,7 +701,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -724,7 +725,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, _, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, _, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -742,7 +743,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -764,7 +765,7 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -780,7 +781,7 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 		Collection: "testcollection",
 		Key:        key,
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, data, "data was nil")
@@ -807,7 +808,7 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -826,7 +827,7 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 			Collection: "testcollection",
 			Key:        "notfound",
 		}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -857,7 +858,7 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -874,7 +875,7 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -903,7 +904,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -919,7 +920,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 		Collection: "testcollection",
 		Key:        key,
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -943,7 +944,7 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 0},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -960,7 +961,7 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uid, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uid, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -984,7 +985,7 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 1},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1001,7 +1002,7 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uid, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uid, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1032,7 +1033,7 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 			PermissionRead:  &wrappers.Int32Value{Value: 2},
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1048,7 +1049,7 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	dataRead, err := server.StorageReadObjects(logger, db, uid, ids)
+	dataRead, err := server.StorageReadObjects(context.Background(), logger, db, uid, ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1080,7 +1081,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1097,7 +1098,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1121,7 +1122,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1139,7 +1140,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 		Key:        key,
 		UserId:     uid.String(),
 	}}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1178,7 +1179,7 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			},
 		}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1204,7 +1205,7 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 			UserId:     uid.String(),
 		},
 	}
-	readData, err := server.StorageReadObjects(logger, db, uuid.Must(uuid.NewV4()), ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), ids)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, readData, "data was nil")
@@ -1233,7 +1234,7 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1252,7 +1253,7 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 		}},
 	}
 
-	_, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	_, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 }
 
@@ -1271,7 +1272,7 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1289,7 +1290,7 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 			Key:        key,
 		}},
 	}
-	_, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	_, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 }
 
@@ -1310,7 +1311,7 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1328,7 +1329,7 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 			Key:        key,
 		}},
 	}
-	_, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	_, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 }
 
@@ -1349,7 +1350,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1367,7 +1368,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 			Key:        key,
 		}},
 	}
-	_, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	_, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 
 	ids := []*api.ReadStorageObjectId{{
@@ -1376,7 +1377,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 		UserId:     uid.String(),
 	}}
 
-	readData, err := server.StorageReadObjects(logger, db, uuid.Nil, ids)
+	readData, err := server.StorageReadObjects(context.Background(), logger, db, uuid.Nil, ids)
 	assert.Nil(t, err, "err was not nil")
 	assert.Len(t, readData.Objects, 0, "data length was not 0")
 }
@@ -1398,7 +1399,7 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1416,7 +1417,7 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 			Key:        key,
 		}},
 	}
-	_, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	_, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 }
 
@@ -1437,7 +1438,7 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 0},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1455,7 +1456,7 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 			Key:        key,
 		}},
 	}
-	code, err = server.StorageDeleteObjects(logger, db, false, deleteIDs)
+	code, err = server.StorageDeleteObjects(context.Background(), logger, db, false, deleteIDs)
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, code, codes.InvalidArgument, "code did not match InvalidArgument.")
 }
@@ -1471,7 +1472,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchNotExists(t *testing.T) {
 			Version:    "fail",
 		}},
 	}
-	code, err := server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	code, err := server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, code, codes.InvalidArgument, "code did not match InvalidArgument.")
 }
@@ -1491,7 +1492,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1510,7 +1511,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 			Version:    "fail",
 		}},
 	}
-	code, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	code, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.NotNil(t, err, "err was not nil")
 	assert.Equal(t, code, codes.InvalidArgument, "code did not match InvalidArgument.")
 }
@@ -1530,7 +1531,7 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 			PermissionWrite: &wrappers.Int32Value{Value: 1},
 		}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, true, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, true, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1549,7 +1550,7 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 			Version:    acks.Acks[0].Version,
 		}},
 	}
-	code, err = server.StorageDeleteObjects(logger, db, true, deleteIDs)
+	code, err = server.StorageDeleteObjects(context.Background(), logger, db, true, deleteIDs)
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, code, codes.OK, "code did not match OK.")
 }
@@ -1584,14 +1585,14 @@ func TestStorageListRuntimeUser(t *testing.T) {
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			},
 		}}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, acks, "acks was nil")
 	assert.Len(t, acks.Acks, 3, "acks length was not 3")
 
-	list, code, err := server.StorageListObjects(logger, db, uuid.Nil, uid, "testcollection", 10, "")
+	list, code, err := server.StorageListObjects(context.Background(), logger, db, uuid.Nil, uid, "testcollection", 10, "")
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1631,14 +1632,14 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, acks, "acks was nil")
 	assert.Len(t, acks.Acks, 3, "acks length was not 3")
 
-	list, code, err := server.StorageListObjects(logger, db, uid, uid, collection, 10, "")
+	list, code, err := server.StorageListObjects(context.Background(), logger, db, uid, uid, collection, 10, "")
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1680,14 +1681,14 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 				PermissionWrite: &wrappers.Int32Value{Value: 0},
 			}},
 	}
-	acks, code, err := server.StorageWriteObjects(logger, db, false, data)
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, data)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, acks, "acks was nil")
 	assert.Len(t, acks.Acks, 3, "acks length was not 3")
 
-	values, code, err := server.StorageListObjects(logger, db, uuid.Must(uuid.NewV4()), uid, collection, 10, "")
+	values, code, err := server.StorageListObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), uid, collection, 10, "")
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")

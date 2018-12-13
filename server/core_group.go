@@ -63,42 +63,32 @@ func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uui
 	}
 
 	params := []interface{}{uuid.Must(uuid.NewV4()), creatorID, name, desc, avatarURL, state}
-	query := `
-INSERT INTO groups
-	(id, creator_id, name, description, avatar_url, state, edge_count)
-VALUES
-	($1, $2, $3, $4, $5, $6, 1)
-RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time`
+	statements := []string{"$1", "$2", "$3", "$4", "$5", "$6"}
+
+	query := "INSERT INTO groups(id, creator_id, name, description, avatar_url, state"
+
+	// Add lang tag if any.
 	if lang != "" {
+		query += ", lang_tag"
 		params = append(params, lang)
-		query = `
-INSERT INTO groups
-	(id, creator_id, name, description, avatar_url, state, edge_count, lang_tag)
-VALUES
-	($1, $2, $3, $4, $5, $6, 1, $7)
-RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time`
+		statements = append(statements, "$"+strconv.Itoa(len(params)))
+	}
+	// Add max count if any.
+	if maxCount > 0 {
+		query += ", max_count"
+		params = append(params, maxCount)
+		statements = append(statements, "$"+strconv.Itoa(len(params)))
+	}
+	// Add metadata if any.
+	if metadata != "" {
+		query += ", metadata"
+		params = append(params, metadata)
+		statements = append(statements, "$"+strconv.Itoa(len(params)))
 	}
 
-	// called from the client
-	if maxCount > 0 && metadata != "" {
-		params = append(params, maxCount, metadata) //no need to add 'lang' again
-
-		if lang != "" {
-			query = `
-INSERT INTO groups
-	(id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata)
-VALUES
-	($1, $2, $3, $4, $5, $6, 1, $7, $8, $9)
+	// Add the trailing edge count value.
+	query += `, edge_count) VALUES (` + strings.Join(statements, ",") + `,1)
 RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time`
-		} else {
-			query = `
-INSERT INTO groups
-	(id, creator_id, name, description, avatar_url, state, edge_count, max_count, metadata)
-VALUES
-	($1, $2, $3, $4, $5, $6, 1, $7, $8)
-RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time`
-		}
-	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
