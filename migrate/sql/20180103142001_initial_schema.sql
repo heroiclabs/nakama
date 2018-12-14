@@ -62,10 +62,10 @@ CREATE TABLE IF NOT EXISTS user_edge (
     FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    source_id      UUID        NOT NULL,
+    source_id      UUID        CHECK (source_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
-    destination_id UUID        NOT NULL,
+    destination_id UUID        CHECK (destination_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
     state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite_sent(1), invite_received(2), blocked(3), deleted(4), archived(5)
 
     UNIQUE (source_id, destination_id)
@@ -197,10 +197,10 @@ CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time
 CREATE TABLE IF NOT EXISTS group_edge (
   PRIMARY KEY (source_id, state, position),
 
-  source_id      UUID        NOT NULL,
+  source_id      UUID        CHECK (source_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
   position       BIGINT      NOT NULL, -- Used for sort order on rows.
   update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
-  destination_id UUID        NOT NULL,
+  destination_id UUID        CHECK (destination_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
   state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3), archived(4)
 
   UNIQUE (source_id, destination_id)
