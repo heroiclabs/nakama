@@ -86,7 +86,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 			err = session.SendBytes(isStream, mode, payloadJson)
 		}
 		if err != nil {
-			logger.Error("Failed to route to", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
+			logger.Error("Failed to route message", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
 		}
 	}
 }
