@@ -14,6 +14,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Clients sending data to an invalid match ID will now receive an uncollated error.
 - Optional log file rotation.
 - Go runtime authoritative matches now also print Match IDs in log lines generated within the match.
+- Allow client email authentication requests to optionally authenticate with username/password instead of email/password.
+- Allow runtime email authentication calls to authenticate with username/password instead of email/password.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.

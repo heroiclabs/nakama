@@ -217,22 +217,34 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	}
 
 	email := in.Account
-	if email == nil || email.Email == "" || email.Password == "" {
+	if email == nil {
 		return nil, status.Error(codes.InvalidArgument, "Email address and password is required.")
+	}
+
+	var attemptUsernameLogin bool
+	if email.Email == "" {
+		// Password was supplied, but no email. Perhaps the user is attempting to login with username/password.
+		attemptUsernameLogin = true
 	} else if invalidCharsRegex.MatchString(email.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
-	} else if len(email.Password) < 8 {
-		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters.")
 	} else if !emailRegex.MatchString(email.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
 	} else if len(email.Email) < 10 || len(email.Email) > 255 {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
 	}
 
-	cleanEmail := strings.ToLower(email.Email)
+	if len(email.Password) < 8 {
+		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters.")
+	}
 
 	username := in.Username
 	if username == "" {
+		// If no username was supplied and the email was missing.
+		if attemptUsernameLogin {
+			return nil, status.Error(codes.InvalidArgument, "Username is required when email address is not supplied.")
+		}
+
+		// Email address was supplied, we are allowed to generate a username.
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
@@ -240,14 +252,25 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
 	}
 
-	create := in.Create == nil || in.Create.Value
+	var dbUserID string
+	var created bool
+	var err error
 
-	dbUserID, dbUsername, created, err := AuthenticateEmail(ctx, s.logger, s.db, cleanEmail, email.Password, username, create)
+	if attemptUsernameLogin {
+		// Attempting to log in with username/password. Create flag is ignored, creation is not possible here.
+		dbUserID, err = AuthenticateUsername(ctx, s.logger, s.db, username, email.Password)
+	} else {
+		// Attempting email authentication, may or may not create.
+		cleanEmail := strings.ToLower(email.Email)
+		create := in.Create == nil || in.Create.Value
+
+		dbUserID, username, created, err = AuthenticateEmail(ctx, s.logger, s.db, cleanEmail, email.Password, username, create)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	token, exp := generateToken(s.config, dbUserID, dbUsername)
+	token, exp := generateToken(s.config, dbUserID, username)
 	session := &api.Session{Created: created, Token: token}
 
 	// After hook.
@@ -260,7 +283,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(ctx, s.logger, dbUserID, dbUsername, exp, clientIP, clientPort, session, in)
+		fn(ctx, s.logger, dbUserID, username, exp, clientIP, clientPort, session, in)
 
 		// Stats measurement end boundary.
 		span.End()
