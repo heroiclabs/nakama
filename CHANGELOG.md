@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Optional log file rotation.
 
 ### Changed
+- Replace standard logger supplied to the Go runtime with a more powerful interface.
 - Rename stream 'descriptor' field to 'subcontext' to avoid protocol naming conflict.
 - Rename Facebook authentication and link 'import' field to avoid language keyword conflict.
 - Rejoining a match the user is already part of will now return the match label.

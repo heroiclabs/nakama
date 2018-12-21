@@ -23,7 +23,6 @@ import (
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/runtime"
 	"go.uber.org/zap"
-	"log"
 )
 
 type RuntimeGoMatchCore struct {
@@ -41,15 +40,15 @@ type RuntimeGoMatchCore struct {
 	idStr  string
 	stream PresenceStream
 
-	stdLogger *log.Logger
-	db        *sql.DB
-	nk        runtime.NakamaModule
-	ctx       context.Context
+	runtimeLogger runtime.Logger
+	db            *sql.DB
+	nk            runtime.NakamaModule
+	ctx           context.Context
 
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, stdLogger *log.Logger, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -74,17 +73,17 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, trac
 			Label:   node,
 		},
 
-		stdLogger: stdLogger,
-		db:        db,
-		nk:        nk,
-		ctx:       ctx,
+		runtimeLogger: NewRuntimeGoLogger(logger),
+		db:            db,
+		nk:            nk,
+		ctx:           ctx,
 
 		ctxCancelFn: ctxCancelFn,
 	}, nil
 }
 
 func (r *RuntimeGoMatchCore) MatchInit(params map[string]interface{}) (interface{}, int, string, error) {
-	state, tickRate, label := r.match.MatchInit(r.ctx, r.stdLogger, r.db, r.nk, params)
+	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
 
 	if len(label) > 256 {
 		return nil, 0, "", errors.New("MatchInit returned invalid label, must be 256 bytes or less")
@@ -107,7 +106,7 @@ func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, use
 		Username:  username,
 	}
 
-	newState, allow, reason := r.match.MatchJoinAttempt(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, presence, metadata)
+	newState, allow, reason := r.match.MatchJoinAttempt(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, presence, metadata)
 	return newState, allow, reason, nil
 }
 
@@ -117,7 +116,7 @@ func (r *RuntimeGoMatchCore) MatchJoin(tick int64, state interface{}, joins []*M
 		presences[i] = runtime.Presence(join)
 	}
 
-	newState := r.match.MatchJoin(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, presences)
+	newState := r.match.MatchJoin(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, presences)
 	return newState, nil
 }
 
@@ -127,7 +126,7 @@ func (r *RuntimeGoMatchCore) MatchLeave(tick int64, state interface{}, leaves []
 		presences[i] = runtime.Presence(leave)
 	}
 
-	newState := r.match.MatchLeave(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, presences)
+	newState := r.match.MatchLeave(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, presences)
 	return newState, nil
 }
 
@@ -140,12 +139,12 @@ func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh ch
 		messages[i] = runtime.MatchData(msg)
 	}
 
-	newState := r.match.MatchLoop(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, messages)
+	newState := r.match.MatchLoop(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, messages)
 	return newState, nil
 }
 
 func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
-	newState := r.match.MatchTerminate(r.ctx, r.stdLogger, r.db, r.nk, r, tick, state, graceSeconds)
+	newState := r.match.MatchTerminate(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, graceSeconds)
 	return newState, nil
 }
 
