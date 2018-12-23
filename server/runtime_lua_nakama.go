@@ -1099,11 +1099,11 @@ func (n *RuntimeLuaNakamaModule) authenticateDevice(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
+	var attemptUsernameLogin bool
 	// Parse email.
-	email := l.CheckString(1)
+	email := l.OptString(1, "")
 	if email == "" {
-		l.ArgError(1, "expects email string")
-		return 0
+		attemptUsernameLogin = true
 	} else if invalidCharsRegex.MatchString(email) {
 		l.ArgError(1, "expects email to be valid, no spaces or control characters allowed")
 		return 0
@@ -1128,6 +1128,11 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 	// Parse username, if any.
 	username := l.OptString(3, "")
 	if username == "" {
+		if attemptUsernameLogin {
+			l.ArgError(1, "expects username string when email is not supplied")
+			return 0
+		}
+
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
@@ -1140,16 +1145,24 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	cleanEmail := strings.ToLower(email)
+	var dbUserID string
+	var created bool
+	var err error
 
-	dbUserID, dbUsername, created, err := AuthenticateEmail(l.Context(), n.logger, n.db, cleanEmail, password, username, create)
+	if attemptUsernameLogin {
+		dbUserID, err = AuthenticateUsername(l.Context(), n.logger, n.db, username, password)
+	} else {
+		cleanEmail := strings.ToLower(email)
+
+		dbUserID, username, created, err = AuthenticateEmail(l.Context(), n.logger, n.db, cleanEmail, password, username, create)
+	}
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
 	}
 
 	l.Push(lua.LString(dbUserID))
-	l.Push(lua.LString(dbUsername))
+	l.Push(lua.LString(username))
 	l.Push(lua.LBool(created))
 	return 3
 }

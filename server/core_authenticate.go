@@ -234,6 +234,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
+		// Check if password matches.
 		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 		if err != nil {
 			return "", "", false, status.Error(codes.Unauthenticated, "Invalid credentials.")
@@ -273,6 +274,44 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	}
 
 	return userID, username, true, nil
+}
+
+func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, username, password string) (string, error) {
+	// Look for an existing account.
+	query := "SELECT id, password, disable_time FROM users WHERE username = $1"
+	var dbUserID string
+	var dbPassword []byte
+	var dbDisableTime pq.NullTime
+	err := db.QueryRowContext(ctx, query, username).Scan(&dbUserID, &dbPassword, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Account not found and creation is never allowed for this type.
+			return "", status.Error(codes.NotFound, "User account not found.")
+		} else {
+			logger.Error("Error looking up user by username.", zap.Error(err), zap.String("username", username))
+			return "", status.Error(codes.Internal, "Error finding user account.")
+		}
+	}
+
+	// Check if it's disabled.
+	if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		logger.Info("User account is disabled.", zap.String("username", username))
+		return "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+	}
+
+	// Check if the account has a password.
+	if len(dbPassword) == 0 {
+		// Do not disambiguate between bad password and password login not possible at all in client-facing error messages.
+		return "", status.Error(codes.Unauthenticated, "Invalid credentials.")
+	}
+
+	// Check if password matches.
+	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+	if err != nil {
+		return "", status.Error(codes.Unauthenticated, "Invalid credentials.")
+	}
+
+	return dbUserID, nil
 }
 
 func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, accessToken, username string, create bool) (string, string, bool, error) {

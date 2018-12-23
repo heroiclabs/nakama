@@ -115,8 +115,9 @@ func (n *RuntimeGoNakamaModule) AuthenticateDevice(ctx context.Context, id, user
 }
 
 func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, password, username string, create bool) (string, string, bool, error) {
+	var attemptUsernameLogin bool
 	if email == "" {
-		return "", "", false, errors.New("expects email string")
+		attemptUsernameLogin = true
 	} else if invalidCharsRegex.MatchString(email) {
 		return "", "", false, errors.New("expects email to be valid, no spaces or control characters allowed")
 	} else if !emailRegex.MatchString(email) {
@@ -132,11 +133,20 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 	}
 
 	if username == "" {
+		if attemptUsernameLogin {
+			return "", "", false, errors.New("expects username string when email is not supplied")
+		}
+
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
+	}
+
+	if attemptUsernameLogin {
+		dbUserID, err := AuthenticateUsername(ctx, n.logger, n.db, username, password)
+		return dbUserID, username, false, err
 	}
 
 	cleanEmail := strings.ToLower(email)
