@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -24,6 +25,58 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
+
+type MatchPresenceList struct {
+	sync.RWMutex
+	presences []*PresenceID
+}
+
+func (m *MatchPresenceList) Join(joins []*MatchPresence) {
+	m.Lock()
+	for _, join := range joins {
+		m.presences = append(m.presences, &PresenceID{
+			Node:      join.Node,
+			SessionID: join.SessionID,
+		})
+	}
+	m.Unlock()
+}
+
+func (m *MatchPresenceList) Leave(leaves []*MatchPresence) {
+	m.Lock()
+	for _, leave := range leaves {
+		for i, presenceID := range m.presences {
+			if presenceID.SessionID == leave.SessionID && presenceID.Node == leave.Node {
+				m.presences = append(m.presences[:i], m.presences[i+1:]...)
+				break
+			}
+		}
+	}
+	m.Unlock()
+}
+
+func (m *MatchPresenceList) Contains(presence *PresenceID) bool {
+	var found bool
+	m.RLock()
+	for _, p := range m.presences {
+		if p.SessionID == presence.SessionID && p.Node == p.Node {
+			found = true
+			break
+		}
+	}
+	m.RUnlock()
+	return found
+}
+
+func (m *MatchPresenceList) List() []*PresenceID {
+	m.RLock()
+	list := make([]*PresenceID, 0, len(m.presences))
+	for _, presence := range m.presences {
+		list = append(list, presence)
+	}
+	m.RUnlock()
+	return list
+}
 
 type MatchDataMessage struct {
 	UserID      uuid.UUID
@@ -72,7 +125,8 @@ type MatchHandler struct {
 	tracker       Tracker
 	router        MessageRouter
 
-	core RuntimeMatchCore
+	presenceList *MatchPresenceList
+	core         RuntimeMatchCore
 
 	// Identification not (directly) controlled by match init.
 	ID     uuid.UUID
@@ -100,7 +154,11 @@ type MatchHandler struct {
 }
 
 func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, core RuntimeMatchCore, label *atomic.String, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
-	state, rateInt, labelStr, err := core.MatchInit(params)
+	presenceList := &MatchPresenceList{
+		presences: make([]*PresenceID, 0, 10),
+	}
+
+	state, rateInt, labelStr, err := core.MatchInit(presenceList, params)
 	if err != nil {
 		core.Cancel()
 		return nil, err
@@ -120,7 +178,8 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		logger:        logger,
 		matchRegistry: matchRegistry,
 
-		core: core,
+		presenceList: presenceList,
+		core:         core,
 
 		ID:    id,
 		Node:  node,
@@ -303,6 +362,8 @@ func (mh *MatchHandler) QueueJoin(joins []*MatchPresence) bool {
 			return
 		}
 
+		mh.presenceList.Join(joins)
+
 		state, err := mh.core.MatchJoin(mh.tick, mh.state, joins)
 		if err != nil {
 			mh.Stop()
@@ -330,6 +391,8 @@ func (mh *MatchHandler) QueueLeave(leaves []*MatchPresence) bool {
 		if mh.stopped.Load() {
 			return
 		}
+
+		mh.presenceList.Leave(leaves)
 
 		state, err := mh.core.MatchLeave(mh.tick, mh.state, leaves)
 		if err != nil {

@@ -215,7 +215,7 @@ func (e RuntimeExecutionMode) String() string {
 }
 
 type RuntimeMatchCore interface {
-	MatchInit(params map[string]interface{}) (interface{}, int, string, error)
+	MatchInit(presenceList *MatchPresenceList, params map[string]interface{}) (interface{}, int, string, error)
 	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error)
 	MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error)
 	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)

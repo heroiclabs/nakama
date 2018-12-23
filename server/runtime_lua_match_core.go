@@ -32,10 +32,10 @@ import (
 type RuntimeLuaMatchCore struct {
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
-	tracker       Tracker
 	router        MessageRouter
 
 	labelUpdateFn RuntimeMatchLabelUpdateFunction
+	presenceList  *MatchPresenceList
 
 	id     uuid.UUID
 	node   string
@@ -134,10 +134,10 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *j
 	core := &RuntimeLuaMatchCore{
 		logger:        logger,
 		matchRegistry: matchRegistry,
-		tracker:       tracker,
 		router:        router,
 
 		labelUpdateFn: labelUpdateFn,
+		// presenceList set in MatchInit.
 
 		id:    id,
 		node:  node,
@@ -170,7 +170,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *j
 	return core, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchInit(params map[string]interface{}) (interface{}, int, string, error) {
+func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, params map[string]interface{}) (interface{}, int, string, error) {
 	// Run the match_init sequence.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.initFn)
@@ -230,6 +230,8 @@ func (r *RuntimeLuaMatchCore) MatchInit(params map[string]interface{}) (interfac
 	// Add context values only available after match_init completes.
 	r.ctx.RawSetString(__RUNTIME_LUA_CTX_MATCH_LABEL, label)
 	r.ctx.RawSetString(__RUNTIME_LUA_CTX_MATCH_TICK_RATE, rate)
+
+	r.presenceList = presenceList
 
 	return state, rateInt, labelStr, nil
 }
@@ -618,17 +620,16 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 				l.ArgError(3, "expects each presence to have a valid user_id")
 				return 0
 			}
-			userID, err := uuid.FromString(userIDValue.String())
+			_, err := uuid.FromString(userIDValue.String())
 			if err != nil {
 				l.ArgError(3, "expects each presence to have a valid user_id")
 				return 0
 			}
-			if r.tracker.GetBySessionIDStreamUserID(presenceIDs[0].Node, presenceIDs[0].SessionID, r.stream, userID) == nil {
-				// The one intended recipient is not a match member.
+			if !r.presenceList.Contains(presenceIDs[0]) {
 				return 0
 			}
 		} else {
-			actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
+			actualPresenceIDs := r.presenceList.List()
 			for i := 0; i < len(presenceIDs); i++ {
 				found := false
 				presenceID := presenceIDs[i]
@@ -663,10 +664,10 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 	}}}
 
 	if presenceIDs == nil {
-		r.router.SendToStream(r.logger, r.stream, msg)
-	} else {
-		r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
+		presenceIDs = r.presenceList.List()
 	}
+
+	r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
 
 	return 0
 }

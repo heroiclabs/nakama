@@ -28,10 +28,10 @@ import (
 type RuntimeGoMatchCore struct {
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
-	tracker       Tracker
 	router        MessageRouter
 
 	labelUpdateFn RuntimeMatchLabelUpdateFunction
+	presenceList  *MatchPresenceList
 
 	match runtime.Match
 
@@ -48,7 +48,8 @@ type RuntimeGoMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+//func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -57,10 +58,10 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, trac
 	return &RuntimeGoMatchCore{
 		logger:        logger,
 		matchRegistry: matchRegistry,
-		tracker:       tracker,
 		router:        router,
 
 		labelUpdateFn: labelUpdateFn,
+		// presenceList set in MatchInit.
 
 		match: match,
 
@@ -82,7 +83,7 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, trac
 	}, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchInit(params map[string]interface{}) (interface{}, int, string, error) {
+func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, params map[string]interface{}) (interface{}, int, string, error) {
 	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
 
 	if len(label) > 256 {
@@ -94,6 +95,8 @@ func (r *RuntimeGoMatchCore) MatchInit(params map[string]interface{}) (interface
 
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_TICK_RATE, tickRate)
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)
+
+	r.presenceList = presenceList
 
 	return state, tickRate, label, nil
 }
@@ -199,17 +202,17 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
 		if len(presenceIDs) == 1 {
 			// Shorter validation cycle if there is only one intended recipient.
-			userID, err := uuid.FromString(presences[0].GetUserId())
+			_, err := uuid.FromString(presences[0].GetUserId())
 			if err != nil {
 				return errors.New("Presence contains an invalid User ID")
 			}
-			if r.tracker.GetBySessionIDStreamUserID(presenceIDs[0].Node, presenceIDs[0].SessionID, r.stream, userID) == nil {
+			if !r.presenceList.Contains(presenceIDs[0]) {
 				// The one intended recipient is not a match member.
 				return nil
 			}
 		} else {
 			// Validate multiple filtered recipients.
-			actualPresenceIDs := r.tracker.ListPresenceIDByStream(r.stream)
+			actualPresenceIDs := r.presenceList.List()
 			for i := 0; i < len(presenceIDs); i++ {
 				found := false
 				presenceID := presenceIDs[i]
@@ -244,10 +247,10 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 	}}}
 
 	if presenceIDs == nil {
-		r.router.SendToStream(r.logger, r.stream, msg)
-	} else {
-		r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
+		presenceIDs = r.presenceList.List()
 	}
+
+	r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
 
 	return nil
 }
