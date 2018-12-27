@@ -22,6 +22,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/runtime"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -30,8 +31,8 @@ type RuntimeGoMatchCore struct {
 	matchRegistry MatchRegistry
 	router        MessageRouter
 
-	labelUpdateFn RuntimeMatchLabelUpdateFunction
-	presenceList  *MatchPresenceList
+	deferMessageFn RuntimeMatchDeferMessageFunction
+	presenceList   *MatchPresenceList
 
 	match runtime.Match
 
@@ -39,6 +40,7 @@ type RuntimeGoMatchCore struct {
 	node   string
 	idStr  string
 	stream PresenceStream
+	label  *atomic.String
 
 	runtimeLogger runtime.Logger
 	db            *sql.DB
@@ -49,7 +51,7 @@ type RuntimeGoMatchCore struct {
 }
 
 //func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, labelUpdateFn RuntimeMatchLabelUpdateFunction, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -60,7 +62,7 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 		matchRegistry: matchRegistry,
 		router:        router,
 
-		labelUpdateFn: labelUpdateFn,
+		// deferMessageFn set in MatchInit.
 		// presenceList set in MatchInit.
 
 		match: match,
@@ -73,6 +75,7 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 			Subject: id,
 			Label:   node,
 		},
+		label: atomic.NewString(""),
 
 		runtimeLogger: NewRuntimeGoLogger(logger),
 		db:            db,
@@ -83,22 +86,28 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 	}, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, params map[string]interface{}) (interface{}, int, string, error) {
+func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
 	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
 
 	if len(label) > 256 {
-		return nil, 0, "", errors.New("MatchInit returned invalid label, must be 256 bytes or less")
+		return nil, 0, errors.New("MatchInit returned invalid label, must be 256 bytes or less")
 	}
 	if tickRate > 30 || tickRate < 1 {
-		return nil, 0, "", errors.New("MatchInit returned invalid tick rate, must be between 1 and 30")
+		return nil, 0, errors.New("MatchInit returned invalid tick rate, must be between 1 and 30")
 	}
+
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, label); err != nil {
+		return nil, 0, err
+	}
+	r.label.Store(label)
 
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_TICK_RATE, tickRate)
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)
 
+	r.deferMessageFn = deferMessageFn
 	r.presenceList = presenceList
 
-	return state, tickRate, label, nil
+	return state, tickRate, nil
 }
 
 func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error) {
@@ -151,23 +160,56 @@ func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, grace
 	return newState, nil
 }
 
+func (r *RuntimeGoMatchCore) Label() string {
+	return r.label.Load()
+}
+
 func (r *RuntimeGoMatchCore) Cancel() {
 	r.ctxCancelFn()
 }
 
 func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {
+	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender)
+	if err != nil {
+		return err
+	}
+	if len(presenceIDs) == 0 {
+		return nil
+	}
+
+	r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
+
+	return nil
+}
+
+func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {
+	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender)
+	if err != nil {
+		return err
+	}
+	if len(presenceIDs) == 0 {
+		return nil
+	}
+
+	return r.deferMessageFn(&DeferredMessage{
+		PresenceIDs: presenceIDs,
+		Envelope:    msg,
+	})
+}
+
+func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) ([]*PresenceID, *rtapi.Envelope, error) {
 	var presenceIDs []*PresenceID
 	if presences != nil {
 		size := len(presences)
 		if size == 0 {
-			return nil
+			return nil, nil, nil
 		}
 
 		presenceIDs = make([]*PresenceID, size)
 		for i, presence := range presences {
 			sessionID, err := uuid.FromString(presence.GetSessionId())
 			if err != nil {
-				return errors.New("Presence contains an invalid Session ID")
+				return nil, nil, errors.New("Presence contains an invalid Session ID")
 			}
 
 			presenceIDs[i] = &PresenceID{
@@ -182,13 +224,13 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 		uid := sender.GetUserId()
 		_, err := uuid.FromString(uid)
 		if err != nil {
-			return errors.New("Sender contains an invalid User ID")
+			return nil, nil, errors.New("Sender contains an invalid User ID")
 		}
 
 		sid := sender.GetSessionId()
 		_, err = uuid.FromString(sid)
 		if err != nil {
-			return errors.New("Sender contains an invalid Session ID")
+			return nil, nil, errors.New("Sender contains an invalid Session ID")
 		}
 
 		presence = &rtapi.UserPresence{
@@ -204,11 +246,11 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 			// Shorter validation cycle if there is only one intended recipient.
 			_, err := uuid.FromString(presences[0].GetUserId())
 			if err != nil {
-				return errors.New("Presence contains an invalid User ID")
+				return nil, nil, errors.New("Presence contains an invalid User ID")
 			}
 			if !r.presenceList.Contains(presenceIDs[0]) {
 				// The one intended recipient is not a match member.
-				return nil
+				return nil, nil, nil
 			}
 		} else {
 			// Validate multiple filtered recipients.
@@ -234,7 +276,7 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 			}
 			if len(presenceIDs) == 0 {
 				// None of the target presenceIDs existed in the list of match members.
-				return nil
+				return nil, nil, nil
 			}
 		}
 	}
@@ -250,9 +292,7 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 		presenceIDs = r.presenceList.List()
 	}
 
-	r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
-
-	return nil
+	return presenceIDs, msg, nil
 }
 
 func (r *RuntimeGoMatchCore) MatchKick(presences []runtime.Presence) error {
@@ -286,9 +326,10 @@ func (r *RuntimeGoMatchCore) MatchKick(presences []runtime.Presence) error {
 }
 
 func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
-	if err := r.labelUpdateFn(label); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, label); err != nil {
 		return fmt.Errorf("error updating match label: %v", err.Error())
 	}
+	r.label.Store(label)
 
 	// This must be executed from inside a match call so safe to update here.
 	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)

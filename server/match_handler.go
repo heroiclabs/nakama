@@ -145,20 +145,31 @@ type MatchHandler struct {
 	stopCh        chan struct{}
 	stopped       *atomic.Bool
 
+	deferredCh chan *DeferredMessage
+
 	// Configuration set by match init.
-	Label *atomic.String
-	Rate  int
+	Rate int
 
 	// Match state.
 	state interface{}
 }
 
-func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, core RuntimeMatchCore, label *atomic.String, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, core RuntimeMatchCore, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
 	presenceList := &MatchPresenceList{
 		presences: make([]*PresenceID, 0, 10),
 	}
 
-	state, rateInt, labelStr, err := core.MatchInit(presenceList, params)
+	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
+	deferMessageFn := func(msg *DeferredMessage) error {
+		select {
+		case deferredCh <- msg:
+			return nil
+		default:
+			return ErrDeferredBroadcastFull
+		}
+	}
+
+	state, rateInt, err := core.MatchInit(presenceList, deferMessageFn, params)
 	if err != nil {
 		core.Cancel()
 		return nil, err
@@ -167,11 +178,6 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		core.Cancel()
 		return nil, errors.New("Match initial state must not be nil")
 	}
-	err = matchRegistry.UpdateMatchLabel(id, labelStr)
-	if err != nil {
-		return nil, err
-	}
-	label.Store(labelStr)
 
 	// Construct the match.
 	mh := &MatchHandler{
@@ -196,11 +202,11 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		// Ticker below.
 		callCh:        make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
 		joinAttemptCh: make(chan func(mh *MatchHandler), config.GetMatch().JoinAttemptQueueSize),
+		deferredCh:    deferredCh,
 		stopCh:        make(chan struct{}),
 		stopped:       atomic.NewBool(false),
 
-		Label: label,
-		Rate:  rateInt,
+		Rate: rateInt,
 
 		state: state,
 	}
@@ -287,12 +293,27 @@ func loop(mh *MatchHandler) {
 		return
 	}
 
+	// Execute the loop.
 	state, err := mh.core.MatchLoop(mh.tick, mh.state, mh.inputCh)
 	if err != nil {
 		mh.Stop()
 		mh.logger.Warn("Stopping match after error from match_loop execution", zap.Int64("tick", mh.tick), zap.Error(err))
 		return
 	}
+
+	// Broadcast any deferred messages before checking for nil state, to make sure any final messages are sent.
+	deferredCount := len(mh.deferredCh)
+	if deferredCount != 0 {
+		deferredMessages := make([]*DeferredMessage, deferredCount)
+		for i := 0; i < deferredCount; i++ {
+			msg := <-mh.deferredCh
+			deferredMessages[i] = msg
+		}
+
+		mh.router.SendDeferred(mh.logger, true, StreamModeMatchAuthoritative, deferredMessages)
+	}
+
+	// Check if we need to stop the match.
 	if state == nil {
 		mh.Stop()
 		mh.logger.Info("Match loop returned nil or no state, stopping match")
@@ -338,7 +359,7 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan *Mat
 		}
 
 		mh.state = state
-		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Label.Load()}
+		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.core.Label()}
 	}
 
 	select {

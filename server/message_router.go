@@ -22,10 +22,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// Deferred message expected to be batched with other deferred messages.
+// All deferred messages in a batch are expected to be for the same stream/mode and share a logger context.
+type DeferredMessage struct {
+	PresenceIDs []*PresenceID
+	Envelope    *rtapi.Envelope
+}
+
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
 	SendToPresenceIDs(*zap.Logger, []*PresenceID, bool, uint8, *rtapi.Envelope)
 	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope)
+	SendDeferred(*zap.Logger, bool, uint8, []*DeferredMessage)
 }
 
 type LocalMessageRouter struct {
@@ -94,4 +102,10 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, envelope *rtapi.Envelope) {
 	presenceIDs := r.tracker.ListPresenceIDByStream(stream)
 	r.SendToPresenceIDs(logger, presenceIDs, true, stream.Mode, envelope)
+}
+
+func (r *LocalMessageRouter) SendDeferred(logger *zap.Logger, isStream bool, mode uint8, messages []*DeferredMessage) {
+	for _, message := range messages {
+		r.SendToPresenceIDs(logger, message.PresenceIDs, isStream, mode, message.Envelope)
+	}
 }

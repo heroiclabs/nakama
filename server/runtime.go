@@ -163,8 +163,8 @@ type (
 
 	RuntimeMatchmakerMatchedFunction func(entries []*MatchmakerEntry) (string, bool, error)
 
-	RuntimeMatchCreateFunction      func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string, labelUpdateFn RuntimeMatchLabelUpdateFunction) (RuntimeMatchCore, error)
-	RuntimeMatchLabelUpdateFunction func(string) error
+	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error)
+	RuntimeMatchDeferMessageFunction func(msg *DeferredMessage) error
 
 	RuntimeTournamentEndFunction   func(tournament *api.Tournament, end, reset int64) error
 	RuntimeTournamentResetFunction func(tournament *api.Tournament, end, reset int64) error
@@ -215,12 +215,13 @@ func (e RuntimeExecutionMode) String() string {
 }
 
 type RuntimeMatchCore interface {
-	MatchInit(presenceList *MatchPresenceList, params map[string]interface{}) (interface{}, int, string, error)
+	MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error)
 	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error)
 	MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error)
 	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)
 	MatchLoop(tick int64, state interface{}, inputCh chan *MatchDataMessage) (interface{}, error)
 	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
+	Label() string
 	Cancel()
 }
 

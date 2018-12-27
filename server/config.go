@@ -144,6 +144,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetMatch().JoinAttemptQueueSize < 1 {
 		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", mainConfig.GetMatch().JoinAttemptQueueSize))
 	}
+	if mainConfig.GetMatch().DeferredQueueSize < 1 {
+		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", mainConfig.GetMatch().DeferredQueueSize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -474,6 +477,7 @@ type MatchConfig struct {
 	InputQueueSize       int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
 	CallQueueSize        int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
 	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
+	DeferredQueueSize    int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
@@ -482,6 +486,7 @@ func NewMatchConfig() *MatchConfig {
 		InputQueueSize:       128,
 		CallQueueSize:        128,
 		JoinAttemptQueueSize: 128,
+		DeferredQueueSize:    128,
 	}
 }
 

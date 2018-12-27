@@ -671,6 +671,7 @@ type MatchData interface {
 
 type MatchDispatcher interface {
 	BroadcastMessage(opCode int64, data []byte, presences []Presence, sender Presence) error
+	BroadcastMessageDeferred(opCode int64, data []byte, presences []Presence, sender Presence) error
 	MatchKick(presences []Presence) error
 	MatchLabelUpdate(label string) error
 }

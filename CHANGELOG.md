@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Go runtime authoritative matches now also print Match IDs in log lines generated within the match.
 - Allow client email authentication requests to optionally authenticate with username/password instead of email/password.
 - Allow runtime email authentication calls to authenticate with username/password instead of email/password.
+- New authoritative match dispatcher function to defer message broadcasts until the end of the tick.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.
