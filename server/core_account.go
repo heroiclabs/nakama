@@ -36,7 +36,7 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var username sql.NullString
 	var avatarURL sql.NullString
 	var langTag sql.NullString
-	var locat sql.NullString
+	var location sql.NullString
 	var timezone sql.NullString
 	var metadata sql.NullString
 	var wallet sql.NullString
@@ -46,19 +46,20 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var gamecenter sql.NullString
 	var steam sql.NullString
 	var customID sql.NullString
-	var edge_count int
+	var edgeCount int
 	var createTime pq.NullTime
 	var updateTime pq.NullTime
 	var verifyTime pq.NullTime
+	var deviceIDs pq.StringArray
 
 	query := `
-SELECT username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet,
-	email, facebook_id, google_id, gamecenter_id, steam_id, custom_id, edge_count,
-	create_time, update_time, verify_time
-FROM users
-WHERE id = $1`
+SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
+	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.create_time, u.update_time, u.verify_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+FROM users u
+WHERE u.id = $1`
 
-	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &locat, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edge_count, &createTime, &updateTime, &verifyTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrAccountNotFound
 		}
@@ -66,28 +67,9 @@ WHERE id = $1`
 		return nil, err
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT id FROM user_device WHERE user_id = $1", userID)
-	if err != nil {
-		logger.Error("Error retrieving user account.", zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
-
-	deviceIDs := make([]*api.AccountDevice, 0)
-	for rows.Next() {
-		var deviceID sql.NullString
-		err = rows.Scan(&deviceID)
-		if err != nil {
-			logger.Error("Error retrieving user account.", zap.Error(err))
-			return nil, err
-		}
-		if deviceID.Valid {
-			deviceIDs = append(deviceIDs, &api.AccountDevice{Id: deviceID.String})
-		}
-	}
-	if err = rows.Err(); err != nil {
-		logger.Error("Error retrieving user account.", zap.Error(err))
-		return nil, err
+	devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		devices = append(devices, &api.AccountDevice{Id: deviceID})
 	}
 
 	var verifyTimestamp *timestamp.Timestamp = nil
@@ -107,24 +89,119 @@ WHERE id = $1`
 			DisplayName:  displayName.String,
 			AvatarUrl:    avatarURL.String,
 			LangTag:      langTag.String,
-			Location:     locat.String,
+			Location:     location.String,
 			Timezone:     timezone.String,
 			Metadata:     metadata.String,
 			FacebookId:   facebook.String,
 			GoogleId:     google.String,
 			GamecenterId: gamecenter.String,
 			SteamId:      steam.String,
-			EdgeCount:    int32(edge_count),
+			EdgeCount:    int32(edgeCount),
 			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:       online,
 		},
 		Wallet:     wallet.String,
 		Email:      email.String,
-		Devices:    deviceIDs,
+		Devices:    devices,
 		CustomId:   customID.String,
 		VerifyTime: verifyTimestamp,
 	}, nil
+}
+
+func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userIDs []string) ([]*api.Account, error) {
+	statements := make([]string, 0, len(userIDs))
+	parameters := make([]interface{}, 0, len(userIDs))
+	for _, userID := range userIDs {
+		parameters = append(parameters, userID)
+		statements = append(statements, "$"+strconv.Itoa(len(parameters)))
+	}
+
+	query := `
+SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
+	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.create_time, u.update_time, u.verify_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+FROM users u
+WHERE u.id IN (` + strings.Join(statements, ",") + `)`
+	rows, err := db.QueryContext(ctx, query, parameters...)
+	if err != nil {
+		logger.Error("Error retrieving user accounts.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	accounts := make([]*api.Account, 0, len(userIDs))
+	for rows.Next() {
+		var userID string
+		var username sql.NullString
+		var displayName sql.NullString
+		var avatarURL sql.NullString
+		var langTag sql.NullString
+		var location sql.NullString
+		var timezone sql.NullString
+		var metadata sql.NullString
+		var wallet sql.NullString
+		var email sql.NullString
+		var facebook sql.NullString
+		var google sql.NullString
+		var gamecenter sql.NullString
+		var steam sql.NullString
+		var customID sql.NullString
+		var edgeCount int
+		var createTime pq.NullTime
+		var updateTime pq.NullTime
+		var verifyTime pq.NullTime
+		var deviceIDs pq.StringArray
+
+		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs)
+		if err != nil {
+			logger.Error("Error retrieving user accounts.", zap.Error(err))
+			return nil, err
+		}
+
+		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		for _, deviceID := range deviceIDs {
+			devices = append(devices, &api.AccountDevice{Id: deviceID})
+		}
+
+		var verifyTimestamp *timestamp.Timestamp
+		if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
+			verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
+		}
+
+		online := false
+		if tracker != nil {
+			online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: uuid.FromStringOrNil(userID)})
+		}
+
+		accounts = append(accounts, &api.Account{
+			User: &api.User{
+				Id:           userID,
+				Username:     username.String,
+				DisplayName:  displayName.String,
+				AvatarUrl:    avatarURL.String,
+				LangTag:      langTag.String,
+				Location:     location.String,
+				Timezone:     timezone.String,
+				Metadata:     metadata.String,
+				FacebookId:   facebook.String,
+				GoogleId:     google.String,
+				GamecenterId: gamecenter.String,
+				SteamId:      steam.String,
+				EdgeCount:    int32(edgeCount),
+				CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+				UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+				Online:       online,
+			},
+			Wallet:     wallet.String,
+			Email:      email.String,
+			Devices:    devices,
+			CustomId:   customID.String,
+			VerifyTime: verifyTimestamp,
+		})
+	}
+
+	return accounts, nil
 }
 
 func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {

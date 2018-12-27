@@ -744,6 +744,7 @@ type NakamaModule interface {
 	AuthenticateTokenGenerate(userID, username string, exp int64) (string, int64, error)
 
 	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
+	AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error)
 	AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error
 
 	UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error)

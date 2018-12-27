@@ -273,6 +273,20 @@ func (n *RuntimeGoNakamaModule) AccountGetId(ctx context.Context, userID string)
 	return GetAccount(ctx, n.logger, n.db, n.tracker, u)
 }
 
+func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error) {
+	if len(userIDs) == 0 {
+		return make([]*api.Account, 0), nil
+	}
+
+	for _, id := range userIDs {
+		if _, err := uuid.FromString(id); err != nil {
+			return nil, errors.New("each user id must be a valid id string")
+		}
+	}
+
+	return GetAccounts(ctx, n.logger, n.db, n.tracker, userIDs)
+}
+
 func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error {
 	u, err := uuid.FromString(userID)
 	if err != nil {

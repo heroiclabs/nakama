@@ -17,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow client email authentication requests to optionally authenticate with username/password instead of email/password.
 - Allow runtime email authentication calls to authenticate with username/password instead of email/password.
 - New authoritative match dispatcher function to defer message broadcasts until the end of the tick.
+- New runtime function to retrieve multiple user accounts by user ID.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.
