@@ -64,16 +64,7 @@ func NewSessionRegistry() *SessionRegistry {
 	}
 }
 
-func (r *SessionRegistry) Stop() {
-	r.Lock()
-	for sessionID, session := range r.sessions {
-		delete(r.sessions, sessionID)
-		// Send graceful close messages to client connections.
-		// No need to clean up presences or matchmaker entries because we only expect to be here on server shutdown.
-		session.Close()
-	}
-	r.Unlock()
-}
+func (r *SessionRegistry) Stop() {}
 
 func (r *SessionRegistry) Get(sessionID uuid.UUID) Session {
 	var s Session

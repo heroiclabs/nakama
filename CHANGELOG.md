@@ -28,6 +28,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Authoritative matches now complete their stop phase faster to avoid unnecessary processing.
 - Authoritative match join attempts now have their own bounded queue and no longer count towards the match call queue limit.
 - Lua runtime group create function now sets the correct default max size if one is not specified.
+- Improve socket session close semantics.
+- Session logging now prints correct remote address if available when the connection is through a proxy.
 
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.
