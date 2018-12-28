@@ -1690,8 +1690,8 @@ func (ri *RuntimeGoInitializer) RegisterAfterGetUsers(fn func(ctx context.Contex
 }
 
 func (ri *RuntimeGoInitializer) RegisterMatchmakerMatched(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, entries []runtime.MatchmakerEntry) (string, error)) error {
-	ri.matchmakerMatched = func(entries []*MatchmakerEntry) (string, bool, error) {
-		ctx := NewRuntimeGoContext(context.Background(), ri.env, RuntimeExecutionModeMatchmaker, nil, 0, "", "", "", "", "")
+	ri.matchmakerMatched = func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error) {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeMatchmaker, nil, 0, "", "", "", "", "")
 		runtimeEntries := make([]runtime.MatchmakerEntry, len(entries))
 		for i, entry := range entries {
 			runtimeEntries[i] = runtime.MatchmakerEntry(entry)
@@ -1706,24 +1706,24 @@ func (ri *RuntimeGoInitializer) RegisterMatchmakerMatched(fn func(ctx context.Co
 }
 
 func (ri *RuntimeGoInitializer) RegisterTournamentEnd(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, tournament *api.Tournament, end, reset int64) error) error {
-	ri.tournamentEnd = func(tournament *api.Tournament, end, reset int64) error {
-		ctx := NewRuntimeGoContext(context.Background(), ri.env, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", "", "", "")
+	ri.tournamentEnd = func(ctx context.Context, tournament *api.Tournament, end, reset int64) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", "", "", "")
 		return fn(ctx, ri.logger, ri.db, ri.nk, tournament, end, reset)
 	}
 	return nil
 }
 
 func (ri *RuntimeGoInitializer) RegisterTournamentReset(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, tournament *api.Tournament, end, reset int64) error) error {
-	ri.tournamentReset = func(tournament *api.Tournament, end, reset int64) error {
-		ctx := NewRuntimeGoContext(context.Background(), ri.env, RuntimeExecutionModeTournamentReset, nil, 0, "", "", "", "", "")
+	ri.tournamentReset = func(ctx context.Context, tournament *api.Tournament, end, reset int64) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeTournamentReset, nil, 0, "", "", "", "", "")
 		return fn(ctx, ri.logger, ri.db, ri.nk, tournament, end, reset)
 	}
 	return nil
 }
 
 func (ri *RuntimeGoInitializer) RegisterLeaderboardReset(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, leaderboard runtime.Leaderboard, reset int64) error) error {
-	ri.leaderboardReset = func(leaderboard runtime.Leaderboard, reset int64) error {
-		ctx := NewRuntimeGoContext(context.Background(), ri.env, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", "", "", "")
+	ri.leaderboardReset = func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", "", "", "")
 		return fn(ctx, ri.logger, ri.db, ri.nk, leaderboard, reset)
 	}
 	return nil

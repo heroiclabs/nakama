@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -79,7 +80,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
 	fn := p.runtime.MatchmakerMatched()
 	if fn != nil {
-		tokenOrMatchID, isMatchID, err = fn(entries)
+		tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
 		if err != nil {
 			p.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
 		}

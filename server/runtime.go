@@ -161,15 +161,15 @@ type (
 	RuntimeBeforeGetUsersFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
 	RuntimeAfterGetUsersFunction                           func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error
 
-	RuntimeMatchmakerMatchedFunction func(entries []*MatchmakerEntry) (string, bool, error)
+	RuntimeMatchmakerMatchedFunction func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
 
 	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error)
 	RuntimeMatchDeferMessageFunction func(msg *DeferredMessage) error
 
-	RuntimeTournamentEndFunction   func(tournament *api.Tournament, end, reset int64) error
-	RuntimeTournamentResetFunction func(tournament *api.Tournament, end, reset int64) error
+	RuntimeTournamentEndFunction   func(ctx context.Context, tournament *api.Tournament, end, reset int64) error
+	RuntimeTournamentResetFunction func(ctx context.Context, tournament *api.Tournament, end, reset int64) error
 
-	RuntimeLeaderboardResetFunction func(leaderboard runtime.Leaderboard, reset int64) error
+	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error
 )
 
 type RuntimeExecutionMode int

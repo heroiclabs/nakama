@@ -277,7 +277,7 @@ WHERE id = $1`
 
 		// Trigger callback on a goroutine so any extended processing does not block future scheduling.
 		go func() {
-			if err := fn(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+			if err := fn(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
 				ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
 			}
 		}()
@@ -327,7 +327,7 @@ WHERE id = $1`
 			if fnTournamentReset != nil {
 				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
 				go func() {
-					if err := fnTournamentReset(tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+					if err := fnTournamentReset(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
 						ls.logger.Warn("Failed to invoke tournament reset callback", zap.Error(err))
 					}
 				}()
@@ -342,7 +342,7 @@ WHERE id = $1`
 
 				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
 				go func() {
-					if err := fnLeaderboardReset(leaderboardOrTournament, nextReset); err != nil {
+					if err := fnLeaderboardReset(ls.ctx, leaderboardOrTournament, nextReset); err != nil {
 						ls.logger.Warn("Failed to invoke leaderboard reset callback", zap.Error(err))
 					}
 				}()
