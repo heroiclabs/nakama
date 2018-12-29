@@ -137,7 +137,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	}
 
-	if tournament.EndTime <= time.Now().UTC().Unix() {
+	if tournament.EndTime > 0 && tournament.EndTime <= time.Now().UTC().Unix() {
 		return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
 	}
 

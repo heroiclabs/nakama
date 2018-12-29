@@ -46,6 +46,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correct Lua runtime decoding of stream identifying parameters.
 - Correctly use optional parameters when they are passed to group creation operations.
 - Lua runtime operations now observe context cancellation while waiting for an available Lua instance.
+- Correctly list tournament records when the tournament has no end time defined.
 
 ## [2.2.1] - 2018-11-20
 ### Added
