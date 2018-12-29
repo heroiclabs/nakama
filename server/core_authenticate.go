@@ -771,7 +771,7 @@ AND EXISTS
 				Subject:    subject,
 				Content:    string(content),
 				SenderId:   userID.String(),
-				Code:       NOTIFICATION_FRIEND_JOIN_GAME,
+				Code:       NotificationCodeFriendJoinGame,
 				Persistent: true,
 				CreateTime: &timestamp.Timestamp{Seconds: createTime},
 			}}

@@ -18,6 +18,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow runtime email authentication calls to authenticate with username/password instead of email/password.
 - New authoritative match dispatcher function to defer message broadcasts until the end of the tick.
 - New runtime function to retrieve multiple user accounts by user ID.
+- Send notifications to admins of non-open groups when a user requests to join.
+- Send notifications to users when their request to join a group is accepted.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.

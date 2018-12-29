@@ -244,6 +244,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 
 func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	// Before hook.
 	if fn := s.runtime.BeforeJoinGroup(); fn != nil {
@@ -256,7 +257,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		if err != nil {
 			return nil, status.Error(code, err.Error())
 		}
@@ -281,7 +282,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	err = JoinGroup(ctx, s.logger, s.db, groupID, userID)
+	err = JoinGroup(ctx, s.logger, s.db, s.router, groupID, userID, username)
 	if err != nil {
 		if err == ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
@@ -301,7 +302,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 
 		// Extract request information and execute the hook.
 		clientIP, clientPort := extractClientAddress(s.logger, ctx)
-		fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 
 		// Stats measurement end boundary.
 		span.End()
@@ -430,7 +431,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 		userIDs = append(userIDs, uid)
 	}
 
-	err = AddGroupUsers(ctx, s.logger, s.db, userID, groupID, userIDs)
+	err = AddGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
 		if err == ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")

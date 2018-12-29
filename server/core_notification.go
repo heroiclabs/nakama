@@ -33,12 +33,12 @@ import (
 )
 
 const (
-	NOTIFICATION_DM_REQUEST         int32 = -1
-	NOTIFICATION_FRIEND_REQUEST     int32 = -2
-	NOTIFICATION_FRIEND_ACCEPT      int32 = -3
-	NOTIFICATION_GROUP_ADD          int32 = -4
-	NOTIFICATION_GROUP_JOIN_REQUEST int32 = -5
-	NOTIFICATION_FRIEND_JOIN_GAME   int32 = -6
+	NotificationCodeDmRequest        int32 = -1
+	NotificationCodeFriendRequest    int32 = -2
+	NotificationCodeFriendAccept     int32 = -3
+	NotificationCodeGroupAdd         int32 = -4
+	NotificationCodeGroupJoinRequest int32 = -5
+	NotificationCodeFriendJoinGame   int32 = -6
 )
 
 type notificationCacheableCursor struct {

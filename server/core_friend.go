@@ -178,10 +178,10 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 	content, _ := json.Marshal(map[string]interface{}{"username": username})
 	for id, isFriendAccept := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
-		code := NOTIFICATION_FRIEND_REQUEST
+		code := NotificationCodeFriendRequest
 		subject := fmt.Sprintf("%v wants to add you as a friend", username)
 		if isFriendAccept {
-			code = NOTIFICATION_FRIEND_ACCEPT
+			code = NotificationCodeFriendAccept
 			subject = fmt.Sprintf("%v accepted your friend request", username)
 		}
 		notifications[uid] = []*api.Notification{{

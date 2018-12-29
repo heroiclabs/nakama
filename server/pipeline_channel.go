@@ -236,7 +236,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 							Subject:    fmt.Sprintf("%v wants to chat", session.Username()),
 							Content:    string(content),
 							SenderId:   userID.String(),
-							Code:       NOTIFICATION_DM_REQUEST,
+							Code:       NotificationCodeDmRequest,
 							Persistent: true,
 							CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
 						},

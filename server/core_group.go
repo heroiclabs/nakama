@@ -20,6 +20,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -268,7 +270,7 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	return nil
 }
 
-func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
 	query := `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups 
@@ -309,6 +311,52 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 
 			logger.Error("Could not add user to group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
+		}
+
+		// If it's a private group notify superadmins/admins that someone has requested to join.
+		// Prepare notification data.
+		notificationContentBytes, err := json.Marshal(map[string]string{"username": username})
+		if err != nil {
+			logger.Error("Could not encode notification content.", zap.Error(err))
+		} else {
+			notificationContent := string(notificationContentBytes)
+			notificationSubject := fmt.Sprintf("User %v wants to join your group", username)
+			notifications := make(map[uuid.UUID][]*api.Notification)
+
+			query = "SELECT destination_id FROM group_edge WHERE source_id = $1::UUID AND (state = 0 OR state = 1)"
+			rows, err := db.QueryContext(ctx, query, groupID)
+			if err != nil {
+				// Errors here will not cause the join operation to fail.
+				logger.Error("Error looking up group admins to notify of join request.", zap.Error(err))
+			} else {
+				defer rows.Close()
+
+				for rows.Next() {
+					var id string
+					if err = rows.Scan(&id); err != nil {
+						// Errors here will not cause the join operation to fail.
+						logger.Error("Error reading up group admins to notify of join request.", zap.Error(err))
+						break
+					}
+
+					adminID := uuid.FromStringOrNil(id)
+					notifications[adminID] = []*api.Notification{
+						&api.Notification{
+							Id:         uuid.Must(uuid.NewV4()).String(),
+							Subject:    notificationSubject,
+							Content:    notificationContent,
+							SenderId:   userID.String(),
+							Code:       NotificationCodeGroupJoinRequest,
+							Persistent: true,
+							CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+						},
+					}
+				}
+			}
+
+			if len(notifications) > 0 {
+				NotificationSend(ctx, logger, db, router, notifications)
+			}
 		}
 
 		logger.Info("Added join request to group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -421,7 +469,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 	return nil
 }
 
-func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
@@ -440,16 +488,15 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 		}
 	}
 
-	var groupExists sql.NullBool
-	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')"
-	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
-	if err != nil {
+	var groupName sql.NullString
+	query := "SELECT name FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00'"
+	if err := db.QueryRowContext(ctx, query, groupID).Scan(&groupName); err != nil {
+		if err == sql.ErrNoRows {
+			logger.Info("Cannot add users to disabled group.", zap.String("group_id", groupID.String()))
+			return ErrGroupNotFound
+		}
 		logger.Error("Could not look up group when adding users.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return err
-	}
-	if !groupExists.Bool {
-		logger.Info("Cannot add users to disabled group.", zap.String("group_id", groupID.String()))
-		return ErrGroupNotFound
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -458,7 +505,20 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 		return err
 	}
 
+	// Prepare notification data.
+	notificationContentBytes, err := json.Marshal(map[string]string{"name": groupName.String})
+	if err != nil {
+		logger.Error("Could not encode notification content.", zap.Error(err))
+		return err
+	}
+	notificationContent := string(notificationContentBytes)
+	notificationSubject := fmt.Sprintf("You've been added to group %v", groupName.String)
+	var notifications map[uuid.UUID][]*api.Notification
+
 	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
+		notifications = make(map[uuid.UUID][]*api.Notification, len(userIDs))
+
 		for _, uid := range userIDs {
 			if uid == caller {
 				continue
@@ -504,10 +564,26 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller u
 					return ErrGroupFull
 				}
 			}
+
+			notifications[uid] = []*api.Notification{
+				&api.Notification{
+					Id:         uuid.Must(uuid.NewV4()).String(),
+					Subject:    notificationSubject,
+					Content:    notificationContent,
+					SenderId:   caller.String(),
+					Code:       NotificationCodeGroupAdd,
+					Persistent: true,
+					CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+				},
+			}
 		}
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	if len(notifications) > 0 {
+		NotificationSend(ctx, logger, db, router, notifications)
 	}
 
 	return nil
