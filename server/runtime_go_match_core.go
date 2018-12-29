@@ -142,7 +142,7 @@ func (r *RuntimeGoMatchCore) MatchLeave(tick int64, state interface{}, leaves []
 	return newState, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh chan *MatchDataMessage) (interface{}, error) {
+func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
 	// Drain the input queue into a slice.
 	size := len(inputCh)
 	messages := make([]runtime.MatchData, size)

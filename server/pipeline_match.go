@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -196,10 +197,6 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			}}})
 			return
 		}
-		if mode == StreamModeMatchAuthoritative {
-			// If we've reached here, it was an accepted authoritative join.
-			label = &wrappers.StringValue{Value: l}
-		}
 		m := PresenceMeta{
 			Username: username,
 			Format:   session.Format(),
@@ -207,6 +204,20 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), m, false); !success {
 			// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 			return
+		}
+		if mode == StreamModeMatchAuthoritative {
+			// If we've reached here, it was an accepted authoritative join.
+			ctx, ctxCancelFn := context.WithTimeout(session.Context(), 5*time.Second)
+			if err := p.matchRegistry.AwaitJoinMarker(ctx, matchID, node, session.ID(), p.node); err != nil {
+				if err != context.Canceled {
+					ctxCancelFn()
+				}
+				// There was an error or a timeout waiting for the join marker, return to the client anyway since the tracker update was successful.
+				logger.Error("Error waiting for match join marker", zap.Error(err))
+			} else {
+				ctxCancelFn()
+			}
+			label = &wrappers.StringValue{Value: l}
 		}
 		meta = &m
 	} else if mode == StreamModeMatchAuthoritative {

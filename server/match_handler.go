@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -25,58 +24,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
-
-type MatchPresenceList struct {
-	sync.RWMutex
-	presences []*PresenceID
-}
-
-func (m *MatchPresenceList) Join(joins []*MatchPresence) {
-	m.Lock()
-	for _, join := range joins {
-		m.presences = append(m.presences, &PresenceID{
-			Node:      join.Node,
-			SessionID: join.SessionID,
-		})
-	}
-	m.Unlock()
-}
-
-func (m *MatchPresenceList) Leave(leaves []*MatchPresence) {
-	m.Lock()
-	for _, leave := range leaves {
-		for i, presenceID := range m.presences {
-			if presenceID.SessionID == leave.SessionID && presenceID.Node == leave.Node {
-				m.presences = append(m.presences[:i], m.presences[i+1:]...)
-				break
-			}
-		}
-	}
-	m.Unlock()
-}
-
-func (m *MatchPresenceList) Contains(presence *PresenceID) bool {
-	var found bool
-	m.RLock()
-	for _, p := range m.presences {
-		if p.SessionID == presence.SessionID && p.Node == p.Node {
-			found = true
-			break
-		}
-	}
-	m.RUnlock()
-	return found
-}
-
-func (m *MatchPresenceList) List() []*PresenceID {
-	m.RLock()
-	list := make([]*PresenceID, 0, len(m.presences))
-	for _, presence := range m.presences {
-		list = append(list, presence)
-	}
-	m.RUnlock()
-	return list
-}
 
 type MatchDataMessage struct {
 	UserID      uuid.UUID
@@ -125,8 +72,9 @@ type MatchHandler struct {
 	tracker       Tracker
 	router        MessageRouter
 
-	presenceList *MatchPresenceList
-	core         RuntimeMatchCore
+	JoinMarkerList *MatchJoinMarkerList
+	presenceList   *MatchPresenceList
+	core           RuntimeMatchCore
 
 	// Identification not (directly) controlled by match init.
 	ID     uuid.UUID
@@ -148,7 +96,7 @@ type MatchHandler struct {
 	deferredCh chan *DeferredMessage
 
 	// Configuration set by match init.
-	Rate int
+	Rate int64
 
 	// Match state.
 	state interface{}
@@ -184,6 +132,9 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		logger:        logger,
 		matchRegistry: matchRegistry,
 
+		JoinMarkerList: &MatchJoinMarkerList{
+			joinMarkers: make(map[uuid.UUID]*MatchJoinMarker),
+		},
 		presenceList: presenceList,
 		core:         core,
 
@@ -206,7 +157,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		stopCh:        make(chan struct{}),
 		stopped:       atomic.NewBool(false),
 
-		Rate: rateInt,
+		Rate: int64(rateInt),
 
 		state: state,
 	}
@@ -320,11 +271,16 @@ func loop(mh *MatchHandler) {
 		return
 	}
 
+	// Every 30 seconds clear expired join markers.
+	if mh.tick%(mh.Rate*30) == 0 {
+		mh.JoinMarkerList.ClearExpired(mh.tick)
+	}
+
 	mh.state = state
 	mh.tick++
 }
 
-func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) bool {
+func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) bool {
 	if mh.stopped.Load() {
 		return false
 	}
@@ -359,6 +315,10 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan *Mat
 		}
 
 		mh.state = state
+		if allow {
+			// Keep join markers for up to 120 seconds.
+			mh.JoinMarkerList.Add(sessionID, mh.tick+(mh.Rate*120))
+		}
 		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.core.Label()}
 	}
 
@@ -384,6 +344,10 @@ func (mh *MatchHandler) QueueJoin(joins []*MatchPresence) bool {
 		}
 
 		mh.presenceList.Join(joins)
+
+		for _, join := range joins {
+			mh.JoinMarkerList.Mark(join.SessionID)
+		}
 
 		state, err := mh.core.MatchJoin(mh.tick, mh.state, joins)
 		if err != nil {

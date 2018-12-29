@@ -32,6 +32,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Lua runtime group create function now sets the correct default max size if one is not specified.
 - Improve socket session close semantics.
 - Session logging now prints correct remote address if available when the connection is through a proxy.
+- Authoritative match join attempts now wait until the handler acknowledges the join before returning to clients.
 
 ### Fixed
 - Correctly report execution mode in Lua runtime after hooks.

@@ -43,41 +43,13 @@ var (
 
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
+	ErrNoJoinMarker          = errors.New("no join marker received")
 )
 
 type MatchIndexEntry struct {
 	Node        string                 `json:"node"`
 	Label       map[string]interface{} `json:"label"`
 	LabelString string                 `json:"label_string"`
-}
-
-type MatchPresence struct {
-	Node      string
-	UserID    uuid.UUID
-	SessionID uuid.UUID
-	Username  string
-}
-
-func (p *MatchPresence) GetUserId() string {
-	return p.UserID.String()
-}
-func (p *MatchPresence) GetSessionId() string {
-	return p.SessionID.String()
-}
-func (p *MatchPresence) GetNodeId() string {
-	return p.Node
-}
-func (p *MatchPresence) GetHidden() bool {
-	return false
-}
-func (p *MatchPresence) GetPersistence() bool {
-	return false
-}
-func (p *MatchPresence) GetUsername() string {
-	return p.Username
-}
-func (p *MatchPresence) GetStatus() string {
-	return ""
 }
 
 type MatchJoinResult struct {
@@ -119,6 +91,8 @@ type MatchRegistry interface {
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
 	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, receiveTime int64)
+	// Wait for the match to confirm a user has completed their join process.
+	AwaitJoinMarker(ctx context.Context, id uuid.UUID, node string, sessionID uuid.UUID, fromNode string) error
 }
 
 type LocalMatchRegistry struct {
@@ -630,4 +604,33 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		Data:        data,
 		ReceiveTime: receiveTime,
 	})
+}
+
+func (r *LocalMatchRegistry) AwaitJoinMarker(ctx context.Context, id uuid.UUID, node string, sessionID uuid.UUID, fromNode string) error {
+	if node != r.node {
+		return ErrNoJoinMarker
+	}
+
+	var mh *MatchHandler
+	var ok bool
+	r.RLock()
+	mh, ok = r.matches[id]
+	r.RUnlock()
+	if !ok {
+		return ErrNoJoinMarker
+	}
+
+	ch := mh.JoinMarkerList.Get(sessionID)
+	if ch == nil {
+		return ErrNoJoinMarker
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-ch:
+		// Join marker received.
+	}
+
+	return nil
 }

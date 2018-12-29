@@ -406,7 +406,7 @@ func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state interface{}, leaves [
 	return newState, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh chan *MatchDataMessage) (interface{}, error) {
+func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
 	// Drain the input queue into a Lua table.
 	size := len(inputCh)
 	input := r.vm.CreateTable(size, 0)
