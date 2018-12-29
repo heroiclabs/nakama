@@ -51,6 +51,10 @@ var (
 
 type DummyMessageRouter struct{}
 
+func (d *DummyMessageRouter) SendDeferred(*zap.Logger, bool, uint8, []*server.DeferredMessage) {
+	panic("unused")
+}
+
 func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, bool, uint8, *rtapi.Envelope) {
 }
 func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope) {}
