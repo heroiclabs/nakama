@@ -168,12 +168,12 @@
   version = "v1.12.0"
 
 [[projects]]
-  digest = "1:181fe10dcb708edd7c68c5781928b6657612771f81dd1773287386b6982c94e2"
+  digest = "1:660175e70abad3868119f2c29f43339608d7d3b93c8eb178b812ed330be6c07b"
   name = "github.com/gofrs/uuid"
   packages = ["."]
   pruneopts = ""
-  revision = "3a54a6416087bae7aa0ac32dd79fe1bf87bc99e4"
-  version = "v2.1.0"
+  revision = "7077aa61129615a0d7f45c49101cd011ab221c27"
+  version = "v3.1.2"
 
 [[projects]]
   digest = "1:f958a1c137db276e52f0b50efee41a1a389dcdded59a69711f3e872757dab34b"

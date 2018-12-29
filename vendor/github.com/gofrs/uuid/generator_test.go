@@ -47,6 +47,35 @@ func testNewV1(t *testing.T) {
 	t.Run("MissingNetworkFaultyRand", testNewV1MissingNetworkFaultyRand)
 }
 
+func TestNewGenWithHWAF(t *testing.T) {
+	addr := []byte{0, 1, 2, 3, 4, 42}
+
+	fn := func() (net.HardwareAddr, error) {
+		return addr, nil
+	}
+
+	var g *Gen
+	var err error
+	var uuid UUID
+
+	g = NewGenWithHWAF(fn)
+
+	if g == nil {
+		t.Fatal("g is unexpectedly nil")
+	}
+
+	uuid, err = g.NewV1()
+	if err != nil {
+		t.Fatalf("g.NewV1() err = %v, want <nil>", err)
+	}
+
+	node := uuid[10:]
+
+	if !bytes.Equal(addr, node) {
+		t.Fatalf("node = %v, want %v", node, addr)
+	}
+}
+
 func testNewV1Basic(t *testing.T) {
 	u, err := NewV1()
 	if err != nil {
@@ -75,7 +104,7 @@ func testNewV1DifferentAcrossCalls(t *testing.T) {
 }
 
 func testNewV1StaleEpoch(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc: func() time.Time {
 			return time.Unix(0, 0)
 		},
@@ -96,7 +125,7 @@ func testNewV1StaleEpoch(t *testing.T) {
 }
 
 func testNewV1FaultyRand(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc:  time.Now,
 		hwAddrFunc: defaultHWAddrFunc,
 		rand: &faultyReader{
@@ -113,7 +142,7 @@ func testNewV1FaultyRand(t *testing.T) {
 }
 
 func testNewV1MissingNetwork(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc: time.Now,
 		hwAddrFunc: func() (net.HardwareAddr, error) {
 			return []byte{}, fmt.Errorf("uuid: no hw address found")
@@ -127,7 +156,7 @@ func testNewV1MissingNetwork(t *testing.T) {
 }
 
 func testNewV1MissingNetworkFaultyRand(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc: time.Now,
 		hwAddrFunc: func() (net.HardwareAddr, error) {
 			return []byte{}, fmt.Errorf("uuid: no hw address found")
@@ -183,7 +212,7 @@ func testNewV2DifferentAcrossCalls(t *testing.T) {
 }
 
 func testNewV2FaultyRand(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc:  time.Now,
 		hwAddrFunc: defaultHWAddrFunc,
 		rand: &faultyReader{
@@ -277,7 +306,7 @@ func testNewV4DifferentAcrossCalls(t *testing.T) {
 }
 
 func testNewV4FaultyRand(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc:  time.Now,
 		hwAddrFunc: defaultHWAddrFunc,
 		rand: &faultyReader{
@@ -291,7 +320,7 @@ func testNewV4FaultyRand(t *testing.T) {
 }
 
 func testNewV4ShortRandomRead(t *testing.T) {
-	g := &rfc4122Generator{
+	g := &Gen{
 		epochFunc: time.Now,
 		hwAddrFunc: func() (net.HardwareAddr, error) {
 			return []byte{}, fmt.Errorf("uuid: no hw address found")
