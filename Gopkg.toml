@@ -20,7 +20,7 @@
 
 [[constraint]]
   name = "github.com/lib/pq"
-  revision = "90697d60dd844d5ef6ff15135d0203f65d2f53b8"
+  revision = "9eb73efc1fcc404148b56765b0d3f61d9a5ef8ee"
 
 [[constraint]]
   name = "github.com/gorilla/handlers"
