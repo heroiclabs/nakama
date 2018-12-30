@@ -47,7 +47,7 @@ func (m *Configuration) Reset()         { *m = Configuration{} }
 func (m *Configuration) String() string { return proto.CompactTextString(m) }
 func (*Configuration) ProtoMessage()    {}
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return fileDescriptor_configuration_4aca4ad29b870e00, []int{0}
+	return fileDescriptor_configuration_59cffa436ef80fe6, []int{0}
 }
 func (m *Configuration) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Configuration.Unmarshal(m, b)
@@ -117,7 +117,7 @@ func (m *Configuration_Id) Reset()         { *m = Configuration_Id{} }
 func (m *Configuration_Id) String() string { return proto.CompactTextString(m) }
 func (*Configuration_Id) ProtoMessage()    {}
 func (*Configuration_Id) Descriptor() ([]byte, []int) {
-	return fileDescriptor_configuration_4aca4ad29b870e00, []int{0, 0}
+	return fileDescriptor_configuration_59cffa436ef80fe6, []int{0, 0}
 }
 func (m *Configuration_Id) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Configuration_Id.Unmarshal(m, b)
@@ -164,7 +164,7 @@ func (m *ConfigurationAttributes) Reset()         { *m = ConfigurationAttributes
 func (m *ConfigurationAttributes) String() string { return proto.CompactTextString(m) }
 func (*ConfigurationAttributes) ProtoMessage()    {}
 func (*ConfigurationAttributes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_configuration_4aca4ad29b870e00, []int{1}
+	return fileDescriptor_configuration_59cffa436ef80fe6, []int{1}
 }
 func (m *ConfigurationAttributes) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigurationAttributes.Unmarshal(m, b)
@@ -198,10 +198,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/resultstore/v2/configuration.proto", fileDescriptor_configuration_4aca4ad29b870e00)
+	proto.RegisterFile("google/devtools/resultstore/v2/configuration.proto", fileDescriptor_configuration_59cffa436ef80fe6)
 }
 
-var fileDescriptor_configuration_4aca4ad29b870e00 = []byte{
+var fileDescriptor_configuration_59cffa436ef80fe6 = []byte{
 	// 335 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x92, 0x4f, 0x4f, 0xb3, 0x40,
 	0x10, 0xc6, 0x03, 0xbc, 0x6f, 0x93, 0x4e, 0x6d, 0xac, 0x7b, 0x29, 0xe9, 0xc1, 0x34, 0xf5, 0x82,

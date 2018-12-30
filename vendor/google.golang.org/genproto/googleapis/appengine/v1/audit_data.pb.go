@@ -39,7 +39,7 @@ func (m *AuditData) Reset()         { *m = AuditData{} }
 func (m *AuditData) String() string { return proto.CompactTextString(m) }
 func (*AuditData) ProtoMessage()    {}
 func (*AuditData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_audit_data_196ce8036024e2bd, []int{0}
+	return fileDescriptor_audit_data_b5f7af765ea2d3aa, []int{0}
 }
 func (m *AuditData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AuditData.Unmarshal(m, b)
@@ -66,11 +66,13 @@ type isAuditData_Method interface {
 type AuditData_UpdateService struct {
 	UpdateService *UpdateServiceMethod `protobuf:"bytes,1,opt,name=update_service,json=updateService,proto3,oneof"`
 }
+
 type AuditData_CreateVersion struct {
 	CreateVersion *CreateVersionMethod `protobuf:"bytes,2,opt,name=create_version,json=createVersion,proto3,oneof"`
 }
 
 func (*AuditData_UpdateService) isAuditData_Method() {}
+
 func (*AuditData_CreateVersion) isAuditData_Method() {}
 
 func (m *AuditData) GetMethod() isAuditData_Method {
@@ -181,7 +183,7 @@ func (m *UpdateServiceMethod) Reset()         { *m = UpdateServiceMethod{} }
 func (m *UpdateServiceMethod) String() string { return proto.CompactTextString(m) }
 func (*UpdateServiceMethod) ProtoMessage()    {}
 func (*UpdateServiceMethod) Descriptor() ([]byte, []int) {
-	return fileDescriptor_audit_data_196ce8036024e2bd, []int{1}
+	return fileDescriptor_audit_data_b5f7af765ea2d3aa, []int{1}
 }
 func (m *UpdateServiceMethod) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateServiceMethod.Unmarshal(m, b)
@@ -221,7 +223,7 @@ func (m *CreateVersionMethod) Reset()         { *m = CreateVersionMethod{} }
 func (m *CreateVersionMethod) String() string { return proto.CompactTextString(m) }
 func (*CreateVersionMethod) ProtoMessage()    {}
 func (*CreateVersionMethod) Descriptor() ([]byte, []int) {
-	return fileDescriptor_audit_data_196ce8036024e2bd, []int{2}
+	return fileDescriptor_audit_data_b5f7af765ea2d3aa, []int{2}
 }
 func (m *CreateVersionMethod) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateVersionMethod.Unmarshal(m, b)
@@ -255,10 +257,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/audit_data.proto", fileDescriptor_audit_data_196ce8036024e2bd)
+	proto.RegisterFile("google/appengine/v1/audit_data.proto", fileDescriptor_audit_data_b5f7af765ea2d3aa)
 }
 
-var fileDescriptor_audit_data_196ce8036024e2bd = []byte{
+var fileDescriptor_audit_data_b5f7af765ea2d3aa = []byte{
 	// 290 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0xb1, 0x4e, 0xc3, 0x30,
 	0x10, 0x86, 0x09, 0x43, 0x01, 0x23, 0x3a, 0xa4, 0x03, 0x55, 0x07, 0x84, 0x0a, 0x43, 0x59, 0x1c,

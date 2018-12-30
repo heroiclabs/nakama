@@ -161,7 +161,7 @@ func (m *Color) Reset()         { *m = Color{} }
 func (m *Color) String() string { return proto.CompactTextString(m) }
 func (*Color) ProtoMessage()    {}
 func (*Color) Descriptor() ([]byte, []int) {
-	return fileDescriptor_color_da9ed1af0772a999, []int{0}
+	return fileDescriptor_color_8eaf754e0972446d, []int{0}
 }
 func (m *Color) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Color.Unmarshal(m, b)
@@ -213,9 +213,9 @@ func init() {
 	proto.RegisterType((*Color)(nil), "google.type.Color")
 }
 
-func init() { proto.RegisterFile("google/type/color.proto", fileDescriptor_color_da9ed1af0772a999) }
+func init() { proto.RegisterFile("google/type/color.proto", fileDescriptor_color_8eaf754e0972446d) }
 
-var fileDescriptor_color_da9ed1af0772a999 = []byte{
+var fileDescriptor_color_8eaf754e0972446d = []byte{
 	// 224 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x8f, 0x31, 0x4b, 0xc5, 0x30,
 	0x10, 0xc7, 0x49, 0xfb, 0xea, 0x70, 0x6f, 0x50, 0x82, 0x60, 0x50, 0x90, 0x87, 0xd3, 0x9b, 0x12,

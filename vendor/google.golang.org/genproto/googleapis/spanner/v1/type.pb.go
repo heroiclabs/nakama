@@ -91,7 +91,7 @@ func (x TypeCode) String() string {
 	return proto.EnumName(TypeCode_name, int32(x))
 }
 func (TypeCode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_type_21d6699da980b19e, []int{0}
+	return fileDescriptor_type_d133eaa08ead4011, []int{0}
 }
 
 // `Type` indicates the type of a Cloud Spanner value, as might be stored in a
@@ -114,7 +114,7 @@ func (m *Type) Reset()         { *m = Type{} }
 func (m *Type) String() string { return proto.CompactTextString(m) }
 func (*Type) ProtoMessage()    {}
 func (*Type) Descriptor() ([]byte, []int) {
-	return fileDescriptor_type_21d6699da980b19e, []int{0}
+	return fileDescriptor_type_d133eaa08ead4011, []int{0}
 }
 func (m *Type) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Type.Unmarshal(m, b)
@@ -173,7 +173,7 @@ func (m *StructType) Reset()         { *m = StructType{} }
 func (m *StructType) String() string { return proto.CompactTextString(m) }
 func (*StructType) ProtoMessage()    {}
 func (*StructType) Descriptor() ([]byte, []int) {
-	return fileDescriptor_type_21d6699da980b19e, []int{1}
+	return fileDescriptor_type_d133eaa08ead4011, []int{1}
 }
 func (m *StructType) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StructType.Unmarshal(m, b)
@@ -221,7 +221,7 @@ func (m *StructType_Field) Reset()         { *m = StructType_Field{} }
 func (m *StructType_Field) String() string { return proto.CompactTextString(m) }
 func (*StructType_Field) ProtoMessage()    {}
 func (*StructType_Field) Descriptor() ([]byte, []int) {
-	return fileDescriptor_type_21d6699da980b19e, []int{1, 0}
+	return fileDescriptor_type_d133eaa08ead4011, []int{1, 0}
 }
 func (m *StructType_Field) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StructType_Field.Unmarshal(m, b)
@@ -262,9 +262,9 @@ func init() {
 	proto.RegisterEnum("google.spanner.v1.TypeCode", TypeCode_name, TypeCode_value)
 }
 
-func init() { proto.RegisterFile("google/spanner/v1/type.proto", fileDescriptor_type_21d6699da980b19e) }
+func init() { proto.RegisterFile("google/spanner/v1/type.proto", fileDescriptor_type_d133eaa08ead4011) }
 
-var fileDescriptor_type_21d6699da980b19e = []byte{
+var fileDescriptor_type_d133eaa08ead4011 = []byte{
 	// 444 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0xd1, 0x8a, 0xd3, 0x40,
 	0x14, 0x86, 0x9d, 0x6d, 0xda, 0x6d, 0x4e, 0x51, 0xc6, 0x81, 0x65, 0xeb, 0xaa, 0x50, 0xd6, 0x9b,

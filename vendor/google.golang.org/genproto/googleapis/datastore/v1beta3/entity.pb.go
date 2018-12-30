@@ -55,7 +55,7 @@ func (m *PartitionId) Reset()         { *m = PartitionId{} }
 func (m *PartitionId) String() string { return proto.CompactTextString(m) }
 func (*PartitionId) ProtoMessage()    {}
 func (*PartitionId) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{0}
+	return fileDescriptor_entity_01235876269a0b39, []int{0}
 }
 func (m *PartitionId) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PartitionId.Unmarshal(m, b)
@@ -124,7 +124,7 @@ func (m *Key) Reset()         { *m = Key{} }
 func (m *Key) String() string { return proto.CompactTextString(m) }
 func (*Key) ProtoMessage()    {}
 func (*Key) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{1}
+	return fileDescriptor_entity_01235876269a0b39, []int{1}
 }
 func (m *Key) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Key.Unmarshal(m, b)
@@ -183,7 +183,7 @@ func (m *Key_PathElement) Reset()         { *m = Key_PathElement{} }
 func (m *Key_PathElement) String() string { return proto.CompactTextString(m) }
 func (*Key_PathElement) ProtoMessage()    {}
 func (*Key_PathElement) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{1, 0}
+	return fileDescriptor_entity_01235876269a0b39, []int{1, 0}
 }
 func (m *Key_PathElement) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Key_PathElement.Unmarshal(m, b)
@@ -203,6 +203,13 @@ func (m *Key_PathElement) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Key_PathElement proto.InternalMessageInfo
 
+func (m *Key_PathElement) GetKind() string {
+	if m != nil {
+		return m.Kind
+	}
+	return ""
+}
+
 type isKey_PathElement_IdType interface {
 	isKey_PathElement_IdType()
 }
@@ -210,11 +217,13 @@ type isKey_PathElement_IdType interface {
 type Key_PathElement_Id struct {
 	Id int64 `protobuf:"varint,2,opt,name=id,proto3,oneof"`
 }
+
 type Key_PathElement_Name struct {
 	Name string `protobuf:"bytes,3,opt,name=name,proto3,oneof"`
 }
 
-func (*Key_PathElement_Id) isKey_PathElement_IdType()   {}
+func (*Key_PathElement_Id) isKey_PathElement_IdType() {}
+
 func (*Key_PathElement_Name) isKey_PathElement_IdType() {}
 
 func (m *Key_PathElement) GetIdType() isKey_PathElement_IdType {
@@ -222,13 +231,6 @@ func (m *Key_PathElement) GetIdType() isKey_PathElement_IdType {
 		return m.IdType
 	}
 	return nil
-}
-
-func (m *Key_PathElement) GetKind() string {
-	if m != nil {
-		return m.Kind
-	}
-	return ""
 }
 
 func (m *Key_PathElement) GetId() int64 {
@@ -325,7 +327,7 @@ func (m *ArrayValue) Reset()         { *m = ArrayValue{} }
 func (m *ArrayValue) String() string { return proto.CompactTextString(m) }
 func (*ArrayValue) ProtoMessage()    {}
 func (*ArrayValue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{2}
+	return fileDescriptor_entity_01235876269a0b39, []int{2}
 }
 func (m *ArrayValue) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ArrayValue.Unmarshal(m, b)
@@ -384,7 +386,7 @@ func (m *Value) Reset()         { *m = Value{} }
 func (m *Value) String() string { return proto.CompactTextString(m) }
 func (*Value) ProtoMessage()    {}
 func (*Value) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{3}
+	return fileDescriptor_entity_01235876269a0b39, []int{3}
 }
 func (m *Value) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Value.Unmarshal(m, b)
@@ -411,48 +413,68 @@ type isValue_ValueType interface {
 type Value_NullValue struct {
 	NullValue _struct.NullValue `protobuf:"varint,11,opt,name=null_value,json=nullValue,proto3,enum=google.protobuf.NullValue,oneof"`
 }
+
 type Value_BooleanValue struct {
 	BooleanValue bool `protobuf:"varint,1,opt,name=boolean_value,json=booleanValue,proto3,oneof"`
 }
+
 type Value_IntegerValue struct {
 	IntegerValue int64 `protobuf:"varint,2,opt,name=integer_value,json=integerValue,proto3,oneof"`
 }
+
 type Value_DoubleValue struct {
 	DoubleValue float64 `protobuf:"fixed64,3,opt,name=double_value,json=doubleValue,proto3,oneof"`
 }
+
 type Value_TimestampValue struct {
 	TimestampValue *timestamp.Timestamp `protobuf:"bytes,10,opt,name=timestamp_value,json=timestampValue,proto3,oneof"`
 }
+
 type Value_KeyValue struct {
 	KeyValue *Key `protobuf:"bytes,5,opt,name=key_value,json=keyValue,proto3,oneof"`
 }
+
 type Value_StringValue struct {
 	StringValue string `protobuf:"bytes,17,opt,name=string_value,json=stringValue,proto3,oneof"`
 }
+
 type Value_BlobValue struct {
 	BlobValue []byte `protobuf:"bytes,18,opt,name=blob_value,json=blobValue,proto3,oneof"`
 }
+
 type Value_GeoPointValue struct {
 	GeoPointValue *latlng.LatLng `protobuf:"bytes,8,opt,name=geo_point_value,json=geoPointValue,proto3,oneof"`
 }
+
 type Value_EntityValue struct {
 	EntityValue *Entity `protobuf:"bytes,6,opt,name=entity_value,json=entityValue,proto3,oneof"`
 }
+
 type Value_ArrayValue struct {
 	ArrayValue *ArrayValue `protobuf:"bytes,9,opt,name=array_value,json=arrayValue,proto3,oneof"`
 }
 
-func (*Value_NullValue) isValue_ValueType()      {}
-func (*Value_BooleanValue) isValue_ValueType()   {}
-func (*Value_IntegerValue) isValue_ValueType()   {}
-func (*Value_DoubleValue) isValue_ValueType()    {}
+func (*Value_NullValue) isValue_ValueType() {}
+
+func (*Value_BooleanValue) isValue_ValueType() {}
+
+func (*Value_IntegerValue) isValue_ValueType() {}
+
+func (*Value_DoubleValue) isValue_ValueType() {}
+
 func (*Value_TimestampValue) isValue_ValueType() {}
-func (*Value_KeyValue) isValue_ValueType()       {}
-func (*Value_StringValue) isValue_ValueType()    {}
-func (*Value_BlobValue) isValue_ValueType()      {}
-func (*Value_GeoPointValue) isValue_ValueType()  {}
-func (*Value_EntityValue) isValue_ValueType()    {}
-func (*Value_ArrayValue) isValue_ValueType()     {}
+
+func (*Value_KeyValue) isValue_ValueType() {}
+
+func (*Value_StringValue) isValue_ValueType() {}
+
+func (*Value_BlobValue) isValue_ValueType() {}
+
+func (*Value_GeoPointValue) isValue_ValueType() {}
+
+func (*Value_EntityValue) isValue_ValueType() {}
+
+func (*Value_ArrayValue) isValue_ValueType() {}
 
 func (m *Value) GetValueType() isValue_ValueType {
 	if m != nil {
@@ -802,7 +824,7 @@ func (m *Entity) Reset()         { *m = Entity{} }
 func (m *Entity) String() string { return proto.CompactTextString(m) }
 func (*Entity) ProtoMessage()    {}
 func (*Entity) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_b4336e07cf80b29c, []int{4}
+	return fileDescriptor_entity_01235876269a0b39, []int{4}
 }
 func (m *Entity) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Entity.Unmarshal(m, b)
@@ -847,10 +869,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/datastore/v1beta3/entity.proto", fileDescriptor_entity_b4336e07cf80b29c)
+	proto.RegisterFile("google/datastore/v1beta3/entity.proto", fileDescriptor_entity_01235876269a0b39)
 }
 
-var fileDescriptor_entity_b4336e07cf80b29c = []byte{
+var fileDescriptor_entity_01235876269a0b39 = []byte{
 	// 789 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x95, 0xdf, 0x8e, 0xdb, 0x44,
 	0x14, 0xc6, 0xed, 0x64, 0xb3, 0x5d, 0x1f, 0xbb, 0xbb, 0x65, 0xda, 0x0b, 0x2b, 0x6a, 0xd9, 0x10,

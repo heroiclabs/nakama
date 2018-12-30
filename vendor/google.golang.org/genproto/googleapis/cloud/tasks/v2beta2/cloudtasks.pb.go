@@ -74,7 +74,7 @@ func (m *ListQueuesRequest) Reset()         { *m = ListQueuesRequest{} }
 func (m *ListQueuesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListQueuesRequest) ProtoMessage()    {}
 func (*ListQueuesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{0}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{0}
 }
 func (m *ListQueuesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListQueuesRequest.Unmarshal(m, b)
@@ -145,7 +145,7 @@ func (m *ListQueuesResponse) Reset()         { *m = ListQueuesResponse{} }
 func (m *ListQueuesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListQueuesResponse) ProtoMessage()    {}
 func (*ListQueuesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{1}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{1}
 }
 func (m *ListQueuesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListQueuesResponse.Unmarshal(m, b)
@@ -195,7 +195,7 @@ func (m *GetQueueRequest) Reset()         { *m = GetQueueRequest{} }
 func (m *GetQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*GetQueueRequest) ProtoMessage()    {}
 func (*GetQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{2}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{2}
 }
 func (m *GetQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetQueueRequest.Unmarshal(m, b)
@@ -248,7 +248,7 @@ func (m *CreateQueueRequest) Reset()         { *m = CreateQueueRequest{} }
 func (m *CreateQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateQueueRequest) ProtoMessage()    {}
 func (*CreateQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{3}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{3}
 }
 func (m *CreateQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateQueueRequest.Unmarshal(m, b)
@@ -307,7 +307,7 @@ func (m *UpdateQueueRequest) Reset()         { *m = UpdateQueueRequest{} }
 func (m *UpdateQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateQueueRequest) ProtoMessage()    {}
 func (*UpdateQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{4}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{4}
 }
 func (m *UpdateQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateQueueRequest.Unmarshal(m, b)
@@ -357,7 +357,7 @@ func (m *DeleteQueueRequest) Reset()         { *m = DeleteQueueRequest{} }
 func (m *DeleteQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteQueueRequest) ProtoMessage()    {}
 func (*DeleteQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{5}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{5}
 }
 func (m *DeleteQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteQueueRequest.Unmarshal(m, b)
@@ -400,7 +400,7 @@ func (m *PurgeQueueRequest) Reset()         { *m = PurgeQueueRequest{} }
 func (m *PurgeQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*PurgeQueueRequest) ProtoMessage()    {}
 func (*PurgeQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{6}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{6}
 }
 func (m *PurgeQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PurgeQueueRequest.Unmarshal(m, b)
@@ -443,7 +443,7 @@ func (m *PauseQueueRequest) Reset()         { *m = PauseQueueRequest{} }
 func (m *PauseQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*PauseQueueRequest) ProtoMessage()    {}
 func (*PauseQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{7}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{7}
 }
 func (m *PauseQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PauseQueueRequest.Unmarshal(m, b)
@@ -486,7 +486,7 @@ func (m *ResumeQueueRequest) Reset()         { *m = ResumeQueueRequest{} }
 func (m *ResumeQueueRequest) String() string { return proto.CompactTextString(m) }
 func (*ResumeQueueRequest) ProtoMessage()    {}
 func (*ResumeQueueRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{8}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{8}
 }
 func (m *ResumeQueueRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ResumeQueueRequest.Unmarshal(m, b)
@@ -560,7 +560,7 @@ func (m *ListTasksRequest) Reset()         { *m = ListTasksRequest{} }
 func (m *ListTasksRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTasksRequest) ProtoMessage()    {}
 func (*ListTasksRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{9}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{9}
 }
 func (m *ListTasksRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTasksRequest.Unmarshal(m, b)
@@ -629,7 +629,7 @@ func (m *ListTasksResponse) Reset()         { *m = ListTasksResponse{} }
 func (m *ListTasksResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTasksResponse) ProtoMessage()    {}
 func (*ListTasksResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{10}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{10}
 }
 func (m *ListTasksResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTasksResponse.Unmarshal(m, b)
@@ -692,7 +692,7 @@ func (m *GetTaskRequest) Reset()         { *m = GetTaskRequest{} }
 func (m *GetTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTaskRequest) ProtoMessage()    {}
 func (*GetTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{11}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{11}
 }
 func (m *GetTaskRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTaskRequest.Unmarshal(m, b)
@@ -793,7 +793,7 @@ func (m *CreateTaskRequest) Reset()         { *m = CreateTaskRequest{} }
 func (m *CreateTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateTaskRequest) ProtoMessage()    {}
 func (*CreateTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{12}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{12}
 }
 func (m *CreateTaskRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateTaskRequest.Unmarshal(m, b)
@@ -851,7 +851,7 @@ func (m *DeleteTaskRequest) Reset()         { *m = DeleteTaskRequest{} }
 func (m *DeleteTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteTaskRequest) ProtoMessage()    {}
 func (*DeleteTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{13}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{13}
 }
 func (m *DeleteTaskRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteTaskRequest.Unmarshal(m, b)
@@ -955,7 +955,7 @@ func (m *LeaseTasksRequest) Reset()         { *m = LeaseTasksRequest{} }
 func (m *LeaseTasksRequest) String() string { return proto.CompactTextString(m) }
 func (*LeaseTasksRequest) ProtoMessage()    {}
 func (*LeaseTasksRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{14}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{14}
 }
 func (m *LeaseTasksRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LeaseTasksRequest.Unmarshal(m, b)
@@ -1023,7 +1023,7 @@ func (m *LeaseTasksResponse) Reset()         { *m = LeaseTasksResponse{} }
 func (m *LeaseTasksResponse) String() string { return proto.CompactTextString(m) }
 func (*LeaseTasksResponse) ProtoMessage()    {}
 func (*LeaseTasksResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{15}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{15}
 }
 func (m *LeaseTasksResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LeaseTasksResponse.Unmarshal(m, b)
@@ -1075,7 +1075,7 @@ func (m *AcknowledgeTaskRequest) Reset()         { *m = AcknowledgeTaskRequest{}
 func (m *AcknowledgeTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*AcknowledgeTaskRequest) ProtoMessage()    {}
 func (*AcknowledgeTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{16}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{16}
 }
 func (m *AcknowledgeTaskRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AcknowledgeTaskRequest.Unmarshal(m, b)
@@ -1155,7 +1155,7 @@ func (m *RenewLeaseRequest) Reset()         { *m = RenewLeaseRequest{} }
 func (m *RenewLeaseRequest) String() string { return proto.CompactTextString(m) }
 func (*RenewLeaseRequest) ProtoMessage()    {}
 func (*RenewLeaseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{17}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{17}
 }
 func (m *RenewLeaseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RenewLeaseRequest.Unmarshal(m, b)
@@ -1241,7 +1241,7 @@ func (m *CancelLeaseRequest) Reset()         { *m = CancelLeaseRequest{} }
 func (m *CancelLeaseRequest) String() string { return proto.CompactTextString(m) }
 func (*CancelLeaseRequest) ProtoMessage()    {}
 func (*CancelLeaseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{18}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{18}
 }
 func (m *CancelLeaseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CancelLeaseRequest.Unmarshal(m, b)
@@ -1312,7 +1312,7 @@ func (m *RunTaskRequest) Reset()         { *m = RunTaskRequest{} }
 func (m *RunTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*RunTaskRequest) ProtoMessage()    {}
 func (*RunTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloudtasks_443de7ce0a2b174e, []int{19}
+	return fileDescriptor_cloudtasks_6e81f3e473b385a7, []int{19}
 }
 func (m *RunTaskRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RunTaskRequest.Unmarshal(m, b)
@@ -2445,10 +2445,10 @@ var _CloudTasks_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/tasks/v2beta2/cloudtasks.proto", fileDescriptor_cloudtasks_443de7ce0a2b174e)
+	proto.RegisterFile("google/cloud/tasks/v2beta2/cloudtasks.proto", fileDescriptor_cloudtasks_6e81f3e473b385a7)
 }
 
-var fileDescriptor_cloudtasks_443de7ce0a2b174e = []byte{
+var fileDescriptor_cloudtasks_6e81f3e473b385a7 = []byte{
 	// 1382 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x98, 0xdf, 0x6f, 0x14, 0x55,
 	0x14, 0xc7, 0x73, 0x4b, 0x17, 0xe8, 0x59, 0xda, 0xba, 0x37, 0x81, 0x94, 0x45, 0xb1, 0xde, 0x04,

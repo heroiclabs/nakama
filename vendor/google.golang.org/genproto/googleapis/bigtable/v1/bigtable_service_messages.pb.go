@@ -53,7 +53,7 @@ func (m *ReadRowsRequest) Reset()         { *m = ReadRowsRequest{} }
 func (m *ReadRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsRequest) ProtoMessage()    {}
 func (*ReadRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{0}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{0}
 }
 func (m *ReadRowsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsRequest.Unmarshal(m, b)
@@ -73,6 +73,13 @@ func (m *ReadRowsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ReadRowsRequest proto.InternalMessageInfo
 
+func (m *ReadRowsRequest) GetTableName() string {
+	if m != nil {
+		return m.TableName
+	}
+	return ""
+}
+
 type isReadRowsRequest_Target interface {
 	isReadRowsRequest_Target()
 }
@@ -80,29 +87,26 @@ type isReadRowsRequest_Target interface {
 type ReadRowsRequest_RowKey struct {
 	RowKey []byte `protobuf:"bytes,2,opt,name=row_key,json=rowKey,proto3,oneof"`
 }
+
 type ReadRowsRequest_RowRange struct {
 	RowRange *RowRange `protobuf:"bytes,3,opt,name=row_range,json=rowRange,proto3,oneof"`
 }
+
 type ReadRowsRequest_RowSet struct {
 	RowSet *RowSet `protobuf:"bytes,8,opt,name=row_set,json=rowSet,proto3,oneof"`
 }
 
-func (*ReadRowsRequest_RowKey) isReadRowsRequest_Target()   {}
+func (*ReadRowsRequest_RowKey) isReadRowsRequest_Target() {}
+
 func (*ReadRowsRequest_RowRange) isReadRowsRequest_Target() {}
-func (*ReadRowsRequest_RowSet) isReadRowsRequest_Target()   {}
+
+func (*ReadRowsRequest_RowSet) isReadRowsRequest_Target() {}
 
 func (m *ReadRowsRequest) GetTarget() isReadRowsRequest_Target {
 	if m != nil {
 		return m.Target
 	}
 	return nil
-}
-
-func (m *ReadRowsRequest) GetTableName() string {
-	if m != nil {
-		return m.TableName
-	}
-	return ""
 }
 
 func (m *ReadRowsRequest) GetRowKey() []byte {
@@ -253,7 +257,7 @@ func (m *ReadRowsResponse) Reset()         { *m = ReadRowsResponse{} }
 func (m *ReadRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsResponse) ProtoMessage()    {}
 func (*ReadRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{1}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{1}
 }
 func (m *ReadRowsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsResponse.Unmarshal(m, b)
@@ -304,7 +308,7 @@ func (m *ReadRowsResponse_Chunk) Reset()         { *m = ReadRowsResponse_Chunk{}
 func (m *ReadRowsResponse_Chunk) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsResponse_Chunk) ProtoMessage()    {}
 func (*ReadRowsResponse_Chunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{1, 0}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{1, 0}
 }
 func (m *ReadRowsResponse_Chunk) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsResponse_Chunk.Unmarshal(m, b)
@@ -331,16 +335,20 @@ type isReadRowsResponse_Chunk_Chunk interface {
 type ReadRowsResponse_Chunk_RowContents struct {
 	RowContents *Family `protobuf:"bytes,1,opt,name=row_contents,json=rowContents,proto3,oneof"`
 }
+
 type ReadRowsResponse_Chunk_ResetRow struct {
 	ResetRow bool `protobuf:"varint,2,opt,name=reset_row,json=resetRow,proto3,oneof"`
 }
+
 type ReadRowsResponse_Chunk_CommitRow struct {
 	CommitRow bool `protobuf:"varint,3,opt,name=commit_row,json=commitRow,proto3,oneof"`
 }
 
 func (*ReadRowsResponse_Chunk_RowContents) isReadRowsResponse_Chunk_Chunk() {}
-func (*ReadRowsResponse_Chunk_ResetRow) isReadRowsResponse_Chunk_Chunk()    {}
-func (*ReadRowsResponse_Chunk_CommitRow) isReadRowsResponse_Chunk_Chunk()   {}
+
+func (*ReadRowsResponse_Chunk_ResetRow) isReadRowsResponse_Chunk_Chunk() {}
+
+func (*ReadRowsResponse_Chunk_CommitRow) isReadRowsResponse_Chunk_Chunk() {}
 
 func (m *ReadRowsResponse_Chunk) GetChunk() isReadRowsResponse_Chunk_Chunk {
 	if m != nil {
@@ -474,7 +482,7 @@ func (m *SampleRowKeysRequest) Reset()         { *m = SampleRowKeysRequest{} }
 func (m *SampleRowKeysRequest) String() string { return proto.CompactTextString(m) }
 func (*SampleRowKeysRequest) ProtoMessage()    {}
 func (*SampleRowKeysRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{2}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{2}
 }
 func (m *SampleRowKeysRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SampleRowKeysRequest.Unmarshal(m, b)
@@ -525,7 +533,7 @@ func (m *SampleRowKeysResponse) Reset()         { *m = SampleRowKeysResponse{} }
 func (m *SampleRowKeysResponse) String() string { return proto.CompactTextString(m) }
 func (*SampleRowKeysResponse) ProtoMessage()    {}
 func (*SampleRowKeysResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{3}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{3}
 }
 func (m *SampleRowKeysResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SampleRowKeysResponse.Unmarshal(m, b)
@@ -578,7 +586,7 @@ func (m *MutateRowRequest) Reset()         { *m = MutateRowRequest{} }
 func (m *MutateRowRequest) String() string { return proto.CompactTextString(m) }
 func (*MutateRowRequest) ProtoMessage()    {}
 func (*MutateRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{4}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{4}
 }
 func (m *MutateRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowRequest.Unmarshal(m, b)
@@ -638,7 +646,7 @@ func (m *MutateRowsRequest) Reset()         { *m = MutateRowsRequest{} }
 func (m *MutateRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsRequest) ProtoMessage()    {}
 func (*MutateRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{5}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{5}
 }
 func (m *MutateRowsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsRequest.Unmarshal(m, b)
@@ -689,7 +697,7 @@ func (m *MutateRowsRequest_Entry) Reset()         { *m = MutateRowsRequest_Entry
 func (m *MutateRowsRequest_Entry) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsRequest_Entry) ProtoMessage()    {}
 func (*MutateRowsRequest_Entry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{5, 0}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{5, 0}
 }
 func (m *MutateRowsRequest_Entry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsRequest_Entry.Unmarshal(m, b)
@@ -740,7 +748,7 @@ func (m *MutateRowsResponse) Reset()         { *m = MutateRowsResponse{} }
 func (m *MutateRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsResponse) ProtoMessage()    {}
 func (*MutateRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{6}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{6}
 }
 func (m *MutateRowsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsResponse.Unmarshal(m, b)
@@ -800,7 +808,7 @@ func (m *CheckAndMutateRowRequest) Reset()         { *m = CheckAndMutateRowReque
 func (m *CheckAndMutateRowRequest) String() string { return proto.CompactTextString(m) }
 func (*CheckAndMutateRowRequest) ProtoMessage()    {}
 func (*CheckAndMutateRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{7}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{7}
 }
 func (m *CheckAndMutateRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckAndMutateRowRequest.Unmarshal(m, b)
@@ -869,7 +877,7 @@ func (m *CheckAndMutateRowResponse) Reset()         { *m = CheckAndMutateRowResp
 func (m *CheckAndMutateRowResponse) String() string { return proto.CompactTextString(m) }
 func (*CheckAndMutateRowResponse) ProtoMessage()    {}
 func (*CheckAndMutateRowResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{8}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{8}
 }
 func (m *CheckAndMutateRowResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckAndMutateRowResponse.Unmarshal(m, b)
@@ -916,7 +924,7 @@ func (m *ReadModifyWriteRowRequest) Reset()         { *m = ReadModifyWriteRowReq
 func (m *ReadModifyWriteRowRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadModifyWriteRowRequest) ProtoMessage()    {}
 func (*ReadModifyWriteRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b, []int{9}
+	return fileDescriptor_bigtable_service_messages_e7f32c735e59c16c, []int{9}
 }
 func (m *ReadModifyWriteRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadModifyWriteRowRequest.Unmarshal(m, b)
@@ -973,10 +981,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/bigtable/v1/bigtable_service_messages.proto", fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b)
+	proto.RegisterFile("google/bigtable/v1/bigtable_service_messages.proto", fileDescriptor_bigtable_service_messages_e7f32c735e59c16c)
 }
 
-var fileDescriptor_bigtable_service_messages_b1638ccc1a7cde9b = []byte{
+var fileDescriptor_bigtable_service_messages_e7f32c735e59c16c = []byte{
 	// 788 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x55, 0x5f, 0x8b, 0x23, 0x45,
 	0x10, 0xdf, 0x49, 0xcc, 0xbf, 0x4a, 0xdc, 0xdd, 0x6b, 0xce, 0xdb, 0xd9, 0x70, 0x8b, 0x71, 0x10,

@@ -48,9 +48,9 @@ var AlertPolicy_ConditionCombinerType_name = map[int32]string{
 	3: "AND_WITH_MATCHING_RESOURCE",
 }
 var AlertPolicy_ConditionCombinerType_value = map[string]int32{
-	"COMBINE_UNSPECIFIED": 0,
-	"AND": 1,
-	"OR":  2,
+	"COMBINE_UNSPECIFIED":        0,
+	"AND":                        1,
+	"OR":                         2,
 	"AND_WITH_MATCHING_RESOURCE": 3,
 }
 
@@ -58,7 +58,7 @@ func (x AlertPolicy_ConditionCombinerType) String() string {
 	return proto.EnumName(AlertPolicy_ConditionCombinerType_name, int32(x))
 }
 func (AlertPolicy_ConditionCombinerType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 0}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 0}
 }
 
 // A description of the conditions under which some aspect of your system is
@@ -136,7 +136,7 @@ func (m *AlertPolicy) Reset()         { *m = AlertPolicy{} }
 func (m *AlertPolicy) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy) ProtoMessage()    {}
 func (*AlertPolicy) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0}
 }
 func (m *AlertPolicy) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy.Unmarshal(m, b)
@@ -247,7 +247,7 @@ func (m *AlertPolicy_Documentation) Reset()         { *m = AlertPolicy_Documenta
 func (m *AlertPolicy_Documentation) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy_Documentation) ProtoMessage()    {}
 func (*AlertPolicy_Documentation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 0}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 0}
 }
 func (m *AlertPolicy_Documentation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy_Documentation.Unmarshal(m, b)
@@ -330,7 +330,7 @@ func (m *AlertPolicy_Condition) Reset()         { *m = AlertPolicy_Condition{} }
 func (m *AlertPolicy_Condition) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy_Condition) ProtoMessage()    {}
 func (*AlertPolicy_Condition) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 1}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 1}
 }
 func (m *AlertPolicy_Condition) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy_Condition.Unmarshal(m, b)
@@ -350,27 +350,6 @@ func (m *AlertPolicy_Condition) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AlertPolicy_Condition proto.InternalMessageInfo
 
-type isAlertPolicy_Condition_Condition interface {
-	isAlertPolicy_Condition_Condition()
-}
-
-type AlertPolicy_Condition_ConditionThreshold struct {
-	ConditionThreshold *AlertPolicy_Condition_MetricThreshold `protobuf:"bytes,1,opt,name=condition_threshold,json=conditionThreshold,proto3,oneof"`
-}
-type AlertPolicy_Condition_ConditionAbsent struct {
-	ConditionAbsent *AlertPolicy_Condition_MetricAbsence `protobuf:"bytes,2,opt,name=condition_absent,json=conditionAbsent,proto3,oneof"`
-}
-
-func (*AlertPolicy_Condition_ConditionThreshold) isAlertPolicy_Condition_Condition() {}
-func (*AlertPolicy_Condition_ConditionAbsent) isAlertPolicy_Condition_Condition()    {}
-
-func (m *AlertPolicy_Condition) GetCondition() isAlertPolicy_Condition_Condition {
-	if m != nil {
-		return m.Condition
-	}
-	return nil
-}
-
 func (m *AlertPolicy_Condition) GetName() string {
 	if m != nil {
 		return m.Name
@@ -383,6 +362,29 @@ func (m *AlertPolicy_Condition) GetDisplayName() string {
 		return m.DisplayName
 	}
 	return ""
+}
+
+type isAlertPolicy_Condition_Condition interface {
+	isAlertPolicy_Condition_Condition()
+}
+
+type AlertPolicy_Condition_ConditionThreshold struct {
+	ConditionThreshold *AlertPolicy_Condition_MetricThreshold `protobuf:"bytes,1,opt,name=condition_threshold,json=conditionThreshold,proto3,oneof"`
+}
+
+type AlertPolicy_Condition_ConditionAbsent struct {
+	ConditionAbsent *AlertPolicy_Condition_MetricAbsence `protobuf:"bytes,2,opt,name=condition_absent,json=conditionAbsent,proto3,oneof"`
+}
+
+func (*AlertPolicy_Condition_ConditionThreshold) isAlertPolicy_Condition_Condition() {}
+
+func (*AlertPolicy_Condition_ConditionAbsent) isAlertPolicy_Condition_Condition() {}
+
+func (m *AlertPolicy_Condition) GetCondition() isAlertPolicy_Condition_Condition {
+	if m != nil {
+		return m.Condition
+	}
+	return nil
 }
 
 func (m *AlertPolicy_Condition) GetConditionThreshold() *AlertPolicy_Condition_MetricThreshold {
@@ -491,7 +493,7 @@ func (m *AlertPolicy_Condition_Trigger) Reset()         { *m = AlertPolicy_Condi
 func (m *AlertPolicy_Condition_Trigger) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy_Condition_Trigger) ProtoMessage()    {}
 func (*AlertPolicy_Condition_Trigger) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 1, 0}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 1, 0}
 }
 func (m *AlertPolicy_Condition_Trigger) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy_Condition_Trigger.Unmarshal(m, b)
@@ -518,11 +520,13 @@ type isAlertPolicy_Condition_Trigger_Type interface {
 type AlertPolicy_Condition_Trigger_Count struct {
 	Count int32 `protobuf:"varint,1,opt,name=count,proto3,oneof"`
 }
+
 type AlertPolicy_Condition_Trigger_Percent struct {
 	Percent float64 `protobuf:"fixed64,2,opt,name=percent,proto3,oneof"`
 }
 
-func (*AlertPolicy_Condition_Trigger_Count) isAlertPolicy_Condition_Trigger_Type()   {}
+func (*AlertPolicy_Condition_Trigger_Count) isAlertPolicy_Condition_Trigger_Type() {}
+
 func (*AlertPolicy_Condition_Trigger_Percent) isAlertPolicy_Condition_Trigger_Type() {}
 
 func (m *AlertPolicy_Condition_Trigger) GetType() isAlertPolicy_Condition_Trigger_Type {
@@ -677,15 +681,14 @@ type AlertPolicy_Condition_MetricThreshold struct {
 	ThresholdValue float64 `protobuf:"fixed64,5,opt,name=threshold_value,json=thresholdValue,proto3" json:"threshold_value,omitempty"`
 	// The amount of time that a time series must violate the
 	// threshold to be considered failing. Currently, only values
-	// that are a multiple of a minute--e.g.  60, 120, or 300
+	// that are a multiple of a minute--e.g., 0, 60, 120, or 300
 	// seconds--are supported. If an invalid value is given, an
-	// error will be returned. The `Duration.nanos` field is
-	// ignored. When choosing a duration, it is useful to keep in mind the
-	// frequency of the underlying time series data (which may also be
-	// affected by any alignments specified in the `aggregation` field);
-	// a good duration is long enough so that a single outlier does not
-	// generate spurious alerts, but short enough that unhealthy states
-	// are detected and alerted on quickly.
+	// error will be returned. When choosing a duration, it is useful to
+	// keep in mind the frequency of the underlying time series data
+	// (which may also be affected by any alignments specified in the
+	// `aggregations` field); a good duration is long enough so that a single
+	// outlier does not generate spurious alerts, but short enough that
+	// unhealthy states are detected and alerted on quickly.
 	Duration *duration.Duration `protobuf:"bytes,6,opt,name=duration,proto3" json:"duration,omitempty"`
 	// The number/percent of time series for which the comparison must hold
 	// in order for the condition to trigger. If unspecified, then the
@@ -703,7 +706,7 @@ func (m *AlertPolicy_Condition_MetricThreshold) Reset()         { *m = AlertPoli
 func (m *AlertPolicy_Condition_MetricThreshold) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy_Condition_MetricThreshold) ProtoMessage()    {}
 func (*AlertPolicy_Condition_MetricThreshold) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 1, 1}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 1, 1}
 }
 func (m *AlertPolicy_Condition_MetricThreshold) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy_Condition_MetricThreshold.Unmarshal(m, b)
@@ -828,7 +831,7 @@ func (m *AlertPolicy_Condition_MetricAbsence) Reset()         { *m = AlertPolicy
 func (m *AlertPolicy_Condition_MetricAbsence) String() string { return proto.CompactTextString(m) }
 func (*AlertPolicy_Condition_MetricAbsence) ProtoMessage()    {}
 func (*AlertPolicy_Condition_MetricAbsence) Descriptor() ([]byte, []int) {
-	return fileDescriptor_alert_17949719c044e638, []int{0, 1, 2}
+	return fileDescriptor_alert_9e390b6dbd40ea14, []int{0, 1, 2}
 }
 func (m *AlertPolicy_Condition_MetricAbsence) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AlertPolicy_Condition_MetricAbsence.Unmarshal(m, b)
@@ -888,10 +891,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/monitoring/v3/alert.proto", fileDescriptor_alert_17949719c044e638)
+	proto.RegisterFile("google/monitoring/v3/alert.proto", fileDescriptor_alert_9e390b6dbd40ea14)
 }
 
-var fileDescriptor_alert_17949719c044e638 = []byte{
+var fileDescriptor_alert_9e390b6dbd40ea14 = []byte{
 	// 941 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xeb, 0x6e, 0xe3, 0x44,
 	0x14, 0xae, 0x93, 0xe6, 0x76, 0xd2, 0x36, 0xd9, 0xd9, 0xee, 0xae, 0x31, 0x68, 0x95, 0xae, 0x90,

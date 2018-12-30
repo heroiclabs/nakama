@@ -58,7 +58,7 @@ func (x EntityType_Kind) String() string {
 	return proto.EnumName(EntityType_Kind_name, int32(x))
 }
 func (EntityType_Kind) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{0, 0}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{0, 0}
 }
 
 // Represents different entity type expansion modes. Automated expansion
@@ -87,7 +87,7 @@ func (x EntityType_AutoExpansionMode) String() string {
 	return proto.EnumName(EntityType_AutoExpansionMode_name, int32(x))
 }
 func (EntityType_AutoExpansionMode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{0, 1}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{0, 1}
 }
 
 // Represents an entity type.
@@ -117,7 +117,7 @@ func (m *EntityType) Reset()         { *m = EntityType{} }
 func (m *EntityType) String() string { return proto.CompactTextString(m) }
 func (*EntityType) ProtoMessage()    {}
 func (*EntityType) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{0}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{0}
 }
 func (m *EntityType) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EntityType.Unmarshal(m, b)
@@ -193,7 +193,7 @@ func (m *EntityType_Entity) Reset()         { *m = EntityType_Entity{} }
 func (m *EntityType_Entity) String() string { return proto.CompactTextString(m) }
 func (*EntityType_Entity) ProtoMessage()    {}
 func (*EntityType_Entity) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{0, 0}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{0, 0}
 }
 func (m *EntityType_Entity) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EntityType_Entity.Unmarshal(m, b)
@@ -252,7 +252,7 @@ func (m *ListEntityTypesRequest) Reset()         { *m = ListEntityTypesRequest{}
 func (m *ListEntityTypesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListEntityTypesRequest) ProtoMessage()    {}
 func (*ListEntityTypesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{1}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{1}
 }
 func (m *ListEntityTypesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListEntityTypesRequest.Unmarshal(m, b)
@@ -317,7 +317,7 @@ func (m *ListEntityTypesResponse) Reset()         { *m = ListEntityTypesResponse
 func (m *ListEntityTypesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListEntityTypesResponse) ProtoMessage()    {}
 func (*ListEntityTypesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{2}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{2}
 }
 func (m *ListEntityTypesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListEntityTypesResponse.Unmarshal(m, b)
@@ -371,7 +371,7 @@ func (m *GetEntityTypeRequest) Reset()         { *m = GetEntityTypeRequest{} }
 func (m *GetEntityTypeRequest) String() string { return proto.CompactTextString(m) }
 func (*GetEntityTypeRequest) ProtoMessage()    {}
 func (*GetEntityTypeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{3}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{3}
 }
 func (m *GetEntityTypeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetEntityTypeRequest.Unmarshal(m, b)
@@ -427,7 +427,7 @@ func (m *CreateEntityTypeRequest) Reset()         { *m = CreateEntityTypeRequest
 func (m *CreateEntityTypeRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateEntityTypeRequest) ProtoMessage()    {}
 func (*CreateEntityTypeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{4}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{4}
 }
 func (m *CreateEntityTypeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateEntityTypeRequest.Unmarshal(m, b)
@@ -490,7 +490,7 @@ func (m *UpdateEntityTypeRequest) Reset()         { *m = UpdateEntityTypeRequest
 func (m *UpdateEntityTypeRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateEntityTypeRequest) ProtoMessage()    {}
 func (*UpdateEntityTypeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{5}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{5}
 }
 func (m *UpdateEntityTypeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateEntityTypeRequest.Unmarshal(m, b)
@@ -545,7 +545,7 @@ func (m *DeleteEntityTypeRequest) Reset()         { *m = DeleteEntityTypeRequest
 func (m *DeleteEntityTypeRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteEntityTypeRequest) ProtoMessage()    {}
 func (*DeleteEntityTypeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{6}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{6}
 }
 func (m *DeleteEntityTypeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteEntityTypeRequest.Unmarshal(m, b)
@@ -604,7 +604,7 @@ func (m *BatchUpdateEntityTypesRequest) Reset()         { *m = BatchUpdateEntity
 func (m *BatchUpdateEntityTypesRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateEntityTypesRequest) ProtoMessage()    {}
 func (*BatchUpdateEntityTypesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{7}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{7}
 }
 func (m *BatchUpdateEntityTypesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateEntityTypesRequest.Unmarshal(m, b)
@@ -624,6 +624,13 @@ func (m *BatchUpdateEntityTypesRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_BatchUpdateEntityTypesRequest proto.InternalMessageInfo
 
+func (m *BatchUpdateEntityTypesRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
 type isBatchUpdateEntityTypesRequest_EntityTypeBatch interface {
 	isBatchUpdateEntityTypesRequest_EntityTypeBatch()
 }
@@ -631,12 +638,14 @@ type isBatchUpdateEntityTypesRequest_EntityTypeBatch interface {
 type BatchUpdateEntityTypesRequest_EntityTypeBatchUri struct {
 	EntityTypeBatchUri string `protobuf:"bytes,2,opt,name=entity_type_batch_uri,json=entityTypeBatchUri,proto3,oneof"`
 }
+
 type BatchUpdateEntityTypesRequest_EntityTypeBatchInline struct {
 	EntityTypeBatchInline *EntityTypeBatch `protobuf:"bytes,3,opt,name=entity_type_batch_inline,json=entityTypeBatchInline,proto3,oneof"`
 }
 
 func (*BatchUpdateEntityTypesRequest_EntityTypeBatchUri) isBatchUpdateEntityTypesRequest_EntityTypeBatch() {
 }
+
 func (*BatchUpdateEntityTypesRequest_EntityTypeBatchInline) isBatchUpdateEntityTypesRequest_EntityTypeBatch() {
 }
 
@@ -645,13 +654,6 @@ func (m *BatchUpdateEntityTypesRequest) GetEntityTypeBatch() isBatchUpdateEntity
 		return m.EntityTypeBatch
 	}
 	return nil
-}
-
-func (m *BatchUpdateEntityTypesRequest) GetParent() string {
-	if m != nil {
-		return m.Parent
-	}
-	return ""
 }
 
 func (m *BatchUpdateEntityTypesRequest) GetEntityTypeBatchUri() string {
@@ -765,7 +767,7 @@ func (m *BatchUpdateEntityTypesResponse) Reset()         { *m = BatchUpdateEntit
 func (m *BatchUpdateEntityTypesResponse) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateEntityTypesResponse) ProtoMessage()    {}
 func (*BatchUpdateEntityTypesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{8}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{8}
 }
 func (m *BatchUpdateEntityTypesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateEntityTypesResponse.Unmarshal(m, b)
@@ -809,7 +811,7 @@ func (m *BatchDeleteEntityTypesRequest) Reset()         { *m = BatchDeleteEntity
 func (m *BatchDeleteEntityTypesRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchDeleteEntityTypesRequest) ProtoMessage()    {}
 func (*BatchDeleteEntityTypesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{9}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{9}
 }
 func (m *BatchDeleteEntityTypesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchDeleteEntityTypesRequest.Unmarshal(m, b)
@@ -865,7 +867,7 @@ func (m *BatchCreateEntitiesRequest) Reset()         { *m = BatchCreateEntitiesR
 func (m *BatchCreateEntitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateEntitiesRequest) ProtoMessage()    {}
 func (*BatchCreateEntitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{10}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{10}
 }
 func (m *BatchCreateEntitiesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchCreateEntitiesRequest.Unmarshal(m, b)
@@ -930,7 +932,7 @@ func (m *BatchUpdateEntitiesRequest) Reset()         { *m = BatchUpdateEntitiesR
 func (m *BatchUpdateEntitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateEntitiesRequest) ProtoMessage()    {}
 func (*BatchUpdateEntitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{11}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{11}
 }
 func (m *BatchUpdateEntitiesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateEntitiesRequest.Unmarshal(m, b)
@@ -1002,7 +1004,7 @@ func (m *BatchDeleteEntitiesRequest) Reset()         { *m = BatchDeleteEntitiesR
 func (m *BatchDeleteEntitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchDeleteEntitiesRequest) ProtoMessage()    {}
 func (*BatchDeleteEntitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{12}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{12}
 }
 func (m *BatchDeleteEntitiesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchDeleteEntitiesRequest.Unmarshal(m, b)
@@ -1056,7 +1058,7 @@ func (m *EntityTypeBatch) Reset()         { *m = EntityTypeBatch{} }
 func (m *EntityTypeBatch) String() string { return proto.CompactTextString(m) }
 func (*EntityTypeBatch) ProtoMessage()    {}
 func (*EntityTypeBatch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_entity_type_b1117027f7dec973, []int{13}
+	return fileDescriptor_entity_type_5022cc8f1b023825, []int{13}
 }
 func (m *EntityTypeBatch) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EntityTypeBatch.Unmarshal(m, b)
@@ -1525,10 +1527,10 @@ var _EntityTypes_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/dialogflow/v2/entity_type.proto", fileDescriptor_entity_type_b1117027f7dec973)
+	proto.RegisterFile("google/cloud/dialogflow/v2/entity_type.proto", fileDescriptor_entity_type_5022cc8f1b023825)
 }
 
-var fileDescriptor_entity_type_b1117027f7dec973 = []byte{
+var fileDescriptor_entity_type_5022cc8f1b023825 = []byte{
 	// 1233 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x98, 0xcf, 0x6f, 0xe3, 0x44,
 	0x14, 0xc7, 0x3b, 0x69, 0x5a, 0xb5, 0x2f, 0xed, 0x36, 0x9d, 0x76, 0xdb, 0xc8, 0xdd, 0xee, 0x16,

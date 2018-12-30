@@ -77,7 +77,7 @@ func (m *Distribution) Reset()         { *m = Distribution{} }
 func (m *Distribution) String() string { return proto.CompactTextString(m) }
 func (*Distribution) ProtoMessage()    {}
 func (*Distribution) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0}
 }
 func (m *Distribution) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution.Unmarshal(m, b)
@@ -154,7 +154,7 @@ func (m *Distribution_Range) Reset()         { *m = Distribution_Range{} }
 func (m *Distribution_Range) String() string { return proto.CompactTextString(m) }
 func (*Distribution_Range) ProtoMessage()    {}
 func (*Distribution_Range) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0, 0}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0, 0}
 }
 func (m *Distribution_Range) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution_Range.Unmarshal(m, b)
@@ -228,7 +228,7 @@ func (m *Distribution_BucketOptions) Reset()         { *m = Distribution_BucketO
 func (m *Distribution_BucketOptions) String() string { return proto.CompactTextString(m) }
 func (*Distribution_BucketOptions) ProtoMessage()    {}
 func (*Distribution_BucketOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0, 1}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0, 1}
 }
 func (m *Distribution_BucketOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution_BucketOptions.Unmarshal(m, b)
@@ -255,16 +255,20 @@ type isDistribution_BucketOptions_Options interface {
 type Distribution_BucketOptions_LinearBuckets struct {
 	LinearBuckets *Distribution_BucketOptions_Linear `protobuf:"bytes,1,opt,name=linear_buckets,json=linearBuckets,proto3,oneof"`
 }
+
 type Distribution_BucketOptions_ExponentialBuckets struct {
 	ExponentialBuckets *Distribution_BucketOptions_Exponential `protobuf:"bytes,2,opt,name=exponential_buckets,json=exponentialBuckets,proto3,oneof"`
 }
+
 type Distribution_BucketOptions_ExplicitBuckets struct {
 	ExplicitBuckets *Distribution_BucketOptions_Explicit `protobuf:"bytes,3,opt,name=explicit_buckets,json=explicitBuckets,proto3,oneof"`
 }
 
-func (*Distribution_BucketOptions_LinearBuckets) isDistribution_BucketOptions_Options()      {}
+func (*Distribution_BucketOptions_LinearBuckets) isDistribution_BucketOptions_Options() {}
+
 func (*Distribution_BucketOptions_ExponentialBuckets) isDistribution_BucketOptions_Options() {}
-func (*Distribution_BucketOptions_ExplicitBuckets) isDistribution_BucketOptions_Options()    {}
+
+func (*Distribution_BucketOptions_ExplicitBuckets) isDistribution_BucketOptions_Options() {}
 
 func (m *Distribution_BucketOptions) GetOptions() isDistribution_BucketOptions_Options {
 	if m != nil {
@@ -412,7 +416,7 @@ func (m *Distribution_BucketOptions_Linear) Reset()         { *m = Distribution_
 func (m *Distribution_BucketOptions_Linear) String() string { return proto.CompactTextString(m) }
 func (*Distribution_BucketOptions_Linear) ProtoMessage()    {}
 func (*Distribution_BucketOptions_Linear) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0, 1, 0}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0, 1, 0}
 }
 func (m *Distribution_BucketOptions_Linear) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution_BucketOptions_Linear.Unmarshal(m, b)
@@ -480,7 +484,7 @@ func (m *Distribution_BucketOptions_Exponential) Reset() {
 func (m *Distribution_BucketOptions_Exponential) String() string { return proto.CompactTextString(m) }
 func (*Distribution_BucketOptions_Exponential) ProtoMessage()    {}
 func (*Distribution_BucketOptions_Exponential) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0, 1, 1}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0, 1, 1}
 }
 func (m *Distribution_BucketOptions_Exponential) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution_BucketOptions_Exponential.Unmarshal(m, b)
@@ -544,7 +548,7 @@ func (m *Distribution_BucketOptions_Explicit) Reset()         { *m = Distributio
 func (m *Distribution_BucketOptions_Explicit) String() string { return proto.CompactTextString(m) }
 func (*Distribution_BucketOptions_Explicit) ProtoMessage()    {}
 func (*Distribution_BucketOptions_Explicit) Descriptor() ([]byte, []int) {
-	return fileDescriptor_distribution_6610577e5079dd76, []int{0, 1, 2}
+	return fileDescriptor_distribution_4362d2d5f4dd1b54, []int{0, 1, 2}
 }
 func (m *Distribution_BucketOptions_Explicit) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Distribution_BucketOptions_Explicit.Unmarshal(m, b)
@@ -581,10 +585,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/distribution.proto", fileDescriptor_distribution_6610577e5079dd76)
+	proto.RegisterFile("google/api/distribution.proto", fileDescriptor_distribution_4362d2d5f4dd1b54)
 }
 
-var fileDescriptor_distribution_6610577e5079dd76 = []byte{
+var fileDescriptor_distribution_4362d2d5f4dd1b54 = []byte{
 	// 522 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0x5d, 0x6b, 0xd4, 0x40,
 	0x14, 0xdd, 0x34, 0xfb, 0xa1, 0x77, 0x3f, 0x5c, 0xc7, 0x2a, 0x21, 0xa8, 0x2c, 0x2d, 0xc8, 0x82,

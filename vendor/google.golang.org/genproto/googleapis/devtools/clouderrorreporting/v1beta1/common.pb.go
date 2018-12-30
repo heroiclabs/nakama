@@ -40,7 +40,7 @@ func (m *ErrorGroup) Reset()         { *m = ErrorGroup{} }
 func (m *ErrorGroup) String() string { return proto.CompactTextString(m) }
 func (*ErrorGroup) ProtoMessage()    {}
 func (*ErrorGroup) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{0}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{0}
 }
 func (m *ErrorGroup) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorGroup.Unmarshal(m, b)
@@ -95,7 +95,7 @@ func (m *TrackingIssue) Reset()         { *m = TrackingIssue{} }
 func (m *TrackingIssue) String() string { return proto.CompactTextString(m) }
 func (*TrackingIssue) ProtoMessage()    {}
 func (*TrackingIssue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{1}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{1}
 }
 func (m *TrackingIssue) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TrackingIssue.Unmarshal(m, b)
@@ -143,7 +143,7 @@ func (m *ErrorEvent) Reset()         { *m = ErrorEvent{} }
 func (m *ErrorEvent) String() string { return proto.CompactTextString(m) }
 func (*ErrorEvent) ProtoMessage()    {}
 func (*ErrorEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{2}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{2}
 }
 func (m *ErrorEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorEvent.Unmarshal(m, b)
@@ -220,7 +220,7 @@ func (m *ServiceContext) Reset()         { *m = ServiceContext{} }
 func (m *ServiceContext) String() string { return proto.CompactTextString(m) }
 func (*ServiceContext) ProtoMessage()    {}
 func (*ServiceContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{3}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{3}
 }
 func (m *ServiceContext) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServiceContext.Unmarshal(m, b)
@@ -294,7 +294,7 @@ func (m *ErrorContext) Reset()         { *m = ErrorContext{} }
 func (m *ErrorContext) String() string { return proto.CompactTextString(m) }
 func (*ErrorContext) ProtoMessage()    {}
 func (*ErrorContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{4}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{4}
 }
 func (m *ErrorContext) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorContext.Unmarshal(m, b)
@@ -364,7 +364,7 @@ func (m *HttpRequestContext) Reset()         { *m = HttpRequestContext{} }
 func (m *HttpRequestContext) String() string { return proto.CompactTextString(m) }
 func (*HttpRequestContext) ProtoMessage()    {}
 func (*HttpRequestContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{5}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{5}
 }
 func (m *HttpRequestContext) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_HttpRequestContext.Unmarshal(m, b)
@@ -450,7 +450,7 @@ func (m *SourceLocation) Reset()         { *m = SourceLocation{} }
 func (m *SourceLocation) String() string { return proto.CompactTextString(m) }
 func (*SourceLocation) ProtoMessage()    {}
 func (*SourceLocation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_d976dc5e1833dfd5, []int{6}
+	return fileDescriptor_common_dcadb19d8ee67f84, []int{6}
 }
 func (m *SourceLocation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SourceLocation.Unmarshal(m, b)
@@ -502,10 +502,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/clouderrorreporting/v1beta1/common.proto", fileDescriptor_common_d976dc5e1833dfd5)
+	proto.RegisterFile("google/devtools/clouderrorreporting/v1beta1/common.proto", fileDescriptor_common_dcadb19d8ee67f84)
 }
 
-var fileDescriptor_common_d976dc5e1833dfd5 = []byte{
+var fileDescriptor_common_dcadb19d8ee67f84 = []byte{
 	// 705 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0xcd, 0x6e, 0x13, 0x31,
 	0x10, 0x56, 0x92, 0xfe, 0xc5, 0x69, 0x53, 0x64, 0x21, 0x14, 0x02, 0xa8, 0x25, 0xbd, 0x54, 0x42,

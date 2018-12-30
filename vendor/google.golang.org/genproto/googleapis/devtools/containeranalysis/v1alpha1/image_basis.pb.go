@@ -106,7 +106,7 @@ func (x DockerImage_Layer_Directive) String() string {
 	return proto.EnumName(DockerImage_Layer_Directive_name, int32(x))
 }
 func (DockerImage_Layer_Directive) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0, 0, 0}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0, 0, 0}
 }
 
 // DockerImage holds types defining base image notes
@@ -121,7 +121,7 @@ func (m *DockerImage) Reset()         { *m = DockerImage{} }
 func (m *DockerImage) String() string { return proto.CompactTextString(m) }
 func (*DockerImage) ProtoMessage()    {}
 func (*DockerImage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0}
 }
 func (m *DockerImage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DockerImage.Unmarshal(m, b)
@@ -156,7 +156,7 @@ func (m *DockerImage_Layer) Reset()         { *m = DockerImage_Layer{} }
 func (m *DockerImage_Layer) String() string { return proto.CompactTextString(m) }
 func (*DockerImage_Layer) ProtoMessage()    {}
 func (*DockerImage_Layer) Descriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0, 0}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0, 0}
 }
 func (m *DockerImage_Layer) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DockerImage_Layer.Unmarshal(m, b)
@@ -213,7 +213,7 @@ func (m *DockerImage_Fingerprint) Reset()         { *m = DockerImage_Fingerprint
 func (m *DockerImage_Fingerprint) String() string { return proto.CompactTextString(m) }
 func (*DockerImage_Fingerprint) ProtoMessage()    {}
 func (*DockerImage_Fingerprint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0, 1}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0, 1}
 }
 func (m *DockerImage_Fingerprint) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DockerImage_Fingerprint.Unmarshal(m, b)
@@ -274,7 +274,7 @@ func (m *DockerImage_Basis) Reset()         { *m = DockerImage_Basis{} }
 func (m *DockerImage_Basis) String() string { return proto.CompactTextString(m) }
 func (*DockerImage_Basis) ProtoMessage()    {}
 func (*DockerImage_Basis) Descriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0, 2}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0, 2}
 }
 func (m *DockerImage_Basis) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DockerImage_Basis.Unmarshal(m, b)
@@ -333,7 +333,7 @@ func (m *DockerImage_Derived) Reset()         { *m = DockerImage_Derived{} }
 func (m *DockerImage_Derived) String() string { return proto.CompactTextString(m) }
 func (*DockerImage_Derived) ProtoMessage()    {}
 func (*DockerImage_Derived) Descriptor() ([]byte, []int) {
-	return fileDescriptor_image_basis_5e1fc101263caa17, []int{0, 3}
+	return fileDescriptor_image_basis_f0f54fd9664d71be, []int{0, 3}
 }
 func (m *DockerImage_Derived) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DockerImage_Derived.Unmarshal(m, b)
@@ -391,10 +391,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/containeranalysis/v1alpha1/image_basis.proto", fileDescriptor_image_basis_5e1fc101263caa17)
+	proto.RegisterFile("google/devtools/containeranalysis/v1alpha1/image_basis.proto", fileDescriptor_image_basis_f0f54fd9664d71be)
 }
 
-var fileDescriptor_image_basis_5e1fc101263caa17 = []byte{
+var fileDescriptor_image_basis_f0f54fd9664d71be = []byte{
 	// 627 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x94, 0xdf, 0x6e, 0xda, 0x30,
 	0x14, 0xc6, 0x17, 0x28, 0xd0, 0x9c, 0xf4, 0x8f, 0x6b, 0x69, 0x1a, 0x43, 0xbd, 0x60, 0x95, 0x26,

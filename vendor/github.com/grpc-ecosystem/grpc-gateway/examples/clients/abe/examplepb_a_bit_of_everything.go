@@ -14,11 +14,12 @@ import (
 	"time"
 )
 
+// Intentionaly complicated message type to cover many features of Protobuf.
 type ExamplepbABitOfEverything struct {
 
 	SingleNested ABitOfEverythingNested `json:"single_nested,omitempty"`
 
-	Uuid string `json:"uuid,omitempty"`
+	Uuid string `json:"uuid"`
 
 	Nested []ABitOfEverythingNested `json:"nested,omitempty"`
 
@@ -46,6 +47,10 @@ type ExamplepbABitOfEverything struct {
 
 	EnumValue ExamplepbNumericEnum `json:"enum_value,omitempty"`
 
+	PathEnumValue PathenumPathEnum `json:"path_enum_value,omitempty"`
+
+	NestedPathEnumValue MessagePathEnumNestedPathEnum `json:"nested_path_enum_value,omitempty"`
+
 	Sfixed32Value int32 `json:"sfixed32_value,omitempty"`
 
 	Sfixed64Value string `json:"sfixed64_value,omitempty"`
@@ -56,7 +61,7 @@ type ExamplepbABitOfEverything struct {
 
 	RepeatedStringValue []string `json:"repeated_string_value,omitempty"`
 
-	OneofEmpty ProtobufEmpty `json:"oneof_empty,omitempty"`
+	OneofEmpty interface{} `json:"oneof_empty,omitempty"`
 
 	OneofString string `json:"oneof_string,omitempty"`
 

@@ -43,7 +43,7 @@ func (m *BatchWriteSpansRequest) Reset()         { *m = BatchWriteSpansRequest{}
 func (m *BatchWriteSpansRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchWriteSpansRequest) ProtoMessage()    {}
 func (*BatchWriteSpansRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_tracing_2e37b806bc636240, []int{0}
+	return fileDescriptor_tracing_18786c49399bd83d, []int{0}
 }
 func (m *BatchWriteSpansRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchWriteSpansRequest.Unmarshal(m, b)
@@ -193,10 +193,10 @@ var _TraceService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/cloudtrace/v2/tracing.proto", fileDescriptor_tracing_2e37b806bc636240)
+	proto.RegisterFile("google/devtools/cloudtrace/v2/tracing.proto", fileDescriptor_tracing_18786c49399bd83d)
 }
 
-var fileDescriptor_tracing_2e37b806bc636240 = []byte{
+var fileDescriptor_tracing_18786c49399bd83d = []byte{
 	// 404 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xdd, 0x6a, 0xdb, 0x30,
 	0x14, 0x46, 0xde, 0x0f, 0x4c, 0x1b, 0x0c, 0x04, 0x0b, 0xc1, 0xdb, 0x58, 0xe6, 0x0d, 0x96, 0x64,

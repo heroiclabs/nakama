@@ -41,7 +41,7 @@ func (m *GetSupportAccountRequest) Reset()         { *m = GetSupportAccountReque
 func (m *GetSupportAccountRequest) String() string { return proto.CompactTextString(m) }
 func (*GetSupportAccountRequest) ProtoMessage()    {}
 func (*GetSupportAccountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{0}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{0}
 }
 func (m *GetSupportAccountRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetSupportAccountRequest.Unmarshal(m, b)
@@ -89,7 +89,7 @@ func (m *ListSupportAccountsRequest) Reset()         { *m = ListSupportAccountsR
 func (m *ListSupportAccountsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListSupportAccountsRequest) ProtoMessage()    {}
 func (*ListSupportAccountsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{1}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{1}
 }
 func (m *ListSupportAccountsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListSupportAccountsRequest.Unmarshal(m, b)
@@ -147,7 +147,7 @@ func (m *ListSupportAccountsResponse) Reset()         { *m = ListSupportAccounts
 func (m *ListSupportAccountsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListSupportAccountsResponse) ProtoMessage()    {}
 func (*ListSupportAccountsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{2}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{2}
 }
 func (m *ListSupportAccountsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListSupportAccountsResponse.Unmarshal(m, b)
@@ -195,7 +195,7 @@ func (m *GetCaseRequest) Reset()         { *m = GetCaseRequest{} }
 func (m *GetCaseRequest) String() string { return proto.CompactTextString(m) }
 func (*GetCaseRequest) ProtoMessage()    {}
 func (*GetCaseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{3}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{3}
 }
 func (m *GetCaseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetCaseRequest.Unmarshal(m, b)
@@ -244,7 +244,7 @@ func (m *ListCasesRequest) Reset()         { *m = ListCasesRequest{} }
 func (m *ListCasesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListCasesRequest) ProtoMessage()    {}
 func (*ListCasesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{4}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{4}
 }
 func (m *ListCasesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCasesRequest.Unmarshal(m, b)
@@ -309,7 +309,7 @@ func (m *ListCasesResponse) Reset()         { *m = ListCasesResponse{} }
 func (m *ListCasesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListCasesResponse) ProtoMessage()    {}
 func (*ListCasesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{5}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{5}
 }
 func (m *ListCasesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCasesResponse.Unmarshal(m, b)
@@ -356,7 +356,7 @@ func (m *ListCommentsRequest) Reset()         { *m = ListCommentsRequest{} }
 func (m *ListCommentsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListCommentsRequest) ProtoMessage()    {}
 func (*ListCommentsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{6}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{6}
 }
 func (m *ListCommentsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCommentsRequest.Unmarshal(m, b)
@@ -396,7 +396,7 @@ func (m *ListCommentsResponse) Reset()         { *m = ListCommentsResponse{} }
 func (m *ListCommentsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListCommentsResponse) ProtoMessage()    {}
 func (*ListCommentsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{7}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{7}
 }
 func (m *ListCommentsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCommentsResponse.Unmarshal(m, b)
@@ -438,7 +438,7 @@ func (m *CreateCaseRequest) Reset()         { *m = CreateCaseRequest{} }
 func (m *CreateCaseRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateCaseRequest) ProtoMessage()    {}
 func (*CreateCaseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{8}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{8}
 }
 func (m *CreateCaseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateCaseRequest.Unmarshal(m, b)
@@ -488,7 +488,7 @@ func (m *UpdateCaseRequest) Reset()         { *m = UpdateCaseRequest{} }
 func (m *UpdateCaseRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateCaseRequest) ProtoMessage()    {}
 func (*UpdateCaseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{9}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{9}
 }
 func (m *UpdateCaseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateCaseRequest.Unmarshal(m, b)
@@ -537,7 +537,7 @@ func (m *CreateCommentRequest) Reset()         { *m = CreateCommentRequest{} }
 func (m *CreateCommentRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateCommentRequest) ProtoMessage()    {}
 func (*CreateCommentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{10}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{10}
 }
 func (m *CreateCommentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateCommentRequest.Unmarshal(m, b)
@@ -582,7 +582,7 @@ func (m *GetIssueTaxonomyRequest) Reset()         { *m = GetIssueTaxonomyRequest
 func (m *GetIssueTaxonomyRequest) String() string { return proto.CompactTextString(m) }
 func (*GetIssueTaxonomyRequest) ProtoMessage()    {}
 func (*GetIssueTaxonomyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_support_69743c0be48100ea, []int{11}
+	return fileDescriptor_cloud_support_33c72ff20b6be0b4, []int{11}
 }
 func (m *GetIssueTaxonomyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetIssueTaxonomyRequest.Unmarshal(m, b)
@@ -990,10 +990,10 @@ var _CloudSupport_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/support/v1alpha1/cloud_support.proto", fileDescriptor_cloud_support_69743c0be48100ea)
+	proto.RegisterFile("google/cloud/support/v1alpha1/cloud_support.proto", fileDescriptor_cloud_support_33c72ff20b6be0b4)
 }
 
-var fileDescriptor_cloud_support_69743c0be48100ea = []byte{
+var fileDescriptor_cloud_support_33c72ff20b6be0b4 = []byte{
 	// 863 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x56, 0x41, 0x4f, 0x33, 0x45,
 	0x18, 0xce, 0xb4, 0xc8, 0x07, 0x2f, 0xdf, 0xa7, 0x5f, 0x47, 0x82, 0x65, 0x0b, 0x49, 0x3b, 0x21,

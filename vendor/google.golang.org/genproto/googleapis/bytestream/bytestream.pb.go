@@ -52,7 +52,7 @@ func (m *ReadRequest) Reset()         { *m = ReadRequest{} }
 func (m *ReadRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadRequest) ProtoMessage()    {}
 func (*ReadRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{0}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{0}
 }
 func (m *ReadRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRequest.Unmarshal(m, b)
@@ -109,7 +109,7 @@ func (m *ReadResponse) Reset()         { *m = ReadResponse{} }
 func (m *ReadResponse) String() string { return proto.CompactTextString(m) }
 func (*ReadResponse) ProtoMessage()    {}
 func (*ReadResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{1}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{1}
 }
 func (m *ReadResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadResponse.Unmarshal(m, b)
@@ -173,7 +173,7 @@ func (m *WriteRequest) Reset()         { *m = WriteRequest{} }
 func (m *WriteRequest) String() string { return proto.CompactTextString(m) }
 func (*WriteRequest) ProtoMessage()    {}
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{2}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{2}
 }
 func (m *WriteRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WriteRequest.Unmarshal(m, b)
@@ -234,7 +234,7 @@ func (m *WriteResponse) Reset()         { *m = WriteResponse{} }
 func (m *WriteResponse) String() string { return proto.CompactTextString(m) }
 func (*WriteResponse) ProtoMessage()    {}
 func (*WriteResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{3}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{3}
 }
 func (m *WriteResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WriteResponse.Unmarshal(m, b)
@@ -274,7 +274,7 @@ func (m *QueryWriteStatusRequest) Reset()         { *m = QueryWriteStatusRequest
 func (m *QueryWriteStatusRequest) String() string { return proto.CompactTextString(m) }
 func (*QueryWriteStatusRequest) ProtoMessage()    {}
 func (*QueryWriteStatusRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{4}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{4}
 }
 func (m *QueryWriteStatusRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QueryWriteStatusRequest.Unmarshal(m, b)
@@ -317,7 +317,7 @@ func (m *QueryWriteStatusResponse) Reset()         { *m = QueryWriteStatusRespon
 func (m *QueryWriteStatusResponse) String() string { return proto.CompactTextString(m) }
 func (*QueryWriteStatusResponse) ProtoMessage()    {}
 func (*QueryWriteStatusResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bytestream_e11cc2aa04efc9ca, []int{5}
+	return fileDescriptor_bytestream_414b76681ba3f568, []int{5}
 }
 func (m *QueryWriteStatusResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QueryWriteStatusResponse.Unmarshal(m, b)
@@ -639,10 +639,10 @@ var _ByteStream_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/bytestream/bytestream.proto", fileDescriptor_bytestream_e11cc2aa04efc9ca)
+	proto.RegisterFile("google/bytestream/bytestream.proto", fileDescriptor_bytestream_414b76681ba3f568)
 }
 
-var fileDescriptor_bytestream_e11cc2aa04efc9ca = []byte{
+var fileDescriptor_bytestream_414b76681ba3f568 = []byte{
 	// 446 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0x5b, 0x8b, 0x13, 0x31,
 	0x14, 0x66, 0xb6, 0xab, 0x74, 0x4f, 0xa7, 0x5e, 0x02, 0xe2, 0x30, 0xe8, 0x6e, 0x77, 0x44, 0x28,

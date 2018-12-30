@@ -108,7 +108,7 @@ func (m *Documentation) Reset()         { *m = Documentation{} }
 func (m *Documentation) String() string { return proto.CompactTextString(m) }
 func (*Documentation) ProtoMessage()    {}
 func (*Documentation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_documentation_fffa126753bc1b4d, []int{0}
+	return fileDescriptor_documentation_ed988d5b3c756a43, []int{0}
 }
 func (m *Documentation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Documentation.Unmarshal(m, b)
@@ -186,7 +186,7 @@ func (m *DocumentationRule) Reset()         { *m = DocumentationRule{} }
 func (m *DocumentationRule) String() string { return proto.CompactTextString(m) }
 func (*DocumentationRule) ProtoMessage()    {}
 func (*DocumentationRule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_documentation_fffa126753bc1b4d, []int{1}
+	return fileDescriptor_documentation_ed988d5b3c756a43, []int{1}
 }
 func (m *DocumentationRule) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DocumentationRule.Unmarshal(m, b)
@@ -260,7 +260,7 @@ func (m *Page) Reset()         { *m = Page{} }
 func (m *Page) String() string { return proto.CompactTextString(m) }
 func (*Page) ProtoMessage()    {}
 func (*Page) Descriptor() ([]byte, []int) {
-	return fileDescriptor_documentation_fffa126753bc1b4d, []int{2}
+	return fileDescriptor_documentation_ed988d5b3c756a43, []int{2}
 }
 func (m *Page) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Page.Unmarshal(m, b)
@@ -308,10 +308,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/documentation.proto", fileDescriptor_documentation_fffa126753bc1b4d)
+	proto.RegisterFile("google/api/documentation.proto", fileDescriptor_documentation_ed988d5b3c756a43)
 }
 
-var fileDescriptor_documentation_fffa126753bc1b4d = []byte{
+var fileDescriptor_documentation_ed988d5b3c756a43 = []byte{
 	// 356 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0xc1, 0x6a, 0xe3, 0x30,
 	0x14, 0x45, 0x71, 0xec, 0xcc, 0x64, 0x5e, 0x98, 0x61, 0x46, 0x0c, 0x19, 0x33, 0xd0, 0x12, 0xb2,

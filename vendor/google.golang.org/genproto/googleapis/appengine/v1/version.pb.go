@@ -73,7 +73,7 @@ func (x InboundServiceType) String() string {
 	return proto.EnumName(InboundServiceType_name, int32(x))
 }
 func (InboundServiceType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{0}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{0}
 }
 
 // Run states of a version.
@@ -106,7 +106,7 @@ func (x ServingStatus) String() string {
 	return proto.EnumName(ServingStatus_name, int32(x))
 }
 func (ServingStatus) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{1}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{1}
 }
 
 // A Version resource is a specific set of source code and configuration files
@@ -235,7 +235,7 @@ func (m *Version) Reset()         { *m = Version{} }
 func (m *Version) String() string { return proto.CompactTextString(m) }
 func (*Version) ProtoMessage()    {}
 func (*Version) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{0}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{0}
 }
 func (m *Version) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Version.Unmarshal(m, b)
@@ -255,31 +255,6 @@ func (m *Version) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Version proto.InternalMessageInfo
 
-type isVersion_Scaling interface {
-	isVersion_Scaling()
-}
-
-type Version_AutomaticScaling struct {
-	AutomaticScaling *AutomaticScaling `protobuf:"bytes,3,opt,name=automatic_scaling,json=automaticScaling,proto3,oneof"`
-}
-type Version_BasicScaling struct {
-	BasicScaling *BasicScaling `protobuf:"bytes,4,opt,name=basic_scaling,json=basicScaling,proto3,oneof"`
-}
-type Version_ManualScaling struct {
-	ManualScaling *ManualScaling `protobuf:"bytes,5,opt,name=manual_scaling,json=manualScaling,proto3,oneof"`
-}
-
-func (*Version_AutomaticScaling) isVersion_Scaling() {}
-func (*Version_BasicScaling) isVersion_Scaling()     {}
-func (*Version_ManualScaling) isVersion_Scaling()    {}
-
-func (m *Version) GetScaling() isVersion_Scaling {
-	if m != nil {
-		return m.Scaling
-	}
-	return nil
-}
-
 func (m *Version) GetName() string {
 	if m != nil {
 		return m.Name
@@ -292,6 +267,35 @@ func (m *Version) GetId() string {
 		return m.Id
 	}
 	return ""
+}
+
+type isVersion_Scaling interface {
+	isVersion_Scaling()
+}
+
+type Version_AutomaticScaling struct {
+	AutomaticScaling *AutomaticScaling `protobuf:"bytes,3,opt,name=automatic_scaling,json=automaticScaling,proto3,oneof"`
+}
+
+type Version_BasicScaling struct {
+	BasicScaling *BasicScaling `protobuf:"bytes,4,opt,name=basic_scaling,json=basicScaling,proto3,oneof"`
+}
+
+type Version_ManualScaling struct {
+	ManualScaling *ManualScaling `protobuf:"bytes,5,opt,name=manual_scaling,json=manualScaling,proto3,oneof"`
+}
+
+func (*Version_AutomaticScaling) isVersion_Scaling() {}
+
+func (*Version_BasicScaling) isVersion_Scaling() {}
+
+func (*Version_ManualScaling) isVersion_Scaling() {}
+
+func (m *Version) GetScaling() isVersion_Scaling {
+	if m != nil {
+		return m.Scaling
+	}
+	return nil
 }
 
 func (m *Version) GetAutomaticScaling() *AutomaticScaling {
@@ -615,7 +619,7 @@ func (m *AutomaticScaling) Reset()         { *m = AutomaticScaling{} }
 func (m *AutomaticScaling) String() string { return proto.CompactTextString(m) }
 func (*AutomaticScaling) ProtoMessage()    {}
 func (*AutomaticScaling) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{1}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{1}
 }
 func (m *AutomaticScaling) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AutomaticScaling.Unmarshal(m, b)
@@ -738,7 +742,7 @@ func (m *BasicScaling) Reset()         { *m = BasicScaling{} }
 func (m *BasicScaling) String() string { return proto.CompactTextString(m) }
 func (*BasicScaling) ProtoMessage()    {}
 func (*BasicScaling) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{2}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{2}
 }
 func (m *BasicScaling) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BasicScaling.Unmarshal(m, b)
@@ -789,7 +793,7 @@ func (m *ManualScaling) Reset()         { *m = ManualScaling{} }
 func (m *ManualScaling) String() string { return proto.CompactTextString(m) }
 func (*ManualScaling) ProtoMessage()    {}
 func (*ManualScaling) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{3}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{3}
 }
 func (m *ManualScaling) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ManualScaling.Unmarshal(m, b)
@@ -832,7 +836,7 @@ func (m *CpuUtilization) Reset()         { *m = CpuUtilization{} }
 func (m *CpuUtilization) String() string { return proto.CompactTextString(m) }
 func (*CpuUtilization) ProtoMessage()    {}
 func (*CpuUtilization) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{4}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{4}
 }
 func (m *CpuUtilization) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CpuUtilization.Unmarshal(m, b)
@@ -881,7 +885,7 @@ func (m *RequestUtilization) Reset()         { *m = RequestUtilization{} }
 func (m *RequestUtilization) String() string { return proto.CompactTextString(m) }
 func (*RequestUtilization) ProtoMessage()    {}
 func (*RequestUtilization) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{5}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{5}
 }
 func (m *RequestUtilization) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RequestUtilization.Unmarshal(m, b)
@@ -934,7 +938,7 @@ func (m *DiskUtilization) Reset()         { *m = DiskUtilization{} }
 func (m *DiskUtilization) String() string { return proto.CompactTextString(m) }
 func (*DiskUtilization) ProtoMessage()    {}
 func (*DiskUtilization) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{6}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{6}
 }
 func (m *DiskUtilization) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DiskUtilization.Unmarshal(m, b)
@@ -1001,7 +1005,7 @@ func (m *NetworkUtilization) Reset()         { *m = NetworkUtilization{} }
 func (m *NetworkUtilization) String() string { return proto.CompactTextString(m) }
 func (*NetworkUtilization) ProtoMessage()    {}
 func (*NetworkUtilization) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{7}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{7}
 }
 func (m *NetworkUtilization) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NetworkUtilization.Unmarshal(m, b)
@@ -1070,7 +1074,7 @@ func (m *Network) Reset()         { *m = Network{} }
 func (m *Network) String() string { return proto.CompactTextString(m) }
 func (*Network) ProtoMessage()    {}
 func (*Network) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{8}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{8}
 }
 func (m *Network) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Network.Unmarshal(m, b)
@@ -1128,7 +1132,7 @@ func (m *Resources) Reset()         { *m = Resources{} }
 func (m *Resources) String() string { return proto.CompactTextString(m) }
 func (*Resources) ProtoMessage()    {}
 func (*Resources) Descriptor() ([]byte, []int) {
-	return fileDescriptor_version_125cc638d6fdf8ad, []int{9}
+	return fileDescriptor_version_8b240e3827c1f1f0, []int{9}
 }
 func (m *Resources) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Resources.Unmarshal(m, b)
@@ -1187,10 +1191,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/version.proto", fileDescriptor_version_125cc638d6fdf8ad)
+	proto.RegisterFile("google/appengine/v1/version.proto", fileDescriptor_version_8b240e3827c1f1f0)
 }
 
-var fileDescriptor_version_125cc638d6fdf8ad = []byte{
+var fileDescriptor_version_8b240e3827c1f1f0 = []byte{
 	// 1767 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x58, 0x5d, 0x73, 0xdb, 0xc6,
 	0x15, 0x0d, 0x29, 0x4b, 0x14, 0x2f, 0x3f, 0x04, 0xad, 0xd3, 0x08, 0x96, 0x64, 0x89, 0x66, 0x92,

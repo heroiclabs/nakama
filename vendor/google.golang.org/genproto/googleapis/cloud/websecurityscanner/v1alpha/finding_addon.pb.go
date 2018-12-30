@@ -36,7 +36,7 @@ func (m *OutdatedLibrary) Reset()         { *m = OutdatedLibrary{} }
 func (m *OutdatedLibrary) String() string { return proto.CompactTextString(m) }
 func (*OutdatedLibrary) ProtoMessage()    {}
 func (*OutdatedLibrary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_finding_addon_4cf381e2f681b13b, []int{0}
+	return fileDescriptor_finding_addon_10f44c23dab1483b, []int{0}
 }
 func (m *OutdatedLibrary) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OutdatedLibrary.Unmarshal(m, b)
@@ -93,7 +93,7 @@ func (m *ViolatingResource) Reset()         { *m = ViolatingResource{} }
 func (m *ViolatingResource) String() string { return proto.CompactTextString(m) }
 func (*ViolatingResource) ProtoMessage()    {}
 func (*ViolatingResource) Descriptor() ([]byte, []int) {
-	return fileDescriptor_finding_addon_4cf381e2f681b13b, []int{1}
+	return fileDescriptor_finding_addon_10f44c23dab1483b, []int{1}
 }
 func (m *ViolatingResource) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ViolatingResource.Unmarshal(m, b)
@@ -140,7 +140,7 @@ func (m *VulnerableParameters) Reset()         { *m = VulnerableParameters{} }
 func (m *VulnerableParameters) String() string { return proto.CompactTextString(m) }
 func (*VulnerableParameters) ProtoMessage()    {}
 func (*VulnerableParameters) Descriptor() ([]byte, []int) {
-	return fileDescriptor_finding_addon_4cf381e2f681b13b, []int{2}
+	return fileDescriptor_finding_addon_10f44c23dab1483b, []int{2}
 }
 func (m *VulnerableParameters) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VulnerableParameters.Unmarshal(m, b)
@@ -182,7 +182,7 @@ func (m *Xss) Reset()         { *m = Xss{} }
 func (m *Xss) String() string { return proto.CompactTextString(m) }
 func (*Xss) ProtoMessage()    {}
 func (*Xss) Descriptor() ([]byte, []int) {
-	return fileDescriptor_finding_addon_4cf381e2f681b13b, []int{3}
+	return fileDescriptor_finding_addon_10f44c23dab1483b, []int{3}
 }
 func (m *Xss) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Xss.Unmarshal(m, b)
@@ -224,10 +224,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/websecurityscanner/v1alpha/finding_addon.proto", fileDescriptor_finding_addon_4cf381e2f681b13b)
+	proto.RegisterFile("google/cloud/websecurityscanner/v1alpha/finding_addon.proto", fileDescriptor_finding_addon_10f44c23dab1483b)
 }
 
-var fileDescriptor_finding_addon_4cf381e2f681b13b = []byte{
+var fileDescriptor_finding_addon_10f44c23dab1483b = []byte{
 	// 388 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0xc1, 0x6b, 0xd4, 0x50,
 	0x10, 0xc6, 0x89, 0x0b, 0x4a, 0xdf, 0xb6, 0x2e, 0x0d, 0x1e, 0x82, 0x78, 0xa8, 0x2b, 0xd8, 0x82,

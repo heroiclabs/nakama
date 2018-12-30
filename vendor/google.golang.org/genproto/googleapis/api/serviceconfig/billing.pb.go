@@ -55,7 +55,7 @@ func (m *Billing) Reset()         { *m = Billing{} }
 func (m *Billing) String() string { return proto.CompactTextString(m) }
 func (*Billing) ProtoMessage()    {}
 func (*Billing) Descriptor() ([]byte, []int) {
-	return fileDescriptor_billing_9c24f4c18e81a2dc, []int{0}
+	return fileDescriptor_billing_36fc4fe99841ce3d, []int{0}
 }
 func (m *Billing) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Billing.Unmarshal(m, b)
@@ -100,7 +100,7 @@ func (m *Billing_BillingDestination) Reset()         { *m = Billing_BillingDesti
 func (m *Billing_BillingDestination) String() string { return proto.CompactTextString(m) }
 func (*Billing_BillingDestination) ProtoMessage()    {}
 func (*Billing_BillingDestination) Descriptor() ([]byte, []int) {
-	return fileDescriptor_billing_9c24f4c18e81a2dc, []int{0, 0}
+	return fileDescriptor_billing_36fc4fe99841ce3d, []int{0, 0}
 }
 func (m *Billing_BillingDestination) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Billing_BillingDestination.Unmarshal(m, b)
@@ -139,9 +139,9 @@ func init() {
 	proto.RegisterType((*Billing_BillingDestination)(nil), "google.api.Billing.BillingDestination")
 }
 
-func init() { proto.RegisterFile("google/api/billing.proto", fileDescriptor_billing_9c24f4c18e81a2dc) }
+func init() { proto.RegisterFile("google/api/billing.proto", fileDescriptor_billing_36fc4fe99841ce3d) }
 
-var fileDescriptor_billing_9c24f4c18e81a2dc = []byte{
+var fileDescriptor_billing_36fc4fe99841ce3d = []byte{
 	// 259 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0x90, 0xc1, 0x4a, 0xf4, 0x30,
 	0x10, 0xc7, 0xe9, 0xee, 0xc7, 0xb7, 0x6e, 0x14, 0xc1, 0xa0, 0x50, 0x16, 0x0f, 0xc5, 0x83, 0xf4,

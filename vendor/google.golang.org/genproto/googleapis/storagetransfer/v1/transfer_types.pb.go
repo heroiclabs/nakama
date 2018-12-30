@@ -57,7 +57,7 @@ func (x TransferJob_Status) String() string {
 	return proto.EnumName(TransferJob_Status_name, int32(x))
 }
 func (TransferJob_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{9, 0}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{9, 0}
 }
 
 // The status of a TransferOperation.
@@ -99,7 +99,7 @@ func (x TransferOperation_Status) String() string {
 	return proto.EnumName(TransferOperation_Status_name, int32(x))
 }
 func (TransferOperation_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{13, 0}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{13, 0}
 }
 
 // Google service account
@@ -115,7 +115,7 @@ func (m *GoogleServiceAccount) Reset()         { *m = GoogleServiceAccount{} }
 func (m *GoogleServiceAccount) String() string { return proto.CompactTextString(m) }
 func (*GoogleServiceAccount) ProtoMessage()    {}
 func (*GoogleServiceAccount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{0}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{0}
 }
 func (m *GoogleServiceAccount) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GoogleServiceAccount.Unmarshal(m, b)
@@ -160,7 +160,7 @@ func (m *AwsAccessKey) Reset()         { *m = AwsAccessKey{} }
 func (m *AwsAccessKey) String() string { return proto.CompactTextString(m) }
 func (*AwsAccessKey) ProtoMessage()    {}
 func (*AwsAccessKey) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{1}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{1}
 }
 func (m *AwsAccessKey) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AwsAccessKey.Unmarshal(m, b)
@@ -255,7 +255,7 @@ func (m *ObjectConditions) Reset()         { *m = ObjectConditions{} }
 func (m *ObjectConditions) String() string { return proto.CompactTextString(m) }
 func (*ObjectConditions) ProtoMessage()    {}
 func (*ObjectConditions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{2}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{2}
 }
 func (m *ObjectConditions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ObjectConditions.Unmarshal(m, b)
@@ -320,7 +320,7 @@ func (m *GcsData) Reset()         { *m = GcsData{} }
 func (m *GcsData) String() string { return proto.CompactTextString(m) }
 func (*GcsData) ProtoMessage()    {}
 func (*GcsData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{3}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{3}
 }
 func (m *GcsData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GcsData.Unmarshal(m, b)
@@ -368,7 +368,7 @@ func (m *AwsS3Data) Reset()         { *m = AwsS3Data{} }
 func (m *AwsS3Data) String() string { return proto.CompactTextString(m) }
 func (*AwsS3Data) ProtoMessage()    {}
 func (*AwsS3Data) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{4}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{4}
 }
 func (m *AwsS3Data) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AwsS3Data.Unmarshal(m, b)
@@ -458,7 +458,7 @@ func (m *HttpData) Reset()         { *m = HttpData{} }
 func (m *HttpData) String() string { return proto.CompactTextString(m) }
 func (*HttpData) ProtoMessage()    {}
 func (*HttpData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{5}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{5}
 }
 func (m *HttpData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_HttpData.Unmarshal(m, b)
@@ -507,7 +507,7 @@ func (m *TransferOptions) Reset()         { *m = TransferOptions{} }
 func (m *TransferOptions) String() string { return proto.CompactTextString(m) }
 func (*TransferOptions) ProtoMessage()    {}
 func (*TransferOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{6}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{6}
 }
 func (m *TransferOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferOptions.Unmarshal(m, b)
@@ -579,7 +579,7 @@ func (m *TransferSpec) Reset()         { *m = TransferSpec{} }
 func (m *TransferSpec) String() string { return proto.CompactTextString(m) }
 func (*TransferSpec) ProtoMessage()    {}
 func (*TransferSpec) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{7}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{7}
 }
 func (m *TransferSpec) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferSpec.Unmarshal(m, b)
@@ -602,37 +602,28 @@ var xxx_messageInfo_TransferSpec proto.InternalMessageInfo
 type isTransferSpec_DataSource interface {
 	isTransferSpec_DataSource()
 }
-type isTransferSpec_DataSink interface {
-	isTransferSpec_DataSink()
-}
 
 type TransferSpec_GcsDataSource struct {
 	GcsDataSource *GcsData `protobuf:"bytes,1,opt,name=gcs_data_source,json=gcsDataSource,proto3,oneof"`
 }
+
 type TransferSpec_AwsS3DataSource struct {
 	AwsS3DataSource *AwsS3Data `protobuf:"bytes,2,opt,name=aws_s3_data_source,json=awsS3DataSource,proto3,oneof"`
 }
+
 type TransferSpec_HttpDataSource struct {
 	HttpDataSource *HttpData `protobuf:"bytes,3,opt,name=http_data_source,json=httpDataSource,proto3,oneof"`
 }
-type TransferSpec_GcsDataSink struct {
-	GcsDataSink *GcsData `protobuf:"bytes,4,opt,name=gcs_data_sink,json=gcsDataSink,proto3,oneof"`
-}
 
-func (*TransferSpec_GcsDataSource) isTransferSpec_DataSource()   {}
+func (*TransferSpec_GcsDataSource) isTransferSpec_DataSource() {}
+
 func (*TransferSpec_AwsS3DataSource) isTransferSpec_DataSource() {}
-func (*TransferSpec_HttpDataSource) isTransferSpec_DataSource()  {}
-func (*TransferSpec_GcsDataSink) isTransferSpec_DataSink()       {}
+
+func (*TransferSpec_HttpDataSource) isTransferSpec_DataSource() {}
 
 func (m *TransferSpec) GetDataSource() isTransferSpec_DataSource {
 	if m != nil {
 		return m.DataSource
-	}
-	return nil
-}
-func (m *TransferSpec) GetDataSink() isTransferSpec_DataSink {
-	if m != nil {
-		return m.DataSink
 	}
 	return nil
 }
@@ -654,6 +645,23 @@ func (m *TransferSpec) GetAwsS3DataSource() *AwsS3Data {
 func (m *TransferSpec) GetHttpDataSource() *HttpData {
 	if x, ok := m.GetDataSource().(*TransferSpec_HttpDataSource); ok {
 		return x.HttpDataSource
+	}
+	return nil
+}
+
+type isTransferSpec_DataSink interface {
+	isTransferSpec_DataSink()
+}
+
+type TransferSpec_GcsDataSink struct {
+	GcsDataSink *GcsData `protobuf:"bytes,4,opt,name=gcs_data_sink,json=gcsDataSink,proto3,oneof"`
+}
+
+func (*TransferSpec_GcsDataSink) isTransferSpec_DataSink() {}
+
+func (m *TransferSpec) GetDataSink() isTransferSpec_DataSink {
+	if m != nil {
+		return m.DataSink
 	}
 	return nil
 }
@@ -831,7 +839,7 @@ func (m *Schedule) Reset()         { *m = Schedule{} }
 func (m *Schedule) String() string { return proto.CompactTextString(m) }
 func (*Schedule) ProtoMessage()    {}
 func (*Schedule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{8}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{8}
 }
 func (m *Schedule) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Schedule.Unmarshal(m, b)
@@ -912,7 +920,7 @@ func (m *TransferJob) Reset()         { *m = TransferJob{} }
 func (m *TransferJob) String() string { return proto.CompactTextString(m) }
 func (*TransferJob) ProtoMessage()    {}
 func (*TransferJob) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{9}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{9}
 }
 func (m *TransferJob) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferJob.Unmarshal(m, b)
@@ -1012,7 +1020,7 @@ func (m *ErrorLogEntry) Reset()         { *m = ErrorLogEntry{} }
 func (m *ErrorLogEntry) String() string { return proto.CompactTextString(m) }
 func (*ErrorLogEntry) ProtoMessage()    {}
 func (*ErrorLogEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{10}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{10}
 }
 func (m *ErrorLogEntry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorLogEntry.Unmarshal(m, b)
@@ -1065,7 +1073,7 @@ func (m *ErrorSummary) Reset()         { *m = ErrorSummary{} }
 func (m *ErrorSummary) String() string { return proto.CompactTextString(m) }
 func (*ErrorSummary) ProtoMessage()    {}
 func (*ErrorSummary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{11}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{11}
 }
 func (m *ErrorSummary) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorSummary.Unmarshal(m, b)
@@ -1155,7 +1163,7 @@ func (m *TransferCounters) Reset()         { *m = TransferCounters{} }
 func (m *TransferCounters) String() string { return proto.CompactTextString(m) }
 func (*TransferCounters) ProtoMessage()    {}
 func (*TransferCounters) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{12}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{12}
 }
 func (m *TransferCounters) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferCounters.Unmarshal(m, b)
@@ -1318,7 +1326,7 @@ func (m *TransferOperation) Reset()         { *m = TransferOperation{} }
 func (m *TransferOperation) String() string { return proto.CompactTextString(m) }
 func (*TransferOperation) ProtoMessage()    {}
 func (*TransferOperation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_types_21ff7ededba25812, []int{13}
+	return fileDescriptor_transfer_types_86dab7ad4ac5c425, []int{13}
 }
 func (m *TransferOperation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferOperation.Unmarshal(m, b)
@@ -1421,10 +1429,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/storagetransfer/v1/transfer_types.proto", fileDescriptor_transfer_types_21ff7ededba25812)
+	proto.RegisterFile("google/storagetransfer/v1/transfer_types.proto", fileDescriptor_transfer_types_86dab7ad4ac5c425)
 }
 
-var fileDescriptor_transfer_types_21ff7ededba25812 = []byte{
+var fileDescriptor_transfer_types_86dab7ad4ac5c425 = []byte{
 	// 1767 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x58, 0xdd, 0x6e, 0xdb, 0xc8,
 	0x15, 0x8e, 0x24, 0xc7, 0x96, 0x8e, 0x24, 0x4b, 0x9e, 0xcd, 0x7a, 0x65, 0x27, 0xd9, 0xa4, 0xf4,

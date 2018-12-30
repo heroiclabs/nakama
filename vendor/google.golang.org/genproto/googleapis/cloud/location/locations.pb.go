@@ -44,7 +44,7 @@ func (m *ListLocationsRequest) Reset()         { *m = ListLocationsRequest{} }
 func (m *ListLocationsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListLocationsRequest) ProtoMessage()    {}
 func (*ListLocationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_locations_0b4e7e1f81e8a26c, []int{0}
+	return fileDescriptor_locations_7a7af132c8d24683, []int{0}
 }
 func (m *ListLocationsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListLocationsRequest.Unmarshal(m, b)
@@ -107,7 +107,7 @@ func (m *ListLocationsResponse) Reset()         { *m = ListLocationsResponse{} }
 func (m *ListLocationsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListLocationsResponse) ProtoMessage()    {}
 func (*ListLocationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_locations_0b4e7e1f81e8a26c, []int{1}
+	return fileDescriptor_locations_7a7af132c8d24683, []int{1}
 }
 func (m *ListLocationsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListLocationsResponse.Unmarshal(m, b)
@@ -154,7 +154,7 @@ func (m *GetLocationRequest) Reset()         { *m = GetLocationRequest{} }
 func (m *GetLocationRequest) String() string { return proto.CompactTextString(m) }
 func (*GetLocationRequest) ProtoMessage()    {}
 func (*GetLocationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_locations_0b4e7e1f81e8a26c, []int{2}
+	return fileDescriptor_locations_7a7af132c8d24683, []int{2}
 }
 func (m *GetLocationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetLocationRequest.Unmarshal(m, b)
@@ -207,7 +207,7 @@ func (m *Location) Reset()         { *m = Location{} }
 func (m *Location) String() string { return proto.CompactTextString(m) }
 func (*Location) ProtoMessage()    {}
 func (*Location) Descriptor() ([]byte, []int) {
-	return fileDescriptor_locations_0b4e7e1f81e8a26c, []int{3}
+	return fileDescriptor_locations_7a7af132c8d24683, []int{3}
 }
 func (m *Location) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Location.Unmarshal(m, b)
@@ -380,10 +380,10 @@ var _Locations_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/location/locations.proto", fileDescriptor_locations_0b4e7e1f81e8a26c)
+	proto.RegisterFile("google/cloud/location/locations.proto", fileDescriptor_locations_7a7af132c8d24683)
 }
 
-var fileDescriptor_locations_0b4e7e1f81e8a26c = []byte{
+var fileDescriptor_locations_7a7af132c8d24683 = []byte{
 	// 527 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0xcd, 0x6e, 0xd3, 0x40,
 	0x10, 0xd6, 0x3a, 0x4d, 0x94, 0x8c, 0x29, 0xa0, 0x55, 0x8a, 0xdc, 0x00, 0x4a, 0x62, 0x04, 0xa4,

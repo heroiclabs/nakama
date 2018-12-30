@@ -71,7 +71,7 @@ func (x AnnotationType) String() string {
 	return proto.EnumName(AnnotationType_name, int32(x))
 }
 func (AnnotationType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{0}
 }
 
 type VariantAnnotation_Type int32
@@ -123,7 +123,7 @@ func (x VariantAnnotation_Type) String() string {
 	return proto.EnumName(VariantAnnotation_Type_name, int32(x))
 }
 func (VariantAnnotation_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{2, 0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{2, 0}
 }
 
 type VariantAnnotation_Effect int32
@@ -186,7 +186,7 @@ func (x VariantAnnotation_Effect) String() string {
 	return proto.EnumName(VariantAnnotation_Effect_name, int32(x))
 }
 func (VariantAnnotation_Effect) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{2, 1}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{2, 1}
 }
 
 type VariantAnnotation_ClinicalSignificance int32
@@ -250,7 +250,7 @@ func (x VariantAnnotation_ClinicalSignificance) String() string {
 	return proto.EnumName(VariantAnnotation_ClinicalSignificance_name, int32(x))
 }
 func (VariantAnnotation_ClinicalSignificance) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{2, 2}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{2, 2}
 }
 
 // An annotation set is a logical grouping of annotations that share consistent
@@ -283,7 +283,7 @@ func (m *AnnotationSet) Reset()         { *m = AnnotationSet{} }
 func (m *AnnotationSet) String() string { return proto.CompactTextString(m) }
 func (*AnnotationSet) ProtoMessage()    {}
 func (*AnnotationSet) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{0}
 }
 func (m *AnnotationSet) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AnnotationSet.Unmarshal(m, b)
@@ -397,7 +397,7 @@ func (m *Annotation) Reset()         { *m = Annotation{} }
 func (m *Annotation) String() string { return proto.CompactTextString(m) }
 func (*Annotation) ProtoMessage()    {}
 func (*Annotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{1}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{1}
 }
 func (m *Annotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Annotation.Unmarshal(m, b)
@@ -416,27 +416,6 @@ func (m *Annotation) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_Annotation proto.InternalMessageInfo
-
-type isAnnotation_Value interface {
-	isAnnotation_Value()
-}
-
-type Annotation_Variant struct {
-	Variant *VariantAnnotation `protobuf:"bytes,10,opt,name=variant,proto3,oneof"`
-}
-type Annotation_Transcript struct {
-	Transcript *Transcript `protobuf:"bytes,11,opt,name=transcript,proto3,oneof"`
-}
-
-func (*Annotation_Variant) isAnnotation_Value()    {}
-func (*Annotation_Transcript) isAnnotation_Value() {}
-
-func (m *Annotation) GetValue() isAnnotation_Value {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
 
 func (m *Annotation) GetId() string {
 	if m != nil {
@@ -499,6 +478,29 @@ func (m *Annotation) GetType() AnnotationType {
 		return m.Type
 	}
 	return AnnotationType_ANNOTATION_TYPE_UNSPECIFIED
+}
+
+type isAnnotation_Value interface {
+	isAnnotation_Value()
+}
+
+type Annotation_Variant struct {
+	Variant *VariantAnnotation `protobuf:"bytes,10,opt,name=variant,proto3,oneof"`
+}
+
+type Annotation_Transcript struct {
+	Transcript *Transcript `protobuf:"bytes,11,opt,name=transcript,proto3,oneof"`
+}
+
+func (*Annotation_Variant) isAnnotation_Value() {}
+
+func (*Annotation_Transcript) isAnnotation_Value() {}
+
+func (m *Annotation) GetValue() isAnnotation_Value {
+	if m != nil {
+		return m.Value
+	}
+	return nil
 }
 
 func (m *Annotation) GetVariant() *VariantAnnotation {
@@ -628,7 +630,7 @@ func (m *VariantAnnotation) Reset()         { *m = VariantAnnotation{} }
 func (m *VariantAnnotation) String() string { return proto.CompactTextString(m) }
 func (*VariantAnnotation) ProtoMessage()    {}
 func (*VariantAnnotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{2}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{2}
 }
 func (m *VariantAnnotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VariantAnnotation.Unmarshal(m, b)
@@ -717,7 +719,7 @@ func (m *VariantAnnotation_ClinicalCondition) Reset()         { *m = VariantAnno
 func (m *VariantAnnotation_ClinicalCondition) String() string { return proto.CompactTextString(m) }
 func (*VariantAnnotation_ClinicalCondition) ProtoMessage()    {}
 func (*VariantAnnotation_ClinicalCondition) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{2, 0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{2, 0}
 }
 func (m *VariantAnnotation_ClinicalCondition) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VariantAnnotation_ClinicalCondition.Unmarshal(m, b)
@@ -808,7 +810,7 @@ func (m *Transcript) Reset()         { *m = Transcript{} }
 func (m *Transcript) String() string { return proto.CompactTextString(m) }
 func (*Transcript) ProtoMessage()    {}
 func (*Transcript) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{3}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{3}
 }
 func (m *Transcript) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Transcript.Unmarshal(m, b)
@@ -881,7 +883,7 @@ func (m *Transcript_Exon) Reset()         { *m = Transcript_Exon{} }
 func (m *Transcript_Exon) String() string { return proto.CompactTextString(m) }
 func (*Transcript_Exon) ProtoMessage()    {}
 func (*Transcript_Exon) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{3, 0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{3, 0}
 }
 func (m *Transcript_Exon) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Transcript_Exon.Unmarshal(m, b)
@@ -940,7 +942,7 @@ func (m *Transcript_CodingSequence) Reset()         { *m = Transcript_CodingSequ
 func (m *Transcript_CodingSequence) String() string { return proto.CompactTextString(m) }
 func (*Transcript_CodingSequence) ProtoMessage()    {}
 func (*Transcript_CodingSequence) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{3, 1}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{3, 1}
 }
 func (m *Transcript_CodingSequence) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Transcript_CodingSequence.Unmarshal(m, b)
@@ -988,7 +990,7 @@ func (m *ExternalId) Reset()         { *m = ExternalId{} }
 func (m *ExternalId) String() string { return proto.CompactTextString(m) }
 func (*ExternalId) ProtoMessage()    {}
 func (*ExternalId) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{4}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{4}
 }
 func (m *ExternalId) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExternalId.Unmarshal(m, b)
@@ -1034,7 +1036,7 @@ func (m *CreateAnnotationSetRequest) Reset()         { *m = CreateAnnotationSetR
 func (m *CreateAnnotationSetRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateAnnotationSetRequest) ProtoMessage()    {}
 func (*CreateAnnotationSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{5}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{5}
 }
 func (m *CreateAnnotationSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateAnnotationSetRequest.Unmarshal(m, b)
@@ -1073,7 +1075,7 @@ func (m *GetAnnotationSetRequest) Reset()         { *m = GetAnnotationSetRequest
 func (m *GetAnnotationSetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetAnnotationSetRequest) ProtoMessage()    {}
 func (*GetAnnotationSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{6}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{6}
 }
 func (m *GetAnnotationSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetAnnotationSetRequest.Unmarshal(m, b)
@@ -1120,7 +1122,7 @@ func (m *UpdateAnnotationSetRequest) Reset()         { *m = UpdateAnnotationSetR
 func (m *UpdateAnnotationSetRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateAnnotationSetRequest) ProtoMessage()    {}
 func (*UpdateAnnotationSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{7}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{7}
 }
 func (m *UpdateAnnotationSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateAnnotationSetRequest.Unmarshal(m, b)
@@ -1173,7 +1175,7 @@ func (m *DeleteAnnotationSetRequest) Reset()         { *m = DeleteAnnotationSetR
 func (m *DeleteAnnotationSetRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAnnotationSetRequest) ProtoMessage()    {}
 func (*DeleteAnnotationSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{8}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{8}
 }
 func (m *DeleteAnnotationSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteAnnotationSetRequest.Unmarshal(m, b)
@@ -1229,7 +1231,7 @@ func (m *SearchAnnotationSetsRequest) Reset()         { *m = SearchAnnotationSet
 func (m *SearchAnnotationSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchAnnotationSetsRequest) ProtoMessage()    {}
 func (*SearchAnnotationSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{9}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{9}
 }
 func (m *SearchAnnotationSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAnnotationSetsRequest.Unmarshal(m, b)
@@ -1307,7 +1309,7 @@ func (m *SearchAnnotationSetsResponse) Reset()         { *m = SearchAnnotationSe
 func (m *SearchAnnotationSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchAnnotationSetsResponse) ProtoMessage()    {}
 func (*SearchAnnotationSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{10}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{10}
 }
 func (m *SearchAnnotationSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAnnotationSetsResponse.Unmarshal(m, b)
@@ -1353,7 +1355,7 @@ func (m *CreateAnnotationRequest) Reset()         { *m = CreateAnnotationRequest
 func (m *CreateAnnotationRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateAnnotationRequest) ProtoMessage()    {}
 func (*CreateAnnotationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{11}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{11}
 }
 func (m *CreateAnnotationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateAnnotationRequest.Unmarshal(m, b)
@@ -1401,7 +1403,7 @@ func (m *BatchCreateAnnotationsRequest) Reset()         { *m = BatchCreateAnnota
 func (m *BatchCreateAnnotationsRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateAnnotationsRequest) ProtoMessage()    {}
 func (*BatchCreateAnnotationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{12}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{12}
 }
 func (m *BatchCreateAnnotationsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchCreateAnnotationsRequest.Unmarshal(m, b)
@@ -1448,7 +1450,7 @@ func (m *BatchCreateAnnotationsResponse) Reset()         { *m = BatchCreateAnnot
 func (m *BatchCreateAnnotationsResponse) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateAnnotationsResponse) ProtoMessage()    {}
 func (*BatchCreateAnnotationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{13}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{13}
 }
 func (m *BatchCreateAnnotationsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchCreateAnnotationsResponse.Unmarshal(m, b)
@@ -1489,7 +1491,7 @@ func (m *BatchCreateAnnotationsResponse_Entry) Reset()         { *m = BatchCreat
 func (m *BatchCreateAnnotationsResponse_Entry) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateAnnotationsResponse_Entry) ProtoMessage()    {}
 func (*BatchCreateAnnotationsResponse_Entry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{13, 0}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{13, 0}
 }
 func (m *BatchCreateAnnotationsResponse_Entry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchCreateAnnotationsResponse_Entry.Unmarshal(m, b)
@@ -1535,7 +1537,7 @@ func (m *GetAnnotationRequest) Reset()         { *m = GetAnnotationRequest{} }
 func (m *GetAnnotationRequest) String() string { return proto.CompactTextString(m) }
 func (*GetAnnotationRequest) ProtoMessage()    {}
 func (*GetAnnotationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{14}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{14}
 }
 func (m *GetAnnotationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetAnnotationRequest.Unmarshal(m, b)
@@ -1583,7 +1585,7 @@ func (m *UpdateAnnotationRequest) Reset()         { *m = UpdateAnnotationRequest
 func (m *UpdateAnnotationRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateAnnotationRequest) ProtoMessage()    {}
 func (*UpdateAnnotationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{15}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{15}
 }
 func (m *UpdateAnnotationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateAnnotationRequest.Unmarshal(m, b)
@@ -1636,7 +1638,7 @@ func (m *DeleteAnnotationRequest) Reset()         { *m = DeleteAnnotationRequest
 func (m *DeleteAnnotationRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAnnotationRequest) ProtoMessage()    {}
 func (*DeleteAnnotationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{16}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{16}
 }
 func (m *DeleteAnnotationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteAnnotationRequest.Unmarshal(m, b)
@@ -1701,7 +1703,7 @@ func (m *SearchAnnotationsRequest) Reset()         { *m = SearchAnnotationsReque
 func (m *SearchAnnotationsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchAnnotationsRequest) ProtoMessage()    {}
 func (*SearchAnnotationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{17}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{17}
 }
 func (m *SearchAnnotationsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAnnotationsRequest.Unmarshal(m, b)
@@ -1721,6 +1723,13 @@ func (m *SearchAnnotationsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SearchAnnotationsRequest proto.InternalMessageInfo
 
+func (m *SearchAnnotationsRequest) GetAnnotationSetIds() []string {
+	if m != nil {
+		return m.AnnotationSetIds
+	}
+	return nil
+}
+
 type isSearchAnnotationsRequest_Reference interface {
 	isSearchAnnotationsRequest_Reference()
 }
@@ -1728,23 +1737,18 @@ type isSearchAnnotationsRequest_Reference interface {
 type SearchAnnotationsRequest_ReferenceId struct {
 	ReferenceId string `protobuf:"bytes,2,opt,name=reference_id,json=referenceId,proto3,oneof"`
 }
+
 type SearchAnnotationsRequest_ReferenceName struct {
 	ReferenceName string `protobuf:"bytes,3,opt,name=reference_name,json=referenceName,proto3,oneof"`
 }
 
-func (*SearchAnnotationsRequest_ReferenceId) isSearchAnnotationsRequest_Reference()   {}
+func (*SearchAnnotationsRequest_ReferenceId) isSearchAnnotationsRequest_Reference() {}
+
 func (*SearchAnnotationsRequest_ReferenceName) isSearchAnnotationsRequest_Reference() {}
 
 func (m *SearchAnnotationsRequest) GetReference() isSearchAnnotationsRequest_Reference {
 	if m != nil {
 		return m.Reference
-	}
-	return nil
-}
-
-func (m *SearchAnnotationsRequest) GetAnnotationSetIds() []string {
-	if m != nil {
-		return m.AnnotationSetIds
 	}
 	return nil
 }
@@ -1873,7 +1877,7 @@ func (m *SearchAnnotationsResponse) Reset()         { *m = SearchAnnotationsResp
 func (m *SearchAnnotationsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchAnnotationsResponse) ProtoMessage()    {}
 func (*SearchAnnotationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_255e1b4b7e9b96e2, []int{18}
+	return fileDescriptor_annotations_22f61783ae14922a, []int{18}
 }
 func (m *SearchAnnotationsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAnnotationsResponse.Unmarshal(m, b)
@@ -2484,10 +2488,10 @@ var _AnnotationServiceV1_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/annotations.proto", fileDescriptor_annotations_255e1b4b7e9b96e2)
+	proto.RegisterFile("google/genomics/v1/annotations.proto", fileDescriptor_annotations_22f61783ae14922a)
 }
 
-var fileDescriptor_annotations_255e1b4b7e9b96e2 = []byte{
+var fileDescriptor_annotations_22f61783ae14922a = []byte{
 	// 2188 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x59, 0xcd, 0x6f, 0xdb, 0xc8,
 	0x15, 0x0f, 0xf5, 0x69, 0x3f, 0xd9, 0x32, 0x3d, 0xf1, 0xda, 0x5a, 0x39, 0x1f, 0x0e, 0xf3, 0x65,

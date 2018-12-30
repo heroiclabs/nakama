@@ -56,7 +56,7 @@ func (x TraceSpan_SpanKind) String() string {
 	return proto.EnumName(TraceSpan_SpanKind_name, int32(x))
 }
 func (TraceSpan_SpanKind) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{2, 0}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{2, 0}
 }
 
 // Type of data returned for traces in the list.
@@ -94,7 +94,7 @@ func (x ListTracesRequest_ViewType) String() string {
 	return proto.EnumName(ListTracesRequest_ViewType_name, int32(x))
 }
 func (ListTracesRequest_ViewType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{3, 0}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{3, 0}
 }
 
 // A trace describes how long it takes for an application to perform an
@@ -117,7 +117,7 @@ func (m *Trace) Reset()         { *m = Trace{} }
 func (m *Trace) String() string { return proto.CompactTextString(m) }
 func (*Trace) ProtoMessage()    {}
 func (*Trace) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{0}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{0}
 }
 func (m *Trace) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Trace.Unmarshal(m, b)
@@ -171,7 +171,7 @@ func (m *Traces) Reset()         { *m = Traces{} }
 func (m *Traces) String() string { return proto.CompactTextString(m) }
 func (*Traces) ProtoMessage()    {}
 func (*Traces) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{1}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{1}
 }
 func (m *Traces) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Traces.Unmarshal(m, b)
@@ -270,7 +270,7 @@ func (m *TraceSpan) Reset()         { *m = TraceSpan{} }
 func (m *TraceSpan) String() string { return proto.CompactTextString(m) }
 func (*TraceSpan) ProtoMessage()    {}
 func (*TraceSpan) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{2}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{2}
 }
 func (m *TraceSpan) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TraceSpan.Unmarshal(m, b)
@@ -414,7 +414,7 @@ func (m *ListTracesRequest) Reset()         { *m = ListTracesRequest{} }
 func (m *ListTracesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTracesRequest) ProtoMessage()    {}
 func (*ListTracesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{3}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{3}
 }
 func (m *ListTracesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTracesRequest.Unmarshal(m, b)
@@ -507,7 +507,7 @@ func (m *ListTracesResponse) Reset()         { *m = ListTracesResponse{} }
 func (m *ListTracesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTracesResponse) ProtoMessage()    {}
 func (*ListTracesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{4}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{4}
 }
 func (m *ListTracesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTracesResponse.Unmarshal(m, b)
@@ -556,7 +556,7 @@ func (m *GetTraceRequest) Reset()         { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()    {}
 func (*GetTraceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{5}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{5}
 }
 func (m *GetTraceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTraceRequest.Unmarshal(m, b)
@@ -605,7 +605,7 @@ func (m *PatchTracesRequest) Reset()         { *m = PatchTracesRequest{} }
 func (m *PatchTracesRequest) String() string { return proto.CompactTextString(m) }
 func (*PatchTracesRequest) ProtoMessage()    {}
 func (*PatchTracesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_2bfceac29d8dd98d, []int{6}
+	return fileDescriptor_trace_98dc85cc2ea3983c, []int{6}
 }
 func (m *PatchTracesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PatchTracesRequest.Unmarshal(m, b)
@@ -805,10 +805,10 @@ var _TraceService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/cloudtrace/v1/trace.proto", fileDescriptor_trace_2bfceac29d8dd98d)
+	proto.RegisterFile("google/devtools/cloudtrace/v1/trace.proto", fileDescriptor_trace_98dc85cc2ea3983c)
 }
 
-var fileDescriptor_trace_2bfceac29d8dd98d = []byte{
+var fileDescriptor_trace_98dc85cc2ea3983c = []byte{
 	// 898 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xdd, 0x6e, 0x1b, 0x45,
 	0x14, 0x66, 0xed, 0x78, 0x6d, 0x1f, 0x87, 0xd4, 0x8c, 0x68, 0x71, 0x5d, 0x2a, 0xc2, 0xaa, 0x20,

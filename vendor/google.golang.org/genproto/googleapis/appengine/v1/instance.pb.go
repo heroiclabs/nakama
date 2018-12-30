@@ -44,7 +44,7 @@ func (x Instance_Availability) String() string {
 	return proto.EnumName(Instance_Availability_name, int32(x))
 }
 func (Instance_Availability) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_instance_bc3f8ddbcc553cc8, []int{0, 0}
+	return fileDescriptor_instance_899688eaafc2a354, []int{0, 0}
 }
 
 // An Instance resource is the computing unit that App Engine uses to
@@ -126,7 +126,7 @@ func (m *Instance) Reset()         { *m = Instance{} }
 func (m *Instance) String() string { return proto.CompactTextString(m) }
 func (*Instance) ProtoMessage()    {}
 func (*Instance) Descriptor() ([]byte, []int) {
-	return fileDescriptor_instance_bc3f8ddbcc553cc8, []int{0}
+	return fileDescriptor_instance_899688eaafc2a354, []int{0}
 }
 func (m *Instance) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Instance.Unmarshal(m, b)
@@ -257,10 +257,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/instance.proto", fileDescriptor_instance_bc3f8ddbcc553cc8)
+	proto.RegisterFile("google/appengine/v1/instance.proto", fileDescriptor_instance_899688eaafc2a354)
 }
 
-var fileDescriptor_instance_bc3f8ddbcc553cc8 = []byte{
+var fileDescriptor_instance_899688eaafc2a354 = []byte{
 	// 521 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x53, 0x5d, 0x6b, 0xdb, 0x3c,
 	0x14, 0x7e, 0x9d, 0xb6, 0xa9, 0x73, 0xe2, 0x26, 0x46, 0x85, 0xb7, 0x22, 0x1b, 0xcc, 0xcb, 0xcd,

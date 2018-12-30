@@ -48,7 +48,7 @@ func (m *LoginProfile) Reset()         { *m = LoginProfile{} }
 func (m *LoginProfile) String() string { return proto.CompactTextString(m) }
 func (*LoginProfile) ProtoMessage()    {}
 func (*LoginProfile) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{0}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{0}
 }
 func (m *LoginProfile) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LoginProfile.Unmarshal(m, b)
@@ -111,7 +111,7 @@ func (m *DeletePosixAccountRequest) Reset()         { *m = DeletePosixAccountReq
 func (m *DeletePosixAccountRequest) String() string { return proto.CompactTextString(m) }
 func (*DeletePosixAccountRequest) ProtoMessage()    {}
 func (*DeletePosixAccountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{1}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{1}
 }
 func (m *DeletePosixAccountRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeletePosixAccountRequest.Unmarshal(m, b)
@@ -153,7 +153,7 @@ func (m *DeleteSshPublicKeyRequest) Reset()         { *m = DeleteSshPublicKeyReq
 func (m *DeleteSshPublicKeyRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteSshPublicKeyRequest) ProtoMessage()    {}
 func (*DeleteSshPublicKeyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{2}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{2}
 }
 func (m *DeleteSshPublicKeyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteSshPublicKeyRequest.Unmarshal(m, b)
@@ -193,7 +193,7 @@ func (m *GetLoginProfileRequest) Reset()         { *m = GetLoginProfileRequest{}
 func (m *GetLoginProfileRequest) String() string { return proto.CompactTextString(m) }
 func (*GetLoginProfileRequest) ProtoMessage()    {}
 func (*GetLoginProfileRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{3}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{3}
 }
 func (m *GetLoginProfileRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetLoginProfileRequest.Unmarshal(m, b)
@@ -235,7 +235,7 @@ func (m *GetSshPublicKeyRequest) Reset()         { *m = GetSshPublicKeyRequest{}
 func (m *GetSshPublicKeyRequest) String() string { return proto.CompactTextString(m) }
 func (*GetSshPublicKeyRequest) ProtoMessage()    {}
 func (*GetSshPublicKeyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{4}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{4}
 }
 func (m *GetSshPublicKeyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetSshPublicKeyRequest.Unmarshal(m, b)
@@ -279,7 +279,7 @@ func (m *ImportSshPublicKeyRequest) Reset()         { *m = ImportSshPublicKeyReq
 func (m *ImportSshPublicKeyRequest) String() string { return proto.CompactTextString(m) }
 func (*ImportSshPublicKeyRequest) ProtoMessage()    {}
 func (*ImportSshPublicKeyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{5}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{5}
 }
 func (m *ImportSshPublicKeyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportSshPublicKeyRequest.Unmarshal(m, b)
@@ -333,7 +333,7 @@ func (m *ImportSshPublicKeyResponse) Reset()         { *m = ImportSshPublicKeyRe
 func (m *ImportSshPublicKeyResponse) String() string { return proto.CompactTextString(m) }
 func (*ImportSshPublicKeyResponse) ProtoMessage()    {}
 func (*ImportSshPublicKeyResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{6}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{6}
 }
 func (m *ImportSshPublicKeyResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportSshPublicKeyResponse.Unmarshal(m, b)
@@ -379,7 +379,7 @@ func (m *UpdateSshPublicKeyRequest) Reset()         { *m = UpdateSshPublicKeyReq
 func (m *UpdateSshPublicKeyRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateSshPublicKeyRequest) ProtoMessage()    {}
 func (*UpdateSshPublicKeyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_oslogin_8e799c1b6cfe9921, []int{7}
+	return fileDescriptor_oslogin_45adadde0ac6d3e5, []int{7}
 }
 func (m *UpdateSshPublicKeyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateSshPublicKeyRequest.Unmarshal(m, b)
@@ -690,10 +690,10 @@ var _OsLoginService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/oslogin/v1/oslogin.proto", fileDescriptor_oslogin_8e799c1b6cfe9921)
+	proto.RegisterFile("google/cloud/oslogin/v1/oslogin.proto", fileDescriptor_oslogin_45adadde0ac6d3e5)
 }
 
-var fileDescriptor_oslogin_8e799c1b6cfe9921 = []byte{
+var fileDescriptor_oslogin_45adadde0ac6d3e5 = []byte{
 	// 774 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xcd, 0x6e, 0xd3, 0x40,
 	0x10, 0x96, 0x93, 0x52, 0xe8, 0x26, 0x6d, 0xd1, 0x1e, 0xda, 0xd4, 0x6d, 0xd5, 0x60, 0x51, 0x35,

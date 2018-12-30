@@ -39,7 +39,7 @@ func (m *GetConfigRequest) Reset()         { *m = GetConfigRequest{} }
 func (m *GetConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*GetConfigRequest) ProtoMessage()    {}
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_project_service_ac513b9adaac3dc8, []int{0}
+	return fileDescriptor_project_service_00dbe1d4c2a6bfee, []int{0}
 }
 func (m *GetConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigRequest.Unmarshal(m, b)
@@ -81,7 +81,7 @@ func (m *GetConfigResponse) Reset()         { *m = GetConfigResponse{} }
 func (m *GetConfigResponse) String() string { return proto.CompactTextString(m) }
 func (*GetConfigResponse) ProtoMessage()    {}
 func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_project_service_ac513b9adaac3dc8, []int{1}
+	return fileDescriptor_project_service_00dbe1d4c2a6bfee, []int{1}
 }
 func (m *GetConfigResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigResponse.Unmarshal(m, b)
@@ -201,10 +201,10 @@ var _ProjectManagementService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/ml/v1/project_service.proto", fileDescriptor_project_service_ac513b9adaac3dc8)
+	proto.RegisterFile("google/cloud/ml/v1/project_service.proto", fileDescriptor_project_service_00dbe1d4c2a6bfee)
 }
 
-var fileDescriptor_project_service_ac513b9adaac3dc8 = []byte{
+var fileDescriptor_project_service_00dbe1d4c2a6bfee = []byte{
 	// 319 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0xbf, 0x4a, 0x43, 0x31,
 	0x14, 0xc6, 0xb9, 0x55, 0x84, 0x66, 0xf0, 0x4f, 0x44, 0x2c, 0x45, 0xb0, 0x16, 0xb5, 0xc5, 0x21,

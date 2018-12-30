@@ -7,6 +7,7 @@ order: 101
 # Customizing your gateway
 
 ## Message serialization
+### Custom serializer
 
 You might want to serialize request/response messages in MessagePack instead of JSON, for example.
 
@@ -19,6 +20,13 @@ You might want to serialize request/response messages in MessagePack instead of 
    ```
 
 You can see [the default implementation for JSON](https://github.com/grpc-ecosystem/grpc-gateway/blob/master/runtime/marshal_jsonpb.go) for reference.
+
+### Using camelCase for JSON
+
+The protocol buffer compiler generates camelCase JSON tags that can be used with jsonpb package. By default jsonpb Marshaller uses `OrigName: true` which uses the exact case used in the proto files. To use camelCase for the JSON representation,
+   ```go
+   mux := runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{OrigName:false}))
+   ```
 
 ## Mapping from HTTP request headers to gRPC client metadata
 You might not like [the default mapping rule](http://godoc.org/github.com/grpc-ecosystem/grpc-gateway/runtime#DefaultHeaderMatcher) and might want to pass through all the HTTP headers, for example.
@@ -58,6 +66,44 @@ Or you might want to mutate the response messages to be returned.
    ```go
    mux := runtime.NewServeMux(runtime.WithForwardResponseOption(myFilter))
    ```
+
+## OpenTracing Support
+
+If your project uses [OpenTracing](https://github.com/opentracing/opentracing-go) and you'd like spans to propagate through the gateway, you can add some middleware which parses the incoming HTTP headers to create a new span correctly.
+
+```go
+import (
+   ...
+   "github.com/opentracing/opentracing-go"
+   "github.com/opentracing/opentracing-go/ext"
+)
+
+var grpcGatewayTag = opentracing.Tag{Key: string(ext.Component), Value: "grpc-gateway"}
+
+func tracingWrapper(h http.Handler) http.Handler {
+  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    parentSpanContext, err := opentracing.GlobalTracer().Extract(
+      opentracing.HTTPHeaders,
+      opentracing.HTTPHeadersCarrier(r.Header))
+    if err == nil || err == opentracing.ErrSpanContextNotFound {
+      serverSpan := opentracing.GlobalTracer().StartSpan(
+        "ServeHTTP",
+        // this is magical, it attaches the new span to the parent parentSpanContext, and creates an unparented one if empty.
+        ext.RPCServerOption(parentSpanContext),
+        grpcGatewayTag,
+      )
+      r = r.WithContext(opentracing.ContextWithSpan(r.Context(), serverSpan))
+      defer serverSpan.Finish()
+    }
+    h.ServeHTTP(w, r)
+  })
+}
+
+// Then just wrap the mux returned by runtime.NewServeMux() like this
+if err := http.ListenAndServe(":8080", tracingWrapper(mux)); err != nil {
+  log.Fatalf("failed to start gateway server on 8080: %v", err)
+}
+```
 
 ## Error handler
 http://mycodesmells.com/post/grpc-gateway-error-handler

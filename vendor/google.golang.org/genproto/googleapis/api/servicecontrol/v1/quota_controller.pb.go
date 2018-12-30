@@ -63,7 +63,7 @@ func (x QuotaOperation_QuotaMode) String() string {
 	return proto.EnumName(QuotaOperation_QuotaMode_name, int32(x))
 }
 func (QuotaOperation_QuotaMode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{1, 0}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{1, 0}
 }
 
 // Error codes related to project config validations are deprecated since the
@@ -111,7 +111,7 @@ func (x QuotaError_Code) String() string {
 	return proto.EnumName(QuotaError_Code_name, int32(x))
 }
 func (QuotaError_Code) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{3, 0}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{3, 0}
 }
 
 // Request message for the AllocateQuota method.
@@ -136,7 +136,7 @@ func (m *AllocateQuotaRequest) Reset()         { *m = AllocateQuotaRequest{} }
 func (m *AllocateQuotaRequest) String() string { return proto.CompactTextString(m) }
 func (*AllocateQuotaRequest) ProtoMessage()    {}
 func (*AllocateQuotaRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{0}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{0}
 }
 func (m *AllocateQuotaRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AllocateQuotaRequest.Unmarshal(m, b)
@@ -227,7 +227,7 @@ func (m *QuotaOperation) Reset()         { *m = QuotaOperation{} }
 func (m *QuotaOperation) String() string { return proto.CompactTextString(m) }
 func (*QuotaOperation) ProtoMessage()    {}
 func (*QuotaOperation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{1}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{1}
 }
 func (m *QuotaOperation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QuotaOperation.Unmarshal(m, b)
@@ -318,7 +318,7 @@ func (m *AllocateQuotaResponse) Reset()         { *m = AllocateQuotaResponse{} }
 func (m *AllocateQuotaResponse) String() string { return proto.CompactTextString(m) }
 func (*AllocateQuotaResponse) ProtoMessage()    {}
 func (*AllocateQuotaResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{2}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{2}
 }
 func (m *AllocateQuotaResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AllocateQuotaResponse.Unmarshal(m, b)
@@ -385,7 +385,7 @@ func (m *QuotaError) Reset()         { *m = QuotaError{} }
 func (m *QuotaError) String() string { return proto.CompactTextString(m) }
 func (*QuotaError) ProtoMessage()    {}
 func (*QuotaError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_quota_controller_73cc4f75f1295ad6, []int{3}
+	return fileDescriptor_quota_controller_5358e5cb4c246776, []int{3}
 }
 func (m *QuotaError) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QuotaError.Unmarshal(m, b)
@@ -531,10 +531,10 @@ var _QuotaController_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicecontrol/v1/quota_controller.proto", fileDescriptor_quota_controller_73cc4f75f1295ad6)
+	proto.RegisterFile("google/api/servicecontrol/v1/quota_controller.proto", fileDescriptor_quota_controller_5358e5cb4c246776)
 }
 
-var fileDescriptor_quota_controller_73cc4f75f1295ad6 = []byte{
+var fileDescriptor_quota_controller_5358e5cb4c246776 = []byte{
 	// 775 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0xc1, 0x6e, 0xea, 0x46,
 	0x14, 0xed, 0x18, 0x42, 0x9b, 0xeb, 0x04, 0x9c, 0x69, 0x5a, 0x59, 0x28, 0x52, 0x28, 0x2b, 0x1a,

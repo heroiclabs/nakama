@@ -52,7 +52,7 @@ func (m *ReadRowsRequest) Reset()         { *m = ReadRowsRequest{} }
 func (m *ReadRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsRequest) ProtoMessage()    {}
 func (*ReadRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{0}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{0}
 }
 func (m *ReadRowsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsRequest.Unmarshal(m, b)
@@ -127,7 +127,7 @@ func (m *ReadRowsResponse) Reset()         { *m = ReadRowsResponse{} }
 func (m *ReadRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsResponse) ProtoMessage()    {}
 func (*ReadRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{1}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{1}
 }
 func (m *ReadRowsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsResponse.Unmarshal(m, b)
@@ -219,7 +219,7 @@ func (m *ReadRowsResponse_CellChunk) Reset()         { *m = ReadRowsResponse_Cel
 func (m *ReadRowsResponse_CellChunk) String() string { return proto.CompactTextString(m) }
 func (*ReadRowsResponse_CellChunk) ProtoMessage()    {}
 func (*ReadRowsResponse_CellChunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{1, 0}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{1, 0}
 }
 func (m *ReadRowsResponse_CellChunk) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadRowsResponse_CellChunk.Unmarshal(m, b)
@@ -238,27 +238,6 @@ func (m *ReadRowsResponse_CellChunk) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_ReadRowsResponse_CellChunk proto.InternalMessageInfo
-
-type isReadRowsResponse_CellChunk_RowStatus interface {
-	isReadRowsResponse_CellChunk_RowStatus()
-}
-
-type ReadRowsResponse_CellChunk_ResetRow struct {
-	ResetRow bool `protobuf:"varint,8,opt,name=reset_row,json=resetRow,proto3,oneof"`
-}
-type ReadRowsResponse_CellChunk_CommitRow struct {
-	CommitRow bool `protobuf:"varint,9,opt,name=commit_row,json=commitRow,proto3,oneof"`
-}
-
-func (*ReadRowsResponse_CellChunk_ResetRow) isReadRowsResponse_CellChunk_RowStatus()  {}
-func (*ReadRowsResponse_CellChunk_CommitRow) isReadRowsResponse_CellChunk_RowStatus() {}
-
-func (m *ReadRowsResponse_CellChunk) GetRowStatus() isReadRowsResponse_CellChunk_RowStatus {
-	if m != nil {
-		return m.RowStatus
-	}
-	return nil
-}
 
 func (m *ReadRowsResponse_CellChunk) GetRowKey() []byte {
 	if m != nil {
@@ -307,6 +286,29 @@ func (m *ReadRowsResponse_CellChunk) GetValueSize() int32 {
 		return m.ValueSize
 	}
 	return 0
+}
+
+type isReadRowsResponse_CellChunk_RowStatus interface {
+	isReadRowsResponse_CellChunk_RowStatus()
+}
+
+type ReadRowsResponse_CellChunk_ResetRow struct {
+	ResetRow bool `protobuf:"varint,8,opt,name=reset_row,json=resetRow,proto3,oneof"`
+}
+
+type ReadRowsResponse_CellChunk_CommitRow struct {
+	CommitRow bool `protobuf:"varint,9,opt,name=commit_row,json=commitRow,proto3,oneof"`
+}
+
+func (*ReadRowsResponse_CellChunk_ResetRow) isReadRowsResponse_CellChunk_RowStatus() {}
+
+func (*ReadRowsResponse_CellChunk_CommitRow) isReadRowsResponse_CellChunk_RowStatus() {}
+
+func (m *ReadRowsResponse_CellChunk) GetRowStatus() isReadRowsResponse_CellChunk_RowStatus {
+	if m != nil {
+		return m.RowStatus
+	}
+	return nil
 }
 
 func (m *ReadRowsResponse_CellChunk) GetResetRow() bool {
@@ -413,7 +415,7 @@ func (m *SampleRowKeysRequest) Reset()         { *m = SampleRowKeysRequest{} }
 func (m *SampleRowKeysRequest) String() string { return proto.CompactTextString(m) }
 func (*SampleRowKeysRequest) ProtoMessage()    {}
 func (*SampleRowKeysRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{2}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{2}
 }
 func (m *SampleRowKeysRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SampleRowKeysRequest.Unmarshal(m, b)
@@ -471,7 +473,7 @@ func (m *SampleRowKeysResponse) Reset()         { *m = SampleRowKeysResponse{} }
 func (m *SampleRowKeysResponse) String() string { return proto.CompactTextString(m) }
 func (*SampleRowKeysResponse) ProtoMessage()    {}
 func (*SampleRowKeysResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{3}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{3}
 }
 func (m *SampleRowKeysResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SampleRowKeysResponse.Unmarshal(m, b)
@@ -529,7 +531,7 @@ func (m *MutateRowRequest) Reset()         { *m = MutateRowRequest{} }
 func (m *MutateRowRequest) String() string { return proto.CompactTextString(m) }
 func (*MutateRowRequest) ProtoMessage()    {}
 func (*MutateRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{4}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{4}
 }
 func (m *MutateRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowRequest.Unmarshal(m, b)
@@ -588,7 +590,7 @@ func (m *MutateRowResponse) Reset()         { *m = MutateRowResponse{} }
 func (m *MutateRowResponse) String() string { return proto.CompactTextString(m) }
 func (*MutateRowResponse) ProtoMessage()    {}
 func (*MutateRowResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{5}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{5}
 }
 func (m *MutateRowResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowResponse.Unmarshal(m, b)
@@ -630,7 +632,7 @@ func (m *MutateRowsRequest) Reset()         { *m = MutateRowsRequest{} }
 func (m *MutateRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsRequest) ProtoMessage()    {}
 func (*MutateRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{6}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{6}
 }
 func (m *MutateRowsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsRequest.Unmarshal(m, b)
@@ -688,7 +690,7 @@ func (m *MutateRowsRequest_Entry) Reset()         { *m = MutateRowsRequest_Entry
 func (m *MutateRowsRequest_Entry) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsRequest_Entry) ProtoMessage()    {}
 func (*MutateRowsRequest_Entry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{6, 0}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{6, 0}
 }
 func (m *MutateRowsRequest_Entry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsRequest_Entry.Unmarshal(m, b)
@@ -735,7 +737,7 @@ func (m *MutateRowsResponse) Reset()         { *m = MutateRowsResponse{} }
 func (m *MutateRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsResponse) ProtoMessage()    {}
 func (*MutateRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{7}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{7}
 }
 func (m *MutateRowsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsResponse.Unmarshal(m, b)
@@ -780,7 +782,7 @@ func (m *MutateRowsResponse_Entry) Reset()         { *m = MutateRowsResponse_Ent
 func (m *MutateRowsResponse_Entry) String() string { return proto.CompactTextString(m) }
 func (*MutateRowsResponse_Entry) ProtoMessage()    {}
 func (*MutateRowsResponse_Entry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{7, 0}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{7, 0}
 }
 func (m *MutateRowsResponse_Entry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MutateRowsResponse_Entry.Unmarshal(m, b)
@@ -852,7 +854,7 @@ func (m *CheckAndMutateRowRequest) Reset()         { *m = CheckAndMutateRowReque
 func (m *CheckAndMutateRowRequest) String() string { return proto.CompactTextString(m) }
 func (*CheckAndMutateRowRequest) ProtoMessage()    {}
 func (*CheckAndMutateRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{8}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{8}
 }
 func (m *CheckAndMutateRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckAndMutateRowRequest.Unmarshal(m, b)
@@ -928,7 +930,7 @@ func (m *CheckAndMutateRowResponse) Reset()         { *m = CheckAndMutateRowResp
 func (m *CheckAndMutateRowResponse) String() string { return proto.CompactTextString(m) }
 func (*CheckAndMutateRowResponse) ProtoMessage()    {}
 func (*CheckAndMutateRowResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{9}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{9}
 }
 func (m *CheckAndMutateRowResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckAndMutateRowResponse.Unmarshal(m, b)
@@ -980,7 +982,7 @@ func (m *ReadModifyWriteRowRequest) Reset()         { *m = ReadModifyWriteRowReq
 func (m *ReadModifyWriteRowRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadModifyWriteRowRequest) ProtoMessage()    {}
 func (*ReadModifyWriteRowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{10}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{10}
 }
 func (m *ReadModifyWriteRowRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadModifyWriteRowRequest.Unmarshal(m, b)
@@ -1041,7 +1043,7 @@ func (m *ReadModifyWriteRowResponse) Reset()         { *m = ReadModifyWriteRowRe
 func (m *ReadModifyWriteRowResponse) String() string { return proto.CompactTextString(m) }
 func (*ReadModifyWriteRowResponse) ProtoMessage()    {}
 func (*ReadModifyWriteRowResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_8d6dd9ae311e02dd, []int{11}
+	return fileDescriptor_bigtable_3e4f9d0dda27200f, []int{11}
 }
 func (m *ReadModifyWriteRowResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadModifyWriteRowResponse.Unmarshal(m, b)
@@ -1446,10 +1448,10 @@ var _Bigtable_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/bigtable/v2/bigtable.proto", fileDescriptor_bigtable_8d6dd9ae311e02dd)
+	proto.RegisterFile("google/bigtable/v2/bigtable.proto", fileDescriptor_bigtable_3e4f9d0dda27200f)
 }
 
-var fileDescriptor_bigtable_8d6dd9ae311e02dd = []byte{
+var fileDescriptor_bigtable_3e4f9d0dda27200f = []byte{
 	// 1210 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0x41, 0x6f, 0x1b, 0x45,
 	0x14, 0x66, 0xec, 0xd8, 0xf1, 0xbe, 0xa4, 0x4d, 0x32, 0x84, 0x76, 0x6b, 0x5a, 0x70, 0x97, 0x16,

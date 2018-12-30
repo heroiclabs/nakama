@@ -75,7 +75,7 @@ func (m *Api) Reset()         { *m = Api{} }
 func (m *Api) String() string { return proto.CompactTextString(m) }
 func (*Api) ProtoMessage()    {}
 func (*Api) Descriptor() ([]byte, []int) {
-	return fileDescriptor_api_7a06bc78ea9d5395, []int{0}
+	return fileDescriptor_api_3a57081c831903d2, []int{0}
 }
 func (m *Api) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Api.Unmarshal(m, b)
@@ -169,7 +169,7 @@ func (m *Method) Reset()         { *m = Method{} }
 func (m *Method) String() string { return proto.CompactTextString(m) }
 func (*Method) ProtoMessage()    {}
 func (*Method) Descriptor() ([]byte, []int) {
-	return fileDescriptor_api_7a06bc78ea9d5395, []int{1}
+	return fileDescriptor_api_3a57081c831903d2, []int{1}
 }
 func (m *Method) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Method.Unmarshal(m, b)
@@ -331,7 +331,7 @@ func (m *Mixin) Reset()         { *m = Mixin{} }
 func (m *Mixin) String() string { return proto.CompactTextString(m) }
 func (*Mixin) ProtoMessage()    {}
 func (*Mixin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_api_7a06bc78ea9d5395, []int{2}
+	return fileDescriptor_api_3a57081c831903d2, []int{2}
 }
 func (m *Mixin) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Mixin.Unmarshal(m, b)
@@ -371,9 +371,9 @@ func init() {
 	proto.RegisterType((*Mixin)(nil), "google.protobuf.Mixin")
 }
 
-func init() { proto.RegisterFile("google/protobuf/api.proto", fileDescriptor_api_7a06bc78ea9d5395) }
+func init() { proto.RegisterFile("google/protobuf/api.proto", fileDescriptor_api_3a57081c831903d2) }
 
-var fileDescriptor_api_7a06bc78ea9d5395 = []byte{
+var fileDescriptor_api_3a57081c831903d2 = []byte{
 	// 432 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x93, 0xcf, 0x8e, 0xd3, 0x30,
 	0x10, 0xc6, 0x95, 0xa4, 0x4d, 0x17, 0xaf, 0xe8, 0x82, 0x91, 0xc0, 0xf4, 0xb0, 0x8a, 0x56, 0x1c,

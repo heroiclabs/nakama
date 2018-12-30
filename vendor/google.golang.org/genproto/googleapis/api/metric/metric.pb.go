@@ -54,7 +54,7 @@ func (x MetricDescriptor_MetricKind) String() string {
 	return proto.EnumName(MetricDescriptor_MetricKind_name, int32(x))
 }
 func (MetricDescriptor_MetricKind) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_metric_d2ae7c695bda16a9, []int{0, 0}
+	return fileDescriptor_metric_18b95065d4b7f9c0, []int{0, 0}
 }
 
 // The value type of a metric.
@@ -90,19 +90,19 @@ var MetricDescriptor_ValueType_name = map[int32]string{
 }
 var MetricDescriptor_ValueType_value = map[string]int32{
 	"VALUE_TYPE_UNSPECIFIED": 0,
-	"BOOL":         1,
-	"INT64":        2,
-	"DOUBLE":       3,
-	"STRING":       4,
-	"DISTRIBUTION": 5,
-	"MONEY":        6,
+	"BOOL":                   1,
+	"INT64":                  2,
+	"DOUBLE":                 3,
+	"STRING":                 4,
+	"DISTRIBUTION":           5,
+	"MONEY":                  6,
 }
 
 func (x MetricDescriptor_ValueType) String() string {
 	return proto.EnumName(MetricDescriptor_ValueType_name, int32(x))
 }
 func (MetricDescriptor_ValueType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_metric_d2ae7c695bda16a9, []int{0, 1}
+	return fileDescriptor_metric_18b95065d4b7f9c0, []int{0, 1}
 }
 
 // Defines a metric type and its schema. Once a metric descriptor is created,
@@ -214,7 +214,7 @@ func (m *MetricDescriptor) Reset()         { *m = MetricDescriptor{} }
 func (m *MetricDescriptor) String() string { return proto.CompactTextString(m) }
 func (*MetricDescriptor) ProtoMessage()    {}
 func (*MetricDescriptor) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metric_d2ae7c695bda16a9, []int{0}
+	return fileDescriptor_metric_18b95065d4b7f9c0, []int{0}
 }
 func (m *MetricDescriptor) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MetricDescriptor.Unmarshal(m, b)
@@ -308,7 +308,7 @@ func (m *Metric) Reset()         { *m = Metric{} }
 func (m *Metric) String() string { return proto.CompactTextString(m) }
 func (*Metric) ProtoMessage()    {}
 func (*Metric) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metric_d2ae7c695bda16a9, []int{1}
+	return fileDescriptor_metric_18b95065d4b7f9c0, []int{1}
 }
 func (m *Metric) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Metric.Unmarshal(m, b)
@@ -350,9 +350,9 @@ func init() {
 	proto.RegisterEnum("google.api.MetricDescriptor_ValueType", MetricDescriptor_ValueType_name, MetricDescriptor_ValueType_value)
 }
 
-func init() { proto.RegisterFile("google/api/metric.proto", fileDescriptor_metric_d2ae7c695bda16a9) }
+func init() { proto.RegisterFile("google/api/metric.proto", fileDescriptor_metric_18b95065d4b7f9c0) }
 
-var fileDescriptor_metric_d2ae7c695bda16a9 = []byte{
+var fileDescriptor_metric_18b95065d4b7f9c0 = []byte{
 	// 506 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x53, 0x4d, 0x6f, 0xda, 0x40,
 	0x10, 0xad, 0x3f, 0x70, 0xc3, 0x10, 0xa1, 0xd5, 0xaa, 0x4a, 0x2c, 0x22, 0x55, 0x94, 0x43, 0xcb,

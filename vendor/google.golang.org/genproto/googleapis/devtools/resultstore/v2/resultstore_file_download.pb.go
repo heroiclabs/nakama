@@ -51,7 +51,7 @@ func (m *GetFileRequest) Reset()         { *m = GetFileRequest{} }
 func (m *GetFileRequest) String() string { return proto.CompactTextString(m) }
 func (*GetFileRequest) ProtoMessage()    {}
 func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_file_download_02cbdf544c71a6bf, []int{0}
+	return fileDescriptor_resultstore_file_download_258c94f8298cac64, []int{0}
 }
 func (m *GetFileRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetFileRequest.Unmarshal(m, b)
@@ -105,7 +105,7 @@ func (m *GetFileResponse) Reset()         { *m = GetFileResponse{} }
 func (m *GetFileResponse) String() string { return proto.CompactTextString(m) }
 func (*GetFileResponse) ProtoMessage()    {}
 func (*GetFileResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_file_download_02cbdf544c71a6bf, []int{1}
+	return fileDescriptor_resultstore_file_download_258c94f8298cac64, []int{1}
 }
 func (m *GetFileResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetFileResponse.Unmarshal(m, b)
@@ -157,7 +157,7 @@ func (m *GetFileTailRequest) Reset()         { *m = GetFileTailRequest{} }
 func (m *GetFileTailRequest) String() string { return proto.CompactTextString(m) }
 func (*GetFileTailRequest) ProtoMessage()    {}
 func (*GetFileTailRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_file_download_02cbdf544c71a6bf, []int{2}
+	return fileDescriptor_resultstore_file_download_258c94f8298cac64, []int{2}
 }
 func (m *GetFileTailRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetFileTailRequest.Unmarshal(m, b)
@@ -211,7 +211,7 @@ func (m *GetFileTailResponse) Reset()         { *m = GetFileTailResponse{} }
 func (m *GetFileTailResponse) String() string { return proto.CompactTextString(m) }
 func (*GetFileTailResponse) ProtoMessage()    {}
 func (*GetFileTailResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_file_download_02cbdf544c71a6bf, []int{3}
+	return fileDescriptor_resultstore_file_download_258c94f8298cac64, []int{3}
 }
 func (m *GetFileTailResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetFileTailResponse.Unmarshal(m, b)
@@ -401,10 +401,10 @@ var _ResultStoreFileDownload_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/resultstore/v2/resultstore_file_download.proto", fileDescriptor_resultstore_file_download_02cbdf544c71a6bf)
+	proto.RegisterFile("google/devtools/resultstore/v2/resultstore_file_download.proto", fileDescriptor_resultstore_file_download_258c94f8298cac64)
 }
 
-var fileDescriptor_resultstore_file_download_02cbdf544c71a6bf = []byte{
+var fileDescriptor_resultstore_file_download_258c94f8298cac64 = []byte{
 	// 384 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x53, 0xc1, 0x4a, 0xe3, 0x40,
 	0x18, 0x26, 0xed, 0xb2, 0x4b, 0xa7, 0xcb, 0x6e, 0x99, 0x65, 0x69, 0x28, 0xdb, 0xb5, 0x04, 0x84,

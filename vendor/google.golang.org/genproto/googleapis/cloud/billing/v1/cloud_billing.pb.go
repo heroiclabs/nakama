@@ -49,7 +49,7 @@ func (m *BillingAccount) Reset()         { *m = BillingAccount{} }
 func (m *BillingAccount) String() string { return proto.CompactTextString(m) }
 func (*BillingAccount) ProtoMessage()    {}
 func (*BillingAccount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{0}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{0}
 }
 func (m *BillingAccount) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BillingAccount.Unmarshal(m, b)
@@ -120,7 +120,7 @@ func (m *ProjectBillingInfo) Reset()         { *m = ProjectBillingInfo{} }
 func (m *ProjectBillingInfo) String() string { return proto.CompactTextString(m) }
 func (*ProjectBillingInfo) ProtoMessage()    {}
 func (*ProjectBillingInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{1}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{1}
 }
 func (m *ProjectBillingInfo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ProjectBillingInfo.Unmarshal(m, b)
@@ -182,7 +182,7 @@ func (m *GetBillingAccountRequest) Reset()         { *m = GetBillingAccountReque
 func (m *GetBillingAccountRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBillingAccountRequest) ProtoMessage()    {}
 func (*GetBillingAccountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{2}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{2}
 }
 func (m *GetBillingAccountRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetBillingAccountRequest.Unmarshal(m, b)
@@ -227,7 +227,7 @@ func (m *ListBillingAccountsRequest) Reset()         { *m = ListBillingAccountsR
 func (m *ListBillingAccountsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListBillingAccountsRequest) ProtoMessage()    {}
 func (*ListBillingAccountsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{3}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{3}
 }
 func (m *ListBillingAccountsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListBillingAccountsRequest.Unmarshal(m, b)
@@ -278,7 +278,7 @@ func (m *ListBillingAccountsResponse) Reset()         { *m = ListBillingAccounts
 func (m *ListBillingAccountsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListBillingAccountsResponse) ProtoMessage()    {}
 func (*ListBillingAccountsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{4}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{4}
 }
 func (m *ListBillingAccountsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListBillingAccountsResponse.Unmarshal(m, b)
@@ -333,7 +333,7 @@ func (m *ListProjectBillingInfoRequest) Reset()         { *m = ListProjectBillin
 func (m *ListProjectBillingInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*ListProjectBillingInfoRequest) ProtoMessage()    {}
 func (*ListProjectBillingInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{5}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{5}
 }
 func (m *ListProjectBillingInfoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListProjectBillingInfoRequest.Unmarshal(m, b)
@@ -392,7 +392,7 @@ func (m *ListProjectBillingInfoResponse) Reset()         { *m = ListProjectBilli
 func (m *ListProjectBillingInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*ListProjectBillingInfoResponse) ProtoMessage()    {}
 func (*ListProjectBillingInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{6}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{6}
 }
 func (m *ListProjectBillingInfoResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListProjectBillingInfoResponse.Unmarshal(m, b)
@@ -440,7 +440,7 @@ func (m *GetProjectBillingInfoRequest) Reset()         { *m = GetProjectBillingI
 func (m *GetProjectBillingInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetProjectBillingInfoRequest) ProtoMessage()    {}
 func (*GetProjectBillingInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{7}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{7}
 }
 func (m *GetProjectBillingInfoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetProjectBillingInfoRequest.Unmarshal(m, b)
@@ -484,7 +484,7 @@ func (m *UpdateProjectBillingInfoRequest) Reset()         { *m = UpdateProjectBi
 func (m *UpdateProjectBillingInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateProjectBillingInfoRequest) ProtoMessage()    {}
 func (*UpdateProjectBillingInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cloud_billing_d0b140531038fe8f, []int{8}
+	return fileDescriptor_cloud_billing_868724f2532f6f7f, []int{8}
 }
 func (m *UpdateProjectBillingInfoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateProjectBillingInfoRequest.Unmarshal(m, b)
@@ -821,10 +821,10 @@ var _CloudBilling_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/billing/v1/cloud_billing.proto", fileDescriptor_cloud_billing_d0b140531038fe8f)
+	proto.RegisterFile("google/cloud/billing/v1/cloud_billing.proto", fileDescriptor_cloud_billing_868724f2532f6f7f)
 }
 
-var fileDescriptor_cloud_billing_d0b140531038fe8f = []byte{
+var fileDescriptor_cloud_billing_868724f2532f6f7f = []byte{
 	// 667 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xdd, 0x4e, 0xd4, 0x40,
 	0x14, 0xce, 0x00, 0x12, 0xf6, 0x80, 0x20, 0x03, 0xe8, 0x66, 0x17, 0x10, 0xea, 0x0f, 0x28, 0xb1,

@@ -51,7 +51,7 @@ func (x ScanConfig_UserAgent) String() string {
 	return proto.EnumName(ScanConfig_UserAgent_name, int32(x))
 }
 func (ScanConfig_UserAgent) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 0}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 0}
 }
 
 // Cloud platforms supported by Cloud Web Security Scanner.
@@ -82,7 +82,7 @@ func (x ScanConfig_TargetPlatform) String() string {
 	return proto.EnumName(ScanConfig_TargetPlatform_name, int32(x))
 }
 func (ScanConfig_TargetPlatform) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 1}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 1}
 }
 
 // A ScanConfig resource contains the configurations to launch a scan.
@@ -124,7 +124,7 @@ func (m *ScanConfig) Reset()         { *m = ScanConfig{} }
 func (m *ScanConfig) String() string { return proto.CompactTextString(m) }
 func (*ScanConfig) ProtoMessage()    {}
 func (*ScanConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0}
 }
 func (m *ScanConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScanConfig.Unmarshal(m, b)
@@ -225,7 +225,7 @@ func (m *ScanConfig_Authentication) Reset()         { *m = ScanConfig_Authentica
 func (m *ScanConfig_Authentication) String() string { return proto.CompactTextString(m) }
 func (*ScanConfig_Authentication) ProtoMessage()    {}
 func (*ScanConfig_Authentication) Descriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 0}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 0}
 }
 func (m *ScanConfig_Authentication) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScanConfig_Authentication.Unmarshal(m, b)
@@ -252,11 +252,13 @@ type isScanConfig_Authentication_Authentication interface {
 type ScanConfig_Authentication_GoogleAccount_ struct {
 	GoogleAccount *ScanConfig_Authentication_GoogleAccount `protobuf:"bytes,1,opt,name=google_account,json=googleAccount,proto3,oneof"`
 }
+
 type ScanConfig_Authentication_CustomAccount_ struct {
 	CustomAccount *ScanConfig_Authentication_CustomAccount `protobuf:"bytes,2,opt,name=custom_account,json=customAccount,proto3,oneof"`
 }
 
 func (*ScanConfig_Authentication_GoogleAccount_) isScanConfig_Authentication_Authentication() {}
+
 func (*ScanConfig_Authentication_CustomAccount_) isScanConfig_Authentication_Authentication() {}
 
 func (m *ScanConfig_Authentication) GetAuthentication() isScanConfig_Authentication_Authentication {
@@ -375,7 +377,7 @@ func (m *ScanConfig_Authentication_GoogleAccount) Reset() {
 func (m *ScanConfig_Authentication_GoogleAccount) String() string { return proto.CompactTextString(m) }
 func (*ScanConfig_Authentication_GoogleAccount) ProtoMessage()    {}
 func (*ScanConfig_Authentication_GoogleAccount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 0, 0}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 0, 0}
 }
 func (m *ScanConfig_Authentication_GoogleAccount) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScanConfig_Authentication_GoogleAccount.Unmarshal(m, b)
@@ -433,7 +435,7 @@ func (m *ScanConfig_Authentication_CustomAccount) Reset() {
 func (m *ScanConfig_Authentication_CustomAccount) String() string { return proto.CompactTextString(m) }
 func (*ScanConfig_Authentication_CustomAccount) ProtoMessage()    {}
 func (*ScanConfig_Authentication_CustomAccount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 0, 1}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 0, 1}
 }
 func (m *ScanConfig_Authentication_CustomAccount) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScanConfig_Authentication_CustomAccount.Unmarshal(m, b)
@@ -493,7 +495,7 @@ func (m *ScanConfig_Schedule) Reset()         { *m = ScanConfig_Schedule{} }
 func (m *ScanConfig_Schedule) String() string { return proto.CompactTextString(m) }
 func (*ScanConfig_Schedule) ProtoMessage()    {}
 func (*ScanConfig_Schedule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_scan_config_26b2eea68c35fae7, []int{0, 1}
+	return fileDescriptor_scan_config_5acdaab1055c88fd, []int{0, 1}
 }
 func (m *ScanConfig_Schedule) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScanConfig_Schedule.Unmarshal(m, b)
@@ -538,10 +540,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/websecurityscanner/v1alpha/scan_config.proto", fileDescriptor_scan_config_26b2eea68c35fae7)
+	proto.RegisterFile("google/cloud/websecurityscanner/v1alpha/scan_config.proto", fileDescriptor_scan_config_5acdaab1055c88fd)
 }
 
-var fileDescriptor_scan_config_26b2eea68c35fae7 = []byte{
+var fileDescriptor_scan_config_5acdaab1055c88fd = []byte{
 	// 748 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x55, 0x51, 0x6f, 0xe3, 0x44,
 	0x10, 0x3e, 0x37, 0xd7, 0x36, 0x99, 0x36, 0x39, 0xdf, 0x0a, 0x1d, 0x91, 0x0f, 0xe9, 0x42, 0x79,

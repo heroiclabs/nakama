@@ -61,7 +61,7 @@ func (x ExecuteOperationMetadata_Stage) String() string {
 	return proto.EnumName(ExecuteOperationMetadata_Stage_name, int32(x))
 }
 func (ExecuteOperationMetadata_Stage) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{14, 0}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{14, 0}
 }
 
 // An `Action` captures all the information about an execution which is required
@@ -162,7 +162,7 @@ func (m *Action) Reset()         { *m = Action{} }
 func (m *Action) String() string { return proto.CompactTextString(m) }
 func (*Action) ProtoMessage()    {}
 func (*Action) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{0}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{0}
 }
 func (m *Action) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Action.Unmarshal(m, b)
@@ -261,7 +261,7 @@ func (m *Command) Reset()         { *m = Command{} }
 func (m *Command) String() string { return proto.CompactTextString(m) }
 func (*Command) ProtoMessage()    {}
 func (*Command) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{1}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{1}
 }
 func (m *Command) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Command.Unmarshal(m, b)
@@ -311,7 +311,7 @@ func (m *Command_EnvironmentVariable) Reset()         { *m = Command_Environment
 func (m *Command_EnvironmentVariable) String() string { return proto.CompactTextString(m) }
 func (*Command_EnvironmentVariable) ProtoMessage()    {}
 func (*Command_EnvironmentVariable) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{1, 0}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{1, 0}
 }
 func (m *Command_EnvironmentVariable) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Command_EnvironmentVariable.Unmarshal(m, b)
@@ -368,7 +368,7 @@ func (m *Platform) Reset()         { *m = Platform{} }
 func (m *Platform) String() string { return proto.CompactTextString(m) }
 func (*Platform) ProtoMessage()    {}
 func (*Platform) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{2}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{2}
 }
 func (m *Platform) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Platform.Unmarshal(m, b)
@@ -426,7 +426,7 @@ func (m *Platform_Property) Reset()         { *m = Platform_Property{} }
 func (m *Platform_Property) String() string { return proto.CompactTextString(m) }
 func (*Platform_Property) ProtoMessage()    {}
 func (*Platform_Property) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{2, 0}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{2, 0}
 }
 func (m *Platform_Property) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Platform_Property.Unmarshal(m, b)
@@ -534,7 +534,7 @@ func (m *Directory) Reset()         { *m = Directory{} }
 func (m *Directory) String() string { return proto.CompactTextString(m) }
 func (*Directory) ProtoMessage()    {}
 func (*Directory) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{3}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{3}
 }
 func (m *Directory) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Directory.Unmarshal(m, b)
@@ -585,7 +585,7 @@ func (m *FileNode) Reset()         { *m = FileNode{} }
 func (m *FileNode) String() string { return proto.CompactTextString(m) }
 func (*FileNode) ProtoMessage()    {}
 func (*FileNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{4}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{4}
 }
 func (m *FileNode) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FileNode.Unmarshal(m, b)
@@ -646,7 +646,7 @@ func (m *DirectoryNode) Reset()         { *m = DirectoryNode{} }
 func (m *DirectoryNode) String() string { return proto.CompactTextString(m) }
 func (*DirectoryNode) ProtoMessage()    {}
 func (*DirectoryNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{5}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{5}
 }
 func (m *DirectoryNode) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DirectoryNode.Unmarshal(m, b)
@@ -726,7 +726,7 @@ func (m *Digest) Reset()         { *m = Digest{} }
 func (m *Digest) String() string { return proto.CompactTextString(m) }
 func (*Digest) ProtoMessage()    {}
 func (*Digest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{6}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{6}
 }
 func (m *Digest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Digest.Unmarshal(m, b)
@@ -866,7 +866,7 @@ func (m *ActionResult) Reset()         { *m = ActionResult{} }
 func (m *ActionResult) String() string { return proto.CompactTextString(m) }
 func (*ActionResult) ProtoMessage()    {}
 func (*ActionResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{7}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{7}
 }
 func (m *ActionResult) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ActionResult.Unmarshal(m, b)
@@ -970,7 +970,7 @@ func (m *OutputFile) Reset()         { *m = OutputFile{} }
 func (m *OutputFile) String() string { return proto.CompactTextString(m) }
 func (*OutputFile) ProtoMessage()    {}
 func (*OutputFile) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{8}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{8}
 }
 func (m *OutputFile) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OutputFile.Unmarshal(m, b)
@@ -1038,7 +1038,7 @@ func (m *Tree) Reset()         { *m = Tree{} }
 func (m *Tree) String() string { return proto.CompactTextString(m) }
 func (*Tree) ProtoMessage()    {}
 func (*Tree) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{9}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{9}
 }
 func (m *Tree) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Tree.Unmarshal(m, b)
@@ -1095,7 +1095,7 @@ func (m *OutputDirectory) Reset()         { *m = OutputDirectory{} }
 func (m *OutputDirectory) String() string { return proto.CompactTextString(m) }
 func (*OutputDirectory) ProtoMessage()    {}
 func (*OutputDirectory) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{10}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{10}
 }
 func (m *OutputDirectory) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OutputDirectory.Unmarshal(m, b)
@@ -1166,7 +1166,7 @@ func (m *ExecuteRequest) Reset()         { *m = ExecuteRequest{} }
 func (m *ExecuteRequest) String() string { return proto.CompactTextString(m) }
 func (*ExecuteRequest) ProtoMessage()    {}
 func (*ExecuteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{11}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{11}
 }
 func (m *ExecuteRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExecuteRequest.Unmarshal(m, b)
@@ -1240,7 +1240,7 @@ func (m *LogFile) Reset()         { *m = LogFile{} }
 func (m *LogFile) String() string { return proto.CompactTextString(m) }
 func (*LogFile) ProtoMessage()    {}
 func (*LogFile) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{12}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{12}
 }
 func (m *LogFile) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LogFile.Unmarshal(m, b)
@@ -1312,7 +1312,7 @@ func (m *ExecuteResponse) Reset()         { *m = ExecuteResponse{} }
 func (m *ExecuteResponse) String() string { return proto.CompactTextString(m) }
 func (*ExecuteResponse) ProtoMessage()    {}
 func (*ExecuteResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{13}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{13}
 }
 func (m *ExecuteResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExecuteResponse.Unmarshal(m, b)
@@ -1387,7 +1387,7 @@ func (m *ExecuteOperationMetadata) Reset()         { *m = ExecuteOperationMetada
 func (m *ExecuteOperationMetadata) String() string { return proto.CompactTextString(m) }
 func (*ExecuteOperationMetadata) ProtoMessage()    {}
 func (*ExecuteOperationMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{14}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{14}
 }
 func (m *ExecuteOperationMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExecuteOperationMetadata.Unmarshal(m, b)
@@ -1456,7 +1456,7 @@ func (m *GetActionResultRequest) Reset()         { *m = GetActionResultRequest{}
 func (m *GetActionResultRequest) String() string { return proto.CompactTextString(m) }
 func (*GetActionResultRequest) ProtoMessage()    {}
 func (*GetActionResultRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{15}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{15}
 }
 func (m *GetActionResultRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetActionResultRequest.Unmarshal(m, b)
@@ -1514,7 +1514,7 @@ func (m *UpdateActionResultRequest) Reset()         { *m = UpdateActionResultReq
 func (m *UpdateActionResultRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateActionResultRequest) ProtoMessage()    {}
 func (*UpdateActionResultRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{16}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{16}
 }
 func (m *UpdateActionResultRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateActionResultRequest.Unmarshal(m, b)
@@ -1575,7 +1575,7 @@ func (m *FindMissingBlobsRequest) Reset()         { *m = FindMissingBlobsRequest
 func (m *FindMissingBlobsRequest) String() string { return proto.CompactTextString(m) }
 func (*FindMissingBlobsRequest) ProtoMessage()    {}
 func (*FindMissingBlobsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{17}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{17}
 }
 func (m *FindMissingBlobsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FindMissingBlobsRequest.Unmarshal(m, b)
@@ -1623,7 +1623,7 @@ func (m *FindMissingBlobsResponse) Reset()         { *m = FindMissingBlobsRespon
 func (m *FindMissingBlobsResponse) String() string { return proto.CompactTextString(m) }
 func (*FindMissingBlobsResponse) ProtoMessage()    {}
 func (*FindMissingBlobsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{18}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{18}
 }
 func (m *FindMissingBlobsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FindMissingBlobsResponse.Unmarshal(m, b)
@@ -1666,7 +1666,7 @@ func (m *UpdateBlobRequest) Reset()         { *m = UpdateBlobRequest{} }
 func (m *UpdateBlobRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateBlobRequest) ProtoMessage()    {}
 func (*UpdateBlobRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{19}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{19}
 }
 func (m *UpdateBlobRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateBlobRequest.Unmarshal(m, b)
@@ -1720,7 +1720,7 @@ func (m *BatchUpdateBlobsRequest) Reset()         { *m = BatchUpdateBlobsRequest
 func (m *BatchUpdateBlobsRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateBlobsRequest) ProtoMessage()    {}
 func (*BatchUpdateBlobsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{20}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{20}
 }
 func (m *BatchUpdateBlobsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateBlobsRequest.Unmarshal(m, b)
@@ -1768,7 +1768,7 @@ func (m *BatchUpdateBlobsResponse) Reset()         { *m = BatchUpdateBlobsRespon
 func (m *BatchUpdateBlobsResponse) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateBlobsResponse) ProtoMessage()    {}
 func (*BatchUpdateBlobsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{21}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{21}
 }
 func (m *BatchUpdateBlobsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateBlobsResponse.Unmarshal(m, b)
@@ -1810,7 +1810,7 @@ func (m *BatchUpdateBlobsResponse_Response) Reset()         { *m = BatchUpdateBl
 func (m *BatchUpdateBlobsResponse_Response) String() string { return proto.CompactTextString(m) }
 func (*BatchUpdateBlobsResponse_Response) ProtoMessage()    {}
 func (*BatchUpdateBlobsResponse_Response) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{21, 0}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{21, 0}
 }
 func (m *BatchUpdateBlobsResponse_Response) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BatchUpdateBlobsResponse_Response.Unmarshal(m, b)
@@ -1876,7 +1876,7 @@ func (m *GetTreeRequest) Reset()         { *m = GetTreeRequest{} }
 func (m *GetTreeRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTreeRequest) ProtoMessage()    {}
 func (*GetTreeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{22}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{22}
 }
 func (m *GetTreeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTreeRequest.Unmarshal(m, b)
@@ -1943,7 +1943,7 @@ func (m *GetTreeResponse) Reset()         { *m = GetTreeResponse{} }
 func (m *GetTreeResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTreeResponse) ProtoMessage()    {}
 func (*GetTreeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{23}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{23}
 }
 func (m *GetTreeResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTreeResponse.Unmarshal(m, b)
@@ -1992,7 +1992,7 @@ func (m *ToolDetails) Reset()         { *m = ToolDetails{} }
 func (m *ToolDetails) String() string { return proto.CompactTextString(m) }
 func (*ToolDetails) ProtoMessage()    {}
 func (*ToolDetails) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{24}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{24}
 }
 func (m *ToolDetails) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ToolDetails.Unmarshal(m, b)
@@ -2054,7 +2054,7 @@ func (m *RequestMetadata) Reset()         { *m = RequestMetadata{} }
 func (m *RequestMetadata) String() string { return proto.CompactTextString(m) }
 func (*RequestMetadata) ProtoMessage()    {}
 func (*RequestMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_remote_execution_25e31fef95c58b43, []int{25}
+	return fileDescriptor_remote_execution_2379da344af471dd, []int{25}
 }
 func (m *RequestMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RequestMetadata.Unmarshal(m, b)
@@ -2672,10 +2672,10 @@ var _ContentAddressableStorage_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/remoteexecution/v1test/remote_execution.proto", fileDescriptor_remote_execution_25e31fef95c58b43)
+	proto.RegisterFile("google/devtools/remoteexecution/v1test/remote_execution.proto", fileDescriptor_remote_execution_2379da344af471dd)
 }
 
-var fileDescriptor_remote_execution_25e31fef95c58b43 = []byte{
+var fileDescriptor_remote_execution_2379da344af471dd = []byte{
 	// 2025 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x59, 0xdd, 0x6f, 0x23, 0x57,
 	0x15, 0x67, 0xec, 0x24, 0xb6, 0x8f, 0x9d, 0x75, 0xf6, 0x76, 0xe9, 0x7a, 0xdd, 0x2e, 0x4a, 0xa7,

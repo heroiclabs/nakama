@@ -55,7 +55,7 @@ func (m *MetricValue) Reset()         { *m = MetricValue{} }
 func (m *MetricValue) String() string { return proto.CompactTextString(m) }
 func (*MetricValue) ProtoMessage()    {}
 func (*MetricValue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metric_value_85404143fe2ec948, []int{0}
+	return fileDescriptor_metric_value_8054f3e00bcbeeb9, []int{0}
 }
 func (m *MetricValue) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MetricValue.Unmarshal(m, b)
@@ -75,39 +75,6 @@ func (m *MetricValue) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MetricValue proto.InternalMessageInfo
 
-type isMetricValue_Value interface {
-	isMetricValue_Value()
-}
-
-type MetricValue_BoolValue struct {
-	BoolValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof"`
-}
-type MetricValue_Int64Value struct {
-	Int64Value int64 `protobuf:"varint,5,opt,name=int64_value,json=int64Value,proto3,oneof"`
-}
-type MetricValue_DoubleValue struct {
-	DoubleValue float64 `protobuf:"fixed64,6,opt,name=double_value,json=doubleValue,proto3,oneof"`
-}
-type MetricValue_StringValue struct {
-	StringValue string `protobuf:"bytes,7,opt,name=string_value,json=stringValue,proto3,oneof"`
-}
-type MetricValue_DistributionValue struct {
-	DistributionValue *Distribution `protobuf:"bytes,8,opt,name=distribution_value,json=distributionValue,proto3,oneof"`
-}
-
-func (*MetricValue_BoolValue) isMetricValue_Value()         {}
-func (*MetricValue_Int64Value) isMetricValue_Value()        {}
-func (*MetricValue_DoubleValue) isMetricValue_Value()       {}
-func (*MetricValue_StringValue) isMetricValue_Value()       {}
-func (*MetricValue_DistributionValue) isMetricValue_Value() {}
-
-func (m *MetricValue) GetValue() isMetricValue_Value {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
 func (m *MetricValue) GetLabels() map[string]string {
 	if m != nil {
 		return m.Labels
@@ -125,6 +92,47 @@ func (m *MetricValue) GetStartTime() *timestamp.Timestamp {
 func (m *MetricValue) GetEndTime() *timestamp.Timestamp {
 	if m != nil {
 		return m.EndTime
+	}
+	return nil
+}
+
+type isMetricValue_Value interface {
+	isMetricValue_Value()
+}
+
+type MetricValue_BoolValue struct {
+	BoolValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof"`
+}
+
+type MetricValue_Int64Value struct {
+	Int64Value int64 `protobuf:"varint,5,opt,name=int64_value,json=int64Value,proto3,oneof"`
+}
+
+type MetricValue_DoubleValue struct {
+	DoubleValue float64 `protobuf:"fixed64,6,opt,name=double_value,json=doubleValue,proto3,oneof"`
+}
+
+type MetricValue_StringValue struct {
+	StringValue string `protobuf:"bytes,7,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+
+type MetricValue_DistributionValue struct {
+	DistributionValue *Distribution `protobuf:"bytes,8,opt,name=distribution_value,json=distributionValue,proto3,oneof"`
+}
+
+func (*MetricValue_BoolValue) isMetricValue_Value() {}
+
+func (*MetricValue_Int64Value) isMetricValue_Value() {}
+
+func (*MetricValue_DoubleValue) isMetricValue_Value() {}
+
+func (*MetricValue_StringValue) isMetricValue_Value() {}
+
+func (*MetricValue_DistributionValue) isMetricValue_Value() {}
+
+func (m *MetricValue) GetValue() isMetricValue_Value {
+	if m != nil {
+		return m.Value
 	}
 	return nil
 }
@@ -297,7 +305,7 @@ func (m *MetricValueSet) Reset()         { *m = MetricValueSet{} }
 func (m *MetricValueSet) String() string { return proto.CompactTextString(m) }
 func (*MetricValueSet) ProtoMessage()    {}
 func (*MetricValueSet) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metric_value_85404143fe2ec948, []int{1}
+	return fileDescriptor_metric_value_8054f3e00bcbeeb9, []int{1}
 }
 func (m *MetricValueSet) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MetricValueSet.Unmarshal(m, b)
@@ -338,10 +346,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicecontrol/v1/metric_value.proto", fileDescriptor_metric_value_85404143fe2ec948)
+	proto.RegisterFile("google/api/servicecontrol/v1/metric_value.proto", fileDescriptor_metric_value_8054f3e00bcbeeb9)
 }
 
-var fileDescriptor_metric_value_85404143fe2ec948 = []byte{
+var fileDescriptor_metric_value_8054f3e00bcbeeb9 = []byte{
 	// 482 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcf, 0x8b, 0xd3, 0x40,
 	0x14, 0xc7, 0x3b, 0x8d, 0xdb, 0x1f, 0x2f, 0xab, 0x68, 0x14, 0x0c, 0x65, 0xa1, 0x71, 0xbd, 0x44,

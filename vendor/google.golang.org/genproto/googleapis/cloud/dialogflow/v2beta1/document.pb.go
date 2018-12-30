@@ -53,15 +53,15 @@ var Document_KnowledgeType_name = map[int32]string{
 }
 var Document_KnowledgeType_value = map[string]int32{
 	"KNOWLEDGE_TYPE_UNSPECIFIED": 0,
-	"FAQ":           1,
-	"EXTRACTIVE_QA": 2,
+	"FAQ":                        1,
+	"EXTRACTIVE_QA":              2,
 }
 
 func (x Document_KnowledgeType) String() string {
 	return proto.EnumName(Document_KnowledgeType_name, int32(x))
 }
 func (Document_KnowledgeType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{0, 0}
+	return fileDescriptor_document_3131c12790f8bf44, []int{0, 0}
 }
 
 // States of the operation.
@@ -95,7 +95,7 @@ func (x KnowledgeOperationMetadata_State) String() string {
 	return proto.EnumName(KnowledgeOperationMetadata_State_name, int32(x))
 }
 func (KnowledgeOperationMetadata_State) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{6, 0}
+	return fileDescriptor_document_3131c12790f8bf44, []int{6, 0}
 }
 
 // A document resource.
@@ -127,7 +127,7 @@ func (m *Document) Reset()         { *m = Document{} }
 func (m *Document) String() string { return proto.CompactTextString(m) }
 func (*Document) ProtoMessage()    {}
 func (*Document) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{0}
+	return fileDescriptor_document_3131c12790f8bf44, []int{0}
 }
 func (m *Document) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Document.Unmarshal(m, b)
@@ -146,27 +146,6 @@ func (m *Document) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_Document proto.InternalMessageInfo
-
-type isDocument_Source interface {
-	isDocument_Source()
-}
-
-type Document_ContentUri struct {
-	ContentUri string `protobuf:"bytes,5,opt,name=content_uri,json=contentUri,proto3,oneof"`
-}
-type Document_Content struct {
-	Content string `protobuf:"bytes,6,opt,name=content,proto3,oneof"`
-}
-
-func (*Document_ContentUri) isDocument_Source() {}
-func (*Document_Content) isDocument_Source()    {}
-
-func (m *Document) GetSource() isDocument_Source {
-	if m != nil {
-		return m.Source
-	}
-	return nil
-}
 
 func (m *Document) GetName() string {
 	if m != nil {
@@ -192,6 +171,29 @@ func (m *Document) GetMimeType() string {
 func (m *Document) GetKnowledgeTypes() []Document_KnowledgeType {
 	if m != nil {
 		return m.KnowledgeTypes
+	}
+	return nil
+}
+
+type isDocument_Source interface {
+	isDocument_Source()
+}
+
+type Document_ContentUri struct {
+	ContentUri string `protobuf:"bytes,5,opt,name=content_uri,json=contentUri,proto3,oneof"`
+}
+
+type Document_Content struct {
+	Content string `protobuf:"bytes,6,opt,name=content,proto3,oneof"`
+}
+
+func (*Document_ContentUri) isDocument_Source() {}
+
+func (*Document_Content) isDocument_Source() {}
+
+func (m *Document) GetSource() isDocument_Source {
+	if m != nil {
+		return m.Source
 	}
 	return nil
 }
@@ -295,7 +297,7 @@ func (m *ListDocumentsRequest) Reset()         { *m = ListDocumentsRequest{} }
 func (m *ListDocumentsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListDocumentsRequest) ProtoMessage()    {}
 func (*ListDocumentsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{1}
+	return fileDescriptor_document_3131c12790f8bf44, []int{1}
 }
 func (m *ListDocumentsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListDocumentsRequest.Unmarshal(m, b)
@@ -352,7 +354,7 @@ func (m *ListDocumentsResponse) Reset()         { *m = ListDocumentsResponse{} }
 func (m *ListDocumentsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListDocumentsResponse) ProtoMessage()    {}
 func (*ListDocumentsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{2}
+	return fileDescriptor_document_3131c12790f8bf44, []int{2}
 }
 func (m *ListDocumentsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListDocumentsResponse.Unmarshal(m, b)
@@ -401,7 +403,7 @@ func (m *GetDocumentRequest) Reset()         { *m = GetDocumentRequest{} }
 func (m *GetDocumentRequest) String() string { return proto.CompactTextString(m) }
 func (*GetDocumentRequest) ProtoMessage()    {}
 func (*GetDocumentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{3}
+	return fileDescriptor_document_3131c12790f8bf44, []int{3}
 }
 func (m *GetDocumentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetDocumentRequest.Unmarshal(m, b)
@@ -444,7 +446,7 @@ func (m *CreateDocumentRequest) Reset()         { *m = CreateDocumentRequest{} }
 func (m *CreateDocumentRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateDocumentRequest) ProtoMessage()    {}
 func (*CreateDocumentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{4}
+	return fileDescriptor_document_3131c12790f8bf44, []int{4}
 }
 func (m *CreateDocumentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateDocumentRequest.Unmarshal(m, b)
@@ -493,7 +495,7 @@ func (m *DeleteDocumentRequest) Reset()         { *m = DeleteDocumentRequest{} }
 func (m *DeleteDocumentRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteDocumentRequest) ProtoMessage()    {}
 func (*DeleteDocumentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{5}
+	return fileDescriptor_document_3131c12790f8bf44, []int{5}
 }
 func (m *DeleteDocumentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteDocumentRequest.Unmarshal(m, b)
@@ -533,7 +535,7 @@ func (m *KnowledgeOperationMetadata) Reset()         { *m = KnowledgeOperationMe
 func (m *KnowledgeOperationMetadata) String() string { return proto.CompactTextString(m) }
 func (*KnowledgeOperationMetadata) ProtoMessage()    {}
 func (*KnowledgeOperationMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_document_2dfd103853d53844, []int{6}
+	return fileDescriptor_document_3131c12790f8bf44, []int{6}
 }
 func (m *KnowledgeOperationMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_KnowledgeOperationMetadata.Unmarshal(m, b)
@@ -764,10 +766,10 @@ var _Documents_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/dialogflow/v2beta1/document.proto", fileDescriptor_document_2dfd103853d53844)
+	proto.RegisterFile("google/cloud/dialogflow/v2beta1/document.proto", fileDescriptor_document_3131c12790f8bf44)
 }
 
-var fileDescriptor_document_2dfd103853d53844 = []byte{
+var fileDescriptor_document_3131c12790f8bf44 = []byte{
 	// 885 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xcd, 0x6e, 0x1b, 0x55,
 	0x14, 0xee, 0x1d, 0xe7, 0xc7, 0x39, 0xc6, 0xae, 0x7b, 0x45, 0x90, 0xe5, 0x52, 0x9a, 0x4e, 0x25,

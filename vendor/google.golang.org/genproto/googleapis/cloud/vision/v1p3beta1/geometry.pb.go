@@ -35,7 +35,7 @@ func (m *Vertex) Reset()         { *m = Vertex{} }
 func (m *Vertex) String() string { return proto.CompactTextString(m) }
 func (*Vertex) ProtoMessage()    {}
 func (*Vertex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_geometry_2f6143075d713481, []int{0}
+	return fileDescriptor_geometry_af1b507a20494236, []int{0}
 }
 func (m *Vertex) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Vertex.Unmarshal(m, b)
@@ -86,7 +86,7 @@ func (m *NormalizedVertex) Reset()         { *m = NormalizedVertex{} }
 func (m *NormalizedVertex) String() string { return proto.CompactTextString(m) }
 func (*NormalizedVertex) ProtoMessage()    {}
 func (*NormalizedVertex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_geometry_2f6143075d713481, []int{1}
+	return fileDescriptor_geometry_af1b507a20494236, []int{1}
 }
 func (m *NormalizedVertex) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NormalizedVertex.Unmarshal(m, b)
@@ -135,7 +135,7 @@ func (m *BoundingPoly) Reset()         { *m = BoundingPoly{} }
 func (m *BoundingPoly) String() string { return proto.CompactTextString(m) }
 func (*BoundingPoly) ProtoMessage()    {}
 func (*BoundingPoly) Descriptor() ([]byte, []int) {
-	return fileDescriptor_geometry_2f6143075d713481, []int{2}
+	return fileDescriptor_geometry_af1b507a20494236, []int{2}
 }
 func (m *BoundingPoly) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BoundingPoly.Unmarshal(m, b)
@@ -182,7 +182,7 @@ func (m *NormalizedBoundingPoly) Reset()         { *m = NormalizedBoundingPoly{}
 func (m *NormalizedBoundingPoly) String() string { return proto.CompactTextString(m) }
 func (*NormalizedBoundingPoly) ProtoMessage()    {}
 func (*NormalizedBoundingPoly) Descriptor() ([]byte, []int) {
-	return fileDescriptor_geometry_2f6143075d713481, []int{3}
+	return fileDescriptor_geometry_af1b507a20494236, []int{3}
 }
 func (m *NormalizedBoundingPoly) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NormalizedBoundingPoly.Unmarshal(m, b)
@@ -228,7 +228,7 @@ func (m *Position) Reset()         { *m = Position{} }
 func (m *Position) String() string { return proto.CompactTextString(m) }
 func (*Position) ProtoMessage()    {}
 func (*Position) Descriptor() ([]byte, []int) {
-	return fileDescriptor_geometry_2f6143075d713481, []int{4}
+	return fileDescriptor_geometry_af1b507a20494236, []int{4}
 }
 func (m *Position) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Position.Unmarshal(m, b)
@@ -278,10 +278,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/vision/v1p3beta1/geometry.proto", fileDescriptor_geometry_2f6143075d713481)
+	proto.RegisterFile("google/cloud/vision/v1p3beta1/geometry.proto", fileDescriptor_geometry_af1b507a20494236)
 }
 
-var fileDescriptor_geometry_2f6143075d713481 = []byte{
+var fileDescriptor_geometry_af1b507a20494236 = []byte{
 	// 316 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x92, 0xc1, 0x4b, 0xc3, 0x30,
 	0x14, 0xc6, 0x49, 0x87, 0x63, 0xc4, 0x09, 0x52, 0x41, 0x8a, 0x28, 0xcc, 0xa2, 0xb0, 0x83, 0x24,

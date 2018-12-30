@@ -53,7 +53,7 @@ func (x PlanNode_Kind) String() string {
 	return proto.EnumName(PlanNode_Kind_name, int32(x))
 }
 func (PlanNode_Kind) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_query_plan_e7b865c0e2b6e862, []int{0, 0}
+	return fileDescriptor_query_plan_4358903c1626addf, []int{0, 0}
 }
 
 // Node information for nodes appearing in a [QueryPlan.plan_nodes][google.spanner.v1.QueryPlan.plan_nodes].
@@ -95,7 +95,7 @@ func (m *PlanNode) Reset()         { *m = PlanNode{} }
 func (m *PlanNode) String() string { return proto.CompactTextString(m) }
 func (*PlanNode) ProtoMessage()    {}
 func (*PlanNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_query_plan_e7b865c0e2b6e862, []int{0}
+	return fileDescriptor_query_plan_4358903c1626addf, []int{0}
 }
 func (m *PlanNode) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PlanNode.Unmarshal(m, b)
@@ -192,7 +192,7 @@ func (m *PlanNode_ChildLink) Reset()         { *m = PlanNode_ChildLink{} }
 func (m *PlanNode_ChildLink) String() string { return proto.CompactTextString(m) }
 func (*PlanNode_ChildLink) ProtoMessage()    {}
 func (*PlanNode_ChildLink) Descriptor() ([]byte, []int) {
-	return fileDescriptor_query_plan_e7b865c0e2b6e862, []int{0, 0}
+	return fileDescriptor_query_plan_4358903c1626addf, []int{0, 0}
 }
 func (m *PlanNode_ChildLink) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PlanNode_ChildLink.Unmarshal(m, b)
@@ -253,7 +253,7 @@ func (m *PlanNode_ShortRepresentation) Reset()         { *m = PlanNode_ShortRepr
 func (m *PlanNode_ShortRepresentation) String() string { return proto.CompactTextString(m) }
 func (*PlanNode_ShortRepresentation) ProtoMessage()    {}
 func (*PlanNode_ShortRepresentation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_query_plan_e7b865c0e2b6e862, []int{0, 1}
+	return fileDescriptor_query_plan_4358903c1626addf, []int{0, 1}
 }
 func (m *PlanNode_ShortRepresentation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PlanNode_ShortRepresentation.Unmarshal(m, b)
@@ -302,7 +302,7 @@ func (m *QueryPlan) Reset()         { *m = QueryPlan{} }
 func (m *QueryPlan) String() string { return proto.CompactTextString(m) }
 func (*QueryPlan) ProtoMessage()    {}
 func (*QueryPlan) Descriptor() ([]byte, []int) {
-	return fileDescriptor_query_plan_e7b865c0e2b6e862, []int{1}
+	return fileDescriptor_query_plan_4358903c1626addf, []int{1}
 }
 func (m *QueryPlan) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QueryPlan.Unmarshal(m, b)
@@ -339,10 +339,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/spanner/v1/query_plan.proto", fileDescriptor_query_plan_e7b865c0e2b6e862)
+	proto.RegisterFile("google/spanner/v1/query_plan.proto", fileDescriptor_query_plan_4358903c1626addf)
 }
 
-var fileDescriptor_query_plan_e7b865c0e2b6e862 = []byte{
+var fileDescriptor_query_plan_4358903c1626addf = []byte{
 	// 604 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0xdd, 0x6e, 0xd3, 0x4c,
 	0x10, 0xfd, 0x9c, 0x26, 0xf9, 0x9a, 0x09, 0x4a, 0xc3, 0xb6, 0xa8, 0x56, 0x40, 0xc2, 0x44, 0x42,

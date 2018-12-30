@@ -49,7 +49,7 @@ func (x AuthFailAction) String() string {
 	return proto.EnumName(AuthFailAction_name, int32(x))
 }
 func (AuthFailAction) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{0}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{0}
 }
 
 // Methods to restrict access to a URL based on login status.
@@ -88,7 +88,7 @@ func (x LoginRequirement) String() string {
 	return proto.EnumName(LoginRequirement_name, int32(x))
 }
 func (LoginRequirement) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{1}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{1}
 }
 
 // Methods to enforce security (HTTPS) on a URL.
@@ -133,7 +133,7 @@ func (x SecurityLevel) String() string {
 	return proto.EnumName(SecurityLevel_name, int32(x))
 }
 func (SecurityLevel) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{2}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{2}
 }
 
 // Error codes.
@@ -172,7 +172,7 @@ func (x ErrorHandler_ErrorCode) String() string {
 	return proto.EnumName(ErrorHandler_ErrorCode_name, int32(x))
 }
 func (ErrorHandler_ErrorCode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{1, 0}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{1, 0}
 }
 
 // Redirect codes.
@@ -210,7 +210,7 @@ func (x UrlMap_RedirectHttpResponseCode) String() string {
 	return proto.EnumName(UrlMap_RedirectHttpResponseCode_name, int32(x))
 }
 func (UrlMap_RedirectHttpResponseCode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{2, 0}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{2, 0}
 }
 
 // [Google Cloud Endpoints](https://cloud.google.com/appengine/docs/python/endpoints/)
@@ -237,7 +237,7 @@ func (m *ApiConfigHandler) Reset()         { *m = ApiConfigHandler{} }
 func (m *ApiConfigHandler) String() string { return proto.CompactTextString(m) }
 func (*ApiConfigHandler) ProtoMessage()    {}
 func (*ApiConfigHandler) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{0}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{0}
 }
 func (m *ApiConfigHandler) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ApiConfigHandler.Unmarshal(m, b)
@@ -309,7 +309,7 @@ func (m *ErrorHandler) Reset()         { *m = ErrorHandler{} }
 func (m *ErrorHandler) String() string { return proto.CompactTextString(m) }
 func (*ErrorHandler) ProtoMessage()    {}
 func (*ErrorHandler) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{1}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{1}
 }
 func (m *ErrorHandler) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorHandler.Unmarshal(m, b)
@@ -385,7 +385,7 @@ func (m *UrlMap) Reset()         { *m = UrlMap{} }
 func (m *UrlMap) String() string { return proto.CompactTextString(m) }
 func (*UrlMap) ProtoMessage()    {}
 func (*UrlMap) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{2}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{2}
 }
 func (m *UrlMap) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UrlMap.Unmarshal(m, b)
@@ -405,6 +405,13 @@ func (m *UrlMap) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UrlMap proto.InternalMessageInfo
 
+func (m *UrlMap) GetUrlRegex() string {
+	if m != nil {
+		return m.UrlRegex
+	}
+	return ""
+}
+
 type isUrlMap_HandlerType interface {
 	isUrlMap_HandlerType()
 }
@@ -412,15 +419,19 @@ type isUrlMap_HandlerType interface {
 type UrlMap_StaticFiles struct {
 	StaticFiles *StaticFilesHandler `protobuf:"bytes,2,opt,name=static_files,json=staticFiles,proto3,oneof"`
 }
+
 type UrlMap_Script struct {
 	Script *ScriptHandler `protobuf:"bytes,3,opt,name=script,proto3,oneof"`
 }
+
 type UrlMap_ApiEndpoint struct {
 	ApiEndpoint *ApiEndpointHandler `protobuf:"bytes,4,opt,name=api_endpoint,json=apiEndpoint,proto3,oneof"`
 }
 
 func (*UrlMap_StaticFiles) isUrlMap_HandlerType() {}
-func (*UrlMap_Script) isUrlMap_HandlerType()      {}
+
+func (*UrlMap_Script) isUrlMap_HandlerType() {}
+
 func (*UrlMap_ApiEndpoint) isUrlMap_HandlerType() {}
 
 func (m *UrlMap) GetHandlerType() isUrlMap_HandlerType {
@@ -428,13 +439,6 @@ func (m *UrlMap) GetHandlerType() isUrlMap_HandlerType {
 		return m.HandlerType
 	}
 	return nil
-}
-
-func (m *UrlMap) GetUrlRegex() string {
-	if m != nil {
-		return m.UrlRegex
-	}
-	return ""
 }
 
 func (m *UrlMap) GetStaticFiles() *StaticFilesHandler {
@@ -619,7 +623,7 @@ func (m *StaticFilesHandler) Reset()         { *m = StaticFilesHandler{} }
 func (m *StaticFilesHandler) String() string { return proto.CompactTextString(m) }
 func (*StaticFilesHandler) ProtoMessage()    {}
 func (*StaticFilesHandler) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{3}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{3}
 }
 func (m *StaticFilesHandler) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StaticFilesHandler.Unmarshal(m, b)
@@ -701,7 +705,7 @@ func (m *ScriptHandler) Reset()         { *m = ScriptHandler{} }
 func (m *ScriptHandler) String() string { return proto.CompactTextString(m) }
 func (*ScriptHandler) ProtoMessage()    {}
 func (*ScriptHandler) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{4}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{4}
 }
 func (m *ScriptHandler) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ScriptHandler.Unmarshal(m, b)
@@ -741,7 +745,7 @@ func (m *ApiEndpointHandler) Reset()         { *m = ApiEndpointHandler{} }
 func (m *ApiEndpointHandler) String() string { return proto.CompactTextString(m) }
 func (*ApiEndpointHandler) ProtoMessage()    {}
 func (*ApiEndpointHandler) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{5}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{5}
 }
 func (m *ApiEndpointHandler) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ApiEndpointHandler.Unmarshal(m, b)
@@ -799,7 +803,7 @@ func (m *HealthCheck) Reset()         { *m = HealthCheck{} }
 func (m *HealthCheck) String() string { return proto.CompactTextString(m) }
 func (*HealthCheck) ProtoMessage()    {}
 func (*HealthCheck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{6}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{6}
 }
 func (m *HealthCheck) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_HealthCheck.Unmarshal(m, b)
@@ -883,7 +887,7 @@ func (m *Library) Reset()         { *m = Library{} }
 func (m *Library) String() string { return proto.CompactTextString(m) }
 func (*Library) ProtoMessage()    {}
 func (*Library) Descriptor() ([]byte, []int) {
-	return fileDescriptor_app_yaml_793cc8a0015494a6, []int{7}
+	return fileDescriptor_app_yaml_07fe113144fe6ee6, []int{7}
 }
 func (m *Library) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Library.Unmarshal(m, b)
@@ -935,10 +939,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/app_yaml.proto", fileDescriptor_app_yaml_793cc8a0015494a6)
+	proto.RegisterFile("google/appengine/v1/app_yaml.proto", fileDescriptor_app_yaml_07fe113144fe6ee6)
 }
 
-var fileDescriptor_app_yaml_793cc8a0015494a6 = []byte{
+var fileDescriptor_app_yaml_07fe113144fe6ee6 = []byte{
 	// 1232 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x56, 0xdd, 0x6e, 0x13, 0x47,
 	0x14, 0xc6, 0x76, 0x7e, 0x8f, 0x1d, 0xb3, 0x99, 0x00, 0x75, 0x02, 0x94, 0xd4, 0xa8, 0x02, 0x25,

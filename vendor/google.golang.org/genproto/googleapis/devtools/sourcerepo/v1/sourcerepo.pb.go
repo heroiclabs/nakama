@@ -50,7 +50,7 @@ func (m *Repo) Reset()         { *m = Repo{} }
 func (m *Repo) String() string { return proto.CompactTextString(m) }
 func (*Repo) ProtoMessage()    {}
 func (*Repo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{0}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{0}
 }
 func (m *Repo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Repo.Unmarshal(m, b)
@@ -121,7 +121,7 @@ func (m *MirrorConfig) Reset()         { *m = MirrorConfig{} }
 func (m *MirrorConfig) String() string { return proto.CompactTextString(m) }
 func (*MirrorConfig) ProtoMessage()    {}
 func (*MirrorConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{1}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{1}
 }
 func (m *MirrorConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MirrorConfig.Unmarshal(m, b)
@@ -176,7 +176,7 @@ func (m *GetRepoRequest) Reset()         { *m = GetRepoRequest{} }
 func (m *GetRepoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRepoRequest) ProtoMessage()    {}
 func (*GetRepoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{2}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{2}
 }
 func (m *GetRepoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetRepoRequest.Unmarshal(m, b)
@@ -224,7 +224,7 @@ func (m *ListReposRequest) Reset()         { *m = ListReposRequest{} }
 func (m *ListReposRequest) String() string { return proto.CompactTextString(m) }
 func (*ListReposRequest) ProtoMessage()    {}
 func (*ListReposRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{3}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{3}
 }
 func (m *ListReposRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListReposRequest.Unmarshal(m, b)
@@ -282,7 +282,7 @@ func (m *ListReposResponse) Reset()         { *m = ListReposResponse{} }
 func (m *ListReposResponse) String() string { return proto.CompactTextString(m) }
 func (*ListReposResponse) ProtoMessage()    {}
 func (*ListReposResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{4}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{4}
 }
 func (m *ListReposResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListReposResponse.Unmarshal(m, b)
@@ -333,7 +333,7 @@ func (m *CreateRepoRequest) Reset()         { *m = CreateRepoRequest{} }
 func (m *CreateRepoRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateRepoRequest) ProtoMessage()    {}
 func (*CreateRepoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{5}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{5}
 }
 func (m *CreateRepoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateRepoRequest.Unmarshal(m, b)
@@ -381,7 +381,7 @@ func (m *DeleteRepoRequest) Reset()         { *m = DeleteRepoRequest{} }
 func (m *DeleteRepoRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteRepoRequest) ProtoMessage()    {}
 func (*DeleteRepoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sourcerepo_d42e6dcb58a0b298, []int{6}
+	return fileDescriptor_sourcerepo_c3970ced7dbc10e1, []int{6}
 }
 func (m *DeleteRepoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteRepoRequest.Unmarshal(m, b)
@@ -721,10 +721,10 @@ var _SourceRepo_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/sourcerepo/v1/sourcerepo.proto", fileDescriptor_sourcerepo_d42e6dcb58a0b298)
+	proto.RegisterFile("google/devtools/sourcerepo/v1/sourcerepo.proto", fileDescriptor_sourcerepo_c3970ced7dbc10e1)
 }
 
-var fileDescriptor_sourcerepo_d42e6dcb58a0b298 = []byte{
+var fileDescriptor_sourcerepo_c3970ced7dbc10e1 = []byte{
 	// 743 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x55, 0xd1, 0x6e, 0xd3, 0x4a,
 	0x10, 0xd5, 0x36, 0x69, 0x7b, 0x33, 0x4d, 0x6f, 0xdb, 0x95, 0x6e, 0x15, 0xa5, 0x37, 0x55, 0xae,

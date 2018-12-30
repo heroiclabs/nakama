@@ -59,7 +59,7 @@ func (x Instance_State) String() string {
 	return proto.EnumName(Instance_State_name, int32(x))
 }
 func (Instance_State) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{1, 0}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{1, 0}
 }
 
 // A possible configuration for a Cloud Spanner instance. Configurations
@@ -80,7 +80,7 @@ func (m *InstanceConfig) Reset()         { *m = InstanceConfig{} }
 func (m *InstanceConfig) String() string { return proto.CompactTextString(m) }
 func (*InstanceConfig) ProtoMessage()    {}
 func (*InstanceConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{0}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{0}
 }
 func (m *InstanceConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_InstanceConfig.Unmarshal(m, b)
@@ -172,7 +172,7 @@ func (m *Instance) Reset()         { *m = Instance{} }
 func (m *Instance) String() string { return proto.CompactTextString(m) }
 func (*Instance) ProtoMessage()    {}
 func (*Instance) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{1}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{1}
 }
 func (m *Instance) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Instance.Unmarshal(m, b)
@@ -256,7 +256,7 @@ func (m *ListInstanceConfigsRequest) Reset()         { *m = ListInstanceConfigsR
 func (m *ListInstanceConfigsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListInstanceConfigsRequest) ProtoMessage()    {}
 func (*ListInstanceConfigsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{2}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{2}
 }
 func (m *ListInstanceConfigsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListInstanceConfigsRequest.Unmarshal(m, b)
@@ -314,7 +314,7 @@ func (m *ListInstanceConfigsResponse) Reset()         { *m = ListInstanceConfigs
 func (m *ListInstanceConfigsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListInstanceConfigsResponse) ProtoMessage()    {}
 func (*ListInstanceConfigsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{3}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{3}
 }
 func (m *ListInstanceConfigsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListInstanceConfigsResponse.Unmarshal(m, b)
@@ -363,7 +363,7 @@ func (m *GetInstanceConfigRequest) Reset()         { *m = GetInstanceConfigReque
 func (m *GetInstanceConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*GetInstanceConfigRequest) ProtoMessage()    {}
 func (*GetInstanceConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{4}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{4}
 }
 func (m *GetInstanceConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetInstanceConfigRequest.Unmarshal(m, b)
@@ -404,7 +404,7 @@ func (m *GetInstanceRequest) Reset()         { *m = GetInstanceRequest{} }
 func (m *GetInstanceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetInstanceRequest) ProtoMessage()    {}
 func (*GetInstanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{5}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{5}
 }
 func (m *GetInstanceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetInstanceRequest.Unmarshal(m, b)
@@ -452,7 +452,7 @@ func (m *CreateInstanceRequest) Reset()         { *m = CreateInstanceRequest{} }
 func (m *CreateInstanceRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateInstanceRequest) ProtoMessage()    {}
 func (*CreateInstanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{6}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{6}
 }
 func (m *CreateInstanceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateInstanceRequest.Unmarshal(m, b)
@@ -534,7 +534,7 @@ func (m *ListInstancesRequest) Reset()         { *m = ListInstancesRequest{} }
 func (m *ListInstancesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListInstancesRequest) ProtoMessage()    {}
 func (*ListInstancesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{7}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{7}
 }
 func (m *ListInstancesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListInstancesRequest.Unmarshal(m, b)
@@ -599,7 +599,7 @@ func (m *ListInstancesResponse) Reset()         { *m = ListInstancesResponse{} }
 func (m *ListInstancesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListInstancesResponse) ProtoMessage()    {}
 func (*ListInstancesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{8}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{8}
 }
 func (m *ListInstancesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListInstancesResponse.Unmarshal(m, b)
@@ -652,7 +652,7 @@ func (m *UpdateInstanceRequest) Reset()         { *m = UpdateInstanceRequest{} }
 func (m *UpdateInstanceRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateInstanceRequest) ProtoMessage()    {}
 func (*UpdateInstanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{9}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{9}
 }
 func (m *UpdateInstanceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateInstanceRequest.Unmarshal(m, b)
@@ -700,7 +700,7 @@ func (m *DeleteInstanceRequest) Reset()         { *m = DeleteInstanceRequest{} }
 func (m *DeleteInstanceRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteInstanceRequest) ProtoMessage()    {}
 func (*DeleteInstanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{10}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{10}
 }
 func (m *DeleteInstanceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteInstanceRequest.Unmarshal(m, b)
@@ -751,7 +751,7 @@ func (m *CreateInstanceMetadata) Reset()         { *m = CreateInstanceMetadata{}
 func (m *CreateInstanceMetadata) String() string { return proto.CompactTextString(m) }
 func (*CreateInstanceMetadata) ProtoMessage()    {}
 func (*CreateInstanceMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{11}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{11}
 }
 func (m *CreateInstanceMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateInstanceMetadata.Unmarshal(m, b)
@@ -822,7 +822,7 @@ func (m *UpdateInstanceMetadata) Reset()         { *m = UpdateInstanceMetadata{}
 func (m *UpdateInstanceMetadata) String() string { return proto.CompactTextString(m) }
 func (*UpdateInstanceMetadata) ProtoMessage()    {}
 func (*UpdateInstanceMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_spanner_instance_admin_5b5a46734047df3a, []int{12}
+	return fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5, []int{12}
 }
 func (m *UpdateInstanceMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateInstanceMetadata.Unmarshal(m, b)
@@ -1468,10 +1468,10 @@ var _InstanceAdmin_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/spanner/admin/instance/v1/spanner_instance_admin.proto", fileDescriptor_spanner_instance_admin_5b5a46734047df3a)
+	proto.RegisterFile("google/spanner/admin/instance/v1/spanner_instance_admin.proto", fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5)
 }
 
-var fileDescriptor_spanner_instance_admin_5b5a46734047df3a = []byte{
+var fileDescriptor_spanner_instance_admin_f41fd7f1c9ba0ed5 = []byte{
 	// 1210 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x57, 0x4f, 0x6f, 0x1b, 0x45,
 	0x14, 0x67, 0x92, 0x3a, 0x8d, 0x9f, 0xd3, 0x34, 0x1d, 0x9a, 0xca, 0xb8, 0x94, 0xa6, 0x5b, 0x54,

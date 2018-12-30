@@ -100,7 +100,7 @@ func (x CigarUnit_Operation) String() string {
 	return proto.EnumName(CigarUnit_Operation_name, int32(x))
 }
 func (CigarUnit_Operation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_cigar_6bcb7013ba611338, []int{0, 0}
+	return fileDescriptor_cigar_ce8c8036b76f9461, []int{0, 0}
 }
 
 // A single CIGAR operation.
@@ -122,7 +122,7 @@ func (m *CigarUnit) Reset()         { *m = CigarUnit{} }
 func (m *CigarUnit) String() string { return proto.CompactTextString(m) }
 func (*CigarUnit) ProtoMessage()    {}
 func (*CigarUnit) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cigar_6bcb7013ba611338, []int{0}
+	return fileDescriptor_cigar_ce8c8036b76f9461, []int{0}
 }
 func (m *CigarUnit) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CigarUnit.Unmarshal(m, b)
@@ -169,10 +169,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/cigar.proto", fileDescriptor_cigar_6bcb7013ba611338)
+	proto.RegisterFile("google/genomics/v1/cigar.proto", fileDescriptor_cigar_ce8c8036b76f9461)
 }
 
-var fileDescriptor_cigar_6bcb7013ba611338 = []byte{
+var fileDescriptor_cigar_ce8c8036b76f9461 = []byte{
 	// 367 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x51, 0xcf, 0x0e, 0x93, 0x30,
 	0x1c, 0xb6, 0x63, 0x6e, 0xe3, 0x97, 0xb8, 0x75, 0x35, 0x33, 0xd3, 0x18, 0xb3, 0xec, 0xe2, 0x3c,

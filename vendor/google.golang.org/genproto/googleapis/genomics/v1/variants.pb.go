@@ -61,7 +61,7 @@ func (x InfoMergeOperation) String() string {
 	return proto.EnumName(InfoMergeOperation_name, int32(x))
 }
 func (InfoMergeOperation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{0}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{0}
 }
 
 type VariantSetMetadata_Type int32
@@ -96,7 +96,7 @@ func (x VariantSetMetadata_Type) String() string {
 	return proto.EnumName(VariantSetMetadata_Type_name, int32(x))
 }
 func (VariantSetMetadata_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{0, 0}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{0, 0}
 }
 
 type ImportVariantsRequest_Format int32
@@ -126,7 +126,7 @@ func (x ImportVariantsRequest_Format) String() string {
 	return proto.EnumName(ImportVariantsRequest_Format_name, int32(x))
 }
 func (ImportVariantsRequest_Format) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{6, 0}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{6, 0}
 }
 
 type ExportVariantSetRequest_Format int32
@@ -150,7 +150,7 @@ func (x ExportVariantSetRequest_Format) String() string {
 	return proto.EnumName(ExportVariantSetRequest_Format_name, int32(x))
 }
 func (ExportVariantSetRequest_Format) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{9, 0}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{9, 0}
 }
 
 // Metadata describes a single piece of variant call metadata.
@@ -186,7 +186,7 @@ func (m *VariantSetMetadata) Reset()         { *m = VariantSetMetadata{} }
 func (m *VariantSetMetadata) String() string { return proto.CompactTextString(m) }
 func (*VariantSetMetadata) ProtoMessage()    {}
 func (*VariantSetMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{0}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{0}
 }
 func (m *VariantSetMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VariantSetMetadata.Unmarshal(m, b)
@@ -294,7 +294,7 @@ func (m *VariantSet) Reset()         { *m = VariantSet{} }
 func (m *VariantSet) String() string { return proto.CompactTextString(m) }
 func (*VariantSet) ProtoMessage()    {}
 func (*VariantSet) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{1}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{1}
 }
 func (m *VariantSet) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VariantSet.Unmarshal(m, b)
@@ -421,7 +421,7 @@ func (m *Variant) Reset()         { *m = Variant{} }
 func (m *Variant) String() string { return proto.CompactTextString(m) }
 func (*Variant) ProtoMessage()    {}
 func (*Variant) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{2}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{2}
 }
 func (m *Variant) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Variant.Unmarshal(m, b)
@@ -579,7 +579,7 @@ func (m *VariantCall) Reset()         { *m = VariantCall{} }
 func (m *VariantCall) String() string { return proto.CompactTextString(m) }
 func (*VariantCall) ProtoMessage()    {}
 func (*VariantCall) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{3}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{3}
 }
 func (m *VariantCall) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VariantCall.Unmarshal(m, b)
@@ -673,7 +673,7 @@ func (m *CallSet) Reset()         { *m = CallSet{} }
 func (m *CallSet) String() string { return proto.CompactTextString(m) }
 func (*CallSet) ProtoMessage()    {}
 func (*CallSet) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{4}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{4}
 }
 func (m *CallSet) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CallSet.Unmarshal(m, b)
@@ -752,7 +752,7 @@ func (m *ReferenceBound) Reset()         { *m = ReferenceBound{} }
 func (m *ReferenceBound) String() string { return proto.CompactTextString(m) }
 func (*ReferenceBound) ProtoMessage()    {}
 func (*ReferenceBound) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{5}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{5}
 }
 func (m *ReferenceBound) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReferenceBound.Unmarshal(m, b)
@@ -820,7 +820,7 @@ func (m *ImportVariantsRequest) Reset()         { *m = ImportVariantsRequest{} }
 func (m *ImportVariantsRequest) String() string { return proto.CompactTextString(m) }
 func (*ImportVariantsRequest) ProtoMessage()    {}
 func (*ImportVariantsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{6}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{6}
 }
 func (m *ImportVariantsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportVariantsRequest.Unmarshal(m, b)
@@ -888,7 +888,7 @@ func (m *ImportVariantsResponse) Reset()         { *m = ImportVariantsResponse{}
 func (m *ImportVariantsResponse) String() string { return proto.CompactTextString(m) }
 func (*ImportVariantsResponse) ProtoMessage()    {}
 func (*ImportVariantsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{7}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{7}
 }
 func (m *ImportVariantsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportVariantsResponse.Unmarshal(m, b)
@@ -928,7 +928,7 @@ func (m *CreateVariantSetRequest) Reset()         { *m = CreateVariantSetRequest
 func (m *CreateVariantSetRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateVariantSetRequest) ProtoMessage()    {}
 func (*CreateVariantSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{8}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{8}
 }
 func (m *CreateVariantSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateVariantSetRequest.Unmarshal(m, b)
@@ -985,7 +985,7 @@ func (m *ExportVariantSetRequest) Reset()         { *m = ExportVariantSetRequest
 func (m *ExportVariantSetRequest) String() string { return proto.CompactTextString(m) }
 func (*ExportVariantSetRequest) ProtoMessage()    {}
 func (*ExportVariantSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{9}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{9}
 }
 func (m *ExportVariantSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExportVariantSetRequest.Unmarshal(m, b)
@@ -1060,7 +1060,7 @@ func (m *GetVariantSetRequest) Reset()         { *m = GetVariantSetRequest{} }
 func (m *GetVariantSetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetVariantSetRequest) ProtoMessage()    {}
 func (*GetVariantSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{10}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{10}
 }
 func (m *GetVariantSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetVariantSetRequest.Unmarshal(m, b)
@@ -1108,7 +1108,7 @@ func (m *SearchVariantSetsRequest) Reset()         { *m = SearchVariantSetsReque
 func (m *SearchVariantSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchVariantSetsRequest) ProtoMessage()    {}
 func (*SearchVariantSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{11}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{11}
 }
 func (m *SearchVariantSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchVariantSetsRequest.Unmarshal(m, b)
@@ -1166,7 +1166,7 @@ func (m *SearchVariantSetsResponse) Reset()         { *m = SearchVariantSetsResp
 func (m *SearchVariantSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchVariantSetsResponse) ProtoMessage()    {}
 func (*SearchVariantSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{12}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{12}
 }
 func (m *SearchVariantSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchVariantSetsResponse.Unmarshal(m, b)
@@ -1213,7 +1213,7 @@ func (m *DeleteVariantSetRequest) Reset()         { *m = DeleteVariantSetRequest
 func (m *DeleteVariantSetRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteVariantSetRequest) ProtoMessage()    {}
 func (*DeleteVariantSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{13}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{13}
 }
 func (m *DeleteVariantSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteVariantSetRequest.Unmarshal(m, b)
@@ -1264,7 +1264,7 @@ func (m *UpdateVariantSetRequest) Reset()         { *m = UpdateVariantSetRequest
 func (m *UpdateVariantSetRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateVariantSetRequest) ProtoMessage()    {}
 func (*UpdateVariantSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{14}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{14}
 }
 func (m *UpdateVariantSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateVariantSetRequest.Unmarshal(m, b)
@@ -1346,7 +1346,7 @@ func (m *SearchVariantsRequest) Reset()         { *m = SearchVariantsRequest{} }
 func (m *SearchVariantsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchVariantsRequest) ProtoMessage()    {}
 func (*SearchVariantsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{15}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{15}
 }
 func (m *SearchVariantsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchVariantsRequest.Unmarshal(m, b)
@@ -1446,7 +1446,7 @@ func (m *SearchVariantsResponse) Reset()         { *m = SearchVariantsResponse{}
 func (m *SearchVariantsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchVariantsResponse) ProtoMessage()    {}
 func (*SearchVariantsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{16}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{16}
 }
 func (m *SearchVariantsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchVariantsResponse.Unmarshal(m, b)
@@ -1492,7 +1492,7 @@ func (m *CreateVariantRequest) Reset()         { *m = CreateVariantRequest{} }
 func (m *CreateVariantRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateVariantRequest) ProtoMessage()    {}
 func (*CreateVariantRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{17}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{17}
 }
 func (m *CreateVariantRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateVariantRequest.Unmarshal(m, b)
@@ -1538,7 +1538,7 @@ func (m *UpdateVariantRequest) Reset()         { *m = UpdateVariantRequest{} }
 func (m *UpdateVariantRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateVariantRequest) ProtoMessage()    {}
 func (*UpdateVariantRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{18}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{18}
 }
 func (m *UpdateVariantRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateVariantRequest.Unmarshal(m, b)
@@ -1591,7 +1591,7 @@ func (m *DeleteVariantRequest) Reset()         { *m = DeleteVariantRequest{} }
 func (m *DeleteVariantRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteVariantRequest) ProtoMessage()    {}
 func (*DeleteVariantRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{19}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{19}
 }
 func (m *DeleteVariantRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteVariantRequest.Unmarshal(m, b)
@@ -1630,7 +1630,7 @@ func (m *GetVariantRequest) Reset()         { *m = GetVariantRequest{} }
 func (m *GetVariantRequest) String() string { return proto.CompactTextString(m) }
 func (*GetVariantRequest) ProtoMessage()    {}
 func (*GetVariantRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{20}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{20}
 }
 func (m *GetVariantRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetVariantRequest.Unmarshal(m, b)
@@ -1674,7 +1674,7 @@ func (m *MergeVariantsRequest) Reset()         { *m = MergeVariantsRequest{} }
 func (m *MergeVariantsRequest) String() string { return proto.CompactTextString(m) }
 func (*MergeVariantsRequest) ProtoMessage()    {}
 func (*MergeVariantsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{21}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{21}
 }
 func (m *MergeVariantsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MergeVariantsRequest.Unmarshal(m, b)
@@ -1739,7 +1739,7 @@ func (m *SearchCallSetsRequest) Reset()         { *m = SearchCallSetsRequest{} }
 func (m *SearchCallSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchCallSetsRequest) ProtoMessage()    {}
 func (*SearchCallSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{22}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{22}
 }
 func (m *SearchCallSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchCallSetsRequest.Unmarshal(m, b)
@@ -1804,7 +1804,7 @@ func (m *SearchCallSetsResponse) Reset()         { *m = SearchCallSetsResponse{}
 func (m *SearchCallSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchCallSetsResponse) ProtoMessage()    {}
 func (*SearchCallSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{23}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{23}
 }
 func (m *SearchCallSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchCallSetsResponse.Unmarshal(m, b)
@@ -1850,7 +1850,7 @@ func (m *CreateCallSetRequest) Reset()         { *m = CreateCallSetRequest{} }
 func (m *CreateCallSetRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateCallSetRequest) ProtoMessage()    {}
 func (*CreateCallSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{24}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{24}
 }
 func (m *CreateCallSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateCallSetRequest.Unmarshal(m, b)
@@ -1896,7 +1896,7 @@ func (m *UpdateCallSetRequest) Reset()         { *m = UpdateCallSetRequest{} }
 func (m *UpdateCallSetRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateCallSetRequest) ProtoMessage()    {}
 func (*UpdateCallSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{25}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{25}
 }
 func (m *UpdateCallSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateCallSetRequest.Unmarshal(m, b)
@@ -1949,7 +1949,7 @@ func (m *DeleteCallSetRequest) Reset()         { *m = DeleteCallSetRequest{} }
 func (m *DeleteCallSetRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteCallSetRequest) ProtoMessage()    {}
 func (*DeleteCallSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{26}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{26}
 }
 func (m *DeleteCallSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteCallSetRequest.Unmarshal(m, b)
@@ -1988,7 +1988,7 @@ func (m *GetCallSetRequest) Reset()         { *m = GetCallSetRequest{} }
 func (m *GetCallSetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetCallSetRequest) ProtoMessage()    {}
 func (*GetCallSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{27}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{27}
 }
 func (m *GetCallSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetCallSetRequest.Unmarshal(m, b)
@@ -2043,7 +2043,7 @@ func (m *StreamVariantsRequest) Reset()         { *m = StreamVariantsRequest{} }
 func (m *StreamVariantsRequest) String() string { return proto.CompactTextString(m) }
 func (*StreamVariantsRequest) ProtoMessage()    {}
 func (*StreamVariantsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{28}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{28}
 }
 func (m *StreamVariantsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamVariantsRequest.Unmarshal(m, b)
@@ -2116,7 +2116,7 @@ func (m *StreamVariantsResponse) Reset()         { *m = StreamVariantsResponse{}
 func (m *StreamVariantsResponse) String() string { return proto.CompactTextString(m) }
 func (*StreamVariantsResponse) ProtoMessage()    {}
 func (*StreamVariantsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_variants_ddf8cc9bb5ba2e7c, []int{29}
+	return fileDescriptor_variants_8662afc4dcc7ac11, []int{29}
 }
 func (m *StreamVariantsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamVariantsResponse.Unmarshal(m, b)
@@ -3331,10 +3331,10 @@ var _VariantServiceV1_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/variants.proto", fileDescriptor_variants_ddf8cc9bb5ba2e7c)
+	proto.RegisterFile("google/genomics/v1/variants.proto", fileDescriptor_variants_8662afc4dcc7ac11)
 }
 
-var fileDescriptor_variants_ddf8cc9bb5ba2e7c = []byte{
+var fileDescriptor_variants_8662afc4dcc7ac11 = []byte{
 	// 2348 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x5a, 0xdd, 0x6e, 0x1b, 0xc7,
 	0xf5, 0xff, 0xef, 0x92, 0x94, 0xc8, 0x43, 0x91, 0x5a, 0x4f, 0x14, 0x69, 0x43, 0x7f, 0xc9, 0xfb,

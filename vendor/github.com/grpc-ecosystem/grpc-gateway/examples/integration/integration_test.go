@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,8 +19,10 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/empty"
 	gw "github.com/grpc-ecosystem/grpc-gateway/examples/proto/examplepb"
-	sub "github.com/grpc-ecosystem/grpc-gateway/examples/proto/sub"
+	"github.com/grpc-ecosystem/grpc-gateway/examples/proto/pathenum"
+	"github.com/grpc-ecosystem/grpc-gateway/examples/proto/sub"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/genproto/protobuf/field_mask"
 	"google.golang.org/grpc/codes"
 )
 
@@ -78,7 +81,7 @@ func testEcho(t *testing.T, port int, contentType string) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -111,7 +114,7 @@ func testEchoOneof(t *testing.T, port int, contentType string) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -144,7 +147,7 @@ func testEchoOneof1(t *testing.T, port int, contentType string) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -177,7 +180,7 @@ func testEchoOneof2(t *testing.T, port int, contentType string) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -217,7 +220,7 @@ func testEchoBody(t *testing.T, port int) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -265,6 +268,7 @@ func TestABE(t *testing.T) {
 	testABEBulkEcho(t, 8080)
 	testABEBulkEchoZeroLength(t, 8080)
 	testAdditionalBindings(t, 8080)
+	testABERepeated(t, 8080)
 }
 
 func testABECreate(t *testing.T, port int) {
@@ -284,8 +288,11 @@ func testABECreate(t *testing.T, port int) {
 		Sint32Value:              2147483647,
 		Sint64Value:              4611686018427387903,
 		NonConventionalNameValue: "camelCase",
+		EnumValue:                gw.NumericEnum_ZERO,
+		PathEnumValue:            pathenum.PathEnum_DEF,
+		NestedPathEnumValue:      pathenum.MessagePathEnum_JKL,
 	}
-	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything/%f/%f/%d/separator/%d/%d/%d/%d/%v/%s/%d/%d/%d/%d/%d/%s", port, want.FloatValue, want.DoubleValue, want.Int64Value, want.Uint64Value, want.Int32Value, want.Fixed64Value, want.Fixed32Value, want.BoolValue, want.StringValue, want.Uint32Value, want.Sfixed32Value, want.Sfixed64Value, want.Sint32Value, want.Sint64Value, want.NonConventionalNameValue)
+	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything/%f/%f/%d/separator/%d/%d/%d/%d/%v/%s/%d/%d/%d/%d/%d/%s/%s/%s/%s", port, want.FloatValue, want.DoubleValue, want.Int64Value, want.Uint64Value, want.Int32Value, want.Fixed64Value, want.Fixed32Value, want.BoolValue, want.StringValue, want.Uint32Value, want.Sfixed32Value, want.Sfixed64Value, want.Sint32Value, want.Sint64Value, want.NonConventionalNameValue, want.EnumValue, want.PathEnumValue, want.NestedPathEnumValue)
 
 	resp, err := http.Post(url, "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -295,7 +302,7 @@ func testABECreate(t *testing.T, port int) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -335,6 +342,9 @@ func testABECreateBody(t *testing.T, port int) {
 		Sint32Value:              2147483647,
 		Sint64Value:              4611686018427387903,
 		NonConventionalNameValue: "camelCase",
+		EnumValue:                gw.NumericEnum_ONE,
+		PathEnumValue:            pathenum.PathEnum_ABC,
+		NestedPathEnumValue:      pathenum.MessagePathEnum_GHI,
 
 		Nested: []*gw.ABitOfEverything_Nested{
 			{
@@ -378,7 +388,7 @@ func testABECreateBody(t *testing.T, port int) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -429,6 +439,9 @@ func testABEBulkCreate(t *testing.T, port int) {
 				Sint32Value:              2147483647,
 				Sint64Value:              4611686018427387903,
 				NonConventionalNameValue: "camelCase",
+				EnumValue:                gw.NumericEnum_ONE,
+				PathEnumValue:            pathenum.PathEnum_ABC,
+				NestedPathEnumValue:      pathenum.MessagePathEnum_GHI,
 
 				Nested: []*gw.ABitOfEverything_Nested{
 					{
@@ -461,7 +474,7 @@ func testABEBulkCreate(t *testing.T, port int) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -500,7 +513,7 @@ func testABELookup(t *testing.T, port int) {
 	defer cresp.Body.Close()
 	buf, err := ioutil.ReadAll(cresp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(cresp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(cresp.Body) failed with %v; want success", err)
 		return
 	}
 	if got, want := cresp.StatusCode, http.StatusOK; got != want {
@@ -541,6 +554,193 @@ func testABELookup(t *testing.T, port int) {
 	if got, want := resp.Header.Get("Grpc-Metadata-Uuid"), want.Uuid; got != want {
 		t.Errorf("Grpc-Metadata-Uuid was %s, wanted %s", got, want)
 	}
+}
+
+// TestABEPatch demonstrates partially updating a resource.
+// First, we'll create an ABE resource with known values for string_value and int32_value
+// Then, issue a PATCH request updating only the string_value
+// Then, GET the resource and verify that string_value is changed, but int32_value isn't
+func TestABEPatch(t *testing.T) {
+	port := 8080
+
+	// create a record with a known string_value and int32_value
+	uuid := postABE(t, port, gw.ABitOfEverything{StringValue: "strprefix/bar", Int32Value: 32})
+
+	// issue PATCH request, only updating string_value
+	req, err := http.NewRequest(
+		http.MethodPatch,
+		fmt.Sprintf("http://localhost:%d/v2/example/a_bit_of_everything/%s", port, uuid),
+		strings.NewReader(`{"string_value": "strprefix/foo"}`),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequest(PATCH) failed with %v; want success", err)
+	}
+	patchResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("failed to issue PATCH request: %v", err)
+	}
+	if got, want := patchResp.StatusCode, http.StatusOK; got != want {
+		if body, err := ioutil.ReadAll(patchResp.Body); err != nil {
+			t.Errorf("patchResp body couldn't be read: %v", err)
+		} else {
+			t.Errorf("patchResp.StatusCode= %d; want %d resp: %v", got, want, string(body))
+		}
+	}
+
+	// issue GET request, verifying that string_value is changed and int32_value is not
+	getRespBody := getABE(t, port, uuid)
+	if got, want := getRespBody.StringValue, "strprefix/foo"; got != want {
+		t.Errorf("string_value= %q; want %q", got, want)
+	}
+	if got, want := getRespBody.Int32Value, int32(32); got != want {
+		t.Errorf("int_32_value= %d; want %d", got, want)
+	}
+}
+
+// TestABEPatchBody demonstrates the ability to specify an update mask within the request body.
+func TestABEPatchBody(t *testing.T) {
+	port := 8080
+
+	for _, tc := range []struct {
+		name          string
+		originalValue gw.ABitOfEverything
+		input         gw.UpdateV2Request
+		want          gw.ABitOfEverything
+	}{
+		{
+			name: "with fieldmask provided",
+			originalValue: gw.ABitOfEverything{
+				StringValue:  "rabbit",
+				SingleNested: &gw.ABitOfEverything_Nested{Name: "some value that will get overwritten", Amount: 345},
+			},
+			input: gw.UpdateV2Request{Abe: &gw.ABitOfEverything{
+				StringValue:  "some value that won't get updated because it's not in the field mask",
+				SingleNested: &gw.ABitOfEverything_Nested{Amount: 456},
+			}, UpdateMask: &field_mask.FieldMask{Paths: []string{"single_nested"}}},
+			want: gw.ABitOfEverything{StringValue: "rabbit", SingleNested: &gw.ABitOfEverything_Nested{Amount: 456}},
+		},
+		{
+			name: "with empty fieldmask",
+			originalValue: gw.ABitOfEverything{
+				StringValue:  "some value that will get overwritten",
+				SingleNested: &gw.ABitOfEverything_Nested{Name: "value that will get empty", Amount: 345},
+			},
+			input: gw.UpdateV2Request{Abe: &gw.ABitOfEverything{
+				StringValue:  "some updated value because the fieldMask is nil",
+				SingleNested: &gw.ABitOfEverything_Nested{Amount: 456},
+			}, UpdateMask: &field_mask.FieldMask{}},
+			want: gw.ABitOfEverything{
+				StringValue:  "some updated value because the fieldMask is nil",
+				SingleNested: &gw.ABitOfEverything_Nested{Amount: 456},
+			},
+		},
+		{
+			name: "with nil fieldmask",
+			originalValue: gw.ABitOfEverything{
+				StringValue:  "some value that will get overwritten",
+				SingleNested: &gw.ABitOfEverything_Nested{Name: "value that will get empty", Amount: 123},
+			},
+			input: gw.UpdateV2Request{Abe: &gw.ABitOfEverything{
+				StringValue:  "some updated value because the fieldMask is nil",
+				SingleNested: &gw.ABitOfEverything_Nested{Amount: 657},
+			}, UpdateMask: nil},
+			want: gw.ABitOfEverything{
+				StringValue:  "some updated value because the fieldMask is nil",
+				SingleNested: &gw.ABitOfEverything_Nested{Amount: 657},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			originalABE := tc.originalValue
+			uuid := postABE(t, port, originalABE)
+
+			patchBody := tc.input
+			patchReq, err := http.NewRequest(
+				http.MethodPatch,
+				fmt.Sprintf("http://localhost:%d/v2a/example/a_bit_of_everything/%s", port, uuid),
+				strings.NewReader(mustMarshal(t, patchBody)),
+			)
+			if err != nil {
+				t.Fatalf("http.NewRequest(PATCH) failed with %v; want success", err)
+			}
+			patchResp, err := http.DefaultClient.Do(patchReq)
+			if err != nil {
+				t.Fatalf("failed to issue PATCH request: %v", err)
+			}
+			if got, want := patchResp.StatusCode, http.StatusOK; got != want {
+				if body, err := ioutil.ReadAll(patchResp.Body); err != nil {
+					t.Errorf("patchResp body couldn't be read: %v", err)
+				} else {
+					t.Errorf("patchResp.StatusCode= %d; want %d resp: %v", got, want, string(body))
+				}
+			}
+
+			want, got := tc.want, getABE(t, port, uuid)
+			got.Uuid = "" // empty out uuid so we don't need to worry about it in comparisons
+			if !reflect.DeepEqual(want, got) {
+				t.Errorf("want %v\ngot %v", want, got)
+			}
+		})
+	}
+}
+
+// mustMarshal marshals the given object into a json string, calling t.Fatal if an error occurs. Useful in testing to
+// inline marshalling whenever you don't expect the marshalling to return an error
+func mustMarshal(t *testing.T, i interface{}) string {
+	b, err := json.Marshal(i)
+	if err != nil {
+		t.Fatalf("failed to marshal %#v: %v", i, err)
+	}
+
+	return string(b)
+}
+
+// postABE conveniently creates a new ABE record for ease in testing
+func postABE(t *testing.T, port int, abe gw.ABitOfEverything) (uuid string) {
+	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything", port)
+	postResp, err := http.Post(url, "application/json", strings.NewReader(mustMarshal(t, abe)))
+	if err != nil {
+		t.Fatalf("http.Post(%q) failed with %v; want success", url, err)
+		return
+	}
+	body, err := ioutil.ReadAll(postResp.Body)
+	if err != nil {
+		t.Fatalf("postResp body couldn't be read: %v", err)
+	}
+	var f struct {
+		UUID string `json:"uuid"`
+	}
+	if err := json.Unmarshal(body, &f); err != nil {
+		t.Fatalf("postResp body couldn't be unmarshalled: %v. body: %s", err, string(body))
+	}
+	if f.UUID == "" {
+		t.Fatalf("want uuid from postResp, but got none. body: %s", string(body))
+	}
+	return f.UUID
+}
+
+// getABE conveniently fetches an ABE record for ease in testing
+func getABE(t *testing.T, port int, uuid string) gw.ABitOfEverything {
+	gURL := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything/%s", port, uuid)
+	getResp, err := http.Get(gURL)
+	if err != nil {
+		t.Fatalf("http.Get(%s) failed with %v; want success", gURL, err)
+	}
+	defer getResp.Body.Close()
+
+	if got, want := getResp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("getResp.StatusCode= %d, want %d. resp: %v", got, want, getResp)
+	}
+	var getRespBody gw.ABitOfEverything
+	body, err := ioutil.ReadAll(getResp.Body)
+	if err != nil {
+		t.Fatalf("getResp body couldn't be read: %v", err)
+	}
+	if err := json.Unmarshal(body, &getRespBody); err != nil {
+		t.Fatalf("getResp body couldn't be unmarshalled: %v body: %s", err, string(body))
+	}
+
+	return getRespBody
 }
 
 func testABELookupNotFound(t *testing.T, port int) {
@@ -806,7 +1006,7 @@ func testAdditionalBindings(t *testing.T, port int) {
 		defer resp.Body.Close()
 		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success; i=%d", err, i)
+			t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success; i=%d", err, i)
 			return
 		}
 		if got, want := resp.StatusCode, http.StatusOK; got != want {
@@ -822,6 +1022,125 @@ func testAdditionalBindings(t *testing.T, port int) {
 		if got, want := msg.GetValue(), "hello"; got != want {
 			t.Errorf("msg.GetValue() = %q; want %q", got, want)
 		}
+	}
+}
+
+func testABERepeated(t *testing.T, port int) {
+	f := func(v reflect.Value) string {
+		var f func(v reflect.Value, idx int) string
+		s := make([]string, v.Len())
+		switch v.Index(0).Kind() {
+		case reflect.Slice:
+			f = func(v reflect.Value, idx int) string {
+				t := v.Index(idx).Type().Elem().Kind()
+				if t == reflect.Uint8 {
+					return base64.URLEncoding.EncodeToString(v.Index(idx).Interface().([]byte))
+				}
+				// Could handle more elegantly
+				panic("unknown slice of type: " + t.String())
+			}
+		default:
+			f = func(v reflect.Value, idx int) string {
+				return fmt.Sprintf("%v", v.Index(idx).Interface())
+			}
+		}
+		for i := 0; i < v.Len(); i++ {
+			s[i] = f(v, i)
+		}
+		return strings.Join(s, ",")
+	}
+	want := gw.ABitOfEverythingRepeated{
+		PathRepeatedFloatValue: []float32{
+			1.5,
+			-1.5,
+		},
+		PathRepeatedDoubleValue: []float64{
+			2.5,
+			-2.5,
+		},
+		PathRepeatedInt64Value: []int64{
+			4294967296,
+			-4294967296,
+		},
+		PathRepeatedUint64Value: []uint64{
+			0,
+			9223372036854775807,
+		},
+		PathRepeatedInt32Value: []int32{
+			2147483647,
+			-2147483648,
+		},
+		PathRepeatedFixed64Value: []uint64{
+			0,
+			9223372036854775807,
+		},
+		PathRepeatedFixed32Value: []uint32{
+			0,
+			4294967295,
+		},
+		PathRepeatedBoolValue: []bool{
+			true,
+			false,
+		},
+		PathRepeatedStringValue: []string{
+			"foo",
+			"bar",
+		},
+		PathRepeatedBytesValue: [][]byte{
+			[]byte{0x00},
+			[]byte{0xFF},
+		},
+		PathRepeatedUint32Value: []uint32{
+			0,
+			4294967295,
+		},
+		PathRepeatedEnumValue: []gw.NumericEnum{
+			gw.NumericEnum_ZERO,
+			gw.NumericEnum_ONE,
+		},
+		PathRepeatedSfixed32Value: []int32{
+			2147483647,
+			-2147483648,
+		},
+		PathRepeatedSfixed64Value: []int64{
+			4294967296,
+			-4294967296,
+		},
+		PathRepeatedSint32Value: []int32{
+			2147483647,
+			-2147483648,
+		},
+		PathRepeatedSint64Value: []int64{
+			4611686018427387903,
+			-4611686018427387904,
+		},
+	}
+	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything_repeated/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s", port, f(reflect.ValueOf(want.PathRepeatedFloatValue)), f(reflect.ValueOf(want.PathRepeatedDoubleValue)), f(reflect.ValueOf(want.PathRepeatedInt64Value)), f(reflect.ValueOf(want.PathRepeatedUint64Value)), f(reflect.ValueOf(want.PathRepeatedInt32Value)), f(reflect.ValueOf(want.PathRepeatedFixed64Value)), f(reflect.ValueOf(want.PathRepeatedFixed32Value)), f(reflect.ValueOf(want.PathRepeatedBoolValue)), f(reflect.ValueOf(want.PathRepeatedStringValue)), f(reflect.ValueOf(want.PathRepeatedBytesValue)), f(reflect.ValueOf(want.PathRepeatedUint32Value)), f(reflect.ValueOf(want.PathRepeatedEnumValue)), f(reflect.ValueOf(want.PathRepeatedSfixed32Value)), f(reflect.ValueOf(want.PathRepeatedSfixed64Value)), f(reflect.ValueOf(want.PathRepeatedSint32Value)), f(reflect.ValueOf(want.PathRepeatedSint64Value)))
+
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("http.Post(%q) failed with %v; want success", url, err)
+		return
+	}
+	defer resp.Body.Close()
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
+		return
+	}
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Errorf("resp.StatusCode = %d; want %d", got, want)
+		t.Logf("%s", buf)
+	}
+
+	var msg gw.ABitOfEverythingRepeated
+	if err := jsonpb.UnmarshalString(string(buf), &msg); err != nil {
+		t.Errorf("jsonpb.UnmarshalString(%s, &msg) failed with %v; want success", buf, err)
+		return
+	}
+	if got := msg; !reflect.DeepEqual(got, want) {
+		t.Errorf("msg= %v; want %v", &got, &want)
 	}
 }
 
@@ -856,7 +1175,7 @@ func TestErrorWithDetails(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Fatalf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 	}
 
 	if got, want := resp.StatusCode, http.StatusInternalServerError; got != want {
@@ -931,7 +1250,7 @@ func TestUnknownPath(t *testing.T) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -951,7 +1270,7 @@ func TestMethodNotAllowed(t *testing.T) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
@@ -971,12 +1290,45 @@ func TestInvalidArgument(t *testing.T) {
 	defer resp.Body.Close()
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("iotuil.ReadAll(resp.Body) failed with %v; want success", err)
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
 		return
 	}
 
 	if got, want := resp.StatusCode, http.StatusBadRequest; got != want {
 		t.Errorf("resp.StatusCode = %d; want %d", got, want)
 		t.Logf("%s", buf)
+	}
+}
+
+func TestResponseBody(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
+	testResponseBody(t, 8080)
+}
+
+func testResponseBody(t *testing.T, port int) {
+	url := fmt.Sprintf("http://localhost:%d/responsebody/foo", port)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("http.Get(%q) failed with %v; want success", url, err)
+		return
+	}
+	defer resp.Body.Close()
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
+		return
+	}
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Errorf("resp.StatusCode = %d; want %d", got, want)
+		t.Logf("%s", buf)
+	}
+
+	if got, want := string(buf), `{"data":"foo"}`; got != want {
+		t.Errorf("response = %q; want %q", got, want)
 	}
 }

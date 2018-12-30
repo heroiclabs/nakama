@@ -76,7 +76,7 @@ func (x Queue_State) String() string {
 	return proto.EnumName(Queue_State_name, int32(x))
 }
 func (Queue_State) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_queue_01d4eb253fdc8f66, []int{0, 0}
+	return fileDescriptor_queue_c4ed304f84e85348, []int{0, 0}
 }
 
 // A queue is a container of related tasks. Queues are configured to manage
@@ -168,7 +168,7 @@ func (m *Queue) Reset()         { *m = Queue{} }
 func (m *Queue) String() string { return proto.CompactTextString(m) }
 func (*Queue) ProtoMessage()    {}
 func (*Queue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_queue_01d4eb253fdc8f66, []int{0}
+	return fileDescriptor_queue_c4ed304f84e85348, []int{0}
 }
 func (m *Queue) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Queue.Unmarshal(m, b)
@@ -188,6 +188,13 @@ func (m *Queue) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Queue proto.InternalMessageInfo
 
+func (m *Queue) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
 type isQueue_TargetType interface {
 	isQueue_TargetType()
 }
@@ -195,25 +202,20 @@ type isQueue_TargetType interface {
 type Queue_AppEngineHttpTarget struct {
 	AppEngineHttpTarget *AppEngineHttpTarget `protobuf:"bytes,3,opt,name=app_engine_http_target,json=appEngineHttpTarget,proto3,oneof"`
 }
+
 type Queue_PullTarget struct {
 	PullTarget *PullTarget `protobuf:"bytes,4,opt,name=pull_target,json=pullTarget,proto3,oneof"`
 }
 
 func (*Queue_AppEngineHttpTarget) isQueue_TargetType() {}
-func (*Queue_PullTarget) isQueue_TargetType()          {}
+
+func (*Queue_PullTarget) isQueue_TargetType() {}
 
 func (m *Queue) GetTargetType() isQueue_TargetType {
 	if m != nil {
 		return m.TargetType
 	}
 	return nil
-}
-
-func (m *Queue) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
 }
 
 func (m *Queue) GetAppEngineHttpTarget() *AppEngineHttpTarget {
@@ -417,7 +419,7 @@ func (m *RateLimits) Reset()         { *m = RateLimits{} }
 func (m *RateLimits) String() string { return proto.CompactTextString(m) }
 func (*RateLimits) ProtoMessage()    {}
 func (*RateLimits) Descriptor() ([]byte, []int) {
-	return fileDescriptor_queue_01d4eb253fdc8f66, []int{1}
+	return fileDescriptor_queue_c4ed304f84e85348, []int{1}
 }
 func (m *RateLimits) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RateLimits.Unmarshal(m, b)
@@ -567,7 +569,7 @@ func (m *RetryConfig) Reset()         { *m = RetryConfig{} }
 func (m *RetryConfig) String() string { return proto.CompactTextString(m) }
 func (*RetryConfig) ProtoMessage()    {}
 func (*RetryConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_queue_01d4eb253fdc8f66, []int{2}
+	return fileDescriptor_queue_c4ed304f84e85348, []int{2}
 }
 func (m *RetryConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RetryConfig.Unmarshal(m, b)
@@ -594,11 +596,13 @@ type isRetryConfig_NumAttempts interface {
 type RetryConfig_MaxAttempts struct {
 	MaxAttempts int32 `protobuf:"varint,1,opt,name=max_attempts,json=maxAttempts,proto3,oneof"`
 }
+
 type RetryConfig_UnlimitedAttempts struct {
 	UnlimitedAttempts bool `protobuf:"varint,2,opt,name=unlimited_attempts,json=unlimitedAttempts,proto3,oneof"`
 }
 
-func (*RetryConfig_MaxAttempts) isRetryConfig_NumAttempts()       {}
+func (*RetryConfig_MaxAttempts) isRetryConfig_NumAttempts() {}
+
 func (*RetryConfig_UnlimitedAttempts) isRetryConfig_NumAttempts() {}
 
 func (m *RetryConfig) GetNumAttempts() isRetryConfig_NumAttempts {
@@ -726,10 +730,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/tasks/v2beta2/queue.proto", fileDescriptor_queue_01d4eb253fdc8f66)
+	proto.RegisterFile("google/cloud/tasks/v2beta2/queue.proto", fileDescriptor_queue_c4ed304f84e85348)
 }
 
-var fileDescriptor_queue_01d4eb253fdc8f66 = []byte{
+var fileDescriptor_queue_c4ed304f84e85348 = []byte{
 	// 702 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x94, 0xcb, 0x6e, 0xdb, 0x3a,
 	0x10, 0x86, 0xad, 0x24, 0xca, 0x65, 0xe4, 0x04, 0x0e, 0xcf, 0x05, 0x3e, 0x3e, 0x45, 0x62, 0x38,

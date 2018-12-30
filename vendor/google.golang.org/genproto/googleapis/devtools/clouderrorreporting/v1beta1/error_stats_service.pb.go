@@ -63,7 +63,7 @@ func (x TimedCountAlignment) String() string {
 	return proto.EnumName(TimedCountAlignment_name, int32(x))
 }
 func (TimedCountAlignment) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{0}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{0}
 }
 
 // A sorting order of error groups.
@@ -102,7 +102,7 @@ func (x ErrorGroupOrder) String() string {
 	return proto.EnumName(ErrorGroupOrder_name, int32(x))
 }
 func (ErrorGroupOrder) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{1}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{1}
 }
 
 // The supported time ranges.
@@ -149,7 +149,7 @@ func (x QueryTimeRange_Period) String() string {
 	return proto.EnumName(QueryTimeRange_Period_name, int32(x))
 }
 func (QueryTimeRange_Period) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{6, 0}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{6, 0}
 }
 
 // Specifies a set of `ErrorGroupStats` to return.
@@ -203,7 +203,7 @@ func (m *ListGroupStatsRequest) Reset()         { *m = ListGroupStatsRequest{} }
 func (m *ListGroupStatsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListGroupStatsRequest) ProtoMessage()    {}
 func (*ListGroupStatsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{0}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{0}
 }
 func (m *ListGroupStatsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListGroupStatsRequest.Unmarshal(m, b)
@@ -315,7 +315,7 @@ func (m *ListGroupStatsResponse) Reset()         { *m = ListGroupStatsResponse{}
 func (m *ListGroupStatsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListGroupStatsResponse) ProtoMessage()    {}
 func (*ListGroupStatsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{1}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{1}
 }
 func (m *ListGroupStatsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListGroupStatsResponse.Unmarshal(m, b)
@@ -414,7 +414,7 @@ func (m *ErrorGroupStats) Reset()         { *m = ErrorGroupStats{} }
 func (m *ErrorGroupStats) String() string { return proto.CompactTextString(m) }
 func (*ErrorGroupStats) ProtoMessage()    {}
 func (*ErrorGroupStats) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{2}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{2}
 }
 func (m *ErrorGroupStats) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ErrorGroupStats.Unmarshal(m, b)
@@ -516,7 +516,7 @@ func (m *TimedCount) Reset()         { *m = TimedCount{} }
 func (m *TimedCount) String() string { return proto.CompactTextString(m) }
 func (*TimedCount) ProtoMessage()    {}
 func (*TimedCount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{3}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{3}
 }
 func (m *TimedCount) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TimedCount.Unmarshal(m, b)
@@ -588,7 +588,7 @@ func (m *ListEventsRequest) Reset()         { *m = ListEventsRequest{} }
 func (m *ListEventsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListEventsRequest) ProtoMessage()    {}
 func (*ListEventsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{4}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{4}
 }
 func (m *ListEventsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListEventsRequest.Unmarshal(m, b)
@@ -669,7 +669,7 @@ func (m *ListEventsResponse) Reset()         { *m = ListEventsResponse{} }
 func (m *ListEventsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListEventsResponse) ProtoMessage()    {}
 func (*ListEventsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{5}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{5}
 }
 func (m *ListEventsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListEventsResponse.Unmarshal(m, b)
@@ -724,7 +724,7 @@ func (m *QueryTimeRange) Reset()         { *m = QueryTimeRange{} }
 func (m *QueryTimeRange) String() string { return proto.CompactTextString(m) }
 func (*QueryTimeRange) ProtoMessage()    {}
 func (*QueryTimeRange) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{6}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{6}
 }
 func (m *QueryTimeRange) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_QueryTimeRange.Unmarshal(m, b)
@@ -774,7 +774,7 @@ func (m *ServiceContextFilter) Reset()         { *m = ServiceContextFilter{} }
 func (m *ServiceContextFilter) String() string { return proto.CompactTextString(m) }
 func (*ServiceContextFilter) ProtoMessage()    {}
 func (*ServiceContextFilter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{7}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{7}
 }
 func (m *ServiceContextFilter) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServiceContextFilter.Unmarshal(m, b)
@@ -832,7 +832,7 @@ func (m *DeleteEventsRequest) Reset()         { *m = DeleteEventsRequest{} }
 func (m *DeleteEventsRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteEventsRequest) ProtoMessage()    {}
 func (*DeleteEventsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{8}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{8}
 }
 func (m *DeleteEventsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteEventsRequest.Unmarshal(m, b)
@@ -870,7 +870,7 @@ func (m *DeleteEventsResponse) Reset()         { *m = DeleteEventsResponse{} }
 func (m *DeleteEventsResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteEventsResponse) ProtoMessage()    {}
 func (*DeleteEventsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_error_stats_service_c6f638928cb0f0d0, []int{9}
+	return fileDescriptor_error_stats_service_e8c4e88969c09e61, []int{9}
 }
 func (m *DeleteEventsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteEventsResponse.Unmarshal(m, b)
@@ -1051,10 +1051,10 @@ var _ErrorStatsService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/clouderrorreporting/v1beta1/error_stats_service.proto", fileDescriptor_error_stats_service_c6f638928cb0f0d0)
+	proto.RegisterFile("google/devtools/clouderrorreporting/v1beta1/error_stats_service.proto", fileDescriptor_error_stats_service_e8c4e88969c09e61)
 }
 
-var fileDescriptor_error_stats_service_c6f638928cb0f0d0 = []byte{
+var fileDescriptor_error_stats_service_e8c4e88969c09e61 = []byte{
 	// 1328 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x57, 0xcd, 0x6f, 0x1b, 0x45,
 	0x14, 0x67, 0xed, 0x38, 0x89, 0x9f, 0x1d, 0xc7, 0x99, 0xa4, 0xe9, 0xd6, 0xe5, 0x23, 0x75, 0x05,

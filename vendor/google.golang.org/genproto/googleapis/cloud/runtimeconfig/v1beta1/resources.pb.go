@@ -51,7 +51,7 @@ func (x VariableState) String() string {
 	return proto.EnumName(VariableState_name, int32(x))
 }
 func (VariableState) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{0}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{0}
 }
 
 // A RuntimeConfig resource is the primary resource in the Cloud RuntimeConfig
@@ -81,7 +81,7 @@ func (m *RuntimeConfig) Reset()         { *m = RuntimeConfig{} }
 func (m *RuntimeConfig) String() string { return proto.CompactTextString(m) }
 func (*RuntimeConfig) ProtoMessage()    {}
 func (*RuntimeConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{0}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{0}
 }
 func (m *RuntimeConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RuntimeConfig.Unmarshal(m, b)
@@ -138,7 +138,7 @@ type Variable struct {
 	//
 	// Once you create a variable, you cannot change the variable name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The the value of the variable. It can be either a binary or a string
+	// The value of the variable. It can be either a binary or a string
 	// value. You must specify one of either `value` or `text`. Specifying both
 	// will cause the server to return an error.
 	//
@@ -161,7 +161,7 @@ func (m *Variable) Reset()         { *m = Variable{} }
 func (m *Variable) String() string { return proto.CompactTextString(m) }
 func (*Variable) ProtoMessage()    {}
 func (*Variable) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{1}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{1}
 }
 func (m *Variable) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Variable.Unmarshal(m, b)
@@ -181,6 +181,13 @@ func (m *Variable) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Variable proto.InternalMessageInfo
 
+func (m *Variable) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
 type isVariable_Contents interface {
 	isVariable_Contents()
 }
@@ -188,25 +195,20 @@ type isVariable_Contents interface {
 type Variable_Value struct {
 	Value []byte `protobuf:"bytes,2,opt,name=value,proto3,oneof"`
 }
+
 type Variable_Text struct {
 	Text string `protobuf:"bytes,5,opt,name=text,proto3,oneof"`
 }
 
 func (*Variable_Value) isVariable_Contents() {}
-func (*Variable_Text) isVariable_Contents()  {}
+
+func (*Variable_Text) isVariable_Contents() {}
 
 func (m *Variable) GetContents() isVariable_Contents {
 	if m != nil {
 		return m.Contents
 	}
 	return nil
-}
-
-func (m *Variable) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
 }
 
 func (m *Variable) GetValue() []byte {
@@ -320,7 +322,7 @@ func (m *EndCondition) Reset()         { *m = EndCondition{} }
 func (m *EndCondition) String() string { return proto.CompactTextString(m) }
 func (*EndCondition) ProtoMessage()    {}
 func (*EndCondition) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{2}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{2}
 }
 func (m *EndCondition) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EndCondition.Unmarshal(m, b)
@@ -448,7 +450,7 @@ func (m *EndCondition_Cardinality) Reset()         { *m = EndCondition_Cardinali
 func (m *EndCondition_Cardinality) String() string { return proto.CompactTextString(m) }
 func (*EndCondition_Cardinality) ProtoMessage()    {}
 func (*EndCondition_Cardinality) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{2, 0}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{2, 0}
 }
 func (m *EndCondition_Cardinality) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EndCondition_Cardinality.Unmarshal(m, b)
@@ -547,7 +549,7 @@ func (m *Waiter) Reset()         { *m = Waiter{} }
 func (m *Waiter) String() string { return proto.CompactTextString(m) }
 func (*Waiter) ProtoMessage()    {}
 func (*Waiter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_03b93da0510fa410, []int{3}
+	return fileDescriptor_resources_a4c042e63b7976fe, []int{3}
 }
 func (m *Waiter) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Waiter.Unmarshal(m, b)
@@ -626,10 +628,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/runtimeconfig/v1beta1/resources.proto", fileDescriptor_resources_03b93da0510fa410)
+	proto.RegisterFile("google/cloud/runtimeconfig/v1beta1/resources.proto", fileDescriptor_resources_a4c042e63b7976fe)
 }
 
-var fileDescriptor_resources_03b93da0510fa410 = []byte{
+var fileDescriptor_resources_a4c042e63b7976fe = []byte{
 	// 628 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xdd, 0x6e, 0xd3, 0x30,
 	0x14, 0xc7, 0x9b, 0xd2, 0x8f, 0xed, 0x64, 0x43, 0x93, 0x85, 0x46, 0xa8, 0xd0, 0xa8, 0x7a, 0x81,

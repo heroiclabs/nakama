@@ -55,7 +55,7 @@ func (x GetServiceConfigRequest_ConfigView) String() string {
 	return proto.EnumName(GetServiceConfigRequest_ConfigView_name, int32(x))
 }
 func (GetServiceConfigRequest_ConfigView) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{7, 0}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{7, 0}
 }
 
 // Request message for `ListServices` method.
@@ -82,7 +82,7 @@ func (m *ListServicesRequest) Reset()         { *m = ListServicesRequest{} }
 func (m *ListServicesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListServicesRequest) ProtoMessage()    {}
 func (*ListServicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{0}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{0}
 }
 func (m *ListServicesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServicesRequest.Unmarshal(m, b)
@@ -145,7 +145,7 @@ func (m *ListServicesResponse) Reset()         { *m = ListServicesResponse{} }
 func (m *ListServicesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListServicesResponse) ProtoMessage()    {}
 func (*ListServicesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{1}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{1}
 }
 func (m *ListServicesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServicesResponse.Unmarshal(m, b)
@@ -193,7 +193,7 @@ func (m *GetServiceRequest) Reset()         { *m = GetServiceRequest{} }
 func (m *GetServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetServiceRequest) ProtoMessage()    {}
 func (*GetServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{2}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{2}
 }
 func (m *GetServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetServiceRequest.Unmarshal(m, b)
@@ -233,7 +233,7 @@ func (m *CreateServiceRequest) Reset()         { *m = CreateServiceRequest{} }
 func (m *CreateServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateServiceRequest) ProtoMessage()    {}
 func (*CreateServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{3}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{3}
 }
 func (m *CreateServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateServiceRequest.Unmarshal(m, b)
@@ -274,7 +274,7 @@ func (m *DeleteServiceRequest) Reset()         { *m = DeleteServiceRequest{} }
 func (m *DeleteServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteServiceRequest) ProtoMessage()    {}
 func (*DeleteServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{4}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{4}
 }
 func (m *DeleteServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteServiceRequest.Unmarshal(m, b)
@@ -315,7 +315,7 @@ func (m *UndeleteServiceRequest) Reset()         { *m = UndeleteServiceRequest{}
 func (m *UndeleteServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*UndeleteServiceRequest) ProtoMessage()    {}
 func (*UndeleteServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{5}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{5}
 }
 func (m *UndeleteServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UndeleteServiceRequest.Unmarshal(m, b)
@@ -355,7 +355,7 @@ func (m *UndeleteServiceResponse) Reset()         { *m = UndeleteServiceResponse
 func (m *UndeleteServiceResponse) String() string { return proto.CompactTextString(m) }
 func (*UndeleteServiceResponse) ProtoMessage()    {}
 func (*UndeleteServiceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{6}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{6}
 }
 func (m *UndeleteServiceResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UndeleteServiceResponse.Unmarshal(m, b)
@@ -401,7 +401,7 @@ func (m *GetServiceConfigRequest) Reset()         { *m = GetServiceConfigRequest
 func (m *GetServiceConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*GetServiceConfigRequest) ProtoMessage()    {}
 func (*GetServiceConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{7}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{7}
 }
 func (m *GetServiceConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetServiceConfigRequest.Unmarshal(m, b)
@@ -460,7 +460,7 @@ func (m *ListServiceConfigsRequest) Reset()         { *m = ListServiceConfigsReq
 func (m *ListServiceConfigsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListServiceConfigsRequest) ProtoMessage()    {}
 func (*ListServiceConfigsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{8}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{8}
 }
 func (m *ListServiceConfigsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServiceConfigsRequest.Unmarshal(m, b)
@@ -516,7 +516,7 @@ func (m *ListServiceConfigsResponse) Reset()         { *m = ListServiceConfigsRe
 func (m *ListServiceConfigsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListServiceConfigsResponse) ProtoMessage()    {}
 func (*ListServiceConfigsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{9}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{9}
 }
 func (m *ListServiceConfigsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServiceConfigsResponse.Unmarshal(m, b)
@@ -566,7 +566,7 @@ func (m *CreateServiceConfigRequest) Reset()         { *m = CreateServiceConfigR
 func (m *CreateServiceConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateServiceConfigRequest) ProtoMessage()    {}
 func (*CreateServiceConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{10}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{10}
 }
 func (m *CreateServiceConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateServiceConfigRequest.Unmarshal(m, b)
@@ -620,7 +620,7 @@ func (m *SubmitConfigSourceRequest) Reset()         { *m = SubmitConfigSourceReq
 func (m *SubmitConfigSourceRequest) String() string { return proto.CompactTextString(m) }
 func (*SubmitConfigSourceRequest) ProtoMessage()    {}
 func (*SubmitConfigSourceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{11}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{11}
 }
 func (m *SubmitConfigSourceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SubmitConfigSourceRequest.Unmarshal(m, b)
@@ -674,7 +674,7 @@ func (m *SubmitConfigSourceResponse) Reset()         { *m = SubmitConfigSourceRe
 func (m *SubmitConfigSourceResponse) String() string { return proto.CompactTextString(m) }
 func (*SubmitConfigSourceResponse) ProtoMessage()    {}
 func (*SubmitConfigSourceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{12}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{12}
 }
 func (m *SubmitConfigSourceResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SubmitConfigSourceResponse.Unmarshal(m, b)
@@ -717,7 +717,7 @@ func (m *CreateServiceRolloutRequest) Reset()         { *m = CreateServiceRollou
 func (m *CreateServiceRolloutRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateServiceRolloutRequest) ProtoMessage()    {}
 func (*CreateServiceRolloutRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{13}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{13}
 }
 func (m *CreateServiceRolloutRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateServiceRolloutRequest.Unmarshal(m, b)
@@ -778,7 +778,7 @@ func (m *ListServiceRolloutsRequest) Reset()         { *m = ListServiceRolloutsR
 func (m *ListServiceRolloutsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListServiceRolloutsRequest) ProtoMessage()    {}
 func (*ListServiceRolloutsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{14}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{14}
 }
 func (m *ListServiceRolloutsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServiceRolloutsRequest.Unmarshal(m, b)
@@ -841,7 +841,7 @@ func (m *ListServiceRolloutsResponse) Reset()         { *m = ListServiceRollouts
 func (m *ListServiceRolloutsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListServiceRolloutsResponse) ProtoMessage()    {}
 func (*ListServiceRolloutsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{15}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{15}
 }
 func (m *ListServiceRolloutsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListServiceRolloutsResponse.Unmarshal(m, b)
@@ -891,7 +891,7 @@ func (m *GetServiceRolloutRequest) Reset()         { *m = GetServiceRolloutReque
 func (m *GetServiceRolloutRequest) String() string { return proto.CompactTextString(m) }
 func (*GetServiceRolloutRequest) ProtoMessage()    {}
 func (*GetServiceRolloutRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{16}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{16}
 }
 func (m *GetServiceRolloutRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetServiceRolloutRequest.Unmarshal(m, b)
@@ -949,7 +949,7 @@ func (m *EnableServiceRequest) Reset()         { *m = EnableServiceRequest{} }
 func (m *EnableServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*EnableServiceRequest) ProtoMessage()    {}
 func (*EnableServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{17}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{17}
 }
 func (m *EnableServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EnableServiceRequest.Unmarshal(m, b)
@@ -1007,7 +1007,7 @@ func (m *DisableServiceRequest) Reset()         { *m = DisableServiceRequest{} }
 func (m *DisableServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*DisableServiceRequest) ProtoMessage()    {}
 func (*DisableServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{18}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{18}
 }
 func (m *DisableServiceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DisableServiceRequest.Unmarshal(m, b)
@@ -1064,7 +1064,7 @@ func (m *GenerateConfigReportRequest) Reset()         { *m = GenerateConfigRepor
 func (m *GenerateConfigReportRequest) String() string { return proto.CompactTextString(m) }
 func (*GenerateConfigReportRequest) ProtoMessage()    {}
 func (*GenerateConfigReportRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{19}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{19}
 }
 func (m *GenerateConfigReportRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateConfigReportRequest.Unmarshal(m, b)
@@ -1120,7 +1120,7 @@ func (m *GenerateConfigReportResponse) Reset()         { *m = GenerateConfigRepo
 func (m *GenerateConfigReportResponse) String() string { return proto.CompactTextString(m) }
 func (*GenerateConfigReportResponse) ProtoMessage()    {}
 func (*GenerateConfigReportResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_servicemanager_d51f49ba7441c014, []int{20}
+	return fileDescriptor_servicemanager_0ec806067c572a23, []int{20}
 }
 func (m *GenerateConfigReportResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateConfigReportResponse.Unmarshal(m, b)
@@ -1908,10 +1908,10 @@ var _ServiceManager_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicemanagement/v1/servicemanager.proto", fileDescriptor_servicemanager_d51f49ba7441c014)
+	proto.RegisterFile("google/api/servicemanagement/v1/servicemanager.proto", fileDescriptor_servicemanager_0ec806067c572a23)
 }
 
-var fileDescriptor_servicemanager_d51f49ba7441c014 = []byte{
+var fileDescriptor_servicemanager_0ec806067c572a23 = []byte{
 	// 1447 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x58, 0xcf, 0x6f, 0xdc, 0x44,
 	0x14, 0x66, 0x36, 0x69, 0x9b, 0xbc, 0x64, 0xb7, 0xed, 0x64, 0x69, 0xb6, 0x9b, 0x46, 0x4d, 0x9c,

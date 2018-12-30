@@ -58,7 +58,7 @@ func (m *ReadGroup) Reset()         { *m = ReadGroup{} }
 func (m *ReadGroup) String() string { return proto.CompactTextString(m) }
 func (*ReadGroup) ProtoMessage()    {}
 func (*ReadGroup) Descriptor() ([]byte, []int) {
-	return fileDescriptor_readgroup_d68cbd5306b6bb9f, []int{0}
+	return fileDescriptor_readgroup_d1ee37f21a1efad6, []int{0}
 }
 func (m *ReadGroup) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadGroup.Unmarshal(m, b)
@@ -172,7 +172,7 @@ func (m *ReadGroup_Experiment) Reset()         { *m = ReadGroup_Experiment{} }
 func (m *ReadGroup_Experiment) String() string { return proto.CompactTextString(m) }
 func (*ReadGroup_Experiment) ProtoMessage()    {}
 func (*ReadGroup_Experiment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_readgroup_d68cbd5306b6bb9f, []int{0, 0}
+	return fileDescriptor_readgroup_d1ee37f21a1efad6, []int{0, 0}
 }
 func (m *ReadGroup_Experiment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadGroup_Experiment.Unmarshal(m, b)
@@ -242,7 +242,7 @@ func (m *ReadGroup_Program) Reset()         { *m = ReadGroup_Program{} }
 func (m *ReadGroup_Program) String() string { return proto.CompactTextString(m) }
 func (*ReadGroup_Program) ProtoMessage()    {}
 func (*ReadGroup_Program) Descriptor() ([]byte, []int) {
-	return fileDescriptor_readgroup_d68cbd5306b6bb9f, []int{0, 1}
+	return fileDescriptor_readgroup_d1ee37f21a1efad6, []int{0, 1}
 }
 func (m *ReadGroup_Program) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ReadGroup_Program.Unmarshal(m, b)
@@ -305,10 +305,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/readgroup.proto", fileDescriptor_readgroup_d68cbd5306b6bb9f)
+	proto.RegisterFile("google/genomics/v1/readgroup.proto", fileDescriptor_readgroup_d1ee37f21a1efad6)
 }
 
-var fileDescriptor_readgroup_d68cbd5306b6bb9f = []byte{
+var fileDescriptor_readgroup_d1ee37f21a1efad6 = []byte{
 	// 585 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x54, 0xcb, 0x6e, 0xd4, 0x30,
 	0x14, 0x55, 0xa6, 0xcf, 0xb9, 0xd3, 0xc7, 0x60, 0x04, 0x8a, 0x06, 0x90, 0x86, 0x22, 0x60, 0x10,

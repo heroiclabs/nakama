@@ -40,7 +40,7 @@ func (m *LogLine) Reset()         { *m = LogLine{} }
 func (m *LogLine) String() string { return proto.CompactTextString(m) }
 func (*LogLine) ProtoMessage()    {}
 func (*LogLine) Descriptor() ([]byte, []int) {
-	return fileDescriptor_request_log_960d36708b8f979b, []int{0}
+	return fileDescriptor_request_log_c4e4bcec179d2e52, []int{0}
 }
 func (m *LogLine) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LogLine.Unmarshal(m, b)
@@ -111,7 +111,7 @@ func (m *SourceLocation) Reset()         { *m = SourceLocation{} }
 func (m *SourceLocation) String() string { return proto.CompactTextString(m) }
 func (*SourceLocation) ProtoMessage()    {}
 func (*SourceLocation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_request_log_960d36708b8f979b, []int{1}
+	return fileDescriptor_request_log_c4e4bcec179d2e52, []int{1}
 }
 func (m *SourceLocation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SourceLocation.Unmarshal(m, b)
@@ -170,7 +170,7 @@ func (m *SourceReference) Reset()         { *m = SourceReference{} }
 func (m *SourceReference) String() string { return proto.CompactTextString(m) }
 func (*SourceReference) ProtoMessage()    {}
 func (*SourceReference) Descriptor() ([]byte, []int) {
-	return fileDescriptor_request_log_960d36708b8f979b, []int{2}
+	return fileDescriptor_request_log_c4e4bcec179d2e52, []int{2}
 }
 func (m *SourceReference) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SourceReference.Unmarshal(m, b)
@@ -298,7 +298,7 @@ func (m *RequestLog) Reset()         { *m = RequestLog{} }
 func (m *RequestLog) String() string { return proto.CompactTextString(m) }
 func (*RequestLog) ProtoMessage()    {}
 func (*RequestLog) Descriptor() ([]byte, []int) {
-	return fileDescriptor_request_log_960d36708b8f979b, []int{3}
+	return fileDescriptor_request_log_c4e4bcec179d2e52, []int{3}
 }
 func (m *RequestLog) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RequestLog.Unmarshal(m, b)
@@ -550,10 +550,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/logging/v1/request_log.proto", fileDescriptor_request_log_960d36708b8f979b)
+	proto.RegisterFile("google/appengine/logging/v1/request_log.proto", fileDescriptor_request_log_c4e4bcec179d2e52)
 }
 
-var fileDescriptor_request_log_960d36708b8f979b = []byte{
+var fileDescriptor_request_log_c4e4bcec179d2e52 = []byte{
 	// 921 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x55, 0x7f, 0x6f, 0x1c, 0x35,
 	0x10, 0xd5, 0xe6, 0xe7, 0x9d, 0x2f, 0xb9, 0xa4, 0xa6, 0x2d, 0x4e, 0x42, 0x9b, 0x23, 0xd0, 0x70,

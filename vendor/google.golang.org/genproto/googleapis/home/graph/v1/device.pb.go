@@ -55,7 +55,7 @@ func (m *Device) Reset()         { *m = Device{} }
 func (m *Device) String() string { return proto.CompactTextString(m) }
 func (*Device) ProtoMessage()    {}
 func (*Device) Descriptor() ([]byte, []int) {
-	return fileDescriptor_device_310b64582597de9b, []int{0}
+	return fileDescriptor_device_8fc78cb86ce98100, []int{0}
 }
 func (m *Device) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Device.Unmarshal(m, b)
@@ -163,7 +163,7 @@ func (m *DeviceNames) Reset()         { *m = DeviceNames{} }
 func (m *DeviceNames) String() string { return proto.CompactTextString(m) }
 func (*DeviceNames) ProtoMessage()    {}
 func (*DeviceNames) Descriptor() ([]byte, []int) {
-	return fileDescriptor_device_310b64582597de9b, []int{1}
+	return fileDescriptor_device_8fc78cb86ce98100, []int{1}
 }
 func (m *DeviceNames) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeviceNames.Unmarshal(m, b)
@@ -223,7 +223,7 @@ func (m *DeviceInfo) Reset()         { *m = DeviceInfo{} }
 func (m *DeviceInfo) String() string { return proto.CompactTextString(m) }
 func (*DeviceInfo) ProtoMessage()    {}
 func (*DeviceInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_device_310b64582597de9b, []int{2}
+	return fileDescriptor_device_8fc78cb86ce98100, []int{2}
 }
 func (m *DeviceInfo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeviceInfo.Unmarshal(m, b)
@@ -278,10 +278,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/home/graph/v1/device.proto", fileDescriptor_device_310b64582597de9b)
+	proto.RegisterFile("google/home/graph/v1/device.proto", fileDescriptor_device_8fc78cb86ce98100)
 }
 
-var fileDescriptor_device_310b64582597de9b = []byte{
+var fileDescriptor_device_8fc78cb86ce98100 = []byte{
 	// 470 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x93, 0xc1, 0x6f, 0xd4, 0x3c,
 	0x10, 0xc5, 0x95, 0xdd, 0xed, 0x7e, 0x9b, 0xd9, 0xb6, 0x9f, 0xb0, 0x2a, 0xb0, 0xa0, 0x88, 0x74,

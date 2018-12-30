@@ -59,7 +59,7 @@ func (x TextAnnotation_DetectedBreak_BreakType) String() string {
 	return proto.EnumName(TextAnnotation_DetectedBreak_BreakType_name, int32(x))
 }
 func (TextAnnotation_DetectedBreak_BreakType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{0, 1, 0}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{0, 1, 0}
 }
 
 // Type of a block (text, image etc) as identified by OCR.
@@ -101,7 +101,7 @@ func (x Block_BlockType) String() string {
 	return proto.EnumName(Block_BlockType_name, int32(x))
 }
 func (Block_BlockType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{2, 0}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{2, 0}
 }
 
 // TextAnnotation contains a structured representation of OCR extracted text.
@@ -125,7 +125,7 @@ func (m *TextAnnotation) Reset()         { *m = TextAnnotation{} }
 func (m *TextAnnotation) String() string { return proto.CompactTextString(m) }
 func (*TextAnnotation) ProtoMessage()    {}
 func (*TextAnnotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{0}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{0}
 }
 func (m *TextAnnotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TextAnnotation.Unmarshal(m, b)
@@ -176,7 +176,7 @@ func (m *TextAnnotation_DetectedLanguage) Reset()         { *m = TextAnnotation_
 func (m *TextAnnotation_DetectedLanguage) String() string { return proto.CompactTextString(m) }
 func (*TextAnnotation_DetectedLanguage) ProtoMessage()    {}
 func (*TextAnnotation_DetectedLanguage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{0, 0}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{0, 0}
 }
 func (m *TextAnnotation_DetectedLanguage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TextAnnotation_DetectedLanguage.Unmarshal(m, b)
@@ -225,7 +225,7 @@ func (m *TextAnnotation_DetectedBreak) Reset()         { *m = TextAnnotation_Det
 func (m *TextAnnotation_DetectedBreak) String() string { return proto.CompactTextString(m) }
 func (*TextAnnotation_DetectedBreak) ProtoMessage()    {}
 func (*TextAnnotation_DetectedBreak) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{0, 1}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{0, 1}
 }
 func (m *TextAnnotation_DetectedBreak) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TextAnnotation_DetectedBreak.Unmarshal(m, b)
@@ -274,7 +274,7 @@ func (m *TextAnnotation_TextProperty) Reset()         { *m = TextAnnotation_Text
 func (m *TextAnnotation_TextProperty) String() string { return proto.CompactTextString(m) }
 func (*TextAnnotation_TextProperty) ProtoMessage()    {}
 func (*TextAnnotation_TextProperty) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{0, 2}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{0, 2}
 }
 func (m *TextAnnotation_TextProperty) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TextAnnotation_TextProperty.Unmarshal(m, b)
@@ -331,7 +331,7 @@ func (m *Page) Reset()         { *m = Page{} }
 func (m *Page) String() string { return proto.CompactTextString(m) }
 func (*Page) ProtoMessage()    {}
 func (*Page) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{1}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{1}
 }
 func (m *Page) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Page.Unmarshal(m, b)
@@ -426,7 +426,7 @@ func (m *Block) Reset()         { *m = Block{} }
 func (m *Block) String() string { return proto.CompactTextString(m) }
 func (*Block) ProtoMessage()    {}
 func (*Block) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{2}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{2}
 }
 func (m *Block) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Block.Unmarshal(m, b)
@@ -514,7 +514,7 @@ func (m *Paragraph) Reset()         { *m = Paragraph{} }
 func (m *Paragraph) String() string { return proto.CompactTextString(m) }
 func (*Paragraph) ProtoMessage()    {}
 func (*Paragraph) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{3}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{3}
 }
 func (m *Paragraph) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Paragraph.Unmarshal(m, b)
@@ -596,7 +596,7 @@ func (m *Word) Reset()         { *m = Word{} }
 func (m *Word) String() string { return proto.CompactTextString(m) }
 func (*Word) ProtoMessage()    {}
 func (*Word) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{4}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{4}
 }
 func (m *Word) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Word.Unmarshal(m, b)
@@ -677,7 +677,7 @@ func (m *Symbol) Reset()         { *m = Symbol{} }
 func (m *Symbol) String() string { return proto.CompactTextString(m) }
 func (*Symbol) ProtoMessage()    {}
 func (*Symbol) Descriptor() ([]byte, []int) {
-	return fileDescriptor_text_annotation_db85d99ce97b3298, []int{5}
+	return fileDescriptor_text_annotation_8d9193533acd557d, []int{5}
 }
 func (m *Symbol) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Symbol.Unmarshal(m, b)
@@ -740,10 +740,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/vision/v1p2beta1/text_annotation.proto", fileDescriptor_text_annotation_db85d99ce97b3298)
+	proto.RegisterFile("google/cloud/vision/v1p2beta1/text_annotation.proto", fileDescriptor_text_annotation_8d9193533acd557d)
 }
 
-var fileDescriptor_text_annotation_db85d99ce97b3298 = []byte{
+var fileDescriptor_text_annotation_8d9193533acd557d = []byte{
 	// 774 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x56, 0x4f, 0x6f, 0xd3, 0x48,
 	0x14, 0x5f, 0x27, 0x76, 0x1a, 0xbf, 0xb4, 0x91, 0x77, 0x76, 0xb5, 0x8a, 0xb2, 0xbb, 0xa8, 0xa4,

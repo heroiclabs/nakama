@@ -61,7 +61,7 @@ func (x ImportReadGroupSetsRequest_PartitionStrategy) String() string {
 	return proto.EnumName(ImportReadGroupSetsRequest_PartitionStrategy_name, int32(x))
 }
 func (ImportReadGroupSetsRequest_PartitionStrategy) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{2, 0}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{2, 0}
 }
 
 // The read group set search request.
@@ -88,7 +88,7 @@ func (m *SearchReadGroupSetsRequest) Reset()         { *m = SearchReadGroupSetsR
 func (m *SearchReadGroupSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchReadGroupSetsRequest) ProtoMessage()    {}
 func (*SearchReadGroupSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{0}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{0}
 }
 func (m *SearchReadGroupSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchReadGroupSetsRequest.Unmarshal(m, b)
@@ -153,7 +153,7 @@ func (m *SearchReadGroupSetsResponse) Reset()         { *m = SearchReadGroupSets
 func (m *SearchReadGroupSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchReadGroupSetsResponse) ProtoMessage()    {}
 func (*SearchReadGroupSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{1}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{1}
 }
 func (m *SearchReadGroupSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchReadGroupSetsResponse.Unmarshal(m, b)
@@ -220,7 +220,7 @@ func (m *ImportReadGroupSetsRequest) Reset()         { *m = ImportReadGroupSetsR
 func (m *ImportReadGroupSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*ImportReadGroupSetsRequest) ProtoMessage()    {}
 func (*ImportReadGroupSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{2}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{2}
 }
 func (m *ImportReadGroupSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportReadGroupSetsRequest.Unmarshal(m, b)
@@ -281,7 +281,7 @@ func (m *ImportReadGroupSetsResponse) Reset()         { *m = ImportReadGroupSets
 func (m *ImportReadGroupSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*ImportReadGroupSetsResponse) ProtoMessage()    {}
 func (*ImportReadGroupSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{3}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{3}
 }
 func (m *ImportReadGroupSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportReadGroupSetsResponse.Unmarshal(m, b)
@@ -333,7 +333,7 @@ func (m *ExportReadGroupSetRequest) Reset()         { *m = ExportReadGroupSetReq
 func (m *ExportReadGroupSetRequest) String() string { return proto.CompactTextString(m) }
 func (*ExportReadGroupSetRequest) ProtoMessage()    {}
 func (*ExportReadGroupSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{4}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{4}
 }
 func (m *ExportReadGroupSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExportReadGroupSetRequest.Unmarshal(m, b)
@@ -405,7 +405,7 @@ func (m *UpdateReadGroupSetRequest) Reset()         { *m = UpdateReadGroupSetReq
 func (m *UpdateReadGroupSetRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateReadGroupSetRequest) ProtoMessage()    {}
 func (*UpdateReadGroupSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{5}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{5}
 }
 func (m *UpdateReadGroupSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateReadGroupSetRequest.Unmarshal(m, b)
@@ -459,7 +459,7 @@ func (m *DeleteReadGroupSetRequest) Reset()         { *m = DeleteReadGroupSetReq
 func (m *DeleteReadGroupSetRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteReadGroupSetRequest) ProtoMessage()    {}
 func (*DeleteReadGroupSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{6}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{6}
 }
 func (m *DeleteReadGroupSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteReadGroupSetRequest.Unmarshal(m, b)
@@ -498,7 +498,7 @@ func (m *GetReadGroupSetRequest) Reset()         { *m = GetReadGroupSetRequest{}
 func (m *GetReadGroupSetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetReadGroupSetRequest) ProtoMessage()    {}
 func (*GetReadGroupSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{7}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{7}
 }
 func (m *GetReadGroupSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetReadGroupSetRequest.Unmarshal(m, b)
@@ -562,7 +562,7 @@ func (m *ListCoverageBucketsRequest) Reset()         { *m = ListCoverageBucketsR
 func (m *ListCoverageBucketsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListCoverageBucketsRequest) ProtoMessage()    {}
 func (*ListCoverageBucketsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{8}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{8}
 }
 func (m *ListCoverageBucketsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCoverageBucketsRequest.Unmarshal(m, b)
@@ -648,7 +648,7 @@ func (m *CoverageBucket) Reset()         { *m = CoverageBucket{} }
 func (m *CoverageBucket) String() string { return proto.CompactTextString(m) }
 func (*CoverageBucket) ProtoMessage()    {}
 func (*CoverageBucket) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{9}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{9}
 }
 func (m *CoverageBucket) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CoverageBucket.Unmarshal(m, b)
@@ -706,7 +706,7 @@ func (m *ListCoverageBucketsResponse) Reset()         { *m = ListCoverageBuckets
 func (m *ListCoverageBucketsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListCoverageBucketsResponse) ProtoMessage()    {}
 func (*ListCoverageBucketsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{10}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{10}
 }
 func (m *ListCoverageBucketsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListCoverageBucketsResponse.Unmarshal(m, b)
@@ -784,7 +784,7 @@ func (m *SearchReadsRequest) Reset()         { *m = SearchReadsRequest{} }
 func (m *SearchReadsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchReadsRequest) ProtoMessage()    {}
 func (*SearchReadsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{11}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{11}
 }
 func (m *SearchReadsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchReadsRequest.Unmarshal(m, b)
@@ -873,7 +873,7 @@ func (m *SearchReadsResponse) Reset()         { *m = SearchReadsResponse{} }
 func (m *SearchReadsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchReadsResponse) ProtoMessage()    {}
 func (*SearchReadsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{12}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{12}
 }
 func (m *SearchReadsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchReadsResponse.Unmarshal(m, b)
@@ -955,7 +955,7 @@ func (m *StreamReadsRequest) Reset()         { *m = StreamReadsRequest{} }
 func (m *StreamReadsRequest) String() string { return proto.CompactTextString(m) }
 func (*StreamReadsRequest) ProtoMessage()    {}
 func (*StreamReadsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{13}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{13}
 }
 func (m *StreamReadsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamReadsRequest.Unmarshal(m, b)
@@ -1035,7 +1035,7 @@ func (m *StreamReadsResponse) Reset()         { *m = StreamReadsResponse{} }
 func (m *StreamReadsResponse) String() string { return proto.CompactTextString(m) }
 func (*StreamReadsResponse) ProtoMessage()    {}
 func (*StreamReadsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_reads_3664f05bf43fdf40, []int{14}
+	return fileDescriptor_reads_afba1347c0c1059a, []int{14}
 }
 func (m *StreamReadsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamReadsResponse.Unmarshal(m, b)
@@ -1660,10 +1660,10 @@ var _ReadServiceV1_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/reads.proto", fileDescriptor_reads_3664f05bf43fdf40)
+	proto.RegisterFile("google/genomics/v1/reads.proto", fileDescriptor_reads_afba1347c0c1059a)
 }
 
-var fileDescriptor_reads_3664f05bf43fdf40 = []byte{
+var fileDescriptor_reads_afba1347c0c1059a = []byte{
 	// 1333 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0xcf, 0x6f, 0x1b, 0xc5,
 	0x17, 0xff, 0x8e, 0x1d, 0xb7, 0xcd, 0x73, 0x93, 0x38, 0xe3, 0x7e, 0x8b, 0xe3, 0x90, 0x36, 0x6c,

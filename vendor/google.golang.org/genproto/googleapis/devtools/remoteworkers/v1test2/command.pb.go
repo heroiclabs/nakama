@@ -39,7 +39,7 @@ func (m *CommandTask) Reset()         { *m = CommandTask{} }
 func (m *CommandTask) String() string { return proto.CompactTextString(m) }
 func (*CommandTask) ProtoMessage()    {}
 func (*CommandTask) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{0}
+	return fileDescriptor_command_56eedbbbc833397d, []int{0}
 }
 func (m *CommandTask) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandTask.Unmarshal(m, b)
@@ -114,7 +114,7 @@ func (m *CommandTask_Inputs) Reset()         { *m = CommandTask_Inputs{} }
 func (m *CommandTask_Inputs) String() string { return proto.CompactTextString(m) }
 func (*CommandTask_Inputs) ProtoMessage()    {}
 func (*CommandTask_Inputs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{0, 0}
+	return fileDescriptor_command_56eedbbbc833397d, []int{0, 0}
 }
 func (m *CommandTask_Inputs) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandTask_Inputs.Unmarshal(m, b)
@@ -172,7 +172,7 @@ func (m *CommandTask_Inputs_EnvironmentVariable) Reset() {
 func (m *CommandTask_Inputs_EnvironmentVariable) String() string { return proto.CompactTextString(m) }
 func (*CommandTask_Inputs_EnvironmentVariable) ProtoMessage()    {}
 func (*CommandTask_Inputs_EnvironmentVariable) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{0, 0, 0}
+	return fileDescriptor_command_56eedbbbc833397d, []int{0, 0, 0}
 }
 func (m *CommandTask_Inputs_EnvironmentVariable) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandTask_Inputs_EnvironmentVariable.Unmarshal(m, b)
@@ -235,7 +235,7 @@ func (m *CommandTask_Outputs) Reset()         { *m = CommandTask_Outputs{} }
 func (m *CommandTask_Outputs) String() string { return proto.CompactTextString(m) }
 func (*CommandTask_Outputs) ProtoMessage()    {}
 func (*CommandTask_Outputs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{0, 1}
+	return fileDescriptor_command_56eedbbbc833397d, []int{0, 1}
 }
 func (m *CommandTask_Outputs) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandTask_Outputs.Unmarshal(m, b)
@@ -310,7 +310,7 @@ func (m *CommandTask_Timeouts) Reset()         { *m = CommandTask_Timeouts{} }
 func (m *CommandTask_Timeouts) String() string { return proto.CompactTextString(m) }
 func (*CommandTask_Timeouts) ProtoMessage()    {}
 func (*CommandTask_Timeouts) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{0, 2}
+	return fileDescriptor_command_56eedbbbc833397d, []int{0, 2}
 }
 func (m *CommandTask_Timeouts) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandTask_Timeouts.Unmarshal(m, b)
@@ -373,7 +373,7 @@ func (m *CommandOutputs) Reset()         { *m = CommandOutputs{} }
 func (m *CommandOutputs) String() string { return proto.CompactTextString(m) }
 func (*CommandOutputs) ProtoMessage()    {}
 func (*CommandOutputs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{1}
+	return fileDescriptor_command_56eedbbbc833397d, []int{1}
 }
 func (m *CommandOutputs) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandOutputs.Unmarshal(m, b)
@@ -427,7 +427,7 @@ func (m *CommandOverhead) Reset()         { *m = CommandOverhead{} }
 func (m *CommandOverhead) String() string { return proto.CompactTextString(m) }
 func (*CommandOverhead) ProtoMessage()    {}
 func (*CommandOverhead) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{2}
+	return fileDescriptor_command_56eedbbbc833397d, []int{2}
 }
 func (m *CommandOverhead) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandOverhead.Unmarshal(m, b)
@@ -499,7 +499,7 @@ func (m *CommandResult) Reset()         { *m = CommandResult{} }
 func (m *CommandResult) String() string { return proto.CompactTextString(m) }
 func (*CommandResult) ProtoMessage()    {}
 func (*CommandResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{3}
+	return fileDescriptor_command_56eedbbbc833397d, []int{3}
 }
 func (m *CommandResult) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CommandResult.Unmarshal(m, b)
@@ -589,7 +589,7 @@ func (m *FileMetadata) Reset()         { *m = FileMetadata{} }
 func (m *FileMetadata) String() string { return proto.CompactTextString(m) }
 func (*FileMetadata) ProtoMessage()    {}
 func (*FileMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{4}
+	return fileDescriptor_command_56eedbbbc833397d, []int{4}
 }
 func (m *FileMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FileMetadata.Unmarshal(m, b)
@@ -654,7 +654,7 @@ func (m *DirectoryMetadata) Reset()         { *m = DirectoryMetadata{} }
 func (m *DirectoryMetadata) String() string { return proto.CompactTextString(m) }
 func (*DirectoryMetadata) ProtoMessage()    {}
 func (*DirectoryMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{5}
+	return fileDescriptor_command_56eedbbbc833397d, []int{5}
 }
 func (m *DirectoryMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DirectoryMetadata.Unmarshal(m, b)
@@ -715,7 +715,7 @@ func (m *Digest) Reset()         { *m = Digest{} }
 func (m *Digest) String() string { return proto.CompactTextString(m) }
 func (*Digest) ProtoMessage()    {}
 func (*Digest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{6}
+	return fileDescriptor_command_56eedbbbc833397d, []int{6}
 }
 func (m *Digest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Digest.Unmarshal(m, b)
@@ -765,7 +765,7 @@ func (m *Directory) Reset()         { *m = Directory{} }
 func (m *Directory) String() string { return proto.CompactTextString(m) }
 func (*Directory) ProtoMessage()    {}
 func (*Directory) Descriptor() ([]byte, []int) {
-	return fileDescriptor_command_0b1f53ec822d983a, []int{7}
+	return fileDescriptor_command_56eedbbbc833397d, []int{7}
 }
 func (m *Directory) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Directory.Unmarshal(m, b)
@@ -815,10 +815,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/remoteworkers/v1test2/command.proto", fileDescriptor_command_0b1f53ec822d983a)
+	proto.RegisterFile("google/devtools/remoteworkers/v1test2/command.proto", fileDescriptor_command_56eedbbbc833397d)
 }
 
-var fileDescriptor_command_0b1f53ec822d983a = []byte{
+var fileDescriptor_command_56eedbbbc833397d = []byte{
 	// 852 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0x5d, 0x6f, 0x1b, 0x45,
 	0x14, 0xd5, 0xae, 0x3f, 0x62, 0x5f, 0xa7, 0x94, 0x0e, 0xa9, 0x70, 0xcd, 0x87, 0x22, 0xa3, 0x4a,

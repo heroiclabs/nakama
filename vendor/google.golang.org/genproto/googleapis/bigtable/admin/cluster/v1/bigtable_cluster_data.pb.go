@@ -48,7 +48,7 @@ func (x StorageType) String() string {
 	return proto.EnumName(StorageType_name, int32(x))
 }
 func (StorageType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_cluster_data_9c907aaf773fda68, []int{0}
+	return fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701, []int{0}
 }
 
 // Possible states of a zone.
@@ -72,8 +72,8 @@ var Zone_Status_name = map[int32]string{
 	3: "EMERGENCY_MAINENANCE",
 }
 var Zone_Status_value = map[string]int32{
-	"UNKNOWN": 0,
-	"OK":      1,
+	"UNKNOWN":              0,
+	"OK":                   1,
 	"PLANNED_MAINTENANCE":  2,
 	"EMERGENCY_MAINENANCE": 3,
 }
@@ -82,7 +82,7 @@ func (x Zone_Status) String() string {
 	return proto.EnumName(Zone_Status_name, int32(x))
 }
 func (Zone_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_cluster_data_9c907aaf773fda68, []int{0, 0}
+	return fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701, []int{0, 0}
 }
 
 // A physical location in which a particular project can allocate Cloud BigTable
@@ -104,7 +104,7 @@ func (m *Zone) Reset()         { *m = Zone{} }
 func (m *Zone) String() string { return proto.CompactTextString(m) }
 func (*Zone) ProtoMessage()    {}
 func (*Zone) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_cluster_data_9c907aaf773fda68, []int{0}
+	return fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701, []int{0}
 }
 func (m *Zone) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Zone.Unmarshal(m, b)
@@ -174,7 +174,7 @@ func (m *Cluster) Reset()         { *m = Cluster{} }
 func (m *Cluster) String() string { return proto.CompactTextString(m) }
 func (*Cluster) ProtoMessage()    {}
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_cluster_data_9c907aaf773fda68, []int{1}
+	return fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701, []int{1}
 }
 func (m *Cluster) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Cluster.Unmarshal(m, b)
@@ -237,10 +237,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/bigtable/admin/cluster/v1/bigtable_cluster_data.proto", fileDescriptor_bigtable_cluster_data_9c907aaf773fda68)
+	proto.RegisterFile("google/bigtable/admin/cluster/v1/bigtable_cluster_data.proto", fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701)
 }
 
-var fileDescriptor_bigtable_cluster_data_9c907aaf773fda68 = []byte{
+var fileDescriptor_bigtable_cluster_data_5751b30eb8ec0701 = []byte{
 	// 493 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xd1, 0x6e, 0xd3, 0x3c,
 	0x1c, 0xc5, 0x97, 0xae, 0xeb, 0xbe, 0xcf, 0x41, 0x10, 0xcc, 0x24, 0xa2, 0x09, 0xb4, 0x52, 0xb8,

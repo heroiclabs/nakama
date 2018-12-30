@@ -50,7 +50,7 @@ func (m *Dataset) Reset()         { *m = Dataset{} }
 func (m *Dataset) String() string { return proto.CompactTextString(m) }
 func (*Dataset) ProtoMessage()    {}
 func (*Dataset) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{0}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{0}
 }
 func (m *Dataset) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Dataset.Unmarshal(m, b)
@@ -118,7 +118,7 @@ func (m *ListDatasetsRequest) Reset()         { *m = ListDatasetsRequest{} }
 func (m *ListDatasetsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListDatasetsRequest) ProtoMessage()    {}
 func (*ListDatasetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{1}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{1}
 }
 func (m *ListDatasetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListDatasetsRequest.Unmarshal(m, b)
@@ -176,7 +176,7 @@ func (m *ListDatasetsResponse) Reset()         { *m = ListDatasetsResponse{} }
 func (m *ListDatasetsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListDatasetsResponse) ProtoMessage()    {}
 func (*ListDatasetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{2}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{2}
 }
 func (m *ListDatasetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListDatasetsResponse.Unmarshal(m, b)
@@ -222,7 +222,7 @@ func (m *CreateDatasetRequest) Reset()         { *m = CreateDatasetRequest{} }
 func (m *CreateDatasetRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateDatasetRequest) ProtoMessage()    {}
 func (*CreateDatasetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{3}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{3}
 }
 func (m *CreateDatasetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateDatasetRequest.Unmarshal(m, b)
@@ -268,7 +268,7 @@ func (m *UpdateDatasetRequest) Reset()         { *m = UpdateDatasetRequest{} }
 func (m *UpdateDatasetRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateDatasetRequest) ProtoMessage()    {}
 func (*UpdateDatasetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{4}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{4}
 }
 func (m *UpdateDatasetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateDatasetRequest.Unmarshal(m, b)
@@ -321,7 +321,7 @@ func (m *DeleteDatasetRequest) Reset()         { *m = DeleteDatasetRequest{} }
 func (m *DeleteDatasetRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteDatasetRequest) ProtoMessage()    {}
 func (*DeleteDatasetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{5}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{5}
 }
 func (m *DeleteDatasetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteDatasetRequest.Unmarshal(m, b)
@@ -360,7 +360,7 @@ func (m *UndeleteDatasetRequest) Reset()         { *m = UndeleteDatasetRequest{}
 func (m *UndeleteDatasetRequest) String() string { return proto.CompactTextString(m) }
 func (*UndeleteDatasetRequest) ProtoMessage()    {}
 func (*UndeleteDatasetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{6}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{6}
 }
 func (m *UndeleteDatasetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UndeleteDatasetRequest.Unmarshal(m, b)
@@ -399,7 +399,7 @@ func (m *GetDatasetRequest) Reset()         { *m = GetDatasetRequest{} }
 func (m *GetDatasetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetDatasetRequest) ProtoMessage()    {}
 func (*GetDatasetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datasets_bbb96e8077d77f63, []int{7}
+	return fileDescriptor_datasets_6135563a56d7e4f8, []int{7}
 }
 func (m *GetDatasetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetDatasetRequest.Unmarshal(m, b)
@@ -902,10 +902,10 @@ var _DatasetServiceV1_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/datasets.proto", fileDescriptor_datasets_bbb96e8077d77f63)
+	proto.RegisterFile("google/genomics/v1/datasets.proto", fileDescriptor_datasets_6135563a56d7e4f8)
 }
 
-var fileDescriptor_datasets_bbb96e8077d77f63 = []byte{
+var fileDescriptor_datasets_6135563a56d7e4f8 = []byte{
 	// 786 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xd1, 0x4e, 0x13, 0x4d,
 	0x14, 0xce, 0x16, 0xfe, 0x1f, 0x7a, 0xa0, 0xa0, 0x63, 0xc5, 0xda, 0x8a, 0x96, 0x8d, 0x42, 0xad,

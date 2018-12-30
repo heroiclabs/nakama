@@ -10,6 +10,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -22,16 +23,33 @@ import (
 )
 
 var (
-	importPrefix         = flag.String("import_prefix", "", "prefix to be added to go package paths for imported proto files")
-	importPath           = flag.String("import_path", "", "used as the package if no input files declare go_package. If it contains slashes, everything up to the rightmost slash is ignored.")
-	useRequestContext    = flag.Bool("request_context", true, "determine whether to use http.Request's context or not")
-	allowDeleteBody      = flag.Bool("allow_delete_body", false, "unless set, HTTP DELETE methods may not have a body")
-	grpcAPIConfiguration = flag.String("grpc_api_configuration", "", "path to gRPC API Configuration in YAML format")
+	importPrefix               = flag.String("import_prefix", "", "prefix to be added to go package paths for imported proto files")
+	importPath                 = flag.String("import_path", "", "used as the package if no input files declare go_package. If it contains slashes, everything up to the rightmost slash is ignored.")
+	registerFuncSuffix         = flag.String("register_func_suffix", "Handler", "used to construct names of generated Register*<Suffix> methods.")
+	useRequestContext          = flag.Bool("request_context", true, "determine whether to use http.Request's context or not")
+	allowDeleteBody            = flag.Bool("allow_delete_body", false, "unless set, HTTP DELETE methods may not have a body")
+	grpcAPIConfiguration       = flag.String("grpc_api_configuration", "", "path to gRPC API Configuration in YAML format")
+	pathType                   = flag.String("paths", "", "specifies how the paths of generated files are structured")
+	allowRepeatedFieldsInBody  = flag.Bool("allow_repeated_fields_in_body", false, "allows to use repeated field in `body` and `response_body` field of `google.api.http` annotation option")
+	repeatedPathParamSeparator = flag.String("repeated_path_param_separator", "csv", "configures how repeated fields should be split. Allowed values are `csv`, `pipes`, `ssv` and `tsv`.")
+	versionFlag                = flag.Bool("version", false, "print the current verison")
+)
+
+// Variables set by goreleaser at build time
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 func main() {
 	flag.Parse()
 	defer glog.Flush()
+
+	if *versionFlag {
+		fmt.Printf("Version %v, commit %v, built at %v\n", version, commit, date)
+		os.Exit(0)
+	}
 
 	reg := descriptor.NewRegistry()
 
@@ -61,7 +79,7 @@ func main() {
 		}
 	}
 
-	g := gengateway.New(reg, *useRequestContext)
+	g := gengateway.New(reg, *useRequestContext, *registerFuncSuffix, *pathType)
 
 	if *grpcAPIConfiguration != "" {
 		if err := reg.LoadGrpcAPIServiceFromYAML(*grpcAPIConfiguration); err != nil {
@@ -73,6 +91,11 @@ func main() {
 	reg.SetPrefix(*importPrefix)
 	reg.SetImportPath(*importPath)
 	reg.SetAllowDeleteBody(*allowDeleteBody)
+	reg.SetAllowRepeatedFieldsInBody(*allowRepeatedFieldsInBody)
+	if err := reg.SetRepeatedPathParamSeparator(*repeatedPathParamSeparator); err != nil {
+		emitError(err)
+		return
+	}
 	if err := reg.Load(req); err != nil {
 		emitError(err)
 		return

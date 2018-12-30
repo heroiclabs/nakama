@@ -60,7 +60,7 @@ func (x AudioInConfig_Encoding) String() string {
 	return proto.EnumName(AudioInConfig_Encoding_name, int32(x))
 }
 func (AudioInConfig_Encoding) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{1, 0}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{1, 0}
 }
 
 // Audio encoding of the data returned in the audio message. All encodings are
@@ -98,7 +98,7 @@ func (x AudioOutConfig_Encoding) String() string {
 	return proto.EnumName(AudioOutConfig_Encoding_name, int32(x))
 }
 func (AudioOutConfig_Encoding) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{2, 0}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{2, 0}
 }
 
 // Possible states of the microphone after a `Converse` RPC completes.
@@ -131,7 +131,7 @@ func (x ConverseResult_MicrophoneMode) String() string {
 	return proto.EnumName(ConverseResult_MicrophoneMode_name, int32(x))
 }
 func (ConverseResult_MicrophoneMode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{5, 0}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{5, 0}
 }
 
 // Indicates the type of event.
@@ -162,7 +162,7 @@ func (x ConverseResponse_EventType) String() string {
 	return proto.EnumName(ConverseResponse_EventType_name, int32(x))
 }
 func (ConverseResponse_EventType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{7, 0}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{7, 0}
 }
 
 // Specifies how to process the `ConverseRequest` messages.
@@ -182,7 +182,7 @@ func (m *ConverseConfig) Reset()         { *m = ConverseConfig{} }
 func (m *ConverseConfig) String() string { return proto.CompactTextString(m) }
 func (*ConverseConfig) ProtoMessage()    {}
 func (*ConverseConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{0}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{0}
 }
 func (m *ConverseConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConverseConfig.Unmarshal(m, b)
@@ -244,7 +244,7 @@ func (m *AudioInConfig) Reset()         { *m = AudioInConfig{} }
 func (m *AudioInConfig) String() string { return proto.CompactTextString(m) }
 func (*AudioInConfig) ProtoMessage()    {}
 func (*AudioInConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{1}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{1}
 }
 func (m *AudioInConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AudioInConfig.Unmarshal(m, b)
@@ -299,7 +299,7 @@ func (m *AudioOutConfig) Reset()         { *m = AudioOutConfig{} }
 func (m *AudioOutConfig) String() string { return proto.CompactTextString(m) }
 func (*AudioOutConfig) ProtoMessage()    {}
 func (*AudioOutConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{2}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{2}
 }
 func (m *AudioOutConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AudioOutConfig.Unmarshal(m, b)
@@ -357,7 +357,7 @@ func (m *ConverseState) Reset()         { *m = ConverseState{} }
 func (m *ConverseState) String() string { return proto.CompactTextString(m) }
 func (*ConverseState) ProtoMessage()    {}
 func (*ConverseState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{3}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{3}
 }
 func (m *ConverseState) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConverseState.Unmarshal(m, b)
@@ -400,7 +400,7 @@ func (m *AudioOut) Reset()         { *m = AudioOut{} }
 func (m *AudioOut) String() string { return proto.CompactTextString(m) }
 func (*AudioOut) ProtoMessage()    {}
 func (*AudioOut) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{4}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{4}
 }
 func (m *AudioOut) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AudioOut.Unmarshal(m, b)
@@ -462,7 +462,7 @@ func (m *ConverseResult) Reset()         { *m = ConverseResult{} }
 func (m *ConverseResult) String() string { return proto.CompactTextString(m) }
 func (*ConverseResult) ProtoMessage()    {}
 func (*ConverseResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{5}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{5}
 }
 func (m *ConverseResult) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConverseResult.Unmarshal(m, b)
@@ -538,7 +538,7 @@ func (m *ConverseRequest) Reset()         { *m = ConverseRequest{} }
 func (m *ConverseRequest) String() string { return proto.CompactTextString(m) }
 func (*ConverseRequest) ProtoMessage()    {}
 func (*ConverseRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{6}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{6}
 }
 func (m *ConverseRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConverseRequest.Unmarshal(m, b)
@@ -565,11 +565,13 @@ type isConverseRequest_ConverseRequest interface {
 type ConverseRequest_Config struct {
 	Config *ConverseConfig `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
 }
+
 type ConverseRequest_AudioIn struct {
 	AudioIn []byte `protobuf:"bytes,2,opt,name=audio_in,json=audioIn,proto3,oneof"`
 }
 
-func (*ConverseRequest_Config) isConverseRequest_ConverseRequest()  {}
+func (*ConverseRequest_Config) isConverseRequest_ConverseRequest() {}
+
 func (*ConverseRequest_AudioIn) isConverseRequest_ConverseRequest() {}
 
 func (m *ConverseRequest) GetConverseRequest() isConverseRequest_ConverseRequest {
@@ -683,7 +685,7 @@ func (m *ConverseResponse) Reset()         { *m = ConverseResponse{} }
 func (m *ConverseResponse) String() string { return proto.CompactTextString(m) }
 func (*ConverseResponse) ProtoMessage()    {}
 func (*ConverseResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_embedded_assistant_725491da2da8de4c, []int{7}
+	return fileDescriptor_embedded_assistant_1e1f50e651d7eaee, []int{7}
 }
 func (m *ConverseResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConverseResponse.Unmarshal(m, b)
@@ -710,20 +712,26 @@ type isConverseResponse_ConverseResponse interface {
 type ConverseResponse_Error struct {
 	Error *status.Status `protobuf:"bytes,1,opt,name=error,proto3,oneof"`
 }
+
 type ConverseResponse_EventType_ struct {
 	EventType ConverseResponse_EventType `protobuf:"varint,2,opt,name=event_type,json=eventType,proto3,enum=google.assistant.embedded.v1alpha1.ConverseResponse_EventType,oneof"`
 }
+
 type ConverseResponse_AudioOut struct {
 	AudioOut *AudioOut `protobuf:"bytes,3,opt,name=audio_out,json=audioOut,proto3,oneof"`
 }
+
 type ConverseResponse_Result struct {
 	Result *ConverseResult `protobuf:"bytes,5,opt,name=result,proto3,oneof"`
 }
 
-func (*ConverseResponse_Error) isConverseResponse_ConverseResponse()      {}
+func (*ConverseResponse_Error) isConverseResponse_ConverseResponse() {}
+
 func (*ConverseResponse_EventType_) isConverseResponse_ConverseResponse() {}
-func (*ConverseResponse_AudioOut) isConverseResponse_ConverseResponse()   {}
-func (*ConverseResponse_Result) isConverseResponse_ConverseResponse()     {}
+
+func (*ConverseResponse_AudioOut) isConverseResponse_ConverseResponse() {}
+
+func (*ConverseResponse_Result) isConverseResponse_ConverseResponse() {}
 
 func (m *ConverseResponse) GetConverseResponse() isConverseResponse_ConverseResponse {
 	if m != nil {
@@ -1069,10 +1077,10 @@ var _EmbeddedAssistant_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/assistant/embedded/v1alpha1/embedded_assistant.proto", fileDescriptor_embedded_assistant_725491da2da8de4c)
+	proto.RegisterFile("google/assistant/embedded/v1alpha1/embedded_assistant.proto", fileDescriptor_embedded_assistant_1e1f50e651d7eaee)
 }
 
-var fileDescriptor_embedded_assistant_725491da2da8de4c = []byte{
+var fileDescriptor_embedded_assistant_1e1f50e651d7eaee = []byte{
 	// 892 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0x51, 0x73, 0xdb, 0x44,
 	0x10, 0xb6, 0xec, 0xa6, 0xb5, 0xb7, 0x89, 0x2c, 0x5f, 0x33, 0x90, 0x49, 0x61, 0x60, 0xf4, 0xc0,

@@ -68,7 +68,7 @@ func (x OperationMetadata_Status) String() string {
 	return proto.EnumName(OperationMetadata_Status_name, int32(x))
 }
 func (OperationMetadata_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{1, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{1, 0}
 }
 
 // The kind of diagnostic information possible.
@@ -94,7 +94,7 @@ func (x Diagnostic_Kind) String() string {
 	return proto.EnumName(Diagnostic_Kind_name, int32(x))
 }
 func (Diagnostic_Kind) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{2, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{2, 0}
 }
 
 type ConfigFile_FileType int32
@@ -145,7 +145,7 @@ func (x ConfigFile_FileType) String() string {
 	return proto.EnumName(ConfigFile_FileType_name, int32(x))
 }
 func (ConfigFile_FileType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{4, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{4, 0}
 }
 
 // Status of a Rollout.
@@ -193,7 +193,7 @@ func (x Rollout_RolloutStatus) String() string {
 	return proto.EnumName(Rollout_RolloutStatus_name, int32(x))
 }
 func (Rollout_RolloutStatus) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{7, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{7, 0}
 }
 
 // The full representation of a Service that is managed by
@@ -213,7 +213,7 @@ func (m *ManagedService) Reset()         { *m = ManagedService{} }
 func (m *ManagedService) String() string { return proto.CompactTextString(m) }
 func (*ManagedService) ProtoMessage()    {}
 func (*ManagedService) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{0}
 }
 func (m *ManagedService) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ManagedService.Unmarshal(m, b)
@@ -267,7 +267,7 @@ func (m *OperationMetadata) Reset()         { *m = OperationMetadata{} }
 func (m *OperationMetadata) String() string { return proto.CompactTextString(m) }
 func (*OperationMetadata) ProtoMessage()    {}
 func (*OperationMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{1}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{1}
 }
 func (m *OperationMetadata) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OperationMetadata.Unmarshal(m, b)
@@ -330,7 +330,7 @@ func (m *OperationMetadata_Step) Reset()         { *m = OperationMetadata_Step{}
 func (m *OperationMetadata_Step) String() string { return proto.CompactTextString(m) }
 func (*OperationMetadata_Step) ProtoMessage()    {}
 func (*OperationMetadata_Step) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{1, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{1, 0}
 }
 func (m *OperationMetadata_Step) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OperationMetadata_Step.Unmarshal(m, b)
@@ -381,7 +381,7 @@ func (m *Diagnostic) Reset()         { *m = Diagnostic{} }
 func (m *Diagnostic) String() string { return proto.CompactTextString(m) }
 func (*Diagnostic) ProtoMessage()    {}
 func (*Diagnostic) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{2}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{2}
 }
 func (m *Diagnostic) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Diagnostic.Unmarshal(m, b)
@@ -441,7 +441,7 @@ func (m *ConfigSource) Reset()         { *m = ConfigSource{} }
 func (m *ConfigSource) String() string { return proto.CompactTextString(m) }
 func (*ConfigSource) ProtoMessage()    {}
 func (*ConfigSource) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{3}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{3}
 }
 func (m *ConfigSource) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigSource.Unmarshal(m, b)
@@ -492,7 +492,7 @@ func (m *ConfigFile) Reset()         { *m = ConfigFile{} }
 func (m *ConfigFile) String() string { return proto.CompactTextString(m) }
 func (*ConfigFile) ProtoMessage()    {}
 func (*ConfigFile) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{4}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{4}
 }
 func (m *ConfigFile) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigFile.Unmarshal(m, b)
@@ -547,7 +547,7 @@ func (m *ConfigRef) Reset()         { *m = ConfigRef{} }
 func (m *ConfigRef) String() string { return proto.CompactTextString(m) }
 func (*ConfigRef) ProtoMessage()    {}
 func (*ConfigRef) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{5}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{5}
 }
 func (m *ConfigRef) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigRef.Unmarshal(m, b)
@@ -594,7 +594,7 @@ func (m *ChangeReport) Reset()         { *m = ChangeReport{} }
 func (m *ChangeReport) String() string { return proto.CompactTextString(m) }
 func (*ChangeReport) ProtoMessage()    {}
 func (*ChangeReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{6}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{6}
 }
 func (m *ChangeReport) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ChangeReport.Unmarshal(m, b)
@@ -661,7 +661,7 @@ func (m *Rollout) Reset()         { *m = Rollout{} }
 func (m *Rollout) String() string { return proto.CompactTextString(m) }
 func (*Rollout) ProtoMessage()    {}
 func (*Rollout) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{7}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{7}
 }
 func (m *Rollout) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Rollout.Unmarshal(m, b)
@@ -680,27 +680,6 @@ func (m *Rollout) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_Rollout proto.InternalMessageInfo
-
-type isRollout_Strategy interface {
-	isRollout_Strategy()
-}
-
-type Rollout_TrafficPercentStrategy_ struct {
-	TrafficPercentStrategy *Rollout_TrafficPercentStrategy `protobuf:"bytes,5,opt,name=traffic_percent_strategy,json=trafficPercentStrategy,proto3,oneof"`
-}
-type Rollout_DeleteServiceStrategy_ struct {
-	DeleteServiceStrategy *Rollout_DeleteServiceStrategy `protobuf:"bytes,200,opt,name=delete_service_strategy,json=deleteServiceStrategy,proto3,oneof"`
-}
-
-func (*Rollout_TrafficPercentStrategy_) isRollout_Strategy() {}
-func (*Rollout_DeleteServiceStrategy_) isRollout_Strategy()  {}
-
-func (m *Rollout) GetStrategy() isRollout_Strategy {
-	if m != nil {
-		return m.Strategy
-	}
-	return nil
-}
 
 func (m *Rollout) GetRolloutId() string {
 	if m != nil {
@@ -728,6 +707,29 @@ func (m *Rollout) GetStatus() Rollout_RolloutStatus {
 		return m.Status
 	}
 	return Rollout_ROLLOUT_STATUS_UNSPECIFIED
+}
+
+type isRollout_Strategy interface {
+	isRollout_Strategy()
+}
+
+type Rollout_TrafficPercentStrategy_ struct {
+	TrafficPercentStrategy *Rollout_TrafficPercentStrategy `protobuf:"bytes,5,opt,name=traffic_percent_strategy,json=trafficPercentStrategy,proto3,oneof"`
+}
+
+type Rollout_DeleteServiceStrategy_ struct {
+	DeleteServiceStrategy *Rollout_DeleteServiceStrategy `protobuf:"bytes,200,opt,name=delete_service_strategy,json=deleteServiceStrategy,proto3,oneof"`
+}
+
+func (*Rollout_TrafficPercentStrategy_) isRollout_Strategy() {}
+
+func (*Rollout_DeleteServiceStrategy_) isRollout_Strategy() {}
+
+func (m *Rollout) GetStrategy() isRollout_Strategy {
+	if m != nil {
+		return m.Strategy
+	}
+	return nil
 }
 
 func (m *Rollout) GetTrafficPercentStrategy() *Rollout_TrafficPercentStrategy {
@@ -869,7 +871,7 @@ func (m *Rollout_TrafficPercentStrategy) Reset()         { *m = Rollout_TrafficP
 func (m *Rollout_TrafficPercentStrategy) String() string { return proto.CompactTextString(m) }
 func (*Rollout_TrafficPercentStrategy) ProtoMessage()    {}
 func (*Rollout_TrafficPercentStrategy) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{7, 0}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{7, 0}
 }
 func (m *Rollout_TrafficPercentStrategy) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Rollout_TrafficPercentStrategy.Unmarshal(m, b)
@@ -908,7 +910,7 @@ func (m *Rollout_DeleteServiceStrategy) Reset()         { *m = Rollout_DeleteSer
 func (m *Rollout_DeleteServiceStrategy) String() string { return proto.CompactTextString(m) }
 func (*Rollout_DeleteServiceStrategy) ProtoMessage()    {}
 func (*Rollout_DeleteServiceStrategy) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resources_02b8d5c4dbcb736e, []int{7, 1}
+	return fileDescriptor_resources_3e116fd147dc632b, []int{7, 1}
 }
 func (m *Rollout_DeleteServiceStrategy) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Rollout_DeleteServiceStrategy.Unmarshal(m, b)
@@ -948,10 +950,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicemanagement/v1/resources.proto", fileDescriptor_resources_02b8d5c4dbcb736e)
+	proto.RegisterFile("google/api/servicemanagement/v1/resources.proto", fileDescriptor_resources_3e116fd147dc632b)
 }
 
-var fileDescriptor_resources_02b8d5c4dbcb736e = []byte{
+var fileDescriptor_resources_3e116fd147dc632b = []byte{
 	// 1234 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xef, 0x8e, 0xdb, 0x44,
 	0x10, 0xaf, 0xf3, 0xef, 0x2e, 0x93, 0xbb, 0xe0, 0x6e, 0x69, 0x2f, 0x0d, 0xfd, 0x73, 0x4d, 0x85,

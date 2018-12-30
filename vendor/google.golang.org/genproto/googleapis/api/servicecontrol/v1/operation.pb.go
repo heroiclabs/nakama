@@ -46,7 +46,7 @@ func (x Operation_Importance) String() string {
 	return proto.EnumName(Operation_Importance_name, int32(x))
 }
 func (Operation_Importance) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_operation_73f45281ae936cf9, []int{0, 0}
+	return fileDescriptor_operation_b9b924901f6a3776, []int{0, 0}
 }
 
 // Represents information regarding an operation.
@@ -119,7 +119,7 @@ func (m *Operation) Reset()         { *m = Operation{} }
 func (m *Operation) String() string { return proto.CompactTextString(m) }
 func (*Operation) ProtoMessage()    {}
 func (*Operation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_operation_73f45281ae936cf9, []int{0}
+	return fileDescriptor_operation_b9b924901f6a3776, []int{0}
 }
 func (m *Operation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Operation.Unmarshal(m, b)
@@ -209,10 +209,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicecontrol/v1/operation.proto", fileDescriptor_operation_73f45281ae936cf9)
+	proto.RegisterFile("google/api/servicecontrol/v1/operation.proto", fileDescriptor_operation_b9b924901f6a3776)
 }
 
-var fileDescriptor_operation_73f45281ae936cf9 = []byte{
+var fileDescriptor_operation_b9b924901f6a3776 = []byte{
 	// 483 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcf, 0x6b, 0x13, 0x41,
 	0x14, 0xc7, 0x9d, 0xa6, 0xf9, 0xf5, 0x56, 0x63, 0x1c, 0x3c, 0x2c, 0xa1, 0x90, 0x58, 0x50, 0x72,

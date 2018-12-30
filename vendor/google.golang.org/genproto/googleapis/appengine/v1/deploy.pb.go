@@ -39,7 +39,7 @@ func (m *Deployment) Reset()         { *m = Deployment{} }
 func (m *Deployment) String() string { return proto.CompactTextString(m) }
 func (*Deployment) ProtoMessage()    {}
 func (*Deployment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_deploy_4315ed212549d9c2, []int{0}
+	return fileDescriptor_deploy_ed99bebbe4262e1c, []int{0}
 }
 func (m *Deployment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Deployment.Unmarshal(m, b)
@@ -102,7 +102,7 @@ func (m *FileInfo) Reset()         { *m = FileInfo{} }
 func (m *FileInfo) String() string { return proto.CompactTextString(m) }
 func (*FileInfo) ProtoMessage()    {}
 func (*FileInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_deploy_4315ed212549d9c2, []int{1}
+	return fileDescriptor_deploy_ed99bebbe4262e1c, []int{1}
 }
 func (m *FileInfo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FileInfo.Unmarshal(m, b)
@@ -159,7 +159,7 @@ func (m *ContainerInfo) Reset()         { *m = ContainerInfo{} }
 func (m *ContainerInfo) String() string { return proto.CompactTextString(m) }
 func (*ContainerInfo) ProtoMessage()    {}
 func (*ContainerInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_deploy_4315ed212549d9c2, []int{2}
+	return fileDescriptor_deploy_ed99bebbe4262e1c, []int{2}
 }
 func (m *ContainerInfo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ContainerInfo.Unmarshal(m, b)
@@ -204,7 +204,7 @@ func (m *ZipInfo) Reset()         { *m = ZipInfo{} }
 func (m *ZipInfo) String() string { return proto.CompactTextString(m) }
 func (*ZipInfo) ProtoMessage()    {}
 func (*ZipInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_deploy_4315ed212549d9c2, []int{3}
+	return fileDescriptor_deploy_ed99bebbe4262e1c, []int{3}
 }
 func (m *ZipInfo) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ZipInfo.Unmarshal(m, b)
@@ -247,10 +247,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/deploy.proto", fileDescriptor_deploy_4315ed212549d9c2)
+	proto.RegisterFile("google/appengine/v1/deploy.proto", fileDescriptor_deploy_ed99bebbe4262e1c)
 }
 
-var fileDescriptor_deploy_4315ed212549d9c2 = []byte{
+var fileDescriptor_deploy_ed99bebbe4262e1c = []byte{
 	// 394 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x92, 0xd1, 0xab, 0xd3, 0x30,
 	0x14, 0xc6, 0xe9, 0x6a, 0xbd, 0xeb, 0x29, 0x82, 0x44, 0xc1, 0x7a, 0xbd, 0x17, 0x4b, 0x41, 0x28,

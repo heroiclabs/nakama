@@ -63,7 +63,7 @@ func (x Feature) String() string {
 	return proto.EnumName(Feature_name, int32(x))
 }
 func (Feature) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{0}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{0}
 }
 
 // Label detection mode.
@@ -97,7 +97,7 @@ func (x LabelDetectionMode) String() string {
 	return proto.EnumName(LabelDetectionMode_name, int32(x))
 }
 func (LabelDetectionMode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{1}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{1}
 }
 
 // Bucketized representation of likelihood.
@@ -139,7 +139,7 @@ func (x Likelihood) String() string {
 	return proto.EnumName(Likelihood_name, int32(x))
 }
 func (Likelihood) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{2}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{2}
 }
 
 // Video annotation request.
@@ -183,7 +183,7 @@ func (m *AnnotateVideoRequest) Reset()         { *m = AnnotateVideoRequest{} }
 func (m *AnnotateVideoRequest) String() string { return proto.CompactTextString(m) }
 func (*AnnotateVideoRequest) ProtoMessage()    {}
 func (*AnnotateVideoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{0}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{0}
 }
 func (m *AnnotateVideoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AnnotateVideoRequest.Unmarshal(m, b)
@@ -268,7 +268,7 @@ func (m *VideoContext) Reset()         { *m = VideoContext{} }
 func (m *VideoContext) String() string { return proto.CompactTextString(m) }
 func (*VideoContext) ProtoMessage()    {}
 func (*VideoContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{1}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{1}
 }
 func (m *VideoContext) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VideoContext.Unmarshal(m, b)
@@ -346,7 +346,7 @@ func (m *LabelDetectionConfig) Reset()         { *m = LabelDetectionConfig{} }
 func (m *LabelDetectionConfig) String() string { return proto.CompactTextString(m) }
 func (*LabelDetectionConfig) ProtoMessage()    {}
 func (*LabelDetectionConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{2}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{2}
 }
 func (m *LabelDetectionConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LabelDetectionConfig.Unmarshal(m, b)
@@ -402,7 +402,7 @@ func (m *ShotChangeDetectionConfig) Reset()         { *m = ShotChangeDetectionCo
 func (m *ShotChangeDetectionConfig) String() string { return proto.CompactTextString(m) }
 func (*ShotChangeDetectionConfig) ProtoMessage()    {}
 func (*ShotChangeDetectionConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{3}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{3}
 }
 func (m *ShotChangeDetectionConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ShotChangeDetectionConfig.Unmarshal(m, b)
@@ -444,7 +444,7 @@ func (m *ExplicitContentDetectionConfig) Reset()         { *m = ExplicitContentD
 func (m *ExplicitContentDetectionConfig) String() string { return proto.CompactTextString(m) }
 func (*ExplicitContentDetectionConfig) ProtoMessage()    {}
 func (*ExplicitContentDetectionConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{4}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{4}
 }
 func (m *ExplicitContentDetectionConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExplicitContentDetectionConfig.Unmarshal(m, b)
@@ -488,7 +488,7 @@ func (m *FaceDetectionConfig) Reset()         { *m = FaceDetectionConfig{} }
 func (m *FaceDetectionConfig) String() string { return proto.CompactTextString(m) }
 func (*FaceDetectionConfig) ProtoMessage()    {}
 func (*FaceDetectionConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{5}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{5}
 }
 func (m *FaceDetectionConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FaceDetectionConfig.Unmarshal(m, b)
@@ -539,7 +539,7 @@ func (m *VideoSegment) Reset()         { *m = VideoSegment{} }
 func (m *VideoSegment) String() string { return proto.CompactTextString(m) }
 func (*VideoSegment) ProtoMessage()    {}
 func (*VideoSegment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{6}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{6}
 }
 func (m *VideoSegment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VideoSegment.Unmarshal(m, b)
@@ -588,7 +588,7 @@ func (m *LabelSegment) Reset()         { *m = LabelSegment{} }
 func (m *LabelSegment) String() string { return proto.CompactTextString(m) }
 func (*LabelSegment) ProtoMessage()    {}
 func (*LabelSegment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{7}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{7}
 }
 func (m *LabelSegment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LabelSegment.Unmarshal(m, b)
@@ -638,7 +638,7 @@ func (m *LabelFrame) Reset()         { *m = LabelFrame{} }
 func (m *LabelFrame) String() string { return proto.CompactTextString(m) }
 func (*LabelFrame) ProtoMessage()    {}
 func (*LabelFrame) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{8}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{8}
 }
 func (m *LabelFrame) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LabelFrame.Unmarshal(m, b)
@@ -691,7 +691,7 @@ func (m *Entity) Reset()         { *m = Entity{} }
 func (m *Entity) String() string { return proto.CompactTextString(m) }
 func (*Entity) ProtoMessage()    {}
 func (*Entity) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{9}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{9}
 }
 func (m *Entity) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Entity.Unmarshal(m, b)
@@ -754,7 +754,7 @@ func (m *LabelAnnotation) Reset()         { *m = LabelAnnotation{} }
 func (m *LabelAnnotation) String() string { return proto.CompactTextString(m) }
 func (*LabelAnnotation) ProtoMessage()    {}
 func (*LabelAnnotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{10}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{10}
 }
 func (m *LabelAnnotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LabelAnnotation.Unmarshal(m, b)
@@ -818,7 +818,7 @@ func (m *ExplicitContentFrame) Reset()         { *m = ExplicitContentFrame{} }
 func (m *ExplicitContentFrame) String() string { return proto.CompactTextString(m) }
 func (*ExplicitContentFrame) ProtoMessage()    {}
 func (*ExplicitContentFrame) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{11}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{11}
 }
 func (m *ExplicitContentFrame) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExplicitContentFrame.Unmarshal(m, b)
@@ -867,7 +867,7 @@ func (m *ExplicitContentAnnotation) Reset()         { *m = ExplicitContentAnnota
 func (m *ExplicitContentAnnotation) String() string { return proto.CompactTextString(m) }
 func (*ExplicitContentAnnotation) ProtoMessage()    {}
 func (*ExplicitContentAnnotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{12}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{12}
 }
 func (m *ExplicitContentAnnotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExplicitContentAnnotation.Unmarshal(m, b)
@@ -915,7 +915,7 @@ func (m *NormalizedBoundingBox) Reset()         { *m = NormalizedBoundingBox{} }
 func (m *NormalizedBoundingBox) String() string { return proto.CompactTextString(m) }
 func (*NormalizedBoundingBox) ProtoMessage()    {}
 func (*NormalizedBoundingBox) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{13}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{13}
 }
 func (m *NormalizedBoundingBox) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NormalizedBoundingBox.Unmarshal(m, b)
@@ -976,7 +976,7 @@ func (m *FaceSegment) Reset()         { *m = FaceSegment{} }
 func (m *FaceSegment) String() string { return proto.CompactTextString(m) }
 func (*FaceSegment) ProtoMessage()    {}
 func (*FaceSegment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{14}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{14}
 }
 func (m *FaceSegment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FaceSegment.Unmarshal(m, b)
@@ -1021,7 +1021,7 @@ func (m *FaceFrame) Reset()         { *m = FaceFrame{} }
 func (m *FaceFrame) String() string { return proto.CompactTextString(m) }
 func (*FaceFrame) ProtoMessage()    {}
 func (*FaceFrame) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{15}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{15}
 }
 func (m *FaceFrame) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FaceFrame.Unmarshal(m, b)
@@ -1072,7 +1072,7 @@ func (m *FaceAnnotation) Reset()         { *m = FaceAnnotation{} }
 func (m *FaceAnnotation) String() string { return proto.CompactTextString(m) }
 func (*FaceAnnotation) ProtoMessage()    {}
 func (*FaceAnnotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{16}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{16}
 }
 func (m *FaceAnnotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FaceAnnotation.Unmarshal(m, b)
@@ -1145,7 +1145,7 @@ func (m *VideoAnnotationResults) Reset()         { *m = VideoAnnotationResults{}
 func (m *VideoAnnotationResults) String() string { return proto.CompactTextString(m) }
 func (*VideoAnnotationResults) ProtoMessage()    {}
 func (*VideoAnnotationResults) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{17}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{17}
 }
 func (m *VideoAnnotationResults) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VideoAnnotationResults.Unmarshal(m, b)
@@ -1236,7 +1236,7 @@ func (m *AnnotateVideoResponse) Reset()         { *m = AnnotateVideoResponse{} }
 func (m *AnnotateVideoResponse) String() string { return proto.CompactTextString(m) }
 func (*AnnotateVideoResponse) ProtoMessage()    {}
 func (*AnnotateVideoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{18}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{18}
 }
 func (m *AnnotateVideoResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AnnotateVideoResponse.Unmarshal(m, b)
@@ -1284,7 +1284,7 @@ func (m *VideoAnnotationProgress) Reset()         { *m = VideoAnnotationProgress
 func (m *VideoAnnotationProgress) String() string { return proto.CompactTextString(m) }
 func (*VideoAnnotationProgress) ProtoMessage()    {}
 func (*VideoAnnotationProgress) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{19}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{19}
 }
 func (m *VideoAnnotationProgress) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VideoAnnotationProgress.Unmarshal(m, b)
@@ -1347,7 +1347,7 @@ func (m *AnnotateVideoProgress) Reset()         { *m = AnnotateVideoProgress{} }
 func (m *AnnotateVideoProgress) String() string { return proto.CompactTextString(m) }
 func (*AnnotateVideoProgress) ProtoMessage()    {}
 func (*AnnotateVideoProgress) Descriptor() ([]byte, []int) {
-	return fileDescriptor_video_intelligence_b8c9b31f8d4c400b, []int{20}
+	return fileDescriptor_video_intelligence_c47a9b755759e2f4, []int{20}
 }
 func (m *AnnotateVideoProgress) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AnnotateVideoProgress.Unmarshal(m, b)
@@ -1482,10 +1482,10 @@ var _VideoIntelligenceService_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/videointelligence/v1beta2/video_intelligence.proto", fileDescriptor_video_intelligence_b8c9b31f8d4c400b)
+	proto.RegisterFile("google/cloud/videointelligence/v1beta2/video_intelligence.proto", fileDescriptor_video_intelligence_c47a9b755759e2f4)
 }
 
-var fileDescriptor_video_intelligence_b8c9b31f8d4c400b = []byte{
+var fileDescriptor_video_intelligence_c47a9b755759e2f4 = []byte{
 	// 1718 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0x4f, 0x6f, 0xdb, 0xc8,
 	0x15, 0x2f, 0x25, 0xd9, 0xb1, 0x9e, 0xff, 0x48, 0x19, 0xcb, 0xb6, 0xec, 0x26, 0x5e, 0x97, 0x29,

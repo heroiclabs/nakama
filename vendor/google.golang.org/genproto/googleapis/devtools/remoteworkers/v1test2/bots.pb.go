@@ -65,17 +65,17 @@ var BotStatus_name = map[int32]string{
 }
 var BotStatus_value = map[string]int32{
 	"BOT_STATUS_UNSPECIFIED": 0,
-	"OK":              1,
-	"UNHEALTHY":       2,
-	"HOST_REBOOTING":  3,
-	"BOT_TERMINATING": 4,
+	"OK":                     1,
+	"UNHEALTHY":              2,
+	"HOST_REBOOTING":         3,
+	"BOT_TERMINATING":        4,
 }
 
 func (x BotStatus) String() string {
 	return proto.EnumName(BotStatus_name, int32(x))
 }
 func (BotStatus) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{0}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{0}
 }
 
 // The state of the lease. All leases start in the PENDING state. A bot can
@@ -120,7 +120,7 @@ func (x LeaseState) String() string {
 	return proto.EnumName(LeaseState_name, int32(x))
 }
 func (LeaseState) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{1}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{1}
 }
 
 // Possible administration actions.
@@ -162,7 +162,7 @@ func (x AdminTemp_Command) String() string {
 	return proto.EnumName(AdminTemp_Command_name, int32(x))
 }
 func (AdminTemp_Command) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{2, 0}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{2, 0}
 }
 
 // Types of bot events.
@@ -192,7 +192,7 @@ func (x PostBotEventTempRequest_Type) String() string {
 	return proto.EnumName(PostBotEventTempRequest_Type_name, int32(x))
 }
 func (PostBotEventTempRequest_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{5, 0}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{5, 0}
 }
 
 // A bot session represents the state of a bot while in continuous contact with
@@ -251,7 +251,7 @@ func (m *BotSession) Reset()         { *m = BotSession{} }
 func (m *BotSession) String() string { return proto.CompactTextString(m) }
 func (*BotSession) ProtoMessage()    {}
 func (*BotSession) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{0}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{0}
 }
 func (m *BotSession) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BotSession.Unmarshal(m, b)
@@ -383,7 +383,7 @@ func (m *Lease) Reset()         { *m = Lease{} }
 func (m *Lease) String() string { return proto.CompactTextString(m) }
 func (*Lease) ProtoMessage()    {}
 func (*Lease) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{1}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{1}
 }
 func (m *Lease) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Lease.Unmarshal(m, b)
@@ -494,7 +494,7 @@ func (m *AdminTemp) Reset()         { *m = AdminTemp{} }
 func (m *AdminTemp) String() string { return proto.CompactTextString(m) }
 func (*AdminTemp) ProtoMessage()    {}
 func (*AdminTemp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{2}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{2}
 }
 func (m *AdminTemp) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AdminTemp.Unmarshal(m, b)
@@ -543,7 +543,7 @@ func (m *CreateBotSessionRequest) Reset()         { *m = CreateBotSessionRequest
 func (m *CreateBotSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateBotSessionRequest) ProtoMessage()    {}
 func (*CreateBotSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{3}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{3}
 }
 func (m *CreateBotSessionRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateBotSessionRequest.Unmarshal(m, b)
@@ -595,7 +595,7 @@ func (m *UpdateBotSessionRequest) Reset()         { *m = UpdateBotSessionRequest
 func (m *UpdateBotSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateBotSessionRequest) ProtoMessage()    {}
 func (*UpdateBotSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{4}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{4}
 }
 func (m *UpdateBotSessionRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateBotSessionRequest.Unmarshal(m, b)
@@ -653,7 +653,7 @@ func (m *PostBotEventTempRequest) Reset()         { *m = PostBotEventTempRequest
 func (m *PostBotEventTempRequest) String() string { return proto.CompactTextString(m) }
 func (*PostBotEventTempRequest) ProtoMessage()    {}
 func (*PostBotEventTempRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bots_2b3c4d89e519cb0f, []int{5}
+	return fileDescriptor_bots_a76feaae86db3e89, []int{5}
 }
 func (m *PostBotEventTempRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PostBotEventTempRequest.Unmarshal(m, b)
@@ -866,10 +866,10 @@ var _Bots_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/remoteworkers/v1test2/bots.proto", fileDescriptor_bots_2b3c4d89e519cb0f)
+	proto.RegisterFile("google/devtools/remoteworkers/v1test2/bots.proto", fileDescriptor_bots_a76feaae86db3e89)
 }
 
-var fileDescriptor_bots_2b3c4d89e519cb0f = []byte{
+var fileDescriptor_bots_a76feaae86db3e89 = []byte{
 	// 1075 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0xdd, 0x8e, 0xdb, 0x44,
 	0x14, 0xc6, 0xce, 0x5f, 0x73, 0xd2, 0xa6, 0xee, 0x00, 0x5d, 0x93, 0x22, 0x11, 0x59, 0xaa, 0xb4,

@@ -49,7 +49,7 @@ func (x Span_TimeEvent_MessageEvent_Type) String() string {
 	return proto.EnumName(Span_TimeEvent_MessageEvent_Type_name, int32(x))
 }
 func (Span_TimeEvent_MessageEvent_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 1, 1, 0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 1, 1, 0}
 }
 
 // The relationship of the current span relative to the linked span: child,
@@ -80,7 +80,7 @@ func (x Span_Link_Type) String() string {
 	return proto.EnumName(Span_Link_Type_name, int32(x))
 }
 func (Span_Link_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 3, 0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 3, 0}
 }
 
 // A span represents a single operation within a trace. Spans can be
@@ -150,7 +150,7 @@ func (m *Span) Reset()         { *m = Span{} }
 func (m *Span) String() string { return proto.CompactTextString(m) }
 func (*Span) ProtoMessage()    {}
 func (*Span) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0}
 }
 func (m *Span) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span.Unmarshal(m, b)
@@ -285,7 +285,7 @@ func (m *Span_Attributes) Reset()         { *m = Span_Attributes{} }
 func (m *Span_Attributes) String() string { return proto.CompactTextString(m) }
 func (*Span_Attributes) ProtoMessage()    {}
 func (*Span_Attributes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 0}
 }
 func (m *Span_Attributes) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_Attributes.Unmarshal(m, b)
@@ -339,7 +339,7 @@ func (m *Span_TimeEvent) Reset()         { *m = Span_TimeEvent{} }
 func (m *Span_TimeEvent) String() string { return proto.CompactTextString(m) }
 func (*Span_TimeEvent) ProtoMessage()    {}
 func (*Span_TimeEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 1}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 1}
 }
 func (m *Span_TimeEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_TimeEvent.Unmarshal(m, b)
@@ -359,6 +359,13 @@ func (m *Span_TimeEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Span_TimeEvent proto.InternalMessageInfo
 
+func (m *Span_TimeEvent) GetTime() *timestamp.Timestamp {
+	if m != nil {
+		return m.Time
+	}
+	return nil
+}
+
 type isSpan_TimeEvent_Value interface {
 	isSpan_TimeEvent_Value()
 }
@@ -366,23 +373,18 @@ type isSpan_TimeEvent_Value interface {
 type Span_TimeEvent_Annotation_ struct {
 	Annotation *Span_TimeEvent_Annotation `protobuf:"bytes,2,opt,name=annotation,proto3,oneof"`
 }
+
 type Span_TimeEvent_MessageEvent_ struct {
 	MessageEvent *Span_TimeEvent_MessageEvent `protobuf:"bytes,3,opt,name=message_event,json=messageEvent,proto3,oneof"`
 }
 
-func (*Span_TimeEvent_Annotation_) isSpan_TimeEvent_Value()   {}
+func (*Span_TimeEvent_Annotation_) isSpan_TimeEvent_Value() {}
+
 func (*Span_TimeEvent_MessageEvent_) isSpan_TimeEvent_Value() {}
 
 func (m *Span_TimeEvent) GetValue() isSpan_TimeEvent_Value {
 	if m != nil {
 		return m.Value
-	}
-	return nil
-}
-
-func (m *Span_TimeEvent) GetTime() *timestamp.Timestamp {
-	if m != nil {
-		return m.Time
 	}
 	return nil
 }
@@ -492,7 +494,7 @@ func (m *Span_TimeEvent_Annotation) Reset()         { *m = Span_TimeEvent_Annota
 func (m *Span_TimeEvent_Annotation) String() string { return proto.CompactTextString(m) }
 func (*Span_TimeEvent_Annotation) ProtoMessage()    {}
 func (*Span_TimeEvent_Annotation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 1, 0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 1, 0}
 }
 func (m *Span_TimeEvent_Annotation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_TimeEvent_Annotation.Unmarshal(m, b)
@@ -549,7 +551,7 @@ func (m *Span_TimeEvent_MessageEvent) Reset()         { *m = Span_TimeEvent_Mess
 func (m *Span_TimeEvent_MessageEvent) String() string { return proto.CompactTextString(m) }
 func (*Span_TimeEvent_MessageEvent) ProtoMessage()    {}
 func (*Span_TimeEvent_MessageEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 1, 1}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 1, 1}
 }
 func (m *Span_TimeEvent_MessageEvent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_TimeEvent_MessageEvent.Unmarshal(m, b)
@@ -618,7 +620,7 @@ func (m *Span_TimeEvents) Reset()         { *m = Span_TimeEvents{} }
 func (m *Span_TimeEvents) String() string { return proto.CompactTextString(m) }
 func (*Span_TimeEvents) ProtoMessage()    {}
 func (*Span_TimeEvents) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 2}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 2}
 }
 func (m *Span_TimeEvents) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_TimeEvents.Unmarshal(m, b)
@@ -682,7 +684,7 @@ func (m *Span_Link) Reset()         { *m = Span_Link{} }
 func (m *Span_Link) String() string { return proto.CompactTextString(m) }
 func (*Span_Link) ProtoMessage()    {}
 func (*Span_Link) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 3}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 3}
 }
 func (m *Span_Link) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_Link.Unmarshal(m, b)
@@ -747,7 +749,7 @@ func (m *Span_Links) Reset()         { *m = Span_Links{} }
 func (m *Span_Links) String() string { return proto.CompactTextString(m) }
 func (*Span_Links) ProtoMessage()    {}
 func (*Span_Links) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{0, 4}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{0, 4}
 }
 func (m *Span_Links) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Span_Links.Unmarshal(m, b)
@@ -799,7 +801,7 @@ func (m *AttributeValue) Reset()         { *m = AttributeValue{} }
 func (m *AttributeValue) String() string { return proto.CompactTextString(m) }
 func (*AttributeValue) ProtoMessage()    {}
 func (*AttributeValue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{1}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{1}
 }
 func (m *AttributeValue) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttributeValue.Unmarshal(m, b)
@@ -826,16 +828,20 @@ type isAttributeValue_Value interface {
 type AttributeValue_StringValue struct {
 	StringValue *TruncatableString `protobuf:"bytes,1,opt,name=string_value,json=stringValue,proto3,oneof"`
 }
+
 type AttributeValue_IntValue struct {
 	IntValue int64 `protobuf:"varint,2,opt,name=int_value,json=intValue,proto3,oneof"`
 }
+
 type AttributeValue_BoolValue struct {
 	BoolValue bool `protobuf:"varint,3,opt,name=bool_value,json=boolValue,proto3,oneof"`
 }
 
 func (*AttributeValue_StringValue) isAttributeValue_Value() {}
-func (*AttributeValue_IntValue) isAttributeValue_Value()    {}
-func (*AttributeValue_BoolValue) isAttributeValue_Value()   {}
+
+func (*AttributeValue_IntValue) isAttributeValue_Value() {}
+
+func (*AttributeValue_BoolValue) isAttributeValue_Value() {}
 
 func (m *AttributeValue) GetValue() isAttributeValue_Value {
 	if m != nil {
@@ -975,7 +981,7 @@ func (m *StackTrace) Reset()         { *m = StackTrace{} }
 func (m *StackTrace) String() string { return proto.CompactTextString(m) }
 func (*StackTrace) ProtoMessage()    {}
 func (*StackTrace) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{2}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{2}
 }
 func (m *StackTrace) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StackTrace.Unmarshal(m, b)
@@ -1039,7 +1045,7 @@ func (m *StackTrace_StackFrame) Reset()         { *m = StackTrace_StackFrame{} }
 func (m *StackTrace_StackFrame) String() string { return proto.CompactTextString(m) }
 func (*StackTrace_StackFrame) ProtoMessage()    {}
 func (*StackTrace_StackFrame) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{2, 0}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{2, 0}
 }
 func (m *StackTrace_StackFrame) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StackTrace_StackFrame.Unmarshal(m, b)
@@ -1125,7 +1131,7 @@ func (m *StackTrace_StackFrames) Reset()         { *m = StackTrace_StackFrames{}
 func (m *StackTrace_StackFrames) String() string { return proto.CompactTextString(m) }
 func (*StackTrace_StackFrames) ProtoMessage()    {}
 func (*StackTrace_StackFrames) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{2, 1}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{2, 1}
 }
 func (m *StackTrace_StackFrames) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StackTrace_StackFrames.Unmarshal(m, b)
@@ -1176,7 +1182,7 @@ func (m *Module) Reset()         { *m = Module{} }
 func (m *Module) String() string { return proto.CompactTextString(m) }
 func (*Module) ProtoMessage()    {}
 func (*Module) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{3}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{3}
 }
 func (m *Module) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Module.Unmarshal(m, b)
@@ -1232,7 +1238,7 @@ func (m *TruncatableString) Reset()         { *m = TruncatableString{} }
 func (m *TruncatableString) String() string { return proto.CompactTextString(m) }
 func (*TruncatableString) ProtoMessage()    {}
 func (*TruncatableString) Descriptor() ([]byte, []int) {
-	return fileDescriptor_trace_044358a12a5c6c5a, []int{4}
+	return fileDescriptor_trace_fa9cb54dc45915f9, []int{4}
 }
 func (m *TruncatableString) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TruncatableString.Unmarshal(m, b)
@@ -1287,10 +1293,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/cloudtrace/v2/trace.proto", fileDescriptor_trace_044358a12a5c6c5a)
+	proto.RegisterFile("google/devtools/cloudtrace/v2/trace.proto", fileDescriptor_trace_fa9cb54dc45915f9)
 }
 
-var fileDescriptor_trace_044358a12a5c6c5a = []byte{
+var fileDescriptor_trace_fa9cb54dc45915f9 = []byte{
 	// 1425 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x57, 0x4b, 0x6f, 0xdb, 0xc6,
 	0x16, 0x36, 0xf5, 0xd6, 0x91, 0x6c, 0xc8, 0x13, 0x3b, 0x56, 0x94, 0xe4, 0x26, 0xd7, 0xf7, 0x16,

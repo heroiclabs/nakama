@@ -53,7 +53,7 @@ func (m *OperationMetadataV1) Reset()         { *m = OperationMetadataV1{} }
 func (m *OperationMetadataV1) String() string { return proto.CompactTextString(m) }
 func (*OperationMetadataV1) ProtoMessage()    {}
 func (*OperationMetadataV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_operation_36967d516792e86c, []int{0}
+	return fileDescriptor_operation_b53f7e8fb6160f01, []int{0}
 }
 func (m *OperationMetadataV1) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OperationMetadataV1.Unmarshal(m, b)
@@ -113,10 +113,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/appengine/v1/operation.proto", fileDescriptor_operation_36967d516792e86c)
+	proto.RegisterFile("google/appengine/v1/operation.proto", fileDescriptor_operation_b53f7e8fb6160f01)
 }
 
-var fileDescriptor_operation_36967d516792e86c = []byte{
+var fileDescriptor_operation_b53f7e8fb6160f01 = []byte{
 	// 271 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0x41, 0x4b, 0x03, 0x31,
 	0x10, 0x85, 0x59, 0xad, 0x55, 0x53, 0xf0, 0xb0, 0x05, 0x5d, 0x16, 0xc1, 0xa2, 0x97, 0x9e, 0x12,

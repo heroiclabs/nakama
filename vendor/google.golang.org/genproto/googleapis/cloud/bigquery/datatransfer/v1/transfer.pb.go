@@ -50,7 +50,7 @@ func (x TransferType) String() string {
 	return proto.EnumName(TransferType_name, int32(x))
 }
 func (TransferType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{0}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{0}
 }
 
 // Represents data transfer run state.
@@ -93,7 +93,7 @@ func (x TransferState) String() string {
 	return proto.EnumName(TransferState_name, int32(x))
 }
 func (TransferState) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{1}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{1}
 }
 
 // Represents data transfer user facing message severity.
@@ -118,16 +118,16 @@ var TransferMessage_MessageSeverity_name = map[int32]string{
 }
 var TransferMessage_MessageSeverity_value = map[string]int32{
 	"MESSAGE_SEVERITY_UNSPECIFIED": 0,
-	"INFO":    1,
-	"WARNING": 2,
-	"ERROR":   3,
+	"INFO":                         1,
+	"WARNING":                      2,
+	"ERROR":                        3,
 }
 
 func (x TransferMessage_MessageSeverity) String() string {
 	return proto.EnumName(TransferMessage_MessageSeverity_name, int32(x))
 }
 func (TransferMessage_MessageSeverity) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{2, 0}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{2, 0}
 }
 
 // Represents a data transfer configuration. A transfer configuration
@@ -198,7 +198,7 @@ func (m *TransferConfig) Reset()         { *m = TransferConfig{} }
 func (m *TransferConfig) String() string { return proto.CompactTextString(m) }
 func (*TransferConfig) ProtoMessage()    {}
 func (*TransferConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{0}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{0}
 }
 func (m *TransferConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferConfig.Unmarshal(m, b)
@@ -360,7 +360,7 @@ func (m *TransferRun) Reset()         { *m = TransferRun{} }
 func (m *TransferRun) String() string { return proto.CompactTextString(m) }
 func (*TransferRun) ProtoMessage()    {}
 func (*TransferRun) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{1}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{1}
 }
 func (m *TransferRun) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferRun.Unmarshal(m, b)
@@ -488,7 +488,7 @@ func (m *TransferMessage) Reset()         { *m = TransferMessage{} }
 func (m *TransferMessage) String() string { return proto.CompactTextString(m) }
 func (*TransferMessage) ProtoMessage()    {}
 func (*TransferMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transfer_22395dbcdda33f27, []int{2}
+	return fileDescriptor_transfer_b655bdd8f06d7255, []int{2}
 }
 func (m *TransferMessage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransferMessage.Unmarshal(m, b)
@@ -539,10 +539,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/bigquery/datatransfer/v1/transfer.proto", fileDescriptor_transfer_22395dbcdda33f27)
+	proto.RegisterFile("google/cloud/bigquery/datatransfer/v1/transfer.proto", fileDescriptor_transfer_b655bdd8f06d7255)
 }
 
-var fileDescriptor_transfer_22395dbcdda33f27 = []byte{
+var fileDescriptor_transfer_b655bdd8f06d7255 = []byte{
 	// 922 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0xdd, 0x6e, 0xe3, 0x44,
 	0x14, 0xc6, 0xf9, 0xcf, 0x71, 0x92, 0x8d, 0x46, 0x2c, 0x35, 0xd5, 0x02, 0xa1, 0xa2, 0x52, 0xd8,

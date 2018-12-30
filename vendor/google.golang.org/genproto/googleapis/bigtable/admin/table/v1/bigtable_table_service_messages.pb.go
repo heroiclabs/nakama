@@ -52,7 +52,7 @@ func (m *CreateTableRequest) Reset()         { *m = CreateTableRequest{} }
 func (m *CreateTableRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateTableRequest) ProtoMessage()    {}
 func (*CreateTableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{0}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{0}
 }
 func (m *CreateTableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateTableRequest.Unmarshal(m, b)
@@ -112,7 +112,7 @@ func (m *ListTablesRequest) Reset()         { *m = ListTablesRequest{} }
 func (m *ListTablesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTablesRequest) ProtoMessage()    {}
 func (*ListTablesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{1}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{1}
 }
 func (m *ListTablesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTablesRequest.Unmarshal(m, b)
@@ -152,7 +152,7 @@ func (m *ListTablesResponse) Reset()         { *m = ListTablesResponse{} }
 func (m *ListTablesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTablesResponse) ProtoMessage()    {}
 func (*ListTablesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{2}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{2}
 }
 func (m *ListTablesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTablesResponse.Unmarshal(m, b)
@@ -191,7 +191,7 @@ func (m *GetTableRequest) Reset()         { *m = GetTableRequest{} }
 func (m *GetTableRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTableRequest) ProtoMessage()    {}
 func (*GetTableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{3}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{3}
 }
 func (m *GetTableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTableRequest.Unmarshal(m, b)
@@ -230,7 +230,7 @@ func (m *DeleteTableRequest) Reset()         { *m = DeleteTableRequest{} }
 func (m *DeleteTableRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteTableRequest) ProtoMessage()    {}
 func (*DeleteTableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{4}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{4}
 }
 func (m *DeleteTableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteTableRequest.Unmarshal(m, b)
@@ -272,7 +272,7 @@ func (m *RenameTableRequest) Reset()         { *m = RenameTableRequest{} }
 func (m *RenameTableRequest) String() string { return proto.CompactTextString(m) }
 func (*RenameTableRequest) ProtoMessage()    {}
 func (*RenameTableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{5}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{5}
 }
 func (m *RenameTableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RenameTableRequest.Unmarshal(m, b)
@@ -323,7 +323,7 @@ func (m *CreateColumnFamilyRequest) Reset()         { *m = CreateColumnFamilyReq
 func (m *CreateColumnFamilyRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateColumnFamilyRequest) ProtoMessage()    {}
 func (*CreateColumnFamilyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{6}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{6}
 }
 func (m *CreateColumnFamilyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateColumnFamilyRequest.Unmarshal(m, b)
@@ -376,7 +376,7 @@ func (m *DeleteColumnFamilyRequest) Reset()         { *m = DeleteColumnFamilyReq
 func (m *DeleteColumnFamilyRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteColumnFamilyRequest) ProtoMessage()    {}
 func (*DeleteColumnFamilyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{7}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{7}
 }
 func (m *DeleteColumnFamilyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteColumnFamilyRequest.Unmarshal(m, b)
@@ -419,7 +419,7 @@ func (m *BulkDeleteRowsRequest) Reset()         { *m = BulkDeleteRowsRequest{} }
 func (m *BulkDeleteRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*BulkDeleteRowsRequest) ProtoMessage()    {}
 func (*BulkDeleteRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_bigtable_table_service_messages_8de662681746d77d, []int{8}
+	return fileDescriptor_bigtable_table_service_messages_db488db316a00db0, []int{8}
 }
 func (m *BulkDeleteRowsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BulkDeleteRowsRequest.Unmarshal(m, b)
@@ -439,6 +439,13 @@ func (m *BulkDeleteRowsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_BulkDeleteRowsRequest proto.InternalMessageInfo
 
+func (m *BulkDeleteRowsRequest) GetTableName() string {
+	if m != nil {
+		return m.TableName
+	}
+	return ""
+}
+
 type isBulkDeleteRowsRequest_Target interface {
 	isBulkDeleteRowsRequest_Target()
 }
@@ -446,11 +453,13 @@ type isBulkDeleteRowsRequest_Target interface {
 type BulkDeleteRowsRequest_RowKeyPrefix struct {
 	RowKeyPrefix []byte `protobuf:"bytes,2,opt,name=row_key_prefix,json=rowKeyPrefix,proto3,oneof"`
 }
+
 type BulkDeleteRowsRequest_DeleteAllDataFromTable struct {
 	DeleteAllDataFromTable bool `protobuf:"varint,3,opt,name=delete_all_data_from_table,json=deleteAllDataFromTable,proto3,oneof"`
 }
 
-func (*BulkDeleteRowsRequest_RowKeyPrefix) isBulkDeleteRowsRequest_Target()           {}
+func (*BulkDeleteRowsRequest_RowKeyPrefix) isBulkDeleteRowsRequest_Target() {}
+
 func (*BulkDeleteRowsRequest_DeleteAllDataFromTable) isBulkDeleteRowsRequest_Target() {}
 
 func (m *BulkDeleteRowsRequest) GetTarget() isBulkDeleteRowsRequest_Target {
@@ -458,13 +467,6 @@ func (m *BulkDeleteRowsRequest) GetTarget() isBulkDeleteRowsRequest_Target {
 		return m.Target
 	}
 	return nil
-}
-
-func (m *BulkDeleteRowsRequest) GetTableName() string {
-	if m != nil {
-		return m.TableName
-	}
-	return ""
 }
 
 func (m *BulkDeleteRowsRequest) GetRowKeyPrefix() []byte {
@@ -563,10 +565,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/bigtable/admin/table/v1/bigtable_table_service_messages.proto", fileDescriptor_bigtable_table_service_messages_8de662681746d77d)
+	proto.RegisterFile("google/bigtable/admin/table/v1/bigtable_table_service_messages.proto", fileDescriptor_bigtable_table_service_messages_db488db316a00db0)
 }
 
-var fileDescriptor_bigtable_table_service_messages_8de662681746d77d = []byte{
+var fileDescriptor_bigtable_table_service_messages_db488db316a00db0 = []byte{
 	// 514 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0xc1, 0x6e, 0xd3, 0x40,
 	0x10, 0xad, 0x49, 0x1b, 0x92, 0x21, 0x94, 0xb2, 0x52, 0x51, 0x52, 0x09, 0x14, 0x56, 0x2a, 0xe4,

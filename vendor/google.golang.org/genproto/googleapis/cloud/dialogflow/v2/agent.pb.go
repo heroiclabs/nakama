@@ -57,7 +57,7 @@ func (x Agent_MatchMode) String() string {
 	return proto.EnumName(Agent_MatchMode_name, int32(x))
 }
 func (Agent_MatchMode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{0, 0}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{0, 0}
 }
 
 // Represents a conversational agent.
@@ -107,7 +107,7 @@ func (m *Agent) Reset()         { *m = Agent{} }
 func (m *Agent) String() string { return proto.CompactTextString(m) }
 func (*Agent) ProtoMessage()    {}
 func (*Agent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{0}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{0}
 }
 func (m *Agent) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Agent.Unmarshal(m, b)
@@ -211,7 +211,7 @@ func (m *GetAgentRequest) Reset()         { *m = GetAgentRequest{} }
 func (m *GetAgentRequest) String() string { return proto.CompactTextString(m) }
 func (*GetAgentRequest) ProtoMessage()    {}
 func (*GetAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{1}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{1}
 }
 func (m *GetAgentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetAgentRequest.Unmarshal(m, b)
@@ -257,7 +257,7 @@ func (m *SearchAgentsRequest) Reset()         { *m = SearchAgentsRequest{} }
 func (m *SearchAgentsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchAgentsRequest) ProtoMessage()    {}
 func (*SearchAgentsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{2}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{2}
 }
 func (m *SearchAgentsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAgentsRequest.Unmarshal(m, b)
@@ -315,7 +315,7 @@ func (m *SearchAgentsResponse) Reset()         { *m = SearchAgentsResponse{} }
 func (m *SearchAgentsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchAgentsResponse) ProtoMessage()    {}
 func (*SearchAgentsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{3}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{3}
 }
 func (m *SearchAgentsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchAgentsResponse.Unmarshal(m, b)
@@ -363,7 +363,7 @@ func (m *TrainAgentRequest) Reset()         { *m = TrainAgentRequest{} }
 func (m *TrainAgentRequest) String() string { return proto.CompactTextString(m) }
 func (*TrainAgentRequest) ProtoMessage()    {}
 func (*TrainAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{4}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{4}
 }
 func (m *TrainAgentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TrainAgentRequest.Unmarshal(m, b)
@@ -408,7 +408,7 @@ func (m *ExportAgentRequest) Reset()         { *m = ExportAgentRequest{} }
 func (m *ExportAgentRequest) String() string { return proto.CompactTextString(m) }
 func (*ExportAgentRequest) ProtoMessage()    {}
 func (*ExportAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{5}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{5}
 }
 func (m *ExportAgentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExportAgentRequest.Unmarshal(m, b)
@@ -459,7 +459,7 @@ func (m *ExportAgentResponse) Reset()         { *m = ExportAgentResponse{} }
 func (m *ExportAgentResponse) String() string { return proto.CompactTextString(m) }
 func (*ExportAgentResponse) ProtoMessage()    {}
 func (*ExportAgentResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{6}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{6}
 }
 func (m *ExportAgentResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExportAgentResponse.Unmarshal(m, b)
@@ -486,11 +486,13 @@ type isExportAgentResponse_Agent interface {
 type ExportAgentResponse_AgentUri struct {
 	AgentUri string `protobuf:"bytes,1,opt,name=agent_uri,json=agentUri,proto3,oneof"`
 }
+
 type ExportAgentResponse_AgentContent struct {
 	AgentContent []byte `protobuf:"bytes,2,opt,name=agent_content,json=agentContent,proto3,oneof"`
 }
 
-func (*ExportAgentResponse_AgentUri) isExportAgentResponse_Agent()     {}
+func (*ExportAgentResponse_AgentUri) isExportAgentResponse_Agent() {}
+
 func (*ExportAgentResponse_AgentContent) isExportAgentResponse_Agent() {}
 
 func (m *ExportAgentResponse) GetAgent() isExportAgentResponse_Agent {
@@ -600,7 +602,7 @@ func (m *ImportAgentRequest) Reset()         { *m = ImportAgentRequest{} }
 func (m *ImportAgentRequest) String() string { return proto.CompactTextString(m) }
 func (*ImportAgentRequest) ProtoMessage()    {}
 func (*ImportAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{7}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{7}
 }
 func (m *ImportAgentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportAgentRequest.Unmarshal(m, b)
@@ -620,6 +622,13 @@ func (m *ImportAgentRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ImportAgentRequest proto.InternalMessageInfo
 
+func (m *ImportAgentRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
 type isImportAgentRequest_Agent interface {
 	isImportAgentRequest_Agent()
 }
@@ -627,11 +636,13 @@ type isImportAgentRequest_Agent interface {
 type ImportAgentRequest_AgentUri struct {
 	AgentUri string `protobuf:"bytes,2,opt,name=agent_uri,json=agentUri,proto3,oneof"`
 }
+
 type ImportAgentRequest_AgentContent struct {
 	AgentContent []byte `protobuf:"bytes,3,opt,name=agent_content,json=agentContent,proto3,oneof"`
 }
 
-func (*ImportAgentRequest_AgentUri) isImportAgentRequest_Agent()     {}
+func (*ImportAgentRequest_AgentUri) isImportAgentRequest_Agent() {}
+
 func (*ImportAgentRequest_AgentContent) isImportAgentRequest_Agent() {}
 
 func (m *ImportAgentRequest) GetAgent() isImportAgentRequest_Agent {
@@ -639,13 +650,6 @@ func (m *ImportAgentRequest) GetAgent() isImportAgentRequest_Agent {
 		return m.Agent
 	}
 	return nil
-}
-
-func (m *ImportAgentRequest) GetParent() string {
-	if m != nil {
-		return m.Parent
-	}
-	return ""
 }
 
 func (m *ImportAgentRequest) GetAgentUri() string {
@@ -748,7 +752,7 @@ func (m *RestoreAgentRequest) Reset()         { *m = RestoreAgentRequest{} }
 func (m *RestoreAgentRequest) String() string { return proto.CompactTextString(m) }
 func (*RestoreAgentRequest) ProtoMessage()    {}
 func (*RestoreAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_agent_6b29945a8d6d5015, []int{8}
+	return fileDescriptor_agent_6cbd45e0738ac4ce, []int{8}
 }
 func (m *RestoreAgentRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RestoreAgentRequest.Unmarshal(m, b)
@@ -768,6 +772,13 @@ func (m *RestoreAgentRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RestoreAgentRequest proto.InternalMessageInfo
 
+func (m *RestoreAgentRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
 type isRestoreAgentRequest_Agent interface {
 	isRestoreAgentRequest_Agent()
 }
@@ -775,11 +786,13 @@ type isRestoreAgentRequest_Agent interface {
 type RestoreAgentRequest_AgentUri struct {
 	AgentUri string `protobuf:"bytes,2,opt,name=agent_uri,json=agentUri,proto3,oneof"`
 }
+
 type RestoreAgentRequest_AgentContent struct {
 	AgentContent []byte `protobuf:"bytes,3,opt,name=agent_content,json=agentContent,proto3,oneof"`
 }
 
-func (*RestoreAgentRequest_AgentUri) isRestoreAgentRequest_Agent()     {}
+func (*RestoreAgentRequest_AgentUri) isRestoreAgentRequest_Agent() {}
+
 func (*RestoreAgentRequest_AgentContent) isRestoreAgentRequest_Agent() {}
 
 func (m *RestoreAgentRequest) GetAgent() isRestoreAgentRequest_Agent {
@@ -787,13 +800,6 @@ func (m *RestoreAgentRequest) GetAgent() isRestoreAgentRequest_Agent {
 		return m.Agent
 	}
 	return nil
-}
-
-func (m *RestoreAgentRequest) GetParent() string {
-	if m != nil {
-		return m.Parent
-	}
-	return ""
 }
 
 func (m *RestoreAgentRequest) GetAgentUri() string {
@@ -1189,10 +1195,10 @@ var _Agents_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/dialogflow/v2/agent.proto", fileDescriptor_agent_6b29945a8d6d5015)
+	proto.RegisterFile("google/cloud/dialogflow/v2/agent.proto", fileDescriptor_agent_6cbd45e0738ac4ce)
 }
 
-var fileDescriptor_agent_6b29945a8d6d5015 = []byte{
+var fileDescriptor_agent_6cbd45e0738ac4ce = []byte{
 	// 965 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x56, 0x41, 0x6f, 0xdc, 0x44,
 	0x14, 0xae, 0x37, 0xcd, 0x76, 0xf7, 0x25, 0x69, 0xd3, 0x09, 0x0d, 0xd6, 0xb6, 0x81, 0xad, 0x4b,

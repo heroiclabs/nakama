@@ -39,7 +39,7 @@ func (m *GetInvocationRequest) Reset()         { *m = GetInvocationRequest{} }
 func (m *GetInvocationRequest) String() string { return proto.CompactTextString(m) }
 func (*GetInvocationRequest) ProtoMessage()    {}
 func (*GetInvocationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{0}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{0}
 }
 func (m *GetInvocationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetInvocationRequest.Unmarshal(m, b)
@@ -90,7 +90,7 @@ func (m *SearchInvocationsRequest) Reset()         { *m = SearchInvocationsReque
 func (m *SearchInvocationsRequest) String() string { return proto.CompactTextString(m) }
 func (*SearchInvocationsRequest) ProtoMessage()    {}
 func (*SearchInvocationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{1}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{1}
 }
 func (m *SearchInvocationsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchInvocationsRequest.Unmarshal(m, b)
@@ -110,6 +110,13 @@ func (m *SearchInvocationsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SearchInvocationsRequest proto.InternalMessageInfo
 
+func (m *SearchInvocationsRequest) GetPageSize() int32 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
 type isSearchInvocationsRequest_PageStart interface {
 	isSearchInvocationsRequest_PageStart()
 }
@@ -117,25 +124,20 @@ type isSearchInvocationsRequest_PageStart interface {
 type SearchInvocationsRequest_PageToken struct {
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3,oneof"`
 }
+
 type SearchInvocationsRequest_Offset struct {
 	Offset int64 `protobuf:"varint,3,opt,name=offset,proto3,oneof"`
 }
 
 func (*SearchInvocationsRequest_PageToken) isSearchInvocationsRequest_PageStart() {}
-func (*SearchInvocationsRequest_Offset) isSearchInvocationsRequest_PageStart()    {}
+
+func (*SearchInvocationsRequest_Offset) isSearchInvocationsRequest_PageStart() {}
 
 func (m *SearchInvocationsRequest) GetPageStart() isSearchInvocationsRequest_PageStart {
 	if m != nil {
 		return m.PageStart
 	}
 	return nil
-}
-
-func (m *SearchInvocationsRequest) GetPageSize() int32 {
-	if m != nil {
-		return m.PageSize
-	}
-	return 0
 }
 
 func (m *SearchInvocationsRequest) GetPageToken() string {
@@ -248,7 +250,7 @@ func (m *SearchInvocationsResponse) Reset()         { *m = SearchInvocationsResp
 func (m *SearchInvocationsResponse) String() string { return proto.CompactTextString(m) }
 func (*SearchInvocationsResponse) ProtoMessage()    {}
 func (*SearchInvocationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{2}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{2}
 }
 func (m *SearchInvocationsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SearchInvocationsResponse.Unmarshal(m, b)
@@ -296,7 +298,7 @@ func (m *GetConfigurationRequest) Reset()         { *m = GetConfigurationRequest
 func (m *GetConfigurationRequest) String() string { return proto.CompactTextString(m) }
 func (*GetConfigurationRequest) ProtoMessage()    {}
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{3}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{3}
 }
 func (m *GetConfigurationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigurationRequest.Unmarshal(m, b)
@@ -346,7 +348,7 @@ func (m *ListConfigurationsRequest) Reset()         { *m = ListConfigurationsReq
 func (m *ListConfigurationsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListConfigurationsRequest) ProtoMessage()    {}
 func (*ListConfigurationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{4}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{4}
 }
 func (m *ListConfigurationsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfigurationsRequest.Unmarshal(m, b)
@@ -366,27 +368,6 @@ func (m *ListConfigurationsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ListConfigurationsRequest proto.InternalMessageInfo
 
-type isListConfigurationsRequest_PageStart interface {
-	isListConfigurationsRequest_PageStart()
-}
-
-type ListConfigurationsRequest_PageToken struct {
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
-}
-type ListConfigurationsRequest_Offset struct {
-	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
-}
-
-func (*ListConfigurationsRequest_PageToken) isListConfigurationsRequest_PageStart() {}
-func (*ListConfigurationsRequest_Offset) isListConfigurationsRequest_PageStart()    {}
-
-func (m *ListConfigurationsRequest) GetPageStart() isListConfigurationsRequest_PageStart {
-	if m != nil {
-		return m.PageStart
-	}
-	return nil
-}
-
 func (m *ListConfigurationsRequest) GetParent() string {
 	if m != nil {
 		return m.Parent
@@ -399,6 +380,29 @@ func (m *ListConfigurationsRequest) GetPageSize() int32 {
 		return m.PageSize
 	}
 	return 0
+}
+
+type isListConfigurationsRequest_PageStart interface {
+	isListConfigurationsRequest_PageStart()
+}
+
+type ListConfigurationsRequest_PageToken struct {
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
+}
+
+type ListConfigurationsRequest_Offset struct {
+	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
+}
+
+func (*ListConfigurationsRequest_PageToken) isListConfigurationsRequest_PageStart() {}
+
+func (*ListConfigurationsRequest_Offset) isListConfigurationsRequest_PageStart() {}
+
+func (m *ListConfigurationsRequest) GetPageStart() isListConfigurationsRequest_PageStart {
+	if m != nil {
+		return m.PageStart
+	}
+	return nil
 }
 
 func (m *ListConfigurationsRequest) GetPageToken() string {
@@ -497,7 +501,7 @@ func (m *ListConfigurationsResponse) Reset()         { *m = ListConfigurationsRe
 func (m *ListConfigurationsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListConfigurationsResponse) ProtoMessage()    {}
 func (*ListConfigurationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{5}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{5}
 }
 func (m *ListConfigurationsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfigurationsResponse.Unmarshal(m, b)
@@ -545,7 +549,7 @@ func (m *GetTargetRequest) Reset()         { *m = GetTargetRequest{} }
 func (m *GetTargetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTargetRequest) ProtoMessage()    {}
 func (*GetTargetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{6}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{6}
 }
 func (m *GetTargetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTargetRequest.Unmarshal(m, b)
@@ -595,7 +599,7 @@ func (m *ListTargetsRequest) Reset()         { *m = ListTargetsRequest{} }
 func (m *ListTargetsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTargetsRequest) ProtoMessage()    {}
 func (*ListTargetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{7}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{7}
 }
 func (m *ListTargetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTargetsRequest.Unmarshal(m, b)
@@ -615,27 +619,6 @@ func (m *ListTargetsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ListTargetsRequest proto.InternalMessageInfo
 
-type isListTargetsRequest_PageStart interface {
-	isListTargetsRequest_PageStart()
-}
-
-type ListTargetsRequest_PageToken struct {
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
-}
-type ListTargetsRequest_Offset struct {
-	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
-}
-
-func (*ListTargetsRequest_PageToken) isListTargetsRequest_PageStart() {}
-func (*ListTargetsRequest_Offset) isListTargetsRequest_PageStart()    {}
-
-func (m *ListTargetsRequest) GetPageStart() isListTargetsRequest_PageStart {
-	if m != nil {
-		return m.PageStart
-	}
-	return nil
-}
-
 func (m *ListTargetsRequest) GetParent() string {
 	if m != nil {
 		return m.Parent
@@ -648,6 +631,29 @@ func (m *ListTargetsRequest) GetPageSize() int32 {
 		return m.PageSize
 	}
 	return 0
+}
+
+type isListTargetsRequest_PageStart interface {
+	isListTargetsRequest_PageStart()
+}
+
+type ListTargetsRequest_PageToken struct {
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
+}
+
+type ListTargetsRequest_Offset struct {
+	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
+}
+
+func (*ListTargetsRequest_PageToken) isListTargetsRequest_PageStart() {}
+
+func (*ListTargetsRequest_Offset) isListTargetsRequest_PageStart() {}
+
+func (m *ListTargetsRequest) GetPageStart() isListTargetsRequest_PageStart {
+	if m != nil {
+		return m.PageStart
+	}
+	return nil
 }
 
 func (m *ListTargetsRequest) GetPageToken() string {
@@ -746,7 +752,7 @@ func (m *ListTargetsResponse) Reset()         { *m = ListTargetsResponse{} }
 func (m *ListTargetsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTargetsResponse) ProtoMessage()    {}
 func (*ListTargetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{8}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{8}
 }
 func (m *ListTargetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListTargetsResponse.Unmarshal(m, b)
@@ -794,7 +800,7 @@ func (m *GetConfiguredTargetRequest) Reset()         { *m = GetConfiguredTargetR
 func (m *GetConfiguredTargetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetConfiguredTargetRequest) ProtoMessage()    {}
 func (*GetConfiguredTargetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{9}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{9}
 }
 func (m *GetConfiguredTargetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfiguredTargetRequest.Unmarshal(m, b)
@@ -845,7 +851,7 @@ func (m *ListConfiguredTargetsRequest) Reset()         { *m = ListConfiguredTarg
 func (m *ListConfiguredTargetsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListConfiguredTargetsRequest) ProtoMessage()    {}
 func (*ListConfiguredTargetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{10}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{10}
 }
 func (m *ListConfiguredTargetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfiguredTargetsRequest.Unmarshal(m, b)
@@ -865,27 +871,6 @@ func (m *ListConfiguredTargetsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ListConfiguredTargetsRequest proto.InternalMessageInfo
 
-type isListConfiguredTargetsRequest_PageStart interface {
-	isListConfiguredTargetsRequest_PageStart()
-}
-
-type ListConfiguredTargetsRequest_PageToken struct {
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
-}
-type ListConfiguredTargetsRequest_Offset struct {
-	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
-}
-
-func (*ListConfiguredTargetsRequest_PageToken) isListConfiguredTargetsRequest_PageStart() {}
-func (*ListConfiguredTargetsRequest_Offset) isListConfiguredTargetsRequest_PageStart()    {}
-
-func (m *ListConfiguredTargetsRequest) GetPageStart() isListConfiguredTargetsRequest_PageStart {
-	if m != nil {
-		return m.PageStart
-	}
-	return nil
-}
-
 func (m *ListConfiguredTargetsRequest) GetParent() string {
 	if m != nil {
 		return m.Parent
@@ -898,6 +883,29 @@ func (m *ListConfiguredTargetsRequest) GetPageSize() int32 {
 		return m.PageSize
 	}
 	return 0
+}
+
+type isListConfiguredTargetsRequest_PageStart interface {
+	isListConfiguredTargetsRequest_PageStart()
+}
+
+type ListConfiguredTargetsRequest_PageToken struct {
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
+}
+
+type ListConfiguredTargetsRequest_Offset struct {
+	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
+}
+
+func (*ListConfiguredTargetsRequest_PageToken) isListConfiguredTargetsRequest_PageStart() {}
+
+func (*ListConfiguredTargetsRequest_Offset) isListConfiguredTargetsRequest_PageStart() {}
+
+func (m *ListConfiguredTargetsRequest) GetPageStart() isListConfiguredTargetsRequest_PageStart {
+	if m != nil {
+		return m.PageStart
+	}
+	return nil
 }
 
 func (m *ListConfiguredTargetsRequest) GetPageToken() string {
@@ -996,7 +1004,7 @@ func (m *ListConfiguredTargetsResponse) Reset()         { *m = ListConfiguredTar
 func (m *ListConfiguredTargetsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListConfiguredTargetsResponse) ProtoMessage()    {}
 func (*ListConfiguredTargetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{11}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{11}
 }
 func (m *ListConfiguredTargetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfiguredTargetsResponse.Unmarshal(m, b)
@@ -1044,7 +1052,7 @@ func (m *GetActionRequest) Reset()         { *m = GetActionRequest{} }
 func (m *GetActionRequest) String() string { return proto.CompactTextString(m) }
 func (*GetActionRequest) ProtoMessage()    {}
 func (*GetActionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{12}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{12}
 }
 func (m *GetActionRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetActionRequest.Unmarshal(m, b)
@@ -1095,7 +1103,7 @@ func (m *ListActionsRequest) Reset()         { *m = ListActionsRequest{} }
 func (m *ListActionsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListActionsRequest) ProtoMessage()    {}
 func (*ListActionsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{13}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{13}
 }
 func (m *ListActionsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListActionsRequest.Unmarshal(m, b)
@@ -1115,27 +1123,6 @@ func (m *ListActionsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ListActionsRequest proto.InternalMessageInfo
 
-type isListActionsRequest_PageStart interface {
-	isListActionsRequest_PageStart()
-}
-
-type ListActionsRequest_PageToken struct {
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
-}
-type ListActionsRequest_Offset struct {
-	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
-}
-
-func (*ListActionsRequest_PageToken) isListActionsRequest_PageStart() {}
-func (*ListActionsRequest_Offset) isListActionsRequest_PageStart()    {}
-
-func (m *ListActionsRequest) GetPageStart() isListActionsRequest_PageStart {
-	if m != nil {
-		return m.PageStart
-	}
-	return nil
-}
-
 func (m *ListActionsRequest) GetParent() string {
 	if m != nil {
 		return m.Parent
@@ -1148,6 +1135,29 @@ func (m *ListActionsRequest) GetPageSize() int32 {
 		return m.PageSize
 	}
 	return 0
+}
+
+type isListActionsRequest_PageStart interface {
+	isListActionsRequest_PageStart()
+}
+
+type ListActionsRequest_PageToken struct {
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
+}
+
+type ListActionsRequest_Offset struct {
+	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
+}
+
+func (*ListActionsRequest_PageToken) isListActionsRequest_PageStart() {}
+
+func (*ListActionsRequest_Offset) isListActionsRequest_PageStart() {}
+
+func (m *ListActionsRequest) GetPageStart() isListActionsRequest_PageStart {
+	if m != nil {
+		return m.PageStart
+	}
+	return nil
 }
 
 func (m *ListActionsRequest) GetPageToken() string {
@@ -1246,7 +1256,7 @@ func (m *ListActionsResponse) Reset()         { *m = ListActionsResponse{} }
 func (m *ListActionsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListActionsResponse) ProtoMessage()    {}
 func (*ListActionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{14}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{14}
 }
 func (m *ListActionsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListActionsResponse.Unmarshal(m, b)
@@ -1294,7 +1304,7 @@ func (m *GetFileSetRequest) Reset()         { *m = GetFileSetRequest{} }
 func (m *GetFileSetRequest) String() string { return proto.CompactTextString(m) }
 func (*GetFileSetRequest) ProtoMessage()    {}
 func (*GetFileSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{15}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{15}
 }
 func (m *GetFileSetRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetFileSetRequest.Unmarshal(m, b)
@@ -1344,7 +1354,7 @@ func (m *ListFileSetsRequest) Reset()         { *m = ListFileSetsRequest{} }
 func (m *ListFileSetsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListFileSetsRequest) ProtoMessage()    {}
 func (*ListFileSetsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{16}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{16}
 }
 func (m *ListFileSetsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListFileSetsRequest.Unmarshal(m, b)
@@ -1364,27 +1374,6 @@ func (m *ListFileSetsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ListFileSetsRequest proto.InternalMessageInfo
 
-type isListFileSetsRequest_PageStart interface {
-	isListFileSetsRequest_PageStart()
-}
-
-type ListFileSetsRequest_PageToken struct {
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
-}
-type ListFileSetsRequest_Offset struct {
-	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
-}
-
-func (*ListFileSetsRequest_PageToken) isListFileSetsRequest_PageStart() {}
-func (*ListFileSetsRequest_Offset) isListFileSetsRequest_PageStart()    {}
-
-func (m *ListFileSetsRequest) GetPageStart() isListFileSetsRequest_PageStart {
-	if m != nil {
-		return m.PageStart
-	}
-	return nil
-}
-
 func (m *ListFileSetsRequest) GetParent() string {
 	if m != nil {
 		return m.Parent
@@ -1397,6 +1386,29 @@ func (m *ListFileSetsRequest) GetPageSize() int32 {
 		return m.PageSize
 	}
 	return 0
+}
+
+type isListFileSetsRequest_PageStart interface {
+	isListFileSetsRequest_PageStart()
+}
+
+type ListFileSetsRequest_PageToken struct {
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3,oneof"`
+}
+
+type ListFileSetsRequest_Offset struct {
+	Offset int64 `protobuf:"varint,4,opt,name=offset,proto3,oneof"`
+}
+
+func (*ListFileSetsRequest_PageToken) isListFileSetsRequest_PageStart() {}
+
+func (*ListFileSetsRequest_Offset) isListFileSetsRequest_PageStart() {}
+
+func (m *ListFileSetsRequest) GetPageStart() isListFileSetsRequest_PageStart {
+	if m != nil {
+		return m.PageStart
+	}
+	return nil
 }
 
 func (m *ListFileSetsRequest) GetPageToken() string {
@@ -1495,7 +1507,7 @@ func (m *ListFileSetsResponse) Reset()         { *m = ListFileSetsResponse{} }
 func (m *ListFileSetsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListFileSetsResponse) ProtoMessage()    {}
 func (*ListFileSetsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_resultstore_download_7c774ab49c606fb1, []int{17}
+	return fileDescriptor_resultstore_download_b0d8e6d616eef8f3, []int{17}
 }
 func (m *ListFileSetsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListFileSetsResponse.Unmarshal(m, b)
@@ -1567,18 +1579,21 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the invocation is not found.
 	// - If the given invocation name is badly formatted.
+	// - If no field mask was given.
 	GetInvocation(ctx context.Context, in *GetInvocationRequest, opts ...grpc.CallOption) (*Invocation, error)
 	// Searches for invocations matching the given query parameters.
 	//
 	//
 	// An error will be reported in the following cases:
 	// - If a query string is not provided
+	// - If no field mask was given.
 	SearchInvocations(ctx context.Context, in *SearchInvocationsRequest, opts ...grpc.CallOption) (*SearchInvocationsResponse, error)
 	// Retrieves the configuration with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the configuration or its parent invocation is not found.
 	// - If the given configuration name is badly formatted.
+	// - If no field mask was given.
 	GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*Configuration, error)
 	// Retrieves all configurations for a parent invocation.
 	// This might be limited by user or server,
@@ -1587,12 +1602,14 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the parent invocation is not found.
 	// - If the given parent invocation name is badly formatted.
+	// - If no field mask was given.
 	ListConfigurations(ctx context.Context, in *ListConfigurationsRequest, opts ...grpc.CallOption) (*ListConfigurationsResponse, error)
 	// Retrieves the target with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the target or its parent invocation is not found.
 	// - If the given target name is badly formatted.
+	// - If no field mask was given.
 	GetTarget(ctx context.Context, in *GetTargetRequest, opts ...grpc.CallOption) (*Target, error)
 	// Retrieves all targets for a parent invocation.  This might be limited by
 	// user or server, in which case a continuation token is provided.
@@ -1600,12 +1617,14 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListTargets(ctx context.Context, in *ListTargetsRequest, opts ...grpc.CallOption) (*ListTargetsResponse, error)
 	// Retrieves the configured target with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the configured target is not found.
 	// - If the given name is badly formatted.
+	// - If no field mask was given.
 	GetConfiguredTarget(ctx context.Context, in *GetConfiguredTargetRequest, opts ...grpc.CallOption) (*ConfiguredTarget, error)
 	// Retrieves all configured targets for a parent invocation/target.
 	// This might be limited by user or server, in which case a continuation
@@ -1614,12 +1633,14 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListConfiguredTargets(ctx context.Context, in *ListConfiguredTargetsRequest, opts ...grpc.CallOption) (*ListConfiguredTargetsResponse, error)
 	// Retrieves the action with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the action is not found.
 	// - If the given name is badly formatted.
+	// - If no field mask was given.
 	GetAction(ctx context.Context, in *GetActionRequest, opts ...grpc.CallOption) (*Action, error)
 	// Retrieves all actions for a parent invocation/target/configuration.
 	// This might be limited by user or server, in which case a continuation
@@ -1631,12 +1652,14 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListActions(ctx context.Context, in *ListActionsRequest, opts ...grpc.CallOption) (*ListActionsResponse, error)
 	// Retrieves the file set with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the file set or its parent invocation is not found.
 	// - If the given file set name is badly formatted.
+	// - If no field mask was given.
 	GetFileSet(ctx context.Context, in *GetFileSetRequest, opts ...grpc.CallOption) (*FileSet, error)
 	// Retrieves all file sets for a parent invocation.
 	// This might be limited by user or server,
@@ -1645,6 +1668,7 @@ type ResultStoreDownloadClient interface {
 	// An error will be reported in the following cases:
 	// - If the parent invocation is not found.
 	// - If the given parent invocation name is badly formatted.
+	// - If no field mask was given.
 	ListFileSets(ctx context.Context, in *ListFileSetsRequest, opts ...grpc.CallOption) (*ListFileSetsResponse, error)
 }
 
@@ -1771,18 +1795,21 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the invocation is not found.
 	// - If the given invocation name is badly formatted.
+	// - If no field mask was given.
 	GetInvocation(context.Context, *GetInvocationRequest) (*Invocation, error)
 	// Searches for invocations matching the given query parameters.
 	//
 	//
 	// An error will be reported in the following cases:
 	// - If a query string is not provided
+	// - If no field mask was given.
 	SearchInvocations(context.Context, *SearchInvocationsRequest) (*SearchInvocationsResponse, error)
 	// Retrieves the configuration with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the configuration or its parent invocation is not found.
 	// - If the given configuration name is badly formatted.
+	// - If no field mask was given.
 	GetConfiguration(context.Context, *GetConfigurationRequest) (*Configuration, error)
 	// Retrieves all configurations for a parent invocation.
 	// This might be limited by user or server,
@@ -1791,12 +1818,14 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the parent invocation is not found.
 	// - If the given parent invocation name is badly formatted.
+	// - If no field mask was given.
 	ListConfigurations(context.Context, *ListConfigurationsRequest) (*ListConfigurationsResponse, error)
 	// Retrieves the target with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the target or its parent invocation is not found.
 	// - If the given target name is badly formatted.
+	// - If no field mask was given.
 	GetTarget(context.Context, *GetTargetRequest) (*Target, error)
 	// Retrieves all targets for a parent invocation.  This might be limited by
 	// user or server, in which case a continuation token is provided.
@@ -1804,12 +1833,14 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListTargets(context.Context, *ListTargetsRequest) (*ListTargetsResponse, error)
 	// Retrieves the configured target with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the configured target is not found.
 	// - If the given name is badly formatted.
+	// - If no field mask was given.
 	GetConfiguredTarget(context.Context, *GetConfiguredTargetRequest) (*ConfiguredTarget, error)
 	// Retrieves all configured targets for a parent invocation/target.
 	// This might be limited by user or server, in which case a continuation
@@ -1818,12 +1849,14 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListConfiguredTargets(context.Context, *ListConfiguredTargetsRequest) (*ListConfiguredTargetsResponse, error)
 	// Retrieves the action with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the action is not found.
 	// - If the given name is badly formatted.
+	// - If no field mask was given.
 	GetAction(context.Context, *GetActionRequest) (*Action, error)
 	// Retrieves all actions for a parent invocation/target/configuration.
 	// This might be limited by user or server, in which case a continuation
@@ -1835,12 +1868,14 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the parent is not found.
 	// - If the given parent name is badly formatted.
+	// - If no field mask was given.
 	ListActions(context.Context, *ListActionsRequest) (*ListActionsResponse, error)
 	// Retrieves the file set with the given name.
 	//
 	// An error will be reported in the following cases:
 	// - If the file set or its parent invocation is not found.
 	// - If the given file set name is badly formatted.
+	// - If no field mask was given.
 	GetFileSet(context.Context, *GetFileSetRequest) (*FileSet, error)
 	// Retrieves all file sets for a parent invocation.
 	// This might be limited by user or server,
@@ -1849,6 +1884,7 @@ type ResultStoreDownloadServer interface {
 	// An error will be reported in the following cases:
 	// - If the parent invocation is not found.
 	// - If the given parent invocation name is badly formatted.
+	// - If no field mask was given.
 	ListFileSets(context.Context, *ListFileSetsRequest) (*ListFileSetsResponse, error)
 }
 
@@ -2130,10 +2166,10 @@ var _ResultStoreDownload_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/resultstore/v2/resultstore_download.proto", fileDescriptor_resultstore_download_7c774ab49c606fb1)
+	proto.RegisterFile("google/devtools/resultstore/v2/resultstore_download.proto", fileDescriptor_resultstore_download_b0d8e6d616eef8f3)
 }
 
-var fileDescriptor_resultstore_download_7c774ab49c606fb1 = []byte{
+var fileDescriptor_resultstore_download_b0d8e6d616eef8f3 = []byte{
 	// 1043 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x98, 0xcf, 0x6f, 0xdc, 0x44,
 	0x14, 0xc7, 0x3b, 0xf9, 0x45, 0xf7, 0xa5, 0x85, 0xe6, 0x25, 0x14, 0xd7, 0xb4, 0x25, 0x32, 0x90,

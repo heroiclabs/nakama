@@ -56,7 +56,7 @@ func (m *LogEntry) Reset()         { *m = LogEntry{} }
 func (m *LogEntry) String() string { return proto.CompactTextString(m) }
 func (*LogEntry) ProtoMessage()    {}
 func (*LogEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_log_entry_bf2d1c8926215d60, []int{0}
+	return fileDescriptor_log_entry_1cf8a0cea23f865a, []int{0}
 }
 func (m *LogEntry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LogEntry.Unmarshal(m, b)
@@ -75,31 +75,6 @@ func (m *LogEntry) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_LogEntry proto.InternalMessageInfo
-
-type isLogEntry_Payload interface {
-	isLogEntry_Payload()
-}
-
-type LogEntry_ProtoPayload struct {
-	ProtoPayload *any.Any `protobuf:"bytes,2,opt,name=proto_payload,json=protoPayload,proto3,oneof"`
-}
-type LogEntry_TextPayload struct {
-	TextPayload string `protobuf:"bytes,3,opt,name=text_payload,json=textPayload,proto3,oneof"`
-}
-type LogEntry_StructPayload struct {
-	StructPayload *_struct.Struct `protobuf:"bytes,6,opt,name=struct_payload,json=structPayload,proto3,oneof"`
-}
-
-func (*LogEntry_ProtoPayload) isLogEntry_Payload()  {}
-func (*LogEntry_TextPayload) isLogEntry_Payload()   {}
-func (*LogEntry_StructPayload) isLogEntry_Payload() {}
-
-func (m *LogEntry) GetPayload() isLogEntry_Payload {
-	if m != nil {
-		return m.Payload
-	}
-	return nil
-}
 
 func (m *LogEntry) GetName() string {
 	if m != nil {
@@ -132,6 +107,35 @@ func (m *LogEntry) GetInsertId() string {
 func (m *LogEntry) GetLabels() map[string]string {
 	if m != nil {
 		return m.Labels
+	}
+	return nil
+}
+
+type isLogEntry_Payload interface {
+	isLogEntry_Payload()
+}
+
+type LogEntry_ProtoPayload struct {
+	ProtoPayload *any.Any `protobuf:"bytes,2,opt,name=proto_payload,json=protoPayload,proto3,oneof"`
+}
+
+type LogEntry_TextPayload struct {
+	TextPayload string `protobuf:"bytes,3,opt,name=text_payload,json=textPayload,proto3,oneof"`
+}
+
+type LogEntry_StructPayload struct {
+	StructPayload *_struct.Struct `protobuf:"bytes,6,opt,name=struct_payload,json=structPayload,proto3,oneof"`
+}
+
+func (*LogEntry_ProtoPayload) isLogEntry_Payload() {}
+
+func (*LogEntry_TextPayload) isLogEntry_Payload() {}
+
+func (*LogEntry_StructPayload) isLogEntry_Payload() {}
+
+func (m *LogEntry) GetPayload() isLogEntry_Payload {
+	if m != nil {
+		return m.Payload
 	}
 	return nil
 }
@@ -252,10 +256,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicecontrol/v1/log_entry.proto", fileDescriptor_log_entry_bf2d1c8926215d60)
+	proto.RegisterFile("google/api/servicecontrol/v1/log_entry.proto", fileDescriptor_log_entry_1cf8a0cea23f865a)
 }
 
-var fileDescriptor_log_entry_bf2d1c8926215d60 = []byte{
+var fileDescriptor_log_entry_1cf8a0cea23f865a = []byte{
 	// 454 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x93, 0x4f, 0x8f, 0xd3, 0x30,
 	0x10, 0xc5, 0x9b, 0xed, 0x52, 0x1a, 0xa7, 0x5d, 0x21, 0x6b, 0x25, 0x42, 0xa8, 0x44, 0x04, 0x12,

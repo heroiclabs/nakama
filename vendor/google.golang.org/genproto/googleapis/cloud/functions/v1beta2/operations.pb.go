@@ -51,7 +51,7 @@ func (x OperationType) String() string {
 	return proto.EnumName(OperationType_name, int32(x))
 }
 func (OperationType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_operations_c731a618eb615b2f, []int{0}
+	return fileDescriptor_operations_17ab487bbd37bcca, []int{0}
 }
 
 // Metadata describing an [Operation][google.longrunning.Operation]
@@ -72,7 +72,7 @@ func (m *OperationMetadataV1Beta2) Reset()         { *m = OperationMetadataV1Bet
 func (m *OperationMetadataV1Beta2) String() string { return proto.CompactTextString(m) }
 func (*OperationMetadataV1Beta2) ProtoMessage()    {}
 func (*OperationMetadataV1Beta2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_operations_c731a618eb615b2f, []int{0}
+	return fileDescriptor_operations_17ab487bbd37bcca, []int{0}
 }
 func (m *OperationMetadataV1Beta2) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_OperationMetadataV1Beta2.Unmarshal(m, b)
@@ -119,10 +119,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/functions/v1beta2/operations.proto", fileDescriptor_operations_c731a618eb615b2f)
+	proto.RegisterFile("google/cloud/functions/v1beta2/operations.proto", fileDescriptor_operations_17ab487bbd37bcca)
 }
 
-var fileDescriptor_operations_c731a618eb615b2f = []byte{
+var fileDescriptor_operations_17ab487bbd37bcca = []byte{
 	// 333 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0x4f, 0x4f, 0xf2, 0x30,
 	0x1c, 0xc7, 0x9f, 0xc2, 0x13, 0x8c, 0x35, 0x2a, 0x99, 0x7f, 0x32, 0x88, 0x31, 0x84, 0x13, 0x31,

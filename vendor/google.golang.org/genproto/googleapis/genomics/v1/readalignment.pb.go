@@ -43,7 +43,7 @@ func (m *LinearAlignment) Reset()         { *m = LinearAlignment{} }
 func (m *LinearAlignment) String() string { return proto.CompactTextString(m) }
 func (*LinearAlignment) ProtoMessage()    {}
 func (*LinearAlignment) Descriptor() ([]byte, []int) {
-	return fileDescriptor_readalignment_ff092b0bea51b5ff, []int{0}
+	return fileDescriptor_readalignment_b0fdaef32d6e6f98, []int{0}
 }
 func (m *LinearAlignment) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LinearAlignment.Unmarshal(m, b)
@@ -249,7 +249,7 @@ func (m *Read) Reset()         { *m = Read{} }
 func (m *Read) String() string { return proto.CompactTextString(m) }
 func (*Read) ProtoMessage()    {}
 func (*Read) Descriptor() ([]byte, []int) {
-	return fileDescriptor_readalignment_ff092b0bea51b5ff, []int{1}
+	return fileDescriptor_readalignment_b0fdaef32d6e6f98, []int{1}
 }
 func (m *Read) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Read.Unmarshal(m, b)
@@ -395,10 +395,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("google/genomics/v1/readalignment.proto", fileDescriptor_readalignment_ff092b0bea51b5ff)
+	proto.RegisterFile("google/genomics/v1/readalignment.proto", fileDescriptor_readalignment_b0fdaef32d6e6f98)
 }
 
-var fileDescriptor_readalignment_ff092b0bea51b5ff = []byte{
+var fileDescriptor_readalignment_b0fdaef32d6e6f98 = []byte{
 	// 683 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x94, 0xcd, 0x4e, 0xdb, 0x4a,
 	0x14, 0xc7, 0xe5, 0x84, 0x70, 0xc9, 0x09, 0x24, 0x61, 0xae, 0xc4, 0xf5, 0x8d, 0xb8, 0xb7, 0x21,

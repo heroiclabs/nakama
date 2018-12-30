@@ -2,13 +2,21 @@
   name = "go.uber.org/zap"
   version = "~1.9.1"
 
-[[constraint]]
+[[override]]
   name = "github.com/golang/protobuf"
   version = "~1.2.0"
 
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "~1.17.0"
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/grpc-gateway"
+  version = "~1.6.3"
+
+[[override]]
+  name = "google.golang.org/genproto"
+  revision = "bd9b4fb69e2ffd37621a6caa54dcbead29b546f2"
 
 [[constraint]]
   name = "github.com/go-yaml/yaml"

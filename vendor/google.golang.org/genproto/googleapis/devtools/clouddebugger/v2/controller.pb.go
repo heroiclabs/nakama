@@ -40,7 +40,7 @@ func (m *RegisterDebuggeeRequest) Reset()         { *m = RegisterDebuggeeRequest
 func (m *RegisterDebuggeeRequest) String() string { return proto.CompactTextString(m) }
 func (*RegisterDebuggeeRequest) ProtoMessage()    {}
 func (*RegisterDebuggeeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{0}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{0}
 }
 func (m *RegisterDebuggeeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegisterDebuggeeRequest.Unmarshal(m, b)
@@ -70,7 +70,7 @@ func (m *RegisterDebuggeeRequest) GetDebuggee() *Debuggee {
 // Response for registering a debuggee.
 type RegisterDebuggeeResponse struct {
 	// Debuggee resource.
-	// The field `id` is guranteed to be set (in addition to the echoed fields).
+	// The field `id` is guaranteed to be set (in addition to the echoed fields).
 	// If the field `is_disabled` is set to `true`, the agent should disable
 	// itself by removing all breakpoints and detaching from the application.
 	// It should however continue to poll `RegisterDebuggee` until reenabled.
@@ -84,7 +84,7 @@ func (m *RegisterDebuggeeResponse) Reset()         { *m = RegisterDebuggeeRespon
 func (m *RegisterDebuggeeResponse) String() string { return proto.CompactTextString(m) }
 func (*RegisterDebuggeeResponse) ProtoMessage()    {}
 func (*RegisterDebuggeeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{1}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{1}
 }
 func (m *RegisterDebuggeeResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegisterDebuggeeResponse.Unmarshal(m, b)
@@ -136,7 +136,7 @@ func (m *ListActiveBreakpointsRequest) Reset()         { *m = ListActiveBreakpoi
 func (m *ListActiveBreakpointsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListActiveBreakpointsRequest) ProtoMessage()    {}
 func (*ListActiveBreakpointsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{2}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{2}
 }
 func (m *ListActiveBreakpointsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListActiveBreakpointsRequest.Unmarshal(m, b)
@@ -198,7 +198,7 @@ func (m *ListActiveBreakpointsResponse) Reset()         { *m = ListActiveBreakpo
 func (m *ListActiveBreakpointsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListActiveBreakpointsResponse) ProtoMessage()    {}
 func (*ListActiveBreakpointsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{3}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{3}
 }
 func (m *ListActiveBreakpointsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListActiveBreakpointsResponse.Unmarshal(m, b)
@@ -256,7 +256,7 @@ func (m *UpdateActiveBreakpointRequest) Reset()         { *m = UpdateActiveBreak
 func (m *UpdateActiveBreakpointRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateActiveBreakpointRequest) ProtoMessage()    {}
 func (*UpdateActiveBreakpointRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{4}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{4}
 }
 func (m *UpdateActiveBreakpointRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateActiveBreakpointRequest.Unmarshal(m, b)
@@ -302,7 +302,7 @@ func (m *UpdateActiveBreakpointResponse) Reset()         { *m = UpdateActiveBrea
 func (m *UpdateActiveBreakpointResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateActiveBreakpointResponse) ProtoMessage()    {}
 func (*UpdateActiveBreakpointResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_controller_4ef9c42d467cd330, []int{5}
+	return fileDescriptor_controller_3156ecf89afb2d41, []int{5}
 }
 func (m *UpdateActiveBreakpointResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateActiveBreakpointResponse.Unmarshal(m, b)
@@ -532,10 +532,10 @@ var _Controller2_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/devtools/clouddebugger/v2/controller.proto", fileDescriptor_controller_4ef9c42d467cd330)
+	proto.RegisterFile("google/devtools/clouddebugger/v2/controller.proto", fileDescriptor_controller_3156ecf89afb2d41)
 }
 
-var fileDescriptor_controller_4ef9c42d467cd330 = []byte{
+var fileDescriptor_controller_3156ecf89afb2d41 = []byte{
 	// 602 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0xdd, 0x6a, 0xd4, 0x40,
 	0x14, 0x66, 0x5a, 0x94, 0x76, 0xa2, 0xb4, 0x0c, 0xa8, 0x21, 0xb6, 0xba, 0x0d, 0x52, 0x96, 0x75,

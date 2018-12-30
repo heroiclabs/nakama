@@ -47,7 +47,7 @@ func (m *ListConfigsRequest) Reset()         { *m = ListConfigsRequest{} }
 func (m *ListConfigsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListConfigsRequest) ProtoMessage()    {}
 func (*ListConfigsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{0}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{0}
 }
 func (m *ListConfigsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfigsRequest.Unmarshal(m, b)
@@ -109,7 +109,7 @@ func (m *ListConfigsResponse) Reset()         { *m = ListConfigsResponse{} }
 func (m *ListConfigsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListConfigsResponse) ProtoMessage()    {}
 func (*ListConfigsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{1}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{1}
 }
 func (m *ListConfigsResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListConfigsResponse.Unmarshal(m, b)
@@ -158,7 +158,7 @@ func (m *GetConfigRequest) Reset()         { *m = GetConfigRequest{} }
 func (m *GetConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*GetConfigRequest) ProtoMessage()    {}
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{2}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{2}
 }
 func (m *GetConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigRequest.Unmarshal(m, b)
@@ -212,7 +212,7 @@ func (m *CreateConfigRequest) Reset()         { *m = CreateConfigRequest{} }
 func (m *CreateConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateConfigRequest) ProtoMessage()    {}
 func (*CreateConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{3}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{3}
 }
 func (m *CreateConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateConfigRequest.Unmarshal(m, b)
@@ -270,7 +270,7 @@ func (m *UpdateConfigRequest) Reset()         { *m = UpdateConfigRequest{} }
 func (m *UpdateConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateConfigRequest) ProtoMessage()    {}
 func (*UpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{4}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{4}
 }
 func (m *UpdateConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateConfigRequest.Unmarshal(m, b)
@@ -319,7 +319,7 @@ func (m *DeleteConfigRequest) Reset()         { *m = DeleteConfigRequest{} }
 func (m *DeleteConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteConfigRequest) ProtoMessage()    {}
 func (*DeleteConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{5}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{5}
 }
 func (m *DeleteConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteConfigRequest.Unmarshal(m, b)
@@ -376,7 +376,7 @@ func (m *ListVariablesRequest) Reset()         { *m = ListVariablesRequest{} }
 func (m *ListVariablesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListVariablesRequest) ProtoMessage()    {}
 func (*ListVariablesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{6}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{6}
 }
 func (m *ListVariablesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListVariablesRequest.Unmarshal(m, b)
@@ -451,7 +451,7 @@ func (m *ListVariablesResponse) Reset()         { *m = ListVariablesResponse{} }
 func (m *ListVariablesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListVariablesResponse) ProtoMessage()    {}
 func (*ListVariablesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{7}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{7}
 }
 func (m *ListVariablesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListVariablesResponse.Unmarshal(m, b)
@@ -507,7 +507,7 @@ func (m *WatchVariableRequest) Reset()         { *m = WatchVariableRequest{} }
 func (m *WatchVariableRequest) String() string { return proto.CompactTextString(m) }
 func (*WatchVariableRequest) ProtoMessage()    {}
 func (*WatchVariableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{8}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{8}
 }
 func (m *WatchVariableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WatchVariableRequest.Unmarshal(m, b)
@@ -556,7 +556,7 @@ func (m *GetVariableRequest) Reset()         { *m = GetVariableRequest{} }
 func (m *GetVariableRequest) String() string { return proto.CompactTextString(m) }
 func (*GetVariableRequest) ProtoMessage()    {}
 func (*GetVariableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{9}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{9}
 }
 func (m *GetVariableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetVariableRequest.Unmarshal(m, b)
@@ -612,7 +612,7 @@ func (m *CreateVariableRequest) Reset()         { *m = CreateVariableRequest{} }
 func (m *CreateVariableRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateVariableRequest) ProtoMessage()    {}
 func (*CreateVariableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{10}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{10}
 }
 func (m *CreateVariableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateVariableRequest.Unmarshal(m, b)
@@ -670,7 +670,7 @@ func (m *UpdateVariableRequest) Reset()         { *m = UpdateVariableRequest{} }
 func (m *UpdateVariableRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateVariableRequest) ProtoMessage()    {}
 func (*UpdateVariableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{11}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{11}
 }
 func (m *UpdateVariableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateVariableRequest.Unmarshal(m, b)
@@ -722,7 +722,7 @@ func (m *DeleteVariableRequest) Reset()         { *m = DeleteVariableRequest{} }
 func (m *DeleteVariableRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteVariableRequest) ProtoMessage()    {}
 func (*DeleteVariableRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{12}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{12}
 }
 func (m *DeleteVariableRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteVariableRequest.Unmarshal(m, b)
@@ -778,7 +778,7 @@ func (m *ListWaitersRequest) Reset()         { *m = ListWaitersRequest{} }
 func (m *ListWaitersRequest) String() string { return proto.CompactTextString(m) }
 func (*ListWaitersRequest) ProtoMessage()    {}
 func (*ListWaitersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{13}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{13}
 }
 func (m *ListWaitersRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListWaitersRequest.Unmarshal(m, b)
@@ -839,7 +839,7 @@ func (m *ListWaitersResponse) Reset()         { *m = ListWaitersResponse{} }
 func (m *ListWaitersResponse) String() string { return proto.CompactTextString(m) }
 func (*ListWaitersResponse) ProtoMessage()    {}
 func (*ListWaitersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{14}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{14}
 }
 func (m *ListWaitersResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListWaitersResponse.Unmarshal(m, b)
@@ -889,7 +889,7 @@ func (m *GetWaiterRequest) Reset()         { *m = GetWaiterRequest{} }
 func (m *GetWaiterRequest) String() string { return proto.CompactTextString(m) }
 func (*GetWaiterRequest) ProtoMessage()    {}
 func (*GetWaiterRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{15}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{15}
 }
 func (m *GetWaiterRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetWaiterRequest.Unmarshal(m, b)
@@ -945,7 +945,7 @@ func (m *CreateWaiterRequest) Reset()         { *m = CreateWaiterRequest{} }
 func (m *CreateWaiterRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateWaiterRequest) ProtoMessage()    {}
 func (*CreateWaiterRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{16}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{16}
 }
 func (m *CreateWaiterRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateWaiterRequest.Unmarshal(m, b)
@@ -1001,7 +1001,7 @@ func (m *DeleteWaiterRequest) Reset()         { *m = DeleteWaiterRequest{} }
 func (m *DeleteWaiterRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteWaiterRequest) ProtoMessage()    {}
 func (*DeleteWaiterRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_runtimeconfig_71a64cbcfb9779de, []int{17}
+	return fileDescriptor_runtimeconfig_6039f7e1dafadd9a, []int{17}
 }
 func (m *DeleteWaiterRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteWaiterRequest.Unmarshal(m, b)
@@ -1676,10 +1676,10 @@ var _RuntimeConfigManager_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("google/cloud/runtimeconfig/v1beta1/runtimeconfig.proto", fileDescriptor_runtimeconfig_71a64cbcfb9779de)
+	proto.RegisterFile("google/cloud/runtimeconfig/v1beta1/runtimeconfig.proto", fileDescriptor_runtimeconfig_6039f7e1dafadd9a)
 }
 
-var fileDescriptor_runtimeconfig_71a64cbcfb9779de = []byte{
+var fileDescriptor_runtimeconfig_6039f7e1dafadd9a = []byte{
 	// 1158 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x98, 0x4b, 0x6f, 0xdd, 0x44,
 	0x14, 0xc7, 0x35, 0x49, 0x9b, 0xe6, 0x9e, 0x3c, 0x40, 0x93, 0x87, 0x22, 0xb7, 0x15, 0x91, 0x8b,
