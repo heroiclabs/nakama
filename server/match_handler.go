@@ -208,6 +208,10 @@ func (mh *MatchHandler) Close() {
 	mh.ticker.Stop()
 }
 
+func (mh *MatchHandler) Label() string {
+	return mh.core.Label()
+}
+
 func (mh *MatchHandler) queueCall(f func(*MatchHandler)) bool {
 	if mh.stopped.Load() {
 		return false
