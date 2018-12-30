@@ -16,7 +16,7 @@
 
 [[constraint]]
   name = "github.com/rubenv/sql-migrate"
-  revision = "3f452fc0ebebbb784fdab91f7bc79a31dcacab5c"
+  revision = "5a8808c14925f69d2228981db113f672ad047e69"
 
 [[constraint]]
   name = "github.com/lib/pq"

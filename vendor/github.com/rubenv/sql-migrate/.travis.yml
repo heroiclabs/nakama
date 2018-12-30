@@ -3,9 +3,9 @@ language: go
 sudo: false
 
 go:
-    - "1.8"
     - "1.9"
     - "1.10"
+    - "1.11"
 
 services:
     - mysql
@@ -19,6 +19,7 @@ before_install:
 install:
     - go get -t ./...
     - go install ./...
+    - go get -u github.com/kisielk/errcheck
 
 script:
     - go test -v ./...
@@ -27,3 +28,4 @@ script:
     - bash test-integration/mysql-flag.sh
     - bash test-integration/mysql-env.sh
     - bash test-integration/sqlite.sh
+    - errcheck ./...

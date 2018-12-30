@@ -44,7 +44,7 @@ func realMain() int {
 
 	exitCode, err := cli.Run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing CLI: %s\n", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "Error executing CLI: %s\n", err.Error())
 		return 1
 	}
 

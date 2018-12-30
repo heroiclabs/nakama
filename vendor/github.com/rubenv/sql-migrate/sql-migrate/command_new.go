@@ -83,7 +83,7 @@ func CreateMigration(name string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := tpl.Execute(f, nil); err != nil {
 		return err
