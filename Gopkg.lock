@@ -160,12 +160,36 @@
   revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
 
 [[projects]]
-  digest = "1:94ab904da3a528888677f39d32f9625ea8b2d639146af9c79ff97bda3e8554ae"
+  digest = "1:b0989e1ceaa5fb28ad7dcb6f21da9386124942f24e5d8e5807f967f6f56ae2b0"
+  name = "github.com/gobuffalo/envy"
+  packages = ["."]
+  pruneopts = ""
+  revision = "801d7253ade1f895f74596b9a96147ed2d3b087e"
+  version = "v1.6.11"
+
+[[projects]]
+  branch = "master"
+  digest = "1:3637ea23c1d8720d62f8400f4b3b5750b11c35baa093a97856bc6295c77cf372"
+  name = "github.com/gobuffalo/packd"
+  packages = ["."]
+  pruneopts = ""
+  revision = "eca3b8fd66872a76119b189bbe0f58f776a2a39f"
+
+[[projects]]
+  digest = "1:82c8a32555836303cadb66876d39e3adae68c969cf9de02dd6cf989ddd8823b3"
   name = "github.com/gobuffalo/packr"
   packages = ["."]
   pruneopts = ""
-  revision = "147bee9cde84aeca6693d1b1aedc595298f24d5b"
-  version = "v1.12.0"
+  revision = "679459352e18b4c74274a979d695fe13b68730c1"
+  version = "v1.21.9"
+
+[[projects]]
+  branch = "master"
+  digest = "1:6098f692e043c3ee2612f47f214d169a3bdeb13ee37f946d10353b5e37aa702b"
+  name = "github.com/gobuffalo/syncx"
+  packages = ["."]
+  pruneopts = ""
+  revision = "558ac7de985fc4f4057bff27c7bdf99e92fe0750"
 
 [[projects]]
   digest = "1:660175e70abad3868119f2c29f43339608d7d3b93c8eb178b812ed330be6c07b"
@@ -262,6 +286,14 @@
   version = "v1.4.1"
 
 [[projects]]
+  digest = "1:7df5a9695a743c3e1626b28bb8741602c8c15527e1efaeaec48ab2ff9a23f74c"
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  pruneopts = ""
+  revision = "23d116af351c84513e1946b527c88823e476be13"
+  version = "v1.3.0"
+
+[[projects]]
   digest = "1:bc36cd980d0069137800b505af4937c6109f4dc7cefe39d7c2efc7c8d51528d6"
   name = "github.com/lib/pq"
   packages = [
@@ -270,6 +302,14 @@
   ]
   pruneopts = ""
   revision = "9eb73efc1fcc404148b56765b0d3f61d9a5ef8ee"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ff3d3a7e367bf58b25e3c9203b7e82a02b2bfa220eacb2b362c0dbc3fcffa15b"
+  name = "github.com/markbates/oncer"
+  packages = ["."]
+  pruneopts = ""
+  revision = "bf2de49a0be218916e69a11d22866e6cd0a560f2"
 
 [[projects]]
   digest = "1:63722a4b1e1717be7b98fc686e0b30d5e7f734b9e93d7dee86293b6deab7ea28"
@@ -353,6 +393,18 @@
   ]
   pruneopts = ""
   revision = "05ee40e3a273f7245e8777337fc7b46e533a9a92"
+
+[[projects]]
+  digest = "1:e47e8da3ae71a043c8ad101dea4e96580aaa613ff766150b799221e6c021508f"
+  name = "github.com/rogpeppe/go-internal"
+  packages = [
+    "modfile",
+    "module",
+    "semver",
+  ]
+  pruneopts = ""
+  revision = "d87f08a7d80821c797ffc8eb8f4e01675f378736"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:de54c071d521d5adb97ba259392faefffc3b702f08323601fc3a7ac873a717d7"

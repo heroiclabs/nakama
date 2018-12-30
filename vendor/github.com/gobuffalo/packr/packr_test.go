@@ -20,7 +20,8 @@ func init() {
 func Test_PackBytes(t *testing.T) {
 	r := require.New(t)
 	PackBytes(testBox.Path, "foo", []byte("bar"))
-	s := testBox.String("foo")
+	s, err := testBox.FindString("foo")
+	r.NoError(err)
 	r.Equal("bar", s)
 }
 
@@ -30,7 +31,7 @@ func Test_PackJSONBytes(t *testing.T) {
 	r.NoError(err)
 	err = PackJSONBytes(testBox.Path, "the bytes", string(b))
 	r.NoError(err)
-	s, err := testBox.MustBytes("the bytes")
+	s, err := testBox.Find("the bytes")
 	r.NoError(err)
 	r.Equal([]byte("json bytes"), s)
 }
@@ -39,6 +40,7 @@ func Test_PackBytesGzip(t *testing.T) {
 	r := require.New(t)
 	err := PackBytesGzip(testBox.Path, "gzip", []byte("gzip foobar"))
 	r.NoError(err)
-	s := testBox.String("gzip")
+	s, err := testBox.FindString("gzip")
+	r.NoError(err)
 	r.Equal("gzip foobar", s)
 }

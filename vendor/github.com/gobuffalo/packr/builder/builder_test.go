@@ -5,11 +5,9 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"github.com/gobuffalo/packr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,13 +15,12 @@ func Test_Builder_Run(t *testing.T) {
 	r := require.New(t)
 
 	root := filepath.Join("..", "example")
+	Clean(root)
 	defer Clean(root)
 
 	exPackr := filepath.Join(root, "a_example-packr.go")
-	r.False(fileExists(exPackr))
 
 	fooPackr := filepath.Join(root, "foo", "a_foo-packr.go")
-	r.False(fileExists(fooPackr))
 
 	b := New(context.Background(), root)
 	err := b.Run()
@@ -52,10 +49,8 @@ func Test_Builder_Run_Compress(t *testing.T) {
 	defer Clean(root)
 
 	exPackr := filepath.Join(root, "a_example-packr.go")
-	r.False(fileExists(exPackr))
 
 	fooPackr := filepath.Join(root, "foo", "a_foo-packr.go")
-	r.False(fileExists(fooPackr))
 
 	b := New(context.Background(), root)
 	b.Compress = true
@@ -75,27 +70,6 @@ func Test_Builder_Run_Compress(t *testing.T) {
 	r.True(bytes.Contains(bb, []byte(`packr.PackJSONBytes("../assets", "app.css", "\"H4sIAAAAAAAA/0rKT`)))
 	r.True(bytes.Contains(bb, []byte(`packr.PackJSONBytes("../assets", "app.js", "\"H4sIAAAAAAAA/0rMSS`)))
 	r.True(bytes.Contains(bb, []byte(`packr.PackJSONBytes("../templates", "index.html", "\"H4sIAAAAAAAA`)))
-}
-
-func Test_Binary_Builds(t *testing.T) {
-	r := require.New(t)
-	pwd, _ := os.Getwd()
-	defer os.Chdir(pwd)
-
-	root := "../example"
-	defer Clean(root)
-	defer os.RemoveAll(filepath.Join(root, "bin"))
-
-	b := New(context.Background(), root)
-	err := b.Run()
-	r.NoError(err)
-
-	os.Chdir(root)
-	cmd := exec.Command(packr.GoBin(), "build", "-v", "-o", "bin/example")
-	err = cmd.Run()
-	r.NoError(err)
-
-	r.True(fileExists("bin/example"))
 }
 
 func fileExists(path string) bool {

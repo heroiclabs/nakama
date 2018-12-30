@@ -2,14 +2,36 @@ language: go
 
 sudo: false
 
-go:
-  - 1.8
-  - 1.9
-  - tip
-
 matrix:
-  allow_failures:
-    - go: 'tip'
+  include:
+  - os: linux
+    go: "1.9.x"
+  - os: windows
+    go: "1.9.x"
+  - os: linux
+    go: "1.10.x"
+  - os: windows
+    go: "1.10.x"
+  - os: linux
+    go: "1.11.x"
+    env:
+      - GO111MODULE=off
+  - os: windows
+    go: "1.11.x"
+    env:
+      - GO111MODULE=off
+  - os: linux
+    go: "1.11.x"
+    env:
+      - GO111MODULE=on
+  - os: windows
+    go: "1.11.x"
+    env:
+      - GO111MODULE=on
+
+install: false
 
 script:
-  - go test -v ./...
+  - ./travis.sh
+  - cd v2 && ./travis.sh
+

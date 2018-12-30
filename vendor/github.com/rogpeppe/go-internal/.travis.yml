@@ -1,0 +1,12 @@
+language: go
+env:
+  - GO111MODULE=on
+go_import_path: github.com/rogpeppe/go-internal
+install: "echo no install step required"
+go:
+  - "1.11.x"
+script:
+  - go test ./...
+  - go mod tidy
+  - go list all > /dev/null # https://github.com/golang/go/issues/27868#issuecomment-431413621
+  - test -z "$(git status --porcelain)" || (git status; git diff && false)

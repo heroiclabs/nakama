@@ -13,7 +13,6 @@ type S struct{}
 func (S) f(packr.Box) {}
 
 func init() {
-	// packr.NewBox("../idontexists")
 
 	b := "./variable"
 	packr.NewBox(b)

@@ -55,7 +55,7 @@ func StartupCheck(logger *zap.Logger, db *sql.DB) {
 
 	migrationBox := packr.NewBox("./sql") // path must be string not a variable for packr to understand
 	ms := &migrate.AssetMigrationSource{
-		Asset: migrationBox.MustBytes,
+		Asset: migrationBox.Find,
 		AssetDir: func(path string) ([]string, error) {
 			return migrationBox.List(), nil
 		},
@@ -89,7 +89,7 @@ func Parse(args []string, logger *zap.Logger) {
 	ms := &migrationService{
 		logger: logger,
 		migrations: &migrate.AssetMigrationSource{
-			Asset: migrationBox.MustBytes,
+			Asset: migrationBox.Find,
 			AssetDir: func(path string) ([]string, error) {
 				return migrationBox.List(), nil
 			},

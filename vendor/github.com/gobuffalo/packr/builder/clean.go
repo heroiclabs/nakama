@@ -1,32 +1,38 @@
 package builder
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/gobuffalo/packr/v2/jam/parser"
+	"github.com/gobuffalo/packr/v2/jam/store"
 	"github.com/pkg/errors"
 )
 
 // Clean up an *-packr.go files
-func Clean(root string) {
-	root, _ = filepath.EvalSymlinks(root)
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		base := filepath.Base(path)
-		if base == ".git" || base == "vendor" || base == "node_modules" {
-			return filepath.SkipDir
-		}
-		if info == nil || info.IsDir() {
-			return nil
-		}
-		if strings.Contains(base, "-packr.go") {
-			err := os.Remove(path)
-			if err != nil {
-				fmt.Println(err)
-				return errors.WithStack(err)
-			}
-		}
-		return nil
+func Clean(root string) error {
+	defer func() {
+		packd := filepath.Join(root, "packrd")
+		os.RemoveAll(packd)
+	}()
+
+	p, err := parser.NewFromRoots([]string{root}, &parser.RootsOptions{
+		IgnoreImports: true,
 	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	boxes, err := p.Run()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	d := store.NewDisk("", "")
+	for _, box := range boxes {
+		if err := d.Clean(box); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }

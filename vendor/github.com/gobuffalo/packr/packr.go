@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -52,4 +54,21 @@ func UnpackBytes(box string) {
 	gil.Lock()
 	defer gil.Unlock()
 	delete(data, box)
+}
+
+func osPaths(paths ...string) []string {
+	if runtime.GOOS == "windows" {
+		for i, path := range paths {
+			paths[i] = strings.Replace(path, "/", "\\", -1)
+		}
+	}
+
+	return paths
+}
+
+func osPath(path string) string {
+	if runtime.GOOS == "windows" {
+		return strings.Replace(path, "/", "\\", -1)
+	}
+	return path
 }
