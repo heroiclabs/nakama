@@ -8,7 +8,7 @@
 
 [[constraint]]
   name = "github.com/go-yaml/yaml"
-  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
 
 [[constraint]]
   name = "github.com/gofrs/uuid"
