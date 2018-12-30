@@ -504,7 +504,7 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:eaa05fe9a5f420e6a79ba174682f0883b5e44b74ed0680b9e3c3b5648485e30f"
+  digest = "1:246f378f80fba6fcf0f191c486b6613265abd2bc0f2fa55a36b928c67352021e"
   name = "go.uber.org/zap"
   packages = [
     ".",
@@ -515,8 +515,8 @@
     "zapcore",
   ]
   pruneopts = ""
-  revision = "4d45f9617f7d90f7a663ff21c7a4321dbe78098b"
-  version = "v1.9.0"
+  revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
+  version = "v1.9.1"
 
 [[projects]]
   digest = "1:887074c37fcefc2f49b5ae9c6f9f36107341aec23185613d0e9f1ee81db7f94a"
