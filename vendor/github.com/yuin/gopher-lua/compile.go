@@ -1048,8 +1048,6 @@ func compileExpr(context *funcContext, reg int, expr ast.Expr, ec *expcontext) i
 		panic(fmt.Sprintf("expr %v not implemented.", reflect.TypeOf(ex).Elem().Name()))
 	}
 
-	panic("should not reach here")
-	return sused
 } // }}}
 
 func compileExprWithPropagation(context *funcContext, expr ast.Expr, reg *int, save *int, propergator func(int, *int, *int, int)) { // {{{
@@ -1108,7 +1106,6 @@ func constFold(exp ast.Expr) ast.Expr { // {{{
 
 		return exp
 	}
-	return exp
 } // }}}
 
 func compileFunctionExpr(context *funcContext, funcexpr *ast.FunctionExpr, ec *expcontext) { // {{{

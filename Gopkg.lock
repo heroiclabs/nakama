@@ -397,7 +397,7 @@
   version = "v1.1.3"
 
 [[projects]]
-  digest = "1:c5918689b7e187382cc1066bf0260de54ba9d1b323105f46ed2551d2fb4a17c7"
+  digest = "1:87efccabe52f98f3dcefab803efba00d8b961cf942c1472a7db560eb64c125d5"
   name = "github.com/yuin/gopher-lua"
   packages = [
     ".",
@@ -406,7 +406,7 @@
     "pm",
   ]
   pruneopts = ""
-  revision = "46796da1b0b4794e1e341883a399f12cc7574b55"
+  revision = "db9ae37725ec65ae634769088627d2d118faf06a"
 
 [[projects]]
   digest = "1:eb3da47361162f0ad991ddf391e6dc03e23889201d76046e2917687b84977aee"

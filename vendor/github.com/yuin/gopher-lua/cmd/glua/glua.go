@@ -36,8 +36,7 @@ Available options are:
   -dc      dump VM codes
   -i       enter interactive mode after executing 'script'
   -p file  write cpu profiles to the file
-  -v       show version information
-`)
+  -v       show version information`)
 	}
 	flag.Parse()
 	if len(opt_p) != 0 {

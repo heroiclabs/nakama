@@ -1,6 +1,7 @@
 package lua
 
 import (
+	"context"
 	"reflect"
 	"sync"
 	"testing"
@@ -258,4 +259,36 @@ func TestChannelSendReceive1(t *testing.T) {
 	go receiver(ch)
 	go sender(ch)
 	wg.Wait()
+}
+
+func TestCancelChannelReceive(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer close(done)
+		L := NewState()
+		L.SetContext(ctx)
+		defer L.Close()
+		L.SetGlobal("ch", LChannel(make(chan LValue)))
+		errorIfScriptNotFail(t, L, `ch:receive()`, context.Canceled.Error())
+	}()
+	time.Sleep(time.Second)
+	cancel()
+	<-done
+}
+
+func TestCancelChannelReceive2(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer close(done)
+		L := NewState()
+		L.SetContext(ctx)
+		defer L.Close()
+		L.SetGlobal("ch", LChannel(make(chan LValue)))
+		errorIfScriptNotFail(t, L, `channel.select({"|<-", ch})`, context.Canceled.Error())
+	}()
+	time.Sleep(time.Second)
+	cancel()
+	<-done
 }

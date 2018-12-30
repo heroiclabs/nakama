@@ -241,7 +241,6 @@ func TestPCall(t *testing.T) {
 	defer L.Close()
 	L.Register("f1", func(L *LState) int {
 		panic("panic!")
-		return 0
 	})
 	errorIfScriptNotFail(t, L, `f1()`, "panic!")
 	L.Push(L.GetGlobal("f1"))
@@ -259,7 +258,6 @@ func TestPCall(t *testing.T) {
 
 	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
 		panic("panicc!")
-		return 1
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "panicc!"), "")
 }

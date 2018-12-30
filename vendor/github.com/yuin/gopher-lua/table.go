@@ -110,8 +110,11 @@ func (tb *LTable) Remove(pos int) LValue {
 	if tb.array == nil {
 		return LNil
 	}
-	i := pos - 1
 	larray := len(tb.array)
+	if larray == 0 {
+		return LNil
+	}
+	i := pos - 1
 	oldval := LNil
 	switch {
 	case i >= larray:

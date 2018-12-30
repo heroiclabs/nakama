@@ -40,7 +40,7 @@
 
 [[constraint]]
   name = "github.com/yuin/gopher-lua"
-  revision = "46796da1b0b4794e1e341883a399f12cc7574b55"
+  revision = "db9ae37725ec65ae634769088627d2d118faf06a"
 
 [[constraint]]
   name = "github.com/gorhill/cronexpr"

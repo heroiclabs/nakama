@@ -258,7 +258,13 @@ func basePairs(L *LState) int {
 }
 
 func basePCall(L *LState) int {
-	L.CheckFunction(1)
+	L.CheckAny(1)
+	v := L.Get(1)
+	if v.Type() != LTFunction {
+		L.Push(LFalse)
+		L.Push(LString("attempt to call a " + v.Type().String() + " value"))
+		return 2
+	}
 	nargs := L.GetTop() - 1
 	if err := L.PCall(nargs, MultRet, nil); err != nil {
 		L.Push(LFalse)

@@ -54,7 +54,8 @@ func testScriptCompile(t *testing.T, script string) {
 		t.Fatal(err3)
 		return
 	}
-	proto.String()
+	nop := func(s string) {}
+	nop(proto.String())
 }
 
 func testScriptDir(t *testing.T, tests []string, directory string) {
