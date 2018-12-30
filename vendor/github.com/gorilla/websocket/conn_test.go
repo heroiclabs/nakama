@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net"
 	"reflect"
+	"sync"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -45,6 +46,12 @@ func (a fakeAddr) Network() string {
 
 func (a fakeAddr) String() string {
 	return "str"
+}
+
+// newTestConn creates a connnection backed by a fake network connection using
+// default values for buffering.
+func newTestConn(r io.Reader, w io.Writer, isServer bool) *Conn {
+	return newConn(fakeNetConn{Reader: r, Writer: w}, isServer, 1024, 1024, nil, nil, nil)
 }
 
 func TestFraming(t *testing.T) {
@@ -82,8 +89,8 @@ func TestFraming(t *testing.T) {
 			for _, chunker := range readChunkers {
 
 				var connBuf bytes.Buffer
-				wc := newConn(fakeNetConn{Reader: nil, Writer: &connBuf}, isServer, 1024, 1024)
-				rc := newConn(fakeNetConn{Reader: chunker.f(&connBuf), Writer: nil}, !isServer, 1024, 1024)
+				wc := newTestConn(nil, &connBuf, isServer)
+				rc := newTestConn(chunker.f(&connBuf), nil, !isServer)
 				if compress {
 					wc.newCompressionWriter = compressNoContextTakeover
 					rc.newDecompressionReader = decompressNoContextTakeover
@@ -143,8 +150,8 @@ func TestControl(t *testing.T) {
 		for _, isWriteControl := range []bool{true, false} {
 			name := fmt.Sprintf("s:%v, wc:%v", isServer, isWriteControl)
 			var connBuf bytes.Buffer
-			wc := newConn(fakeNetConn{Reader: nil, Writer: &connBuf}, isServer, 1024, 1024)
-			rc := newConn(fakeNetConn{Reader: &connBuf, Writer: nil}, !isServer, 1024, 1024)
+			wc := newTestConn(nil, &connBuf, isServer)
+			rc := newTestConn(&connBuf, nil, !isServer)
 			if isWriteControl {
 				wc.WriteControl(PongMessage, []byte(message), time.Now().Add(time.Second))
 			} else {
@@ -173,14 +180,178 @@ func TestControl(t *testing.T) {
 	}
 }
 
+// simpleBufferPool is an implementation of BufferPool for TestWriteBufferPool.
+type simpleBufferPool struct {
+	v interface{}
+}
+
+func (p *simpleBufferPool) Get() interface{} {
+	v := p.v
+	p.v = nil
+	return v
+}
+
+func (p *simpleBufferPool) Put(v interface{}) {
+	p.v = v
+}
+
+func TestWriteBufferPool(t *testing.T) {
+	const message = "Now is the time for all good people to come to the aid of the party."
+
+	var buf bytes.Buffer
+	var pool simpleBufferPool
+	rc := newTestConn(&buf, nil, false)
+
+	// Specify writeBufferSize smaller than message size to ensure that pooling
+	// works with fragmented messages.
+	wc := newConn(fakeNetConn{Writer: &buf}, true, 1024, len(message)-1, &pool, nil, nil)
+
+	if wc.writeBuf != nil {
+		t.Fatal("writeBuf not nil after create")
+	}
+
+	// Part 1: test NextWriter/Write/Close
+
+	w, err := wc.NextWriter(TextMessage)
+	if err != nil {
+		t.Fatalf("wc.NextWriter() returned %v", err)
+	}
+
+	if wc.writeBuf == nil {
+		t.Fatal("writeBuf is nil after NextWriter")
+	}
+
+	writeBufAddr := &wc.writeBuf[0]
+
+	if _, err := io.WriteString(w, message); err != nil {
+		t.Fatalf("io.WriteString(w, message) returned %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("w.Close() returned %v", err)
+	}
+
+	if wc.writeBuf != nil {
+		t.Fatal("writeBuf not nil after w.Close()")
+	}
+
+	if wpd, ok := pool.v.(writePoolData); !ok || len(wpd.buf) == 0 || &wpd.buf[0] != writeBufAddr {
+		t.Fatal("writeBuf not returned to pool")
+	}
+
+	opCode, p, err := rc.ReadMessage()
+	if opCode != TextMessage || err != nil {
+		t.Fatalf("ReadMessage() returned %d, p, %v", opCode, err)
+	}
+
+	if s := string(p); s != message {
+		t.Fatalf("message is %s, want %s", s, message)
+	}
+
+	// Part 2: Test WriteMessage.
+
+	if err := wc.WriteMessage(TextMessage, []byte(message)); err != nil {
+		t.Fatalf("wc.WriteMessage() returned %v", err)
+	}
+
+	if wc.writeBuf != nil {
+		t.Fatal("writeBuf not nil after wc.WriteMessage()")
+	}
+
+	if wpd, ok := pool.v.(writePoolData); !ok || len(wpd.buf) == 0 || &wpd.buf[0] != writeBufAddr {
+		t.Fatal("writeBuf not returned to pool after WriteMessage")
+	}
+
+	opCode, p, err = rc.ReadMessage()
+	if opCode != TextMessage || err != nil {
+		t.Fatalf("ReadMessage() returned %d, p, %v", opCode, err)
+	}
+
+	if s := string(p); s != message {
+		t.Fatalf("message is %s, want %s", s, message)
+	}
+}
+
+// TestWriteBufferPoolSync ensures that *sync.Pool works as a buffer pool.
+func TestWriteBufferPoolSync(t *testing.T) {
+	var buf bytes.Buffer
+	var pool sync.Pool
+	wc := newConn(fakeNetConn{Writer: &buf}, true, 1024, 1024, &pool, nil, nil)
+	rc := newTestConn(&buf, nil, false)
+
+	const message = "Hello World!"
+	for i := 0; i < 3; i++ {
+		if err := wc.WriteMessage(TextMessage, []byte(message)); err != nil {
+			t.Fatalf("wc.WriteMessage() returned %v", err)
+		}
+		opCode, p, err := rc.ReadMessage()
+		if opCode != TextMessage || err != nil {
+			t.Fatalf("ReadMessage() returned %d, p, %v", opCode, err)
+		}
+		if s := string(p); s != message {
+			t.Fatalf("message is %s, want %s", s, message)
+		}
+	}
+}
+
+// errorWriter is an io.Writer than returns an error on all writes.
+type errorWriter struct{}
+
+func (ew errorWriter) Write(p []byte) (int, error) { return 0, errors.New("Error!") }
+
+// TestWriteBufferPoolError ensures that buffer is returned to pool after error
+// on write.
+func TestWriteBufferPoolError(t *testing.T) {
+
+	// Part 1: Test NextWriter/Write/Close
+
+	var pool simpleBufferPool
+	wc := newConn(fakeNetConn{Writer: errorWriter{}}, true, 1024, 1024, &pool, nil, nil)
+
+	w, err := wc.NextWriter(TextMessage)
+	if err != nil {
+		t.Fatalf("wc.NextWriter() returned %v", err)
+	}
+
+	if wc.writeBuf == nil {
+		t.Fatal("writeBuf is nil after NextWriter")
+	}
+
+	writeBufAddr := &wc.writeBuf[0]
+
+	if _, err := io.WriteString(w, "Hello"); err != nil {
+		t.Fatalf("io.WriteString(w, message) returned %v", err)
+	}
+
+	if err := w.Close(); err == nil {
+		t.Fatalf("w.Close() did not return error")
+	}
+
+	if wpd, ok := pool.v.(writePoolData); !ok || len(wpd.buf) == 0 || &wpd.buf[0] != writeBufAddr {
+		t.Fatal("writeBuf not returned to pool")
+	}
+
+	// Part 2: Test WriteMessage
+
+	wc = newConn(fakeNetConn{Writer: errorWriter{}}, true, 1024, 1024, &pool, nil, nil)
+
+	if err := wc.WriteMessage(TextMessage, []byte("Hello")); err == nil {
+		t.Fatalf("wc.WriteMessage did not return error")
+	}
+
+	if wpd, ok := pool.v.(writePoolData); !ok || len(wpd.buf) == 0 || &wpd.buf[0] != writeBufAddr {
+		t.Fatal("writeBuf not returned to pool")
+	}
+}
+
 func TestCloseFrameBeforeFinalMessageFrame(t *testing.T) {
 	const bufSize = 512
 
 	expectedErr := &CloseError{Code: CloseNormalClosure, Text: "hello"}
 
 	var b1, b2 bytes.Buffer
-	wc := newConn(fakeNetConn{Reader: nil, Writer: &b1}, false, 1024, bufSize)
-	rc := newConn(fakeNetConn{Reader: &b1, Writer: &b2}, true, 1024, 1024)
+	wc := newConn(&fakeNetConn{Reader: nil, Writer: &b1}, false, 1024, bufSize, nil, nil, nil)
+	rc := newTestConn(&b1, &b2, true)
 
 	w, _ := wc.NextWriter(BinaryMessage)
 	w.Write(make([]byte, bufSize+bufSize/2))
@@ -206,8 +377,8 @@ func TestEOFWithinFrame(t *testing.T) {
 
 	for n := 0; ; n++ {
 		var b bytes.Buffer
-		wc := newConn(fakeNetConn{Reader: nil, Writer: &b}, false, 1024, 1024)
-		rc := newConn(fakeNetConn{Reader: &b, Writer: nil}, true, 1024, 1024)
+		wc := newTestConn(nil, &b, false)
+		rc := newTestConn(&b, nil, true)
 
 		w, _ := wc.NextWriter(BinaryMessage)
 		w.Write(make([]byte, bufSize))
@@ -240,8 +411,8 @@ func TestEOFBeforeFinalFrame(t *testing.T) {
 	const bufSize = 512
 
 	var b1, b2 bytes.Buffer
-	wc := newConn(fakeNetConn{Reader: nil, Writer: &b1}, false, 1024, bufSize)
-	rc := newConn(fakeNetConn{Reader: &b1, Writer: &b2}, true, 1024, 1024)
+	wc := newConn(&fakeNetConn{Writer: &b1}, false, 1024, bufSize, nil, nil, nil)
+	rc := newTestConn(&b1, &b2, true)
 
 	w, _ := wc.NextWriter(BinaryMessage)
 	w.Write(make([]byte, bufSize+bufSize/2))
@@ -261,7 +432,7 @@ func TestEOFBeforeFinalFrame(t *testing.T) {
 }
 
 func TestWriteAfterMessageWriterClose(t *testing.T) {
-	wc := newConn(fakeNetConn{Reader: nil, Writer: &bytes.Buffer{}}, false, 1024, 1024)
+	wc := newTestConn(nil, &bytes.Buffer{}, false)
 	w, _ := wc.NextWriter(BinaryMessage)
 	io.WriteString(w, "hello")
 	if err := w.Close(); err != nil {
@@ -292,8 +463,8 @@ func TestReadLimit(t *testing.T) {
 	message := make([]byte, readLimit+1)
 
 	var b1, b2 bytes.Buffer
-	wc := newConn(fakeNetConn{Reader: nil, Writer: &b1}, false, 1024, readLimit-2)
-	rc := newConn(fakeNetConn{Reader: &b1, Writer: &b2}, true, 1024, 1024)
+	wc := newConn(&fakeNetConn{Writer: &b1}, false, 1024, readLimit-2, nil, nil, nil)
+	rc := newTestConn(&b1, &b2, true)
 	rc.SetReadLimit(readLimit)
 
 	// Send message at the limit with interleaved pong.
@@ -321,7 +492,7 @@ func TestReadLimit(t *testing.T) {
 }
 
 func TestAddrs(t *testing.T) {
-	c := newConn(&fakeNetConn{}, true, 1024, 1024)
+	c := newTestConn(nil, nil, true)
 	if c.LocalAddr() != localAddr {
 		t.Errorf("LocalAddr = %v, want %v", c.LocalAddr(), localAddr)
 	}
@@ -333,7 +504,7 @@ func TestAddrs(t *testing.T) {
 func TestUnderlyingConn(t *testing.T) {
 	var b1, b2 bytes.Buffer
 	fc := fakeNetConn{Reader: &b1, Writer: &b2}
-	c := newConn(fc, true, 1024, 1024)
+	c := newConn(fc, true, 1024, 1024, nil, nil, nil)
 	ul := c.UnderlyingConn()
 	if ul != fc {
 		t.Fatalf("Underlying conn is not what it should be.")
@@ -347,8 +518,8 @@ func TestBufioReadBytes(t *testing.T) {
 	m[len(m)-1] = '\n'
 
 	var b1, b2 bytes.Buffer
-	wc := newConn(fakeNetConn{Reader: nil, Writer: &b1}, false, len(m)+64, len(m)+64)
-	rc := newConn(fakeNetConn{Reader: &b1, Writer: &b2}, true, len(m)-64, len(m)-64)
+	wc := newConn(fakeNetConn{Writer: &b1}, false, len(m)+64, len(m)+64, nil, nil, nil)
+	rc := newConn(fakeNetConn{Reader: &b1, Writer: &b2}, true, len(m)-64, len(m)-64, nil, nil, nil)
 
 	w, _ := wc.NextWriter(BinaryMessage)
 	w.Write(m)
@@ -423,7 +594,7 @@ func (w blockingWriter) Write(p []byte) (int, error) {
 
 func TestConcurrentWritePanic(t *testing.T) {
 	w := blockingWriter{make(chan struct{}), make(chan struct{})}
-	c := newConn(fakeNetConn{Reader: nil, Writer: w}, false, 1024, 1024)
+	c := newTestConn(nil, w, false)
 	go func() {
 		c.WriteMessage(TextMessage, []byte{})
 	}()
@@ -449,7 +620,7 @@ func (r failingReader) Read(p []byte) (int, error) {
 }
 
 func TestFailedConnectionReadPanic(t *testing.T) {
-	c := newConn(fakeNetConn{Reader: failingReader{}, Writer: nil}, false, 1024, 1024)
+	c := newTestConn(failingReader{}, nil, false)
 
 	defer func() {
 		if v := recover(); v != nil {
@@ -461,36 +632,4 @@ func TestFailedConnectionReadPanic(t *testing.T) {
 		c.ReadMessage()
 	}
 	t.Fatal("should not get here")
-}
-
-func TestBufioReuse(t *testing.T) {
-	brw := bufio.NewReadWriter(bufio.NewReader(nil), bufio.NewWriter(nil))
-	c := newConnBRW(nil, false, 0, 0, brw)
-
-	if c.br != brw.Reader {
-		t.Error("connection did not reuse bufio.Reader")
-	}
-
-	var wh writeHook
-	brw.Writer.Reset(&wh)
-	brw.WriteByte(0)
-	brw.Flush()
-	if &c.writeBuf[0] != &wh.p[0] {
-		t.Error("connection did not reuse bufio.Writer")
-	}
-
-	brw = bufio.NewReadWriter(bufio.NewReaderSize(nil, 0), bufio.NewWriterSize(nil, 0))
-	c = newConnBRW(nil, false, 0, 0, brw)
-
-	if c.br == brw.Reader {
-		t.Error("connection used bufio.Reader with small size")
-	}
-
-	brw.Writer.Reset(&wh)
-	brw.WriteByte(0)
-	brw.Flush()
-	if &c.writeBuf[0] != &wh.p[0] {
-		t.Error("connection used bufio.Writer with small size")
-	}
-
 }

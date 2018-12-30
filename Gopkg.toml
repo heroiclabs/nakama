@@ -36,7 +36,7 @@
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
-  revision = "5ed622c449da6d44c3c8329331ff47a9e5844f71"
+  revision = "95ba29eb981bbb27d92e1f70bf8a1949452d926b"
 
 [[constraint]]
   name = "github.com/yuin/gopher-lua"

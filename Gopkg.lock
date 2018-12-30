@@ -266,11 +266,11 @@
   version = "v1.6.2"
 
 [[projects]]
-  digest = "1:d8cdc0d262dd90e44b64e5345f3e5b3c1d5e18e64c58be40bc3573b6376cbe11"
+  digest = "1:e2f2cd85250d569d2ba86b4e73a5b5571db190f8d86333931feb36f82495b18d"
   name = "github.com/gorilla/websocket"
   packages = ["."]
   pruneopts = ""
-  revision = "5ed622c449da6d44c3c8329331ff47a9e5844f71"
+  revision = "95ba29eb981bbb27d92e1f70bf8a1949452d926b"
 
 [[projects]]
   digest = "1:b563eec078077ba5cedc795462cbd6d7c75a106a4d2e3d02940093c80e28de28"
