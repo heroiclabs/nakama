@@ -48,7 +48,7 @@
 
 [[constraint]]
   name = "golang.org/x/crypto"
-  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
+  revision = "505ab145d0a99da450461ae2c1a9f6cd10d1f447"
 
 [[constraint]]
   name = "github.com/gobuffalo/packr"

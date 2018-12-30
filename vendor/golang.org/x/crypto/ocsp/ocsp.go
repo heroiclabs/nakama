@@ -63,7 +63,7 @@ func (r ResponseStatus) String() string {
 }
 
 // ResponseError is an error that may be returned by ParseResponse to indicate
-// that the response itself is an error, not just that its indicating that a
+// that the response itself is an error, not just that it's indicating that a
 // certificate is revoked, unknown, etc.
 type ResponseError struct {
 	Status ResponseStatus

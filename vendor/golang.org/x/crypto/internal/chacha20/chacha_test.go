@@ -5,6 +5,7 @@
 package chacha20
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -184,5 +185,41 @@ func BenchmarkChaCha20(b *testing.B) {
 				XORKeyStream(dst, src, &c, &k)
 			}
 		})
+	}
+}
+
+func TestHChaCha20(t *testing.T) {
+	// See draft-paragon-paseto-rfc-00 §7.2.1.
+	key := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f}
+	nonce := []byte{0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x4a,
+		0x00, 0x00, 0x00, 0x00, 0x31, 0x41, 0x59, 0x27}
+	expected := []byte{0x82, 0x41, 0x3b, 0x42, 0x27, 0xb2, 0x7b, 0xfe,
+		0xd3, 0x0e, 0x42, 0x50, 0x8a, 0x87, 0x7d, 0x73,
+		0xa0, 0xf9, 0xe4, 0xd5, 0x8a, 0x74, 0xa8, 0x53,
+		0xc1, 0x2e, 0xc4, 0x13, 0x26, 0xd3, 0xec, 0xdc,
+	}
+	result := HChaCha20(&[8]uint32{
+		binary.LittleEndian.Uint32(key[0:4]),
+		binary.LittleEndian.Uint32(key[4:8]),
+		binary.LittleEndian.Uint32(key[8:12]),
+		binary.LittleEndian.Uint32(key[12:16]),
+		binary.LittleEndian.Uint32(key[16:20]),
+		binary.LittleEndian.Uint32(key[20:24]),
+		binary.LittleEndian.Uint32(key[24:28]),
+		binary.LittleEndian.Uint32(key[28:32]),
+	}, &[4]uint32{
+		binary.LittleEndian.Uint32(nonce[0:4]),
+		binary.LittleEndian.Uint32(nonce[4:8]),
+		binary.LittleEndian.Uint32(nonce[8:12]),
+		binary.LittleEndian.Uint32(nonce[12:16]),
+	})
+	for i := 0; i < 8; i++ {
+		want := binary.LittleEndian.Uint32(expected[i*4 : (i+1)*4])
+		if got := result[i]; got != want {
+			t.Errorf("word %d incorrect: want 0x%x, got 0x%x", i, want, got)
+		}
 	}
 }

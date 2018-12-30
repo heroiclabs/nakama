@@ -13,7 +13,9 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -103,6 +105,49 @@ func TestKeySignVerify(t *testing.T) {
 		sig.Blob[5]++
 		if err := pub.Verify(data, sig); err == nil {
 			t.Errorf("publicKey.Verify on broken sig did not fail")
+		}
+	}
+}
+
+func TestKeySignWithAlgorithmVerify(t *testing.T) {
+	for _, priv := range testSigners {
+		if algorithmSigner, ok := priv.(AlgorithmSigner); !ok {
+			t.Errorf("Signers constructed by ssh package should always implement the AlgorithmSigner interface: %T", priv)
+		} else {
+			pub := priv.PublicKey()
+			data := []byte("sign me")
+
+			signWithAlgTestCase := func(algorithm string, expectedAlg string) {
+				sig, err := algorithmSigner.SignWithAlgorithm(rand.Reader, data, algorithm)
+				if err != nil {
+					t.Fatalf("Sign(%T): %v", priv, err)
+				}
+				if sig.Format != expectedAlg {
+					t.Errorf("signature format did not match requested signature algorithm: %s != %s", sig.Format, expectedAlg)
+				}
+
+				if err := pub.Verify(data, sig); err != nil {
+					t.Errorf("publicKey.Verify(%T): %v", priv, err)
+				}
+				sig.Blob[5]++
+				if err := pub.Verify(data, sig); err == nil {
+					t.Errorf("publicKey.Verify on broken sig did not fail")
+				}
+			}
+
+			// Using the empty string as the algorithm name should result in the same signature format as the algorithm-free Sign method.
+			defaultSig, err := priv.Sign(rand.Reader, data)
+			if err != nil {
+				t.Fatalf("Sign(%T): %v", priv, err)
+			}
+			signWithAlgTestCase("", defaultSig.Format)
+
+			// RSA keys are the only ones which currently support more than one signing algorithm
+			if pub.Type() == KeyAlgoRSA {
+				for _, algorithm := range []string{SigAlgoRSA, SigAlgoRSASHA2256, SigAlgoRSASHA2512} {
+					signWithAlgTestCase(algorithm, algorithm)
+				}
+			}
 		}
 	}
 }
@@ -496,5 +541,34 @@ func TestFingerprintSHA256(t *testing.T) {
 	want := "SHA256:Anr3LjZK8YVpjrxu79myrW9Hrb/wpcMNpVvTq/RcBm8" // ssh-keygen -lf rsa
 	if fingerprint != want {
 		t.Errorf("got fingerprint %q want %q", fingerprint, want)
+	}
+}
+
+func TestInvalidKeys(t *testing.T) {
+	keyTypes := []string{
+		"RSA PRIVATE KEY",
+		"PRIVATE KEY",
+		"EC PRIVATE KEY",
+		"DSA PRIVATE KEY",
+		"OPENSSH PRIVATE KEY",
+	}
+
+	for _, keyType := range keyTypes {
+		for _, dataLen := range []int{0, 1, 2, 5, 10, 20} {
+			data := make([]byte, dataLen)
+			if _, err := io.ReadFull(rand.Reader, data); err != nil {
+				t.Fatal(err)
+			}
+
+			var buf bytes.Buffer
+			pem.Encode(&buf, &pem.Block{
+				Type:  keyType,
+				Bytes: data,
+			})
+
+			// This test is just to ensure that the function
+			// doesn't panic so the return value is ignored.
+			ParseRawPrivateKey(buf.Bytes())
+		}
 	}
 }
