@@ -19,12 +19,12 @@
 package alts
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
 
-	"golang.org/x/net/context"
-	altspb "google.golang.org/grpc/credentials/alts/core/proto/grpc_gcp"
+	altspb "google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp"
 	"google.golang.org/grpc/peer"
 )
 
@@ -94,6 +94,34 @@ func TestAuthInfoFromContext(t *testing.T) {
 		}
 		if got, want := authInfo, tc.out; got != want {
 			t.Errorf("%v:, AuthInfoFromContext(_)=(%v, _), want (%v, _)", tc.desc, got, want)
+		}
+	}
+}
+
+func TestAuthInfoFromPeer(t *testing.T) {
+	altsAuthInfo := &fakeALTSAuthInfo{}
+	p := &peer.Peer{
+		AuthInfo: altsAuthInfo,
+	}
+	for _, tc := range []struct {
+		desc    string
+		p       *peer.Peer
+		success bool
+		out     AuthInfo
+	}{
+		{
+			"working case",
+			p,
+			true,
+			altsAuthInfo,
+		},
+	} {
+		authInfo, err := AuthInfoFromPeer(tc.p)
+		if got, want := (err == nil), tc.success; got != want {
+			t.Errorf("%v: AuthInfoFromPeer(_)=(err=nil)=%v, want %v", tc.desc, got, want)
+		}
+		if got, want := authInfo, tc.out; got != want {
+			t.Errorf("%v:, AuthInfoFromPeer(_)=(%v, _), want (%v, _)", tc.desc, got, want)
 		}
 	}
 }

@@ -19,16 +19,19 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"golang.org/x/net/context"
 	channelzpb "google.golang.org/grpc/channelz/grpc_channelz_v1"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/internal/channelz"
 )
 
@@ -36,11 +39,19 @@ func init() {
 	channelz.TurnOn()
 }
 
+type protoToSocketOptFunc func([]*channelzpb.SocketOption) *channelz.SocketOptionData
+
+// protoToSocketOpt is used in function socketProtoToStruct to extract socket option
+// data from unmarshaled proto message.
+// It is only defined under linux, non-appengine environment on x86 architecture.
+var protoToSocketOpt protoToSocketOptFunc
+
 // emptyTime is used for detecting unset value of time.Time type.
 // For go1.7 and earlier, ptypes.Timestamp will fill in the loc field of time.Time
 // with &utcLoc. However zero value of a time.Time type value loc field is nil.
 // This behavior will make reflect.DeepEqual fail upon unset time.Time field,
 // and cause false positive fatal error.
+// TODO: Go1.7 is no longer supported - does this need a change?
 var emptyTime time.Time
 
 type dummyChannel struct {
@@ -92,11 +103,11 @@ type dummySocket struct {
 	lastMessageReceivedTimestamp     time.Time
 	localFlowControlWindow           int64
 	remoteFlowControlWindow          int64
-	//socket options
-	localAddr  net.Addr
-	remoteAddr net.Addr
-	// Security
-	remoteName string
+	socketOptions                    *channelz.SocketOptionData
+	localAddr                        net.Addr
+	remoteAddr                       net.Addr
+	security                         credentials.ChannelzSecurityValue
+	remoteName                       string
 }
 
 func (d *dummySocket) ChannelzMetric() *channelz.SocketInternalMetric {
@@ -113,11 +124,11 @@ func (d *dummySocket) ChannelzMetric() *channelz.SocketInternalMetric {
 		LastMessageReceivedTimestamp:     d.lastMessageReceivedTimestamp,
 		LocalFlowControlWindow:           d.localFlowControlWindow,
 		RemoteFlowControlWindow:          d.remoteFlowControlWindow,
-		//socket options
-		LocalAddr:  d.localAddr,
-		RemoteAddr: d.remoteAddr,
-		// Security
-		RemoteName: d.remoteName,
+		SocketOptions:                    d.socketOptions,
+		LocalAddr:                        d.localAddr,
+		RemoteAddr:                       d.remoteAddr,
+		Security:                         d.security,
+		RemoteName:                       d.remoteName,
 	}
 }
 
@@ -164,21 +175,6 @@ func serverProtoToStruct(s *channelzpb.Server) *dummyServer {
 	return ds
 }
 
-func protoToAddr(a *channelzpb.Address) net.Addr {
-	switch v := a.Address.(type) {
-	case *channelzpb.Address_TcpipAddress:
-		if port := v.TcpipAddress.GetPort(); port != 0 {
-			return &net.TCPAddr{IP: v.TcpipAddress.GetIpAddress(), Port: int(port)}
-		}
-		return &net.IPAddr{IP: v.TcpipAddress.GetIpAddress()}
-	case *channelzpb.Address_UdsAddress_:
-		return &net.UnixAddr{Name: v.UdsAddress.GetFilename(), Net: "unix"}
-	case *channelzpb.Address_OtherAddress_:
-		// TODO:
-	}
-	return nil
-}
-
 func socketProtoToStruct(s *channelzpb.Socket) *dummySocket {
 	ds := &dummySocket{}
 	pdata := s.GetData()
@@ -214,6 +210,12 @@ func socketProtoToStruct(s *channelzpb.Socket) *dummySocket {
 	if v := pdata.GetRemoteFlowControlWindow(); v != nil {
 		ds.remoteFlowControlWindow = v.Value
 	}
+	if v := pdata.GetOption(); v != nil && protoToSocketOpt != nil {
+		ds.socketOptions = protoToSocketOpt(v)
+	}
+	if v := s.GetSecurity(); v != nil {
+		ds.security = protoToSecurity(v)
+	}
 	if local := s.GetLocal(); local != nil {
 		ds.localAddr = protoToAddr(local)
 	}
@@ -224,12 +226,56 @@ func socketProtoToStruct(s *channelzpb.Socket) *dummySocket {
 	return ds
 }
 
+func protoToSecurity(protoSecurity *channelzpb.Security) credentials.ChannelzSecurityValue {
+	switch v := protoSecurity.Model.(type) {
+	case *channelzpb.Security_Tls_:
+		return &credentials.TLSChannelzSecurityValue{StandardName: v.Tls.GetStandardName(), LocalCertificate: v.Tls.GetLocalCertificate(), RemoteCertificate: v.Tls.GetRemoteCertificate()}
+	case *channelzpb.Security_Other:
+		sv := &credentials.OtherChannelzSecurityValue{Name: v.Other.GetName()}
+		var x ptypes.DynamicAny
+		if err := ptypes.UnmarshalAny(v.Other.GetValue(), &x); err == nil {
+			sv.Value = x.Message
+		}
+		return sv
+	}
+	return nil
+}
+
+func protoToAddr(a *channelzpb.Address) net.Addr {
+	switch v := a.Address.(type) {
+	case *channelzpb.Address_TcpipAddress:
+		if port := v.TcpipAddress.GetPort(); port != 0 {
+			return &net.TCPAddr{IP: v.TcpipAddress.GetIpAddress(), Port: int(port)}
+		}
+		return &net.IPAddr{IP: v.TcpipAddress.GetIpAddress()}
+	case *channelzpb.Address_UdsAddress_:
+		return &net.UnixAddr{Name: v.UdsAddress.GetFilename(), Net: "unix"}
+	case *channelzpb.Address_OtherAddress_:
+		// TODO:
+	}
+	return nil
+}
+
 func convertSocketRefSliceToMap(sktRefs []*channelzpb.SocketRef) map[int64]string {
 	m := make(map[int64]string)
 	for _, sr := range sktRefs {
 		m[sr.SocketId] = sr.Name
 	}
 	return m
+}
+
+type OtherSecurityValue struct {
+	LocalCertificate  []byte `protobuf:"bytes,1,opt,name=local_certificate,json=localCertificate,proto3" json:"local_certificate,omitempty"`
+	RemoteCertificate []byte `protobuf:"bytes,2,opt,name=remote_certificate,json=remoteCertificate,proto3" json:"remote_certificate,omitempty"`
+}
+
+func (m *OtherSecurityValue) Reset()         { *m = OtherSecurityValue{} }
+func (m *OtherSecurityValue) String() string { return proto.CompactTextString(m) }
+func (*OtherSecurityValue) ProtoMessage()    {}
+
+func init() {
+	// Ad-hoc registering the proto type here to facilitate UnmarshalAny of OtherSecurityValue.
+	proto.RegisterType((*OtherSecurityValue)(nil), "grpc.credentials.OtherChannelzSecurityValue")
 }
 
 func TestGetTopChannels(t *testing.T) {
@@ -357,42 +403,160 @@ func TestGetServerSockets(t *testing.T) {
 	}
 }
 
+// This test makes a GetServerSockets with a non-zero start ID, and expect only
+// sockets with ID >= the given start ID.
+func TestGetServerSocketsNonZeroStartID(t *testing.T) {
+	channelz.NewChannelzStorage()
+	svrID := channelz.RegisterServer(&dummyServer{}, "")
+	refNames := []string{"listen socket 1", "normal socket 1", "normal socket 2"}
+	ids := make([]int64, 3)
+	ids[0] = channelz.RegisterListenSocket(&dummySocket{}, svrID, refNames[0])
+	ids[1] = channelz.RegisterNormalSocket(&dummySocket{}, svrID, refNames[1])
+	ids[2] = channelz.RegisterNormalSocket(&dummySocket{}, svrID, refNames[2])
+	svr := newCZServer()
+	// Make GetServerSockets with startID = ids[1]+1, so socket-1 won't be
+	// included in the response.
+	resp, _ := svr.GetServerSockets(context.Background(), &channelzpb.GetServerSocketsRequest{ServerId: svrID, StartSocketId: ids[1] + 1})
+	if !resp.GetEnd() {
+		t.Fatalf("resp.GetEnd() want: true, got: %v", resp.GetEnd())
+	}
+	// GetServerSockets only return normal socket-2, socket-1 should be
+	// filtered by start ID.
+	want := map[int64]string{
+		ids[2]: refNames[2],
+	}
+	if !reflect.DeepEqual(convertSocketRefSliceToMap(resp.GetSocketRef()), want) {
+		t.Fatalf("GetServerSockets want: %#v, got: %#v", want, resp.GetSocketRef())
+	}
+}
+
 func TestGetChannel(t *testing.T) {
 	channelz.NewChannelzStorage()
-	refNames := []string{"top channel 1", "nested channel 1", "nested channel 2", "nested channel 3"}
+	refNames := []string{"top channel 1", "nested channel 1", "sub channel 2", "nested channel 3"}
 	ids := make([]int64, 4)
 	ids[0] = channelz.RegisterChannel(&dummyChannel{}, 0, refNames[0])
+	channelz.AddTraceEvent(ids[0], &channelz.TraceEventDesc{
+		Desc:     "Channel Created",
+		Severity: channelz.CtINFO,
+	})
 	ids[1] = channelz.RegisterChannel(&dummyChannel{}, ids[0], refNames[1])
+	channelz.AddTraceEvent(ids[1], &channelz.TraceEventDesc{
+		Desc:     "Channel Created",
+		Severity: channelz.CtINFO,
+		Parent: &channelz.TraceEventDesc{
+			Desc:     fmt.Sprintf("Nested Channel(id:%d) created", ids[1]),
+			Severity: channelz.CtINFO,
+		},
+	})
+
 	ids[2] = channelz.RegisterSubChannel(&dummyChannel{}, ids[0], refNames[2])
+	channelz.AddTraceEvent(ids[2], &channelz.TraceEventDesc{
+		Desc:     "SubChannel Created",
+		Severity: channelz.CtINFO,
+		Parent: &channelz.TraceEventDesc{
+			Desc:     fmt.Sprintf("SubChannel(id:%d) created", ids[2]),
+			Severity: channelz.CtINFO,
+		},
+	})
 	ids[3] = channelz.RegisterChannel(&dummyChannel{}, ids[1], refNames[3])
+	channelz.AddTraceEvent(ids[3], &channelz.TraceEventDesc{
+		Desc:     "Channel Created",
+		Severity: channelz.CtINFO,
+		Parent: &channelz.TraceEventDesc{
+			Desc:     fmt.Sprintf("Nested Channel(id:%d) created", ids[3]),
+			Severity: channelz.CtINFO,
+		},
+	})
+	channelz.AddTraceEvent(ids[0], &channelz.TraceEventDesc{
+		Desc:     fmt.Sprintf("Channel Connectivity change to %v", connectivity.Ready),
+		Severity: channelz.CtINFO,
+	})
+	channelz.AddTraceEvent(ids[0], &channelz.TraceEventDesc{
+		Desc:     "Resolver returns an empty address list",
+		Severity: channelz.CtWarning,
+	})
 	svr := newCZServer()
 	resp, _ := svr.GetChannel(context.Background(), &channelzpb.GetChannelRequest{ChannelId: ids[0]})
 	metrics := resp.GetChannel()
 	subChans := metrics.GetSubchannelRef()
 	if len(subChans) != 1 || subChans[0].GetName() != refNames[2] || subChans[0].GetSubchannelId() != ids[2] {
-		t.Fatalf("GetSubChannelRef() want %#v, got %#v", []*channelzpb.SubchannelRef{{SubchannelId: ids[2], Name: refNames[2]}}, subChans)
+		t.Fatalf("metrics.GetSubChannelRef() want %#v, got %#v", []*channelzpb.SubchannelRef{{SubchannelId: ids[2], Name: refNames[2]}}, subChans)
 	}
 	nestedChans := metrics.GetChannelRef()
 	if len(nestedChans) != 1 || nestedChans[0].GetName() != refNames[1] || nestedChans[0].GetChannelId() != ids[1] {
-		t.Fatalf("GetChannelRef() want %#v, got %#v", []*channelzpb.ChannelRef{{ChannelId: ids[1], Name: refNames[1]}}, nestedChans)
+		t.Fatalf("metrics.GetChannelRef() want %#v, got %#v", []*channelzpb.ChannelRef{{ChannelId: ids[1], Name: refNames[1]}}, nestedChans)
+	}
+	trace := metrics.GetData().GetTrace()
+	want := []struct {
+		desc     string
+		severity channelzpb.ChannelTraceEvent_Severity
+		childID  int64
+		childRef string
+	}{
+		{desc: "Channel Created", severity: channelzpb.ChannelTraceEvent_CT_INFO},
+		{desc: fmt.Sprintf("Nested Channel(id:%d) created", ids[1]), severity: channelzpb.ChannelTraceEvent_CT_INFO, childID: ids[1], childRef: refNames[1]},
+		{desc: fmt.Sprintf("SubChannel(id:%d) created", ids[2]), severity: channelzpb.ChannelTraceEvent_CT_INFO, childID: ids[2], childRef: refNames[2]},
+		{desc: fmt.Sprintf("Channel Connectivity change to %v", connectivity.Ready), severity: channelzpb.ChannelTraceEvent_CT_INFO},
+		{desc: "Resolver returns an empty address list", severity: channelzpb.ChannelTraceEvent_CT_WARNING},
 	}
 
+	for i, e := range trace.Events {
+		if e.GetDescription() != want[i].desc {
+			t.Fatalf("trace: GetDescription want %#v, got %#v", want[i].desc, e.GetDescription())
+		}
+		if e.GetSeverity() != want[i].severity {
+			t.Fatalf("trace: GetSeverity want %#v, got %#v", want[i].severity, e.GetSeverity())
+		}
+		if want[i].childID == 0 && (e.GetChannelRef() != nil || e.GetSubchannelRef() != nil) {
+			t.Fatalf("trace: GetChannelRef() should return nil, as there is no reference")
+		}
+		if e.GetChannelRef().GetChannelId() != want[i].childID || e.GetChannelRef().GetName() != want[i].childRef {
+			if e.GetSubchannelRef().GetSubchannelId() != want[i].childID || e.GetSubchannelRef().GetName() != want[i].childRef {
+				t.Fatalf("trace: GetChannelRef/GetSubchannelRef want (child ID: %d, child name: %q), got %#v and %#v", want[i].childID, want[i].childRef, e.GetChannelRef(), e.GetSubchannelRef())
+			}
+		}
+	}
 	resp, _ = svr.GetChannel(context.Background(), &channelzpb.GetChannelRequest{ChannelId: ids[1]})
 	metrics = resp.GetChannel()
 	nestedChans = metrics.GetChannelRef()
 	if len(nestedChans) != 1 || nestedChans[0].GetName() != refNames[3] || nestedChans[0].GetChannelId() != ids[3] {
-		t.Fatalf("GetChannelRef() want %#v, got %#v", []*channelzpb.ChannelRef{{ChannelId: ids[3], Name: refNames[3]}}, nestedChans)
+		t.Fatalf("metrics.GetChannelRef() want %#v, got %#v", []*channelzpb.ChannelRef{{ChannelId: ids[3], Name: refNames[3]}}, nestedChans)
 	}
 }
 
 func TestGetSubChannel(t *testing.T) {
+	var (
+		subchanCreated            = "SubChannel Created"
+		subchanConnectivityChange = fmt.Sprintf("Subchannel Connectivity change to %v", connectivity.Ready)
+		subChanPickNewAddress     = fmt.Sprintf("Subchannel picks a new address %q to connect", "0.0.0.0")
+	)
 	channelz.NewChannelzStorage()
 	refNames := []string{"top channel 1", "sub channel 1", "socket 1", "socket 2"}
 	ids := make([]int64, 4)
 	ids[0] = channelz.RegisterChannel(&dummyChannel{}, 0, refNames[0])
+	channelz.AddTraceEvent(ids[0], &channelz.TraceEventDesc{
+		Desc:     "Channel Created",
+		Severity: channelz.CtINFO,
+	})
 	ids[1] = channelz.RegisterSubChannel(&dummyChannel{}, ids[0], refNames[1])
+	channelz.AddTraceEvent(ids[1], &channelz.TraceEventDesc{
+		Desc:     subchanCreated,
+		Severity: channelz.CtINFO,
+		Parent: &channelz.TraceEventDesc{
+			Desc:     fmt.Sprintf("Nested Channel(id:%d) created", ids[0]),
+			Severity: channelz.CtINFO,
+		},
+	})
 	ids[2] = channelz.RegisterNormalSocket(&dummySocket{}, ids[1], refNames[2])
 	ids[3] = channelz.RegisterNormalSocket(&dummySocket{}, ids[1], refNames[3])
+	channelz.AddTraceEvent(ids[1], &channelz.TraceEventDesc{
+		Desc:     subchanConnectivityChange,
+		Severity: channelz.CtINFO,
+	})
+	channelz.AddTraceEvent(ids[1], &channelz.TraceEventDesc{
+		Desc:     subChanPickNewAddress,
+		Severity: channelz.CtINFO,
+	})
 	svr := newCZServer()
 	resp, _ := svr.GetSubchannel(context.Background(), &channelzpb.GetSubchannelRequest{SubchannelId: ids[1]})
 	metrics := resp.GetSubchannel()
@@ -401,7 +565,35 @@ func TestGetSubChannel(t *testing.T) {
 		ids[3]: refNames[3],
 	}
 	if !reflect.DeepEqual(convertSocketRefSliceToMap(metrics.GetSocketRef()), want) {
-		t.Fatalf("GetSocketRef() want %#v: got: %#v", want, metrics.GetSocketRef())
+		t.Fatalf("metrics.GetSocketRef() want %#v: got: %#v", want, metrics.GetSocketRef())
+	}
+
+	trace := metrics.GetData().GetTrace()
+	wantTrace := []struct {
+		desc     string
+		severity channelzpb.ChannelTraceEvent_Severity
+		childID  int64
+		childRef string
+	}{
+		{desc: subchanCreated, severity: channelzpb.ChannelTraceEvent_CT_INFO},
+		{desc: subchanConnectivityChange, severity: channelzpb.ChannelTraceEvent_CT_INFO},
+		{desc: subChanPickNewAddress, severity: channelzpb.ChannelTraceEvent_CT_INFO},
+	}
+	for i, e := range trace.Events {
+		if e.GetDescription() != wantTrace[i].desc {
+			t.Fatalf("trace: GetDescription want %#v, got %#v", wantTrace[i].desc, e.GetDescription())
+		}
+		if e.GetSeverity() != wantTrace[i].severity {
+			t.Fatalf("trace: GetSeverity want %#v, got %#v", wantTrace[i].severity, e.GetSeverity())
+		}
+		if wantTrace[i].childID == 0 && (e.GetChannelRef() != nil || e.GetSubchannelRef() != nil) {
+			t.Fatalf("trace: GetChannelRef() should return nil, as there is no reference")
+		}
+		if e.GetChannelRef().GetChannelId() != wantTrace[i].childID || e.GetChannelRef().GetName() != wantTrace[i].childRef {
+			if e.GetSubchannelRef().GetSubchannelId() != wantTrace[i].childID || e.GetSubchannelRef().GetName() != wantTrace[i].childRef {
+				t.Fatalf("trace: GetChannelRef/GetSubchannelRef want (child ID: %d, child name: %q), got %#v and %#v", wantTrace[i].childID, wantTrace[i].childRef, e.GetChannelRef(), e.GetSubchannelRef())
+			}
+		}
 	}
 }
 
@@ -459,6 +651,23 @@ func TestGetSocket(t *testing.T) {
 		},
 		{
 			localAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 10001},
+		},
+		{
+			security: &credentials.TLSChannelzSecurityValue{
+				StandardName:      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				RemoteCertificate: []byte{48, 130, 2, 156, 48, 130, 2, 5, 160},
+			},
+		},
+		{
+			security: &credentials.OtherChannelzSecurityValue{
+				Name: "XXXX",
+			},
+		},
+		{
+			security: &credentials.OtherChannelzSecurityValue{
+				Name:  "YYYY",
+				Value: &OtherSecurityValue{LocalCertificate: []byte{1, 2, 3}, RemoteCertificate: []byte{4, 5, 6}},
+			},
 		},
 	}
 	svr := newCZServer()

@@ -21,6 +21,7 @@
 package interop
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/grpc"
@@ -560,6 +560,27 @@ func DoStatusCodeAndMessage(tc testpb.TestServiceClient, args ...grpc.CallOption
 	}
 	if _, err = stream.Recv(); err.Error() != expectedErr.Error() {
 		grpclog.Fatalf("%v.Recv() returned error %v, want %v", stream, err, expectedErr)
+	}
+}
+
+// DoSpecialStatusMessage verifies Unicode and whitespace is correctly processed
+// in status message.
+func DoSpecialStatusMessage(tc testpb.TestServiceClient, args ...grpc.CallOption) {
+	const (
+		code int32  = 2
+		msg  string = "\t\ntest with whitespace\r\nand Unicode BMP ☺ and non-BMP 😈\t\n"
+	)
+	expectedErr := status.Error(codes.Code(code), msg)
+	req := &testpb.SimpleRequest{
+		ResponseStatus: &testpb.EchoStatus{
+			Code:    code,
+			Message: msg,
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := tc.UnaryCall(ctx, req, args...); err == nil || err.Error() != expectedErr.Error() {
+		grpclog.Fatalf("%v.UnaryCall(_, %v) = _, %v, want _, %v", tc, req, err, expectedErr)
 	}
 }
 

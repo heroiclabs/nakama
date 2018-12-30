@@ -1,5 +1,3 @@
-// +build go1.7
-
 /*
  *
  * Copyright 2016 gRPC authors.
@@ -21,6 +19,7 @@
 package stats_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -30,7 +29,6 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/stats"
@@ -403,7 +401,7 @@ const (
 	inTrailer
 	outPayload
 	outHeader
-	outTrailer
+	// TODO: test outTrailer ?
 	connbegin
 	connend
 )

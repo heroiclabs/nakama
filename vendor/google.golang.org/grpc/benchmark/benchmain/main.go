@@ -40,6 +40,7 @@ Assume there are two result files names as "basePerf" and "curPerf" created by a
 package main
 
 import (
+	"context"
 	"encoding/gob"
 	"errors"
 	"flag"
@@ -59,13 +60,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	bm "google.golang.org/grpc/benchmark"
 	testpb "google.golang.org/grpc/benchmark/grpc_testing"
 	"google.golang.org/grpc/benchmark/latency"
 	"google.golang.org/grpc/benchmark/stats"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/internal/channelz"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -113,14 +114,14 @@ var (
 )
 
 func unaryBenchmark(startTimer func(), stopTimer func(int32), benchFeatures stats.Features, benchtime time.Duration, s *stats.Stats) {
-	caller, close := makeFuncUnary(benchFeatures)
-	defer close()
+	caller, cleanup := makeFuncUnary(benchFeatures)
+	defer cleanup()
 	runBenchmark(caller, startTimer, stopTimer, benchFeatures, benchtime, s)
 }
 
 func streamBenchmark(startTimer func(), stopTimer func(int32), benchFeatures stats.Features, benchtime time.Duration, s *stats.Stats) {
-	caller, close := makeFuncStream(benchFeatures)
-	defer close()
+	caller, cleanup := makeFuncStream(benchFeatures)
+	defer cleanup()
 	runBenchmark(caller, startTimer, stopTimer, benchFeatures, benchtime, s)
 }
 
@@ -452,7 +453,7 @@ func main() {
 
 		grpc.EnableTracing = enableTrace[featuresPos[0]]
 		if enableChannelz[featuresPos[8]] {
-			grpc.RegisterChannelz()
+			channelz.TurnOn()
 		}
 		if runMode[0] {
 			unaryBenchmark(startTimer, stopTimer, benchFeature, benchtime, s)
