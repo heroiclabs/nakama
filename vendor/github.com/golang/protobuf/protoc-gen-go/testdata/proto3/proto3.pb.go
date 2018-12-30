@@ -48,11 +48,11 @@ func (Request_Flavour) EnumDescriptor() ([]byte, []int) {
 }
 
 type Request struct {
-	Name                 string          `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Key                  []int64         `protobuf:"varint,2,rep,packed,name=key" json:"key,omitempty"`
-	Taste                Request_Flavour `protobuf:"varint,3,opt,name=taste,enum=proto3.Request_Flavour" json:"taste,omitempty"`
-	Book                 *Book           `protobuf:"bytes,4,opt,name=book" json:"book,omitempty"`
-	Unpacked             []int64         `protobuf:"varint,5,rep,name=unpacked" json:"unpacked,omitempty"`
+	Name                 string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Key                  []int64         `protobuf:"varint,2,rep,packed,name=key,proto3" json:"key,omitempty"`
+	Taste                Request_Flavour `protobuf:"varint,3,opt,name=taste,proto3,enum=proto3.Request_Flavour" json:"taste,omitempty"`
+	Book                 *Book           `protobuf:"bytes,4,opt,name=book,proto3" json:"book,omitempty"`
+	Unpacked             []int64         `protobuf:"varint,5,rep,name=unpacked,proto3" json:"unpacked,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
 	XXX_sizecache        int32           `json:"-"`
@@ -118,7 +118,7 @@ func (m *Request) GetUnpacked() []int64 {
 }
 
 type Book struct {
-	Title                string   `protobuf:"bytes,1,opt,name=title" json:"title,omitempty"`
+	Title                string   `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	RawData              []byte   `protobuf:"bytes,2,opt,name=raw_data,json=rawData,proto3" json:"raw_data,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

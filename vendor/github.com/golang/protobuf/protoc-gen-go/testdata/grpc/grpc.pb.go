@@ -158,8 +158,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for Test service
-
+// TestClient is the client API for Test service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TestClient interface {
 	UnaryCall(ctx context.Context, in *SimpleRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	// This RPC streams from the server only.
@@ -180,7 +181,7 @@ func NewTestClient(cc *grpc.ClientConn) TestClient {
 
 func (c *testClient) UnaryCall(ctx context.Context, in *SimpleRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
 	out := new(SimpleResponse)
-	err := grpc.Invoke(ctx, "/grpc.testing.Test/UnaryCall", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/grpc.testing.Test/UnaryCall", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,7 @@ func (c *testClient) UnaryCall(ctx context.Context, in *SimpleRequest, opts ...g
 }
 
 func (c *testClient) Downstream(ctx context.Context, in *SimpleRequest, opts ...grpc.CallOption) (Test_DownstreamClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Test_serviceDesc.Streams[0], c.cc, "/grpc.testing.Test/Downstream", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Test_serviceDesc.Streams[0], "/grpc.testing.Test/Downstream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +221,7 @@ func (x *testDownstreamClient) Recv() (*StreamMsg, error) {
 }
 
 func (c *testClient) Upstream(ctx context.Context, opts ...grpc.CallOption) (Test_UpstreamClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Test_serviceDesc.Streams[1], c.cc, "/grpc.testing.Test/Upstream", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Test_serviceDesc.Streams[1], "/grpc.testing.Test/Upstream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +255,7 @@ func (x *testUpstreamClient) CloseAndRecv() (*SimpleResponse, error) {
 }
 
 func (c *testClient) Bidi(ctx context.Context, opts ...grpc.CallOption) (Test_BidiClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Test_serviceDesc.Streams[2], c.cc, "/grpc.testing.Test/Bidi", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Test_serviceDesc.Streams[2], "/grpc.testing.Test/Bidi", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +285,7 @@ func (x *testBidiClient) Recv() (*StreamMsg2, error) {
 	return m, nil
 }
 
-// Server API for Test service
-
+// TestServer is the server API for Test service.
 type TestServer interface {
 	UnaryCall(context.Context, *SimpleRequest) (*SimpleResponse, error)
 	// This RPC streams from the server only.

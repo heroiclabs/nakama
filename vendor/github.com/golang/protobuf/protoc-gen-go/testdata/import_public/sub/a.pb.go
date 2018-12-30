@@ -40,7 +40,7 @@ func (E) EnumDescriptor() ([]byte, []int) {
 
 type M struct {
 	// Field using a type in the same Go package, but a different source file.
-	M2                   *M2      `protobuf:"bytes,1,opt,name=m2" json:"m2,omitempty"`
+	M2                   *M2      `protobuf:"bytes,1,opt,name=m2,proto3" json:"m2,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`

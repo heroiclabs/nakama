@@ -669,6 +669,13 @@ func (m *Communique) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Communique proto.InternalMessageInfo
 
+func (m *Communique) GetMakeMeCry() bool {
+	if m != nil && m.MakeMeCry != nil {
+		return *m.MakeMeCry
+	}
+	return false
+}
+
 type isCommunique_Union interface {
 	isCommunique_Union()
 }
@@ -676,43 +683,61 @@ type isCommunique_Union interface {
 type Communique_Number struct {
 	Number int32 `protobuf:"varint,5,opt,name=number,oneof"`
 }
+
 type Communique_Name struct {
 	Name string `protobuf:"bytes,6,opt,name=name,oneof"`
 }
+
 type Communique_Data struct {
 	Data []byte `protobuf:"bytes,7,opt,name=data,oneof"`
 }
+
 type Communique_TempC struct {
 	TempC float64 `protobuf:"fixed64,8,opt,name=temp_c,json=tempC,oneof"`
 }
+
 type Communique_Height struct {
 	Height float32 `protobuf:"fixed32,9,opt,name=height,oneof"`
 }
+
 type Communique_Today struct {
 	Today Days `protobuf:"varint,10,opt,name=today,enum=my.test.Days,oneof"`
 }
+
 type Communique_Maybe struct {
 	Maybe bool `protobuf:"varint,11,opt,name=maybe,oneof"`
 }
+
 type Communique_Delta_ struct {
 	Delta int32 `protobuf:"zigzag32,12,opt,name=delta,oneof"`
 }
+
 type Communique_Msg struct {
 	Msg *Reply `protobuf:"bytes,16,opt,name=msg,oneof"`
 }
+
 type Communique_Somegroup struct {
 	Somegroup *Communique_SomeGroup `protobuf:"group,14,opt,name=SomeGroup,json=somegroup,oneof"`
 }
 
-func (*Communique_Number) isCommunique_Union()    {}
-func (*Communique_Name) isCommunique_Union()      {}
-func (*Communique_Data) isCommunique_Union()      {}
-func (*Communique_TempC) isCommunique_Union()     {}
-func (*Communique_Height) isCommunique_Union()    {}
-func (*Communique_Today) isCommunique_Union()     {}
-func (*Communique_Maybe) isCommunique_Union()     {}
-func (*Communique_Delta_) isCommunique_Union()    {}
-func (*Communique_Msg) isCommunique_Union()       {}
+func (*Communique_Number) isCommunique_Union() {}
+
+func (*Communique_Name) isCommunique_Union() {}
+
+func (*Communique_Data) isCommunique_Union() {}
+
+func (*Communique_TempC) isCommunique_Union() {}
+
+func (*Communique_Height) isCommunique_Union() {}
+
+func (*Communique_Today) isCommunique_Union() {}
+
+func (*Communique_Maybe) isCommunique_Union() {}
+
+func (*Communique_Delta_) isCommunique_Union() {}
+
+func (*Communique_Msg) isCommunique_Union() {}
+
 func (*Communique_Somegroup) isCommunique_Union() {}
 
 func (m *Communique) GetUnion() isCommunique_Union {
@@ -720,13 +745,6 @@ func (m *Communique) GetUnion() isCommunique_Union {
 		return m.Union
 	}
 	return nil
-}
-
-func (m *Communique) GetMakeMeCry() bool {
-	if m != nil && m.MakeMeCry != nil {
-		return *m.MakeMeCry
-	}
-	return false
 }
 
 func (m *Communique) GetNumber() int32 {

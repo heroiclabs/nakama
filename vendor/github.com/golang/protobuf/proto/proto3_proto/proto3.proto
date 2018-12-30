@@ -87,3 +87,11 @@ message IntMap {
 message IntMaps {
   repeated IntMap maps = 1;
 }
+
+message TestUTF8 {
+  string scalar = 1;
+  repeated string vector = 2;
+  oneof oneof { string field = 3; }
+  map<string, int64> map_key = 4;
+  map<int64, string> map_value = 5;
+}

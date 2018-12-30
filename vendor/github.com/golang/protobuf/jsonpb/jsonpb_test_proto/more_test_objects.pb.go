@@ -45,7 +45,7 @@ func (Numeral) EnumDescriptor() ([]byte, []int) {
 }
 
 type Simple3 struct {
-	Dub                  float64  `protobuf:"fixed64,1,opt,name=dub" json:"dub,omitempty"`
+	Dub                  float64  `protobuf:"fixed64,1,opt,name=dub,proto3" json:"dub,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -83,7 +83,7 @@ func (m *Simple3) GetDub() float64 {
 }
 
 type SimpleSlice3 struct {
-	Slices               []string `protobuf:"bytes,1,rep,name=slices" json:"slices,omitempty"`
+	Slices               []string `protobuf:"bytes,1,rep,name=slices,proto3" json:"slices,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -121,7 +121,7 @@ func (m *SimpleSlice3) GetSlices() []string {
 }
 
 type SimpleMap3 struct {
-	Stringy              map[string]string `protobuf:"bytes,1,rep,name=stringy" json:"stringy,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Stringy              map[string]string `protobuf:"bytes,1,rep,name=stringy,proto3" json:"stringy,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -159,7 +159,7 @@ func (m *SimpleMap3) GetStringy() map[string]string {
 }
 
 type SimpleNull3 struct {
-	Simple               *Simple3 `protobuf:"bytes,1,opt,name=simple" json:"simple,omitempty"`
+	Simple               *Simple3 `protobuf:"bytes,1,opt,name=simple,proto3" json:"simple,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -197,16 +197,16 @@ func (m *SimpleNull3) GetSimple() *Simple3 {
 }
 
 type Mappy struct {
-	Nummy                map[int64]int32    `protobuf:"bytes,1,rep,name=nummy" json:"nummy,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	Strry                map[string]string  `protobuf:"bytes,2,rep,name=strry" json:"strry,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Objjy                map[int32]*Simple3 `protobuf:"bytes,3,rep,name=objjy" json:"objjy,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Buggy                map[int64]string   `protobuf:"bytes,4,rep,name=buggy" json:"buggy,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Booly                map[bool]bool      `protobuf:"bytes,5,rep,name=booly" json:"booly,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	Enumy                map[string]Numeral `protobuf:"bytes,6,rep,name=enumy" json:"enumy,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=jsonpb.Numeral"`
-	S32Booly             map[int32]bool     `protobuf:"bytes,7,rep,name=s32booly" json:"s32booly,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	S64Booly             map[int64]bool     `protobuf:"bytes,8,rep,name=s64booly" json:"s64booly,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	U32Booly             map[uint32]bool    `protobuf:"bytes,9,rep,name=u32booly" json:"u32booly,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	U64Booly             map[uint64]bool    `protobuf:"bytes,10,rep,name=u64booly" json:"u64booly,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	Nummy                map[int64]int32    `protobuf:"bytes,1,rep,name=nummy,proto3" json:"nummy,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	Strry                map[string]string  `protobuf:"bytes,2,rep,name=strry,proto3" json:"strry,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Objjy                map[int32]*Simple3 `protobuf:"bytes,3,rep,name=objjy,proto3" json:"objjy,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Buggy                map[int64]string   `protobuf:"bytes,4,rep,name=buggy,proto3" json:"buggy,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Booly                map[bool]bool      `protobuf:"bytes,5,rep,name=booly,proto3" json:"booly,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	Enumy                map[string]Numeral `protobuf:"bytes,6,rep,name=enumy,proto3" json:"enumy,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3,enum=jsonpb.Numeral"`
+	S32Booly             map[int32]bool     `protobuf:"bytes,7,rep,name=s32booly,proto3" json:"s32booly,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	S64Booly             map[int64]bool     `protobuf:"bytes,8,rep,name=s64booly,proto3" json:"s64booly,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	U32Booly             map[uint32]bool    `protobuf:"bytes,9,rep,name=u32booly,proto3" json:"u32booly,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	U64Booly             map[uint64]bool    `protobuf:"bytes,10,rep,name=u64booly,proto3" json:"u64booly,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`

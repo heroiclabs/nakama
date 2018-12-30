@@ -69,7 +69,7 @@ func (m *M1) XXX_DiscardUnknown() {
 var xxx_messageInfo_M1 proto.InternalMessageInfo
 
 type M1_1 struct {
-	M1                   *M1      `protobuf:"bytes,1,opt,name=m1" json:"m1,omitempty"`
+	M1                   *M1      `protobuf:"bytes,1,opt,name=m1,proto3" json:"m1,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`

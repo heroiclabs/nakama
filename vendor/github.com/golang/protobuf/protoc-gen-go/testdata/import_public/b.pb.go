@@ -20,8 +20,8 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type Local struct {
-	M                    *sub.M   `protobuf:"bytes,1,opt,name=m" json:"m,omitempty"`
-	E                    sub.E    `protobuf:"varint,2,opt,name=e,enum=goproto.test.import_public.sub.E" json:"e,omitempty"`
+	M                    *sub.M   `protobuf:"bytes,1,opt,name=m,proto3" json:"m,omitempty"`
+	E                    sub.E    `protobuf:"varint,2,opt,name=e,proto3,enum=goproto.test.import_public.sub.E" json:"e,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`

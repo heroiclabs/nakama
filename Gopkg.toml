@@ -3,6 +3,10 @@
   version = "~1.9.1"
 
 [[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "~1.2.0"
+
+[[constraint]]
   name = "google.golang.org/grpc"
   version = "~1.13.0"
 
