@@ -72,7 +72,7 @@
 
 [[constraint]]
   name = "github.com/blevesearch/bleve"
-  revision = "89a815df0798b34feb44e4d3ade3c3a9d338aa63"
+  revision = "5cf4e4e02e8a1aec8df8c6773d08e364ee694cea"
 
 [[constraint]]
   name = "gopkg.in/natefinch/lumberjack.v2"

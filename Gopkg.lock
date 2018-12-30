@@ -31,7 +31,7 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  digest = "1:109a9e34c738730a57b729573cceffd58d082250337e5d7185c9ff8de3162a85"
+  digest = "1:c4463bdc81ad05a0540a53e4a0e7895bb6f1c18870a919b7c5befdad26c18fe9"
   name = "github.com/blevesearch/bleve"
   packages = [
     ".",
@@ -74,7 +74,7 @@
     "size",
   ]
   pruneopts = ""
-  revision = "89a815df0798b34feb44e4d3ade3c3a9d338aa63"
+  revision = "5cf4e4e02e8a1aec8df8c6773d08e364ee694cea"
 
 [[projects]]
   digest = "1:b9a6b4e079fea1e137c0f8caeb65030978a8dee9f37df5a6ffd9fabe98cdd32e"

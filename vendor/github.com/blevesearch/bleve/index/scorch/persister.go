@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
+	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/index/scorch/segment"
 	"github.com/blevesearch/bleve/index/scorch/segment/zap"
 	"github.com/boltdb/bolt"
@@ -115,6 +116,7 @@ OUTER:
 
 		var ourSnapshot *IndexSnapshot
 		var ourPersisted []chan error
+		var ourPersistedCallbacks []index.BatchCallback
 
 		// check to see if there is a new snapshot to persist
 		s.rootLock.Lock()
@@ -123,6 +125,8 @@ OUTER:
 			ourSnapshot.AddRef()
 			ourPersisted = s.rootPersisted
 			s.rootPersisted = nil
+			ourPersistedCallbacks = s.persistedCallbacks
+			s.persistedCallbacks = nil
 			atomic.StoreUint64(&s.iStats.persistSnapshotSize, uint64(ourSnapshot.Size()))
 			atomic.StoreUint64(&s.iStats.persistEpoch, ourSnapshot.epoch)
 		}
@@ -149,6 +153,9 @@ OUTER:
 				_ = ourSnapshot.DecRef()
 				atomic.AddUint64(&s.stats.TotPersistLoopErr, 1)
 				continue OUTER
+			}
+			for i := range ourPersistedCallbacks {
+				ourPersistedCallbacks[i](err)
 			}
 
 			atomic.StoreUint64(&s.stats.LastPersistedEpoch, ourSnapshot.epoch)

@@ -54,6 +54,7 @@ type Scorch struct {
 	rootLock             sync.RWMutex
 	root                 *IndexSnapshot // holds 1 ref-count on the root
 	rootPersisted        []chan error   // closed when root is persisted
+	persistedCallbacks   []index.BatchCallback
 	nextSnapshotEpoch    uint64
 	eligibleForRemoval   []uint64        // Index snapshot epochs that are safe to GC.
 	ineligibleForRemoval map[string]bool // Filenames that should not be GC'ed yet.
@@ -355,7 +356,7 @@ func (s *Scorch) Batch(batch *index.Batch) (err error) {
 		atomic.AddUint64(&s.stats.TotBatchesEmpty, 1)
 	}
 
-	err = s.prepareSegment(newSegment, ids, batch.InternalOps)
+	err = s.prepareSegment(newSegment, ids, batch.InternalOps, batch.PersistedCallback())
 	if err != nil {
 		if newSegment != nil {
 			_ = newSegment.Close()
@@ -375,16 +376,17 @@ func (s *Scorch) Batch(batch *index.Batch) (err error) {
 }
 
 func (s *Scorch) prepareSegment(newSegment segment.Segment, ids []string,
-	internalOps map[string][]byte) error {
+	internalOps map[string][]byte, persistedCallback index.BatchCallback) error {
 
 	// new introduction
 	introduction := &segmentIntroduction{
-		id:        atomic.AddUint64(&s.nextSegmentID, 1),
-		data:      newSegment,
-		ids:       ids,
-		obsoletes: make(map[uint64]*roaring.Bitmap),
-		internal:  internalOps,
-		applied:   make(chan error),
+		id:                atomic.AddUint64(&s.nextSegmentID, 1),
+		data:              newSegment,
+		ids:               ids,
+		obsoletes:         make(map[uint64]*roaring.Bitmap),
+		internal:          internalOps,
+		applied:           make(chan error),
+		persistedCallback: persistedCallback,
 	}
 
 	if !s.unsafeBatch {
@@ -524,7 +526,7 @@ func (s *Scorch) Analyze(d *document.Document) *index.AnalysisResult {
 			rv.Analyzed[i] = tokenFreqs
 			rv.Length[i] = fieldLength
 
-			if len(d.CompositeFields) > 0 {
+			if len(d.CompositeFields) > 0 && field.Name() != "_id" {
 				// see if any of the composite fields need this
 				for _, compositeField := range d.CompositeFields {
 					compositeField.Compose(field.Name(), fieldLength, tokenFreqs)

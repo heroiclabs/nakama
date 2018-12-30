@@ -15,6 +15,7 @@
 package scorch
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -928,6 +929,65 @@ func TestIndexBatch(t *testing.T) {
 	if !reflect.DeepEqual(externalDocIds, expectedDocIds) {
 		t.Errorf("expected ids: %v, got ids: %v", expectedDocIds, externalDocIds)
 	}
+}
+
+func TestIndexBatchWithCallbacks(t *testing.T) {
+	cfg := CreateConfig("TestIndexBatchWithCallbacks")
+	defer func() {
+		err := DestroyTest(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	analysisQueue := index.NewAnalysisQueue(1)
+	idx, err := NewScorch(Name, cfg, analysisQueue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = idx.Open()
+	if err != nil {
+		t.Fatalf("error opening index: %v", err)
+	}
+	defer func() {
+		err := idx.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Check that callback function works
+	updated := false
+	cbErr := fmt.Errorf("")
+
+	batch := index.NewBatch()
+	doc := document.NewDocument("3")
+	doc.AddField(document.NewTextField("name", []uint64{}, []byte("test3")))
+	batch.Update(doc)
+	batch.SetPersistedCallback(func(e error) {
+		updated = true
+		cbErr = e
+
+	})
+
+	err = idx.Batch(batch)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for i := 0; i < 30; i++ {
+		if updated {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !updated {
+		t.Fatal("Callback function wasn't called")
+	}
+	if cbErr != nil {
+		t.Fatal("Error wasn't updated properly on callback function")
+	}
+
 }
 
 func TestIndexInsertUpdateDeleteWithMultipleTypesStored(t *testing.T) {

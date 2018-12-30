@@ -50,6 +50,16 @@ func TestQuerySyntaxParserValid(t *testing.T) {
 				nil),
 		},
 		{
+			input:   "127.0.0.1",
+			mapping: mapping.NewIndexMapping(),
+			result: NewBooleanQueryForQueryString(
+				nil,
+				[]Query{
+					NewMatchQuery("127.0.0.1"),
+				},
+				nil),
+		},
+		{
 			input:   `"test phrase 1"`,
 			mapping: mapping.NewIndexMapping(),
 			result: NewBooleanQueryForQueryString(
