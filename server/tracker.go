@@ -38,8 +38,6 @@ const (
 	StreamModeMatchAuthoritative
 )
 
-const EventsQueueSize = 512
-
 type PresenceID struct {
 	Node      string
 	SessionID uuid.UUID
@@ -168,13 +166,13 @@ type LocalTracker struct {
 	presencesBySession map[uuid.UUID]map[presenceCompact]PresenceMeta
 }
 
-func StartLocalTracker(logger *zap.Logger, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler, name string) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
 	t := &LocalTracker{
 		logger:             logger,
 		sessionRegistry:    sessionRegistry,
 		jsonpbMarshaler:    jsonpbMarshaler,
-		name:               name,
-		eventsCh:           make(chan *PresenceEvent, EventsQueueSize),
+		name:               config.GetName(),
+		eventsCh:           make(chan *PresenceEvent, config.GetTracker().EventQueueSize),
 		stopCh:             make(chan struct{}),
 		presencesByStream:  make(map[uint8]map[PresenceStream]map[presenceCompact]PresenceMeta),
 		presencesBySession: make(map[uuid.UUID]map[presenceCompact]PresenceMeta),

@@ -20,6 +20,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime function to retrieve multiple user accounts by user ID.
 - Send notifications to admins of non-open groups when a user requests to join.
 - Send notifications to users when their request to join a group is accepted.
+- New configuration parameter for presence event buffer size.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.

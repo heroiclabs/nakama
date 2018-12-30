@@ -43,6 +43,7 @@ type Config interface {
 	GetSocial() *SocialConfig
 	GetRuntime() *RuntimeConfig
 	GetMatch() *MatchConfig
+	GetTracker() *TrackerConfig
 	GetConsole() *ConsoleConfig
 	GetLeaderboard() *LeaderboardConfig
 }
@@ -147,6 +148,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetMatch().DeferredQueueSize < 1 {
 		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", mainConfig.GetMatch().DeferredQueueSize))
 	}
+	if mainConfig.GetTracker().EventQueueSize < 1 {
+		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", mainConfig.GetTracker().EventQueueSize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if mainConfig.GetRuntime().Path == "" {
@@ -226,6 +230,7 @@ type config struct {
 	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
 	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
 	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
 	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 }
@@ -248,6 +253,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Social:           NewSocialConfig(),
 		Runtime:          NewRuntimeConfig(),
 		Match:            NewMatchConfig(),
+		Tracker:          NewTrackerConfig(),
 		Console:          NewConsoleConfig(),
 		Leaderboard:      NewLeaderboardConfig(),
 	}
@@ -295,6 +301,10 @@ func (c *config) GetRuntime() *RuntimeConfig {
 
 func (c *config) GetMatch() *MatchConfig {
 	return c.Match
+}
+
+func (c *config) GetTracker() *TrackerConfig {
+	return c.Tracker
 }
 
 func (c *config) GetConsole() *ConsoleConfig {
@@ -487,6 +497,18 @@ func NewMatchConfig() *MatchConfig {
 		CallQueueSize:        128,
 		JoinAttemptQueueSize: 128,
 		DeferredQueueSize:    128,
+	}
+}
+
+// TrackerConfig is configuration relevant to the presence tracker.
+type TrackerConfig struct {
+	EventQueueSize int `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the tracker presence event buffer. Increase if the server is expected to generate a large number of presence events in a short time. Default 1024."`
+}
+
+// NewTrackerConfig creates a new TrackerConfig struct.
+func NewTrackerConfig() *TrackerConfig {
+	return &TrackerConfig{
+		EventQueueSize: 1024,
 	}
 }
 
