@@ -55,6 +55,7 @@ import (
 // Key represents a key into the tree.
 type Key interface{}
 
+// Value represents a value in the tree.
 type Value interface{}
 
 // item is a key-value pair.
@@ -639,6 +640,8 @@ func (t *BTree) Set(k Key, v Value) (old Value, present bool) {
 	return old, present
 }
 
+// SetWithIndex sets the given key to the given value in the tree, and returns the
+// index at which it was inserted.
 func (t *BTree) SetWithIndex(k Key, v Value) (old Value, present bool, index int) {
 	return t.set(k, v, true)
 }
@@ -832,7 +835,7 @@ func (t *BTree) After(k Key) *Iterator {
 	cs, found, idx := t.root.cursorStackForKey(k, cs, t.less)
 	// If we found the key, the cursor stack is pointing to it. Since that is
 	// the first element we want, don't advance the iterator on the initial call to Next.
-	// If we haven't found the key, the the cursor stack is pointing just after the first item,
+	// If we haven't found the key, the cursor stack is pointing just after the first item,
 	// so we do want to advance.
 	return &Iterator{
 		cursors:    cs,

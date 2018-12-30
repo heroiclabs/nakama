@@ -17,14 +17,13 @@
 package kms
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
 
-	"cloud.google.com/go/internal/version"
 	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -52,6 +51,9 @@ type KeyManagementCallOptions struct {
 	UpdateCryptoKeyPrimaryVersion []gax.CallOption
 	DestroyCryptoKeyVersion       []gax.CallOption
 	RestoreCryptoKeyVersion       []gax.CallOption
+	GetPublicKey                  []gax.CallOption
+	AsymmetricDecrypt             []gax.CallOption
+	AsymmetricSign                []gax.CallOption
 }
 
 func defaultKeyManagementClientOptions() []option.ClientOption {
@@ -77,26 +79,29 @@ func defaultKeyManagementCallOptions() *KeyManagementCallOptions {
 		},
 	}
 	return &KeyManagementCallOptions{
-		ListKeyRings:           retry[[2]string{"default", "idempotent"}],
-		ListCryptoKeys:         retry[[2]string{"default", "idempotent"}],
-		ListCryptoKeyVersions:  retry[[2]string{"default", "idempotent"}],
-		GetKeyRing:             retry[[2]string{"default", "idempotent"}],
-		GetCryptoKey:           retry[[2]string{"default", "idempotent"}],
-		GetCryptoKeyVersion:    retry[[2]string{"default", "idempotent"}],
-		CreateKeyRing:          retry[[2]string{"default", "non_idempotent"}],
-		CreateCryptoKey:        retry[[2]string{"default", "non_idempotent"}],
-		CreateCryptoKeyVersion: retry[[2]string{"default", "non_idempotent"}],
-		UpdateCryptoKey:        retry[[2]string{"default", "non_idempotent"}],
-		UpdateCryptoKeyVersion: retry[[2]string{"default", "non_idempotent"}],
-		Encrypt:                retry[[2]string{"default", "non_idempotent"}],
-		Decrypt:                retry[[2]string{"default", "non_idempotent"}],
+		ListKeyRings:                  retry[[2]string{"default", "idempotent"}],
+		ListCryptoKeys:                retry[[2]string{"default", "idempotent"}],
+		ListCryptoKeyVersions:         retry[[2]string{"default", "idempotent"}],
+		GetKeyRing:                    retry[[2]string{"default", "idempotent"}],
+		GetCryptoKey:                  retry[[2]string{"default", "idempotent"}],
+		GetCryptoKeyVersion:           retry[[2]string{"default", "idempotent"}],
+		CreateKeyRing:                 retry[[2]string{"default", "non_idempotent"}],
+		CreateCryptoKey:               retry[[2]string{"default", "non_idempotent"}],
+		CreateCryptoKeyVersion:        retry[[2]string{"default", "non_idempotent"}],
+		UpdateCryptoKey:               retry[[2]string{"default", "non_idempotent"}],
+		UpdateCryptoKeyVersion:        retry[[2]string{"default", "non_idempotent"}],
+		Encrypt:                       retry[[2]string{"default", "non_idempotent"}],
+		Decrypt:                       retry[[2]string{"default", "non_idempotent"}],
 		UpdateCryptoKeyPrimaryVersion: retry[[2]string{"default", "non_idempotent"}],
 		DestroyCryptoKeyVersion:       retry[[2]string{"default", "non_idempotent"}],
 		RestoreCryptoKeyVersion:       retry[[2]string{"default", "non_idempotent"}],
+		GetPublicKey:                  retry[[2]string{"default", "idempotent"}],
+		AsymmetricDecrypt:             retry[[2]string{"default", "non_idempotent"}],
+		AsymmetricSign:                retry[[2]string{"default", "non_idempotent"}],
 	}
 }
 
-// KeyManagementClient is a client for interacting with Google Cloud Key Management Service (KMS) API.
+// KeyManagementClient is a client for interacting with Cloud Key Management Service (KMS) API.
 //
 // Methods, except Close, may be called concurrently. However, fields must not be modified concurrently with method calls.
 type KeyManagementClient struct {
@@ -125,6 +130,9 @@ type KeyManagementClient struct {
 //   [CryptoKey][google.cloud.kms.v1.CryptoKey]
 //
 //   [CryptoKeyVersion][google.cloud.kms.v1.CryptoKeyVersion]
+//
+// If you are using manual gRPC libraries, see
+// Using gRPC with Cloud KMS (at https://cloud.google.com/kms/docs/grpc).
 func NewKeyManagementClient(ctx context.Context, opts ...option.ClientOption) (*KeyManagementClient, error) {
 	conn, err := transport.DialGRPC(ctx, append(defaultKeyManagementClientOptions(), opts...)...)
 	if err != nil {
@@ -136,7 +144,7 @@ func NewKeyManagementClient(ctx context.Context, opts ...option.ClientOption) (*
 
 		keyManagementClient: kmspb.NewKeyManagementServiceClient(conn),
 	}
-	c.SetGoogleClientInfo()
+	c.setGoogleClientInfo()
 	return c, nil
 }
 
@@ -151,12 +159,12 @@ func (c *KeyManagementClient) Close() error {
 	return c.conn.Close()
 }
 
-// SetGoogleClientInfo sets the name and version of the application in
+// setGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *KeyManagementClient) SetGoogleClientInfo(keyval ...string) {
-	kv := append([]string{"gl-go", version.Go()}, keyval...)
-	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+func (c *KeyManagementClient) setGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", versionGo()}, keyval...)
+	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 
@@ -345,7 +353,9 @@ func (c *KeyManagementClient) CreateKeyRing(ctx context.Context, req *kmspb.Crea
 
 // CreateCryptoKey create a new [CryptoKey][google.cloud.kms.v1.CryptoKey] within a [KeyRing][google.cloud.kms.v1.KeyRing].
 //
-// [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose] is required.
+// [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose] and
+// [CryptoKey.version_template.algorithm][google.cloud.kms.v1.CryptoKeyVersionTemplate.algorithm]
+// are required.
 func (c *KeyManagementClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", req.GetParent()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -424,6 +434,8 @@ func (c *KeyManagementClient) UpdateCryptoKeyVersion(ctx context.Context, req *k
 }
 
 // Encrypt encrypts data, so that it can only be recovered by a call to [Decrypt][google.cloud.kms.v1.KeyManagementService.Decrypt].
+// The [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose] must be
+// [ENCRYPT_DECRYPT][google.cloud.kms.v1.CryptoKey.CryptoKeyPurpose.ENCRYPT_DECRYPT].
 func (c *KeyManagementClient) Encrypt(ctx context.Context, req *kmspb.EncryptRequest, opts ...gax.CallOption) (*kmspb.EncryptResponse, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -440,7 +452,8 @@ func (c *KeyManagementClient) Encrypt(ctx context.Context, req *kmspb.EncryptReq
 	return resp, nil
 }
 
-// Decrypt decrypts data that was protected by [Encrypt][google.cloud.kms.v1.KeyManagementService.Encrypt].
+// Decrypt decrypts data that was protected by [Encrypt][google.cloud.kms.v1.KeyManagementService.Encrypt]. The [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose]
+// must be [ENCRYPT_DECRYPT][google.cloud.kms.v1.CryptoKey.CryptoKeyPurpose.ENCRYPT_DECRYPT].
 func (c *KeyManagementClient) Decrypt(ctx context.Context, req *kmspb.DecryptRequest, opts ...gax.CallOption) (*kmspb.DecryptResponse, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -457,7 +470,9 @@ func (c *KeyManagementClient) Decrypt(ctx context.Context, req *kmspb.DecryptReq
 	return resp, nil
 }
 
-// UpdateCryptoKeyPrimaryVersion update the version of a [CryptoKey][google.cloud.kms.v1.CryptoKey] that will be used in [Encrypt][google.cloud.kms.v1.KeyManagementService.Encrypt]
+// UpdateCryptoKeyPrimaryVersion update the version of a [CryptoKey][google.cloud.kms.v1.CryptoKey] that will be used in [Encrypt][google.cloud.kms.v1.KeyManagementService.Encrypt].
+//
+// Returns an error if called on an asymmetric key.
 func (c *KeyManagementClient) UpdateCryptoKeyPrimaryVersion(ctx context.Context, req *kmspb.UpdateCryptoKeyPrimaryVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -503,7 +518,7 @@ func (c *KeyManagementClient) DestroyCryptoKeyVersion(ctx context.Context, req *
 }
 
 // RestoreCryptoKeyVersion restore a [CryptoKeyVersion][google.cloud.kms.v1.CryptoKeyVersion] in the
-// [DESTROY_SCHEDULED][google.cloud.kms.v1.CryptoKeyVersion.CryptoKeyVersionState.DESTROY_SCHEDULED],
+// [DESTROY_SCHEDULED][google.cloud.kms.v1.CryptoKeyVersion.CryptoKeyVersionState.DESTROY_SCHEDULED]
 // state.
 //
 // Upon restoration of the CryptoKeyVersion, [state][google.cloud.kms.v1.CryptoKeyVersion.state]
@@ -517,6 +532,64 @@ func (c *KeyManagementClient) RestoreCryptoKeyVersion(ctx context.Context, req *
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
 		resp, err = c.keyManagementClient.RestoreCryptoKeyVersion(ctx, req, settings.GRPC...)
+		return err
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetPublicKey returns the public key for the given [CryptoKeyVersion][google.cloud.kms.v1.CryptoKeyVersion]. The
+// [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose] must be
+// [ASYMMETRIC_SIGN][google.cloud.kms.v1.CryptoKey.CryptoKeyPurpose.ASYMMETRIC_SIGN] or
+// [ASYMMETRIC_DECRYPT][google.cloud.kms.v1.CryptoKey.CryptoKeyPurpose.ASYMMETRIC_DECRYPT].
+func (c *KeyManagementClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
+	opts = append(c.CallOptions.GetPublicKey[0:len(c.CallOptions.GetPublicKey):len(c.CallOptions.GetPublicKey)], opts...)
+	var resp *kmspb.PublicKey
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = c.keyManagementClient.GetPublicKey(ctx, req, settings.GRPC...)
+		return err
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// AsymmetricDecrypt decrypts data that was encrypted with a public key retrieved from
+// [GetPublicKey][google.cloud.kms.v1.KeyManagementService.GetPublicKey] corresponding to a [CryptoKeyVersion][google.cloud.kms.v1.CryptoKeyVersion] with
+// [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose] ASYMMETRIC_DECRYPT.
+func (c *KeyManagementClient) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest, opts ...gax.CallOption) (*kmspb.AsymmetricDecryptResponse, error) {
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
+	opts = append(c.CallOptions.AsymmetricDecrypt[0:len(c.CallOptions.AsymmetricDecrypt):len(c.CallOptions.AsymmetricDecrypt)], opts...)
+	var resp *kmspb.AsymmetricDecryptResponse
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = c.keyManagementClient.AsymmetricDecrypt(ctx, req, settings.GRPC...)
+		return err
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// AsymmetricSign signs data using a [CryptoKeyVersion][google.cloud.kms.v1.CryptoKeyVersion] with [CryptoKey.purpose][google.cloud.kms.v1.CryptoKey.purpose]
+// ASYMMETRIC_SIGN, producing a signature that can be verified with the public
+// key retrieved from [GetPublicKey][google.cloud.kms.v1.KeyManagementService.GetPublicKey].
+func (c *KeyManagementClient) AsymmetricSign(ctx context.Context, req *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
+	opts = append(c.CallOptions.AsymmetricSign[0:len(c.CallOptions.AsymmetricSign):len(c.CallOptions.AsymmetricSign)], opts...)
+	var resp *kmspb.AsymmetricSignResponse
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = c.keyManagementClient.AsymmetricSign(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {

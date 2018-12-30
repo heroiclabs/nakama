@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build go1.8
-
 package proxy
 
 import (
@@ -33,6 +31,8 @@ import (
 // just want them to be stored literally. This isn't something we can fix in martian: it
 // is required in the HAR spec (http://www.softwareishard.com/blog/har-12-spec/#content).
 
+// LogVersion is the current version of the log format. It can be used to
+// support changes to the format over time, so newer code can read older files.
 const LogVersion = "0.1"
 
 // A Log is a record of HTTP interactions, suitable for replay. It can be serialized to JSON.

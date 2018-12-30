@@ -8,10 +8,10 @@ install:
 notifications:
   email: false
 go:
-- 1.7.x
-- 1.8.x
-- 1.9.x
-- 1.10.x
+- "1.7.x"
+- "1.8.x"
+- "1.9.x"
+- "1.10.x"
 - tip
 
 # whitelist

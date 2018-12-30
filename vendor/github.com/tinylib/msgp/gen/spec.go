@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	errcheck    = "\nif err != nil { return }"
 	lenAsUint32 = "uint32(len(%s))"
 	literalFmt  = "%s"
 	intFmt      = "%d"
@@ -158,12 +157,62 @@ func (p *Printer) ApplyDirective(pass Method, t TransformPass) {
 // Print prints an Elem.
 func (p *Printer) Print(e Elem) error {
 	for _, g := range p.gens {
+		// Elem.SetVarname() is called before the Print() step in parse.FileSet.PrintTo().
+		// Elem.SetVarname() generates identifiers as it walks the Elem. This can cause
+		// collisions between idents created during SetVarname and idents created during Print,
+		// hence the separate prefixes.
+		resetIdent("zb")
 		err := g.Execute(e)
+		resetIdent("za")
+
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+type contextItem interface {
+	Arg() string
+}
+
+type contextString string
+
+func (c contextString) Arg() string {
+	return fmt.Sprintf("%q", c)
+}
+
+type contextVar string
+
+func (c contextVar) Arg() string {
+	return string(c)
+}
+
+type Context struct {
+	path []contextItem
+}
+
+func (c *Context) PushString(s string) {
+	c.path = append(c.path, contextString(s))
+}
+
+func (c *Context) PushVar(s string) {
+	c.path = append(c.path, contextVar(s))
+}
+
+func (c *Context) Pop() {
+	c.path = c.path[:len(c.path)-1]
+}
+
+func (c *Context) ArgsStr() string {
+	var out string
+	for idx, p := range c.path {
+		if idx > 0 {
+			out += ", "
+		}
+		out += p.Arg()
+	}
+	return out
 }
 
 // generator is the interface through
@@ -287,10 +336,10 @@ func (p *printer) declare(name string, typ string) {
 
 // does:
 //
-// if m != nil && size > 0 {
+// if m == nil {
 //     m = make(type, size)
 // } else if len(m) > 0 {
-//     for key, _ := range m { delete(m, key) }
+//     for key := range m { delete(m, key) }
 // }
 //
 func (p *printer) resizeMap(size string, m *Map) {
@@ -298,7 +347,7 @@ func (p *printer) resizeMap(size string, m *Map) {
 	if !p.ok() {
 		return
 	}
-	p.printf("\nif %s == nil && %s > 0 {", vn, size)
+	p.printf("\nif %s == nil {", vn)
 	p.printf("\n%s = make(%s, %s)", vn, m.TypeName(), size)
 	p.printf("\n} else if len(%s) > 0 {", vn)
 	p.clearMap(vn)
@@ -315,7 +364,14 @@ func (p *printer) mapAssign(m *Map) {
 
 // clear map keys
 func (p *printer) clearMap(name string) {
-	p.printf("\nfor key, _ := range %[1]s { delete(%[1]s, key) }", name)
+	p.printf("\nfor key := range %[1]s { delete(%[1]s, key) }", name)
+}
+
+func (p *printer) wrapErrCheck(ctx string) {
+	p.print("\nif err != nil {")
+	p.printf("\nerr = msgp.WrapError(err, %s)", ctx)
+	p.printf("\nreturn")
+	p.print("\n}")
 }
 
 func (p *printer) resizeSlice(size string, s *Slice) {
@@ -334,10 +390,12 @@ func (p *printer) closeblock() { p.print("\n}") }
 //     {{generate inner}}
 // }
 //
-func (p *printer) rangeBlock(idx string, iter string, t traversal, inner Elem) {
+func (p *printer) rangeBlock(ctx *Context, idx string, iter string, t traversal, inner Elem) {
+	ctx.PushVar(idx)
 	p.printf("\n for %s := range %s {", idx, iter)
 	next(t, inner)
 	p.closeblock()
+	ctx.Pop()
 }
 
 func (p *printer) nakedReturn() {

@@ -21,6 +21,7 @@ package errorreporting // import "cloud.google.com/go/errorreporting"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,7 +32,6 @@ import (
 	"cloud.google.com/go/internal/version"
 	"github.com/golang/protobuf/ptypes"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/api/support/bundler"
 	pb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"

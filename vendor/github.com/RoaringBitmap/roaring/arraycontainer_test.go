@@ -77,6 +77,36 @@ func TestArrayContainerRank(t *testing.T) {
 	}
 }
 
+func TestArrayOffset(t *testing.T) {
+	nums := []uint16{10, 100, 1000}
+	expected := make([]int, len(nums))
+	offtest := uint16(65000)
+	v := container(newArrayContainer())
+	for i, n := range nums {
+		v = v.iaddReturnMinimized(n)
+		expected[i] = int(n) + int(offtest)
+	}
+	w := v.addOffset(offtest)
+	w0card := w[0].getCardinality()
+	w1card := w[1].getCardinality()
+	if w0card+w1card != 3 {
+		t.Errorf("Bogus cardinality.")
+	}
+	wout := make([]int, len(nums))
+	for i := 0; i < w0card; i++ {
+		wout[i] = w[0].selectInt(uint16(i))
+	}
+	for i := 0; i < w1card; i++ {
+		wout[i+w0card] = w[1].selectInt(uint16(i)) + 65536
+	}
+	t.Logf("%v %v", wout, expected)
+	for i, x := range wout {
+		if x != expected[i] {
+			t.Errorf("found discrepancy %d!=%d", x, expected[i])
+		}
+	}
+}
+
 func TestArrayContainerMassiveSetAndGet(t *testing.T) {
 	v := container(newArrayContainer())
 	for j := 0; j <= arrayDefaultMaxSize; j++ {

@@ -418,6 +418,45 @@ func (rb *Bitmap) Equals(o interface{}) bool {
 	return false
 }
 
+func AddOffset(x *Bitmap, offset uint32) (answer *Bitmap) {
+	containerOffset := highbits(offset)
+	inOffset := lowbits(offset)
+	if inOffset == 0 {
+		answer = x.Clone()
+		for pos := 0; pos < answer.highlowcontainer.size(); pos++ {
+			key := answer.highlowcontainer.getKeyAtIndex(pos)
+			key += containerOffset
+			answer.highlowcontainer.keys[pos] = key
+		}
+	} else {
+		answer = New()
+		for pos := 0; pos < x.highlowcontainer.size(); pos++ {
+			key := x.highlowcontainer.getKeyAtIndex(pos)
+			key += containerOffset
+			c := x.highlowcontainer.getContainerAtIndex(pos)
+			offsetted := c.addOffset(inOffset)
+			if offsetted[0].getCardinality() > 0 {
+				curSize := answer.highlowcontainer.size()
+				lastkey := uint16(0)
+				if curSize > 0 {
+					lastkey = answer.highlowcontainer.getKeyAtIndex(curSize - 1)
+				}
+				if curSize > 0 && lastkey == key {
+					prev := answer.highlowcontainer.getContainerAtIndex(curSize - 1)
+					orrseult := prev.ior(offsetted[0])
+					answer.highlowcontainer.setContainerAtIndex(curSize-1, orrseult)
+				} else {
+					answer.highlowcontainer.appendContainer(key, offsetted[0], false)
+				}
+			}
+			if offsetted[1].getCardinality() > 0 {
+				answer.highlowcontainer.appendContainer(key+1, offsetted[1], false)
+			}
+		}
+	}
+	return answer
+}
+
 // Add the integer x to the bitmap
 func (rb *Bitmap) Add(x uint32) {
 	hb := highbits(x)

@@ -1,6 +1,7 @@
 package roaring
 
 import (
+	"bytes"
 	"log"
 	"math"
 	"math/rand"
@@ -133,6 +134,57 @@ func TestRoaringBitmapAddMany(t *testing.T) {
 	if len(array) != int(bmp.GetCardinality()) {
 		t.Errorf("length diff %d!=%d", len(array), bmp.GetCardinality())
 		t.FailNow()
+	}
+}
+
+func TestRoaringBitmapAddOffset(t *testing.T) {
+	array := []uint32{5580, 33722, 44031, 57276, 83097}
+	bmp := NewBitmap()
+	bmp.AddMany(array)
+	offtest := uint32(25000)
+	cop := AddOffset(bmp, offtest)
+	// t.Logf("%T %v", cop, cop)
+	if len(array) != int(cop.GetCardinality()) {
+		t.Errorf("length diff %d!=%d", len(array), bmp.GetCardinality())
+		// t.FailNow()
+	}
+	expected := make([]uint32, len(array))
+	for i, x := range array {
+		expected[i] = x + offtest
+	}
+	wout := cop.ToArray()
+	t.Logf("%v, %v", wout, expected)
+	if len(wout) != len(expected) {
+		t.Errorf("length diff %d!=%d", len(wout), len(expected))
+	}
+	for i, x := range wout {
+		if x != expected[i] {
+			t.Errorf("found discrepancy %d!=%d", x, expected[i])
+		}
+	}
+}
+
+func TestRoaringInPlaceAndNotBitmapContainer(t *testing.T) {
+	bm := NewBitmap()
+	for i := 0; i < 8192; i++ {
+		bm.Add(uint32(i))
+	}
+	toRemove := NewBitmap()
+	for i := 128; i < 8192; i++ {
+		toRemove.Add(uint32(i))
+	}
+	bm.AndNot(toRemove)
+
+	var b bytes.Buffer
+	_, err := bm.WriteTo(&b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bm2 := NewBitmap()
+	bm2.ReadFrom(bytes.NewBuffer(b.Bytes()))
+	if !bm2.Equals(bm) {
+		t.Errorf("expected %s to equal %s", bm2, bm)
 	}
 }
 
@@ -1478,7 +1530,7 @@ func TestNextMany(t *testing.T) {
 			expected := make([]uint32, count)
 			{
 				v := uint32(0)
-				for i, _ := range expected {
+				for i := range expected {
 					expected[i] = v
 					v += gap
 				}

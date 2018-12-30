@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,13 @@
 package gensupport
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 func TestRetry(t *testing.T) {
@@ -73,7 +72,7 @@ func TestRetry(t *testing.T) {
 			Strategy: NoPauseStrategy,
 		}
 
-		resp, err := Retry(nil, f, backoff)
+		resp, err := Retry(context.Background(), f, backoff)
 		if err != nil {
 			t.Errorf("%s: Retry returned err %v", tt.desc, err)
 		}
@@ -109,7 +108,7 @@ func TestRetryClosesBody(t *testing.T) {
 		return resp, nil
 	}
 
-	resp, err := Retry(nil, f, NoPauseStrategy)
+	resp, err := Retry(context.Background(), f, NoPauseStrategy)
 	if err != nil {
 		t.Fatalf("Retry returned error: %v", err)
 	}

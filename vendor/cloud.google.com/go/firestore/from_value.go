@@ -20,9 +20,8 @@ import (
 	"reflect"
 	"strings"
 
-	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
-
 	"github.com/golang/protobuf/ptypes"
+	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 )
 
 func setFromProtoValue(x interface{}, vproto *pb.Value, c *Client) error {

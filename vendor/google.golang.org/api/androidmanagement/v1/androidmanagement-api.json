@@ -766,7 +766,7 @@
       }
     }
   },
-  "revision": "20180706",
+  "revision": "20181113",
   "rootUrl": "https://androidmanagement.googleapis.com/",
   "schemas": {
     "AlwaysOnVpnPackage": {
@@ -937,12 +937,14 @@
             "INSTALL_TYPE_UNSPECIFIED",
             "PREINSTALLED",
             "FORCE_INSTALLED",
+            "BLOCKED",
             "AVAILABLE"
           ],
           "enumDescriptions": [
             "Unspecified. Defaults to AVAILABLE.",
             "The app is automatically installed and can be removed by the user.",
             "The app is automatically installed and can't be removed by the user.",
+            "The app is blocked and can't be installed. If the app was installed under a previous policy, it will be uninstalled.",
             "The app is available to install."
           ],
           "type": "string"
@@ -958,6 +960,10 @@
           },
           "description": "Managed configuration applied to the app. The format for the configuration is dictated by the ManagedProperty values supported by the app. Each field name in the managed configuration must match the key field of the ManagedProperty. The field value must be compatible with the type of the ManagedProperty: \u003ctable\u003e \u003ctr\u003e\u003ctd\u003e\u003ci\u003etype\u003c/i\u003e\u003c/td\u003e\u003ctd\u003e\u003ci\u003eJSON value\u003c/i\u003e\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eBOOL\u003c/td\u003e\u003ctd\u003etrue or false\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eSTRING\u003c/td\u003e\u003ctd\u003estring\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eINTEGER\u003c/td\u003e\u003ctd\u003enumber\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eCHOICE\u003c/td\u003e\u003ctd\u003estring\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eMULTISELECT\u003c/td\u003e\u003ctd\u003earray of strings\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eHIDDEN\u003c/td\u003e\u003ctd\u003estring\u003c/td\u003e\u003c/tr\u003e \u003ctr\u003e\u003ctd\u003eBUNDLE_ARRAY\u003c/td\u003e\u003ctd\u003earray of objects\u003c/td\u003e\u003c/tr\u003e \u003c/table\u003e",
           "type": "object"
+        },
+        "managedConfigurationTemplate": {
+          "$ref": "ManagedConfigurationTemplate",
+          "description": "The managed configurations template for the app, saved from the managed configurations iframe. This field is ignored if managed_configuration is set."
         },
         "minimumVersionCode": {
           "description": "The minimum version of the app that runs on the device. If set, the device attempts to update the app to at least this version code. If the app is not up-to-date, the device will contain a NonComplianceDetail with non_compliance_reason set to APP_NOT_UPDATED. The app must already be published to Google Play with a version code greater than or equal to this value. At most 20 apps may specify a minimum version code per policy.",
@@ -1218,7 +1224,7 @@
             "This value is disallowed.",
             "The device is active.",
             "The device is disabled.",
-            "The device was deleted. This state will never be returned by an API call, but is used in the final policy compliance report published to Cloud Pub/Sub when the device acknowledges the deletion.",
+            "The device was deleted. This state will never be returned by an API call, but is used in the final status report published to Cloud Pub/Sub when the device acknowledges the deletion.",
             "The device is being provisioned. Newly enrolled devices are in this state until they have a policy applied."
           ],
           "type": "string"
@@ -1263,7 +1269,7 @@
           "type": "array"
         },
         "lastPolicyComplianceReportTime": {
-          "description": "The last time the device sent a policy compliance report. Important: This field is deprecated. The timestamp will be on last_status_report_time field, and last_status_report_time will be used for both status report and compliance report.",
+          "description": "Deprecated.",
           "format": "google-datetime",
           "type": "string"
         },
@@ -1356,10 +1362,14 @@
             "This value is disallowed.",
             "The device is active.",
             "The device is disabled.",
-            "The device was deleted. This state will never be returned by an API call, but is used in the final policy compliance report published to Cloud Pub/Sub when the device acknowledges the deletion.",
+            "The device was deleted. This state will never be returned by an API call, but is used in the final status report published to Cloud Pub/Sub when the device acknowledges the deletion.",
             "The device is being provisioned. Newly enrolled devices are in this state until they have a policy applied."
           ],
           "type": "string"
+        },
+        "user": {
+          "$ref": "User",
+          "description": "The user who owns the device."
         },
         "userName": {
           "description": "The resource name of the user that owns this device in the form enterprises/{enterpriseId}/users/{userId}.",
@@ -1515,6 +1525,10 @@
           "description": "A JSON string whose UTF-8 representation can be used to generate a QR code to enroll a device with this enrollment token. To enroll a device using NFC, the NFC record must contain a serialized java.util.Properties representation of the properties in the JSON.",
           "type": "string"
         },
+        "user": {
+          "$ref": "User",
+          "description": "The user associated with this enrollment token. If it's specified when the enrollment token is created and the user does not exist, the user will be created. This field must not contain personally identifiable information. Only the account_identifier field needs to be set."
+        },
         "value": {
           "description": "The token value that's passed to the device and authorizes the device to enroll. This is a read-only field generated by the server.",
           "type": "string"
@@ -1535,7 +1549,7 @@
           "enumDescriptions": [
             "This value is ignored.",
             "A notification sent when a device enrolls.",
-            "A notification sent when a device issues a policy compliance report. Important: This enum value is deprecated. The notification will be sent as STATUS_REPORT.",
+            "Deprecated.",
             "A notification sent when a device issues a status report.",
             "A notification sent when a device command has completed."
           ],
@@ -1571,6 +1585,13 @@
         "pubsubTopic": {
           "description": "The topic that Cloud Pub/Sub notifications are published to, in the form projects/{project}/topics/{topic}. This field is only required if Pub/Sub notifications are enabled.",
           "type": "string"
+        },
+        "signinDetails": {
+          "description": "Sign-in details of the enterprise. Maximum of 1 SigninDetail is supported.",
+          "items": {
+            "$ref": "SigninDetail"
+          },
+          "type": "array"
         },
         "termsAndConditions": {
           "description": "Terms and conditions that must be accepted when provisioning a device for this enterprise. A page of terms is generated for each value in this list.",
@@ -1806,6 +1827,24 @@
       },
       "type": "object"
     },
+    "ManagedConfigurationTemplate": {
+      "description": "The managed configurations template for the app, saved from the managed configurations iframe.",
+      "id": "ManagedConfigurationTemplate",
+      "properties": {
+        "configurationVariables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional, a map containing \u003ckey, value\u003e configuration variables defined for the configuration.",
+          "type": "object"
+        },
+        "templateId": {
+          "description": "The ID of the managed configurations template.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "ManagedProperty": {
       "description": "Managed property.",
       "id": "ManagedProperty",
@@ -1996,7 +2035,7 @@
             "The app has new permissions that have not been accepted by the admin.",
             "The app is not available in the user's country.",
             "There are no licenses available to assign to the user.",
-            "The enterprise is no longer enrolled with managed Play or Android Device Policy is not enabled for the enterprise.",
+            "The enterprise is no longer enrolled with managed Play or the admin has not accepted the latest managed Play terms of service.",
             "The user is no longer valid. The user may have been deleted or disabled."
           ],
           "type": "string"
@@ -2213,6 +2252,20 @@
             "The password must contain at least a letter, a numerical digit and a special symbol. Other password constraints, for example, password_minimum_letters are enforced."
           ],
           "type": "string"
+        },
+        "passwordScope": {
+          "description": "The scope that the password requirement applies to.",
+          "enum": [
+            "SCOPE_UNSPECIFIED",
+            "SCOPE_DEVICE",
+            "SCOPE_PROFILE"
+          ],
+          "enumDescriptions": [
+            "The scope is unspecified. The password requirements are applied to the work profile for work profile devices and the whole device for fully managed or dedicated devices.",
+            "The password requirements are only applied to the device.",
+            "The password requirements are only applied to the work profile."
+          ],
+          "type": "string"
         }
       },
       "type": "object"
@@ -2222,7 +2275,7 @@
       "id": "PermissionGrant",
       "properties": {
         "permission": {
-          "description": "The android permission or group, e.g. android.permission.READ_CALENDAR or android.permission_group.CALENDAR.",
+          "description": "The Android permission or group, e.g. android.permission.READ_CALENDAR or android.permission_group.CALENDAR.",
           "type": "string"
         },
         "policy": {
@@ -2555,9 +2608,16 @@
           "description": "Whether outgoing calls are disabled.",
           "type": "boolean"
         },
+        "passwordPolicies": {
+          "description": "Password requirement policies. Different policies can be set for work profile or fully managed devices by setting the password_scope field in the policy.",
+          "items": {
+            "$ref": "PasswordRequirements"
+          },
+          "type": "array"
+        },
         "passwordRequirements": {
           "$ref": "PasswordRequirements",
-          "description": "Password requirements."
+          "description": "Password requirements. DEPRECATED - Use password_policies"
         },
         "permissionGrants": {
           "description": "Explicit permission or group grants or denials for all apps. These values override the default_permission_policy.",
@@ -2576,6 +2636,20 @@
             "$ref": "PersistentPreferredActivity"
           },
           "type": "array"
+        },
+        "playStoreMode": {
+          "description": "This mode controls which apps are available to the user in the Play Store and the behavior on the device when apps are removed from the policy.",
+          "enum": [
+            "PLAY_STORE_MODE_UNSPECIFIED",
+            "WHITELIST",
+            "BLACKLIST"
+          ],
+          "enumDescriptions": [
+            "Unspecified. Defaults to WHITELIST.",
+            "Only apps that are in the policy are available and any app not in the policy will be automatically uninstalled from the device.",
+            "All apps are available and any app that should not be on the device should be explicitly markeds as 'BLOCKED' in the applications policy."
+          ],
+          "type": "string"
         },
         "privateKeySelectionEnabled": {
           "description": "Allows showing UI on a device for a user to choose a private key alias if there are no matching rules in ChoosePrivateKeyRules. For devices below Android P, setting this may leave enterprise keys vulnerable.",
@@ -2669,7 +2743,7 @@
           "type": "boolean"
         },
         "usbMassStorageEnabled": {
-          "description": "Whether USB storage is enabled.",
+          "description": "Whether USB storage is enabled. Deprecated.",
           "type": "boolean"
         },
         "version": {
@@ -2756,6 +2830,25 @@
           "description": "The port of the direct proxy.",
           "format": "int32",
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SigninDetail": {
+      "description": "A resource containing sign in details for an enterprise.",
+      "id": "SigninDetail",
+      "properties": {
+        "qrCode": {
+          "description": "A JSON string whose UTF-8 representation can be used to generate a QR code to enroll a device with this enrollment token. To enroll a device using NFC, the NFC record must contain a serialized java.util.Properties representation of the properties in the JSON. This is a read-only field generated by the server.",
+          "type": "string"
+        },
+        "signinEnrollmentToken": {
+          "description": "An enterprise wide enrollment token used to trigger custom sign-in flow. This is a read-only field generated by the server.",
+          "type": "string"
+        },
+        "signinUrl": {
+          "description": "Sign-in URL for authentication when device is provisioned with a sign-in enrollment token. The sign-in endpoint should finish authentication flow with a URL in the form of https://enterprise.google.com/android/enroll?et=\u003ctoken\u003e for a successful login, or https://enterprise.google.com/android/enroll/invalid for a failed login.",
+          "type": "string"
         }
       },
       "type": "object"
@@ -2872,7 +2965,7 @@
           "type": "boolean"
         },
         "memoryInfoEnabled": {
-          "description": "Whether memory info reporting is enabled.",
+          "description": "Whether memory reporting is enabled.",
           "type": "boolean"
         },
         "networkInfoEnabled": {
@@ -2934,6 +3027,17 @@
         "header": {
           "$ref": "UserFacingMessage",
           "description": "A short header which appears above the HTML content."
+        }
+      },
+      "type": "object"
+    },
+    "User": {
+      "description": "A user belonging to an enterprise.",
+      "id": "User",
+      "properties": {
+        "accountIdentifier": {
+          "description": "A unique identifier you create for this user, such as user342 or asset#44418. This field must be set when the user is created and can't be updated. This field must not contain personally identifiable information (PII). This identifier must be 1024 characters or less; otherwise, the update policy request will fail.",
+          "type": "string"
         }
       },
       "type": "object"

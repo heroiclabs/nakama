@@ -124,6 +124,16 @@
               "pattern": "^users/[^/]+$",
               "required": true,
               "type": "string"
+            },
+            "projectId": {
+              "description": "The project ID of the Google Cloud Platform project.",
+              "location": "query",
+              "type": "string"
+            },
+            "systemId": {
+              "description": "A system ID for filtering the results of the request.",
+              "location": "query",
+              "type": "string"
             }
           },
           "path": "v1/{+name}/loginProfile",
@@ -295,7 +305,7 @@
       }
     }
   },
-  "revision": "20180617",
+  "revision": "20181023",
   "rootUrl": "https://oslogin.googleapis.com/",
   "schemas": {
     "Empty": {

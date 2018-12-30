@@ -493,12 +493,11 @@ func TestSerializationRunOnly033(t *testing.T) {
 func TestSerializationBitmapOnly034(t *testing.T) {
 
 	Convey("bitmapContainer writeTo and readFrom should return logically equivalent containers", t, func() {
-
 		seed := int64(42)
 		rand.Seed(seed)
 
 		trials := []trial{
-			{n: 1010, percentFill: .50, ntrial: 10},
+			{n: 8192, percentFill: .99, ntrial: 10},
 		}
 
 		tester := func(tr trial) {

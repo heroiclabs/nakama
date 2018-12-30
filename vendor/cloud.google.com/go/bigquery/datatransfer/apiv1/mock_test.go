@@ -24,6 +24,7 @@ import (
 )
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -35,7 +36,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -262,16 +262,16 @@ func TestDataTransferServiceGetDataSource(t *testing.T) {
 	var defaultDataRefreshWindowDays int32 = 1804935157
 	var manualRunsDisabled bool = true
 	var expectedResponse = &datatransferpb.DataSource{
-		Name:                      name2,
-		DataSourceId:              dataSourceId,
-		DisplayName:               displayName,
-		Description:               description,
-		ClientId:                  clientId,
-		SupportsMultipleTransfers: supportsMultipleTransfers,
-		UpdateDeadlineSeconds:     updateDeadlineSeconds,
-		DefaultSchedule:           defaultSchedule,
-		SupportsCustomSchedule:    supportsCustomSchedule,
-		HelpUrl:                   helpUrl,
+		Name:                         name2,
+		DataSourceId:                 dataSourceId,
+		DisplayName:                  displayName,
+		Description:                  description,
+		ClientId:                     clientId,
+		SupportsMultipleTransfers:    supportsMultipleTransfers,
+		UpdateDeadlineSeconds:        updateDeadlineSeconds,
+		DefaultSchedule:              defaultSchedule,
+		SupportsCustomSchedule:       supportsCustomSchedule,
+		HelpUrl:                      helpUrl,
 		DefaultDataRefreshWindowDays: defaultDataRefreshWindowDays,
 		ManualRunsDisabled:           manualRunsDisabled,
 	}

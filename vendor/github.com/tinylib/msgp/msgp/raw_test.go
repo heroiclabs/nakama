@@ -83,3 +83,31 @@ func TestRaw(t *testing.T) {
 		t.Fatal("value of output and input of MarshalMsg are not equal.")
 	}
 }
+
+func TestNullRaw(t *testing.T) {
+	// Marshal/Unmarshal
+	var x, y Raw
+	if bts, err := x.MarshalMsg(nil); err != nil {
+		t.Fatal(err)
+	} else if _, err = y.UnmarshalMsg(bts); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(x, y) {
+		t.Fatal("compare")
+	}
+
+	// Encode/Decode
+	var buf bytes.Buffer
+	wr := NewWriter(&buf)
+	if err := x.EncodeMsg(wr); err != nil {
+		t.Fatal(err)
+	}
+	wr.Flush()
+	rd := NewReader(&buf)
+	if err := y.DecodeMsg(rd); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(x, y) {
+		t.Fatal("compare")
+	}
+}

@@ -17,8 +17,9 @@
 package errorreporting_test
 
 import (
-	"cloud.google.com/go/errorreporting/apiv1beta1"
-	"golang.org/x/net/context"
+	"context"
+
+	errorreporting "cloud.google.com/go/errorreporting/apiv1beta1"
 	"google.golang.org/api/iterator"
 	clouderrorreportingpb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"
 )

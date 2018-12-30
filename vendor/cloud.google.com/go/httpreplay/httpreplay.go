@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build go1.8
-
 // Package httpreplay provides an API for recording and replaying traffic
 // from HTTP-based Google API clients.
 //
@@ -36,10 +34,10 @@ package httpreplay
 // TODO(jba): add examples.
 
 import (
+	"context"
 	"net/http"
 
 	"cloud.google.com/go/httpreplay/internal/proxy"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	htransport "google.golang.org/api/transport/http"
 )

@@ -1,6 +1,8 @@
 package parse
 
 import (
+	"sort"
+
 	"github.com/tinylib/msgp/gen"
 )
 
@@ -78,9 +80,30 @@ func (f *FileSet) nextShim(ref *gen.Elem, id string, be *gen.BaseElem) {
 
 // propInline identifies and inlines candidates
 func (f *FileSet) propInline() {
+	type gelem struct {
+		name string
+		el   gen.Elem
+	}
+
+	all := make([]gelem, 0, len(f.Identities))
+
 	for name, el := range f.Identities {
+		all = append(all, gelem{name: name, el: el})
+	}
+
+	// make sure we process inlining determinstically:
+	// start with the least-complex elems;
+	// use identifier names as a tie-breaker
+	sort.Slice(all, func(i, j int) bool {
+		ig, jg := &all[i], &all[j]
+		ic, jc := ig.el.Complexity(), jg.el.Complexity()
+		return ic < jc || (ic == jc && ig.name < jg.name)
+	})
+
+	for i := range all {
+		name := all[i].name
 		pushstate(name)
-		switch el := el.(type) {
+		switch el := all[i].el.(type) {
 		case *gen.Struct:
 			for i := range el.Fields {
 				f.nextInline(&el.Fields[i].FieldElem, name)

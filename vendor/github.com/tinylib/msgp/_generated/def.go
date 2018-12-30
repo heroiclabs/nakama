@@ -1,9 +1,10 @@
 package _generated
 
 import (
-	"github.com/tinylib/msgp/msgp"
 	"os"
 	"time"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 //go:generate msgp -o generated.go
@@ -45,14 +46,19 @@ type TestType struct {
 		ValueA string `msg:"value_a"`
 		ValueB []byte `msg:"value_b"`
 	} `msg:"object"`
-	Child    *TestType   `msg:"child"`
-	Time     time.Time   `msg:"time"`
-	Any      interface{} `msg:"any"`
-	Appended msgp.Raw    `msg:"appended"`
-	Num      msgp.Number `msg:"num"`
-	Slice1   []string
-	Slice2   []string
-	SlicePtr *[]string
+	Child      *TestType   `msg:"child"`
+	Time       time.Time   `msg:"time"`
+	Any        interface{} `msg:"any"`
+	Appended   msgp.Raw    `msg:"appended"`
+	Num        msgp.Number `msg:"num"`
+	Byte       byte
+	Rune       rune
+	RunePtr    *rune
+	RunePtrPtr **rune
+	RuneSlice  []rune
+	Slice1     []string
+	Slice2     []string
+	SlicePtr   *[]string
 }
 
 //msgp:tuple Object
@@ -188,13 +194,13 @@ type Custom struct {
 	Bts   CustomBytes          `msg:"bts"`
 	Mp    map[string]*Embedded `msg:"mp"`
 	Enums []MyEnum             `msg:"enums"` // test explicit enum shim
-	Some  FileHandle           `msg:file_handle`
+	Some  FileHandle           `msg:"file_handle"`
 }
 
 type Files []*os.File
 
 type FileHandle struct {
-	Relevent Files  `msg:"files"`
+	Relevant Files  `msg:"files"`
 	Name     string `msg:"name"`
 }
 
@@ -209,4 +215,51 @@ type Tree struct {
 	Children []Tree
 	Element  int
 	Parent   *Wrapper
+}
+
+// Ensure all different widths of integer can be used as constant keys.
+const (
+	ConstantInt    int    = 8
+	ConstantInt8   int8   = 8
+	ConstantInt16  int16  = 8
+	ConstantInt32  int32  = 8
+	ConstantInt64  int64  = 8
+	ConstantUint   uint   = 8
+	ConstantUint8  uint8  = 8
+	ConstantUint16 uint16 = 8
+	ConstantUint32 uint32 = 8
+	ConstantUint64 uint64 = 8
+)
+
+type ArrayConstants struct {
+	ConstantInt    [ConstantInt]string
+	ConstantInt8   [ConstantInt8]string
+	ConstantInt16  [ConstantInt16]string
+	ConstantInt32  [ConstantInt32]string
+	ConstantInt64  [ConstantInt64]string
+	ConstantUint   [ConstantUint]string
+	ConstantUint8  [ConstantUint8]string
+	ConstantUint16 [ConstantUint16]string
+	ConstantUint32 [ConstantUint32]string
+	ConstantUint64 [ConstantUint64]string
+	ConstantHex    [0x16]string
+	ConstantOctal  [07]string
+}
+
+// Ensure non-msg struct tags work:
+// https://github.com/tinylib/msgp/issues/201
+
+type NonMsgStructTags struct {
+	A      []string `json:"fooJSON" msg:"fooMsgp"`
+	B      string   `json:"barJSON"`
+	C      []string `json:"bazJSON" msg:"-"`
+	Nested []struct {
+		A          []string `json:"a"`
+		B          string   `json:"b"`
+		C          []string `json:"c"`
+		VeryNested []struct {
+			A []string `json:"a"`
+			B []string `msg:"bbbb" xml:"-"`
+		}
+	}
 }

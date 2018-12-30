@@ -581,9 +581,9 @@ func BenchmarkNexts(b *testing.B) {
 
 		density := float32(100) / float32(gap)
 
-		density_str := fmt.Sprintf("__%f%%", density)
+		densityStr := fmt.Sprintf("__%f%%", density)
 
-		b.Run("next"+density_str, func(b *testing.B) {
+		b.Run("next"+densityStr, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				totnext = 0
 				iter := bm.Iterator()
@@ -595,7 +595,7 @@ func BenchmarkNexts(b *testing.B) {
 			b.StopTimer()
 		})
 
-		b.Run("nextmany"+density_str, func(b *testing.B) {
+		b.Run("nextmany"+densityStr, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				totnextmany = 0
 				iter := bm.ManyIterator()

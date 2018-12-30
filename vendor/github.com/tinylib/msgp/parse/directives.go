@@ -2,9 +2,10 @@ package parse
 
 import (
 	"fmt"
-	"github.com/tinylib/msgp/gen"
 	"go/ast"
 	"strings"
+
+	"github.com/tinylib/msgp/gen"
 )
 
 const linePrefix = "//msgp:"
@@ -52,10 +53,10 @@ func yieldComments(c []*ast.CommentGroup) []string {
 	return out
 }
 
-//msgp:shim {Type} as:{Newtype} using:{toFunc/fromFunc}
+//msgp:shim {Type} as:{Newtype} using:{toFunc/fromFunc} mode:{Mode}
 func applyShim(text []string, f *FileSet) error {
-	if len(text) != 4 {
-		return fmt.Errorf("shim directive should have 3 arguments; found %d", len(text)-1)
+	if len(text) < 4 || len(text) > 5 {
+		return fmt.Errorf("shim directive should have 3 or 4 arguments; found %d", len(text)-1)
 	}
 
 	name := text[1]
@@ -75,6 +76,18 @@ func applyShim(text []string, f *FileSet) error {
 
 	be.ShimToBase = methods[0]
 	be.ShimFromBase = methods[1]
+
+	if len(text) == 5 {
+		modestr := strings.TrimPrefix(strings.TrimSpace(text[4]), "mode:") // parse mode::{mode}
+		switch modestr {
+		case "cast":
+			be.ShimMode = gen.Cast
+		case "convert":
+			be.ShimMode = gen.Convert
+		default:
+			return fmt.Errorf("invalid shim mode; found %s, expected 'cast' or 'convert", modestr)
+		}
+	}
 
 	infof("%s -> %s\n", name, be.Value.String())
 	f.findShim(name, be)

@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package internal
 
 import (
 	"errors"
+
 	"google.golang.org/grpc/naming"
 )
 
@@ -54,6 +55,7 @@ func (r *PoolResolver) Next() ([]*naming.Update, error) {
 	return <-r.ch, nil
 }
 
+// Close releases resources associated with the pool and causes Next to unblock.
 func (r *PoolResolver) Close() {
 	close(r.ch)
 }

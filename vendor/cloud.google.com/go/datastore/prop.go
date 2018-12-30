@@ -41,7 +41,7 @@ type Property struct {
 	//	- string
 	//	- float64
 	//	- *Key
-	//	- time.Time
+	//	- time.Time (retrieved as local time)
 	//	- GeoPoint
 	//	- []byte (up to 1 megabyte in length)
 	//	- *Entity (representing a nested struct)
@@ -331,7 +331,7 @@ func plsForSave(v reflect.Value) (PropertyLoadSaver, error) {
 func pls(v reflect.Value) (PropertyLoadSaver, error) {
 	if v.Kind() != reflect.Ptr {
 		if _, ok := v.Interface().(PropertyLoadSaver); ok {
-			return nil, fmt.Errorf("datastore: PropertyLoadSaver methods must be implemented on a pointer to %T.", v.Interface())
+			return nil, fmt.Errorf("datastore: PropertyLoadSaver methods must be implemented on a pointer to %T", v.Interface())
 		}
 
 		v = v.Addr()

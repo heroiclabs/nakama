@@ -18,7 +18,7 @@
   "description": "Accesses AdSense publishers' inventory and generates performance reports.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/adsense/management/",
-  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/o_RglGcy2N8CaQvIMynX_olYd_U\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/dfix3ZHBvAnIueNNH7PxNzmvJeE\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/adsense-16.png",
     "x32": "https://www.google.com/images/icons/product/adsense-32.png"
@@ -141,7 +141,7 @@
         "adclients": {
           "methods": {
             "getAdCode": {
-              "description": "Get ad code for a given ad client.",
+              "description": "Get Auto ad code for a given ad client.",
               "httpMethod": "GET",
               "id": "adsense.accounts.adclients.getAdCode",
               "parameterOrder": [
@@ -1778,15 +1778,15 @@
       "id": "AdCode",
       "properties": {
         "adCode": {
-          "description": "The ad code snippet.",
+          "description": "The Auto ad code snippet. The ad code snippet.",
           "type": "string"
         },
         "ampBody": {
-          "description": "The ad code snippet that goes in the body of an AMP page.",
+          "description": "The AMP Auto ad code snippet that goes in the body of an AMP page.",
           "type": "string"
         },
         "ampHead": {
-          "description": "The ad code snippet that goes in the head of an AMP page.",
+          "description": "The AMP Auto ad code snippet that goes in the head of an AMP page.",
           "type": "string"
         },
         "kind": {

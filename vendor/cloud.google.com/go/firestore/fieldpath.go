@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
-	"cloud.google.com/go/internal/atomiccache"
 	"cloud.google.com/go/internal/fields"
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 )
@@ -214,21 +214,23 @@ func getAtField(v reflect.Value, k string) (reflect.Value, error) {
 
 // fieldMapCache holds maps from from Firestore field name to struct field,
 // keyed by struct type.
-// TODO(jba): replace with sync.Map for Go 1.9.
-var fieldMapCache atomiccache.Cache
+var fieldMapCache sync.Map
 
 func fieldMap(t reflect.Type) (map[string]fields.Field, error) {
-	x := fieldMapCache.Get(t, func() interface{} {
+	x, ok := fieldMapCache.Load(t)
+	if !ok {
 		fieldList, err := fieldCache.Fields(t)
 		if err != nil {
-			return err
+			x = err
+		} else {
+			m := map[string]fields.Field{}
+			for _, f := range fieldList {
+				m[f.Name] = f
+			}
+			x = m
 		}
-		m := map[string]fields.Field{}
-		for _, f := range fieldList {
-			m[f.Name] = f
-		}
-		return m
-	})
+		fieldMapCache.Store(t, x)
+	}
 	if err, ok := x.(error); ok {
 		return nil, err
 	}

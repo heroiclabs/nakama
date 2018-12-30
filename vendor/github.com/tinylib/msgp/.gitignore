@@ -5,3 +5,4 @@ _generated/*_gen_test.go
 msgp/defgen_test.go
 msgp/cover.out
 *~
+*.coverprofile

@@ -15,12 +15,12 @@
 package pubsub
 
 import (
+	"context"
 	"io"
 	"sync"
 	"time"
 
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	pb "google.golang.org/genproto/googleapis/pubsub/v1"
 	"google.golang.org/grpc"
 )
@@ -39,7 +39,7 @@ type pullStream struct {
 // for testing
 type streamingPullFunc func(context.Context, ...gax.CallOption) (pb.Subscriber_StreamingPullClient, error)
 
-func newPullStream(ctx context.Context, streamingPull streamingPullFunc, subName string, ackDeadlineSecs int32) *pullStream {
+func newPullStream(ctx context.Context, streamingPull streamingPullFunc, subName string) *pullStream {
 	ctx = withSubscriptionKey(ctx, subName)
 	return &pullStream{
 		ctx: ctx,
@@ -48,8 +48,9 @@ func newPullStream(ctx context.Context, streamingPull streamingPullFunc, subName
 			if err == nil {
 				recordStat(ctx, StreamRequestCount, 1)
 				err = spc.Send(&pb.StreamingPullRequest{
-					Subscription:             subName,
-					StreamAckDeadlineSeconds: ackDeadlineSecs,
+					Subscription: subName,
+					// We modack messages when we receive them, so this value doesn't matter too much.
+					StreamAckDeadlineSeconds: 60,
 				})
 			}
 			if err != nil {
@@ -73,17 +74,10 @@ func (s *pullStream) get(spc *pb.Subscriber_StreamingPullClient) (*pb.Subscriber
 		return nil, s.err
 	}
 	// If the context is done, so are we.
-	select {
-	case <-s.ctx.Done():
-		s.err = s.ctx.Err()
+	s.err = s.ctx.Err()
+	if s.err != nil {
 		return nil, s.err
-	default:
 	}
-	// TODO(jba): We can use the following instead of the above after we drop support for 1.8:
-	// s.err = s.ctx.Err()
-	// if s.err != nil {
-	// 	return nil, s.err
-	// }
 
 	// If the current and argument SPCs differ, return the current one. This subsumes two cases:
 	// 1. We have an SPC and the caller is getting the stream for the first time.

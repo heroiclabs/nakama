@@ -14,6 +14,8 @@ import (
 //go:generate msgp -unexported
 
 type container interface {
+	addOffset(uint16) []container
+
 	clone() container
 	and(container) container
 	andCardinality(container) int

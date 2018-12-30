@@ -297,5 +297,14 @@ Extractor, then optionally configure it, and lastly call its Run method.
     extractor.DisableHeader = true
     job, err = extractor.Run(ctx)
     // Poll the job for completion if desired, as above.
+
+Errors
+
+Errors returned by this client are often of the type [`googleapi.Error`](https://godoc.org/google.golang.org/api/googleapi#Error).
+These errors can be introspected for more information by type asserting to the richer `googleapi.Error` type. For example:
+
+	if e, ok := err.(*googleapi.Error); ok {
+		  if e.Code = 409 { ... }
+	}
 */
 package bigquery // import "cloud.google.com/go/bigquery"

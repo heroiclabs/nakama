@@ -12,10 +12,10 @@
   "baseUrl": "https://www.googleapis.com/androidpublisher/v1.1/applications/",
   "batchPath": "batch/androidpublisher/v1.1",
   "canonicalName": "Android Publisher",
-  "description": "Lets Android application developers access their Google Play accounts.",
+  "description": "Accesses Android application developers' Google Play accounts.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/android-publisher",
-  "etag": "\"Zkyw9ACJZUvcYmlFaKGChzhmtnE/0bfZdFWLay6o3-v5bg8HgVXuqtg\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/wbdcynonJja7tRoJFzOo01Xdrh4\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/android-16.png",
     "x32": "https://www.google.com/images/icons/product/android-32.png"
@@ -189,7 +189,7 @@
       }
     }
   },
-  "revision": "20180501",
+  "revision": "20181009",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "InappPurchase": {

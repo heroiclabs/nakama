@@ -17,8 +17,9 @@
 package texttospeech_test
 
 import (
-	"cloud.google.com/go/texttospeech/apiv1"
-	"golang.org/x/net/context"
+	"context"
+
+	texttospeech "cloud.google.com/go/texttospeech/apiv1"
 	texttospeechpb "google.golang.org/genproto/googleapis/cloud/texttospeech/v1"
 )
 

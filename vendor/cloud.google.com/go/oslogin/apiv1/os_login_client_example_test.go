@@ -17,8 +17,9 @@
 package oslogin_test
 
 import (
-	"cloud.google.com/go/oslogin/apiv1"
-	"golang.org/x/net/context"
+	"context"
+
+	oslogin "cloud.google.com/go/oslogin/apiv1"
 	osloginpb "google.golang.org/genproto/googleapis/cloud/oslogin/v1"
 )
 

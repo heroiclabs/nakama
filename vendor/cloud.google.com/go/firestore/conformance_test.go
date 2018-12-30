@@ -17,6 +17,7 @@
 package firestore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	ts "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	fspb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 )
@@ -209,13 +209,13 @@ func runTest(t *testing.T, msg string, test *pb.Test) {
 func nSnapshots(iter *QuerySnapshotIterator, n int) ([]*pb.Snapshot, error) {
 	var snaps []*pb.Snapshot
 	for i := 0; i < n; i++ {
-		diter, err := iter.Next()
+		qsnap, err := iter.Next()
 		if err != nil {
 			return snaps, err
 		}
-		s := &pb.Snapshot{ReadTime: mustTimestampProto(iter.ReadTime)}
+		s := &pb.Snapshot{ReadTime: mustTimestampProto(qsnap.ReadTime)}
 		for {
-			doc, err := diter.Next()
+			doc, err := qsnap.Documents.Next()
 			if err == iterator.Done {
 				break
 			}
@@ -224,7 +224,7 @@ func nSnapshots(iter *QuerySnapshotIterator, n int) ([]*pb.Snapshot, error) {
 			}
 			s.Docs = append(s.Docs, doc.proto)
 		}
-		for _, c := range iter.Changes {
+		for _, c := range qsnap.Changes {
 			var k pb.DocChange_Kind
 			switch c.Kind {
 			case DocumentAdded:
@@ -298,6 +298,16 @@ func convertTestValue(v interface{}) interface{} {
 		}
 		return v
 	case []interface{}:
+		if len(v) > 0 {
+			if fv, ok := v[0].(string); ok {
+				if fv == "ArrayUnion" {
+					return ArrayUnion(convertTestValue(v[1:]).([]interface{})...)
+				}
+				if fv == "ArrayRemove" {
+					return ArrayRemove(convertTestValue(v[1:]).([]interface{})...)
+				}
+			}
+		}
 		for i, e := range v {
 			v[i] = convertTestValue(e)
 		}

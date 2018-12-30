@@ -15,6 +15,7 @@ type unmarshalGen struct {
 	passes
 	p        printer
 	hasfield bool
+	ctx      *Context
 }
 
 func (u *unmarshalGen) Method() Method { return Unmarshal }
@@ -40,6 +41,8 @@ func (u *unmarshalGen) Execute(p Elem) error {
 		return nil
 	}
 
+	u.ctx = &Context{}
+
 	u.p.comment("UnmarshalMsg implements msgp.Unmarshaler")
 
 	u.p.printf("\nfunc (%s %s) UnmarshalMsg(bts []byte) (o []byte, err error) {", p.Varname(), methodReceiver(p))
@@ -56,7 +59,7 @@ func (u *unmarshalGen) assignAndCheck(name string, base string) {
 		return
 	}
 	u.p.printf("\n%s, bts, err = msgp.Read%sBytes(bts)", name, base)
-	u.p.print(errcheck)
+	u.p.wrapErrCheck(u.ctx.ArgsStr())
 }
 
 func (u *unmarshalGen) gStruct(s *Struct) {
@@ -82,7 +85,9 @@ func (u *unmarshalGen) tuple(s *Struct) {
 		if !u.p.ok() {
 			return
 		}
+		u.ctx.PushString(s.Fields[i].FieldName)
 		next(u, s.Fields[i].FieldElem)
+		u.ctx.Pop()
 	}
 }
 
@@ -94,17 +99,19 @@ func (u *unmarshalGen) mapstruct(s *Struct) {
 
 	u.p.printf("\nfor %s > 0 {", sz)
 	u.p.printf("\n%s--; field, bts, err = msgp.ReadMapKeyZC(bts)", sz)
-	u.p.print(errcheck)
+	u.p.wrapErrCheck(u.ctx.ArgsStr())
 	u.p.print("\nswitch msgp.UnsafeString(field) {")
 	for i := range s.Fields {
 		if !u.p.ok() {
 			return
 		}
 		u.p.printf("\ncase \"%s\":", s.Fields[i].FieldTag)
+		u.ctx.PushString(s.Fields[i].FieldName)
 		next(u, s.Fields[i].FieldElem)
+		u.ctx.Pop()
 	}
 	u.p.print("\ndefault:\nbts, err = msgp.Skip(bts)")
-	u.p.print(errcheck)
+	u.p.wrapErrCheck(u.ctx.ArgsStr())
 	u.p.print("\n}\n}") // close switch and for loop
 }
 
@@ -132,12 +139,18 @@ func (u *unmarshalGen) gBase(b *BaseElem) {
 	default:
 		u.p.printf("\n%s, bts, err = msgp.Read%sBytes(bts)", refname, b.BaseName())
 	}
+	u.p.wrapErrCheck(u.ctx.ArgsStr())
+
 	if b.Convert {
 		// close 'tmp' block
-		u.p.printf("\n%s = %s(%s)\n}", b.Varname(), b.FromBase(), refname)
+		if b.ShimMode == Cast {
+			u.p.printf("\n%s = %s(%s)\n", b.Varname(), b.FromBase(), refname)
+		} else {
+			u.p.printf("\n%s, err = %s(%s)", b.Varname(), b.FromBase(), refname)
+			u.p.wrapErrCheck(u.ctx.ArgsStr())
+		}
+		u.p.printf("}")
 	}
-
-	u.p.print(errcheck)
 }
 
 func (u *unmarshalGen) gArray(a *Array) {
@@ -149,15 +162,15 @@ func (u *unmarshalGen) gArray(a *Array) {
 	// see decode.go for symmetry
 	if be, ok := a.Els.(*BaseElem); ok && be.Value == Byte {
 		u.p.printf("\nbts, err = msgp.ReadExactBytes(bts, (%s)[:])", a.Varname())
-		u.p.print(errcheck)
+		u.p.wrapErrCheck(u.ctx.ArgsStr())
 		return
 	}
 
 	sz := randIdent()
 	u.p.declare(sz, u32)
 	u.assignAndCheck(sz, arrayHeader)
-	u.p.arrayCheck(a.Size, sz)
-	u.p.rangeBlock(a.Index, a.Varname(), u, a.Els)
+	u.p.arrayCheck(coerceArraySize(a.Size), sz)
+	u.p.rangeBlock(u.ctx, a.Index, a.Varname(), u, a.Els)
 }
 
 func (u *unmarshalGen) gSlice(s *Slice) {
@@ -168,7 +181,7 @@ func (u *unmarshalGen) gSlice(s *Slice) {
 	u.p.declare(sz, u32)
 	u.assignAndCheck(sz, arrayHeader)
 	u.p.resizeSlice(sz, s)
-	u.p.rangeBlock(s.Index, s.Varname(), u, s.Els)
+	u.p.rangeBlock(u.ctx, s.Index, s.Varname(), u, s.Els)
 }
 
 func (u *unmarshalGen) gMap(m *Map) {
@@ -186,7 +199,9 @@ func (u *unmarshalGen) gMap(m *Map) {
 	u.p.printf("\nfor %s > 0 {", sz)
 	u.p.printf("\nvar %s string; var %s %s; %s--", m.Keyidx, m.Validx, m.Value.TypeName(), sz)
 	u.assignAndCheck(m.Keyidx, stringTyp)
+	u.ctx.PushVar(m.Keyidx)
 	next(u, m.Value)
+	u.ctx.Pop()
 	u.p.mapAssign(m)
 	u.p.closeblock()
 }

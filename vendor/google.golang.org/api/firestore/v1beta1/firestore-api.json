@@ -15,7 +15,7 @@
   "baseUrl": "https://firestore.googleapis.com/",
   "batchPath": "batch",
   "canonicalName": "Firestore",
-  "description": "",
+  "description": "Accesses the NoSQL document database built for automatic scaling, high performance, and ease of application development.\n",
   "discoveryVersion": "v1",
   "documentationLink": "https://cloud.google.com/firestore",
   "fullyEncodeReservedExpansion": true,
@@ -790,7 +790,7 @@
       }
     }
   },
-  "revision": "20180711",
+  "revision": "20180814",
   "rootUrl": "https://firestore.googleapis.com/",
   "schemas": {
     "ArrayValue": {
@@ -1485,6 +1485,47 @@
       },
       "type": "object"
     },
+    "GoogleFirestoreAdminV1beta1IndexOperationMetadata": {
+      "description": "Metadata for index operations. This metadata populates\nthe metadata field of google.longrunning.Operation.",
+      "id": "GoogleFirestoreAdminV1beta1IndexOperationMetadata",
+      "properties": {
+        "cancelled": {
+          "description": "True if the [google.longrunning.Operation] was cancelled. If the\ncancellation is in progress, cancelled will be true but\ngoogle.longrunning.Operation.done will be false.",
+          "type": "boolean"
+        },
+        "documentProgress": {
+          "$ref": "GoogleFirestoreAdminV1beta1Progress",
+          "description": "Progress of the existing operation, measured in number of documents."
+        },
+        "endTime": {
+          "description": "The time the operation ended, either successfully or otherwise. Unset if\nthe operation is still active.",
+          "format": "google-datetime",
+          "type": "string"
+        },
+        "index": {
+          "description": "The index resource that this operation is acting on. For example:\n`projects/{project_id}/databases/{database_id}/indexes/{index_id}`",
+          "type": "string"
+        },
+        "operationType": {
+          "description": "The type of index operation.",
+          "enum": [
+            "OPERATION_TYPE_UNSPECIFIED",
+            "CREATING_INDEX"
+          ],
+          "enumDescriptions": [
+            "Unspecified. Never set by server.",
+            "The operation is creating the index. Initiated by a `CreateIndex` call."
+          ],
+          "type": "string"
+        },
+        "startTime": {
+          "description": "The time that work began on the operation.",
+          "format": "google-datetime",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "GoogleFirestoreAdminV1beta1ListIndexesResponse": {
       "description": "The response for FirestoreAdmin.ListIndexes.",
       "id": "GoogleFirestoreAdminV1beta1ListIndexesResponse",
@@ -1520,191 +1561,6 @@
         },
         "workEstimated": {
           "description": "An estimate of how much work needs to be performed. Zero if the\nwork estimate is unavailable. May change as work progresses.",
-          "format": "int64",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "GoogleFirestoreAdminV1beta2FieldOperationMetadata": {
-      "description": "Metadata for google.longrunning.Operation results from\nFirestoreAdmin.UpdateField.",
-      "id": "GoogleFirestoreAdminV1beta2FieldOperationMetadata",
-      "properties": {
-        "bytesProgress": {
-          "$ref": "GoogleFirestoreAdminV1beta2Progress",
-          "description": "The progress, in bytes, of this operation."
-        },
-        "documentProgress": {
-          "$ref": "GoogleFirestoreAdminV1beta2Progress",
-          "description": "The progress, in documents, of this operation."
-        },
-        "endTime": {
-          "description": "The time this operation completed. Will be unset if operation still in\nprogress.",
-          "format": "google-datetime",
-          "type": "string"
-        },
-        "field": {
-          "description": "The field resource that this operation is acting on. For example:\n`projects/{project_id}/databases/{database_id}/collectionGroups/{collection_id}/fields/{field_path}`",
-          "type": "string"
-        },
-        "indexConfigDeltas": {
-          "description": "A list of IndexConfigDelta, which describe the intent of this\noperation.",
-          "items": {
-            "$ref": "GoogleFirestoreAdminV1beta2IndexConfigDelta"
-          },
-          "type": "array"
-        },
-        "startTime": {
-          "description": "The time this operation started.",
-          "format": "google-datetime",
-          "type": "string"
-        },
-        "state": {
-          "description": "The state of the operation.",
-          "enum": [
-            "OPERATION_STATE_UNSPECIFIED",
-            "INITIALIZING",
-            "PROCESSING",
-            "CANCELLING",
-            "FINALIZING",
-            "SUCCESSFUL",
-            "FAILED",
-            "CANCELLED"
-          ],
-          "enumDescriptions": [
-            "Unspecified.",
-            "Request is being prepared for processing.",
-            "Request is actively being processed.",
-            "Request is in the process of being cancelled after user called\ngoogle.longrunning.Operations.CancelOperation on the operation.",
-            "Request has been processed and is in its finalization stage.",
-            "Request has completed successfully.",
-            "Request has finished being processed, but encountered an error.",
-            "Request has finished being cancelled after user called\ngoogle.longrunning.Operations.CancelOperation."
-          ],
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "GoogleFirestoreAdminV1beta2Index": {
-      "description": "Cloud Firestore indexes enable simple and complex queries against\ndocuments in a database.",
-      "id": "GoogleFirestoreAdminV1beta2Index",
-      "properties": {
-        "fields": {
-          "description": "The fields supported by this index.\n\nFor composite indexes, this is always 2 or more fields.\nThe last field entry is always for the field path `__name__`. If, on\ncreation, `__name__` was not specified as the last field, it will be added\nautomatically with the same direction as that of the last field defined. If\nthe final field in a composite index is not directional, the `__name__`\nwill be ordered ASCENDING (unless explicitly specified).\n\nFor single field indexes, this will always be exactly one entry with a\nfield path equal to the field path of the associated field.",
-          "items": {
-            "$ref": "GoogleFirestoreAdminV1beta2IndexField"
-          },
-          "type": "array"
-        },
-        "name": {
-          "description": "Output only.\nA server defined name for this index.\nThe form of this name for composite indexes will be:\n`projects/{project_id}/databases/{database_id}/collectionGroups/{collection_id}/indexes/{composite_index_id}`\nFor single field indexes, this field will be empty.",
-          "type": "string"
-        },
-        "queryScope": {
-          "description": "Indexes with a collection query scope specified allow queries\nagainst a collection that is the child of a specific document, specified at\nquery time, and that has the same collection id.\n\nIndexes with a collection group query scope specified allow queries against\nall collections descended from a specific document, specified at query\ntime, and that have the same collection id as this index.",
-          "enum": [
-            "QUERY_SCOPE_UNSPECIFIED",
-            "COLLECTION"
-          ],
-          "enumDescriptions": [
-            "The query scope is unspecified. Not a valid option.",
-            "Indexes with a collection query scope specified allow queries\nagainst a collection that is the child of a specific document, specified\nat query time, and that has the collection id specified by the index."
-          ],
-          "type": "string"
-        },
-        "state": {
-          "description": "Output only.\nThe serving state of the index.",
-          "enum": [
-            "STATE_UNSPECIFIED",
-            "CREATING",
-            "READY",
-            "NEEDS_REPAIR"
-          ],
-          "enumDescriptions": [
-            "The state is unspecified.",
-            "The index is being created.\nThere is an active long-running operation for the index.\nThe index is updated when writing a document.\nSome index data may exist.",
-            "The index is ready to be used.\nThe index is updated when writing a document.\nThe index is fully populated from all stored documents it applies to.",
-            "The index was being created, but something went wrong.\nThere is no active long-running operation for the index,\nand the most recently finished long-running operation failed.\nThe index is not updated when writing a document.\nSome index data may exist.\nUse the google.longrunning.Operations API to determine why the operation\nthat last attempted to create this index failed, then re-create the\nindex."
-          ],
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "GoogleFirestoreAdminV1beta2IndexConfigDelta": {
-      "description": "Information about an index configuration change.",
-      "id": "GoogleFirestoreAdminV1beta2IndexConfigDelta",
-      "properties": {
-        "changeType": {
-          "description": "Specifies how the index is changing.",
-          "enum": [
-            "CHANGE_TYPE_UNSPECIFIED",
-            "ADD",
-            "REMOVE"
-          ],
-          "enumDescriptions": [
-            "The type of change is not specified or known.",
-            "The single field index is being added.",
-            "The single field index is being removed."
-          ],
-          "type": "string"
-        },
-        "index": {
-          "$ref": "GoogleFirestoreAdminV1beta2Index",
-          "description": "The index being changed."
-        }
-      },
-      "type": "object"
-    },
-    "GoogleFirestoreAdminV1beta2IndexField": {
-      "description": "A field in an index.\nThe field_path describes which field is indexed, the value_mode describes\nhow the field value is indexed.",
-      "id": "GoogleFirestoreAdminV1beta2IndexField",
-      "properties": {
-        "arrayConfig": {
-          "description": "Indicates that this field supports operations on `array_value`s.",
-          "enum": [
-            "ARRAY_CONFIG_UNSPECIFIED",
-            "CONTAINS"
-          ],
-          "enumDescriptions": [
-            "The index does not support additional array queries.",
-            "The index supports array containment queries."
-          ],
-          "type": "string"
-        },
-        "fieldPath": {
-          "description": "Can be __name__.\nFor single field indexes, this must match the name of the field or may\nbe omitted.",
-          "type": "string"
-        },
-        "order": {
-          "description": "Indicates that this field supports ordering by the specified order or\ncomparing using =, \u003c, \u003c=, \u003e, \u003e=.",
-          "enum": [
-            "ORDER_UNSPECIFIED",
-            "ASCENDING",
-            "DESCENDING"
-          ],
-          "enumDescriptions": [
-            "The ordering is unspecified. Not a valid option.",
-            "The field is ordered by ascending field value.",
-            "The field is ordered by descending field value."
-          ],
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "GoogleFirestoreAdminV1beta2Progress": {
-      "description": "Describes the progress of the operation.\nUnit of work is generic and must be interpreted based on where Progress\nis used.",
-      "id": "GoogleFirestoreAdminV1beta2Progress",
-      "properties": {
-        "completedWork": {
-          "description": "The amount of work completed.",
-          "format": "int64",
-          "type": "string"
-        },
-        "estimatedWork": {
-          "description": "The amount of work estimated.",
           "format": "int64",
           "type": "string"
         }

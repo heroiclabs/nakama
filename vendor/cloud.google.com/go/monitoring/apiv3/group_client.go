@@ -17,13 +17,12 @@
 package monitoring
 
 import (
+	"context"
 	"math"
 	"time"
 
-	"cloud.google.com/go/internal/version"
 	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -96,7 +95,7 @@ type GroupClient struct {
 // NewGroupClient creates a new group service client.
 //
 // The Group API lets you inspect and manage your
-// groups (at google.monitoring.v3.Group).
+// groups (at #google.monitoring.v3.Group).
 //
 // A group is a named filter that is used to identify
 // a collection of monitored resources. Groups are typically used to
@@ -137,8 +136,8 @@ func (c *GroupClient) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *GroupClient) setGoogleClientInfo(keyval ...string) {
-	kv := append([]string{"gl-go", version.Go()}, keyval...)
-	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	kv := append([]string{"gl-go", versionGo()}, keyval...)
+	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 

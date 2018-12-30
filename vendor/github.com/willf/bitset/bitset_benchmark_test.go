@@ -102,10 +102,11 @@ func BenchmarkLemireCreate(b *testing.B) {
 // go test -bench=LemireCount
 // see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
 func BenchmarkLemireCount(b *testing.B) {
-	bitmap := New(100000000) // we force dynamic memory allocation
+	bitmap := New(100000000)
 	for v := uint(0); v <= 100000000; v += 100 {
 		bitmap.Set(v)
 	}
+	b.ResetTimer()
 	sum := uint(0)
 	for i := 0; i < b.N; i++ {
 		sum += bitmap.Count()
@@ -118,17 +119,329 @@ func BenchmarkLemireCount(b *testing.B) {
 // go test -bench=LemireIterate
 // see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
 func BenchmarkLemireIterate(b *testing.B) {
-	bitmap := New(100000000) // we force dynamic memory allocation
+	bitmap := New(100000000)
 	for v := uint(0); v <= 100000000; v += 100 {
 		bitmap.Set(v)
 	}
+	b.ResetTimer()
 	sum := uint(0)
 	for i := 0; i < b.N; i++ {
-		for i, e := bitmap.NextSet(0); e; i, e = bitmap.NextSet(i + 1) {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
 			sum++
 		}
 	}
 	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+// go test -bench=LemireIterateb
+// see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
+func BenchmarkLemireIterateb(b *testing.B) {
+	bitmap := New(100000000)
+	for v := uint(0); v <= 100000000; v += 100 {
+		bitmap.Set(v)
+	}
+	b.ResetTimer()
+	sum := uint(0)
+	for i := 0; i < b.N; i++ {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
+			sum += j
+		}
+	}
+
+	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+// go test -bench=BenchmarkLemireIterateManyb
+// see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
+func BenchmarkLemireIterateManyb(b *testing.B) {
+	bitmap := New(100000000)
+	for v := uint(0); v <= 100000000; v += 100 {
+		bitmap.Set(v)
+	}
+	buffer := make([]uint, 256)
+	b.ResetTimer()
+	sum := uint(0)
+	for i := 0; i < b.N; i++ {
+		j := uint(0)
+		j, buffer = bitmap.NextSetMany(j, buffer)
+		for ; len(buffer) > 0; j, buffer = bitmap.NextSetMany(j, buffer) {
+			for k := range buffer {
+				sum += buffer[k]
+			}
+			j += 1
+		}
+	}
+
+	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func setRnd(bits []uint64, halfings int) {
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := range bits {
+		bits[i] = 0xFFFFFFFFFFFFFFFF
+		for j := 0; j < halfings; j++ {
+			bits[i] &= rnd.Uint64()
+		}
+	}
+}
+
+// go test -bench=BenchmarkFlorianUekermannIterateMany
+func BenchmarkFlorianUekermannIterateMany(b *testing.B) {
+	var input = make([]uint64, 68)
+	setRnd(input, 4)
+	var bitmap = From(input)
+	buffer := make([]uint, 256)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		var last, batch = bitmap.NextSetMany(0, buffer)
+		for len(batch) > 0 {
+			for _, idx := range batch {
+				checksum += idx
+			}
+			last, batch = bitmap.NextSetMany(last+1, batch)
+		}
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannIterateManyReg(b *testing.B) {
+	var input = make([]uint64, 68)
+	setRnd(input, 4)
+	var bitmap = From(input)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
+			checksum += j
+		}
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+// function provided by FlorianUekermann
+func good(set []uint64) (checksum uint) {
+	for wordIdx, word := range set {
+		var wordIdx = uint(wordIdx * 64)
+		for word != 0 {
+			var bitIdx = uint(trailingZeroes64(word))
+			word ^= 1 << bitIdx
+			var index = wordIdx + bitIdx
+			checksum += index
+		}
+	}
+	return checksum
+}
+
+func BenchmarkFlorianUekermannIterateManyComp(b *testing.B) {
+	var input = make([]uint64, 68)
+	setRnd(input, 4)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		checksum += good(input)
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+/////// Mid density
+
+// go test -bench=BenchmarkFlorianUekermannLowDensityIterateMany
+func BenchmarkFlorianUekermannLowDensityIterateMany(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 50000; i++ {
+		input[rnd.Uint64()%1000000] = 1
+	}
+	var bitmap = From(input)
+	buffer := make([]uint, 256)
+	b.ResetTimer()
+	var sum = uint(0)
+	for i := 0; i < b.N; i++ {
+		j := uint(0)
+		j, buffer = bitmap.NextSetMany(j, buffer)
+		for ; len(buffer) > 0; j, buffer = bitmap.NextSetMany(j, buffer) {
+			for k := range buffer {
+				sum += buffer[k]
+			}
+			j += 1
+		}
+	}
+	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannLowDensityIterateManyReg(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 50000; i++ {
+		input[rnd.Uint64()%1000000] = 1
+	}
+	var bitmap = From(input)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
+			checksum += j
+		}
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannLowDensityIterateManyComp(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 50000; i++ {
+		input[rnd.Uint64()%1000000] = 1
+	}
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		checksum += good(input)
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+/////// Mid density
+
+// go test -bench=BenchmarkFlorianUekermannMidDensityIterateMany
+func BenchmarkFlorianUekermannMidDensityIterateMany(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 3000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	var bitmap = From(input)
+	buffer := make([]uint, 256)
+	b.ResetTimer()
+	sum := uint(0)
+	for i := 0; i < b.N; i++ {
+		j := uint(0)
+		j, buffer = bitmap.NextSetMany(j, buffer)
+		for ; len(buffer) > 0; j, buffer = bitmap.NextSetMany(j, buffer) {
+			for k := range buffer {
+				sum += buffer[k]
+			}
+			j += 1
+		}
+	}
+
+	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannMidDensityIterateManyReg(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 3000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	var bitmap = From(input)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
+			checksum += j
+		}
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannMidDensityIterateManyComp(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 3000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		checksum += good(input)
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+////////// High density
+
+func BenchmarkFlorianUekermannMidStrongDensityIterateMany(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 20000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	var bitmap = From(input)
+	buffer := make([]uint, 256)
+	b.ResetTimer()
+	sum := uint(0)
+	for i := 0; i < b.N; i++ {
+		j := uint(0)
+		j, buffer = bitmap.NextSetMany(j, buffer)
+		for ; len(buffer) > 0; j, buffer = bitmap.NextSetMany(j, buffer) {
+			for k := range buffer {
+				sum += buffer[k]
+			}
+			j += 1
+		}
+	}
+
+	if sum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannMidStrongDensityIterateManyReg(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 20000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	var bitmap = From(input)
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		for j, e := bitmap.NextSet(0); e; j, e = bitmap.NextSet(j + 1) {
+			checksum += j
+		}
+	}
+	if checksum == 0 { // added just to fool ineffassign
+		return
+	}
+}
+
+func BenchmarkFlorianUekermannMidStrongDensityIterateManyComp(b *testing.B) {
+	var input = make([]uint64, 1000000)
+	var rnd = rand.NewSource(0).(rand.Source64)
+	for i := 0; i < 20000000; i++ {
+		input[rnd.Uint64()%1000000] |= uint64(1) << (rnd.Uint64() % 64)
+	}
+	b.ResetTimer()
+	var checksum = uint(0)
+	for i := 0; i < b.N; i++ {
+		checksum += good(input)
+	}
+	if checksum == 0 { // added just to fool ineffassign
 		return
 	}
 }

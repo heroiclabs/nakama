@@ -79,6 +79,32 @@ func TestRleInterval16s(t *testing.T) {
 	})
 }
 
+func TestRunOffset(t *testing.T) {
+	v := newRunContainer16TakeOwnership([]interval16{newInterval16Range(34, 39)})
+	offtest := uint16(65500)
+	w := v.addOffset(offtest)
+	w0card := w[0].getCardinality()
+	w1card := w[1].getCardinality()
+	t.Logf("%d %d", w0card, w1card)
+	if w0card+w1card != 6 {
+		t.Errorf("Bogus cardinality.")
+	}
+	expected := []int{65534, 65535, 65536, 65537, 65538, 65539}
+	wout := make([]int, len(expected))
+	for i := 0; i < w0card; i++ {
+		wout[i] = w[0].selectInt(uint16(i))
+	}
+	for i := 0; i < w1card; i++ {
+		wout[i+w0card] = w[1].selectInt(uint16(i)) + 65536
+	}
+	t.Logf("%v %v", wout, expected)
+	for i, x := range wout {
+		if x != expected[i] {
+			t.Errorf("found discrepancy %d!=%d", x, expected[i])
+		}
+	}
+}
+
 func TestRleRunIterator16(t *testing.T) {
 
 	Convey("RunIterator16 unit tests for Cur, Next, HasNext, and Remove should pass", t, func() {
@@ -129,8 +155,7 @@ func TestRleRunIterator16(t *testing.T) {
 			rc := newRunContainer16CopyIv([]interval16{newInterval16Range(4, 9)})
 			So(rc.cardinality(), ShouldEqual, 6)
 			it := rc.newManyRunIterator16()
-
-			buf := make([]uint32, 0)
+			var buf []uint32
 			n := it.nextMany(0, buf)
 			So(n, ShouldEqual, 0)
 		}

@@ -17,23 +17,21 @@ limitations under the License.
 package testutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
-	"google.golang.org/grpc/status"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/empty"
 	proto3 "github.com/golang/protobuf/ptypes/struct"
 	pbt "github.com/golang/protobuf/ptypes/timestamp"
-
 	sppb "google.golang.org/genproto/googleapis/spanner/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Action is a mocked RPC activity that MockCloudSpannerClient will take.
@@ -200,9 +198,9 @@ func (m *MockCloudSpannerClient) ExecuteStreamingSql(c context.Context, r *sppb.
 		},
 		Sql: "mockquery",
 		Params: &proto3.Struct{
-			Fields: map[string]*proto3.Value{"var1": &proto3.Value{Kind: &proto3.Value_StringValue{StringValue: "abc"}}},
+			Fields: map[string]*proto3.Value{"var1": {Kind: &proto3.Value_StringValue{StringValue: "abc"}}},
 		},
-		ParamTypes: map[string]*sppb.Type{"var1": &sppb.Type{Code: sppb.TypeCode_STRING}},
+		ParamTypes: map[string]*sppb.Type{"var1": {Code: sppb.TypeCode_STRING}},
 	}
 	if !proto.Equal(r, wantReq) {
 		return nil, fmt.Errorf("got query request: %v, want: %v", r, wantReq)
@@ -242,9 +240,9 @@ func (m *MockCloudSpannerClient) StreamingRead(c context.Context, r *sppb.ReadRe
 		Columns: []string{"col1", "col2"},
 		KeySet: &sppb.KeySet{
 			Keys: []*proto3.ListValue{
-				&proto3.ListValue{
+				{
 					Values: []*proto3.Value{
-						&proto3.Value{Kind: &proto3.Value_StringValue{StringValue: "foo"}},
+						{Kind: &proto3.Value_StringValue{StringValue: "foo"}},
 					},
 				},
 			},

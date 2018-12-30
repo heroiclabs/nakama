@@ -338,6 +338,9 @@ func (fs *FileSet) getField(f *ast.Field) []gen.StructField {
 	// parse tag; otherwise field name is field tag
 	if f.Tag != nil {
 		body := reflect.StructTag(strings.Trim(f.Tag.Value, "`")).Get("msg")
+		if body == "" {
+			body = reflect.StructTag(strings.Trim(f.Tag.Value, "`")).Get("msgpack")
+		}
 		tags := strings.Split(body, ",")
 		if len(tags) == 2 && tags[1] == "extension" {
 			extension = true
@@ -347,6 +350,7 @@ func (fs *FileSet) getField(f *ast.Field) []gen.StructField {
 			return nil
 		}
 		sf[0].FieldTag = tags[0]
+		sf[0].RawTag = f.Tag.Value
 	}
 
 	ex := fs.parseExpr(f.Type)
@@ -526,10 +530,7 @@ func (fs *FileSet) parseExpr(e ast.Expr) gen.Elem {
 		return nil
 
 	case *ast.StructType:
-		if fields := fs.parseFieldList(e.Fields); len(fields) > 0 {
-			return &gen.Struct{Fields: fields}
-		}
-		return nil
+		return &gen.Struct{Fields: fs.parseFieldList(e.Fields)}
 
 	case *ast.SelectorExpr:
 		return gen.Ident(stringify(e))

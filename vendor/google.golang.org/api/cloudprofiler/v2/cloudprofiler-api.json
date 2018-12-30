@@ -215,7 +215,7 @@
       }
     }
   },
-  "revision": "20180716",
+  "revision": "20180730",
   "rootUrl": "https://cloudprofiler.googleapis.com/",
   "schemas": {
     "CreateProfileRequest": {
@@ -232,10 +232,11 @@
             "Unspecified profile type.",
             "Thread CPU time sampling.",
             "Wallclock time sampling. More expensive as stops all threads.",
-            "Heap allocation sampling.",
+            "In-use heap profile. Represents a snapshot of the allocations that are\nlive at the time of the profiling.",
             "Single-shot collection of all thread stacks.",
             "Synchronization contention profile.",
-            "Peak heap profile."
+            "Peak heap profile.",
+            "Heap allocation profile. It represents the aggregation of all allocations\nmade over the duration of the profile. All allocations are included,\nincluding those that might have been freed by the end of the profiling\ninterval. The profile is in particular useful for garbage collecting\nlanguages to understand which parts of the code create most of the garbage\ncollection pressure to see if those can be optimized."
           ],
           "items": {
             "enum": [
@@ -245,7 +246,8 @@
               "HEAP",
               "THREADS",
               "CONTENTION",
-              "PEAK_HEAP"
+              "PEAK_HEAP",
+              "HEAP_ALLOC"
             ],
             "type": "string"
           },
@@ -314,16 +316,18 @@
             "HEAP",
             "THREADS",
             "CONTENTION",
-            "PEAK_HEAP"
+            "PEAK_HEAP",
+            "HEAP_ALLOC"
           ],
           "enumDescriptions": [
             "Unspecified profile type.",
             "Thread CPU time sampling.",
             "Wallclock time sampling. More expensive as stops all threads.",
-            "Heap allocation sampling.",
+            "In-use heap profile. Represents a snapshot of the allocations that are\nlive at the time of the profiling.",
             "Single-shot collection of all thread stacks.",
             "Synchronization contention profile.",
-            "Peak heap profile."
+            "Peak heap profile.",
+            "Heap allocation profile. It represents the aggregation of all allocations\nmade over the duration of the profile. All allocations are included,\nincluding those that might have been freed by the end of the profiling\ninterval. The profile is in particular useful for garbage collecting\nlanguages to understand which parts of the code create most of the garbage\ncollection pressure to see if those can be optimized."
           ],
           "type": "string"
         }

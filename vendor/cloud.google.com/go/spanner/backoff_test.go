@@ -18,9 +18,8 @@ package spanner
 
 import (
 	"math"
-	"time"
-
 	"testing"
+	"time"
 )
 
 // Test if exponential backoff helper can produce correct series of

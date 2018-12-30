@@ -1328,9 +1328,9 @@ func (ri *manyRunIterator16) nextMany(hs uint32, buf []uint32) int {
 			}
 			buf[n] = uint32(ri.rc.iv[ri.curIndex].start) | hs
 			if ri.curIndex != 0 {
-				ri.curSeq += 1
+				ri.curSeq++
 			}
-			n += 1
+			n++
 			// not strictly necessarily due to len(buf)-n min check, but saves some work
 			continue
 		}
@@ -2536,4 +2536,25 @@ func (rc *runContainer16) serializedSizeInBytes() int {
 	// number of runs in one uint16, then each run
 	// needs two more uint16
 	return 2 + len(rc.iv)*4
+}
+
+func (rc *runContainer16) addOffset(x uint16) []container {
+	low := newRunContainer16()
+	high := newRunContainer16()
+
+	for _, iv := range rc.iv {
+		val := int(iv.start) + int(x)
+		finalVal := int(val) + int(iv.length)
+		if val <= 0xffff {
+			if finalVal <= 0xffff {
+				low.iv = append(low.iv, interval16{uint16(val), iv.length})
+			} else {
+				low.iv = append(low.iv, interval16{uint16(val), uint16(0xffff - val)})
+				high.iv = append(high.iv, interval16{uint16(0), uint16(finalVal & 0xffff)})
+			}
+		} else {
+			high.iv = append(high.iv, interval16{uint16(val & 0xffff), iv.length})
+		}
+	}
+	return []container{low, high}
 }

@@ -12,10 +12,10 @@
   "baseUrl": "https://www.googleapis.com/androidpublisher/v2/applications/",
   "batchPath": "batch/androidpublisher/v2",
   "canonicalName": "Android Publisher",
-  "description": "Lets Android application developers access their Google Play accounts.",
+  "description": "Accesses Android application developers' Google Play accounts.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/android-publisher",
-  "etag": "\"Zkyw9ACJZUvcYmlFaKGChzhmtnE/U8dUn4FhkLq6Tlyx45VLFEXOcP8\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/RACbk2SfJM1Du-DTMcEBiBV45lU\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/android-16.png",
     "x32": "https://www.google.com/images/icons/product/android-32.png"
@@ -648,6 +648,11 @@
                 "editId"
               ],
               "parameters": {
+                "ackBundleInstallationWarning": {
+                  "description": "Must be set to true if the bundle installation may trigger a warning on user devices (for example, if installation size may be over a threshold, typically 100 MB).",
+                  "location": "query",
+                  "type": "boolean"
+                },
                 "editId": {
                   "description": "Unique identifier for this edit.",
                   "location": "path",
@@ -2481,6 +2486,7 @@
       }
     }
   },
+  "revision": "20181009",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Apk": {
@@ -3371,7 +3377,7 @@
           "type": "string"
         },
         "paymentState": {
-          "description": "The payment state of the subscription. Possible values are:  \n- Payment pending \n- Payment received \n- Free trial",
+          "description": "The payment state of the subscription. Possible values are:  \n- Payment pending \n- Payment received \n- Free trial \n- Pending deferred upgrade/downgrade",
           "format": "int32",
           "type": "integer"
         },

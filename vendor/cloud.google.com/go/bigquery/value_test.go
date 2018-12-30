@@ -22,11 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-
 	"cloud.google.com/go/civil"
 	"cloud.google.com/go/internal/testutil"
-
+	"github.com/google/go-cmp/cmp"
 	bq "google.golang.org/api/bigquery/v2"
 )
 
@@ -617,6 +615,14 @@ func TestStructSaver(t *testing.T) {
 			"p":       NullInt64{},
 			"rnested": []Value{map[string]Value{"b": true}, map[string]Value(nil), map[string]Value{"b": false}},
 		})
+
+	check("zero-length repeated", T{Rnested: []*N{}},
+		map[string]Value{
+			"rnested": []Value{},
+			"s":       "",
+			"t":       "00:00:00",
+			"p":       NullInt64{},
+		})
 }
 
 func TestStructSaverErrors(t *testing.T) {
@@ -629,20 +635,20 @@ func TestStructSaverErrors(t *testing.T) {
 	)
 
 	for i, test := range []struct {
-		struct_ interface{}
-		schema  Schema
+		inputStruct interface{}
+		schema      Schema
 	}{
-		{0, nil},                                              // not a struct
-		{&badField{}, nil},                                    // bad field name
+		{0, nil},           // not a struct
+		{&badField{}, nil}, // bad field name
 		{&badR{}, Schema{{Name: "r", Repeated: true}}},        // repeated field has bad type
 		{&badR{}, Schema{{Name: "r", Type: RecordFieldType}}}, // nested field has bad type
 		{&badRN{[]int{0}}, // nested repeated field has bad type
 			Schema{{Name: "r", Type: RecordFieldType, Repeated: true}}},
 	} {
-		ss := &StructSaver{Struct: test.struct_, Schema: test.schema}
+		ss := &StructSaver{Struct: test.inputStruct, Schema: test.schema}
 		_, _, err := ss.Save()
 		if err == nil {
-			t.Errorf("#%d, %v, %v: got nil, want error", i, test.struct_, test.schema)
+			t.Errorf("#%d, %v, %v: got nil, want error", i, test.inputStruct, test.schema)
 		}
 	}
 }

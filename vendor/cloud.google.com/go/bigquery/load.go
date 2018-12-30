@@ -15,10 +15,10 @@
 package bigquery
 
 import (
+	"context"
 	"io"
 
 	"cloud.google.com/go/internal/trace"
-	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
 )
 
@@ -44,6 +44,9 @@ type LoadConfig struct {
 	// If non-nil, the destination table is partitioned by time.
 	TimePartitioning *TimePartitioning
 
+	// Clustering specifies the data clustering configuration for the destination table.
+	Clustering *Clustering
+
 	// Custom encryption configuration (e.g., Cloud KMS keys).
 	DestinationEncryptionConfig *EncryptionConfig
 
@@ -60,6 +63,7 @@ func (l *LoadConfig) toBQ() (*bq.JobConfiguration, io.Reader) {
 			WriteDisposition:                   string(l.WriteDisposition),
 			DestinationTable:                   l.Dst.toBQ(),
 			TimePartitioning:                   l.TimePartitioning.toBQ(),
+			Clustering:                         l.Clustering.toBQ(),
 			DestinationEncryptionConfiguration: l.DestinationEncryptionConfig.toBQ(),
 			SchemaUpdateOptions:                l.SchemaUpdateOptions,
 		},
@@ -75,6 +79,7 @@ func bqToLoadConfig(q *bq.JobConfiguration, c *Client) *LoadConfig {
 		WriteDisposition:            TableWriteDisposition(q.Load.WriteDisposition),
 		Dst:                         bqToTable(q.Load.DestinationTable, c),
 		TimePartitioning:            bqToTimePartitioning(q.Load.TimePartitioning),
+		Clustering:                  bqToClustering(q.Load.Clustering),
 		DestinationEncryptionConfig: bqToEncryptionConfig(q.Load.DestinationEncryptionConfiguration),
 		SchemaUpdateOptions:         q.Load.SchemaUpdateOptions,
 	}

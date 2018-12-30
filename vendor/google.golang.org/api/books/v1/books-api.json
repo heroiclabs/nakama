@@ -14,7 +14,7 @@
   "description": "Searches for books and manages your Google Books library.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/books/docs/v1/getting_started",
-  "etag": "\"Zkyw9ACJZUvcYmlFaKGChzhmtnE/STz5vHgSfP0S_hHO6ctVIowLT3s\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/8P7g5wNCVmRGHn94JiqOIxt3z6w\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/ebooks-16.png",
     "x32": "https://www.google.com/images/icons/product/ebooks-32.png"
@@ -2480,7 +2480,7 @@
       }
     }
   },
-  "revision": "20180409",
+  "revision": "20180824",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Annotation": {
@@ -3603,6 +3603,9 @@
         "iconUrl": {
           "type": "string"
         },
+        "is_document_mature": {
+          "type": "boolean"
+        },
         "kind": {
           "default": "books#notification",
           "description": "Resource type.",
@@ -4358,6 +4361,10 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "comicsContent": {
+              "description": "Whether the volume has comics content.",
+              "type": "boolean"
             },
             "contentVersion": {
               "description": "An identifier for the version of the volume content (text \u0026 images). (In LITE projection)",

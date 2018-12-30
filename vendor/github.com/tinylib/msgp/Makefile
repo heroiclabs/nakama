@@ -27,12 +27,10 @@ $(MGEN): ./msgp/defs_test.go
 	go generate ./msgp
 
 test: all
-	go test -v ./msgp
-	go test -v ./_generated
+	go test -v ./...
 
 bench: all
-	go test -bench . ./msgp
-	go test -bench . ./_generated
+	go test -bench ./...
 
 clean:
 	$(RM) $(GGEN) $(MGEN)
@@ -51,5 +49,4 @@ travis:
 	go build -o "$${GOPATH%%:*}/bin/msgp" .
 	go generate ./msgp
 	go generate ./_generated
-	go test ./msgp
-	go test ./_generated
+	go test -v ./...

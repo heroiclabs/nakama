@@ -17,13 +17,12 @@
 package dataproc
 
 import (
+	"context"
 	"math"
 	"time"
 
-	"cloud.google.com/go/internal/version"
 	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -56,6 +55,18 @@ func defaultJobControllerCallOptions() *JobControllerCallOptions {
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
 					codes.DeadlineExceeded,
+					codes.Internal,
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    100 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 1.3,
+				})
+			}),
+		},
+		{"default", "non_idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -70,8 +81,8 @@ func defaultJobControllerCallOptions() *JobControllerCallOptions {
 		GetJob:    retry[[2]string{"default", "idempotent"}],
 		ListJobs:  retry[[2]string{"default", "idempotent"}],
 		UpdateJob: retry[[2]string{"default", "non_idempotent"}],
-		CancelJob: retry[[2]string{"default", "non_idempotent"}],
-		DeleteJob: retry[[2]string{"default", "idempotent"}],
+		CancelJob: retry[[2]string{"default", "idempotent"}],
+		DeleteJob: retry[[2]string{"default", "non_idempotent"}],
 	}
 }
 
@@ -125,8 +136,8 @@ func (c *JobControllerClient) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *JobControllerClient) setGoogleClientInfo(keyval ...string) {
-	kv := append([]string{"gl-go", version.Go()}, keyval...)
-	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	kv := append([]string{"gl-go", versionGo()}, keyval...)
+	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 

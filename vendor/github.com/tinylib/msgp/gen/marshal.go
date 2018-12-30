@@ -2,8 +2,9 @@ package gen
 
 import (
 	"fmt"
-	"github.com/tinylib/msgp/msgp"
 	"io"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 func marshal(w io.Writer) *marshalGen {
@@ -16,6 +17,7 @@ type marshalGen struct {
 	passes
 	p    printer
 	fuse []byte
+	ctx  *Context
 }
 
 func (m *marshalGen) Method() Method { return Marshal }
@@ -35,6 +37,8 @@ func (m *marshalGen) Execute(p Elem) error {
 	if !IsPrintable(p) {
 		return nil
 	}
+
+	m.ctx = &Context{}
 
 	m.p.comment("MarshalMsg implements msgp.Marshaler")
 
@@ -87,11 +91,16 @@ func (m *marshalGen) tuple(s *Struct) {
 	data = msgp.AppendArrayHeader(data, uint32(len(s.Fields)))
 	m.p.printf("\n// array header, size %d", len(s.Fields))
 	m.Fuse(data)
+	if len(s.Fields) == 0 {
+		m.fuseHook()
+	}
 	for i := range s.Fields {
 		if !m.p.ok() {
 			return
 		}
+		m.ctx.PushString(s.Fields[i].FieldName)
 		next(m, s.Fields[i].FieldElem)
+		m.ctx.Pop()
 	}
 }
 
@@ -100,6 +109,9 @@ func (m *marshalGen) mapstruct(s *Struct) {
 	data = msgp.AppendMapHeader(data, uint32(len(s.Fields)))
 	m.p.printf("\n// map header, size %d", len(s.Fields))
 	m.Fuse(data)
+	if len(s.Fields) == 0 {
+		m.fuseHook()
+	}
 	for i := range s.Fields {
 		if !m.p.ok() {
 			return
@@ -109,7 +121,9 @@ func (m *marshalGen) mapstruct(s *Struct) {
 		m.p.printf("\n// string %q", s.Fields[i].FieldTag)
 		m.Fuse(data)
 
+		m.ctx.PushString(s.Fields[i].FieldName)
 		next(m, s.Fields[i].FieldElem)
+		m.ctx.Pop()
 	}
 }
 
@@ -131,7 +145,9 @@ func (m *marshalGen) gMap(s *Map) {
 	m.rawAppend(mapHeader, lenAsUint32, vname)
 	m.p.printf("\nfor %s, %s := range %s {", s.Keyidx, s.Validx, vname)
 	m.rawAppend(stringTyp, literalFmt, s.Keyidx)
+	m.ctx.PushVar(s.Keyidx)
 	next(m, s.Value)
+	m.ctx.Pop()
 	m.p.closeblock()
 }
 
@@ -142,7 +158,7 @@ func (m *marshalGen) gSlice(s *Slice) {
 	m.fuseHook()
 	vname := s.Varname()
 	m.rawAppend(arrayHeader, lenAsUint32, vname)
-	m.p.rangeBlock(s.Index, vname, m, s.Els)
+	m.p.rangeBlock(m.ctx, s.Index, vname, m, s.Els)
 }
 
 func (m *marshalGen) gArray(a *Array) {
@@ -155,8 +171,8 @@ func (m *marshalGen) gArray(a *Array) {
 		return
 	}
 
-	m.rawAppend(arrayHeader, literalFmt, a.Size)
-	m.p.rangeBlock(a.Index, a.Varname(), m, a.Els)
+	m.rawAppend(arrayHeader, literalFmt, coerceArraySize(a.Size))
+	m.p.rangeBlock(m.ctx, a.Index, a.Varname(), m, a.Els)
 }
 
 func (m *marshalGen) gPtr(p *Ptr) {
@@ -177,7 +193,14 @@ func (m *marshalGen) gBase(b *BaseElem) {
 	vname := b.Varname()
 
 	if b.Convert {
-		vname = tobaseConvert(b)
+		if b.ShimMode == Cast {
+			vname = tobaseConvert(b)
+		} else {
+			vname = randIdent()
+			m.p.printf("\nvar %s %s", vname, b.BaseType())
+			m.p.printf("\n%s, err = %s", vname, tobaseConvert(b))
+			m.p.wrapErrCheck(m.ctx.ArgsStr())
+		}
 	}
 
 	var echeck bool
@@ -193,6 +216,6 @@ func (m *marshalGen) gBase(b *BaseElem) {
 	}
 
 	if echeck {
-		m.p.print(errcheck)
+		m.p.wrapErrCheck(m.ctx.ArgsStr())
 	}
 }

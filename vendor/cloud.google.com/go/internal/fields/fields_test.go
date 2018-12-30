@@ -22,9 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-
 	"cloud.google.com/go/internal/testutil"
+	"github.com/google/go-cmp/cmp"
 )
 
 type embed1 struct {

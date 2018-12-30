@@ -111,7 +111,63 @@ func TestExecutable(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(tt.want, exe) {
-			t.Errorf("want absolute path to cmdline %v, have %v", tt.want, exe)
+			t.Errorf("want absolute path to exe %v, have %v", tt.want, exe)
+		}
+	}
+}
+
+func TestCwd(t *testing.T) {
+	for _, tt := range []struct {
+		process    int
+		want       string
+		brokenLink bool
+	}{
+		{process: 26231, want: "/usr/bin"},
+		{process: 26232, want: "/does/not/exist", brokenLink: true},
+		{process: 26233, want: ""},
+	} {
+		p, err := FS("fixtures").NewProc(tt.process)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wd, err := p.Cwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(tt.want, wd) {
+			if wd == "" && tt.brokenLink {
+				// Allow the result to be empty when can't os.Readlink broken links
+				continue
+			}
+			t.Errorf("want absolute path to cwd %v, have %v", tt.want, wd)
+		}
+	}
+}
+
+func TestRoot(t *testing.T) {
+	for _, tt := range []struct {
+		process    int
+		want       string
+		brokenLink bool
+	}{
+		{process: 26231, want: "/"},
+		{process: 26232, want: "/does/not/exist", brokenLink: true},
+		{process: 26233, want: ""},
+	} {
+		p, err := FS("fixtures").NewProc(tt.process)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rdir, err := p.RootDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(tt.want, rdir) {
+			if rdir == "" && tt.brokenLink {
+				// Allow the result to be empty when can't os.Readlink broken links
+				continue
+			}
+			t.Errorf("want absolute path to rootdir %v, have %v", tt.want, rdir)
 		}
 	}
 }

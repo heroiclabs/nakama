@@ -320,10 +320,6 @@ func TestBearerAuthRoundTripper(t *testing.T) {
 }
 
 func TestBearerAuthFileRoundTripper(t *testing.T) {
-	const (
-		newBearerToken = "goodbyeandthankyouforthefish"
-	)
-
 	fakeRoundTripper := NewRoundTripCheckRequest(func(req *http.Request) {
 		bearer := req.Header.Get("Authorization")
 		if bearer != ExpectedBearer {

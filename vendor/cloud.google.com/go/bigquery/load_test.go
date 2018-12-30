@@ -22,7 +22,6 @@ import (
 	"cloud.google.com/go/internal/testutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-
 	bq "google.golang.org/api/bigquery/v2"
 )
 
@@ -104,6 +103,7 @@ func TestLoad(t *testing.T) {
 				WriteDisposition:            WriteTruncate,
 				Labels:                      map[string]string{"a": "b"},
 				TimePartitioning:            &TimePartitioning{Expiration: 1234 * time.Millisecond},
+				Clustering:                  &Clustering{Fields: []string{"cfield1"}},
 				DestinationEncryptionConfig: &EncryptionConfig{KMSKeyName: "keyName"},
 				SchemaUpdateOptions:         []string{"ALLOW_FIELD_ADDITION"},
 			},
@@ -116,6 +116,9 @@ func TestLoad(t *testing.T) {
 				j.Configuration.Load.TimePartitioning = &bq.TimePartitioning{
 					Type:         "DAY",
 					ExpirationMs: 1234,
+				}
+				j.Configuration.Load.Clustering = &bq.Clustering{
+					Fields: []string{"cfield1"},
 				}
 				j.Configuration.Load.DestinationEncryptionConfiguration = &bq.EncryptionConfiguration{KmsKeyName: "keyName"}
 				j.JobReference = &bq.JobReference{

@@ -477,9 +477,7 @@
 | <html>
 |   <head>
 |   <frameset>
-|     <template>
-|       content
-|         <frame>
+|     <frame>
 
 #data
 <template><frame></frame></frameset><frame></frame></template>
@@ -489,8 +487,6 @@
 |   <head>
 |     <template>
 |       content
-|         <frame>
-|         <frame>
 |   <body>
 
 #data
@@ -823,8 +819,6 @@
 |   <head>
 |     <template>
 |       content
-|         <frame>
-|         <frame>
 |   <body>
 
 #data
@@ -858,6 +852,22 @@
 |         <tbody>
 |           <tr>
 |         <tfoot>
+
+#data
+<body><template><template><b><template></template></template>text</template>
+#errors
+#document
+| <html>
+|   <head>
+|   <body>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <b>
+|               <template>
+|                 content
+|         "text"
 
 #data
 <body><template><col><colgroup>
@@ -1016,6 +1026,137 @@
 |   <body>
 
 #data
+<template><template><table>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <table>
+|   <body>
+
+#data
+<template><template><tbody>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <tbody>
+|   <body>
+
+#data
+<template><template><tr>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <tr>
+|   <body>
+
+#data
+<template><template><td>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <td>
+|   <body>
+
+#data
+<template><template><caption>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <caption>
+|   <body>
+
+#data
+<template><template><colgroup>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <colgroup>
+|   <body>
+
+#data
+<template><template><col>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <col>
+|   <body>
+
+#data
+<template><template><tbody><select>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             <tbody>
+|             <select>
+|   <body>
+
+#data
+<template><template><table>Foo
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|             "Foo"
+|             <table>
+|   <body>
+
+#data
+<template><template><frame>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <template>
+|           content
+|   <body>
+
+#data
 <template><template><script>var i
 #errors
 #document
@@ -1044,6 +1185,45 @@
 |   <body>
 
 #data
+<template><table></template><body><span>Foo
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <table>
+|   <body>
+|     <span>
+|       "Foo"
+
+#data
+<template><td></template><body><span>Foo
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <td>
+|   <body>
+|     <span>
+|       "Foo"
+
+#data
+<template><object></template><body><span>Foo
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <object>
+|   <body>
+|     <span>
+|       "Foo"
+
+#data
 <template><svg><template>
 #errors
 #document
@@ -1054,6 +1234,22 @@
 |         <svg svg>
 |           <svg template>
 |   <body>
+
+#data
+<template><svg><foo><template><foreignObject><div></template><div>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <svg svg>
+|           <svg foo>
+|             <svg template>
+|               <svg foreignObject>
+|                 <div>
+|   <body>
+|     <div>
 
 #data
 <dummy><template><span></dummy>
@@ -1114,4 +1310,17 @@
 |     <template>
 |       content
 |         "Foo"
+|   <body>
+
+#data
+<template><a><table><a>
+#errors
+#document
+| <html>
+|   <head>
+|     <template>
+|       content
+|         <a>
+|           <a>
+|           <table>
 |   <body>

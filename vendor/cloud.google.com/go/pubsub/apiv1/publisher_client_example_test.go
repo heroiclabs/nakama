@@ -17,8 +17,9 @@
 package pubsub_test
 
 import (
-	"cloud.google.com/go/pubsub/apiv1"
-	"golang.org/x/net/context"
+	"context"
+
+	pubsub "cloud.google.com/go/pubsub/apiv1"
 	"google.golang.org/api/iterator"
 	pubsubpb "google.golang.org/genproto/googleapis/pubsub/v1"
 )
@@ -31,40 +32,6 @@ func ExampleNewPublisherClient() {
 	}
 	// TODO: Use client.
 	_ = c
-}
-
-func ExamplePublisherClient_SubscriptionIAM() {
-	ctx := context.Background()
-	c, err := pubsub.NewPublisherClient(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	subscription := &pubsubpb.Subscription{}
-	h := c.SubscriptionIAM(subscription)
-	policy, err := h.Policy(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-	//TODO: Use the IAM policy
-	_ = policy
-}
-
-func ExamplePublisherClient_TopicIAM() {
-	ctx := context.Background()
-	c, err := pubsub.NewPublisherClient(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	topic := &pubsubpb.Topic{}
-	h := c.TopicIAM(topic)
-	policy, err := h.Policy(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-	//TODO: Use the IAM policy
-	_ = policy
 }
 
 func ExamplePublisherClient_CreateTopic() {

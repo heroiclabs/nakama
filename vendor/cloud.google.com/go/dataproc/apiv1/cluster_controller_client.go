@@ -17,15 +17,14 @@
 package dataproc
 
 import (
+	"context"
 	"math"
 	"time"
 
-	"cloud.google.com/go/internal/version"
 	"cloud.google.com/go/longrunning"
 	lroauto "cloud.google.com/go/longrunning/autogen"
 	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -59,6 +58,18 @@ func defaultClusterControllerCallOptions() *ClusterControllerCallOptions {
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
 					codes.DeadlineExceeded,
+					codes.Internal,
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    100 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 1.3,
+				})
+			}),
+		},
+		{"default", "non_idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -71,7 +82,7 @@ func defaultClusterControllerCallOptions() *ClusterControllerCallOptions {
 	return &ClusterControllerCallOptions{
 		CreateCluster:   retry[[2]string{"default", "non_idempotent"}],
 		UpdateCluster:   retry[[2]string{"default", "non_idempotent"}],
-		DeleteCluster:   retry[[2]string{"default", "idempotent"}],
+		DeleteCluster:   retry[[2]string{"default", "non_idempotent"}],
 		GetCluster:      retry[[2]string{"default", "idempotent"}],
 		ListClusters:    retry[[2]string{"default", "idempotent"}],
 		DiagnoseCluster: retry[[2]string{"default", "non_idempotent"}],
@@ -103,7 +114,7 @@ type ClusterControllerClient struct {
 // NewClusterControllerClient creates a new cluster controller client.
 //
 // The ClusterControllerService provides methods to manage clusters
-// of Google Compute Engine instances.
+// of Compute Engine instances.
 func NewClusterControllerClient(ctx context.Context, opts ...option.ClientOption) (*ClusterControllerClient, error) {
 	conn, err := transport.DialGRPC(ctx, append(defaultClusterControllerClientOptions(), opts...)...)
 	if err != nil {
@@ -145,8 +156,8 @@ func (c *ClusterControllerClient) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *ClusterControllerClient) setGoogleClientInfo(keyval ...string) {
-	kv := append([]string{"gl-go", version.Go()}, keyval...)
-	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	kv := append([]string{"gl-go", versionGo()}, keyval...)
+	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 

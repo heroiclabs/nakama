@@ -15,9 +15,10 @@
   "baseUrl": "https://language.googleapis.com/",
   "batchPath": "batch",
   "canonicalName": "Cloud Natural Language",
-  "description": "Provides natural language understanding technologies to developers. Examples include sentiment analysis, entity recognition, entity sentiment analysis, and text annotations.",
+  "description": "Provides natural language understanding technologies, such as sentiment analysis, entity recognition, entity sentiment analysis, and other text annotations, to developers.",
   "discoveryVersion": "v1",
   "documentationLink": "https://cloud.google.com/natural-language/",
+  "fullyEncodeReservedExpansion": true,
   "icons": {
     "x16": "http://www.google.com/images/icons/product/search-16.gif",
     "x32": "http://www.google.com/images/icons/product/search-32.gif"
@@ -225,7 +226,7 @@
       }
     }
   },
-  "revision": "20180603",
+  "revision": "20181022",
   "rootUrl": "https://language.googleapis.com/",
   "schemas": {
     "AnalyzeEntitiesRequest": {
@@ -841,7 +842,7 @@
       "type": "object"
     },
     "Features": {
-      "description": "All available features for sentiment, syntax, and semantic analysis.\nSetting each one to true will enable that specific analysis for the input.",
+      "description": "All available features for sentiment, syntax, and semantic analysis.\nSetting each one to true will enable that specific analysis for the input.\nNext ID: 10",
       "id": "Features",
       "properties": {
         "classifyText": {
@@ -1150,7 +1151,7 @@
       "type": "object"
     },
     "Sentiment": {
-      "description": "Represents the feeling associated with the entire text or entities in\nthe text.",
+      "description": "Represents the feeling associated with the entire text or entities in\nthe text.\nNext ID: 6",
       "id": "Sentiment",
       "properties": {
         "magnitude": {

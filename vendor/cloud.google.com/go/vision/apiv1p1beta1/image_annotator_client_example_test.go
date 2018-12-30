@@ -17,8 +17,9 @@
 package vision_test
 
 import (
-	"cloud.google.com/go/vision/apiv1p1beta1"
-	"golang.org/x/net/context"
+	"context"
+
+	vision "cloud.google.com/go/vision/apiv1p1beta1"
 	visionpb "google.golang.org/genproto/googleapis/cloud/vision/v1p1beta1"
 )
 

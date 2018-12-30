@@ -26,7 +26,6 @@ import (
 
 	ts "github.com/golang/protobuf/ptypes/timestamp"
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
-
 	"google.golang.org/genproto/googleapis/type/latlng"
 )
 
@@ -222,13 +221,13 @@ func TestSetFromProtoValueErrors(t *testing.T) {
 		in  interface{}
 		val *pb.Value
 	}{
-		{3, ival},                                     // not a pointer
-		{new(int8), intval(128)},                      // int overflow
-		{new(uint8), intval(256)},                     // uint overflow
+		{3, ival},                 // not a pointer
+		{new(int8), intval(128)},  // int overflow
+		{new(uint8), intval(256)}, // uint overflow
 		{new(float32), floatval(2 * math.MaxFloat32)}, // float overflow
-		{new(uint), ival},                             // cannot set type
-		{new(uint64), ival},                           // cannot set type
-		{new(io.Reader), ival},                        // cannot set type
+		{new(uint), ival},      // cannot set type
+		{new(uint64), ival},    // cannot set type
+		{new(io.Reader), ival}, // cannot set type
 		{new(map[int]int),
 			mapval(map[string]*pb.Value{"x": ival})}, // map key type is not string
 		// the rest are all type mismatches

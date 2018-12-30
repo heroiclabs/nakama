@@ -3,6 +3,7 @@
 package roaring
 
 import (
+	"errors"
 	"io"
 	"reflect"
 	"unsafe"
@@ -14,6 +15,9 @@ func (ac *arrayContainer) writeTo(stream io.Writer) (int, error) {
 }
 
 func (bc *bitmapContainer) writeTo(stream io.Writer) (int, error) {
+	if bc.cardinality <= arrayDefaultMaxSize {
+		return 0, errors.New("refusing to write bitmap container with cardinality of array container")
+	}
 	buf := uint64SliceAsByteSlice(bc.bitmap)
 	return stream.Write(buf)
 }

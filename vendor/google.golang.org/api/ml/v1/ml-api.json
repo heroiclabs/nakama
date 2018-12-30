@@ -310,6 +310,40 @@
                 "https://www.googleapis.com/auth/cloud-platform"
               ]
             },
+            "patch": {
+              "description": "Updates a specific job resource.\n\nCurrently the only supported fields to update are `labels`.",
+              "flatPath": "v1/projects/{projectsId}/jobs/{jobsId}",
+              "httpMethod": "PATCH",
+              "id": "ml.projects.jobs.patch",
+              "parameterOrder": [
+                "name"
+              ],
+              "parameters": {
+                "name": {
+                  "description": "Required. The job name.",
+                  "location": "path",
+                  "pattern": "^projects/[^/]+/jobs/[^/]+$",
+                  "required": true,
+                  "type": "string"
+                },
+                "updateMask": {
+                  "description": "Required. Specifies the path, relative to `Job`, of the field to update.\nTo adopt etag mechanism, include `etag` field in the mask, and include the\n`etag` value in your job resource.\n\nFor example, to change the labels of a job, the `update_mask` parameter\nwould be specified as `labels`, `etag`, and the\n`PATCH` request body would specify the new value, as follows:\n    {\n      \"labels\": {\n         \"owner\": \"Google\",\n         \"color\": \"Blue\"\n      }\n      \"etag\": \"33a64df551425fcc55e4d42a148795d9f25f89d4\"\n    }\nIf `etag` matches the one on the server, the labels of the job will be\nreplaced with the given ones, and the server end `etag` will be\nrecalculated.\n\nCurrently the only supported update masks are `labels` and `etag`.",
+                  "format": "google-fieldmask",
+                  "location": "query",
+                  "type": "string"
+                }
+              },
+              "path": "v1/{+name}",
+              "request": {
+                "$ref": "GoogleCloudMlV1__Job"
+              },
+              "response": {
+                "$ref": "GoogleCloudMlV1__Job"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform"
+              ]
+            },
             "setIamPolicy": {
               "description": "Sets the access control policy on the specified resource. Replaces any\nexisting policy.",
               "flatPath": "v1/projects/{projectsId}/jobs/{jobsId}:setIamPolicy",
@@ -981,7 +1015,7 @@
       }
     }
   },
-  "revision": "20180709",
+  "revision": "20181215",
   "rootUrl": "https://ml.googleapis.com/",
   "schemas": {
     "GoogleApi__HttpBody": {
@@ -1028,6 +1062,38 @@
       },
       "type": "object"
     },
+    "GoogleCloudMlV1__AcceleratorConfig": {
+      "description": "Represents a hardware accelerator request config.",
+      "id": "GoogleCloudMlV1__AcceleratorConfig",
+      "properties": {
+        "count": {
+          "description": "The number of accelerators to attach to each machine running the job.",
+          "format": "int64",
+          "type": "string"
+        },
+        "type": {
+          "description": "The available types of accelerators.",
+          "enum": [
+            "ACCELERATOR_TYPE_UNSPECIFIED",
+            "NVIDIA_TESLA_K80",
+            "NVIDIA_TESLA_P100",
+            "NVIDIA_TESLA_V100",
+            "NVIDIA_TESLA_P4",
+            "NVIDIA_TESLA_T4"
+          ],
+          "enumDescriptions": [
+            "Unspecified accelerator type. Default to no GPU.",
+            "Nvidia Tesla K80 GPU.",
+            "Nvidia Tesla P100 GPU.",
+            "Nvidia Tesla V100 GPU.",
+            "Nvidia Tesla P4 GPU.",
+            "Nvidia Tesla T4 GPU."
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "GoogleCloudMlV1__AutoScaling": {
       "description": "Options for automatically scaling a model.",
       "id": "GoogleCloudMlV1__AutoScaling",
@@ -1053,16 +1119,20 @@
           "description": "Available accelerators for the capability.",
           "enumDescriptions": [
             "Unspecified accelerator type. Default to no GPU.",
-            "Nvidia tesla k80 GPU.",
-            "Nvidia tesla P100 GPU.",
-            "Nvidia tesla V100 GPU. Not supported for batch prediction."
+            "Nvidia Tesla K80 GPU.",
+            "Nvidia Tesla P100 GPU.",
+            "Nvidia Tesla V100 GPU.",
+            "Nvidia Tesla P4 GPU.",
+            "Nvidia Tesla T4 GPU."
           ],
           "items": {
             "enum": [
               "ACCELERATOR_TYPE_UNSPECIFIED",
               "NVIDIA_TESLA_K80",
               "NVIDIA_TESLA_P100",
-              "NVIDIA_TESLA_V100"
+              "NVIDIA_TESLA_V100",
+              "NVIDIA_TESLA_P4",
+              "NVIDIA_TESLA_T4"
             ],
             "type": "string"
           },
@@ -1585,9 +1655,13 @@
       "type": "object"
     },
     "GoogleCloudMlV1__PredictionInput": {
-      "description": "Represents input parameters for a prediction job.",
+      "description": "Represents input parameters for a prediction job. Next field: 20",
       "id": "GoogleCloudMlV1__PredictionInput",
       "properties": {
+        "accelerator": {
+          "$ref": "GoogleCloudMlV1__AcceleratorConfig",
+          "description": "Optional. The type and number of accelerators to be attached to each\nmachine running the job."
+        },
         "batchSize": {
           "description": "Optional. Number of records per batch, defaults to 64.\nThe service will buffer batch_size number of records in memory before\ninvoking one Tensorflow prediction call internally. So take the record\nsize and memory available into consideration when setting this parameter.",
           "format": "int64",
@@ -1600,14 +1674,16 @@
             "JSON",
             "TEXT",
             "TF_RECORD",
-            "TF_RECORD_GZIP"
+            "TF_RECORD_GZIP",
+            "CSV"
           ],
           "enumDescriptions": [
             "Unspecified format.",
             "Each line of the file is a JSON dictionary representing one record.",
             "Deprecated. Use JSON instead.",
             "INPUT ONLY. The source file is a TFRecord file.",
-            "INPUT ONLY. The source file is a GZIP-compressed TFRecord file."
+            "INPUT ONLY. The source file is a GZIP-compressed TFRecord file.",
+            "OUTPUT ONLY. Output values will be in comma-separated rows, with keys\nin a separate file."
           ],
           "type": "string"
         },
@@ -1627,6 +1703,26 @@
           "description": "Use this field if you want to use the default version for the specified\nmodel. The string must use the following format:\n\n`\"projects/YOUR_PROJECT/models/YOUR_MODEL\"`",
           "type": "string"
         },
+        "outputDataFormat": {
+          "description": "Optional. Format of the output data files, defaults to JSON.",
+          "enum": [
+            "DATA_FORMAT_UNSPECIFIED",
+            "JSON",
+            "TEXT",
+            "TF_RECORD",
+            "TF_RECORD_GZIP",
+            "CSV"
+          ],
+          "enumDescriptions": [
+            "Unspecified format.",
+            "Each line of the file is a JSON dictionary representing one record.",
+            "Deprecated. Use JSON instead.",
+            "INPUT ONLY. The source file is a TFRecord file.",
+            "INPUT ONLY. The source file is a GZIP-compressed TFRecord file.",
+            "OUTPUT ONLY. Output values will be in comma-separated rows, with keys\nin a separate file."
+          ],
+          "type": "string"
+        },
         "outputPath": {
           "description": "Required. The output Google Cloud Storage location.",
           "type": "string"
@@ -1636,7 +1732,7 @@
           "type": "string"
         },
         "runtimeVersion": {
-          "description": "Optional. The Google Cloud ML runtime version to use for this batch\nprediction. If not set, Google Cloud ML will pick the runtime version used\nduring the CreateVersion request for this model version, or choose the\nlatest stable version when model version information is not available\nsuch as when the model is specified by uri.",
+          "description": "Optional. The Cloud ML Engine runtime version to use for this batch\nprediction. If not set, Cloud ML Engine will pick the runtime version used\nduring the CreateVersion request for this model version, or choose the\nlatest stable version when model version information is not available\nsuch as when the model is specified by uri.",
           "type": "string"
         },
         "signatureName": {
@@ -1706,7 +1802,7 @@
           "type": "string"
         },
         "masterType": {
-          "description": "Optional. Specifies the type of virtual machine to use for your training\njob's master worker.\n\nThe following types are supported:\n\n\u003cdl\u003e\n  \u003cdt\u003estandard\u003c/dt\u003e\n  \u003cdd\u003e\n  A basic machine configuration suitable for training simple models with\n  small to moderate datasets.\n  \u003c/dd\u003e\n  \u003cdt\u003elarge_model\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with a lot of memory, specially suited for parameter servers\n  when your model is large (having many hidden layers or layers with very\n  large numbers of nodes).\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_s\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine suitable for the master and workers of the cluster when your\n  model requires more computation than the standard machine can handle\n  satisfactorily.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with roughly twice the number of cores and roughly double the\n  memory of \u003ci\u003ecomplex_model_s\u003c/i\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_l\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with roughly twice the number of cores and roughly double the\n  memory of \u003ci\u003ecomplex_model_m\u003c/i\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003estandard_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003estandard\u003c/i\u003e that\n  also includes a single NVIDIA Tesla K80 GPU. See more about\n  \u003ca href=\"/ml-engine/docs/tensorflow/using-gpus\"\u003eusing GPUs to\n  train your model\u003c/a\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_m\u003c/i\u003e that also includes\n  four NVIDIA Tesla K80 GPUs.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_l_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_l\u003c/i\u003e that also includes\n  eight NVIDIA Tesla K80 GPUs.\n  \u003c/dd\u003e\n  \u003cdt\u003estandard_p100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003estandard\u003c/i\u003e that\n  also includes a single NVIDIA Tesla P100 GPU. The availability of these\n  GPUs is in the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m_p100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_m\u003c/i\u003e that also includes\n  four NVIDIA Tesla P100 GPUs. The availability of these GPUs is in\n  the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003ecloud_tpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A TPU VM including one Cloud TPU. See more about\n  \u003ca href=\"/ml-engine/docs/tensorflow/using-tpus\"\u003eusing TPUs to train\n  your model\u003c/a\u003e.\n  \u003c/dd\u003e\n\u003c/dl\u003e\n\nYou must set this value when `scaleTier` is set to `CUSTOM`.",
+          "description": "Optional. Specifies the type of virtual machine to use for your training\njob's master worker.\n\nThe following types are supported:\n\n\u003cdl\u003e\n  \u003cdt\u003estandard\u003c/dt\u003e\n  \u003cdd\u003e\n  A basic machine configuration suitable for training simple models with\n  small to moderate datasets.\n  \u003c/dd\u003e\n  \u003cdt\u003elarge_model\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with a lot of memory, specially suited for parameter servers\n  when your model is large (having many hidden layers or layers with very\n  large numbers of nodes).\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_s\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine suitable for the master and workers of the cluster when your\n  model requires more computation than the standard machine can handle\n  satisfactorily.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with roughly twice the number of cores and roughly double the\n  memory of \u003ci\u003ecomplex_model_s\u003c/i\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_l\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine with roughly twice the number of cores and roughly double the\n  memory of \u003ci\u003ecomplex_model_m\u003c/i\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003estandard_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003estandard\u003c/i\u003e that\n  also includes a single NVIDIA Tesla K80 GPU. See more about\n  \u003ca href=\"/ml-engine/docs/tensorflow/using-gpus\"\u003eusing GPUs to\n  train your model\u003c/a\u003e.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_m\u003c/i\u003e that also includes\n  four NVIDIA Tesla K80 GPUs.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_l_gpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_l\u003c/i\u003e that also includes\n  eight NVIDIA Tesla K80 GPUs.\n  \u003c/dd\u003e\n  \u003cdt\u003estandard_p100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003estandard\u003c/i\u003e that\n  also includes a single NVIDIA Tesla P100 GPU.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m_p100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_m\u003c/i\u003e that also includes\n  four NVIDIA Tesla P100 GPUs.\n  \u003c/dd\u003e\n  \u003cdt\u003estandard_v100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003estandard\u003c/i\u003e that\n  also includes a single NVIDIA Tesla V100 GPU. The availability of these\n  GPUs is in the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003elarge_model_v100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003elarge_model\u003c/i\u003e that\n  also includes a single NVIDIA Tesla V100 GPU. The availability of these\n  GPUs is in the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_m_v100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_m\u003c/i\u003e that\n  also includes four NVIDIA Tesla V100 GPUs. The availability of these\n  GPUs is in the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003ecomplex_model_l_v100\u003c/dt\u003e\n  \u003cdd\u003e\n  A machine equivalent to \u003ci\u003ecomplex_model_l\u003c/i\u003e that\n  also includes eight NVIDIA Tesla V100 GPUs. The availability of these\n  GPUs is in the \u003ci\u003eBeta\u003c/i\u003e launch stage.\n  \u003c/dd\u003e\n  \u003cdt\u003ecloud_tpu\u003c/dt\u003e\n  \u003cdd\u003e\n  A TPU VM including one Cloud TPU. See more about\n  \u003ca href=\"/ml-engine/docs/tensorflow/using-tpus\"\u003eusing TPUs to train\n  your model\u003c/a\u003e.\n  \u003c/dd\u003e\n\u003c/dl\u003e\n\nYou must set this value when `scaleTier` is set to `CUSTOM`.",
           "type": "string"
         },
         "packageUris": {
@@ -1730,7 +1826,7 @@
           "type": "string"
         },
         "pythonVersion": {
-          "description": "Optional. The version of Python used in training. If not set, the default\nversion is '2.7'. Python '3.5' is available when `runtime_version` is set\nto '1.4' and above. Python '2.7' works with all supported runtime versions.",
+          "description": "Optional. The version of Python used in training. If not set, the default\nversion is '2.7'. Python '3.5' is available when `runtime_version` is set\nto '1.4' and above. Python '2.7' works with all supported\n\u003ca href=\"/ml-engine/docs/runtime-version-list\"\u003eruntime versions\u003c/a\u003e.",
           "type": "string"
         },
         "region": {
@@ -1738,7 +1834,7 @@
           "type": "string"
         },
         "runtimeVersion": {
-          "description": "Optional. The Google Cloud ML runtime version to use for training.  If not\nset, Google Cloud ML will choose a stable version, which is defined in the\ndocumentation of runtime version list.",
+          "description": "Optional. The Cloud ML Engine runtime version to use for training. If not\nset, Cloud ML Engine uses the default stable version, 1.0. For more\ninformation, see the\n\u003ca href=\"/ml-engine/docs/runtime-version-list\"\u003eruntime version list\u003c/a\u003e\nand\n\u003ca href=\"/ml-engine/docs/versioning\"\u003ehow to manage runtime versions\u003c/a\u003e.",
           "type": "string"
         },
         "scaleTier": {
@@ -1832,7 +1928,7 @@
           "type": "string"
         },
         "framework": {
-          "description": "Optional. The machine learning framework Cloud ML Engine uses to train\nthis version of the model. Valid values are `TENSORFLOW`, `SCIKIT_LEARN`,\nand `XGBOOST`. If you do not specify a framework, Cloud ML Engine uses\nTensorFlow. If you choose `SCIKIT_LEARN` or `XGBOOST`, you must also set\nthe runtime version of the model to 1.4 or greater.",
+          "description": "Optional. The machine learning framework Cloud ML Engine uses to train\nthis version of the model. Valid values are `TENSORFLOW`, `SCIKIT_LEARN`,\n`XGBOOST`. If you do not specify a framework, Cloud ML Engine\nwill analyze files in the deployment_uri to determine a framework. If you\nchoose `SCIKIT_LEARN` or `XGBOOST`, you must also set the runtime version\nof the model to 1.4 or greater.",
           "enum": [
             "FRAMEWORK_UNSPECIFIED",
             "TENSORFLOW",
@@ -1880,7 +1976,7 @@
           "type": "string"
         },
         "runtimeVersion": {
-          "description": "Optional. The Google Cloud ML runtime version to use for this deployment.\nIf not set, Google Cloud ML will choose a version.",
+          "description": "Optional. The Cloud ML Engine runtime version to use for this deployment.\nIf not set, Cloud ML Engine uses the default stable version, 1.0. For more\ninformation, see the\n[runtime version list](/ml-engine/docs/runtime-version-list) and\n[how to manage runtime versions](/ml-engine/docs/versioning).",
           "type": "string"
         },
         "state": {
@@ -1958,6 +2054,10 @@
       "description": "Associates `members` with a `role`.",
       "id": "GoogleIamV1__Binding",
       "properties": {
+        "condition": {
+          "$ref": "GoogleType__Expr",
+          "description": "Unimplemented. The condition that is associated with this binding.\nNOTE: an unsatisfied condition will not allow user access via current\nbinding. Different bindings, including their conditions, are examined\nindependently."
+        },
         "members": {
           "description": "Specifies the identities requesting access for a Cloud Platform resource.\n`members` can have the following values:\n\n* `allUsers`: A special identifier that represents anyone who is\n   on the internet; with or without a Google account.\n\n* `allAuthenticatedUsers`: A special identifier that represents anyone\n   who is authenticated with a Google account or a service account.\n\n* `user:{emailid}`: An email address that represents a specific Google\n   account. For example, `alice@gmail.com` .\n\n\n* `serviceAccount:{emailid}`: An email address that represents a service\n   account. For example, `my-other-app@appspot.gserviceaccount.com`.\n\n* `group:{emailid}`: An email address that represents a Google group.\n   For example, `admins@example.com`.\n\n\n* `domain:{domain}`: A Google Apps domain name that represents all the\n   users of that domain. For example, `google.com` or `example.com`.\n\n",
           "items": {
@@ -2128,6 +2228,29 @@
         },
         "message": {
           "description": "A developer-facing error message, which should be in English. Any\nuser-facing error message should be localized and sent in the\ngoogle.rpc.Status.details field, or localized by the client.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "GoogleType__Expr": {
+      "description": "Represents an expression text. Example:\n\n    title: \"User account presence\"\n    description: \"Determines whether the request has a user account\"\n    expression: \"size(request.user) \u003e 0\"",
+      "id": "GoogleType__Expr",
+      "properties": {
+        "description": {
+          "description": "An optional description of the expression. This is a longer text which\ndescribes the expression, e.g. when hovered over it in a UI.",
+          "type": "string"
+        },
+        "expression": {
+          "description": "Textual representation of an expression in\nCommon Expression Language syntax.\n\nThe application context of the containing message determines which\nwell-known feature set of CEL is supported.",
+          "type": "string"
+        },
+        "location": {
+          "description": "An optional string indicating the location of the expression for error\nreporting, e.g. a file name and a position in the file.",
+          "type": "string"
+        },
+        "title": {
+          "description": "An optional title for the expression, i.e. a short string describing\nits purpose. This can be used e.g. in UIs which allow to enter the\nexpression.",
           "type": "string"
         }
       },

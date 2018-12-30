@@ -57,15 +57,21 @@ func BenchmarkFastDecode(b *testing.B) {
 }
 
 func (a *TestType) Equal(b *TestType) bool {
-	// compare times, then zero out those
+	// compare times, appended, then zero out those
 	// fields, perform a DeepEqual, and restore them
 	ta, tb := a.Time, b.Time
 	if !ta.Equal(tb) {
 		return false
 	}
+	aa, ab := a.Appended, b.Appended
+	if !bytes.Equal(aa, ab) {
+		return false
+	}
 	a.Time, b.Time = time.Time{}, time.Time{}
+	aa, ab = nil, nil
 	ok := reflect.DeepEqual(a, b)
 	a.Time, b.Time = ta, tb
+	a.Appended, b.Appended = aa, ab
 	return ok
 }
 
@@ -93,7 +99,7 @@ func Test1EncodeDecode(t *testing.T) {
 		},
 		Child:    nil,
 		Time:     time.Now(),
-		Appended: msgp.Raw([]byte{0xc0}), // 'nil'
+		Appended: msgp.Raw([]byte{}), // 'nil'
 	}
 
 	var buf bytes.Buffer

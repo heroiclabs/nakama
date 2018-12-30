@@ -17,17 +17,17 @@ package firestore
 // A simple mock server.
 
 import (
+	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"cloud.google.com/go/internal/testutil"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/empty"
 	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/empty"
-	"golang.org/x/net/context"
 )
 
 type mockServer struct {
@@ -88,6 +88,19 @@ func (s *mockServer) popRPC(gotReq proto.Message) (interface{}, error) {
 		if ri.adjust != nil {
 			ri.adjust(gotReq)
 		}
+
+		// Sort FieldTransforms by FieldPath, since slice order is undefined and proto.Equal
+		// is strict about order.
+		switch gotReqTyped := gotReq.(type) {
+		case *pb.CommitRequest:
+			for _, w := range gotReqTyped.Writes {
+				switch opTyped := w.Operation.(type) {
+				case *pb.Write_Transform:
+					sort.Sort(ByFieldPath(opTyped.Transform.FieldTransforms))
+				}
+			}
+		}
+
 		if !proto.Equal(gotReq, ri.wantReq) {
 			return nil, fmt.Errorf("mockServer: bad request\ngot:  %T\n%s\nwant: %T\n%s",
 				gotReq, proto.MarshalTextString(gotReq),
@@ -101,6 +114,12 @@ func (s *mockServer) popRPC(gotReq proto.Message) (interface{}, error) {
 	}
 	return resp, nil
 }
+
+func (a ByFieldPath) Len() int           { return len(a) }
+func (a ByFieldPath) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByFieldPath) Less(i, j int) bool { return a[i].FieldPath < a[j].FieldPath }
+
+type ByFieldPath []*pb.DocumentTransform_FieldTransform
 
 func (s *mockServer) reset() {
 	s.reqItems = nil

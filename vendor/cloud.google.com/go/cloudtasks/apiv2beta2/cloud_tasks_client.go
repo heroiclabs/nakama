@@ -17,14 +17,13 @@
 package cloudtasks
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
 
-	"cloud.google.com/go/internal/version"
 	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -156,8 +155,8 @@ func (c *Client) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *Client) setGoogleClientInfo(keyval ...string) {
-	kv := append([]string{"gl-go", version.Go()}, keyval...)
-	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	kv := append([]string{"gl-go", versionGo()}, keyval...)
+	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 
@@ -227,7 +226,7 @@ func (c *Client) GetQueue(ctx context.Context, req *taskspb.GetQueueRequest, opt
 // WARNING: Using this method may have unintended side effects if you are
 // using an App Engine queue.yaml or queue.xml file to manage your queues.
 // Read
-// Overview of Queue Management and queue.yaml (at /cloud-tasks/docs/queue-yaml)
+// Overview of Queue Management and queue.yaml (at https://cloud.google.com/tasks/docs/queue-yaml)
 // before using this method.
 func (c *Client) CreateQueue(ctx context.Context, req *taskspb.CreateQueueRequest, opts ...gax.CallOption) (*taskspb.Queue, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", req.GetParent()))
@@ -257,7 +256,7 @@ func (c *Client) CreateQueue(ctx context.Context, req *taskspb.CreateQueueReques
 // WARNING: Using this method may have unintended side effects if you are
 // using an App Engine queue.yaml or queue.xml file to manage your queues.
 // Read
-// Overview of Queue Management and queue.yaml (at /cloud-tasks/docs/queue-yaml)
+// Overview of Queue Management and queue.yaml (at https://cloud.google.com/tasks/docs/queue-yaml)
 // before using this method.
 func (c *Client) UpdateQueue(ctx context.Context, req *taskspb.UpdateQueueRequest, opts ...gax.CallOption) (*taskspb.Queue, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "queue.name", req.GetQueue().GetName()))
@@ -285,7 +284,7 @@ func (c *Client) UpdateQueue(ctx context.Context, req *taskspb.UpdateQueueReques
 // WARNING: Using this method may have unintended side effects if you are
 // using an App Engine queue.yaml or queue.xml file to manage your queues.
 // Read
-// Overview of Queue Management and queue.yaml (at /cloud-tasks/docs/queue-yaml)
+// Overview of Queue Management and queue.yaml (at https://cloud.google.com/tasks/docs/queue-yaml)
 // before using this method.
 func (c *Client) DeleteQueue(ctx context.Context, req *taskspb.DeleteQueueRequest, opts ...gax.CallOption) error {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
@@ -355,7 +354,7 @@ func (c *Client) PauseQueue(ctx context.Context, req *taskspb.PauseQueueRequest,
 // WARNING: Resuming many high-QPS queues at the same time can
 // lead to target overloading. If you are resuming high-QPS
 // queues, follow the 500/50/5 pattern described in
-// Managing Cloud Tasks Scaling Risks (at /cloud-tasks/pdfs/managing-cloud-tasks-scaling-risks-2017-06-05.pdf).
+// Managing Cloud Tasks Scaling Risks (at https://cloud.google.com/tasks/docs/manage-cloud-task-scaling).
 func (c *Client) ResumeQueue(ctx context.Context, req *taskspb.ResumeQueueRequest, opts ...gax.CallOption) (*taskspb.Queue, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", req.GetName()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -376,8 +375,9 @@ func (c *Client) ResumeQueue(ctx context.Context, req *taskspb.ResumeQueueReques
 // Returns an empty policy if the resource exists and does not have a policy
 // set.
 //
-// Authorization requires the following Google IAM (at /iam) permission on the
-// specified resource parent:
+// Authorization requires the following
+// Google IAM (at https://cloud.google.com/iam) permission on the specified
+// resource parent:
 //
 //   cloudtasks.queues.getIamPolicy
 func (c *Client) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
@@ -402,8 +402,9 @@ func (c *Client) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyReques
 // Note: The Cloud Console does not check queue-level IAM permissions yet.
 // Project-level permissions are required to use the Cloud Console.
 //
-// Authorization requires the following Google IAM (at /iam) permission on the
-// specified resource parent:
+// Authorization requires the following
+// Google IAM (at https://cloud.google.com/iam) permission on the specified
+// resource parent:
 //
 //   cloudtasks.queues.setIamPolicy
 func (c *Client) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
@@ -451,6 +452,9 @@ func (c *Client) TestIamPermissions(ctx context.Context, req *iampb.TestIamPermi
 // due to performance considerations;
 // [response_view][google.cloud.tasks.v2beta2.ListTasksRequest.response_view] controls the
 // subset of information which is returned.
+//
+// The tasks may be returned in any order. The ordering may change at any
+// time.
 func (c *Client) ListTasks(ctx context.Context, req *taskspb.ListTasksRequest, opts ...gax.CallOption) *TaskIterator {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", req.GetParent()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
@@ -509,11 +513,10 @@ func (c *Client) GetTask(ctx context.Context, req *taskspb.GetTaskRequest, opts 
 //
 // Tasks cannot be updated after creation; there is no UpdateTask command.
 //
-//   For App Engine queues (at google.cloud.tasks.v2beta2.AppEngineHttpTarget),
-//   the maximum task size is 100KB.
+//   For [App Engine queues][google.cloud.tasks.v2beta2.AppEngineHttpTarget], the maximum task size is
+//   100KB.
 //
-//   For pull queues (at google.cloud.tasks.v2beta2.PullTarget), this
-//   the maximum task size is 1MB.
+//   For [pull queues][google.cloud.tasks.v2beta2.PullTarget], the maximum task size is 1MB.
 func (c *Client) CreateTask(ctx context.Context, req *taskspb.CreateTaskRequest, opts ...gax.CallOption) (*taskspb.Task, error) {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", req.GetParent()))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)

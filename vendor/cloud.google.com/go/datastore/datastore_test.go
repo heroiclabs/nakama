@@ -15,6 +15,7 @@
 package datastore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,10 +26,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/internal/testutil"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/context"
 	pb "google.golang.org/genproto/googleapis/datastore/v1"
 	"google.golang.org/grpc"
 )
@@ -443,7 +442,7 @@ type PtrToStructField struct {
 	D []*Basic
 }
 
-var two int = 2
+var two = 2
 
 type EmbeddedTime struct {
 	time.Time
@@ -1997,7 +1996,7 @@ type aPtrPLS struct {
 }
 
 func (pls *aPtrPLS) Load([]Property) error {
-	pls.Count += 1
+	pls.Count++
 	return nil
 }
 
@@ -2133,7 +2132,7 @@ type Grandchild struct {
 func (c *Child) Load(props []Property) error {
 	for _, p := range props {
 		if p.Name == "I" {
-			c.I += 1
+			c.I++
 		} else if p.Name == "Grandchild.S" {
 			c.Grandchild.S = "grandchild loaded"
 		}
@@ -3186,7 +3185,7 @@ func TestPutInvalidEntity(t *testing.T) {
 			t.Errorf("tx.PutMulti returned err %v, want MulitError{ErrInvalidEntityType}", err)
 		}
 
-		return errors.New("bang!") // Return error: we don't actually want to commit.
+		return errors.New("bang") // Return error: we don't actually want to commit.
 	})
 }
 
@@ -3441,6 +3440,80 @@ func TestDeferredMissing(t *testing.T) {
 		if e.A != 0 || e.B != "" {
 			t.Fatalf("unexpected entity %+v", e)
 		}
+	}
+}
+
+func TestGetWithNilKey(t *testing.T) {
+	client := &Client{}
+	err := client.Get(context.Background(), nil, []Property{})
+	if err != ErrInvalidKey {
+		t.Fatalf("want ErrInvalidKey, got %v", err)
+	}
+}
+
+func TestGetMultiWithNilKey(t *testing.T) {
+	client := &Client{}
+	dest := make([]PropertyList, 1)
+	err := client.GetMulti(context.Background(), []*Key{nil}, dest)
+	if me, ok := err.(MultiError); !ok {
+		t.Fatalf("want MultiError, got %v", err)
+	} else if len(me) != 1 || me[0] != ErrInvalidKey {
+		t.Fatalf("want MultiError{ErrInvalidKey}, got %v", me)
+	}
+}
+
+func TestGetWithIncompleteKey(t *testing.T) {
+	client := &Client{}
+	err := client.Get(context.Background(), &Key{Kind: "testKind"}, []Property{})
+	if err == nil {
+		t.Fatalf("want err, got nil")
+	}
+}
+
+func TestGetMultiWithIncompleteKey(t *testing.T) {
+	client := &Client{}
+	dest := make([]PropertyList, 1)
+	err := client.GetMulti(context.Background(), []*Key{{Kind: "testKind"}}, dest)
+	if me, ok := err.(MultiError); !ok {
+		t.Fatalf("want MultiError, got %v", err)
+	} else if len(me) != 1 || me[0] == nil {
+		t.Fatalf("want MultiError{err}, got %v", me)
+	}
+}
+
+func TestDeleteWithNilKey(t *testing.T) {
+	client := &Client{}
+	err := client.Delete(context.Background(), nil)
+	if err != ErrInvalidKey {
+		t.Fatalf("want ErrInvalidKey, got %v", err)
+	}
+}
+
+func TestDeleteMultiWithNilKey(t *testing.T) {
+	client := &Client{}
+	err := client.DeleteMulti(context.Background(), []*Key{nil})
+	if me, ok := err.(MultiError); !ok {
+		t.Fatalf("want MultiError, got %v", err)
+	} else if len(me) != 1 || me[0] != ErrInvalidKey {
+		t.Fatalf("want MultiError{ErrInvalidKey}, got %v", me)
+	}
+}
+
+func TestDeleteWithIncompleteKey(t *testing.T) {
+	client := &Client{}
+	err := client.Delete(context.Background(), &Key{Kind: "testKind"})
+	if err == nil {
+		t.Fatalf("want err, got nil")
+	}
+}
+
+func TestDeleteMultiWithIncompleteKey(t *testing.T) {
+	client := &Client{}
+	err := client.DeleteMulti(context.Background(), []*Key{{Kind: "testKind"}})
+	if me, ok := err.(MultiError); !ok {
+		t.Fatalf("want MultiError, got %v", err)
+	} else if len(me) != 1 || me[0] == nil {
+		t.Fatalf("want MultiError{err}, got %v", me)
 	}
 }
 

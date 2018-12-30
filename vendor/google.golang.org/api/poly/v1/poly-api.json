@@ -3,7 +3,7 @@
   "baseUrl": "https://poly.googleapis.com/",
   "batchPath": "batch",
   "canonicalName": "Poly Service",
-  "description": "The Poly API provides read-only access to assets hosted on \u003ca href=\"https://poly.google.com\"\u003epoly.google.com\u003c/a\u003e.\n",
+  "description": "The Poly API provides read access to assets hosted on \u003ca href=\"https://poly.google.com\"\u003epoly.google.com\u003c/a\u003e to all, and upload access to \u003ca href=\"https://poly.google.com\"\u003epoly.google.com\u003c/a\u003e for whitelisted accounts.\n",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/poly/",
   "fullyEncodeReservedExpansion": true,
@@ -290,7 +290,7 @@
       }
     }
   },
-  "revision": "20180623",
+  "revision": "20180808",
   "rootUrl": "https://poly.googleapis.com/",
   "schemas": {
     "Asset": {
@@ -350,6 +350,10 @@
         "presentationParams": {
           "$ref": "PresentationParams",
           "description": "Hints for displaying the asset. Note that these parameters are not\nimmutable; the author of an asset may change them post-publication."
+        },
+        "remixInfo": {
+          "$ref": "RemixInfo",
+          "description": "The remix info for the asset."
         },
         "thumbnail": {
           "$ref": "File",
@@ -726,6 +730,20 @@
           "description": "The z component.",
           "format": "double",
           "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "RemixInfo": {
+      "description": "Info about the sources of this asset (i.e. assets that were remixed to\ncreate this asset).",
+      "id": "RemixInfo",
+      "properties": {
+        "sourceAsset": {
+          "description": "Resource ids for the sources of this remix, of the form:\n`assets/{ASSET_ID}`",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "type": "object"

@@ -17,6 +17,7 @@ package profiler
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,14 +30,15 @@ import (
 	"testing"
 	"time"
 
+	gcemd "cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/profiler/mocks"
+	"cloud.google.com/go/profiler/testdata"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/pprof/profile"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	gtransport "google.golang.org/api/transport/grpc"
 	pb "google.golang.org/genproto/googleapis/devtools/cloudprofiler/v2"
 	edpb "google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -116,6 +118,22 @@ func TestProfileAndUpload(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	var heapCollected1, heapCollected2, heapUploaded, allocUploaded bytes.Buffer
+	testdata.HeapProfileCollected1.Write(&heapCollected1)
+	testdata.HeapProfileCollected2.Write(&heapCollected2)
+	testdata.HeapProfileUploaded.Write(&heapUploaded)
+	testdata.AllocProfileUploaded.Write(&allocUploaded)
+	callCount := 0
+	writeTwoHeapFunc := func(w io.Writer) error {
+		callCount++
+		if callCount%2 == 1 {
+			w.Write(heapCollected1.Bytes())
+			return nil
+		}
+		w.Write(heapCollected2.Bytes())
+		return nil
+	}
+
 	errFunc := func(io.Writer) error { return errors.New("") }
 	testDuration := time.Second * 5
 	tests := []struct {
@@ -157,10 +175,17 @@ func TestProfileAndUpload(t *testing.T) {
 			profileType:         pb.ProfileType_HEAP,
 			startCPUProfileFunc: errFunc,
 			writeHeapProfileFunc: func(w io.Writer) error {
-				w.Write([]byte{4})
+				w.Write(heapCollected1.Bytes())
 				return nil
 			},
-			wantBytes: []byte{4},
+			wantBytes: heapUploaded.Bytes(),
+		},
+		{
+			profileType:          pb.ProfileType_HEAP_ALLOC,
+			startCPUProfileFunc:  errFunc,
+			writeHeapProfileFunc: writeTwoHeapFunc,
+			duration:             &testDuration,
+			wantBytes:            allocUploaded.Bytes(),
 		},
 		{
 			profileType:          pb.ProfileType_HEAP,
@@ -174,10 +199,10 @@ func TestProfileAndUpload(t *testing.T) {
 				return nil
 			},
 			writeHeapProfileFunc: func(w io.Writer) error {
-				w.Write([]byte{6})
+				w.Write(heapCollected1.Bytes())
 				return nil
 			},
-			wantBytes: []byte{6},
+			wantBytes: heapUploaded.Bytes(),
 		},
 		{
 			profileType: pb.ProfileType_PROFILE_TYPE_UNSPECIFIED,
@@ -186,7 +211,7 @@ func TestProfileAndUpload(t *testing.T) {
 				return nil
 			},
 			writeHeapProfileFunc: func(w io.Writer) error {
-				w.Write([]byte{8})
+				w.Write(heapCollected1.Bytes())
 				return nil
 			},
 		},
@@ -350,43 +375,43 @@ func TestInitializeAgent(t *testing.T) {
 	}{
 		{
 			config:               Config{ServiceVersion: testSvcVersion, zone: testZone},
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC},
 			wantDeploymentLabels: map[string]string{zoneNameLabel: testZone, versionLabel: testSvcVersion, languageLabel: "go"},
 			wantProfileLabels:    map[string]string{},
 		},
 		{
 			config:               Config{zone: testZone},
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC},
 			wantDeploymentLabels: map[string]string{zoneNameLabel: testZone, languageLabel: "go"},
 			wantProfileLabels:    map[string]string{},
 		},
 		{
 			config:               Config{ServiceVersion: testSvcVersion},
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC},
 			wantDeploymentLabels: map[string]string{versionLabel: testSvcVersion, languageLabel: "go"},
 			wantProfileLabels:    map[string]string{},
 		},
 		{
 			config:               Config{instance: testInstance},
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC},
 			wantDeploymentLabels: map[string]string{languageLabel: "go"},
 			wantProfileLabels:    map[string]string{instanceLabel: testInstance},
 		},
 		{
 			config:               Config{instance: testInstance},
 			enableMutex:          true,
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_CONTENTION},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_HEAP, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC, pb.ProfileType_CONTENTION},
 			wantDeploymentLabels: map[string]string{languageLabel: "go"},
 			wantProfileLabels:    map[string]string{instanceLabel: testInstance},
 		},
 		{
 			config:               Config{NoHeapProfiling: true},
-			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_THREADS},
+			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU, pb.ProfileType_THREADS, pb.ProfileType_HEAP_ALLOC},
 			wantDeploymentLabels: map[string]string{languageLabel: "go"},
 			wantProfileLabels:    map[string]string{},
 		},
 		{
-			config:               Config{NoHeapProfiling: true, NoGoroutineProfiling: true},
+			config:               Config{NoHeapProfiling: true, NoGoroutineProfiling: true, NoAllocProfiling: true},
 			wantProfileTypes:     []pb.ProfileType{pb.ProfileType_CPU},
 			wantDeploymentLabels: map[string]string{languageLabel: "go"},
 			wantProfileLabels:    map[string]string{},
@@ -468,6 +493,15 @@ func TestInitializeConfig(t *testing.T) {
 			Config{},
 			Config{},
 			"service name must be configured",
+			false,
+			true,
+			false,
+		},
+		{
+			"requires valid service name",
+			Config{Service: "Service"},
+			Config{Service: "Service"},
+			"service name \"Service\" does not match regular expression ^[a-z]([-a-z0-9_.]{0,253}[a-z0-9])?$",
 			false,
 			true,
 			false,
@@ -583,55 +617,44 @@ func TestInitializeConfig(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		wantErrorString   string
-		getProjectIDError bool
-		getZoneError      bool
-		getInstanceError  bool
+		desc              string
+		wantErr           bool
+		getProjectIDError error
+		getZoneError      error
+		getInstanceError  error
 	}{
 		{
-			wantErrorString:   "failed to get the project ID from Compute Engine:",
-			getProjectIDError: true,
+			desc:              "metadata returns error for project ID",
+			wantErr:           true,
+			getProjectIDError: errors.New("fake get project ID error"),
 		},
 		{
-			wantErrorString: "failed to get zone from Compute Engine:",
-			getZoneError:    true,
+			desc:         "metadata returns error for zone",
+			wantErr:      true,
+			getZoneError: errors.New("fake get zone error"),
 		},
 		{
-			wantErrorString:  "failed to get instance from Compute Engine:",
-			getInstanceError: true,
+			desc:             "metadata returns error for instance",
+			wantErr:          true,
+			getInstanceError: errors.New("fake get instance error"),
+		},
+		{
+			desc:             "metadata returns NotDefinedError for instance",
+			getInstanceError: gcemd.NotDefinedError("fake GCE metadata NotDefinedError error"),
 		},
 	} {
 		onGCE = func() bool { return true }
-		if tt.getProjectIDError {
-			getProjectID = func() (string, error) { return "", fmt.Errorf("test get project ID error") }
-		} else {
-			getProjectID = func() (string, error) { return testGCEProjectID, nil }
-		}
+		getProjectID = func() (string, error) { return testGCEProjectID, tt.getProjectIDError }
+		getZone = func() (string, error) { return testZone, tt.getZoneError }
+		getInstanceName = func() (string, error) { return testInstance, tt.getInstanceError }
 
-		if tt.getZoneError {
-			getZone = func() (string, error) { return "", fmt.Errorf("test get zone error") }
-		} else {
-			getZone = func() (string, error) { return testZone, nil }
-		}
-
-		if tt.getInstanceError {
-			getInstanceName = func() (string, error) { return "", fmt.Errorf("test get instance error") }
-		} else {
-			getInstanceName = func() (string, error) { return testInstance, nil }
-		}
-		errorString := ""
-		if err := initializeConfig(Config{Service: testService}); err != nil {
-			errorString = err.Error()
-		}
-
-		if !strings.Contains(errorString, tt.wantErrorString) {
-			t.Errorf("initializeConfig() got error: %v, want contain %v", errorString, tt.wantErrorString)
+		if err := initializeConfig(Config{Service: testService}); (err != nil) != tt.wantErr {
+			t.Errorf("%s: initializeConfig() got error: %v, want error %t", tt.desc, err, tt.wantErr)
 		}
 	}
 }
 
 type fakeProfilerServer struct {
-	pb.ProfilerServiceServer
 	count       int
 	gotProfiles map[string][]byte
 	done        chan bool
@@ -659,6 +682,10 @@ func (fs *fakeProfilerServer) UpdateProfile(ctx context.Context, in *pb.UpdatePr
 	}
 
 	return in.Profile, nil
+}
+
+func (fs *fakeProfilerServer) CreateOfflineProfile(_ context.Context, _ *pb.CreateOfflineProfileRequest) (*pb.Profile, error) {
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func profileeLoop(quit chan bool) {

@@ -17,8 +17,9 @@
 package kms_test
 
 import (
-	"cloud.google.com/go/kms/apiv1"
-	"golang.org/x/net/context"
+	"context"
+
+	kms "cloud.google.com/go/kms/apiv1"
 	"google.golang.org/api/iterator"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 )
@@ -332,6 +333,60 @@ func ExampleKeyManagementClient_RestoreCryptoKeyVersion() {
 		// TODO: Fill request struct fields.
 	}
 	resp, err := c.RestoreCryptoKeyVersion(ctx, req)
+	if err != nil {
+		// TODO: Handle error.
+	}
+	// TODO: Use resp.
+	_ = resp
+}
+
+func ExampleKeyManagementClient_GetPublicKey() {
+	ctx := context.Background()
+	c, err := kms.NewKeyManagementClient(ctx)
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	req := &kmspb.GetPublicKeyRequest{
+		// TODO: Fill request struct fields.
+	}
+	resp, err := c.GetPublicKey(ctx, req)
+	if err != nil {
+		// TODO: Handle error.
+	}
+	// TODO: Use resp.
+	_ = resp
+}
+
+func ExampleKeyManagementClient_AsymmetricDecrypt() {
+	ctx := context.Background()
+	c, err := kms.NewKeyManagementClient(ctx)
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	req := &kmspb.AsymmetricDecryptRequest{
+		// TODO: Fill request struct fields.
+	}
+	resp, err := c.AsymmetricDecrypt(ctx, req)
+	if err != nil {
+		// TODO: Handle error.
+	}
+	// TODO: Use resp.
+	_ = resp
+}
+
+func ExampleKeyManagementClient_AsymmetricSign() {
+	ctx := context.Background()
+	c, err := kms.NewKeyManagementClient(ctx)
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	req := &kmspb.AsymmetricSignRequest{
+		// TODO: Fill request struct fields.
+	}
+	resp, err := c.AsymmetricSign(ctx, req)
 	if err != nil {
 		// TODO: Handle error.
 	}

@@ -15,19 +15,18 @@
 package firestore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"sort"
 
-	"golang.org/x/net/context"
+	vkit "cloud.google.com/go/firestore/apiv1beta1"
 	"google.golang.org/api/iterator"
+	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	vkit "cloud.google.com/go/firestore/apiv1beta1"
-	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 )
 
 var errNilDocRef = errors.New("firestore: nil DocumentRef")
@@ -102,6 +101,7 @@ func (d *DocumentRef) Get(ctx context.Context) (*DocumentSnapshot, error) {
 //     "google.golang.org/genproto/googleapis/type/latlng". You should always use
 //     a pointer to a LatLng.
 //   - Slices convert to Array.
+//   - *firestore.DocumentRef converts to Reference.
 //   - Maps and structs convert to Map.
 //   - nils of any type convert to Null.
 //
@@ -130,7 +130,7 @@ func (d *DocumentRef) newCreateWrites(data interface{}) ([]*pb.Write, error) {
 	if d == nil {
 		return nil, errNilDocRef
 	}
-	doc, serverTimestampPaths, err := toProtoDocument(data)
+	doc, transforms, err := toProtoDocument(data)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +139,14 @@ func (d *DocumentRef) newCreateWrites(data interface{}) ([]*pb.Write, error) {
 	if err != nil {
 		return nil, err
 	}
-	return d.newUpdateWithTransform(doc, nil, pc, serverTimestampPaths, false), nil
+	return d.newUpdateWithTransform(doc, nil, pc, transforms, false), nil
 }
 
 // Set creates or overwrites the document with the given data. See DocumentRef.Create
 // for the acceptable values of data. Without options, Set overwrites the document
 // completely. Specify one of the Merge options to preserve an existing document's
-// fields.
+// fields. To delete some fields, use a Merge option with firestore.Delete as the
+// field value.
 func (d *DocumentRef) Set(ctx context.Context, data interface{}, opts ...SetOption) (*WriteResult, error) {
 	ws, err := d.newSetWrites(data, opts)
 	if err != nil {
@@ -291,47 +292,58 @@ func (d *DocumentRef) fpvsToWrites(fpvs []fpv, pc *pb.Precondition) ([]*pb.Write
 	}
 
 	// Process each fpv.
-	var updatePaths, transformPaths []FieldPath
+	var updatePaths []FieldPath
+	var transforms []*pb.DocumentTransform_FieldTransform
 	doc := &pb.Document{
 		Name:   d.Path,
 		Fields: map[string]*pb.Value{},
 	}
 	for _, fpv := range fpvs {
-		switch fpv.value {
-		case Delete:
-			// Send the field path without a corresponding value.
-			updatePaths = append(updatePaths, fpv.fieldPath)
-
-		case ServerTimestamp:
-			// Use the path in a transform operation.
-			transformPaths = append(transformPaths, fpv.fieldPath)
-
-		default:
-			updatePaths = append(updatePaths, fpv.fieldPath)
-			// Convert the value to a proto and put it into the document.
-			v := reflect.ValueOf(fpv.value)
-			pv, sawServerTimestamp, err := toProtoValue(v)
+		switch fpv.value.(type) {
+		case arrayUnion:
+			au := fpv.value.(arrayUnion)
+			t, err := arrayUnionTransform(au, fpv.fieldPath)
 			if err != nil {
 				return nil, err
 			}
-			setAtPath(doc.Fields, fpv.fieldPath, pv)
-			// Also accumulate any serverTimestamp values within the value.
-			if sawServerTimestamp {
-				stps, err := extractTransformPaths(v, nil)
+			transforms = append(transforms, t)
+		case arrayRemove:
+			ar := fpv.value.(arrayRemove)
+			t, err := arrayRemoveTransform(ar, fpv.fieldPath)
+			if err != nil {
+				return nil, err
+			}
+			transforms = append(transforms, t)
+		default:
+			switch fpv.value {
+			case Delete:
+				// Send the field path without a corresponding value.
+				updatePaths = append(updatePaths, fpv.fieldPath)
+
+			case ServerTimestamp:
+				// Use the path in a transform operation.
+				transforms = append(transforms, serverTimestamp(fpv.fieldPath.toServiceFieldPath()))
+
+			default:
+				updatePaths = append(updatePaths, fpv.fieldPath)
+				// Convert the value to a proto and put it into the document.
+				v := reflect.ValueOf(fpv.value)
+
+				pv, _, err := toProtoValue(v)
 				if err != nil {
 					return nil, err
 				}
-				for _, p := range stps {
-					transformPaths = append(transformPaths, fpv.fieldPath.concat(p))
+				setAtPath(doc.Fields, fpv.fieldPath, pv)
+				// Also accumulate any transforms within the value.
+				ts, err := extractTransforms(v, fpv.fieldPath)
+				if err != nil {
+					return nil, err
 				}
+				transforms = append(transforms, ts...)
 			}
 		}
 	}
-	return d.newUpdateWithTransform(doc, updatePaths, pc, transformPaths, false), nil
-}
-
-var requestTimeTransform = &pb.DocumentTransform_FieldTransform_SetToServerValue{
-	pb.DocumentTransform_FieldTransform_REQUEST_TIME,
+	return d.newUpdateWithTransform(doc, updatePaths, pc, transforms, false), nil
 }
 
 // newUpdateWithTransform constructs operations for a commit. Most generally, it
@@ -341,18 +353,10 @@ var requestTimeTransform = &pb.DocumentTransform_FieldTransform_SetToServerValue
 //
 // If doc.Fields is empty, there are no updatePaths, and there is no precondition,
 // the update is omitted, unless updateOnEmpty is true.
-func (d *DocumentRef) newUpdateWithTransform(doc *pb.Document, updatePaths []FieldPath, pc *pb.Precondition, serverTimestampPaths []FieldPath, updateOnEmpty bool) []*pb.Write {
-	// Remove server timestamp fields from updatePaths. Those fields were removed
-	// from the document by toProtoDocument, so they should not be in the update
-	// mask.
-	// Note: this is technically O(n^2), but it is unlikely that there is
-	// more than one server timestamp path.
-	updatePaths = removePathsIf(updatePaths, func(fp FieldPath) bool {
-		return fp.in(serverTimestampPaths)
-	})
+func (d *DocumentRef) newUpdateWithTransform(doc *pb.Document, updatePaths []FieldPath, pc *pb.Precondition, transforms []*pb.DocumentTransform_FieldTransform, updateOnEmpty bool) []*pb.Write {
 	var ws []*pb.Write
 	if updateOnEmpty || len(doc.Fields) > 0 ||
-		len(updatePaths) > 0 || (pc != nil && len(serverTimestampPaths) == 0) {
+		len(updatePaths) > 0 || (pc != nil && len(transforms) == 0) {
 		var mask *pb.DocumentMask
 		if updatePaths != nil {
 			sfps := toServiceFieldPaths(updatePaths)
@@ -367,20 +371,26 @@ func (d *DocumentRef) newUpdateWithTransform(doc *pb.Document, updatePaths []Fie
 		ws = append(ws, w)
 		pc = nil // If the precondition is in the write, we don't need it in the transform.
 	}
-	if len(serverTimestampPaths) > 0 || pc != nil {
-		ws = append(ws, d.newTransform(serverTimestampPaths, pc))
+	if len(transforms) > 0 || pc != nil {
+		ws = append(ws, &pb.Write{
+			Operation: &pb.Write_Transform{
+				Transform: &pb.DocumentTransform{
+					Document:        d.Path,
+					FieldTransforms: transforms,
+				},
+			},
+			CurrentDocument: pc,
+		})
 	}
 	return ws
 }
 
-func (d *DocumentRef) newTransform(serverTimestampFieldPaths []FieldPath, pc *pb.Precondition) *pb.Write {
+// This helper turns server timestamp fields into a transform proto.
+func (d *DocumentRef) newServerTimestampTransform(serverTimestampFieldPaths []FieldPath, pc *pb.Precondition) *pb.Write {
 	sort.Sort(byPath(serverTimestampFieldPaths)) // TODO(jba): make tests pass without this
 	var fts []*pb.DocumentTransform_FieldTransform
 	for _, p := range serverTimestampFieldPaths {
-		fts = append(fts, &pb.DocumentTransform_FieldTransform{
-			FieldPath:     p.toServiceFieldPath(),
-			TransformType: requestTimeTransform,
-		})
+		fts = append(fts, serverTimestamp(p.toServiceFieldPath()))
 	}
 	return &pb.Write{
 		Operation: &pb.Write_Transform{
@@ -394,6 +404,88 @@ func (d *DocumentRef) newTransform(serverTimestampFieldPaths []FieldPath, pc *pb
 	}
 }
 
+// arrayUnion is a special type in firestore. It instructs the server to add its
+// elements to whatever array already exists, or to create an array if no value
+// exists.
+type arrayUnion struct {
+	elems []interface{}
+}
+
+// ArrayUnion specifies elements to be added to whatever array already exists in
+// the server, or to create an array if no value exists.
+//
+// If a value exists and it's an array, values are appended to it. Any duplicate
+// value is ignored.
+// If a value exists and it's not an array, the value is replaced by an array of
+// the values in the ArrayUnion.
+// If a value does not exist, an array of the values in the ArrayUnion is created.
+//
+// ArrayUnion must be the value of a field directly; it cannot appear in
+// array or struct values, or in any value that is itself inside an array or
+// struct.
+func ArrayUnion(elems ...interface{}) arrayUnion {
+	return arrayUnion{elems: elems}
+}
+
+// This helper converts an arrayUnion into a proto object.
+func arrayUnionTransform(au arrayUnion, fp FieldPath) (*pb.DocumentTransform_FieldTransform, error) {
+	var elems []*pb.Value
+	for _, v := range au.elems {
+		pv, _, err := toProtoValue(reflect.ValueOf(v))
+		if err != nil {
+			return nil, err
+		}
+		elems = append(elems, pv)
+	}
+	return &pb.DocumentTransform_FieldTransform{
+		FieldPath: fp.toServiceFieldPath(),
+		TransformType: &pb.DocumentTransform_FieldTransform_AppendMissingElements{
+			AppendMissingElements: &pb.ArrayValue{Values: elems},
+		},
+	}, nil
+}
+
+// arrayRemove is a special type in firestore. It instructs the server to remove
+// the specified values.
+type arrayRemove struct {
+	elems []interface{}
+}
+
+// ArrayRemove specifies elements to be removed from whatever array already
+// exists in the server.
+//
+// If a value exists and it's an array, values are removed from it. All
+// duplicate values are removed.
+// If a value exists and it's not an array, the value is replaced by an empty
+// array.
+// If a value does not exist, an empty array is created.
+//
+// ArrayRemove must be the value of a field directly; it cannot appear in
+// array or struct values, or in any value that is itself inside an array or
+// struct.
+func ArrayRemove(elems ...interface{}) arrayRemove {
+	return arrayRemove{elems: elems}
+}
+
+// This helper converts an arrayRemove into a proto object.
+func arrayRemoveTransform(ar arrayRemove, fp FieldPath) (*pb.DocumentTransform_FieldTransform, error) {
+	var elems []*pb.Value
+	for _, v := range ar.elems {
+		// ServerTimestamp cannot occur in an array, so we ignore transformations here.
+		pv, _, err := toProtoValue(reflect.ValueOf(v))
+		if err != nil {
+			return nil, err
+		}
+		elems = append(elems, pv)
+	}
+	return &pb.DocumentTransform_FieldTransform{
+		FieldPath: fp.toServiceFieldPath(),
+		TransformType: &pb.DocumentTransform_FieldTransform_RemoveAllFromArray{
+			RemoveAllFromArray: &pb.ArrayValue{Values: elems},
+		},
+	}, nil
+}
+
 type sentinel int
 
 const (
@@ -404,6 +496,10 @@ const (
 	// ServerTimestamp is used as a value in a call to Update to indicate that the
 	// key's value should be set to the time at which the server processed
 	// the request.
+	//
+	// ServerTimestamp must be the value of a field directly; it cannot appear in
+	// array or struct values, or in any value that is itself inside an array or
+	// struct.
 	ServerTimestamp
 )
 
@@ -416,17 +512,6 @@ func (s sentinel) String() string {
 	default:
 		return "<?sentinel?>"
 	}
-}
-
-func isStructOrStructPtr(x interface{}) bool {
-	v := reflect.ValueOf(x)
-	if v.Kind() == reflect.Struct {
-		return true
-	}
-	if v.Kind() == reflect.Ptr && v.Elem().Kind() == reflect.Struct {
-		return true
-	}
-	return false
 }
 
 // An Update describes an update to a value referred to by a path.
@@ -613,9 +698,9 @@ func (it *DocumentSnapshotIterator) Next() (*DocumentSnapshot, error) {
 	return snap.(*DocumentSnapshot), nil
 }
 
-// Stop stops receiving snapshots.
-// You should always call Stop when you are done with an iterator, to free up resources.
-// It is not safe to call Stop concurrently with Next.
+// Stop stops receiving snapshots. You should always call Stop when you are done with
+// a DocumentSnapshotIterator, to free up resources. It is not safe to call Stop
+// concurrently with Next.
 func (it *DocumentSnapshotIterator) Stop() {
 	it.ws.stop()
 }

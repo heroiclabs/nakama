@@ -15,23 +15,20 @@
 package firestore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
-	"google.golang.org/api/iterator"
-
 	vkit "cloud.google.com/go/firestore/apiv1beta1"
-
 	"cloud.google.com/go/internal/version"
-	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
-
 	"github.com/golang/protobuf/ptypes"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

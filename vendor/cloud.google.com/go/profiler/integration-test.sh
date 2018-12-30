@@ -40,4 +40,4 @@ export GCLOUD_TESTS_GOLANG_BUCKET="dulcet-port-762-go-cloud-profiler-test"
 
 cd $GOCLOUD_HOME/profiler
 retry go get -t -tags=integration .
-go test -timeout=60m -parallel=5 -tags=integration -run TestAgentIntegration -commit="$COMMIT"
+go test -timeout=60m -tags=integration -run TestAgentIntegration -commit="$COMMIT"

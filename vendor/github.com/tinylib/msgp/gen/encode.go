@@ -2,8 +2,9 @@ package gen
 
 import (
 	"fmt"
-	"github.com/tinylib/msgp/msgp"
 	"io"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 func encode(w io.Writer) *encodeGen {
@@ -16,6 +17,7 @@ type encodeGen struct {
 	passes
 	p    printer
 	fuse []byte
+	ctx  *Context
 }
 
 func (e *encodeGen) Method() Method { return Encode }
@@ -26,7 +28,7 @@ func (e *encodeGen) Apply(dirs []string) error {
 
 func (e *encodeGen) writeAndCheck(typ string, argfmt string, arg interface{}) {
 	e.p.printf("\nerr = en.Write%s(%s)", typ, fmt.Sprintf(argfmt, arg))
-	e.p.print(errcheck)
+	e.p.wrapErrCheck(e.ctx.ArgsStr())
 }
 
 func (e *encodeGen) fuseHook() {
@@ -56,6 +58,8 @@ func (e *encodeGen) Execute(p Elem) error {
 		return nil
 	}
 
+	e.ctx = &Context{}
+
 	e.p.comment("EncodeMsg implements msgp.Encodable")
 
 	e.p.printf("\nfunc (%s %s) EncodeMsg(en *msgp.Writer) (err error) {", p.Varname(), imutMethodReceiver(p))
@@ -81,11 +85,16 @@ func (e *encodeGen) tuple(s *Struct) {
 	data := msgp.AppendArrayHeader(nil, uint32(nfields))
 	e.p.printf("\n// array header, size %d", nfields)
 	e.Fuse(data)
+	if len(s.Fields) == 0 {
+		e.fuseHook()
+	}
 	for i := range s.Fields {
 		if !e.p.ok() {
 			return
 		}
+		e.ctx.PushString(s.Fields[i].FieldName)
 		next(e, s.Fields[i].FieldElem)
+		e.ctx.Pop()
 	}
 }
 
@@ -97,7 +106,7 @@ func (e *encodeGen) appendraw(bts []byte) {
 		}
 		e.p.printf("0x%x", b)
 	}
-	e.p.print(")\nif err != nil { return err }")
+	e.p.print(")\nif err != nil { return }")
 }
 
 func (e *encodeGen) structmap(s *Struct) {
@@ -105,6 +114,9 @@ func (e *encodeGen) structmap(s *Struct) {
 	data := msgp.AppendMapHeader(nil, uint32(nfields))
 	e.p.printf("\n// map header, size %d", nfields)
 	e.Fuse(data)
+	if len(s.Fields) == 0 {
+		e.fuseHook()
+	}
 	for i := range s.Fields {
 		if !e.p.ok() {
 			return
@@ -112,7 +124,10 @@ func (e *encodeGen) structmap(s *Struct) {
 		data = msgp.AppendString(nil, s.Fields[i].FieldTag)
 		e.p.printf("\n// write %q", s.Fields[i].FieldTag)
 		e.Fuse(data)
+
+		e.ctx.PushString(s.Fields[i].FieldName)
 		next(e, s.Fields[i].FieldElem)
+		e.ctx.Pop()
 	}
 }
 
@@ -126,7 +141,9 @@ func (e *encodeGen) gMap(m *Map) {
 
 	e.p.printf("\nfor %s, %s := range %s {", m.Keyidx, m.Validx, vname)
 	e.writeAndCheck(stringTyp, literalFmt, m.Keyidx)
+	e.ctx.PushVar(m.Keyidx)
 	next(e, m.Value)
+	e.ctx.Pop()
 	e.p.closeblock()
 }
 
@@ -146,7 +163,7 @@ func (e *encodeGen) gSlice(s *Slice) {
 	}
 	e.fuseHook()
 	e.writeAndCheck(arrayHeader, lenAsUint32, s.Varname())
-	e.p.rangeBlock(s.Index, s.Varname(), e, s.Els)
+	e.p.rangeBlock(e.ctx, s.Index, s.Varname(), e, s.Els)
 }
 
 func (e *encodeGen) gArray(a *Array) {
@@ -157,12 +174,12 @@ func (e *encodeGen) gArray(a *Array) {
 	// shortcut for [const]byte
 	if be, ok := a.Els.(*BaseElem); ok && (be.Value == Byte || be.Value == Uint8) {
 		e.p.printf("\nerr = en.WriteBytes((%s)[:])", a.Varname())
-		e.p.print(errcheck)
+		e.p.wrapErrCheck(e.ctx.ArgsStr())
 		return
 	}
 
-	e.writeAndCheck(arrayHeader, literalFmt, a.Size)
-	e.p.rangeBlock(a.Index, a.Varname(), e, a.Els)
+	e.writeAndCheck(arrayHeader, literalFmt, coerceArraySize(a.Size))
+	e.p.rangeBlock(e.ctx, a.Index, a.Varname(), e, a.Els)
 }
 
 func (e *encodeGen) gBase(b *BaseElem) {
@@ -172,12 +189,19 @@ func (e *encodeGen) gBase(b *BaseElem) {
 	e.fuseHook()
 	vname := b.Varname()
 	if b.Convert {
-		vname = tobaseConvert(b)
+		if b.ShimMode == Cast {
+			vname = tobaseConvert(b)
+		} else {
+			vname = randIdent()
+			e.p.printf("\nvar %s %s", vname, b.BaseType())
+			e.p.printf("\n%s, err = %s", vname, tobaseConvert(b))
+			e.p.wrapErrCheck(e.ctx.ArgsStr())
+		}
 	}
 
 	if b.Value == IDENT { // unknown identity
 		e.p.printf("\nerr = %s.EncodeMsg(en)", vname)
-		e.p.print(errcheck)
+		e.p.wrapErrCheck(e.ctx.ArgsStr())
 	} else { // typical case
 		e.writeAndCheck(b.BaseName(), literalFmt, vname)
 	}

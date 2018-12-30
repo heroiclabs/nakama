@@ -17,8 +17,9 @@
 package longrunning_test
 
 import (
-	"cloud.google.com/go/longrunning/autogen"
-	"golang.org/x/net/context"
+	"context"
+
+	longrunning "cloud.google.com/go/longrunning/autogen"
 	"google.golang.org/api/iterator"
 	longrunningpb "google.golang.org/genproto/googleapis/longrunning"
 )

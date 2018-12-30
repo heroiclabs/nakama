@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 package internal
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -45,6 +45,13 @@ func TestTokenSource(t *testing.T) {
 	// Load a valid JSON file. No way to really test the contents; we just
 	// verify that there is no error.
 	ds = &DialSettings{CredentialsFile: "service-account.json"}
+	if _, err := Creds(ctx, ds); err != nil {
+		t.Errorf("got %v, wanted no error", err)
+	}
+
+	// Load valid JSON. No way to really test the contents; we just
+	// verify that there is no error.
+	ds = &DialSettings{CredentialsJSON: []byte(validServiceAccountJSON)}
 	if _, err := Creds(ctx, ds); err != nil {
 		t.Errorf("got %v, wanted no error", err)
 	}

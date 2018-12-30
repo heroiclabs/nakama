@@ -2,6 +2,7 @@ package msgp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math"
 	"math/rand"
@@ -299,11 +300,31 @@ func TestReadInt64(t *testing.T) {
 	rd := NewReader(&buf)
 
 	ints := []int64{-100000, -5000, -5, 0, 8, 240, int64(tuint16), int64(tuint32), int64(tuint64)}
+	uints := []uint64{0, 8, 240, uint64(tuint16), uint64(tuint32), uint64(tuint64)}
 
-	for i, num := range ints {
+	all := make([]interface{}, 0, len(ints)+len(uints))
+	for _, v := range ints {
+		all = append(all, v)
+	}
+	for _, v := range uints {
+		all = append(all, v)
+	}
+
+	for i, num := range all {
 		buf.Reset()
+		var err error
 
-		err := wr.WriteInt64(num)
+		var in int64
+		switch num := num.(type) {
+		case int64:
+			err = wr.WriteInt64(num)
+			in = num
+		case uint64:
+			err = wr.WriteUint64(num)
+			in = int64(num)
+		default:
+			panic(num)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -315,9 +336,119 @@ func TestReadInt64(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if out != num {
-			t.Errorf("Test case %d: put %d in and got %d out", i, num, out)
+		if out != in {
+			t.Errorf("Test case %d: put %d in and got %d out", i, num, in)
 		}
+	}
+}
+
+func TestReadIntOverflows(t *testing.T) {
+	var buf bytes.Buffer
+	wr := NewWriter(&buf)
+	rd := NewReader(&buf)
+
+	i8, i16, i32, i64, u8, u16, u32, u64 := 1, 2, 3, 4, 5, 6, 7, 8
+
+	overflowErr := func(err error, failBits int) bool {
+		bits := 0
+		switch err := err.(type) {
+		case IntOverflow:
+			bits = err.FailedBitsize
+		case UintOverflow:
+			bits = err.FailedBitsize
+		}
+		if bits == failBits {
+			return true
+		}
+		return false
+	}
+
+	belowZeroErr := func(err error, failBits int) bool {
+		switch err.(type) {
+		case UintBelowZero:
+			return true
+		}
+		return false
+	}
+
+	vs := []struct {
+		v        interface{}
+		rdBits   int
+		failBits int
+		errCheck func(err error, failBits int) bool
+	}{
+		{uint64(math.MaxInt64), i32, 32, overflowErr},
+		{uint64(math.MaxInt64), i16, 16, overflowErr},
+		{uint64(math.MaxInt64), i8, 8, overflowErr},
+
+		{uint64(math.MaxUint64), i64, 64, overflowErr},
+		{uint64(math.MaxUint64), i32, 64, overflowErr},
+		{uint64(math.MaxUint64), i16, 64, overflowErr},
+		{uint64(math.MaxUint64), i8, 64, overflowErr},
+
+		{uint64(math.MaxUint32), i32, 32, overflowErr},
+		{uint64(math.MaxUint32), i16, 16, overflowErr},
+		{uint64(math.MaxUint32), i8, 8, overflowErr},
+
+		{int64(math.MinInt64), u64, 64, belowZeroErr},
+		{int64(math.MinInt64), u32, 64, belowZeroErr},
+		{int64(math.MinInt64), u16, 64, belowZeroErr},
+		{int64(math.MinInt64), u8, 64, belowZeroErr},
+		{int64(math.MinInt32), u64, 64, belowZeroErr},
+		{int64(math.MinInt32), u32, 32, belowZeroErr},
+		{int64(math.MinInt32), u16, 16, belowZeroErr},
+		{int64(math.MinInt32), u8, 8, belowZeroErr},
+		{int64(math.MinInt16), u64, 64, belowZeroErr},
+		{int64(math.MinInt16), u32, 32, belowZeroErr},
+		{int64(math.MinInt16), u16, 16, belowZeroErr},
+		{int64(math.MinInt16), u8, 8, belowZeroErr},
+		{int64(math.MinInt8), u64, 64, belowZeroErr},
+		{int64(math.MinInt8), u32, 32, belowZeroErr},
+		{int64(math.MinInt8), u16, 16, belowZeroErr},
+		{int64(math.MinInt8), u8, 8, belowZeroErr},
+		{-1, u64, 64, belowZeroErr},
+		{-1, u32, 32, belowZeroErr},
+		{-1, u16, 16, belowZeroErr},
+		{-1, u8, 8, belowZeroErr},
+	}
+
+	for i, v := range vs {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			switch num := v.v.(type) {
+			case int:
+				wr.WriteInt64(int64(num))
+			case int64:
+				wr.WriteInt64(num)
+			case uint64:
+				wr.WriteUint64(num)
+			default:
+				panic(num)
+			}
+			wr.Flush()
+
+			var err error
+			switch v.rdBits {
+			case i64:
+				_, err = rd.ReadInt64()
+			case i32:
+				_, err = rd.ReadInt32()
+			case i16:
+				_, err = rd.ReadInt16()
+			case i8:
+				_, err = rd.ReadInt8()
+			case u64:
+				_, err = rd.ReadUint64()
+			case u32:
+				_, err = rd.ReadUint32()
+			case u16:
+				_, err = rd.ReadUint16()
+			case u8:
+				_, err = rd.ReadUint8()
+			}
+			if !v.errCheck(err, v.failBits) {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -329,6 +460,24 @@ func BenchmarkReadInt64(b *testing.B) {
 	}
 	rd := NewReader(NewEndlessReader(data, b))
 	b.SetBytes(int64(len(data) / len(is)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := rd.ReadInt64()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkReadUintWithInt64(b *testing.B) {
+	us := []uint64{0, 1, 10000, uint64(rand.Uint32() * 4)}
+	data := make([]byte, 0, 9*len(us))
+	for _, n := range us {
+		data = AppendUint64(data, n)
+	}
+	rd := NewReader(NewEndlessReader(data, b))
+	b.SetBytes(int64(len(data) / len(us)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -372,6 +521,24 @@ func BenchmarkReadUint64(b *testing.B) {
 	}
 	rd := NewReader(NewEndlessReader(data, b))
 	b.SetBytes(int64(len(data) / len(us)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := rd.ReadUint64()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkReadIntWithUint64(b *testing.B) {
+	is := []int64{0, 1, 65000, rand.Int63()}
+	data := make([]byte, 0, 9*len(is))
+	for _, n := range is {
+		data = AppendInt64(data, n)
+	}
+	rd := NewReader(NewEndlessReader(data, b))
+	b.SetBytes(int64(len(data) / len(is)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

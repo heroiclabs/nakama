@@ -16,6 +16,7 @@ package pubsub
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -23,8 +24,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"cloud.google.com/go/internal/testutil"
 	"google.golang.org/api/option"
@@ -34,7 +33,7 @@ const (
 	timeout                 = time.Minute * 10
 	ackDeadline             = time.Second * 10
 	nMessages               = 1e4
-	acceptableDupPercentage = .05
+	acceptableDupPercentage = 1
 	numAcceptableDups       = int(nMessages * acceptableDupPercentage / 100)
 )
 
@@ -45,7 +44,6 @@ var logBuf bytes.Buffer
 // delivered to each subscription for the topic. It also tests that messages
 // are not unexpectedly redelivered.
 func TestIntegration_EndToEnd(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("Integration tests skipped in short mode")
 	}
@@ -109,7 +107,7 @@ func TestIntegration_EndToEnd(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			con.consume(t, cctx, sub)
+			con.consume(cctx, t, sub)
 		}()
 	}
 	// Wait for a while after the last message before declaring quiescence.
@@ -149,7 +147,7 @@ loop:
 		var zeroes int
 		for _, v := range con.counts {
 			if v == 0 {
-				zeroes += 1
+				zeroes++
 			}
 			numDups += v - 1
 		}
@@ -158,7 +156,7 @@ loop:
 			t.Errorf("Consumer %d: %d messages never arrived", i, zeroes)
 			ok = false
 		} else if numDups > numAcceptableDups {
-			t.Errorf("Consumer %d: Willing to accept %d dups (%f%% duplicated of %d messages), but got %d", i, numAcceptableDups, acceptableDupPercentage, int(nMessages), numDups)
+			t.Errorf("Consumer %d: Willing to accept %d dups (%v duplicated of %d messages), but got %d", i, numAcceptableDups, acceptableDupPercentage, int(nMessages), numDups)
 			ok = false
 		}
 	}
@@ -167,20 +165,18 @@ loop:
 	}
 }
 
-// publish publishes n messages to topic, and returns the published message IDs.
+// publish publishes n messages to topic.
 func publish(ctx context.Context, topic *Topic, n int) error {
 	var rs []*PublishResult
 	for i := 0; i < n; i++ {
 		m := &Message{Data: []byte(fmt.Sprintf("msg %d", i))}
 		rs = append(rs, topic.Publish(ctx, m))
 	}
-	var ids []string
 	for _, r := range rs {
-		id, err := r.Get(ctx)
+		_, err := r.Get(ctx)
 		if err != nil {
 			return err
 		}
-		ids = append(ids, id)
 	}
 	return nil
 }
@@ -199,7 +195,7 @@ type consumer struct {
 
 // consume reads messages from a subscription, and keeps track of what it receives in mc.
 // After consume returns, the caller should wait on wg to ensure that no more updates to mc will be made.
-func (c *consumer) consume(t *testing.T, ctx context.Context, sub *Subscription) {
+func (c *consumer) consume(ctx context.Context, t *testing.T, sub *Subscription) {
 	for _, dur := range c.durations {
 		ctx2, cancel := context.WithTimeout(ctx, dur)
 		defer cancel()
@@ -223,7 +219,7 @@ func (c *consumer) consume(t *testing.T, ctx context.Context, sub *Subscription)
 // process handles a message and records it in mc.
 func (c *consumer) process(_ context.Context, m *Message) {
 	c.mu.Lock()
-	c.counts[m.ID] += 1
+	c.counts[m.ID]++
 	c.total++
 	c.mu.Unlock()
 	c.recv <- struct{}{}

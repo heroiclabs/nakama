@@ -17,10 +17,10 @@
 package speech_test
 
 import (
+	"context"
 	"io"
 
-	"cloud.google.com/go/speech/apiv1"
-	"golang.org/x/net/context"
+	speech "cloud.google.com/go/speech/apiv1"
 	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 )
 

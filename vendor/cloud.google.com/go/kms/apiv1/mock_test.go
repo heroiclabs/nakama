@@ -25,6 +25,7 @@ import (
 )
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -36,7 +37,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -136,6 +136,18 @@ func (s *mockKeyManagementServer) GetCryptoKeyVersion(ctx context.Context, req *
 	return s.resps[0].(*kmspb.CryptoKeyVersion), nil
 }
 
+func (s *mockKeyManagementServer) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+	s.reqs = append(s.reqs, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.resps[0].(*kmspb.PublicKey), nil
+}
+
 func (s *mockKeyManagementServer) CreateKeyRing(ctx context.Context, req *kmspb.CreateKeyRingRequest) (*kmspb.KeyRing, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
 	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
@@ -218,6 +230,30 @@ func (s *mockKeyManagementServer) Decrypt(ctx context.Context, req *kmspb.Decryp
 		return nil, s.err
 	}
 	return s.resps[0].(*kmspb.DecryptResponse), nil
+}
+
+func (s *mockKeyManagementServer) AsymmetricSign(ctx context.Context, req *kmspb.AsymmetricSignRequest) (*kmspb.AsymmetricSignResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+	s.reqs = append(s.reqs, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.resps[0].(*kmspb.AsymmetricSignResponse), nil
+}
+
+func (s *mockKeyManagementServer) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+	s.reqs = append(s.reqs, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.resps[0].(*kmspb.AsymmetricDecryptResponse), nil
 }
 
 func (s *mockKeyManagementServer) UpdateCryptoKeyPrimaryVersion(ctx context.Context, req *kmspb.UpdateCryptoKeyPrimaryVersionRequest) (*kmspb.CryptoKey, error) {
@@ -1391,6 +1427,191 @@ func TestKeyManagementServiceRestoreCryptoKeyVersionError(t *testing.T) {
 	}
 
 	resp, err := c.RestoreCryptoKeyVersion(context.Background(), request)
+
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
+		t.Errorf("got error code %q, want %q", c, errCode)
+	}
+	_ = resp
+}
+func TestKeyManagementServiceGetPublicKey(t *testing.T) {
+	var pem string = "pem110872"
+	var expectedResponse = &kmspb.PublicKey{
+		Pem: pem,
+	}
+
+	mockKeyManagement.err = nil
+	mockKeyManagement.reqs = nil
+
+	mockKeyManagement.resps = append(mockKeyManagement.resps[:0], expectedResponse)
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var request = &kmspb.GetPublicKeyRequest{
+		Name: formattedName,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.GetPublicKey(context.Background(), request)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want, got := request, mockKeyManagement.reqs[0]; !proto.Equal(want, got) {
+		t.Errorf("wrong request %q, want %q", got, want)
+	}
+
+	if want, got := expectedResponse, resp; !proto.Equal(want, got) {
+		t.Errorf("wrong response %q, want %q)", got, want)
+	}
+}
+
+func TestKeyManagementServiceGetPublicKeyError(t *testing.T) {
+	errCode := codes.PermissionDenied
+	mockKeyManagement.err = gstatus.Error(errCode, "test error")
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var request = &kmspb.GetPublicKeyRequest{
+		Name: formattedName,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.GetPublicKey(context.Background(), request)
+
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
+		t.Errorf("got error code %q, want %q", c, errCode)
+	}
+	_ = resp
+}
+func TestKeyManagementServiceAsymmetricDecrypt(t *testing.T) {
+	var plaintext []byte = []byte("-9")
+	var expectedResponse = &kmspb.AsymmetricDecryptResponse{
+		Plaintext: plaintext,
+	}
+
+	mockKeyManagement.err = nil
+	mockKeyManagement.reqs = nil
+
+	mockKeyManagement.resps = append(mockKeyManagement.resps[:0], expectedResponse)
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var ciphertext []byte = []byte("-72")
+	var request = &kmspb.AsymmetricDecryptRequest{
+		Name:       formattedName,
+		Ciphertext: ciphertext,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.AsymmetricDecrypt(context.Background(), request)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want, got := request, mockKeyManagement.reqs[0]; !proto.Equal(want, got) {
+		t.Errorf("wrong request %q, want %q", got, want)
+	}
+
+	if want, got := expectedResponse, resp; !proto.Equal(want, got) {
+		t.Errorf("wrong response %q, want %q)", got, want)
+	}
+}
+
+func TestKeyManagementServiceAsymmetricDecryptError(t *testing.T) {
+	errCode := codes.PermissionDenied
+	mockKeyManagement.err = gstatus.Error(errCode, "test error")
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var ciphertext []byte = []byte("-72")
+	var request = &kmspb.AsymmetricDecryptRequest{
+		Name:       formattedName,
+		Ciphertext: ciphertext,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.AsymmetricDecrypt(context.Background(), request)
+
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
+		t.Errorf("got error code %q, want %q", c, errCode)
+	}
+	_ = resp
+}
+func TestKeyManagementServiceAsymmetricSign(t *testing.T) {
+	var signature []byte = []byte("106")
+	var expectedResponse = &kmspb.AsymmetricSignResponse{
+		Signature: signature,
+	}
+
+	mockKeyManagement.err = nil
+	mockKeyManagement.reqs = nil
+
+	mockKeyManagement.resps = append(mockKeyManagement.resps[:0], expectedResponse)
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var digest *kmspb.Digest = &kmspb.Digest{}
+	var request = &kmspb.AsymmetricSignRequest{
+		Name:   formattedName,
+		Digest: digest,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.AsymmetricSign(context.Background(), request)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want, got := request, mockKeyManagement.reqs[0]; !proto.Equal(want, got) {
+		t.Errorf("wrong request %q, want %q", got, want)
+	}
+
+	if want, got := expectedResponse, resp; !proto.Equal(want, got) {
+		t.Errorf("wrong response %q, want %q)", got, want)
+	}
+}
+
+func TestKeyManagementServiceAsymmetricSignError(t *testing.T) {
+	errCode := codes.PermissionDenied
+	mockKeyManagement.err = gstatus.Error(errCode, "test error")
+
+	var formattedName string = fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", "[PROJECT]", "[LOCATION]", "[KEY_RING]", "[CRYPTO_KEY]", "[CRYPTO_KEY_VERSION]")
+	var digest *kmspb.Digest = &kmspb.Digest{}
+	var request = &kmspb.AsymmetricSignRequest{
+		Name:   formattedName,
+		Digest: digest,
+	}
+
+	c, err := NewKeyManagementClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.AsymmetricSign(context.Background(), request)
 
 	if st, ok := gstatus.FromError(err); !ok {
 		t.Errorf("got error %v, expected grpc error", err)

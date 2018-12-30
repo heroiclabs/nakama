@@ -24,7 +24,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-func testCreate(t testing.TB) {
+func TestCreate(t *testing.T) {
 	var scenarios = []struct {
 		in  *dto.MetricFamily
 		out string
@@ -212,14 +212,14 @@ untyped_name{name_1="value 1"} -1.23e-45
 # TYPE summary_name summary
 summary_name{quantile="0.5"} -1.23
 summary_name{quantile="0.9"} 0.2342354
-summary_name{quantile="0.99"} 0
+summary_name{quantile="0.99"} 0.0
 summary_name_sum -3.4567
-summary_name_count 42
-summary_name{name_1="value 1",name_2="value 2",quantile="0.5"} 1
-summary_name{name_1="value 1",name_2="value 2",quantile="0.9"} 2
-summary_name{name_1="value 1",name_2="value 2",quantile="0.99"} 3
+summary_name_count 42.0
+summary_name{name_1="value 1",name_2="value 2",quantile="0.5"} 1.0
+summary_name{name_1="value 1",name_2="value 2",quantile="0.9"} 2.0
+summary_name{name_1="value 1",name_2="value 2",quantile="0.99"} 3.0
 summary_name_sum{name_1="value 1",name_2="value 2"} 2010.1971
-summary_name_count{name_1="value 1",name_2="value 2"} 4711
+summary_name_count{name_1="value 1",name_2="value 2"} 4711.0
 `,
 		},
 		// 4: Histogram
@@ -261,13 +261,13 @@ summary_name_count{name_1="value 1",name_2="value 2"} 4711
 			},
 			out: `# HELP request_duration_microseconds The response latency.
 # TYPE request_duration_microseconds histogram
-request_duration_microseconds_bucket{le="100"} 123
-request_duration_microseconds_bucket{le="120"} 412
-request_duration_microseconds_bucket{le="144"} 592
-request_duration_microseconds_bucket{le="172.8"} 1524
-request_duration_microseconds_bucket{le="+Inf"} 2693
+request_duration_microseconds_bucket{le="100.0"} 123.0
+request_duration_microseconds_bucket{le="120.0"} 412.0
+request_duration_microseconds_bucket{le="144.0"} 592.0
+request_duration_microseconds_bucket{le="172.8"} 1524.0
+request_duration_microseconds_bucket{le="+Inf"} 2693.0
 request_duration_microseconds_sum 1.7560473e+06
-request_duration_microseconds_count 2693
+request_duration_microseconds_count 2693.0
 `,
 		},
 		// 5: Histogram with missing +Inf bucket.
@@ -282,6 +282,26 @@ request_duration_microseconds_count 2693
 							SampleCount: proto.Uint64(2693),
 							SampleSum:   proto.Float64(1756047.3),
 							Bucket: []*dto.Bucket{
+								&dto.Bucket{
+									UpperBound:      proto.Float64(0),
+									CumulativeCount: proto.Uint64(123),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e-5),
+									CumulativeCount: proto.Uint64(123),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e-4),
+									CumulativeCount: proto.Uint64(123),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e-1),
+									CumulativeCount: proto.Uint64(123),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1),
+									CumulativeCount: proto.Uint64(123),
+								},
 								&dto.Bucket{
 									UpperBound:      proto.Float64(100),
 									CumulativeCount: proto.Uint64(123),
@@ -298,6 +318,18 @@ request_duration_microseconds_count 2693
 									UpperBound:      proto.Float64(172.8),
 									CumulativeCount: proto.Uint64(1524),
 								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e5),
+									CumulativeCount: proto.Uint64(1543),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e6),
+									CumulativeCount: proto.Uint64(1544),
+								},
+								&dto.Bucket{
+									UpperBound:      proto.Float64(1e23),
+									CumulativeCount: proto.Uint64(1545),
+								},
 							},
 						},
 					},
@@ -305,13 +337,21 @@ request_duration_microseconds_count 2693
 			},
 			out: `# HELP request_duration_microseconds The response latency.
 # TYPE request_duration_microseconds histogram
-request_duration_microseconds_bucket{le="100"} 123
-request_duration_microseconds_bucket{le="120"} 412
-request_duration_microseconds_bucket{le="144"} 592
-request_duration_microseconds_bucket{le="172.8"} 1524
-request_duration_microseconds_bucket{le="+Inf"} 2693
+request_duration_microseconds_bucket{le="0.0"} 123.0
+request_duration_microseconds_bucket{le="1e-05"} 123.0
+request_duration_microseconds_bucket{le="0.0001"} 123.0
+request_duration_microseconds_bucket{le="0.1"} 123.0
+request_duration_microseconds_bucket{le="1.0"} 123.0
+request_duration_microseconds_bucket{le="100.0"} 123.0
+request_duration_microseconds_bucket{le="120.0"} 412.0
+request_duration_microseconds_bucket{le="144.0"} 592.0
+request_duration_microseconds_bucket{le="172.8"} 1524.0
+request_duration_microseconds_bucket{le="100000.0"} 1543.0
+request_duration_microseconds_bucket{le="1e+06"} 1544.0
+request_duration_microseconds_bucket{le="1e+23"} 1545.0
+request_duration_microseconds_bucket{le="+Inf"} 2693.0
 request_duration_microseconds_sum 1.7560473e+06
-request_duration_microseconds_count 2693
+request_duration_microseconds_count 2693.0
 `,
 		},
 		// 6: No metric type, should result in default type Counter.
@@ -357,17 +397,145 @@ name -Inf
 
 }
 
-func TestCreate(t *testing.T) {
-	testCreate(t)
-}
-
 func BenchmarkCreate(b *testing.B) {
+	mf := &dto.MetricFamily{
+		Name: proto.String("request_duration_microseconds"),
+		Help: proto.String("The response latency."),
+		Type: dto.MetricType_HISTOGRAM.Enum(),
+		Metric: []*dto.Metric{
+			&dto.Metric{
+				Label: []*dto.LabelPair{
+					&dto.LabelPair{
+						Name:  proto.String("name_1"),
+						Value: proto.String("val with\nnew line"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("name_2"),
+						Value: proto.String("val with \\backslash and \"quotes\""),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("name_3"),
+						Value: proto.String("Just a quite long label value to test performance."),
+					},
+				},
+				Histogram: &dto.Histogram{
+					SampleCount: proto.Uint64(2693),
+					SampleSum:   proto.Float64(1756047.3),
+					Bucket: []*dto.Bucket{
+						&dto.Bucket{
+							UpperBound:      proto.Float64(100),
+							CumulativeCount: proto.Uint64(123),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(120),
+							CumulativeCount: proto.Uint64(412),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(144),
+							CumulativeCount: proto.Uint64(592),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(172.8),
+							CumulativeCount: proto.Uint64(1524),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(math.Inf(+1)),
+							CumulativeCount: proto.Uint64(2693),
+						},
+					},
+				},
+			},
+			&dto.Metric{
+				Label: []*dto.LabelPair{
+					&dto.LabelPair{
+						Name:  proto.String("name_1"),
+						Value: proto.String("Björn"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("name_2"),
+						Value: proto.String("佖佥"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("name_3"),
+						Value: proto.String("Just a quite long label value to test performance."),
+					},
+				},
+				Histogram: &dto.Histogram{
+					SampleCount: proto.Uint64(5699),
+					SampleSum:   proto.Float64(49484343543.4343),
+					Bucket: []*dto.Bucket{
+						&dto.Bucket{
+							UpperBound:      proto.Float64(100),
+							CumulativeCount: proto.Uint64(120),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(120),
+							CumulativeCount: proto.Uint64(412),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(144),
+							CumulativeCount: proto.Uint64(596),
+						},
+						&dto.Bucket{
+							UpperBound:      proto.Float64(172.8),
+							CumulativeCount: proto.Uint64(1535),
+						},
+					},
+				},
+				TimestampMs: proto.Int64(1234567890),
+			},
+		},
+	}
+	out := bytes.NewBuffer(make([]byte, 0, 1024))
+
 	for i := 0; i < b.N; i++ {
-		testCreate(b)
+		_, err := MetricFamilyToText(out, mf)
+		if err != nil {
+			b.Fatal(err)
+		}
+		out.Reset()
 	}
 }
 
-func testCreateError(t testing.TB) {
+func BenchmarkCreateBuildInfo(b *testing.B) {
+	mf := &dto.MetricFamily{
+		Name: proto.String("benchmark_build_info"),
+		Help: proto.String("Test the creation of constant 1-value build_info metric."),
+		Type: dto.MetricType_GAUGE.Enum(),
+		Metric: []*dto.Metric{
+			&dto.Metric{
+				Label: []*dto.LabelPair{
+					&dto.LabelPair{
+						Name:  proto.String("version"),
+						Value: proto.String("1.2.3"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("revision"),
+						Value: proto.String("2e84f5e4eacdffb574035810305191ff390360fe"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("go_version"),
+						Value: proto.String("1.11.1"),
+					},
+				},
+				Gauge: &dto.Gauge{
+					Value: proto.Float64(1),
+				},
+			},
+		},
+	}
+	out := bytes.NewBuffer(make([]byte, 0, 1024))
+
+	for i := 0; i < b.N; i++ {
+		_, err := MetricFamilyToText(out, mf)
+		if err != nil {
+			b.Fatal(err)
+		}
+		out.Reset()
+	}
+}
+
+func TestCreateError(t *testing.T) {
 	var scenarios = []struct {
 		in  *dto.MetricFamily
 		err string
@@ -430,14 +598,4 @@ func testCreateError(t testing.TB) {
 		}
 	}
 
-}
-
-func TestCreateError(t *testing.T) {
-	testCreateError(t)
-}
-
-func BenchmarkCreateError(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		testCreateError(b)
-	}
 }

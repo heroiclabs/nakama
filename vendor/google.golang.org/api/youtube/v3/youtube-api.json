@@ -6,7 +6,7 @@
           "description": "Manage your YouTube account"
         },
         "https://www.googleapis.com/auth/youtube.force-ssl": {
-          "description": "Manage your YouTube account"
+          "description": "See, edit, and permanently delete your YouTube videos, ratings, comments and captions"
         },
         "https://www.googleapis.com/auth/youtube.readonly": {
           "description": "View your YouTube account"
@@ -30,7 +30,7 @@
   "description": "Supports core YouTube features, such as uploading videos, creating and managing playlists, searching for content, and much more.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/youtube/v3",
-  "etag": "\"Zkyw9ACJZUvcYmlFaKGChzhmtnE/NBwQg_eXHjfoSxEvplEGyXUpgA4\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/tlO5NmomuOGtxRcy09HWRMItIn0\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/youtube-16.png",
     "x32": "https://www.google.com/images/icons/product/youtube-32.png"
@@ -3493,7 +3493,7 @@
       }
     }
   },
-  "revision": "20180430",
+  "revision": "20180511",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "AccessPolicy": {

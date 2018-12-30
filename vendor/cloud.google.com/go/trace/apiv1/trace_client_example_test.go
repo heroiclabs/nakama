@@ -17,8 +17,9 @@
 package trace_test
 
 import (
-	"cloud.google.com/go/trace/apiv1"
-	"golang.org/x/net/context"
+	"context"
+
+	trace "cloud.google.com/go/trace/apiv1"
 	"google.golang.org/api/iterator"
 	cloudtracepb "google.golang.org/genproto/googleapis/devtools/cloudtrace/v1"
 )

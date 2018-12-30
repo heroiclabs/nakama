@@ -2,9 +2,10 @@ package gen
 
 import (
 	"fmt"
-	"github.com/tinylib/msgp/msgp"
 	"io"
 	"strconv"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 type sizeState uint8
@@ -31,6 +32,7 @@ type sizeGen struct {
 	passes
 	p     printer
 	state sizeState
+	ctx   *Context
 }
 
 func (s *sizeGen) Method() Method { return Size }
@@ -78,6 +80,9 @@ func (s *sizeGen) Execute(p Elem) error {
 	if !IsPrintable(p) {
 		return nil
 	}
+
+	s.ctx = &Context{}
+	s.ctx.PushString(p.TypeName())
 
 	s.p.comment("Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message")
 
@@ -141,7 +146,7 @@ func (s *sizeGen) gSlice(sl *Slice) {
 
 	// add inside the range block, and immediately after
 	s.state = add
-	s.p.rangeBlock(sl.Index, sl.Varname(), s, sl.Els)
+	s.p.rangeBlock(s.ctx, sl.Index, sl.Varname(), s, sl.Els)
 	s.state = add
 }
 
@@ -161,7 +166,7 @@ func (s *sizeGen) gArray(a *Array) {
 	}
 
 	s.state = add
-	s.p.rangeBlock(a.Index, a.Varname(), s, a.Els)
+	s.p.rangeBlock(s.ctx, a.Index, a.Varname(), s, a.Els)
 	s.state = add
 }
 
@@ -173,7 +178,9 @@ func (s *sizeGen) gMap(m *Map) {
 	s.p.printf("\n_ = %s", m.Validx) // we may not use the value
 	s.p.printf("\ns += msgp.StringPrefixSize + len(%s)", m.Keyidx)
 	s.state = expr
+	s.ctx.PushVar(m.Keyidx)
 	next(s, m.Value)
+	s.ctx.Pop()
 	s.p.closeblock()
 	s.p.closeblock()
 	s.state = add
@@ -183,7 +190,24 @@ func (s *sizeGen) gBase(b *BaseElem) {
 	if !s.p.ok() {
 		return
 	}
-	s.addConstant(basesizeExpr(b))
+	if b.Convert && b.ShimMode == Convert {
+		s.state = add
+		vname := randIdent()
+		s.p.printf("\nvar %s %s", vname, b.BaseType())
+
+		// ensure we don't get "unused variable" warnings from outer slice iterations
+		s.p.printf("\n_ = %s", b.Varname())
+
+		s.p.printf("\ns += %s", basesizeExpr(b.Value, vname, b.BaseName()))
+		s.state = expr
+
+	} else {
+		vname := b.Varname()
+		if b.Convert {
+			vname = tobaseConvert(b)
+		}
+		s.addConstant(basesizeExpr(b.Value, vname, b.BaseName()))
+	}
 }
 
 // returns "len(slice)"
@@ -250,12 +274,8 @@ func fixedsizeExpr(e Elem) (string, bool) {
 }
 
 // print size expression of a variable name
-func basesizeExpr(b *BaseElem) string {
-	vname := b.Varname()
-	if b.Convert {
-		vname = tobaseConvert(b)
-	}
-	switch b.Value {
+func basesizeExpr(value Primitive, vname, basename string) string {
+	switch value {
 	case Ext:
 		return "msgp.ExtensionPrefixSize + " + stripRef(vname) + ".Len()"
 	case Intf:
@@ -267,6 +287,6 @@ func basesizeExpr(b *BaseElem) string {
 	case String:
 		return "msgp.StringPrefixSize + len(" + vname + ")"
 	default:
-		return builtinSize(b.BaseName())
+		return builtinSize(basename)
 	}
 }

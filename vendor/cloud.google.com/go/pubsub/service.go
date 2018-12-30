@@ -68,7 +68,7 @@ func isRetryable(err error) bool {
 		return true
 	}
 	switch s.Code() {
-	case codes.DeadlineExceeded, codes.Internal, codes.Canceled, codes.ResourceExhausted:
+	case codes.DeadlineExceeded, codes.Internal, codes.ResourceExhausted:
 		return true
 	case codes.Unavailable:
 		return !strings.Contains(s.Message(), "Server shutdownNow invoked")

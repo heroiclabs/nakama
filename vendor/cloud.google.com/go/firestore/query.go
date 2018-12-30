@@ -15,6 +15,7 @@
 package firestore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,13 +23,10 @@ import (
 	"reflect"
 	"time"
 
-	"golang.org/x/net/context"
-
-	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
-
 	"cloud.google.com/go/internal/btree"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/api/iterator"
+	pb "google.golang.org/genproto/googleapis/firestore/v1beta1"
 )
 
 // Query represents a Firestore query.
@@ -62,6 +60,8 @@ const DocumentID = "__name__"
 // to return from the result documents.
 // Each path argument can be a single field or a dot-separated sequence of
 // fields, and must not contain any of the runes "˜*/[]".
+//
+// An empty Select call will produce a query that returns only document IDs.
 func (q Query) Select(paths ...string) Query {
 	var fps []FieldPath
 	for _, s := range paths {
@@ -77,6 +77,8 @@ func (q Query) Select(paths ...string) Query {
 
 // SelectPaths returns a new Query that specifies the field paths
 // to return from the result documents.
+//
+// An empty SelectPaths call will produce a query that returns only document IDs.
 func (q Query) SelectPaths(fieldPaths ...FieldPath) Query {
 	if len(fieldPaths) == 0 {
 		q.selection = []FieldPath{{DocumentID}}
@@ -239,6 +241,16 @@ func (q Query) toProto() (*pb.StructuredQuery, error) {
 	if q.collectionID == "" {
 		return nil, errors.New("firestore: query created without CollectionRef")
 	}
+	if q.startBefore {
+		if len(q.startVals) == 0 && q.startDoc == nil {
+			return nil, errors.New("firestore: StartAt/StartAfter must be called with at least one value")
+		}
+	}
+	if q.endBefore {
+		if len(q.endVals) == 0 && q.endDoc == nil {
+			return nil, errors.New("firestore: EndAt/EndBefore must be called with at least one value")
+		}
+	}
 	p := &pb.StructuredQuery{
 		From:   []*pb.StructuredQuery_CollectionSelector{{CollectionId: q.collectionID}},
 		Offset: q.offset,
@@ -371,7 +383,7 @@ func (q *Query) fieldValuesToCursorValues(fieldValues []interface{}) ([]*pb.Valu
 				return nil, err
 			}
 			if sawTransform {
-				return nil, errors.New("firestore: ServerTimestamp disallowed in query value")
+				return nil, errors.New("firestore: transforms disallowed in query value")
 			}
 		}
 	}
@@ -471,6 +483,8 @@ func (f filter) toProto() (*pb.StructuredQuery_Filter, error) {
 		op = pb.StructuredQuery_FieldFilter_GREATER_THAN_OR_EQUAL
 	case "==":
 		op = pb.StructuredQuery_FieldFilter_EQUAL
+	case "array-contains":
+		op = pb.StructuredQuery_FieldFilter_ARRAY_CONTAINS
 	default:
 		return nil, fmt.Errorf("firestore: invalid operator %q", f.op)
 	}
@@ -479,7 +493,7 @@ func (f filter) toProto() (*pb.StructuredQuery_Filter, error) {
 		return nil, err
 	}
 	if sawTransform {
-		return nil, errors.New("firestore: ServerTimestamp disallowed in query value")
+		return nil, errors.New("firestore: transforms disallowed in query value")
 	}
 	return &pb.StructuredQuery_Filter{
 		FilterType: &pb.StructuredQuery_Filter_FieldFilter{
@@ -583,7 +597,7 @@ func (it *DocumentIterator) Next() (*DocumentSnapshot, error) {
 }
 
 // Stop stops the iterator, freeing its resources.
-// Always call Stop when you are done with an iterator.
+// Always call Stop when you are done with a DocumentIterator.
 // It is not safe to call Stop concurrently with Next.
 func (it *DocumentIterator) Stop() {
 	if it.iter != nil { // possible in error cases
@@ -701,24 +715,15 @@ type QuerySnapshotIterator struct {
 	// The Query used to construct this iterator.
 	Query Query
 
-	// The time at which the most recent snapshot was obtained from Firestore.
-	ReadTime time.Time
-
-	// The number of results in the most recent snapshot.
-	Size int
-
-	// The changes since the previous snapshot.
-	Changes []DocumentChange
-
 	ws  *watchStream
 	err error
 }
 
-// Next blocks until the query's results change, then returns a DocumentIterator for
+// Next blocks until the query's results change, then returns a QuerySnapshot for
 // the current results.
 //
 // Next never returns iterator.Done unless it is called after Stop.
-func (it *QuerySnapshotIterator) Next() (*DocumentIterator, error) {
+func (it *QuerySnapshotIterator) Next() (*QuerySnapshot, error) {
 	if it.err != nil {
 		return nil, it.err
 	}
@@ -730,19 +735,38 @@ func (it *QuerySnapshotIterator) Next() (*DocumentIterator, error) {
 		it.err = err
 		return nil, it.err
 	}
-	it.Changes = changes
-	it.ReadTime = readTime
-	it.Size = btree.Len()
-	return &DocumentIterator{
-		iter: (*btreeDocumentIterator)(btree.BeforeIndex(0)),
+	return &QuerySnapshot{
+		Documents: &DocumentIterator{
+			iter: (*btreeDocumentIterator)(btree.BeforeIndex(0)),
+		},
+		Size:     btree.Len(),
+		Changes:  changes,
+		ReadTime: readTime,
 	}, nil
 }
 
-// Stop stops receiving snapshots.
-// You should always call Stop when you are done with an iterator, to free up resources.
-// It is not safe to call Stop concurrently with Next.
+// Stop stops receiving snapshots. You should always call Stop when you are done with
+// a QuerySnapshotIterator, to free up resources. It is not safe to call Stop
+// concurrently with Next.
 func (it *QuerySnapshotIterator) Stop() {
 	it.ws.stop()
+}
+
+// A QuerySnapshot is a snapshot of query results. It is returned by
+// QuerySnapshotIterator.Next whenever the results of a query change.
+type QuerySnapshot struct {
+	// An iterator over the query results.
+	// It is not necessary to call Stop on this iterator.
+	Documents *DocumentIterator
+
+	// The number of results in this snapshot.
+	Size int
+
+	// The changes since the previous snapshot.
+	Changes []DocumentChange
+
+	// The time at which this snapshot was obtained from Firestore.
+	ReadTime time.Time
 }
 
 type btreeDocumentIterator btree.Iterator

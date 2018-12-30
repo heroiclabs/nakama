@@ -2,6 +2,9 @@ package msgp
 
 import (
 	"bytes"
+	"fmt"
+	"log"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -222,53 +225,211 @@ func BenchmarkReadBoolBytes(b *testing.B) {
 
 func TestReadInt64Bytes(t *testing.T) {
 	var buf bytes.Buffer
-	en := NewWriter(&buf)
+	wr := NewWriter(&buf)
 
-	tests := []int64{-5, -30, 0, 1, 127, 300, 40921, 34908219}
+	ints := []int64{-100000, -5000, -5, 0, 8, 240, int64(tuint16), int64(tuint32), int64(tuint64),
+		-5, -30, 0, 1, 127, 300, 40921, 34908219}
 
-	for i, v := range tests {
+	uints := []uint64{0, 8, 240, uint64(tuint16), uint64(tuint32), uint64(tuint64)}
+
+	all := make([]interface{}, 0, len(ints)+len(uints))
+	for _, v := range ints {
+		all = append(all, v)
+	}
+	for _, v := range uints {
+		all = append(all, v)
+	}
+
+	for i, num := range all {
 		buf.Reset()
-		en.WriteInt64(v)
-		en.Flush()
-		out, left, err := ReadInt64Bytes(buf.Bytes())
+		var err error
 
+		var in int64
+		switch num := num.(type) {
+		case int64:
+			err = wr.WriteInt64(num)
+			in = num
+		case uint64:
+			err = wr.WriteUint64(num)
+			in = int64(num)
+		default:
+			panic(num)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = wr.Flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		out, left, err := ReadInt64Bytes(buf.Bytes())
+		if out != in {
+			t.Errorf("Test case %d: put %d in and got %d out", i, num, in)
+		}
 		if err != nil {
 			t.Errorf("test case %d: %s", i, err)
 		}
-
 		if len(left) != 0 {
 			t.Errorf("expected 0 bytes left; found %d", len(left))
-		}
-
-		if out != v {
-			t.Errorf("%d in; %d out", v, out)
 		}
 	}
 }
 
 func TestReadUint64Bytes(t *testing.T) {
 	var buf bytes.Buffer
-	en := NewWriter(&buf)
+	wr := NewWriter(&buf)
 
-	tests := []uint64{0, 1, 127, 300, 40921, 34908219}
+	vs := []interface{}{
+		int64(0), int64(8), int64(240), int64(tuint16), int64(tuint32), int64(tuint64),
+		uint64(0), uint64(8), uint64(240), uint64(tuint16), uint64(tuint32), uint64(tuint64),
+		uint64(math.MaxUint64),
+	}
 
-	for i, v := range tests {
+	for i, num := range vs {
 		buf.Reset()
-		en.WriteUint64(v)
-		en.Flush()
-		out, left, err := ReadUint64Bytes(buf.Bytes())
+		var err error
 
+		var in uint64
+		switch num := num.(type) {
+		case int64:
+			err = wr.WriteInt64(num)
+			in = uint64(num)
+		case uint64:
+			err = wr.WriteUint64(num)
+			in = (num)
+		default:
+			panic(num)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = wr.Flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		out, left, err := ReadUint64Bytes(buf.Bytes())
+		if out != in {
+			t.Errorf("Test case %d: put %d in and got %d out", i, num, in)
+		}
 		if err != nil {
 			t.Errorf("test case %d: %s", i, err)
 		}
-
 		if len(left) != 0 {
 			t.Errorf("expected 0 bytes left; found %d", len(left))
 		}
+	}
+}
 
-		if out != v {
-			t.Errorf("%d in; %d out", v, out)
+func TestReadIntBytesOverflows(t *testing.T) {
+	var buf bytes.Buffer
+	wr := NewWriter(&buf)
+
+	i8, i16, i32, i64, u8, u16, u32, u64 := 1, 2, 3, 4, 5, 6, 7, 8
+
+	overflowErr := func(err error, failBits int) bool {
+		bits := 0
+		switch err := err.(type) {
+		case IntOverflow:
+			bits = err.FailedBitsize
+		case UintOverflow:
+			bits = err.FailedBitsize
 		}
+		if bits == failBits {
+			return true
+		}
+		log.Println("bits mismatch", bits, failBits)
+		return false
+	}
+
+	belowZeroErr := func(err error, failBits int) bool {
+		switch err.(type) {
+		case UintBelowZero:
+			return true
+		}
+		return false
+	}
+
+	vs := []struct {
+		v        interface{}
+		rdBits   int
+		failBits int
+		errCheck func(err error, failBits int) bool
+	}{
+		{uint64(math.MaxInt64), i32, 32, overflowErr},
+		{uint64(math.MaxInt64), i16, 16, overflowErr},
+		{uint64(math.MaxInt64), i8, 8, overflowErr},
+
+		{uint64(math.MaxUint64), i64, 64, overflowErr},
+		{uint64(math.MaxUint64), i32, 64, overflowErr},
+		{uint64(math.MaxUint64), i16, 64, overflowErr},
+		{uint64(math.MaxUint64), i8, 64, overflowErr},
+
+		{uint64(math.MaxUint32), i32, 32, overflowErr},
+		{uint64(math.MaxUint32), i16, 16, overflowErr},
+		{uint64(math.MaxUint32), i8, 8, overflowErr},
+
+		{int64(math.MinInt64), u64, 64, belowZeroErr},
+		{int64(math.MinInt64), u32, 64, belowZeroErr},
+		{int64(math.MinInt64), u16, 64, belowZeroErr},
+		{int64(math.MinInt64), u8, 64, belowZeroErr},
+		{int64(math.MinInt32), u64, 64, belowZeroErr},
+		{int64(math.MinInt32), u32, 32, belowZeroErr},
+		{int64(math.MinInt32), u16, 16, belowZeroErr},
+		{int64(math.MinInt32), u8, 8, belowZeroErr},
+		{int64(math.MinInt16), u64, 64, belowZeroErr},
+		{int64(math.MinInt16), u32, 32, belowZeroErr},
+		{int64(math.MinInt16), u16, 16, belowZeroErr},
+		{int64(math.MinInt16), u8, 8, belowZeroErr},
+		{int64(math.MinInt8), u64, 64, belowZeroErr},
+		{int64(math.MinInt8), u32, 32, belowZeroErr},
+		{int64(math.MinInt8), u16, 16, belowZeroErr},
+		{int64(math.MinInt8), u8, 8, belowZeroErr},
+		{-1, u64, 64, belowZeroErr},
+		{-1, u32, 32, belowZeroErr},
+		{-1, u16, 16, belowZeroErr},
+		{-1, u8, 8, belowZeroErr},
+	}
+
+	for i, v := range vs {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			buf.Reset()
+			switch num := v.v.(type) {
+			case int:
+				wr.WriteInt64(int64(num))
+			case int64:
+				wr.WriteInt64(num)
+			case uint64:
+				wr.WriteUint64(num)
+			default:
+				panic(num)
+			}
+			wr.Flush()
+
+			var err error
+			switch v.rdBits {
+			case i64:
+				_, _, err = ReadInt64Bytes(buf.Bytes())
+			case i32:
+				_, _, err = ReadInt32Bytes(buf.Bytes())
+			case i16:
+				_, _, err = ReadInt16Bytes(buf.Bytes())
+			case i8:
+				_, _, err = ReadInt8Bytes(buf.Bytes())
+			case u64:
+				_, _, err = ReadUint64Bytes(buf.Bytes())
+			case u32:
+				_, _, err = ReadUint32Bytes(buf.Bytes())
+			case u16:
+				_, _, err = ReadUint16Bytes(buf.Bytes())
+			case u8:
+				_, _, err = ReadUint8Bytes(buf.Bytes())
+			}
+			if !v.errCheck(err, v.failBits) {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
