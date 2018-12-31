@@ -3,24 +3,24 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.3.0] - 2018-12-31
 ### Added
-- WebSocket connections can now use pure Protobuf binary messaging.
+- WebSocket connections can now send Protobuf binary messages.
 - Lua runtime tournament listings now return duration, end active, and end time fields.
 - Lua runtime tournament end hooks now contain duration, end active, and end time fields.
 - Lua runtime tournament reset hooks now contain duration, end active, and end time fields.
-- Separate configuration for maximum number of concurrent join requests to authoritative matches.
+- New configuration flag for maximum number of concurrent join requests to authoritative matches.
 - New runtime function to kick users from a group.
-- Clients sending data to an invalid match ID will now receive an uncollated error.
-- Optional log file rotation.
+- Clients that send data to an invalid match ID will now receive an uncollated error.
+- The logger now supports optional log file rotation.
 - Go runtime authoritative matches now also print Match IDs in log lines generated within the match.
-- Allow client email authentication requests to optionally authenticate with username/password instead of email/password.
-- Allow runtime email authentication calls to authenticate with username/password instead of email/password.
+- Email authentication client requests can authenticate with username/password instead of email/password.
+- Email authentication server runtime calls can authenticate with username/password instead of email/password.
 - New authoritative match dispatcher function to defer message broadcasts until the end of the tick.
 - New runtime function to retrieve multiple user accounts by user ID.
 - Send notifications to admins of non-open groups when a user requests to join.
 - Send notifications to users when their request to join a group is accepted.
-- New configuration parameter for presence event buffer size.
+- New configuration flag for presence event buffer size.
 
 ### Changed
 - Replace standard logger supplied to the Go runtime with a more powerful interface.
@@ -36,7 +36,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Authoritative match join attempts now wait until the handler acknowledges the join before returning to clients.
 
 ### Fixed
-- Correctly report execution mode in Lua runtime after hooks.
+- Report correct execution mode in Lua runtime after hooks.
 - Use correct parameter type for creator ID in group update queries.
 - Use correct parameter name for lang tag in group update queries.
 - Do not allow users to send friend requests to the root user.
