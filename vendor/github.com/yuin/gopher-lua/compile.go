@@ -65,6 +65,9 @@ var _ecnonem2 = &expcontext{ecNone, regNotDefined, -2}
 var ecfuncdef = &expcontext{ecMethod, regNotDefined, 0}
 
 func ecupdate(ec *expcontext, ctype expContextType, reg, varargopt int) {
+	if ec == _ecnone0 || ec == _ecnonem1 || ec == _ecnonem2 {
+		panic("can not update ec cache")
+	}
 	ec.ctype = ctype
 	ec.reg = reg
 	ec.varargopt = varargopt
@@ -199,6 +202,15 @@ func (cd *codeStore) PropagateMV(top int, save *int, reg *int, inc int) {
 	}
 	*save = *reg
 	*reg = *reg + inc
+}
+
+func (cd *codeStore) AddLoadNil(a, b, line int) {
+	last := cd.Last()
+	if opGetOpCode(last) == OP_LOADNIL && (opGetArgA(last)+opGetArgB(last)) == a {
+		cd.SetB(cd.LastPC(), b)
+	} else {
+		cd.AddABC(OP_LOADNIL, a, b, 0, line)
+	}
 }
 
 func (cd *codeStore) SetOpCode(pc int, v int) {
@@ -661,7 +673,7 @@ func compileRegAssignment(context *funcContext, names []string, exprs []ast.Expr
 	// extra left names
 	if lennames > namesassigned {
 		restleft := lennames - namesassigned - 1
-		context.Code.AddABC(OP_LOADNIL, reg, reg+restleft, 0, line)
+		context.Code.AddLoadNil(reg, reg+restleft, line)
 		reg += restleft
 	}
 
@@ -963,7 +975,7 @@ func compileExpr(context *funcContext, reg int, expr ast.Expr, ec *expcontext) i
 		code.AddABx(OP_LOADK, sreg, context.ConstIndex(ex.Value), sline(ex))
 		return sused
 	case *ast.NilExpr:
-		code.AddABC(OP_LOADNIL, sreg, sreg, 0, sline(ex))
+		code.AddLoadNil(sreg, sreg, sline(ex))
 		return sused
 	case *ast.FalseExpr:
 		code.AddABC(OP_LOADBOOL, sreg, 0, 0, sline(ex))
@@ -1449,11 +1461,17 @@ func compileLogicalOpExprAux(context *funcContext, reg int, expr ast.Expr, ec *e
 		return
 	}
 
+	a := reg
+	sreg := savereg(ec, a)
 	if !hasnextcond && thenlabel == elselabel {
-		reg += compileExpr(context, reg, expr, ec)
+		reg += compileExpr(context, reg, expr, &expcontext{ec.ctype, intMax(a, sreg), ec.varargopt})
+		last := context.Code.Last()
+		if opGetOpCode(last) == OP_MOVE && opGetArgA(last) == a {
+			context.Code.SetA(context.Code.LastPC(), sreg)
+		} else {
+			context.Code.AddABC(OP_MOVE, sreg, a, 0, sline(expr))
+		}
 	} else {
-		a := reg
-		sreg := savereg(ec, a)
 		reg += compileExpr(context, reg, expr, ecnone(0))
 		if sreg == a {
 			code.AddABC(OP_TEST, a, 0, 0^flip, sline(expr))

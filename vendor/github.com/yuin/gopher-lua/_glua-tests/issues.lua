@@ -215,3 +215,17 @@ ok, message = pcall(function()
   pcall()
 end)
 assert(not ok and string.find(message, "bad argument #1 to pcall", 1, true))
+
+-- issue 216
+local function bar()
+  return "bar"
+end
+
+local function test(foo)
+  local should_not_change
+  foo = foo or bar()
+  print(should_not_change)
+  return should_not_change
+end
+
+assert(test(nil) == nil)
