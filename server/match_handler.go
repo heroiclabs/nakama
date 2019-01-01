@@ -69,7 +69,6 @@ func (m *MatchDataMessage) GetReceiveTime() int64 {
 type MatchHandler struct {
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
-	tracker       Tracker
 	router        MessageRouter
 
 	JoinMarkerList *MatchJoinMarkerList
@@ -102,7 +101,7 @@ type MatchHandler struct {
 	state interface{}
 }
 
-func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, core RuntimeMatchCore, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
 	presenceList := &MatchPresenceList{
 		presences: make([]*PresenceID, 0, 10),
 	}
@@ -131,6 +130,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 	mh := &MatchHandler{
 		logger:        logger,
 		matchRegistry: matchRegistry,
+		router:        router,
 
 		JoinMarkerList: &MatchJoinMarkerList{
 			joinMarkers: make(map[uuid.UUID]*MatchJoinMarker),

@@ -100,6 +100,7 @@ type LocalMatchRegistry struct {
 	logger  *zap.Logger
 	config  Config
 	tracker Tracker
+	router  MessageRouter
 	node    string
 	matches map[uuid.UUID]*MatchHandler
 	index   bleve.Index
@@ -108,7 +109,7 @@ type LocalMatchRegistry struct {
 	stoppedCh chan struct{}
 }
 
-func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, router MessageRouter, node string) MatchRegistry {
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 
@@ -121,6 +122,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 		logger:  logger,
 		config:  config,
 		tracker: tracker,
+		router:  router,
 		node:    node,
 		matches: make(map[uuid.UUID]*MatchHandler),
 		index:   index,
@@ -157,7 +159,7 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 		return nil, errors.New("shutdown in progress")
 	}
 
-	match, err := NewMatchHandler(logger, r.config, r, core, id, r.node, params)
+	match, err := NewMatchHandler(logger, r.config, r, r.router, core, id, r.node, params)
 	if err != nil {
 		return nil, err
 	}
