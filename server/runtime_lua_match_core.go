@@ -98,38 +98,46 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *j
 	req := vm.GetGlobal("require").(*lua.LFunction)
 	err := vm.GPCall(req.GFunction, lua.LString(name))
 	if err != nil {
+		ctxCancelFn()
 		return nil, fmt.Errorf("error loading match module: %v", err.Error())
 	}
 
 	// Extract the expected function references.
 	var tab *lua.LTable
 	if t := vm.Get(-1); t.Type() != lua.LTTable {
+		ctxCancelFn()
 		return nil, errors.New("match module must return a table containing the match callback functions")
 	} else {
 		tab = t.(*lua.LTable)
 	}
 	initFn := tab.RawGet(lua.LString("match_init"))
 	if initFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_init not found or not a function")
 	}
 	joinAttemptFn := tab.RawGet(lua.LString("match_join_attempt"))
 	if joinAttemptFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_join_attempt not found or not a function")
 	}
 	joinFn := tab.RawGet(lua.LString("match_join"))
 	if joinFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_join not found or not a function")
 	}
 	leaveFn := tab.RawGet(lua.LString("match_leave"))
 	if leaveFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_leave not found or not a function")
 	}
 	loopFn := tab.RawGet(lua.LString("match_loop"))
 	if loopFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_loop not found or not a function")
 	}
 	terminateFn := tab.RawGet(lua.LString("match_terminate"))
 	if terminateFn.Type() != lua.LTFunction {
+		ctxCancelFn()
 		return nil, errors.New("match_terminate not found or not a function")
 	}
 

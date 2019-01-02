@@ -16,6 +16,7 @@ package server
 
 import (
 	"github.com/gofrs/uuid"
+	"go.uber.org/atomic"
 	"sync"
 )
 
@@ -52,6 +53,7 @@ func (p *MatchPresence) GetStatus() string {
 // Used to monitor when match presences begin and complete their match join process.
 type MatchJoinMarker struct {
 	expiryTick int64
+	marked     *atomic.Bool
 	ch         chan struct{}
 }
 
@@ -64,6 +66,7 @@ func (m *MatchJoinMarkerList) Add(sessionID uuid.UUID, expiryTick int64) {
 	m.Lock()
 	m.joinMarkers[sessionID] = &MatchJoinMarker{
 		expiryTick: expiryTick,
+		marked:     atomic.NewBool(false),
 		ch:         make(chan struct{}),
 	}
 	m.Unlock()
@@ -82,7 +85,9 @@ func (m *MatchJoinMarkerList) Get(sessionID uuid.UUID) <-chan struct{} {
 func (m *MatchJoinMarkerList) Mark(sessionID uuid.UUID) {
 	m.RLock()
 	if joinMarker, ok := m.joinMarkers[sessionID]; ok {
-		close(joinMarker.ch)
+		if joinMarker.marked.CAS(false, true) {
+			close(joinMarker.ch)
+		}
 	}
 	m.RUnlock()
 }

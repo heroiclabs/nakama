@@ -148,6 +148,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetMatch().DeferredQueueSize < 1 {
 		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", mainConfig.GetMatch().DeferredQueueSize))
 	}
+	if mainConfig.GetMatch().JoinMarkerDeadlineMs < 1 {
+		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", mainConfig.GetMatch().JoinMarkerDeadlineMs))
+	}
 	if mainConfig.GetTracker().EventQueueSize < 1 {
 		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", mainConfig.GetTracker().EventQueueSize))
 	}
@@ -488,6 +491,7 @@ type MatchConfig struct {
 	CallQueueSize        int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
 	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
 	DeferredQueueSize    int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
+	JoinMarkerDeadlineMs int `yaml:"join_marker_deadline_ms" json:"join_marker_deadline_ms" usage:"Deadline in milliseconds that client authoritative match joins will wait for match handlers to acknowledge joins. Default 5000."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
@@ -497,6 +501,7 @@ func NewMatchConfig() *MatchConfig {
 		CallQueueSize:        128,
 		JoinAttemptQueueSize: 128,
 		DeferredQueueSize:    128,
+		JoinMarkerDeadlineMs: 5000,
 	}
 }
 

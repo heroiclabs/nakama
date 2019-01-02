@@ -49,16 +49,16 @@ type RankMap struct {
 	SortOrder int
 }
 
-func (r RankMap) Len() int {
+func (r *RankMap) Len() int {
 	return len(r.Ranks)
 }
-func (r RankMap) Swap(i, j int) {
+func (r *RankMap) Swap(i, j int) {
 	rank1 := r.Ranks[i]
 	rank2 := r.Ranks[j]
 	r.Ranks[i], r.Ranks[j] = rank2, rank1
 	rank1.Rank, rank2.Rank = rank2.Rank, rank1.Rank
 }
-func (r RankMap) Less(i, j int) bool {
+func (r *RankMap) Less(i, j int) bool {
 	rank1 := r.Ranks[i]
 	rank2 := r.Ranks[j]
 	if r.SortOrder == LeaderboardSortOrderDescending {

@@ -4,8 +4,12 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Make authoritative match join attempt marker deadline configurable.
+
 ### Fixed
 - Correctly register deferred messages sent from authoritative matches.
+- Correctly cancel Lua authoritative match context when match initialization fails.
 
 ## [2.3.0] - 2018-12-31
 ### Added
