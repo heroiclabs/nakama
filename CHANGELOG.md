@@ -3,18 +3,18 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.3.1] - 2019-01-04
 ### Added
 - Make authoritative match join attempt marker deadline configurable.
 
 ### Changed
-- Better batching of wallet updates.
+- Improve db transaction semantics with batch wallet updates.
 
 ### Fixed
-- Correctly register deferred messages sent from authoritative matches.
-- Correctly cancel Lua authoritative match context when match initialization fails.
-- Improve decoding of Steam authentication responses to correctly unwrap payload.
-- Correctly parse Steam Web API errors when authenticating Steam tokens.
+- Initialize registration of deferred messages sent from authoritative matches.
+- Early cancel Lua authoritative match context when match initialization fails.
+- Update decoding of Steam authentication responses to correctly unwrap payload. Thanks @nielslanting
+- Parse Steam Web API response errors when authenticating Steam tokens.
 
 ## [2.3.0] - 2018-12-31
 ### Added
