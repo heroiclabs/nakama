@@ -7,9 +7,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Make authoritative match join attempt marker deadline configurable.
 
+### Changed
+- Better batching of wallet updates.
+
 ### Fixed
 - Correctly register deferred messages sent from authoritative matches.
 - Correctly cancel Lua authoritative match context when match initialization fails.
+- Improve decoding of Steam authentication responses to correctly unwrap payload.
 
 ## [2.3.0] - 2018-12-31
 ### Added

@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"github.com/golang/protobuf/proto"
 	"sync"
 
@@ -161,33 +162,41 @@ type LocalTracker struct {
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
 	eventsCh           chan *PresenceEvent
-	stopCh             chan struct{}
 	presencesByStream  map[uint8]map[PresenceStream]map[presenceCompact]PresenceMeta
 	presencesBySession map[uuid.UUID]map[presenceCompact]PresenceMeta
+
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
 }
 
 func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
 	t := &LocalTracker{
 		logger:             logger,
 		sessionRegistry:    sessionRegistry,
 		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               config.GetName(),
 		eventsCh:           make(chan *PresenceEvent, config.GetTracker().EventQueueSize),
-		stopCh:             make(chan struct{}),
 		presencesByStream:  make(map[uint8]map[PresenceStream]map[presenceCompact]PresenceMeta),
 		presencesBySession: make(map[uuid.UUID]map[presenceCompact]PresenceMeta),
+
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
 	}
+
 	go func() {
 		// Asynchronously process and dispatch presence events.
 		for {
 			select {
-			case <-t.stopCh:
+			case <-t.ctx.Done():
 				return
 			case e := <-t.eventsCh:
 				t.processEvent(e)
 			}
 		}
 	}()
+
 	return t
 }
 
@@ -201,7 +210,7 @@ func (t *LocalTracker) SetMatchLeaveListener(f func(id uuid.UUID, leaves []*Matc
 
 func (t *LocalTracker) Stop() {
 	// No need to explicitly clean up the events channel, just let the application exit.
-	close(t.stopCh)
+	t.ctxCancelFn()
 }
 
 func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
