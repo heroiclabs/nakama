@@ -95,11 +95,18 @@ type SteamProfile struct {
 	SteamID uint64 `json:"steamid"`
 }
 
+// SteamError contains a possible error response from the Steam Web API.
+type SteamError struct {
+	ErrorCode int    `json:"errorcode"`
+	ErrorDesc string `json:"errordesc"`
+}
+
 // Unwrapping the SteamProfile
 type SteamProfileWrapper struct {
-    Response struct {
-        Params SteamProfile `json:"params"`
-    } `json:"response"`
+	Response struct {
+		Params *SteamProfile `json:"params"`
+		Error  *SteamError   `json:"error"`
+	} `json:"response"`
 }
 
 // NewClient creates a new Social Client
@@ -445,7 +452,13 @@ func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID
 	if err != nil {
 		return nil, err
 	}
-	return &profileWrapper.Response.Params, nil
+	if profileWrapper.Response.Error != nil {
+		return nil, fmt.Errorf("%v, %v", profileWrapper.Response.Error.ErrorDesc, profileWrapper.Response.Error.ErrorCode)
+	}
+	if profileWrapper.Response.Params == nil {
+		return nil, errors.New("no steam profile")
+	}
+	return profileWrapper.Response.Params, nil
 }
 
 func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to interface{}) error {
