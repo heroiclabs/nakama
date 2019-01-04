@@ -95,6 +95,13 @@ type SteamProfile struct {
 	SteamID uint64 `json:"steamid"`
 }
 
+// Unwrapping the SteamProfile
+type SteamProfileWrapper struct {
+    Response struct {
+        Params SteamProfile `json:"params"`
+    } `json:"response"`
+}
+
 // NewClient creates a new Social Client
 func NewClient(timeout time.Duration) *Client {
 	// From https://knowledge.symantec.com/support/code-signing-support/index?page=content&actp=CROSSLINK&id=AR2170
@@ -431,14 +438,14 @@ func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleI
 // Key and App ID should be configured at the application level.
 // See: https://partner.steamgames.com/documentation/auth#client_to_backend_webapi
 func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID int, ticket string) (*SteamProfile, error) {
-	path := "https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v0001/?format=json" +
+	path := "https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v1/?format=json" +
 		"&key=" + url.QueryEscape(publisherKey) + "&appid=" + strconv.Itoa(appID) + "&ticket=" + url.QueryEscape(ticket)
-	var profile SteamProfile
-	err := c.request(ctx, "steam profile", path, nil, &profile)
+	var profileWrapper SteamProfileWrapper
+	err := c.request(ctx, "steam profile", path, nil, &profileWrapper)
 	if err != nil {
 		return nil, err
 	}
-	return &profile, nil
+	return &profileWrapper.Response.Params, nil
 }
 
 func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to interface{}) error {
