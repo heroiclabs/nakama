@@ -77,6 +77,8 @@ type ApiServer struct {
 }
 
 func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtime *Runtime) *ApiServer {
+	grpcRuntime.DefaultContextTimeout = time.Duration(config.GetSocket().IdleTimeoutMs) * time.Millisecond
+
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
@@ -183,7 +185,15 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)
 		handlerWithCompressResponse.ServeHTTP(w, r)
 	})
-	grpcGatewayRouter.NewRoute().Handler(handlerWithMaxBody)
+	grpcGatewayRouter.NewRoute().HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Do not allow clients to set certain headers.
+		// Currently disallowed headers:
+		// "Grpc-Timeout"
+		r.Header.Del("Grpc-Timeout")
+
+		// Allow GRPC Gateway to handle the request.
+		handlerWithMaxBody.ServeHTTP(w, r)
+	})
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})

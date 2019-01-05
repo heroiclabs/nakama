@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Set gateway timeout to match idle timeout value.
 
 ## [2.3.1] - 2019-01-04
 ### Added
