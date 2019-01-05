@@ -121,7 +121,6 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			logger.Error("Error listing leaderboard records", zap.Error(err))
 			return nil, err
 		}
-		defer rows.Close()
 
 		rank := int64(0)
 		if incomingCursor != nil {
@@ -155,6 +154,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
+				rows.Close()
 				logger.Error("Error parsing listed leaderboard records", zap.Error(err))
 				return nil, err
 			}
@@ -199,6 +199,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				}
 			}
 		}
+		rows.Close()
 
 		if incomingCursor != nil && !incomingCursor.IsNext {
 			// If this was a previous page listing, flip the results to their normal order and swap the cursors.
@@ -242,7 +243,6 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			logger.Error("Error reading leaderboard records", zap.Error(err))
 			return nil, err
 		}
-		defer rows.Close()
 
 		ownerRecords = make([]*api.LeaderboardRecord, 0, len(ownerIds))
 
@@ -258,6 +258,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		for rows.Next() {
 			err = rows.Scan(&dbOwnerId, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
+				rows.Close()
 				logger.Error("Error parsing read leaderboard records", zap.Error(err))
 				return nil, err
 			}
@@ -283,6 +284,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 			ownerRecords = append(ownerRecords, record)
 		}
+		rows.Close()
 	}
 
 	// Bulk fill in the ranks of any owner records requested.
@@ -443,7 +445,7 @@ func LeaderboardRecordReadAll(ctx context.Context, logger *zap.Logger, db *sql.D
 		logger.Error("Error reading all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	// rows.Close() called in parseLeaderboardRecords
 
 	return parseLeaderboardRecords(logger, rows)
 }
@@ -547,7 +549,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
 		return nil, err
 	}
-	defer firstRows.Close()
+	// firstRows.Close() called in parseLeaderboardRecords
 
 	firstRecords, err := parseLeaderboardRecords(logger, firstRows)
 	if err != nil {
@@ -579,7 +581,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		logger.Error("Could not execute leaderboard records list query", zap.Error(err))
 		return nil, err
 	}
-	defer secondRows.Close()
+	// secondRows.Close() called in parseLeaderboardRecords
 
 	secondRecords, err := parseLeaderboardRecords(logger, secondRows)
 	if err != nil {
@@ -601,6 +603,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 }
 
 func parseLeaderboardRecords(logger *zap.Logger, rows *sql.Rows) ([]*api.LeaderboardRecord, error) {
+	defer rows.Close()
 	records := make([]*api.LeaderboardRecord, 0, 10)
 
 	var dbLeaderboardId string

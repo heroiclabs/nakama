@@ -627,20 +627,27 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			if err != nil {
 				return err
 			}
-			defer rows.Close()
-			var id string
-			query = "UPDATE users SET edge_count = edge_count - 1 WHERE id = $1"
+			statements := make([]string, 0)
+			params := make([]interface{}, 0)
 			for rows.Next() {
-				// Update edge count to reflect each removed friend.
+				var id string
 				err = rows.Scan(&id)
 				if err != nil {
+					rows.Close()
 					return err
 				}
-				result, err := tx.ExecContext(ctx, query, id)
+				params = append(params, id)
+				statements = append(statements, "$"+strconv.Itoa(len(params)))
+			}
+			rows.Close()
+
+			if len(statements) > 0 {
+				query = "UPDATE users SET edge_count = edge_count - 1 WHERE id IN (" + strings.Join(statements, ",") + ")"
+				result, err := tx.ExecContext(ctx, query, params...)
 				if err != nil {
 					return err
 				}
-				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != int64(len(statements)) {
 					return errors.New("error updating edge count after friend reset")
 				}
 			}
@@ -685,15 +692,9 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		for _, friendID := range possibleFriendIDs {
 			position := time.Now().UTC().UnixNano()
 
-			var r *sql.Rows
-			r, err = tx.QueryContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID)
-			if r.Next() {
-				// User has previously blocked this friend, skip it.
-				r.Close()
-				continue
-			}
-
-			if err != nil {
+			var state sql.NullInt64
+			err = tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
+			if err != nil && err != sql.ErrNoRows {
 				logger.Error("Error checking block status in Facebook friend import.", zap.Error(err))
 				continue
 			}

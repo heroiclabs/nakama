@@ -116,12 +116,14 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *empty.Empty) (*con
 	userIDs := make([]string, 0)
 	for rows.Next() {
 		var userID sql.NullString
-		if rows.Scan(&userID); err != nil {
+		if err = rows.Scan(&userID); err != nil {
+			rows.Close()
 			s.logger.Error("Could not list users.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
 		userIDs = append(userIDs, userID.String)
 	}
+	rows.Close()
 
 	accounts := make([]*api.Account, 0)
 	for _, id := range userIDs {

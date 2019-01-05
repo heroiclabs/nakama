@@ -105,7 +105,7 @@ LIMIT $2`
 				return err
 			}
 		}
-		defer rows.Close()
+		// rows.Close() called in storageListObjects
 
 		objects, err = storageListObjects(rows, cursor)
 		if err != nil {
@@ -144,7 +144,7 @@ LIMIT $3`
 				return err
 			}
 		}
-		defer rows.Close()
+		// rows.Close() called in storageListObjects
 
 		objects, err = storageListObjects(rows, cursor)
 		if err != nil {
@@ -191,7 +191,7 @@ LIMIT $3`
 				return err
 			}
 		}
-		defer rows.Close()
+		// rows.Close() called in storageListObjects
 
 		objects, err = storageListObjects(rows, cursor)
 		if err != nil {
@@ -260,6 +260,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		var updateTime pq.NullTime
 		var userID sql.NullString
 		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+			rows.Close()
 			return nil, err
 		}
 
@@ -269,6 +270,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		o.UserId = userID.String
 		objects = append(objects, o)
 	}
+	rows.Close()
 
 	if rows.Err() != nil {
 		return nil, rows.Err()

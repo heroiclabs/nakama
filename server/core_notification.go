@@ -107,7 +107,6 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
 
 	notifications := make([]*api.Notification, 0)
 	var lastCreateTime int64
@@ -115,6 +114,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
 		var createTime pq.NullTime
 		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
+			rows.Close()
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
@@ -126,6 +126,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		}
 		notifications = append(notifications, no)
 	}
+	rows.Close()
 
 	notificationList := &api.NotificationList{}
 	cursorBuf := new(bytes.Buffer)

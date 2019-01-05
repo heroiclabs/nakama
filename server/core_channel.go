@@ -123,7 +123,6 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		logger.Error("Error listing channel messages", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
 
 	messages := make([]*api.ChannelMessage, 0, limit)
 	var nextCursor, prevCursor *channelMessageListCursor
@@ -152,6 +151,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 
 		err = rows.Scan(&dbId, &dbCode, &dbSenderId, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
+			rows.Close()
 			logger.Error("Error parsing listed channel messages", zap.Error(err))
 			return nil, err
 		}
@@ -182,6 +182,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			}
 		}
 	}
+	rows.Close()
 
 	if incomingCursor != nil && !incomingCursor.IsNext {
 		// If this was a previous page listing, flip the results to their normal order and swap the cursors.

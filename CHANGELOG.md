@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Set gateway timeout to match idle timeout value.
+- Reliably release database resources before moving from one query to the next.
 
 ## [2.3.1] - 2019-01-04
 ### Added

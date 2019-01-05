@@ -329,8 +329,6 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 				// Errors here will not cause the join operation to fail.
 				logger.Error("Error looking up group admins to notify of join request.", zap.Error(err))
 			} else {
-				defer rows.Close()
-
 				for rows.Next() {
 					var id string
 					if err = rows.Scan(&id); err != nil {
@@ -352,6 +350,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
 						},
 					}
 				}
+				rows.Close()
 			}
 
 			if len(notifications) > 0 {
@@ -1264,7 +1263,6 @@ WHERE group_edge.destination_id = $1`
 		logger.Debug("Could not list groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
 		return err
 	}
-	defer rows.Close()
 
 	deleteGroupsAndRelationships := make([]uuid.UUID, 0)
 	deleteRelationships := make([]uuid.UUID, 0)
@@ -1276,6 +1274,7 @@ WHERE group_edge.destination_id = $1`
 		var userState sql.NullInt64
 
 		if err := rows.Scan(&id, &edgeCount, &userState); err != nil {
+			rows.Close()
 			logger.Error("Could not parse rows when listing groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
 			return err
 		}
@@ -1291,6 +1290,7 @@ WHERE group_edge.destination_id = $1`
 			deleteRelationships = append(deleteRelationships, groupID)
 		}
 	}
+	rows.Close()
 
 	countOtherSuperadminsQuery := "SELECT COUNT(source_id) FROM group_edge WHERE source_id = $1 AND destination_id != $2 AND state = 0"
 	for _, g := range checkForOtherSuperadmins {

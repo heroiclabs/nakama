@@ -238,7 +238,6 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 		logger.Error("Could not retrieve tournaments", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
 
 	records := make([]*api.Tournament, 0)
 	newCursor := &tournamentListCursor{}
@@ -247,6 +246,7 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 	for rows.Next() {
 		tournament, err := parseTournament(rows, now)
 		if err != nil {
+			rows.Close()
 			logger.Error("Error parsing listed tournament records", zap.Error(err))
 			return nil, err
 		}
@@ -258,6 +258,7 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 			newCursor.TournamentId = records[limit-1].Id
 		}
 	}
+	rows.Close()
 
 	tournamentList := &api.TournamentList{
 		Tournaments: records,

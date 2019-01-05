@@ -155,7 +155,6 @@ FROM leaderboard`
 		l.logger.Error("Error loading leaderboard cache from database", zap.Error(err))
 		return err
 	}
-	defer rows.Close()
 
 	leaderboards := make(map[string]*Leaderboard)
 
@@ -180,6 +179,7 @@ FROM leaderboard`
 		err = rows.Scan(&id, &authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime,
 			&category, &description, &duration, &endTime, &joinRequired, &maxSize, &maxNumScore, &title, &startTime)
 		if err != nil {
+			rows.Close()
 			l.logger.Error("Error parsing leaderboard cache from database", zap.Error(err))
 			return err
 		}
@@ -205,6 +205,7 @@ FROM leaderboard`
 		if resetSchedule.Valid {
 			expr, err := cronexpr.Parse(resetSchedule.String)
 			if err != nil {
+				rows.Close()
 				l.logger.Error("Error parsing leaderboard reset schedule from database", zap.Error(err))
 				return err
 			}
@@ -217,6 +218,7 @@ FROM leaderboard`
 
 		leaderboards[id] = leaderboard
 	}
+	rows.Close()
 
 	l.Lock()
 	l.leaderboards = leaderboards
