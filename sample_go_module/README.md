@@ -16,13 +16,12 @@ package main
 import (
   "context"
   "database/sql"
-  "log"
 
   "github.com/heroiclabs/nakama/runtime"
 )
 
-func InitModule(ctx context.Context, logger *log.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
-  logger.Println("module loaded")
+func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
+  logger.Info("module loaded")
   return nil
 }
 ```
@@ -105,7 +104,7 @@ For Windows development and environments where you want to use our official Dock
 
    ```
    cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
-   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.1.0 build --buildmode=plugin -o ./modules/plugin_project.so
+   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.3.1 build --buildmode=plugin -o ./modules/plugin_project.so
    ```
    
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
@@ -118,7 +117,7 @@ For Windows development and environments where you want to use our official Dock
 
    By default the server will be started and look in a folder relative to the current dir called "./modules" to load code.
 
-   __TIP__: Use the same version of your plugin builder image as used in the Docker Compose file for the server version. i.e. "heroiclabs/nakama:2.1.0" <> "heroiclabs/nakama-pluginbuilder:2.1.0"
+   __TIP__: Use the same version of your plugin builder image as used in the Docker Compose file for the server version. i.e. "heroiclabs/nakama:2.3.1" <> "heroiclabs/nakama-pluginbuilder:2.3.1"
 
 ## Bigger Example
 
