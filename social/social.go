@@ -92,7 +92,7 @@ type GoogleProfile struct {
 
 // SteamProfile is an abbreviated version of a Steam profile.
 type SteamProfile struct {
-	SteamID uint64 `json:"steamid"`
+	SteamID uint64 `json:"steamid,string"`
 }
 
 // SteamError contains a possible error response from the Steam Web API.
