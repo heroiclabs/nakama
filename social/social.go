@@ -267,10 +267,10 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 			break
 		}
 	}
+	c.RUnlock()
 
 	// All verification attempts failed.
 	if token == nil {
-		c.RUnlock()
 		return nil, errors.New("google id token invalid")
 	}
 

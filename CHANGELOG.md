@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Set gateway timeout to match idle timeout value.
 - Reliably release database resources before moving from one query to the next.
+- Unlock GPGS certs cache in social client.
 
 ## [2.3.1] - 2019-01-04
 ### Added
