@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.3.2] - 2019-01-17
 ### Fixed
 - Set gateway timeout to match idle timeout value.
 - Reliably release database resources before moving from one query to the next.
