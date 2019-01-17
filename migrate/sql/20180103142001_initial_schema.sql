@@ -102,7 +102,6 @@ CREATE TABLE IF NOT EXISTS storage (
     UNIQUE (collection, key, user_id)
 );
 CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
-CREATE INDEX IF NOT EXISTS value_ginidx ON storage USING GIN (value);
 
 CREATE TABLE IF NOT EXISTS message (
   PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
