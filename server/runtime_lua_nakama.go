@@ -4759,8 +4759,8 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 		ut.RawSetString("metadata", metadataTable)
 
 		gt := l.CreateTable(0, 2)
-		ut.RawSetString("user", ut)
-		ut.RawSetString("state", lua.LNumber(ug.State.Value))
+		gt.RawSetString("user", ut)
+		gt.RawSetString("state", lua.LNumber(ug.State.Value))
 
 		groupUsers.RawSetInt(i+1, gt)
 	}
