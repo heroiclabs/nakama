@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correctly return group user results in Lua runtime listing operation.
+- Correctly handle leaderboard records previous page cursor.
 
 ## [2.3.2] - 2019-01-17
 ### Fixed
