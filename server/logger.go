@@ -166,7 +166,7 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 		LevelKey:       "level",
 		NameKey:        "logger",
 		CallerKey:      "caller",
-		MessageKey:     "msg",
+		MessageKey:     "log",
 		StacktraceKey:  "stacktrace",
 		EncodeLevel:    zapcore.LowercaseLevelEncoder,
 		EncodeTime:     zapcore.ISO8601TimeEncoder,
@@ -176,7 +176,7 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 }
 
 func StackdriverTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(fmt.Sprintf("%d%s", t.Unix(), t.Format(".000000000")))
+	enc.AppendString(fmt.Sprintf("[-]%d%s", t.Unix(), t.Format(".000000000")))
 }
 
 func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
