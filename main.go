@@ -98,7 +98,7 @@ func main() {
 
 	// Start up server components.
 	matchmaker := server.NewLocalMatchmaker(startupLogger, config.GetName())
-	sessionRegistry := server.NewSessionRegistry()
+	sessionRegistry := server.NewLocalSessionRegistry()
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)

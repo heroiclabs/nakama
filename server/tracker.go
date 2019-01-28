@@ -112,11 +112,11 @@ type Tracker interface {
 	Stop()
 
 	// Track returns success true/false, and new presence true/false.
-	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool)
-	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
+	Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool)
+	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string)
 	UntrackAll(sessionID uuid.UUID)
 	// Update returns success true/false - will only fail if the user has no presence and allowIfFirstForSession is false, otherwise is an upsert.
-	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
+	Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string, meta PresenceMeta, allowIfFirstForSession bool) bool
 
 	// Remove all presences on a stream, effectively closing it.
 	UntrackByStream(stream PresenceStream)
@@ -158,7 +158,7 @@ type LocalTracker struct {
 	logger             *zap.Logger
 	matchJoinListener  func(id uuid.UUID, leaves []*MatchPresence)
 	matchLeaveListener func(id uuid.UUID, leaves []*MatchPresence)
-	sessionRegistry    *SessionRegistry
+	sessionRegistry    SessionRegistry
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
 	eventsCh           chan *PresenceEvent
@@ -169,7 +169,7 @@ type LocalTracker struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	t := &LocalTracker{
@@ -213,7 +213,11 @@ func (t *LocalTracker) Stop() {
 	t.ctxCancelFn()
 }
 
-func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
+func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
+	if node != t.name {
+		return false, false
+	}
+
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
 
@@ -266,7 +270,11 @@ func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID 
 	return true, true
 }
 
-func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {
+func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string) {
+	if node != t.name {
+		return
+	}
+
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
 
@@ -374,7 +382,11 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
 	}
 }
 
-func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
+func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, node string, meta PresenceMeta, allowIfFirstForSession bool) bool {
+	if node != t.name {
+		return false
+	}
+
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.Lock()
 

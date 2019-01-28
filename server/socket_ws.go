@@ -31,12 +31,13 @@ import (
 
 var SocketWsStatsCtx = context.Background()
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  int(config.GetSocket().MaxMessageSizeBytes),
 		WriteBufferSize: int(config.GetSocket().MaxMessageSizeBytes),
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
+	node := config.GetName()
 
 	// This handler will be attached to the API Gateway server.
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -105,19 +106,19 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry *Ses
 		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
 
 		// Wrap the connection for application handling.
-		s := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
+		session := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)
 
 		// Add to the session registry.
-		sessionRegistry.add(s)
+		sessionRegistry.Add(session)
 
 		// Register initial presences for this session.
-		tracker.Track(s.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username(), Hidden: true}, true)
+		tracker.Track(session.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: session.UserID()}, session.UserID(), node, PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, true)
 		if status {
-			tracker.Track(s.ID(), PresenceStream{Mode: StreamModeStatus, Subject: s.UserID()}, s.UserID(), PresenceMeta{Format: s.Format(), Username: s.Username(), Status: ""}, false)
+			tracker.Track(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), node, PresenceMeta{Format: session.Format(), Username: session.Username(), Status: ""}, false)
 		}
 
 		// Allow the server to begin processing incoming messages from this session.
-		s.Consume(pipeline.ProcessRequest)
+		session.Consume(pipeline.ProcessRequest)
 
 		// Mark the end of the session.
 		span.End()

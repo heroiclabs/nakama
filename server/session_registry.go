@@ -52,36 +52,54 @@ type Session interface {
 	Close()
 }
 
-// SessionRegistry maintains a thread-safe list of sessions to their IDs.
-type SessionRegistry struct {
+type SessionRegistry interface {
+	Stop()
+	Get(sessionID uuid.UUID) Session
+	Add(session Session)
+	Remove(sessionID uuid.UUID)
+	Disconnect(ctx context.Context, logger *zap.Logger, sessionID uuid.UUID, node string) error
+}
+
+type LocalSessionRegistry struct {
 	sync.RWMutex
 	sessions map[uuid.UUID]Session
 }
 
-func NewSessionRegistry() *SessionRegistry {
-	return &SessionRegistry{
+func NewLocalSessionRegistry() SessionRegistry {
+	return &LocalSessionRegistry{
 		sessions: make(map[uuid.UUID]Session),
 	}
 }
 
-func (r *SessionRegistry) Stop() {}
+func (r *LocalSessionRegistry) Stop() {}
 
-func (r *SessionRegistry) Get(sessionID uuid.UUID) Session {
-	var s Session
+func (r *LocalSessionRegistry) Get(sessionID uuid.UUID) Session {
+	var session Session
 	r.RLock()
-	s = r.sessions[sessionID]
+	session = r.sessions[sessionID]
 	r.RUnlock()
-	return s
+	return session
 }
 
-func (r *SessionRegistry) add(s Session) {
+func (r *LocalSessionRegistry) Add(session Session) {
 	r.Lock()
-	r.sessions[s.ID()] = s
+	r.sessions[session.ID()] = session
 	r.Unlock()
 }
 
-func (r *SessionRegistry) remove(sessionID uuid.UUID) {
+func (r *LocalSessionRegistry) Remove(sessionID uuid.UUID) {
 	r.Lock()
 	delete(r.sessions, sessionID)
 	r.Unlock()
+}
+
+func (r *LocalSessionRegistry) Disconnect(ctx context.Context, logger *zap.Logger, sessionID uuid.UUID, node string) error {
+	var session Session
+	r.RLock()
+	session = r.sessions[sessionID]
+	r.RUnlock()
+	if session != nil {
+		session.Close()
+	}
+	return nil
 }

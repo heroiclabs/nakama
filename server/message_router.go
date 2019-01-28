@@ -38,11 +38,11 @@ type MessageRouter interface {
 
 type LocalMessageRouter struct {
 	jsonpbMarshaler *jsonpb.Marshaler
-	sessionRegistry *SessionRegistry
+	sessionRegistry SessionRegistry
 	tracker         Tracker
 }
 
-func NewLocalMessageRouter(sessionRegistry *SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
+func NewLocalMessageRouter(sessionRegistry SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
 	return &LocalMessageRouter{
 		jsonpbMarshaler: jsonpbMarshaler,
 		sessionRegistry: sessionRegistry,

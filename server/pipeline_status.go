@@ -77,7 +77,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	presences := make([]*rtapi.UserPresence, 0, len(userIDs))
 	for userID, _ := range uniqueUserIDs {
 		stream := PresenceStream{Mode: StreamModeStatus, Subject: userID}
-		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
+		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), p.node, PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
 		if !success {
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -124,7 +124,7 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 	}
 
 	for _, userID := range userIDs {
-		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: userID}, session.UserID())
+		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: userID}, session.UserID(), p.node)
 	}
 
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
@@ -134,7 +134,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 	incoming := envelope.GetStatusUpdate()
 
 	if incoming.Status == nil {
-		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID())
+		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), p.node)
 
 		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
 		return
@@ -148,7 +148,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	success := p.tracker.Update(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
+	success := p.tracker.Update(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), p.node, PresenceMeta{
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   incoming.Status.Value,

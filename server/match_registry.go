@@ -579,7 +579,7 @@ func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPrese
 		if presence.Node != r.node {
 			continue
 		}
-		r.tracker.Untrack(presence.SessionID, stream, presence.UserID)
+		r.tracker.Untrack(presence.SessionID, stream, presence.UserID, r.node)
 	}
 }
 

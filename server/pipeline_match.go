@@ -39,7 +39,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 
 	username := session.Username()
 
-	if success, _ := p.tracker.Track(session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), PresenceMeta{
+	if success, _ := p.tracker.Track(session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), p.node, PresenceMeta{
 		Username: username,
 		Format:   session.Format(),
 	}, false); !success {
@@ -201,7 +201,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			Username: username,
 			Format:   session.Format(),
 		}
-		if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), m, false); !success {
+		if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), p.node, m, false); !success {
 			// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 			return
 		}
@@ -290,7 +290,7 @@ func (p *Pipeline) matchLeave(logger *zap.Logger, session Session, envelope *rta
 	// Check and drop the presence if possible, will always succeed.
 	stream := PresenceStream{Mode: mode, Subject: matchID, Label: matchIDComponents[1]}
 
-	p.tracker.Untrack(session.ID(), stream, session.UserID())
+	p.tracker.Untrack(session.ID(), stream, session.UserID(), p.node)
 
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
 }

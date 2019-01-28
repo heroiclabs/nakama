@@ -57,7 +57,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
