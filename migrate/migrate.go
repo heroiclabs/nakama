@@ -21,12 +21,15 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gobuffalo/packr"
+	"github.com/heroiclabs/nakama/server"
 	"github.com/lib/pq"
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -43,9 +46,10 @@ type statusRow struct {
 }
 
 type migrationService struct {
-	dbAddress  string
-	limit      int
-	logger     *zap.Logger
+	dbAddress    string
+	limit        int
+	loggerFormat server.LoggingFormat
+	//logger       *zap.Logger
 	migrations *migrate.AssetMigrationSource
 	db         *sql.DB
 }
@@ -79,15 +83,14 @@ func StartupCheck(logger *zap.Logger, db *sql.DB) {
 	}
 }
 
-func Parse(args []string, logger *zap.Logger) {
+func Parse(args []string, tmpLogger *zap.Logger) {
 	if len(args) == 0 {
-		logger.Fatal("Migrate requires a subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
+		tmpLogger.Fatal("Migrate requires a subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}
 
 	migrate.SetTable(migrationTable)
 	migrationBox := packr.NewBox("./sql") // path must be string not a variable for packr to understand
 	ms := &migrationService{
-		logger: logger,
 		migrations: &migrate.AssetMigrationSource{
 			Asset: migrationBox.Find,
 			AssetDir: func(path string) ([]string, error) {
@@ -96,7 +99,7 @@ func Parse(args []string, logger *zap.Logger) {
 		},
 	}
 
-	var exec func()
+	var exec func(logger *zap.Logger)
 	switch args[0] {
 	case "up":
 		exec = ms.up
@@ -107,10 +110,11 @@ func Parse(args []string, logger *zap.Logger) {
 	case "status":
 		exec = ms.status
 	default:
-		logger.Fatal("Unrecognized migrate subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
+		tmpLogger.Fatal("Unrecognized migrate subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
 	}
 
-	ms.parseSubcommand(args[1:])
+	ms.parseSubcommand(args[1:], tmpLogger)
+	logger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, ms.loggerFormat)
 
 	rawUrl := fmt.Sprintf("postgresql://%s", ms.dbAddress)
 	parsedUrl, err := url.Parse(rawUrl)
@@ -170,67 +174,67 @@ func Parse(args []string, logger *zap.Logger) {
 	}
 	ms.db = db
 
-	exec()
+	exec(logger)
 	os.Exit(0)
 }
 
-func (ms *migrationService) up() {
+func (ms *migrationService) up(logger *zap.Logger) {
 	if ms.limit < defaultLimit {
 		ms.limit = 0
 	}
 
 	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Up, ms.limit)
 	if err != nil {
-		ms.logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
+		logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
 
-	ms.logger.Info("Successfully applied migration", zap.Int("count", appliedMigrations))
+	logger.Info("Successfully applied migration", zap.Int("count", appliedMigrations))
 }
 
-func (ms *migrationService) down() {
+func (ms *migrationService) down(logger *zap.Logger) {
 	if ms.limit < defaultLimit {
 		ms.limit = 1
 	}
 
 	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Down, ms.limit)
 	if err != nil {
-		ms.logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
+		logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
 
-	ms.logger.Info("Successfully migrated back", zap.Int("count", appliedMigrations))
+	logger.Info("Successfully migrated back", zap.Int("count", appliedMigrations))
 }
 
-func (ms *migrationService) redo() {
+func (ms *migrationService) redo(logger *zap.Logger) {
 	if ms.limit > defaultLimit {
-		ms.logger.Warn("Limit is ignored when redo is invoked")
+		logger.Warn("Limit is ignored when redo is invoked")
 	}
 
 	appliedMigrations, err := migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Down, 1)
 	if err != nil {
-		ms.logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
+		logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
-	ms.logger.Info("Successfully migrated back", zap.Int("count", appliedMigrations))
+	logger.Info("Successfully migrated back", zap.Int("count", appliedMigrations))
 
 	appliedMigrations, err = migrate.ExecMax(ms.db, dialect, ms.migrations, migrate.Up, 1)
 	if err != nil {
-		ms.logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
+		logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
 	}
-	ms.logger.Info("Successfully applied migration", zap.Int("count", appliedMigrations))
+	logger.Info("Successfully applied migration", zap.Int("count", appliedMigrations))
 }
 
-func (ms *migrationService) status() {
+func (ms *migrationService) status(logger *zap.Logger) {
 	if ms.limit > defaultLimit {
-		ms.logger.Warn("Limit is ignored when status is invoked")
+		logger.Warn("Limit is ignored when status is invoked")
 	}
 
 	migrations, err := ms.migrations.FindMigrations()
 	if err != nil {
-		ms.logger.Fatal("Could not find migrations", zap.Error(err))
+		logger.Fatal("Could not find migrations", zap.Error(err))
 	}
 
 	records, err := migrate.GetMigrationRecords(ms.db, dialect)
 	if err != nil {
-		ms.logger.Fatal("Could not get migration records", zap.Error(err))
+		logger.Fatal("Could not get migration records", zap.Error(err))
 	}
 
 	rows := make(map[string]*statusRow)
@@ -249,23 +253,37 @@ func (ms *migrationService) status() {
 
 	for _, m := range migrations {
 		if rows[m.Id].Migrated {
-			ms.logger.Info(m.Id, zap.String("applied", rows[m.Id].AppliedAt.Format(time.RFC822Z)))
+			logger.Info(m.Id, zap.String("applied", rows[m.Id].AppliedAt.Format(time.RFC822Z)))
 		} else {
-			ms.logger.Info(m.Id, zap.String("applied", ""))
+			logger.Info(m.Id, zap.String("applied", ""))
 		}
 	}
 }
 
-func (ms *migrationService) parseSubcommand(args []string) {
+func (ms *migrationService) parseSubcommand(args []string, logger *zap.Logger) {
+	var loggerFormat string
 	flags := flag.NewFlagSet("migrate", flag.ExitOnError)
 	flags.StringVar(&ms.dbAddress, "database.address", "root@localhost:26257", "Address of CockroachDB server (username:password@address:port/dbname)")
 	flags.IntVar(&ms.limit, "limit", defaultLimit, "Number of migrations to apply forwards or backwards.")
+	flags.StringVar(&loggerFormat, "logger.format", "json", "Number of migrations to apply forwards or backwards.")
 
 	if err := flags.Parse(args); err != nil {
-		ms.logger.Fatal("Could not parse migration flags.")
+		logger.Fatal("Could not parse migration flags.")
 	}
 
 	if ms.dbAddress == "" {
-		ms.logger.Fatal("Database connection details are required.")
+		logger.Fatal("Database connection details are required.")
+	}
+
+	ms.loggerFormat = server.JSONFormat
+	switch strings.ToLower(loggerFormat) {
+	case "":
+		fallthrough
+	case "json":
+		ms.loggerFormat = server.JSONFormat
+	case "stackdriver":
+		ms.loggerFormat = server.StackdriverFormat
+	default:
+		logger.Fatal("Logger mode invalid, must be one of: '', 'json', or 'stackdriver")
 	}
 }

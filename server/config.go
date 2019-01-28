@@ -93,110 +93,112 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		logger.Fatal("Could not parse command line arguments", zap.Error(err))
 	}
 
+	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
+
+	return mainConfig
+}
+
+func CheckConfig(logger *zap.Logger, config Config) {
 	// Fail fast on invalid values.
-	if l := len(mainConfig.Name); l < 1 || l > 16 {
+	if l := len(config.GetName()); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
-	if mainConfig.ShutdownGraceSec < 0 {
-		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown_grace_sec", mainConfig.ShutdownGraceSec))
+	if config.GetShutdownGraceSec() < 0 {
+		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown_grace_sec", config.GetShutdownGraceSec()))
 	}
-	if mainConfig.GetSocket().ServerKey == "" {
+	if config.GetSocket().ServerKey == "" {
 		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
 	}
-	if mainConfig.GetSession().EncryptionKey == "" {
+	if config.GetSession().EncryptionKey == "" {
 		logger.Fatal("Encryption key must be set", zap.String("param", "session.encryption_key"))
 	}
-	if mainConfig.GetRuntime().HTTPKey == "" {
+	if config.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
 	}
-	if mainConfig.GetConsole().Username == "" {
+	if config.GetConsole().Username == "" {
 		logger.Fatal("Console username must be set", zap.String("param", "console.username"))
 	}
-	if mainConfig.GetConsole().Password == "" {
+	if config.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
 	}
-	if p := mainConfig.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
-		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", mainConfig.GetSocket().Protocol))
+	if p := config.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
+		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", config.GetSocket().Protocol))
 	}
-	if mainConfig.GetSocket().PingPeriodMs >= mainConfig.GetSocket().PongWaitMs {
-		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", mainConfig.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", mainConfig.GetSocket().PongWaitMs))
+	if config.GetSocket().PingPeriodMs >= config.GetSocket().PongWaitMs {
+		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", config.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", config.GetSocket().PongWaitMs))
 	}
-	if mainConfig.GetRuntime().MinCount < 0 {
-		logger.Fatal("Minimum runtime instance count must be >= 0", zap.Int("runtime.min_count", mainConfig.GetRuntime().MinCount))
+	if config.GetRuntime().MinCount < 0 {
+		logger.Fatal("Minimum runtime instance count must be >= 0", zap.Int("runtime.min_count", config.GetRuntime().MinCount))
 	}
-	if mainConfig.GetRuntime().MaxCount < 1 {
-		logger.Fatal("Maximum runtime instance count must be >= 1", zap.Int("runtime.max_count", mainConfig.GetRuntime().MaxCount))
+	if config.GetRuntime().MaxCount < 1 {
+		logger.Fatal("Maximum runtime instance count must be >= 1", zap.Int("runtime.max_count", config.GetRuntime().MaxCount))
 	}
-	if mainConfig.GetRuntime().MinCount > mainConfig.GetRuntime().MaxCount {
-		logger.Fatal("Minimum runtime instance count must be less than or equal to maximum runtime instance count", zap.Int("runtime.min_count", mainConfig.GetRuntime().MinCount), zap.Int("runtime.max_count", mainConfig.GetRuntime().MaxCount))
+	if config.GetRuntime().MinCount > config.GetRuntime().MaxCount {
+		logger.Fatal("Minimum runtime instance count must be less than or equal to maximum runtime instance count", zap.Int("runtime.min_count", config.GetRuntime().MinCount), zap.Int("runtime.max_count", config.GetRuntime().MaxCount))
 	}
-	if mainConfig.GetRuntime().CallStackSize < 1 {
-		logger.Fatal("Runtime instance call stack size must be >= 1", zap.Int("runtime.call_stack_size", mainConfig.GetRuntime().CallStackSize))
+	if config.GetRuntime().CallStackSize < 1 {
+		logger.Fatal("Runtime instance call stack size must be >= 1", zap.Int("runtime.call_stack_size", config.GetRuntime().CallStackSize))
 	}
-	if mainConfig.GetRuntime().RegistrySize < 128 {
-		logger.Fatal("Runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", mainConfig.GetRuntime().RegistrySize))
+	if config.GetRuntime().RegistrySize < 128 {
+		logger.Fatal("Runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", config.GetRuntime().RegistrySize))
 	}
-	if mainConfig.GetMatch().InputQueueSize < 1 {
-		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", mainConfig.GetMatch().InputQueueSize))
+	if config.GetMatch().InputQueueSize < 1 {
+		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", config.GetMatch().InputQueueSize))
 	}
-	if mainConfig.GetMatch().CallQueueSize < 1 {
-		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", mainConfig.GetMatch().CallQueueSize))
+	if config.GetMatch().CallQueueSize < 1 {
+		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", config.GetMatch().CallQueueSize))
 	}
-	if mainConfig.GetMatch().JoinAttemptQueueSize < 1 {
-		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", mainConfig.GetMatch().JoinAttemptQueueSize))
+	if config.GetMatch().JoinAttemptQueueSize < 1 {
+		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", config.GetMatch().JoinAttemptQueueSize))
 	}
-	if mainConfig.GetMatch().DeferredQueueSize < 1 {
-		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", mainConfig.GetMatch().DeferredQueueSize))
+	if config.GetMatch().DeferredQueueSize < 1 {
+		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", config.GetMatch().DeferredQueueSize))
 	}
-	if mainConfig.GetMatch().JoinMarkerDeadlineMs < 1 {
-		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", mainConfig.GetMatch().JoinMarkerDeadlineMs))
+	if config.GetMatch().JoinMarkerDeadlineMs < 1 {
+		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", config.GetMatch().JoinMarkerDeadlineMs))
 	}
-	if mainConfig.GetTracker().EventQueueSize < 1 {
-		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", mainConfig.GetTracker().EventQueueSize))
+	if config.GetTracker().EventQueueSize < 1 {
+		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", config.GetTracker().EventQueueSize))
 	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
-	if mainConfig.GetRuntime().Path == "" {
-		mainConfig.GetRuntime().Path = filepath.Join(mainConfig.GetDataDir(), "modules")
+	if config.GetRuntime().Path == "" {
+		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
-
-	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
 
 	// Log warnings for insecure default parameter values.
-	if mainConfig.GetConsole().Username == "admin" {
+	if config.GetConsole().Username == "admin" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.username"))
 	}
-	if mainConfig.GetConsole().Password == "password" {
+	if config.GetConsole().Password == "password" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
 	}
-	if mainConfig.GetSocket().ServerKey == "defaultkey" {
+	if config.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 	}
-	if mainConfig.GetSession().EncryptionKey == "defaultencryptionkey" {
+	if config.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
 	}
-	if mainConfig.GetRuntime().HTTPKey == "defaultkey" {
+	if config.GetRuntime().HTTPKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
 	}
 
 	// Log warnings for SSL usage.
-	if mainConfig.GetSocket().SSLCertificate != "" && mainConfig.GetSocket().SSLPrivateKey == "" {
+	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey == "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_certificate"))
 	}
-	if mainConfig.GetSocket().SSLCertificate == "" && mainConfig.GetSocket().SSLPrivateKey != "" {
+	if config.GetSocket().SSLCertificate == "" && config.GetSocket().SSLPrivateKey != "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_private_key"))
 	}
-	if mainConfig.GetSocket().SSLCertificate != "" && mainConfig.GetSocket().SSLPrivateKey != "" {
+	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey != "" {
 		logger.Warn("WARNING: enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!")
-		cert, err := tls.LoadX509KeyPair(mainConfig.GetSocket().SSLCertificate, mainConfig.GetSocket().SSLPrivateKey)
+		cert, err := tls.LoadX509KeyPair(config.GetSocket().SSLCertificate, config.GetSocket().SSLPrivateKey)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate", zap.Error(err))
 		}
 		logger.Info("SSL mode enabled")
-		mainConfig.Socket.TLSCert = []tls.Certificate{cert}
+		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
-
-	return mainConfig
 }
 
 func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
@@ -325,11 +327,12 @@ type LoggerConfig struct {
 	File     string `yaml:"file" json:"file" usage:"Log output to a file (as well as stdout if set). Make sure that the directory and the file is writable."`
 	Rotation bool   `yaml:"rotation" json:"rotation" usage:"Rotate log files. Default is false."`
 	// Reference: https://godoc.org/gopkg.in/natefinch/lumberjack.v2
-	MaxSize    int  `yaml:"max_size" json:"max_size" usage:"The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes."`
-	MaxAge     int  `yaml:"max_age" json:"max_age" usage:"The maximum number of days to retain old log files based on the timestamp encoded in their filename. The default is not to remove old log files based on age."`
-	MaxBackups int  `yaml:"max_backups" json:"max_backups" usage:"The maximum number of old log files to retain. The default is to retain all old log files (though MaxAge may still cause them to get deleted.)"`
-	LocalTime  bool `yaml:"local_time" json:"local_time" usage:"This determines if the time used for formatting the timestamps in backup files is the computer's local time. The default is to use UTC time."`
-	Compress   bool `yaml:"compress" json:"compress" usage:"This determines if the rotated log files should be compressed using gzip."`
+	MaxSize    int    `yaml:"max_size" json:"max_size" usage:"The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes."`
+	MaxAge     int    `yaml:"max_age" json:"max_age" usage:"The maximum number of days to retain old log files based on the timestamp encoded in their filename. The default is not to remove old log files based on age."`
+	MaxBackups int    `yaml:"max_backups" json:"max_backups" usage:"The maximum number of old log files to retain. The default is to retain all old log files (though MaxAge may still cause them to get deleted.)"`
+	LocalTime  bool   `yaml:"local_time" json:"local_time" usage:"This determines if the time used for formatting the timestamps in backup files is the computer's local time. The default is to use UTC time."`
+	Compress   bool   `yaml:"compress" json:"compress" usage:"This determines if the rotated log files should be compressed using gzip."`
+	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
 }
 
 // NewLoggerConfig creates a new LoggerConfig struct.
@@ -344,6 +347,7 @@ func NewLoggerConfig() *LoggerConfig {
 		MaxBackups: 0,
 		LocalTime:  false,
 		Compress:   false,
+		Format:     "json",
 	}
 }
 
