@@ -148,11 +148,11 @@ func NewJSONLogger(output *os.File, level zapcore.Level, format LoggingFormat) *
 func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 	if format == StackdriverFormat {
 		return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-			TimeKey:        "timestamp",
+			TimeKey:        "time",
 			LevelKey:       "severity",
 			NameKey:        "logger",
 			CallerKey:      "caller",
-			MessageKey:     "log",
+			MessageKey:     "msg",
 			StacktraceKey:  "stacktrace",
 			EncodeLevel:    StackdriverLevelEncoder,
 			EncodeTime:     StackdriverTimeEncoder,
@@ -176,8 +176,7 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 }
 
 func StackdriverTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	nanos := strings.TrimPrefix(t.Format(".000000000"), ".") //remove the prefix "."
-	enc.AppendString(fmt.Sprintf(`{"seconds": %d, "nanos": %s}`, t.Unix(), nanos))
+	enc.AppendString(fmt.Sprintf("%d%s", t.Unix(), t.Format(".000000000")))
 }
 
 func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
