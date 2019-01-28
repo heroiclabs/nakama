@@ -177,7 +177,7 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 
 func StackdriverTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	nanos := strings.TrimPrefix(t.Format(".000000000"), ".") //remove the prefix "."
-	enc.AppendString(fmt.Sprintf(`{seconds: %d, nanos: %s}`, t.Unix(), nanos))
+	enc.AppendString(fmt.Sprintf(`{"seconds": %d, "nanos": %s}`, t.Unix(), nanos))
 }
 
 func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
