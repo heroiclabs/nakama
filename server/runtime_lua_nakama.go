@@ -2142,15 +2142,15 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	success, newlyTracked := n.tracker.Track(sessionID, stream, userID, node, PresenceMeta{
+	newlyTracked, err := n.tracker.Track(sessionID, stream, userID, node, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
 	}, false)
-	if !success {
-		l.RaiseError("tracker rejected new presence, session is closing")
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("tracker rejected new presence: %v", err.Error()))
 		return 0
 	}
 
@@ -2260,14 +2260,14 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if !n.tracker.Update(sessionID, stream, userID, node, PresenceMeta{
+	if err := n.tracker.Update(sessionID, stream, userID, node, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
-	}, false) {
-		l.RaiseError("tracker rejected updated presence, session is closing")
+	}, false); err != nil {
+		l.RaiseError(fmt.Sprintf("tracker rejected updated presence: %v", err.Error()))
 	}
 
 	return 0

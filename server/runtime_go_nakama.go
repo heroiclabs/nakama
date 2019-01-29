@@ -491,18 +491,13 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 		return false, errors.New("session id does not exist")
 	}
 
-	success, newlyTracked := n.tracker.Track(sid, stream, uid, node, PresenceMeta{
+	return n.tracker.Track(sid, stream, uid, node, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
 	}, false)
-	if !success {
-		return false, errors.New("tracker rejected new presence, session is closing")
-	}
-
-	return newlyTracked, nil
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) error {
@@ -543,17 +538,13 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 		return errors.New("session id does not exist")
 	}
 
-	if !n.tracker.Update(sid, stream, uid, node, PresenceMeta{
+	return n.tracker.Update(sid, stream, uid, node, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
-	}, false) {
-		return errors.New("tracker rejected updated presence, session is closing")
-	}
-
-	return nil
+	}, false)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID, node string) error {

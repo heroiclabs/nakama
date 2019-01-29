@@ -195,8 +195,8 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		Persistence: incoming.Persistence == nil || incoming.Persistence.Value,
 		Username:    session.Username(),
 	}
-	success, isNew := p.tracker.Track(session.ID(), stream, session.UserID(), p.node, meta, false)
-	if !success {
+	isNew, err := p.tracker.Track(session.ID(), stream, session.UserID(), p.node, meta, false)
+	if err != nil {
 		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error joining channel",
