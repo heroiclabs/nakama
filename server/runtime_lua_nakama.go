@@ -2815,7 +2815,7 @@ func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
 
 	node := l.OptString(2, n.node)
 
-	if err := n.sessionRegistry.Disconnect(l.Context(), n.logger, sessionID, node); err != nil {
+	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, node); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
 	}
 	return 0

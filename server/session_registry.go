@@ -57,7 +57,7 @@ type SessionRegistry interface {
 	Get(sessionID uuid.UUID) Session
 	Add(session Session)
 	Remove(sessionID uuid.UUID)
-	Disconnect(ctx context.Context, logger *zap.Logger, sessionID uuid.UUID, node string) error
+	Disconnect(ctx context.Context, sessionID uuid.UUID, node string) error
 }
 
 type LocalSessionRegistry struct {
@@ -93,7 +93,7 @@ func (r *LocalSessionRegistry) Remove(sessionID uuid.UUID) {
 	r.Unlock()
 }
 
-func (r *LocalSessionRegistry) Disconnect(ctx context.Context, logger *zap.Logger, sessionID uuid.UUID, node string) error {
+func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID, node string) error {
 	var session Session
 	r.RLock()
 	session = r.sessions[sessionID]

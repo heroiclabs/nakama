@@ -768,7 +768,7 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 		node = n.node
 	}
 
-	return n.sessionRegistry.Disconnect(ctx, n.logger, sid, node)
+	return n.sessionRegistry.Disconnect(ctx, sid, node)
 }
 
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {
