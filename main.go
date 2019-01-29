@@ -66,7 +66,7 @@ func main() {
 	// Initialize the global random obj with customs seed.
 	rand.Seed(time.Now().UnixNano())
 
-	tmpLogger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel)
+	tmpLogger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, server.JSONFormat)
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -80,6 +80,7 @@ func main() {
 
 	config := server.ParseArgs(tmpLogger, os.Args)
 	logger, startupLogger := server.SetupLogging(tmpLogger, config)
+	server.CheckConfig(logger, config)
 
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))

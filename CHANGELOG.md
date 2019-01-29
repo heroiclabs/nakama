@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Additional logging format option for Stackdriver Logging.
+
 ### Fixed
 - Correctly return group user results in Lua runtime listing operation.
 - Correctly handle leaderboard records previous page cursor.

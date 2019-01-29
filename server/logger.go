@@ -15,12 +15,22 @@
 package server
 
 import (
+	"fmt"
 	"os"
+	"time"
+
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"strings"
+)
+
+type LoggingFormat int8
+
+const (
+	JSONFormat LoggingFormat = iota - 1
+	StackdriverFormat
 )
 
 func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logger) {
@@ -38,12 +48,24 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 		tmpLogger.Fatal("Logger level invalid, must be one of: DEBUG, INFO, WARN, or ERROR")
 	}
 
-	consoleLogger := NewJSONLogger(os.Stdout, zapLevel)
+	format := JSONFormat
+	switch strings.ToLower(config.GetLogger().Format) {
+	case "":
+		fallthrough
+	case "json":
+		format = JSONFormat
+	case "stackdriver":
+		format = StackdriverFormat
+	default:
+		tmpLogger.Fatal("Logger mode invalid, must be one of: '', 'json', or 'stackdriver")
+	}
+
+	consoleLogger := NewJSONLogger(os.Stdout, zapLevel, format)
 	var fileLogger *zap.Logger
 	if config.GetLogger().Rotation {
-		fileLogger = NewRotatingJSONFileLogger(consoleLogger, config, zapLevel)
+		fileLogger = NewRotatingJSONFileLogger(consoleLogger, config, zapLevel, format)
 	} else {
-		fileLogger = NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel)
+		fileLogger = NewJSONFileLogger(consoleLogger, config.GetLogger().File, zapLevel, format)
 	}
 
 	if fileLogger != nil {
@@ -62,7 +84,7 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 	return consoleLogger, consoleLogger
 }
 
-func NewJSONFileLogger(consoleLogger *zap.Logger, fileName string, level zapcore.Level) *zap.Logger {
+func NewJSONFileLogger(consoleLogger *zap.Logger, fileName string, level zapcore.Level, format LoggingFormat) *zap.Logger {
 	if len(fileName) == 0 {
 		return nil
 	}
@@ -73,10 +95,10 @@ func NewJSONFileLogger(consoleLogger *zap.Logger, fileName string, level zapcore
 		return nil
 	}
 
-	return NewJSONLogger(output, level)
+	return NewJSONLogger(output, level, format)
 }
 
-func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level zapcore.Level) *zap.Logger {
+func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level zapcore.Level, format LoggingFormat) *zap.Logger {
 	fileName := config.GetLogger().File
 	if len(fileName) == 0 {
 		consoleLogger.Fatal("Rotating log file is enabled but log file name is empty")
@@ -87,7 +109,7 @@ func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level z
 		return nil
 	}
 
-	jsonEncoder := newJSONEncoder()
+	jsonEncoder := newJSONEncoder(format)
 
 	// lumberjack.Logger is already safe for concurrent use, so we don't need to lock it.
 	writeSyncer := zapcore.AddSync(&lumberjack.Logger{
@@ -114,8 +136,8 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 	return zap.New(teeCore, options...)
 }
 
-func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
-	jsonEncoder := newJSONEncoder()
+func NewJSONLogger(output *os.File, level zapcore.Level, format LoggingFormat) *zap.Logger {
+	jsonEncoder := newJSONEncoder(format)
 
 	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), level)
 	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
@@ -123,7 +145,22 @@ func NewJSONLogger(output *os.File, level zapcore.Level) *zap.Logger {
 }
 
 // Create a new JSON log encoder with the correct settings.
-func newJSONEncoder() zapcore.Encoder {
+func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
+	if format == StackdriverFormat {
+		return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+			TimeKey:        "time",
+			LevelKey:       "severity",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			EncodeLevel:    StackdriverLevelEncoder,
+			EncodeTime:     StackdriverTimeEncoder,
+			EncodeDuration: zapcore.StringDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		})
+	}
+
 	return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -136,4 +173,29 @@ func newJSONEncoder() zapcore.Encoder {
 		EncodeDuration: zapcore.StringDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
+}
+
+func StackdriverTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+	enc.AppendString(fmt.Sprintf("%d%s", t.Unix(), t.Format(".000000000")))
+}
+
+func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+	switch l {
+	case zapcore.DebugLevel:
+		enc.AppendString("debug")
+	case zapcore.InfoLevel:
+		enc.AppendString("info")
+	case zapcore.WarnLevel:
+		enc.AppendString("warning")
+	case zapcore.ErrorLevel:
+		enc.AppendString("error")
+	case zapcore.DPanicLevel:
+		enc.AppendString("critical")
+	case zapcore.PanicLevel:
+		enc.AppendString("critical")
+	case zapcore.FatalLevel:
+		enc.AppendString("critical")
+	default:
+		enc.AppendString(fmt.Sprintf("Level(%d)", l))
+	}
 }
