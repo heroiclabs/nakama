@@ -37,7 +37,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		WriteBufferSize: int(config.GetSocket().MaxMessageSizeBytes),
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
-	node := config.GetName()
 
 	// This handler will be attached to the API Gateway server.
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -112,9 +111,9 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		sessionRegistry.Add(session)
 
 		// Register initial presences for this session.
-		tracker.Track(session.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: session.UserID()}, session.UserID(), node, PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, true)
+		tracker.Track(session.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: session.UserID()}, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, true)
 		if status {
-			tracker.Track(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), node, PresenceMeta{Format: session.Format(), Username: session.Username(), Status: ""}, false)
+			tracker.Track(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Status: ""}, false)
 		}
 
 		// Allow the server to begin processing incoming messages from this session.

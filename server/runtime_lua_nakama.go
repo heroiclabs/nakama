@@ -61,6 +61,7 @@ type RuntimeLuaNakamaModule struct {
 	sessionRegistry      SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	streamManager        StreamManager
 	router               MessageRouter
 	once                 *sync.Once
 	localCache           *RuntimeLuaLocalCache
@@ -72,7 +73,7 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -85,6 +86,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		streamManager:        streamManager,
 		router:               router,
 		once:                 once,
 		localCache:           localCache,
@@ -2142,13 +2144,7 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	newlyTracked, err := n.tracker.Track(sessionID, stream, userID, node, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false)
+	newlyTracked, err := n.streamManager.UserJoin(userID, sessionID, node, stream, hidden, persistence, status)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("tracker rejected new presence: %v", err.Error()))
 		return 0
@@ -2260,13 +2256,7 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.tracker.Update(sessionID, stream, userID, node, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false); err != nil {
+	if err := n.streamManager.UserUpdate(userID, sessionID, node, stream, hidden, persistence, status); err != nil {
 		l.RaiseError(fmt.Sprintf("tracker rejected updated presence: %v", err.Error()))
 	}
 
@@ -2361,7 +2351,9 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	n.tracker.Untrack(sessionID, stream, userID, node)
+	if err := n.streamManager.UserLeave(userID, sessionID, node, stream); err != nil {
+		l.RaiseError(fmt.Sprintf("tracker rejected removed presence: %v", err.Error()))
+	}
 
 	return 0
 }

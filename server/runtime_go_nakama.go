@@ -49,6 +49,7 @@ type RuntimeGoNakamaModule struct {
 	sessionRegistry      SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	streamManager        StreamManager
 	router               MessageRouter
 
 	node string
@@ -56,7 +57,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -68,6 +69,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, soc
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		streamManager:        streamManager,
 		router:               router,
 
 		node: config.GetName(),
@@ -485,19 +487,7 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 		}
 	}
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sid)
-	if session == nil {
-		return false, errors.New("session id does not exist")
-	}
-
-	return n.tracker.Track(sid, stream, uid, node, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false)
+	return n.streamManager.UserJoin(uid, sid, node, stream, hidden, persistence, status)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) error {
@@ -532,19 +522,7 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 		}
 	}
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sid)
-	if session == nil {
-		return errors.New("session id does not exist")
-	}
-
-	return n.tracker.Update(sid, stream, uid, node, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false)
+	return n.streamManager.UserUpdate(uid, sid, node, stream, hidden, persistence, status)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID, node string) error {
@@ -579,9 +557,7 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext,
 		}
 	}
 
-	n.tracker.Untrack(sid, stream, uid, node)
-
-	return nil
+	return n.streamManager.UserLeave(uid, sid, node, stream)
 }
 
 func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
