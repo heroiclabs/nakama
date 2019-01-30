@@ -754,9 +754,10 @@ type NakamaModule interface {
 
 	StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
 	StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (PresenceMeta, error)
-	StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) (bool, error)
-	StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) error
-	StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID, node string) error
+	StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error)
+	StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error
+	StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error
+	StreamUserKick(mode uint8, subject, subcontext, label string, presence Presence) error
 	StreamCount(mode uint8, subject, subcontext, label string) (int, error)
 	StreamClose(mode uint8, subject, subcontext, label string) error
 	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence) error

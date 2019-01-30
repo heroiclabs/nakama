@@ -164,6 +164,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_user_join":            n.streamUserJoin,
 		"stream_user_update":          n.streamUserUpdate,
 		"stream_user_leave":           n.streamUserLeave,
+		"stream_user_kick":            n.streamUserKick,
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
@@ -2067,13 +2068,10 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	// Parse Node.
-	node := l.OptString(3, n.node)
-
 	// Parse input stream identifier.
-	streamTable := l.CheckTable(4)
+	streamTable := l.CheckTable(3)
 	if streamTable == nil {
-		l.ArgError(4, "expects a valid stream")
+		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
 	stream := PresenceStream{}
@@ -2087,40 +2085,40 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 		case "mode":
 			if v.Type() != lua.LTNumber {
 				conversionError = true
-				l.ArgError(4, "stream mode must be a number")
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a string")
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a valid identifier")
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
 			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream label must be a string")
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
@@ -2131,11 +2129,11 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 	}
 
 	// By default generate presence events.
-	hidden := l.OptBool(5, false)
+	hidden := l.OptBool(4, false)
 	// By default persistence is enabled, if the stream supports it.
-	persistence := l.OptBool(6, true)
+	persistence := l.OptBool(5, true)
 	// By default no status is set.
-	status := l.OptString(7, "")
+	status := l.OptString(6, "")
 
 	// Look up the session.
 	session := n.sessionRegistry.Get(sessionID)
@@ -2144,9 +2142,15 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	newlyTracked, err := n.streamManager.UserJoin(userID, sessionID, node, stream, hidden, persistence, status)
-	if err != nil {
-		l.RaiseError(fmt.Sprintf("tracker rejected new presence: %v", err.Error()))
+	success, newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false)
+	if !success {
+		l.RaiseError("tracker rejected new presence, session is closing")
 		return 0
 	}
 
@@ -2179,13 +2183,10 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	// Parse Node.
-	node := l.OptString(3, n.node)
-
 	// Parse input stream identifier.
-	streamTable := l.CheckTable(4)
+	streamTable := l.CheckTable(3)
 	if streamTable == nil {
-		l.ArgError(4, "expects a valid stream")
+		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
 	stream := PresenceStream{}
@@ -2199,40 +2200,40 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 		case "mode":
 			if v.Type() != lua.LTNumber {
 				conversionError = true
-				l.ArgError(4, "stream mode must be a number")
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a string")
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a valid identifier")
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
 			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream label must be a string")
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
@@ -2243,11 +2244,11 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 	}
 
 	// By default generate presence events.
-	hidden := l.OptBool(5, false)
+	hidden := l.OptBool(4, false)
 	// By default persistence is enabled, if the stream supports it.
-	persistence := l.OptBool(6, true)
+	persistence := l.OptBool(5, true)
 	// By default no status is set.
-	status := l.OptString(7, "")
+	status := l.OptString(6, "")
 
 	// Look up the session.
 	session := n.sessionRegistry.Get(sessionID)
@@ -2256,8 +2257,14 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.streamManager.UserUpdate(userID, sessionID, node, stream, hidden, persistence, status); err != nil {
-		l.RaiseError(fmt.Sprintf("tracker rejected updated presence: %v", err.Error()))
+	if !n.tracker.Update(sessionID, stream, userID, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false) {
+		l.RaiseError("tracker rejected updated presence, session is closing")
 	}
 
 	return 0
@@ -2288,13 +2295,10 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	// Parse Node.
-	node := l.OptString(3, n.node)
-
 	// Parse input stream identifier.
-	streamTable := l.CheckTable(4)
+	streamTable := l.CheckTable(3)
 	if streamTable == nil {
-		l.ArgError(4, "expects a valid stream")
+		l.ArgError(3, "expects a valid stream")
 		return 0
 	}
 	stream := PresenceStream{}
@@ -2308,40 +2312,40 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 		case "mode":
 			if v.Type() != lua.LTNumber {
 				conversionError = true
-				l.ArgError(4, "stream mode must be a number")
+				l.ArgError(3, "stream mode must be a number")
 				return
 			}
 			stream.Mode = uint8(lua.LVAsNumber(v))
 		case "subject":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a string")
+				l.ArgError(3, "stream subject must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subject must be a valid identifier")
+				l.ArgError(3, "stream subject must be a valid identifier")
 				return
 			}
 			stream.Subject = sid
 		case "subcontext":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a string")
+				l.ArgError(3, "stream subcontext must be a string")
 				return
 			}
 			sid, err := uuid.FromString(v.String())
 			if err != nil {
 				conversionError = true
-				l.ArgError(4, "stream subcontext must be a valid identifier")
+				l.ArgError(3, "stream subcontext must be a valid identifier")
 				return
 			}
 			stream.Subcontext = sid
 		case "label":
 			if v.Type() != lua.LTString {
 				conversionError = true
-				l.ArgError(4, "stream label must be a string")
+				l.ArgError(3, "stream label must be a string")
 				return
 			}
 			stream.Label = v.String()
@@ -2351,8 +2355,122 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.streamManager.UserLeave(userID, sessionID, node, stream); err != nil {
-		l.RaiseError(fmt.Sprintf("tracker rejected removed presence: %v", err.Error()))
+	n.tracker.Untrack(sessionID, stream, userID)
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
+	// Parse presence.
+	presenceTable := l.OptTable(1, nil)
+	if presenceTable == nil {
+		l.ArgError(1, "expects a valid presence")
+		return 0
+	}
+	userID := uuid.Nil
+	sessionID := uuid.Nil
+	node := n.node
+	conversionError := false
+	presenceTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "user_id":
+			uid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(1, "expects each presence to have a valid user_id")
+				return
+			}
+			userID = uid
+		case "session_id":
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(1, "expects each presence to have a valid session_id")
+				return
+			}
+			sessionID = sid
+		case "node":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(1, "expects node to be string")
+				return
+			}
+			node = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+	if userID == uuid.Nil || sessionID == uuid.Nil || node == "" {
+		l.ArgError(1, "expects each presence to have a valid user_id, session_id, and node")
+		return 0
+	}
+
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(2)
+	if streamTable == nil {
+		l.ArgError(2, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = true
+				l.ArgError(2, "stream mode must be a number")
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream subject must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, "stream subject must be a valid identifier")
+				return
+			}
+			stream.Subject = sid
+		case "subcontext":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream subcontext must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, "stream subcontext must be a valid identifier")
+				return
+			}
+			stream.Subcontext = sid
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream label must be a string")
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+
+	if err := n.streamManager.UserKick(userID, sessionID, node, stream); err != nil {
+		l.RaiseError(fmt.Sprintf("stream user kick failed: %v", err.Error()))
 	}
 
 	return 0

@@ -455,7 +455,7 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, subcontext, l
 	return nil, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) (bool, error) {
+func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return false, errors.New("expects valid user id")
@@ -464,10 +464,6 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 	sid, err := uuid.FromString(sessionID)
 	if err != nil {
 		return false, errors.New("expects valid session id")
-	}
-
-	if node == "" {
-		node = n.node
 	}
 
 	stream := PresenceStream{
@@ -487,10 +483,27 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 		}
 	}
 
-	return n.streamManager.UserJoin(uid, sid, node, stream, hidden, persistence, status)
+	// Look up the session.
+	session := n.sessionRegistry.Get(sid)
+	if session == nil {
+		return false, errors.New("session id does not exist")
+	}
+
+	success, newlyTracked := n.tracker.Track(sid, stream, uid, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false)
+	if !success {
+		return false, errors.New("tracker rejected new presence, session is closing")
+	}
+
+	return newlyTracked, nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID, node string, hidden, persistence bool, status string) error {
+func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects valid user id")
@@ -501,6 +514,87 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 		return errors.New("expects valid session id")
 	}
 
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
+		if err != nil {
+			return errors.New("stream subcontext must be a valid identifier")
+		}
+	}
+
+	// Look up the session.
+	session := n.sessionRegistry.Get(sid)
+	if session == nil {
+		return errors.New("session id does not exist")
+	}
+
+	if !n.tracker.Update(sid, stream, uid, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false) {
+		return errors.New("tracker rejected updated presence, session is closing")
+	}
+
+	return nil
+}
+
+func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects valid user id")
+	}
+
+	sid, err := uuid.FromString(sessionID)
+	if err != nil {
+		return errors.New("expects valid session id")
+	}
+
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
+		if err != nil {
+			return errors.New("stream subcontext must be a valid identifier")
+		}
+	}
+
+	n.tracker.Untrack(sid, stream, uid)
+
+	return nil
+}
+
+func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, label string, presence runtime.Presence) error {
+	uid, err := uuid.FromString(presence.GetUserId())
+	if err != nil {
+		return errors.New("expects valid user id")
+	}
+
+	sid, err := uuid.FromString(presence.GetSessionId())
+	if err != nil {
+		return errors.New("expects valid session id")
+	}
+
+	node := presence.GetNodeId()
 	if node == "" {
 		node = n.node
 	}
@@ -522,42 +616,7 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 		}
 	}
 
-	return n.streamManager.UserUpdate(uid, sid, node, stream, hidden, persistence, status)
-}
-
-func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID, node string) error {
-	uid, err := uuid.FromString(userID)
-	if err != nil {
-		return errors.New("expects valid user id")
-	}
-
-	sid, err := uuid.FromString(sessionID)
-	if err != nil {
-		return errors.New("expects valid session id")
-	}
-
-	if node == "" {
-		node = n.node
-	}
-
-	stream := PresenceStream{
-		Mode:  mode,
-		Label: label,
-	}
-	if subject != "" {
-		stream.Subject, err = uuid.FromString(subject)
-		if err != nil {
-			return errors.New("stream subject must be a valid identifier")
-		}
-	}
-	if subcontext != "" {
-		stream.Subcontext, err = uuid.FromString(subcontext)
-		if err != nil {
-			return errors.New("stream subcontext must be a valid identifier")
-		}
-	}
-
-	return n.streamManager.UserLeave(uid, sid, node, stream)
+	return n.streamManager.UserKick(uid, sid, node, stream)
 }
 
 func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
