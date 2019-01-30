@@ -58,7 +58,7 @@ type sessionWS struct {
 	pongWaitDuration       time.Duration
 	writeWaitDuration      time.Duration
 
-	sessionRegistry *SessionRegistry
+	sessionRegistry SessionRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
 
@@ -70,7 +70,7 @@ type sessionWS struct {
 	outgoingCh             chan []byte
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry *SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -412,7 +412,7 @@ func (s *sessionWS) Close() {
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		s.logger.Info("Cleaned up closed connection tracker", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
 	}
-	s.sessionRegistry.remove(s.id)
+	s.sessionRegistry.Remove(s.id)
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		s.logger.Info("Cleaned up closed connection session registry", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
 	}

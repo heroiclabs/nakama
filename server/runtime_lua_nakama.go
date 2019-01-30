@@ -58,9 +58,10 @@ type RuntimeLuaNakamaModule struct {
 	leaderboardCache     LeaderboardCache
 	rankCache            LeaderboardRankCache
 	leaderboardScheduler LeaderboardScheduler
-	sessionRegistry      *SessionRegistry
+	sessionRegistry      SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	streamManager        StreamManager
 	router               MessageRouter
 	once                 *sync.Once
 	localCache           *RuntimeLuaLocalCache
@@ -72,7 +73,7 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -85,6 +86,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		streamManager:        streamManager,
 		router:               router,
 		once:                 once,
 		localCache:           localCache,
@@ -162,10 +164,12 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_user_join":            n.streamUserJoin,
 		"stream_user_update":          n.streamUserUpdate,
 		"stream_user_leave":           n.streamUserLeave,
+		"stream_user_kick":            n.streamUserKick,
 		"stream_count":                n.streamCount,
 		"stream_close":                n.streamClose,
 		"stream_send":                 n.streamSend,
 		"stream_send_raw":             n.streamSendRaw,
+		"session_disconnect":          n.sessionDisconnect,
 		"match_create":                n.matchCreate,
 		"match_list":                  n.matchList,
 		"notification_send":           n.notificationSend,
@@ -2356,6 +2360,122 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
+	// Parse presence.
+	presenceTable := l.OptTable(1, nil)
+	if presenceTable == nil {
+		l.ArgError(1, "expects a valid presence")
+		return 0
+	}
+	userID := uuid.Nil
+	sessionID := uuid.Nil
+	node := n.node
+	conversionError := false
+	presenceTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "user_id":
+			uid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(1, "expects each presence to have a valid user_id")
+				return
+			}
+			userID = uid
+		case "session_id":
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(1, "expects each presence to have a valid session_id")
+				return
+			}
+			sessionID = sid
+		case "node":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(1, "expects node to be string")
+				return
+			}
+			node = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+	if userID == uuid.Nil || sessionID == uuid.Nil || node == "" {
+		l.ArgError(1, "expects each presence to have a valid user_id, session_id, and node")
+		return 0
+	}
+
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(2)
+	if streamTable == nil {
+		l.ArgError(2, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = true
+				l.ArgError(2, "stream mode must be a number")
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream subject must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, "stream subject must be a valid identifier")
+				return
+			}
+			stream.Subject = sid
+		case "subcontext":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream subcontext must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, "stream subcontext must be a valid identifier")
+				return
+			}
+			stream.Subcontext = sid
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "stream label must be a string")
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+
+	if err := n.streamManager.UserKick(userID, sessionID, node, stream); err != nil {
+		l.RaiseError(fmt.Sprintf("stream user kick failed: %v", err.Error()))
+	}
+
+	return 0
+}
+
 func (n *RuntimeLuaNakamaModule) streamCount(l *lua.LState) int {
 	// Parse input stream identifier.
 	streamTable := l.CheckTable(1)
@@ -2553,6 +2673,68 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	// Grab payload to send, allow empty data.
 	data := l.CheckString(2)
 
+	presencesTable := l.OptTable(3, nil)
+	var presenceIDs []*PresenceID
+	if presencesTable != nil {
+		if ln := presencesTable.Len(); ln != 0 {
+			presenceIDs = make([]*PresenceID, 0, ln)
+			presencesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+				if conversionError {
+					return
+				}
+
+				presenceTable, ok := v.(*lua.LTable)
+				if !ok {
+					conversionError = true
+					l.ArgError(3, "expects a valid set of presences")
+					return
+				}
+
+				presenceID := &PresenceID{}
+				presenceTable.ForEach(func(k lua.LValue, v lua.LValue) {
+					if conversionError {
+						return
+					}
+
+					switch k.String() {
+					case "session_id":
+						if v.Type() != lua.LTString {
+							conversionError = true
+							l.ArgError(3, "presence session id must be a string")
+							return
+						}
+						var err error
+						presenceID.SessionID, err = uuid.FromString(v.String())
+						if err != nil {
+							conversionError = true
+							l.ArgError(3, "presence session id must be a valid identifier")
+							return
+						}
+					case "node_id":
+						if v.Type() != lua.LTString {
+							conversionError = true
+							l.ArgError(3, "presence node id must be a string")
+							return
+						}
+						presenceID.Node = v.String()
+					}
+				})
+				if conversionError {
+					return
+				}
+
+				if presenceID.Node == "" {
+					presenceID.Node = n.node
+				}
+
+				presenceIDs = append(presenceIDs, presenceID)
+			})
+		}
+	}
+	if conversionError {
+		return 0
+	}
+
 	streamWire := &rtapi.Stream{
 		Mode:  int32(stream.Mode),
 		Label: stream.Label,
@@ -2568,7 +2750,14 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 		// No sender.
 		Data: data,
 	}}}
-	n.router.SendToStream(n.logger, stream, msg)
+
+	if len(presenceIDs) == 0 {
+		// Sending to whole stream.
+		n.router.SendToStream(n.logger, stream, msg)
+	} else {
+		// Sending to a subset of stream users.
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+	}
 
 	return 0
 }
@@ -2634,6 +2823,7 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 		return 0
 	}
 
+	// Parse the envelope.
 	envelopeMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
 	envelopeBytes, err := json.Marshal(envelopeMap)
 	if err != nil {
@@ -2641,25 +2831,103 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 		return 0
 	}
 
-	envelope := &rtapi.Envelope{}
-	err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), envelope)
-	if err != nil {
+	msg := &rtapi.Envelope{}
+	if err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), msg); err != nil {
 		l.ArgError(2, fmt.Sprintf("not a valid envlope: %s", err.Error()))
 		return 0
 	}
 
-	streamWire := &rtapi.Stream{
-		Mode:  int32(stream.Mode),
-		Label: stream.Label,
-	}
-	if stream.Subject != uuid.Nil {
-		streamWire.Subject = stream.Subject.String()
-	}
-	if stream.Subcontext != uuid.Nil {
-		streamWire.Subcontext = stream.Subcontext.String()
-	}
-	n.router.SendToStream(n.logger, stream, envelope)
+	// Validate subset of presences, if any.
+	presencesTable := l.OptTable(3, nil)
+	var presenceIDs []*PresenceID
+	if presencesTable != nil {
+		if ln := presencesTable.Len(); ln != 0 {
+			presenceIDs = make([]*PresenceID, 0, ln)
+			presencesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+				if conversionError {
+					return
+				}
 
+				presenceTable, ok := v.(*lua.LTable)
+				if !ok {
+					conversionError = true
+					l.ArgError(3, "expects a valid set of presences")
+					return
+				}
+
+				presenceID := &PresenceID{}
+				presenceTable.ForEach(func(k lua.LValue, v lua.LValue) {
+					if conversionError {
+						return
+					}
+
+					switch k.String() {
+					case "session_id":
+						if v.Type() != lua.LTString {
+							conversionError = true
+							l.ArgError(3, "presence session id must be a string")
+							return
+						}
+						presenceID.SessionID, err = uuid.FromString(v.String())
+						if err != nil {
+							conversionError = true
+							l.ArgError(3, "presence session id must be a valid identifier")
+							return
+						}
+					case "node_id":
+						if v.Type() != lua.LTString {
+							conversionError = true
+							l.ArgError(3, "presence node id must be a string")
+							return
+						}
+						presenceID.Node = v.String()
+					}
+				})
+				if conversionError {
+					return
+				}
+
+				if presenceID.Node == "" {
+					presenceID.Node = n.node
+				}
+
+				presenceIDs = append(presenceIDs, presenceID)
+			})
+		}
+	}
+	if conversionError {
+		return 0
+	}
+
+	if len(presenceIDs) == 0 {
+		// Sending to whole stream.
+		n.router.SendToStream(n.logger, stream, msg)
+	} else {
+		// Sending to a subset of stream users.
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
+	// Parse input Session ID.
+	sessionIDString := l.CheckString(1)
+	if sessionIDString == "" {
+		l.ArgError(1, "expects session id")
+		return 0
+	}
+	sessionID, err := uuid.FromString(sessionIDString)
+	if err != nil {
+		l.ArgError(1, "expects valid session id")
+		return 0
+	}
+
+	node := l.OptString(2, n.node)
+
+	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, node); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
+	}
 	return 0
 }
 

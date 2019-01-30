@@ -757,10 +757,13 @@ type NakamaModule interface {
 	StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error)
 	StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error
 	StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error
+	StreamUserKick(mode uint8, subject, subcontext, label string, presence Presence) error
 	StreamCount(mode uint8, subject, subcontext, label string) (int, error)
 	StreamClose(mode uint8, subject, subcontext, label string) error
-	StreamSend(mode uint8, subject, subcontext, label, data string) error
-	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope) error
+	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence) error
+	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence) error
+
+	SessionDisconnect(ctx context.Context, sessionID, node string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error)

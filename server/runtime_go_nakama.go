@@ -46,9 +46,10 @@ type RuntimeGoNakamaModule struct {
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	leaderboardScheduler LeaderboardScheduler
-	sessionRegistry      *SessionRegistry
+	sessionRegistry      SessionRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	streamManager        StreamManager
 	router               MessageRouter
 
 	node string
@@ -56,7 +57,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry *SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -68,6 +69,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, soc
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		streamManager:        streamManager,
 		router:               router,
 
 		node: config.GetName(),
@@ -581,6 +583,42 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext,
 	return nil
 }
 
+func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, label string, presence runtime.Presence) error {
+	uid, err := uuid.FromString(presence.GetUserId())
+	if err != nil {
+		return errors.New("expects valid user id")
+	}
+
+	sid, err := uuid.FromString(presence.GetSessionId())
+	if err != nil {
+		return errors.New("expects valid session id")
+	}
+
+	node := presence.GetNodeId()
+	if node == "" {
+		node = n.node
+	}
+
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
+		if err != nil {
+			return errors.New("stream subcontext must be a valid identifier")
+		}
+	}
+
+	return n.streamManager.UserKick(uid, sid, node, stream)
+}
+
 func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -627,7 +665,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string) error {
+func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -646,6 +684,26 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, labe
 		}
 	}
 
+	var presenceIDs []*PresenceID
+	if l := len(presences); l != 0 {
+		presenceIDs = make([]*PresenceID, 0, l)
+		for _, presence := range presences {
+			sessionID, err := uuid.FromString(presence.GetSessionId())
+			if err != nil {
+				return errors.New("expects each presence session id to be a valid identifier")
+			}
+			node := presence.GetNodeId()
+			if node == "" {
+				node = n.node
+			}
+
+			presenceIDs = append(presenceIDs, &PresenceID{
+				SessionID: sessionID,
+				Node:      node,
+			})
+		}
+	}
+
 	streamWire := &rtapi.Stream{
 		Mode:  int32(stream.Mode),
 		Label: stream.Label,
@@ -661,12 +719,19 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, labe
 		// No sender.
 		Data: data,
 	}}}
-	n.router.SendToStream(n.logger, stream, msg)
+
+	if len(presenceIDs) == 0 {
+		// Sending to whole stream.
+		n.router.SendToStream(n.logger, stream, msg)
+	} else {
+		// Sending to a subset of stream users.
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+	}
 
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope) error {
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -688,9 +753,48 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 		return errors.New("expects a valid message")
 	}
 
-	n.router.SendToStream(n.logger, stream, msg)
+	var presenceIDs []*PresenceID
+	if l := len(presences); l != 0 {
+		presenceIDs = make([]*PresenceID, 0, l)
+		for _, presence := range presences {
+			sessionID, err := uuid.FromString(presence.GetSessionId())
+			if err != nil {
+				return errors.New("expects each presence session id to be a valid identifier")
+			}
+			node := presence.GetNodeId()
+			if node == "" {
+				node = n.node
+			}
+
+			presenceIDs = append(presenceIDs, &PresenceID{
+				SessionID: sessionID,
+				Node:      node,
+			})
+		}
+	}
+
+	if len(presenceIDs) == 0 {
+		// Sending to whole stream.
+		n.router.SendToStream(n.logger, stream, msg)
+	} else {
+		// Sending to a subset of stream users.
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+	}
 
 	return nil
+}
+
+func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID, node string) error {
+	sid, err := uuid.FromString(sessionID)
+	if err != nil {
+		return errors.New("expects valid session id")
+	}
+
+	if node == "" {
+		node = n.node
+	}
+
+	return n.sessionRegistry.Disconnect(ctx, sid, node)
 }
 
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {

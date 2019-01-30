@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Additional logging format option for Stackdriver Logging.
+- New runtime function to immediately disconnect active sockets.
+- New runtime function to kick arbitrary presences from streams.
 
 ### Fixed
 - Correctly return group user results in Lua runtime listing operation.

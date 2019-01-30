@@ -158,7 +158,7 @@ type LocalTracker struct {
 	logger             *zap.Logger
 	matchJoinListener  func(id uuid.UUID, leaves []*MatchPresence)
 	matchLeaveListener func(id uuid.UUID, leaves []*MatchPresence)
-	sessionRegistry    *SessionRegistry
+	sessionRegistry    SessionRegistry
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
 	eventsCh           chan *PresenceEvent
@@ -169,7 +169,7 @@ type LocalTracker struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry *SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	t := &LocalTracker{
