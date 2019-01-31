@@ -41,7 +41,9 @@ func main() {
 	view.RegisterExporter(exporter)
 	trace.RegisterExporter(exporter)
 
-	// Always trace for this demo.
+	// Always trace for this demo. In a production application, you should
+	// configure this to a trace.ProbabilitySampler set at the desired
+	// probability.
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	// Report stats at every second.
@@ -51,6 +53,13 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "hello world")
+
+		// Provide an example of how spans can be annotated with metadata
+		_, span := trace.StartSpan(req.Context(), "child")
+		defer span.End()
+		span.Annotate([]trace.Attribute{trace.StringAttribute("key", "value")}, "something happened")
+		span.AddAttributes(trace.StringAttribute("hello", "world"))
+		time.Sleep(time.Millisecond * 125)
 
 		r, _ := http.NewRequest("GET", "https://example.com", nil)
 

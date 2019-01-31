@@ -79,6 +79,26 @@ func (t testPropagator) SpanContextToRequest(sc trace.SpanContext, req *http.Req
 	req.Header.Set("trace", hex.EncodeToString(buf.Bytes()))
 }
 
+func TestTransport_RoundTrip_Race(t *testing.T) {
+	// This tests that we don't modify the request in accordance with the
+	// specification for http.RoundTripper.
+	// We attempt to trigger a race by reading the request from a separate
+	// goroutine. If the request is modified by Transport, this should trigger
+	// the race detector.
+
+	transport := &testTransport{ch: make(chan *http.Request, 1)}
+	rt := &Transport{
+		Propagation: &testPropagator{},
+		Base:        transport,
+	}
+	req, _ := http.NewRequest("GET", "http://foo.com", nil)
+	go func() {
+		fmt.Println(*req)
+	}()
+	rt.RoundTrip(req)
+	_ = <-transport.ch
+}
+
 func TestTransport_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	ctx, parent := trace.StartSpan(ctx, "parent")
@@ -107,7 +127,7 @@ func TestTransport_RoundTrip(t *testing.T) {
 
 			req, _ := http.NewRequest("GET", "http://foo.com", nil)
 			if tt.parent != nil {
-				req = req.WithContext(trace.WithSpan(req.Context(), tt.parent))
+				req = req.WithContext(trace.NewContext(req.Context(), tt.parent))
 			}
 			rt.RoundTrip(req)
 
@@ -180,8 +200,6 @@ func (c *collector) ExportSpan(s *trace.SpanData) {
 }
 
 func TestEndToEnd(t *testing.T) {
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-
 	tc := []struct {
 		name            string
 		handler         *Handler
@@ -226,12 +244,10 @@ func TestEndToEnd(t *testing.T) {
 			// Start the server.
 			serverDone := make(chan struct{})
 			serverReturn := make(chan time.Time)
+			tt.handler.StartOptions.Sampler = trace.AlwaysSample()
 			url := serveHTTP(tt.handler, serverDone, serverReturn)
 
-			// Start a root Span in the client.
-			ctx, root := trace.StartSpan(
-				context.Background(),
-				"top-level")
+			ctx := context.Background()
 			// Make the request.
 			req, err := http.NewRequest(
 				http.MethodPost,
@@ -241,7 +257,11 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 			req = req.WithContext(ctx)
-			resp, err := tt.transport.RoundTrip(req)
+			tt.transport.StartOptions.Sampler = trace.AlwaysSample()
+			c := &http.Client{
+				Transport: tt.transport,
+			}
+			resp, err := c.Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -308,9 +328,6 @@ func TestEndToEnd(t *testing.T) {
 					t.Errorf("len(server.Links) = %d; want %d", got, want)
 				} else {
 					link := server.Links[0]
-					if got, want := link.TraceID, root.SpanContext().TraceID; got != want {
-						t.Errorf("link.TraceID = %q; want %q", got, want)
-					}
 					if got, want := link.Type, trace.LinkTypeChild; got != want {
 						t.Errorf("link.Type = %v; want %v", got, want)
 					}
@@ -391,7 +408,12 @@ func TestFormatSpanName(t *testing.T) {
 	defer server.Close()
 
 	client := &http.Client{
-		Transport: &Transport{FormatSpanName: formatSpanName},
+		Transport: &Transport{
+			FormatSpanName: formatSpanName,
+			StartOptions: trace.StartOptions{
+				Sampler: trace.AlwaysSample(),
+			},
+		},
 	}
 
 	tests := []struct {
@@ -500,16 +522,16 @@ func TestStatusUnitTest(t *testing.T) {
 		in   int
 		want trace.Status
 	}{
-		{200, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
-		{204, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
-		{100, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
-		{500, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
-		{404, trace.Status{Code: trace.StatusCodeNotFound, Message: `"NOT_FOUND"`}},
-		{600, trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
-		{401, trace.Status{Code: trace.StatusCodeUnauthenticated, Message: `"UNAUTHENTICATED"`}},
-		{403, trace.Status{Code: trace.StatusCodePermissionDenied, Message: `"PERMISSION_DENIED"`}},
-		{301, trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
-		{501, trace.Status{Code: trace.StatusCodeUnimplemented, Message: `"UNIMPLEMENTED"`}},
+		{200, trace.Status{Code: trace.StatusCodeOK, Message: `OK`}},
+		{204, trace.Status{Code: trace.StatusCodeOK, Message: `OK`}},
+		{100, trace.Status{Code: trace.StatusCodeUnknown, Message: `UNKNOWN`}},
+		{500, trace.Status{Code: trace.StatusCodeUnknown, Message: `UNKNOWN`}},
+		{404, trace.Status{Code: trace.StatusCodeNotFound, Message: `NOT_FOUND`}},
+		{600, trace.Status{Code: trace.StatusCodeUnknown, Message: `UNKNOWN`}},
+		{401, trace.Status{Code: trace.StatusCodeUnauthenticated, Message: `UNAUTHENTICATED`}},
+		{403, trace.Status{Code: trace.StatusCodePermissionDenied, Message: `PERMISSION_DENIED`}},
+		{301, trace.Status{Code: trace.StatusCodeOK, Message: `OK`}},
+		{501, trace.Status{Code: trace.StatusCodeUnimplemented, Message: `UNIMPLEMENTED`}},
 	}
 
 	for _, tt := range tests {

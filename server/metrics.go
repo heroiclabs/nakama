@@ -20,10 +20,10 @@ import (
 	"net/http"
 	"time"
 
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	ocprometheus "go.opencensus.io/exporter/prometheus"
-	"go.opencensus.io/exporter/stackdriver"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"

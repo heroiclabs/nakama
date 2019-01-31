@@ -34,7 +34,9 @@ func main() {
 	view.RegisterExporter(exporter)
 	trace.RegisterExporter(exporter)
 
-	// Always trace for this demo.
+	// Always trace for this demo. In a production application, you should
+	// configure this to a trace.ProbabilitySampler set at the desired
+	// probability.
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	// Report stats at every second.

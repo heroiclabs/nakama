@@ -37,7 +37,13 @@ const defaultServiceName = "OpenCensus"
 type Options struct {
 	// Endpoint is the Jaeger HTTP Thrift endpoint.
 	// For example, http://localhost:14268.
+	//
+	// Deprecated: Use CollectorEndpoint instead.
 	Endpoint string
+
+	// CollectorEndpoint is the full url to the Jaeger HTTP Thrift collector.
+	// For example, http://localhost:14268/api/traces
+	CollectorEndpoint string
 
 	// AgentEndpoint instructs exporter to send spans to jaeger-agent at this address.
 	// For example, localhost:6831.
@@ -58,21 +64,31 @@ type Options struct {
 	Password string
 
 	// ServiceName is the Jaeger service name.
+	// Deprecated: Specify Process instead.
 	ServiceName string
+
+	// Process contains the information about the exporting process.
+	Process Process
+
+	//BufferMaxCount defines the total number of traces that can be buffered in memory
+	BufferMaxCount int
 }
 
 // NewExporter returns a trace.Exporter implementation that exports
 // the collected spans to Jaeger.
 func NewExporter(o Options) (*Exporter, error) {
-	endpoint := o.Endpoint
-	if endpoint == "" && o.AgentEndpoint == "" {
+	if o.Endpoint == "" && o.CollectorEndpoint == "" && o.AgentEndpoint == "" {
 		return nil, errors.New("missing endpoint for Jaeger exporter")
 	}
 
+	var endpoint string
 	var client *agentClientUDP
 	var err error
-	if endpoint != "" {
-		endpoint = endpoint + "/api/traces?format=jaeger.thrift"
+	if o.Endpoint != "" {
+		endpoint = o.Endpoint + "/api/traces?format=jaeger.thrift"
+		log.Printf("Endpoint has been deprecated. Please use CollectorEndpoint instead.")
+	} else if o.CollectorEndpoint != "" {
+		endpoint = o.CollectorEndpoint
 	} else {
 		client, err = newAgentClientUDP(o.AgentEndpoint, udpPacketMaxLength)
 		if err != nil {
@@ -86,9 +102,16 @@ func NewExporter(o Options) (*Exporter, error) {
 		}
 		log.Printf("Error when uploading spans to Jaeger: %v", err)
 	}
-	service := o.ServiceName
-	if service == "" {
+	service := o.Process.ServiceName
+	if service == "" && o.ServiceName != "" {
+		// fallback to old service name if specified
+		service = o.ServiceName
+	} else if service == "" {
 		service = defaultServiceName
+	}
+	tags := make([]*gen.Tag, len(o.Process.Tags))
+	for i, tag := range o.Process.Tags {
+		tags[i] = attributeToTag(tag.key, tag.value)
 	}
 	e := &Exporter{
 		endpoint:      endpoint,
@@ -96,22 +119,65 @@ func NewExporter(o Options) (*Exporter, error) {
 		client:        client,
 		username:      o.Username,
 		password:      o.Password,
-		service:       service,
+		process: &gen.Process{
+			ServiceName: service,
+			Tags:        tags,
+		},
 	}
 	bundler := bundler.NewBundler((*gen.Span)(nil), func(bundle interface{}) {
 		if err := e.upload(bundle.([]*gen.Span)); err != nil {
 			onError(err)
 		}
 	})
+
+	// Set BufferedByteLimit with the total number of spans that are permissible to be held in memory.
+	// This needs to be done since the size of messages is always set to 1. Failing to set this would allow
+	// 1G messages to be held in memory since that is the default value of BufferedByteLimit.
+	if o.BufferMaxCount != 0 {
+		bundler.BufferedByteLimit = o.BufferMaxCount
+	}
+
 	e.bundler = bundler
 	return e, nil
+}
+
+// Process contains the information exported to jaeger about the source
+// of the trace data.
+type Process struct {
+	// ServiceName is the Jaeger service name.
+	ServiceName string
+
+	// Tags are added to Jaeger Process exports
+	Tags []Tag
+}
+
+// Tag defines a key-value pair
+// It is limited to the possible conversions to *jaeger.Tag by attributeToTag
+type Tag struct {
+	key   string
+	value interface{}
+}
+
+// BoolTag creates a new tag of type bool, exported as jaeger.TagType_BOOL
+func BoolTag(key string, value bool) Tag {
+	return Tag{key, value}
+}
+
+// StringTag creates a new tag of type string, exported as jaeger.TagType_STRING
+func StringTag(key string, value string) Tag {
+	return Tag{key, value}
+}
+
+// Int64Tag creates a new tag of type int64, exported as jaeger.TagType_LONG
+func Int64Tag(key string, value int64) Tag {
+	return Tag{key, value}
 }
 
 // Exporter is an implementation of trace.Exporter that uploads spans to Jaeger.
 type Exporter struct {
 	endpoint      string
 	agentEndpoint string
-	service       string
+	process       *gen.Process
 	bundler       *bundler.Bundler
 	client        *agentClientUDP
 
@@ -230,10 +296,8 @@ func (e *Exporter) Flush() {
 
 func (e *Exporter) upload(spans []*gen.Span) error {
 	batch := &gen.Batch{
-		Spans: spans,
-		Process: &gen.Process{
-			ServiceName: e.service,
-		},
+		Spans:   spans,
+		Process: e.process,
 	}
 	if e.endpoint != "" {
 		return e.uploadCollector(batch)

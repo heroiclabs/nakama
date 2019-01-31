@@ -14,12 +14,61 @@
   version = "v0.34.0"
 
 [[projects]]
+  digest = "1:4cda3ef1024370f3cf7c0da06f7174a79887bf387d7b0d4acdb15df0ed3c206e"
+  name = "contrib.go.opencensus.io/exporter/stackdriver"
+  packages = [
+    ".",
+    "monitoredresource",
+  ]
+  pruneopts = ""
+  revision = "0e2df90c35d1575910dc0a44da7d7b08ae76290f"
+  version = "v0.9.1"
+
+[[projects]]
   digest = "1:2f60f5ae6749aeae294562cefebcc8ba9c033f74d3088bdc275d1f11b8aabc92"
   name = "github.com/RoaringBitmap/roaring"
   packages = ["."]
   pruneopts = ""
   revision = "3d677d3262197ee558b85029301eb69b8239f91a"
   version = "v0.4.16"
+
+[[projects]]
+  digest = "1:3e98b3f23156a450618e679552977107df698e0812eb77003c2fbfc89332b1d2"
+  name = "github.com/aws/aws-sdk-go"
+  packages = [
+    "aws",
+    "aws/awserr",
+    "aws/awsutil",
+    "aws/client",
+    "aws/client/metadata",
+    "aws/corehandlers",
+    "aws/credentials",
+    "aws/credentials/ec2rolecreds",
+    "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
+    "aws/credentials/stscreds",
+    "aws/csm",
+    "aws/defaults",
+    "aws/ec2metadata",
+    "aws/endpoints",
+    "aws/request",
+    "aws/session",
+    "aws/signer/v4",
+    "internal/ini",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/sdkuri",
+    "internal/shareddefaults",
+    "private/protocol",
+    "private/protocol/query",
+    "private/protocol/query/queryutil",
+    "private/protocol/rest",
+    "private/protocol/xml/xmlutil",
+    "service/sts",
+  ]
+  pruneopts = ""
+  revision = "62936e15518acb527a1a9cb4a39d96d94d0fd9a2"
+  version = "v1.16.15"
 
 [[projects]]
   branch = "master"
@@ -98,6 +147,18 @@
   pruneopts = ""
   revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
   version = "v1.3.1"
+
+[[projects]]
+  digest = "1:0b2d5839372f6dc106fcaa70b6bd5832789a633c4e470540f76c2ec6c560e1c1"
+  name = "github.com/census-instrumentation/opencensus-proto"
+  packages = [
+    "gen-go/agent/common/v1",
+    "gen-go/metrics/v1",
+    "gen-go/resource/v1",
+  ]
+  pruneopts = ""
+  revision = "7f2434bc10da710debe5c4315ed6d4df454b4024"
+  version = "v0.1.0"
 
 [[projects]]
   digest = "1:c05e492e19a0704f4fee4d546ca899586c176b73f31c4a06051473ea75e7eaa2"
@@ -291,6 +352,13 @@
   version = "v1.6.3"
 
 [[projects]]
+  digest = "1:13fe471d0ed891e8544eddfeeb0471fd3c9f2015609a1c000aefdedf52a19d40"
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  pruneopts = ""
+  revision = "c2b33e84"
+
+[[projects]]
   digest = "1:7df5a9695a743c3e1626b28bb8741602c8c15527e1efaeaec48ab2ff9a23f74c"
   name = "github.com/joho/godotenv"
   packages = ["."]
@@ -466,12 +534,12 @@
   revision = "1e6e6e1918e02ddf02e667e88e8aa756942448c5"
 
 [[projects]]
-  digest = "1:eb3da47361162f0ad991ddf391e6dc03e23889201d76046e2917687b84977aee"
+  digest = "1:b1bb9332f6cb7821a730e1681819b2813340eba5e873f05381815a7c6807d172"
   name = "go.opencensus.io"
   packages = [
     ".",
+    "exemplar",
     "exporter/prometheus",
-    "exporter/stackdriver",
     "internal",
     "internal/tagencoding",
     "plugin/ocgrpc",
@@ -484,12 +552,13 @@
     "trace",
     "trace/internal",
     "trace/propagation",
+    "trace/tracestate",
     "zpages",
     "zpages/internal",
   ]
   pruneopts = ""
-  revision = "e262766cd0d230a1bb7c37281e345e465f19b41b"
-  version = "v0.14.0"
+  revision = "2b5032d79456124f42db6b7eb19ac6c155449dc2"
+  version = "v0.19.0"
 
 [[projects]]
   digest = "1:74f86c458e82e1c4efbab95233e0cf51b7cc02dc03193be9f62cd81224e10401"
@@ -607,7 +676,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:7c913a3acdc8bcd27a6036661f91ed8ec7a94c0b8949a6716834c543e50fa967"
+  digest = "1:e64297c5683da5bb3a704131c6b4bebb35c94b77067075d22b0543eee41ce37e"
   name = "google.golang.org/api"
   packages = [
     "googleapi/transport",
@@ -621,7 +690,7 @@
     "transport/http/internal/propagation",
   ]
   pruneopts = ""
-  revision = "f26a60c56f148a32e87f3f4591c8ebf834b5561f"
+  revision = "f9718892c732c484b97d9a879482a9441f753932"
 
 [[projects]]
   digest = "1:bc09e719c4e2a15d17163f5272d9a3131c45d77542b7fdc53ff518815bc19ab3"
@@ -723,6 +792,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "contrib.go.opencensus.io/exporter/stackdriver",
     "github.com/blevesearch/bleve",
     "github.com/blevesearch/bleve/analysis/analyzer/keyword",
     "github.com/cockroachdb/cockroach-go/crdb",
@@ -748,7 +818,6 @@
     "github.com/stretchr/testify/assert",
     "github.com/yuin/gopher-lua",
     "go.opencensus.io/exporter/prometheus",
-    "go.opencensus.io/exporter/stackdriver",
     "go.opencensus.io/plugin/ocgrpc",
     "go.opencensus.io/plugin/ochttp",
     "go.opencensus.io/stats",

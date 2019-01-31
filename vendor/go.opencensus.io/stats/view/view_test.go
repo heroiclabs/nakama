@@ -19,6 +19,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
+	"go.opencensus.io/exemplar"
+
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )
@@ -65,7 +69,7 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
 					&DistributionData{
-						2, 1, 5, 3, 8, []int64{1, 1}, []float64{2},
+						Count: 2, Min: 1, Max: 5, Mean: 3, SumOfSquaredDev: 8, CountPerBucket: []int64{1, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 			},
@@ -80,13 +84,13 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
 					&DistributionData{
-						1, 1, 1, 1, 0, []int64{1, 0}, []float64{2},
+						Count: 1, Min: 1, Max: 1, Mean: 1, CountPerBucket: []int64{1, 0}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k2, Value: "v2"}},
 					&DistributionData{
-						1, 5, 5, 5, 0, []int64{0, 1}, []float64{2},
+						Count: 1, Min: 5, Max: 5, Mean: 5, CountPerBucket: []int64{0, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 			},
@@ -104,25 +108,25 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}},
 					&DistributionData{
-						2, 1, 5, 3, 8, []int64{1, 1}, []float64{2},
+						Count: 2, Min: 1, Max: 5, Mean: 3, SumOfSquaredDev: 8, CountPerBucket: []int64{1, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1 other"}},
 					&DistributionData{
-						1, 1, 1, 1, 0, []int64{1, 0}, []float64{2},
+						Count: 1, Min: 1, Max: 1, Mean: 1, CountPerBucket: []int64{1, 0}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k2, Value: "v2"}},
 					&DistributionData{
-						1, 5, 5, 5, 0, []int64{0, 1}, []float64{2},
+						Count: 1, Min: 5, Max: 5, Mean: 5, CountPerBucket: []int64{0, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1"}, {Key: k2, Value: "v2"}},
 					&DistributionData{
-						1, 5, 5, 5, 0, []int64{0, 1}, []float64{2},
+						Count: 1, Min: 5, Max: 5, Mean: 5, CountPerBucket: []int64{0, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 			},
@@ -142,19 +146,19 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 				{
 					[]tag.Tag{{Key: k1, Value: "v1 is a very long value key"}},
 					&DistributionData{
-						2, 1, 5, 3, 8, []int64{1, 1}, []float64{2},
+						Count: 2, Min: 1, Max: 5, Mean: 3, SumOfSquaredDev: 8, CountPerBucket: []int64{1, 1}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1 is another very long value key"}},
 					&DistributionData{
-						1, 1, 1, 1, 0, []int64{1, 0}, []float64{2},
+						Count: 1, Min: 1, Max: 1, Mean: 1, CountPerBucket: []int64{1, 0}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 				{
 					[]tag.Tag{{Key: k1, Value: "v1 is a very long value key"}, {Key: k2, Value: "v2 is a very long value key"}},
 					&DistributionData{
-						4, 1, 5, 3, 2.66666666666667 * 3, []int64{1, 3}, []float64{2},
+						Count: 4, Min: 1, Max: 5, Mean: 3, SumOfSquaredDev: 2.66666666666667 * 3, CountPerBucket: []int64{1, 3}, bounds: []float64{2}, ExemplarsPerBucket: []*exemplar.Exemplar{nil, nil},
 					},
 				},
 			},
@@ -173,7 +177,11 @@ func Test_View_MeasureFloat64_AggregationDistribution(t *testing.T) {
 			if err != nil {
 				t.Errorf("%v: New = %v", tc.label, err)
 			}
-			view.addSample(tag.FromContext(ctx), r.f)
+			e := &exemplar.Exemplar{
+				Value:       r.f,
+				Attachments: exemplar.AttachmentsFromContext(ctx),
+			}
+			view.addSample(tag.FromContext(ctx), e)
 		}
 
 		gotRows := view.collectedRows()
@@ -289,7 +297,10 @@ func Test_View_MeasureFloat64_AggregationSum(t *testing.T) {
 			if err != nil {
 				t.Errorf("%v: New = %v", tt.label, err)
 			}
-			view.addSample(tag.FromContext(ctx), r.f)
+			e := &exemplar.Exemplar{
+				Value: r.f,
+			}
+			view.addSample(tag.FromContext(ctx), e)
 		}
 
 		gotRows := view.collectedRows()
@@ -397,5 +408,81 @@ func TestRegisterUnregisterParity(t *testing.T) {
 				Unregister(v)
 			}
 		}
+	}
+}
+
+func TestRegisterAfterMeasurement(t *testing.T) {
+	// Tests that we can register views after measurements are created and
+	// they still take effect.
+
+	m := stats.Int64(t.Name(), "", stats.UnitDimensionless)
+	mm := m.M(1)
+	ctx := context.Background()
+
+	stats.Record(ctx, mm)
+	v := &View{
+		Measure:     m,
+		Aggregation: Count(),
+	}
+	if err := Register(v); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := RetrieveData(v.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) > 0 {
+		t.Error("View should not have data")
+	}
+
+	stats.Record(ctx, mm)
+
+	rows, err = RetrieveData(v.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) == 0 {
+		t.Error("View should have data")
+	}
+}
+
+func TestViewRegister_negativeBucketBounds(t *testing.T) {
+	m := stats.Int64("TestViewRegister_negativeBucketBounds", "", "")
+	v := &View{
+		Measure:     m,
+		Aggregation: Distribution(-1, 2),
+	}
+	err := Register(v)
+	if err != ErrNegativeBucketBounds {
+		t.Errorf("Expected ErrNegativeBucketBounds, got %v", err)
+	}
+}
+
+func TestViewRegister_zeroBucketBounds(t *testing.T) {
+	m := stats.Int64("TestViewRegister_negativeBucketBounds", "", "")
+	v := &View{
+		Measure:     m,
+		Aggregation: Distribution(0, 2),
+	}
+	err := Register(v)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+}
+
+func TestViewRegister_sortBuckets(t *testing.T) {
+	m := stats.Int64("TestViewRegister_sortBuckets", "", "")
+	v := &View{
+		Measure:     m,
+		Aggregation: Distribution(2, 1),
+	}
+	err := Register(v)
+	if err != nil {
+		t.Fatalf("Unexpected err %s", err)
+	}
+	want := []float64{1, 2}
+	if diff := cmp.Diff(v.Aggregation.Buckets, want); diff != "" {
+		t.Errorf("buckets differ -got +want: %s", diff)
 	}
 }

@@ -41,7 +41,9 @@ func main() {
 	exporter := zipkin.NewExporter(reporter, localEndpoint)
 	trace.RegisterExporter(exporter)
 
-	// For example purposes, sample every trace.
+	// For example purposes, sample every trace. In a production application, you should
+	// configure this to a trace.ProbabilitySampler set at the desired
+	// probability.
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	ctx := context.Background()

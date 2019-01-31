@@ -25,8 +25,10 @@ func ExampleNewExporter_collector() {
 	// Register the Jaeger exporter to be able to retrieve
 	// the collected spans.
 	exporter, err := jaeger.NewExporter(jaeger.Options{
-		Endpoint:    "http://localhost:14268",
-		ServiceName: "trace-demo",
+		Endpoint: "http://localhost:14268",
+		Process: jaeger.Process{
+			ServiceName: "trace-demo",
+		},
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -39,7 +41,31 @@ func ExampleNewExporter_agent() {
 	// the collected spans.
 	exporter, err := jaeger.NewExporter(jaeger.Options{
 		AgentEndpoint: "localhost:6831",
-		ServiceName:   "trace-demo",
+		Process: jaeger.Process{
+			ServiceName: "trace-demo",
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	trace.RegisterExporter(exporter)
+}
+
+// ExampleNewExporter_processTags shows how to set ProcessTags
+// on a Jaeger exporter. These tags will be added to the exported
+// Jaeger process.
+func ExampleNewExporter_processTags() {
+	// Register the Jaeger exporter to be able to retrieve
+	// the collected spans.
+	exporter, err := jaeger.NewExporter(jaeger.Options{
+		AgentEndpoint: "localhost:6831",
+		Process: jaeger.Process{
+			ServiceName: "trace-demo",
+			Tags: []jaeger.Tag{
+				jaeger.StringTag("ip", "127.0.0.1"),
+				jaeger.BoolTag("demo", true),
+			},
+		},
 	})
 	if err != nil {
 		log.Fatal(err)

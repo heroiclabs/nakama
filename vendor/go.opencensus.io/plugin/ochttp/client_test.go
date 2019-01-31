@@ -30,7 +30,104 @@ import (
 
 const reqCount = 5
 
-func TestClient(t *testing.T) {
+func TestClientNew(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.Write([]byte("Hello, world!"))
+	}))
+	defer server.Close()
+
+	if err := view.Register(
+		ochttp.ClientSentBytesDistribution,
+		ochttp.ClientReceivedBytesDistribution,
+		ochttp.ClientRoundtripLatencyDistribution,
+		ochttp.ClientCompletedCount,
+	); err != nil {
+		t.Fatalf("Failed to register ochttp.DefaultClientViews error: %v", err)
+	}
+
+	views := []string{
+		"opencensus.io/http/client/sent_bytes",
+		"opencensus.io/http/client/received_bytes",
+		"opencensus.io/http/client/roundtrip_latency",
+		"opencensus.io/http/client/completed_count",
+	}
+	for _, name := range views {
+		v := view.Find(name)
+		if v == nil {
+			t.Errorf("view not found %q", name)
+			continue
+		}
+	}
+
+	var wg sync.WaitGroup
+	var tr ochttp.Transport
+	errs := make(chan error, reqCount)
+	wg.Add(reqCount)
+
+	for i := 0; i < reqCount; i++ {
+		go func() {
+			defer wg.Done()
+			req, err := http.NewRequest("POST", server.URL, strings.NewReader("req-body"))
+			if err != nil {
+				errs <- fmt.Errorf("error creating request: %v", err)
+			}
+			resp, err := tr.RoundTrip(req)
+			if err != nil {
+				errs <- fmt.Errorf("response error: %v", err)
+			}
+			if err := resp.Body.Close(); err != nil {
+				errs <- fmt.Errorf("error closing response body: %v", err)
+			}
+			if got, want := resp.StatusCode, 200; got != want {
+				errs <- fmt.Errorf("resp.StatusCode=%d; wantCount %d", got, want)
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, viewName := range views {
+		v := view.Find(viewName)
+		if v == nil {
+			t.Errorf("view not found %q", viewName)
+			continue
+		}
+		rows, err := view.RetrieveData(v.Name)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if got, want := len(rows), 1; got != want {
+			t.Errorf("len(%q) = %d; want %d", viewName, got, want)
+			continue
+		}
+		data := rows[0].Data
+		var count int64
+		switch data := data.(type) {
+		case *view.CountData:
+			count = data.Value
+		case *view.DistributionData:
+			count = data.Count
+		default:
+			t.Errorf("Unkown data type: %v", data)
+			continue
+		}
+		if got := count; got != reqCount {
+			t.Fatalf("%s = %d; want %d", viewName, got, reqCount)
+		}
+	}
+}
+
+func TestClientOld(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte("Hello, world!"))
 	}))

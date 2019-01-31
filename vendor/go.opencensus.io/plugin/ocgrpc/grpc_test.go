@@ -15,6 +15,7 @@
 package ocgrpc
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -127,9 +128,12 @@ func TestServerHandler(t *testing.T) {
 }
 
 type traceExporter struct {
+	mu     sync.Mutex
 	buffer []*trace.SpanData
 }
 
 func (e *traceExporter) ExportSpan(sd *trace.SpanData) {
+	e.mu.Lock()
 	e.buffer = append(e.buffer, sd)
+	e.mu.Unlock()
 }

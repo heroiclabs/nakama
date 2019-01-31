@@ -18,13 +18,17 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"go.opencensus.io/trace/tracestate"
 )
 
 var (
-	tid = TraceID{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 4, 8, 16, 32, 64, 128}
-	sid = SpanID{1, 2, 4, 8, 16, 32, 64, 128}
+	tid               = TraceID{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 4, 8, 16, 32, 64, 128}
+	sid               = SpanID{1, 2, 4, 8, 16, 32, 64, 128}
+	testTracestate, _ = tracestate.New(nil, tracestate.Entry{Key: "foo", Value: "bar"})
 )
 
 func init() {
@@ -43,7 +47,7 @@ func TestStrings(t *testing.T) {
 
 func TestFromContext(t *testing.T) {
 	want := &Span{}
-	ctx := WithSpan(context.Background(), want)
+	ctx := NewContext(context.Background(), want)
 	got := FromContext(ctx)
 	if got != want {
 		t.Errorf("got Span pointer %p want %p", got, want)
@@ -69,6 +73,9 @@ func checkChild(p SpanContext, c *Span) error {
 	}
 	if got, want := c.spanContext.TraceOptions, p.TraceOptions; got != want {
 		return fmt.Errorf("got child trace options %d, want %d", got, want)
+	}
+	if got, want := c.spanContext.Tracestate, p.Tracestate; got != want {
+		return fmt.Errorf("got child tracestate %v, want %v", got, want)
 	}
 	return nil
 }
@@ -204,6 +211,7 @@ func TestStartSpanWithRemoteParent(t *testing.T) {
 		TraceID:      tid,
 		SpanID:       sid,
 		TraceOptions: 0x1,
+		Tracestate:   testTracestate,
 	}
 	ctx, _ = StartSpanWithRemoteParent(context.Background(), "startSpanWithRemoteParent", sc)
 	if err := checkChild(sc, FromContext(ctx)); err != nil {
@@ -666,5 +674,41 @@ func TestStartSpanAfterEnd(t *testing.T) {
 	}
 	if got, want := spans["span-2"].ParentSpanID, spans["span-1"].SpanID; got != want {
 		t.Errorf("span-2.ParentSpanID=%q; want %q (span1.SpanID)", got, want)
+	}
+}
+
+func TestNilSpanEnd(t *testing.T) {
+	var span *Span
+	span.End()
+}
+
+func TestExecutionTracerTaskEnd(t *testing.T) {
+	var n uint64
+	executionTracerTaskEnd := func() {
+		atomic.AddUint64(&n, 1)
+	}
+
+	var spans []*Span
+	_, span := StartSpan(context.Background(), "foo", WithSampler(NeverSample()))
+	span.executionTracerTaskEnd = executionTracerTaskEnd
+	spans = append(spans, span) // never sample
+
+	_, span = StartSpanWithRemoteParent(context.Background(), "foo", SpanContext{
+		TraceID:      TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+		SpanID:       SpanID{0, 1, 2, 3, 4, 5, 6, 7},
+		TraceOptions: 0,
+	})
+	span.executionTracerTaskEnd = executionTracerTaskEnd
+	spans = append(spans, span) // parent not sampled
+
+	_, span = StartSpan(context.Background(), "foo", WithSampler(AlwaysSample()))
+	span.executionTracerTaskEnd = executionTracerTaskEnd
+	spans = append(spans, span) // always sample
+
+	for _, span := range spans {
+		span.End()
+	}
+	if got, want := n, uint64(len(spans)); got != want {
+		t.Fatalf("Execution tracer task ended for %v spans; want %v", got, want)
 	}
 }

@@ -19,6 +19,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
 	"net"
 	"net/http"
 	"strings"
@@ -453,4 +456,44 @@ func extractClientAddress(logger *zap.Logger, ctx context.Context) (string, stri
 	}
 
 	return clientIP, clientPort
+}
+
+func traceApiBefore(ctx context.Context, logger *zap.Logger, fullMethodName string, fn func(clientIP, clientPort string) error) error {
+	name := fmt.Sprintf("%v-before", fullMethodName)
+	clientIP, clientPort := extractClientAddress(logger, ctx)
+	statsCtx, err := tag.New(ctx, tag.Upsert(MetricsFunction, name))
+	if err != nil {
+		// If there was an error processing the stats, just execute the function.
+		logger.Warn("Error tagging API before stats", zap.String("full_method_name", fullMethodName), zap.Error(err))
+		clientIP, clientPort := extractClientAddress(logger, ctx)
+		return fn(clientIP, clientPort)
+	}
+	startNanos := time.Now().UTC().UnixNano()
+	statsCtx, span := trace.StartSpan(statsCtx, name)
+
+	err = fn(clientIP, clientPort)
+
+	span.End()
+	stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
+
+	return err
+}
+
+func traceApiAfter(ctx context.Context, logger *zap.Logger, fullMethodName string, fn func(clientIP, clientPort string)) {
+	name := fmt.Sprintf("%v-after", logger)
+	clientIP, clientPort := extractClientAddress(logger, ctx)
+	statsCtx, err := tag.New(ctx, tag.Upsert(MetricsFunction, name))
+	if err != nil {
+		// If there was an error processing the stats, just execute the function.
+		logger.Warn("Error tagging API after stats", zap.String("full_method_name", fullMethodName), zap.Error(err))
+		fn(clientIP, clientPort)
+		return
+	}
+	startNanos := time.Now().UTC().UnixNano()
+	statsCtx, span := trace.StartSpan(statsCtx, name)
+
+	fn(clientIP, clientPort)
+
+	span.End()
+	stats.Record(statsCtx, MetricsApiTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsApiCount.M(1))
 }

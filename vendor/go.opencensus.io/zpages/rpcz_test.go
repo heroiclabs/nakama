@@ -49,7 +49,7 @@ func TestRpcz(t *testing.T) {
 		t.Fatal("Expected method stats not recorded")
 	}
 
-	if got, want := snapshot.CountTotal, 1; got != want {
+	if got, want := snapshot.CountTotal, uint64(1); got != want {
 		t.Errorf("snapshot.CountTotal = %d; want %d", got, want)
 	}
 }

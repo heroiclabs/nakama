@@ -36,8 +36,7 @@ func TestRoundTripAllFormats(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-	ctx, span := trace.StartSpan(ctx, "test")
+	ctx, span := trace.StartSpan(ctx, "test", trace.WithSampler(trace.AlwaysSample()))
 	sc := span.SpanContext()
 	wantStr := fmt.Sprintf("trace_id=%x, span_id=%x, options=%d", sc.TraceID, sc.SpanID, sc.TraceOptions)
 	defer span.End()

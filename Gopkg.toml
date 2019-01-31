@@ -1,3 +1,5 @@
+ignored = ["go.opencensus.io/exporter/stackdriver"]
+
 [[constraint]]
   name = "go.uber.org/zap"
   version = "~1.9.1"
@@ -70,9 +72,9 @@
   name = "github.com/prometheus/client_golang"
   revision = "bcbbc08eb2ddff3af83bbf11e7ec13b4fd730b6e"
 
-[[constraint]]
+[[override]]
   name = "go.opencensus.io"
-  version = "~0.14.0"
+  version = "~0.19.0"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
@@ -89,3 +91,7 @@
 [[constraint]]
   name = "gopkg.in/natefinch/lumberjack.v2"
   version = "2.1.0"
+
+[[constraint]]
+  name = "contrib.go.opencensus.io/exporter/stackdriver"
+  version = "0.9.1"

@@ -170,9 +170,9 @@ type statSnapshot struct {
 	// TODO: compute hour/minute values from cumulative
 	Method           string
 	Received         bool
-	CountMinute      int
-	CountHour        int
-	CountTotal       int
+	CountMinute      uint64
+	CountHour        uint64
+	CountTotal       uint64
 	AvgLatencyMinute time.Duration
 	AvgLatencyHour   time.Duration
 	AvgLatencyTotal  time.Duration
@@ -185,9 +185,9 @@ type statSnapshot struct {
 	OutputRateMinute float64
 	OutputRateHour   float64
 	OutputRateTotal  float64
-	ErrorsMinute     int
-	ErrorsHour       int
-	ErrorsTotal      int
+	ErrorsMinute     uint64
+	ErrorsHour       uint64
+	ErrorsTotal      uint64
 }
 
 type methodKey struct {
@@ -267,7 +267,7 @@ func (s snapExporter) ExportView(vd *view.Data) {
 			}
 			for _, tag := range row.Tags {
 				if tag.Key == ocgrpc.KeyClientStatus && tag.Value != "OK" {
-					s.ErrorsTotal += int(count)
+					s.ErrorsTotal += uint64(count)
 				}
 			}
 
@@ -281,7 +281,7 @@ func (s snapExporter) ExportView(vd *view.Data) {
 			s.InputRateTotal = computeRate(0, sum)
 
 		case ocgrpc.ClientSentMessagesPerRPCView:
-			s.CountTotal = int(count)
+			s.CountTotal = uint64(count)
 			s.RPCRateTotal = computeRate(0, count)
 
 		case ocgrpc.ClientReceivedMessagesPerRPCView:
@@ -294,7 +294,7 @@ func (s snapExporter) ExportView(vd *view.Data) {
 			}
 			for _, tag := range row.Tags {
 				if tag.Key == ocgrpc.KeyServerStatus && tag.Value != "OK" {
-					s.ErrorsTotal += int(count)
+					s.ErrorsTotal += uint64(count)
 				}
 			}
 
@@ -305,7 +305,7 @@ func (s snapExporter) ExportView(vd *view.Data) {
 			s.OutputRateTotal = computeRate(0, sum)
 
 		case ocgrpc.ServerReceivedMessagesPerRPCView:
-			s.CountTotal = int(count)
+			s.CountTotal = uint64(count)
 			s.RPCRateTotal = computeRate(0, count)
 
 		case ocgrpc.ServerSentMessagesPerRPCView:

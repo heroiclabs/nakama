@@ -102,7 +102,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		// Mark the start of the session.
 		startNanos := time.Now().UTC().UnixNano()
 		stats.Record(SocketWsStatsCtx, MetricsSocketWsOpenCount.M(1))
-		span := trace.NewSpan("nakama.session.ws", nil, trace.StartOptions{})
+		_, span := trace.StartSpan(SocketWsStatsCtx, "nakama.session.ws")
 
 		// Wrap the connection for application handling.
 		session := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker)

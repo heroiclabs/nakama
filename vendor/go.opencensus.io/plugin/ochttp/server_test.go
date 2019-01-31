@@ -65,11 +65,14 @@ func TestHandlerStatsCollection(t *testing.T) {
 			body := bytes.NewBuffer(make([]byte, test.reqSize))
 			r := httptest.NewRequest(test.method, test.target, body)
 			w := httptest.NewRecorder()
+			mux := http.NewServeMux()
+			mux.Handle("/request/", httpHandler(test.statusCode, test.respSize))
 			h := &Handler{
-				Handler: httpHandler(test.statusCode, test.respSize),
+				Handler: mux,
+				StartOptions: trace.StartOptions{
+					Sampler: trace.NeverSample(),
+				},
 			}
-			h.StartOptions.Sampler = trace.NeverSample()
-
 			for i := 0; i < test.count; i++ {
 				h.ServeHTTP(w, r)
 				totalCount++
@@ -139,32 +142,20 @@ func (trw *testResponseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, er
 
 func TestUnitTestHandlerProxiesHijack(t *testing.T) {
 	tests := []struct {
-		w       http.ResponseWriter
-		wantErr string
+		w         http.ResponseWriter
+		hasHijack bool
 	}{
-		{httptest.NewRecorder(), "ResponseWriter does not implement http.Hijacker"},
-		{nil, "ResponseWriter does not implement http.Hijacker"},
-		{new(testResponseWriterHijacker), ""},
+		{httptest.NewRecorder(), false},
+		{nil, false},
+		{new(testResponseWriterHijacker), true},
 	}
 
 	for i, tt := range tests {
 		tw := &trackingResponseWriter{writer: tt.w}
-		conn, buf, err := tw.Hijack()
-		if tt.wantErr != "" {
-			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("#%d got error (%v) want error substring (%q)", i, err, tt.wantErr)
-			}
-			if conn != nil {
-				t.Errorf("#%d inconsistent state got non-nil conn (%v)", i, conn)
-			}
-			if buf != nil {
-				t.Errorf("#%d inconsistent state got non-nil buf (%v)", i, buf)
-			}
-			continue
-		}
-
-		if err != nil {
-			t.Errorf("#%d got unexpected error %v", i, err)
+		w := tw.wrappedResponseWriter()
+		_, ttHijacker := w.(http.Hijacker)
+		if want, have := tt.hasHijack, ttHijacker; want != have {
+			t.Errorf("#%d Hijack got %t, want %t", i, have, want)
 		}
 	}
 }
@@ -234,20 +225,28 @@ func TestHandlerProxiesHijack_HTTP1(t *testing.T) {
 func TestHandlerProxiesHijack_HTTP2(t *testing.T) {
 	cst := httptest.NewUnstartedServer(&Handler{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			conn, _, err := w.(http.Hijacker).Hijack()
-			if conn != nil {
-				data := fmt.Sprintf("Surprisingly got the Hijacker() Proto: %s", r.Proto)
-				fmt.Fprintf(conn, "%s 200\nContent-Length:%d\r\n\r\n%s", r.Proto, len(data), data)
-				conn.Close()
-				return
-			}
+			if _, ok := w.(http.Hijacker); ok {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if conn != nil {
+					data := fmt.Sprintf("Surprisingly got the Hijacker() Proto: %s", r.Proto)
+					fmt.Fprintf(conn, "%s 200\nContent-Length:%d\r\n\r\n%s", r.Proto, len(data), data)
+					conn.Close()
+					return
+				}
 
-			switch {
-			case err == nil:
-				fmt.Fprintf(w, "Unexpectedly did not encounter an error!")
-			default:
-				fmt.Fprintf(w, "Unexpected error: %v", err)
-			case strings.Contains(err.(error).Error(), "Hijack"):
+				switch {
+				case err == nil:
+					fmt.Fprintf(w, "Unexpectedly did not encounter an error!")
+				default:
+					fmt.Fprintf(w, "Unexpected error: %v", err)
+				case strings.Contains(err.(error).Error(), "Hijack"):
+					// Confirmed HTTP/2.0, let's stream to it
+					for i := 0; i < 5; i++ {
+						fmt.Fprintf(w, "%d\n", i)
+						w.(http.Flusher).Flush()
+					}
+				}
+			} else {
 				// Confirmed HTTP/2.0, let's stream to it
 				for i := 0; i < 5; i++ {
 					fmt.Fprintf(w, "%d\n", i)
@@ -291,17 +290,16 @@ func TestEnsureTrackingResponseWriterSetsStatusCode(t *testing.T) {
 		res  *http.Response
 		want trace.Status
 	}{
-		{res: &http.Response{StatusCode: 200}, want: trace.Status{Code: trace.StatusCodeOK, Message: `"OK"`}},
-		{res: &http.Response{StatusCode: 500}, want: trace.Status{Code: trace.StatusCodeUnknown, Message: `"UNKNOWN"`}},
-		{res: &http.Response{StatusCode: 403}, want: trace.Status{Code: trace.StatusCodePermissionDenied, Message: `"PERMISSION_DENIED"`}},
-		{res: &http.Response{StatusCode: 401}, want: trace.Status{Code: trace.StatusCodeUnauthenticated, Message: `"UNAUTHENTICATED"`}},
-		{res: &http.Response{StatusCode: 429}, want: trace.Status{Code: trace.StatusCodeResourceExhausted, Message: `"RESOURCE_EXHAUSTED"`}},
+		{res: &http.Response{StatusCode: 200}, want: trace.Status{Code: trace.StatusCodeOK, Message: `OK`}},
+		{res: &http.Response{StatusCode: 500}, want: trace.Status{Code: trace.StatusCodeUnknown, Message: `UNKNOWN`}},
+		{res: &http.Response{StatusCode: 403}, want: trace.Status{Code: trace.StatusCodePermissionDenied, Message: `PERMISSION_DENIED`}},
+		{res: &http.Response{StatusCode: 401}, want: trace.Status{Code: trace.StatusCodeUnauthenticated, Message: `UNAUTHENTICATED`}},
+		{res: &http.Response{StatusCode: 429}, want: trace.Status{Code: trace.StatusCodeResourceExhausted, Message: `RESOURCE_EXHAUSTED`}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.want.Message, func(t *testing.T) {
-			span := trace.NewSpan("testing", nil, trace.StartOptions{Sampler: trace.AlwaysSample()})
-			ctx := trace.WithSpan(context.Background(), span)
+			ctx := context.Background()
 			prc, pwc := io.Pipe()
 			go func() {
 				pwc.Write([]byte("Foo"))
@@ -309,7 +307,13 @@ func TestEnsureTrackingResponseWriterSetsStatusCode(t *testing.T) {
 			}()
 			inRes := tt.res
 			inRes.Body = prc
-			tr := &traceTransport{base: &testResponseTransport{res: inRes}, formatSpanName: spanNameFromURL}
+			tr := &traceTransport{
+				base:           &testResponseTransport{res: inRes},
+				formatSpanName: spanNameFromURL,
+				startOptions: trace.StartOptions{
+					Sampler: trace.AlwaysSample(),
+				},
+			}
 			req, err := http.NewRequest("POST", "https://example.org", bytes.NewReader([]byte("testing")))
 			if err != nil {
 				t.Fatalf("NewRequest error: %v", err)
@@ -381,7 +385,7 @@ func TestHandlerImplementsHTTPPusher(t *testing.T) {
 	}{
 		{
 			rt:       h1Transport(),
-			wantBody: "true",
+			wantBody: "false",
 		},
 		{
 			rt:       h2Transport(),
@@ -389,7 +393,7 @@ func TestHandlerImplementsHTTPPusher(t *testing.T) {
 		},
 		{
 			rt:       &Transport{Base: h1Transport()},
-			wantBody: "true",
+			wantBody: "false",
 		},
 		{
 			rt:       &Transport{Base: h2Transport()},
@@ -548,5 +552,46 @@ func TestHandlerImplementsHTTPCloseNotify(t *testing.T) {
 	}
 	if g, w := http2Log.String(), wantHTTP2Log; g != w {
 		t.Errorf("HTTP2Log got\n\t%q\nwant\n\t%q", g, w)
+	}
+}
+
+func TestIgnoreHealthz(t *testing.T) {
+	var spans int
+
+	ts := httptest.NewServer(&Handler{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.FromContext(r.Context())
+			if span != nil {
+				spans++
+			}
+			fmt.Fprint(w, "ok")
+		}),
+		StartOptions: trace.StartOptions{
+			Sampler: trace.AlwaysSample(),
+		},
+	})
+	defer ts.Close()
+
+	client := &http.Client{}
+
+	for _, path := range []string{"/healthz", "/_ah/health"} {
+		resp, err := client.Get(ts.URL + path)
+		if err != nil {
+			t.Fatalf("Cannot GET %q: %v", path, err)
+		}
+
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Cannot read body for %q: %v", path, err)
+		}
+
+		if got, want := string(b), "ok"; got != want {
+			t.Fatalf("Body for %q = %q; want %q", path, got, want)
+		}
+		resp.Body.Close()
+	}
+
+	if spans > 0 {
+		t.Errorf("Got %v spans; want no spans", spans)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
@@ -84,6 +85,7 @@ func BenchmarkRecordReqCommand(b *testing.B) {
 				m.M(1),
 			},
 			tm: tag.FromContext(ctxs[i%len(ctxs)]),
+			t:  time.Now(),
 		}
 		record.handleCommand(w)
 	}
