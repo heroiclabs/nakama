@@ -3,15 +3,15 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.4.0] - 2019-02-03
 ### Added
-- Additional logging format option for Stackdriver Logging.
+- New logging format option for Stackdriver Logging.
 - New runtime function to immediately disconnect active sockets.
 - New runtime function to kick arbitrary presences from streams.
 
 ### Fixed
-- Correctly return group user results in Lua runtime listing operation.
-- Correctly handle leaderboard records previous page cursor.
+- Fix return arguments for group user list results in Lua runtime function.
+- Leaderboard records returned with a previous page cursor no longer errors.
 
 ## [2.3.2] - 2019-01-17
 ### Fixed
@@ -97,7 +97,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Set new default of 100 maximum number of open database connections.
 - Friendship state is no longer offset by one when sent to clients.
 - Group membership state is no longer offset by one when sent to clients.
-- Set new default metrics report frequency to 60 seconds. 
+- Set new default metrics report frequency to 60 seconds.
 
 ### Fixed
 - Account update optional inputs are not updated unless set in runtime functions.
@@ -181,7 +181,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [2.0.2] - 2018-07-09
 ### Added
-- New configuration option to adjust authoritative match data input queue size. 
+- New configuration option to adjust authoritative match data input queue size.
 - New configuration option to adjust authoritative match call queue size.
 - New configuration options to allow listening on IPv4/6 and a particular network interface.
 - Authoritative match modules now support a `match_join` callback that triggers when users have completed their join process.
@@ -190,7 +190,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Authoritative match labels can now be updated using the dispatcher's `match_label_update` function.
 
 ### Changed
-- Presence list in match join responses no longer contains the user's own presence. 
+- Presence list in match join responses no longer contains the user's own presence.
 - Presence list in channel join responses no longer contains the user's own presence.
 - Socket read/write buffer sizes are now set based on the `socket.max_message_size_bytes` value.
 - Console GRPC port now set relative to `console.port` config value.
