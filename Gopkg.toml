@@ -57,10 +57,6 @@ ignored = ["go.opencensus.io/exporter/stackdriver"]
   revision = "1e6e6e1918e02ddf02e667e88e8aa756942448c5"
 
 [[constraint]]
-  name = "github.com/gorhill/cronexpr"
-  revision = "88b0669f7d75f171bd612b874e52b95c190218df"
-
-[[constraint]]
   name = "golang.org/x/crypto"
   revision = "505ab145d0a99da450461ae2c1a9f6cd10d1f447"
 

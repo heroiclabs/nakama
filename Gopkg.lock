@@ -301,13 +301,6 @@
   version = "v2.0.3"
 
 [[projects]]
-  digest = "1:bbd196e39a1bf00c8dcff1d3171aa0fd39407a9ad4f006a47e6e248492832967"
-  name = "github.com/gorhill/cronexpr"
-  packages = ["."]
-  pruneopts = ""
-  revision = "88b0669f7d75f171bd612b874e52b95c190218df"
-
-[[projects]]
   digest = "1:dbbeb8ddb0be949954c8157ee8439c2adfd8dc1c9510eb44a6e58cb68c3dce28"
   name = "github.com/gorilla/context"
   packages = ["."]
@@ -805,7 +798,6 @@
     "github.com/golang/protobuf/ptypes/empty",
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/golang/protobuf/ptypes/wrappers",
-    "github.com/gorhill/cronexpr",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",
