@@ -28,9 +28,11 @@ services:
     volumes:
       - ./:/nakama/data
     expose:
+      - "7349"
       - "7350"
       - "7351"
     ports:
+      - "7349:7349"
       - "7350:7350"
       - "7351:7351"
     healthcheck:
