@@ -26,16 +26,15 @@ import (
 // A Expression represents a specific cron time expression as defined at
 // <https://github.com/gorhill/cronexpr#implementation>
 type Expression struct {
-	expression            string
-	secondList            []int
-	minuteList            []int
-	hourList              []int
-	daysOfMonth           map[int]bool
-	workdaysOfMonth       map[int]bool
-	lastDayOfMonth        bool
-	lastWorkdayOfMonth    bool
-	daysOfMonthRestricted bool
-	//actualDaysOfMonthList  []int
+	expression             string
+	secondList             []int
+	minuteList             []int
+	hourList               []int
+	daysOfMonth            map[int]bool
+	workdaysOfMonth        map[int]bool
+	lastDayOfMonth         bool
+	lastWorkdayOfMonth     bool
+	daysOfMonthRestricted  bool
 	monthList              []int
 	daysOfWeek             map[int]bool
 	specificWeekDaysOfWeek map[int]bool

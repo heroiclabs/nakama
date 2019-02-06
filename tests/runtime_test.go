@@ -78,7 +78,7 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*server.Runtim
 	cfg := server.NewConfig(logger)
 	cfg.Runtime.Path = dir
 
-	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, &DummyMessageRouter{})
+	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, &DummyMessageRouter{})
 }
 
 func TestRuntimeSampleScript(t *testing.T) {

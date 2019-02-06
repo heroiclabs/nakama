@@ -1,6 +1,7 @@
 package cronexpr
 
 import (
+	"github.com/google/gofuzz"
 	"sync"
 	"testing"
 	"time"
@@ -52,6 +53,33 @@ func TestCronexpr(t *testing.T) {
 				_ = e.NextN(t, 7)
 				_ = e.NextN(t, 70)
 			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+func TestFuzz(t *testing.T) {
+	f := fuzz.New().NilChance(0)
+	var wg sync.WaitGroup
+	wg.Add(len(Expressions))
+	for _, e := range Expressions {
+		go func() {
+			for i := 0; i < 10000; i++ {
+				var ts int64
+				f.Fuzz(&ts)
+				t := time.Unix(ts, 0)
+
+				_ = e.Next(t)
+				_ = e.NextN(t, 2)
+				_ = e.NextN(t, 5)
+				_ = e.NextN(t, 10)
+				_ = e.NextN(t, 12)
+				_ = e.NextN(t, 1)
+				_ = e.NextN(t, 7)
+				_ = e.NextN(t, 70)
+			}
+
 			wg.Done()
 		}()
 	}
