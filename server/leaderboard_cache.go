@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorhill/cronexpr"
+	"github.com/heroiclabs/nakama/cronexpr"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
 )

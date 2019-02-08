@@ -27,8 +27,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/gorhill/cronexpr"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/cronexpr"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
 )

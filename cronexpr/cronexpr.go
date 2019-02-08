@@ -35,7 +35,6 @@ type Expression struct {
 	lastDayOfMonth         bool
 	lastWorkdayOfMonth     bool
 	daysOfMonthRestricted  bool
-	actualDaysOfMonthList  []int
 	monthList              []int
 	daysOfWeek             map[int]bool
 	specificWeekDaysOfWeek map[int]bool
@@ -189,49 +188,49 @@ func (expr *Expression) Next(fromTime time.Time) time.Time {
 		return expr.nextMonth(fromTime)
 	}
 
-	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
-	if len(expr.actualDaysOfMonthList) == 0 {
+	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
+	if len(actualDaysOfMonthList) == 0 {
 		return expr.nextMonth(fromTime)
 	}
 
 	// day of month
 	v = fromTime.Day()
-	i = sort.SearchInts(expr.actualDaysOfMonthList, v)
-	if i == len(expr.actualDaysOfMonthList) {
+	i = sort.SearchInts(actualDaysOfMonthList, v)
+	if i == len(actualDaysOfMonthList) {
 		return expr.nextMonth(fromTime)
 	}
-	if v != expr.actualDaysOfMonthList[i] {
-		return expr.nextDayOfMonth(fromTime)
+	if v != actualDaysOfMonthList[i] {
+		return expr.nextDayOfMonth(fromTime, actualDaysOfMonthList)
 	}
 	// hour
 	v = fromTime.Hour()
 	i = sort.SearchInts(expr.hourList, v)
 	if i == len(expr.hourList) {
-		return expr.nextDayOfMonth(fromTime)
+		return expr.nextDayOfMonth(fromTime, actualDaysOfMonthList)
 	}
 	if v != expr.hourList[i] {
-		return expr.nextHour(fromTime)
+		return expr.nextHour(fromTime, actualDaysOfMonthList)
 	}
 	// minute
 	v = fromTime.Minute()
 	i = sort.SearchInts(expr.minuteList, v)
 	if i == len(expr.minuteList) {
-		return expr.nextHour(fromTime)
+		return expr.nextHour(fromTime, actualDaysOfMonthList)
 	}
 	if v != expr.minuteList[i] {
-		return expr.nextMinute(fromTime)
+		return expr.nextMinute(fromTime, actualDaysOfMonthList)
 	}
 	// second
 	v = fromTime.Second()
 	i = sort.SearchInts(expr.secondList, v)
 	if i == len(expr.secondList) {
-		return expr.nextMinute(fromTime)
+		return expr.nextMinute(fromTime, actualDaysOfMonthList)
 	}
 
 	// If we reach this point, there is nothing better to do
 	// than to move to the next second
 
-	return expr.nextSecond(fromTime)
+	return expr.nextSecond(fromTime, actualDaysOfMonthList)
 }
 
 /******************************************************************************/
@@ -259,7 +258,8 @@ func (expr *Expression) NextN(fromTime time.Time, n uint) []time.Time {
 			if n == 0 {
 				break
 			}
-			fromTime = expr.nextSecond(fromTime)
+			actualDaysOfMonthList := expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
+			fromTime = expr.nextSecond(fromTime, actualDaysOfMonthList)
 		}
 	}
 	return nextTimes
