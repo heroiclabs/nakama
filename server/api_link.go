@@ -441,6 +441,18 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		s.logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
+	
+	displayName := googleProfile.Name
+	if len(displayName) > 255 {
+		// Trim the name in case it is longer than db can store
+		displayName = displayName[0:255]		
+	}
+	
+	avatarUrl := googleProfile.Picture
+	if len(avatarUrl) > 512 {
+		// Ignore the url in case it is longer than db can store
+		avatarUrl = ""
+	}
 
 	res, err := s.db.ExecContext(ctx, `
 UPDATE users
@@ -451,7 +463,7 @@ AND (NOT EXISTS
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub, googleProfile.Name, googleProfile.Picture)
+		googleProfile.Sub, displayName, avatarUrl)
 
 	if err != nil {
 		s.logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", in))
