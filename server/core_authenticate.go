@@ -455,11 +455,13 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	found := true
 
 	// Look for an existing account.
-	query := "SELECT id, username, disable_time FROM users WHERE google_id = $1"
+	query := "SELECT id, username, disable_time, display_name, avatar_url FROM users WHERE google_id = $1"
 	var dbUserID string
 	var dbUsername string
 	var dbDisableTime pq.NullTime
-	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	var dbDisplayName sql.NullString
+	var dbAvatarUrl sql.NullString
+	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarUrl)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
@@ -477,6 +479,18 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
+		// Check if display name / avatar received from Google different from those in the DB
+		if dbDisplayName.String != googleProfile.Name || dbAvatarUrl.String != googleProfile.Picture {
+			logger.Info("About to check Google Id's details now. Found differences")
+			// At least one difference found, update the DB to reflect changed values
+			if _, err = db.ExecContext(ctx, "UPDATE users SET display_name = $1, avatar_url = $2, update_time = now() WHERE google_id = $3", googleProfile.Name, googleProfile.Picture, googleProfile.Sub); err != nil {
+				logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleId", googleProfile.Sub), zap.String("displayName", googleProfile.Name), zap.String("avatarUrl", googleProfile.Picture))
+				// Do no return error. Failure to update the display_name / avatar_url should not
+				// interrupt the execution. Ignore the result and the error, just log the error.
+				// return "", "", false, status.Error(codes.Unknown, "Error finding or creating user account.")
+			}
+		}
+
 		return dbUserID, dbUsername, false, nil
 	}
 
@@ -487,8 +501,8 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub)
+	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, googleProfile.Name, googleProfile.Picture)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {

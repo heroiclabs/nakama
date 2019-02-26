@@ -444,14 +444,14 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 
 	res, err := s.db.ExecContext(ctx, `
 UPDATE users
-SET google_id = $2, update_time = now()
+SET google_id = $2, display_name = $3, avatar_url = $4, update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub)
+		googleProfile.Sub, googleProfile.Name, googleProfile.Picture)
 
 	if err != nil {
 		s.logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", in))
