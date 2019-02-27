@@ -455,11 +455,13 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	found := true
 
 	// Look for an existing account.
-	query := "SELECT id, username, disable_time FROM users WHERE google_id = $1"
+	query := "SELECT id, username, disable_time, display_name, avatar_url FROM users WHERE google_id = $1"
 	var dbUserID string
 	var dbUsername string
 	var dbDisableTime pq.NullTime
-	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	var dbDisplayName sql.NullString
+	var dbAvatarUrl sql.NullString
+	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarUrl)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
@@ -469,12 +471,36 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		}
 	}
 
+	displayName := googleProfile.Name
+	if len(displayName) > 255 {
+		// Trim the name in case it is longer than db can store
+		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
+		displayName = dbDisplayName.String
+	}
+	
+	avatarUrl := googleProfile.Picture
+	if len(avatarUrl) > 512 || avatarUrl == "" {
+		// Ignore the url in case it is longer than db can store
+		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
+		avatarUrl = dbAvatarUrl.String
+	}
+
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		}
+
+		// Check if display name / avatar received from Google different from those in the DB
+		if dbDisplayName.String != displayName || dbAvatarUrl.String != avatarUrl {
+			// At least one difference found, update the DB to reflect changed values
+			if _, err = db.ExecContext(ctx, "UPDATE users SET display_name = $1, avatar_url = $2, update_time = now() WHERE id = $3", displayName, avatarUrl, dbUserID); err != nil {
+				logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleId", googleProfile.Sub), zap.String("display_name", googleProfile.Name), zap.String("display_name", googleProfile.Picture))
+				// Do no return error. Failure to update the display_name / avatar_url should not
+				// interrupt the execution. Ignore the result and the error, just log the error.
+			}
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -487,8 +513,8 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, google_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub)
+	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarUrl)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
