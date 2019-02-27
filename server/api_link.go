@@ -15,6 +15,9 @@
 package server
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -25,8 +28,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {
@@ -441,16 +442,18 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		s.logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
-	
+
 	displayName := googleProfile.Name
 	if len(displayName) > 255 {
-		// Trim the name in case it is longer than db can store
-		displayName = displayName[0:255]		
+		// Ignore the name in case it is longer than db can store
+		s.logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
+		displayName = ""
 	}
-	
+
 	avatarUrl := googleProfile.Picture
-	if len(avatarUrl) > 512 {
+	if len(avatarUrl) > 512 || avatarUrl == "" {
 		// Ignore the url in case it is longer than db can store
+		s.logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
 		avatarUrl = ""
 	}
 

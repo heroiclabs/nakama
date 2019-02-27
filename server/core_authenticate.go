@@ -104,7 +104,6 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 
 	// Look for an existing account.
 	query := "SELECT user_id FROM user_device WHERE id = $1"
-	logger.Info(query, zap.String("userId", deviceID))
 	var dbUserID string
 	err := db.QueryRowContext(ctx, query, deviceID).Scan(&dbUserID)
 	if err != nil {
@@ -475,13 +474,15 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	displayName := googleProfile.Name
 	if len(displayName) > 255 {
 		// Trim the name in case it is longer than db can store
-		displayName = displayName[0:255]		
+		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
+		displayName = dbDisplayName.String
 	}
 	
 	avatarUrl := googleProfile.Picture
-	if len(avatarUrl) > 512 {
+	if len(avatarUrl) > 512 || avatarUrl == "" {
 		// Ignore the url in case it is longer than db can store
-		avatarUrl = ""
+		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
+		avatarUrl = dbAvatarUrl.String
 	}
 
 	// Existing account found.
