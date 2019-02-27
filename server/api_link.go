@@ -451,7 +451,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 	}
 
 	avatarUrl := googleProfile.Picture
-	if len(avatarUrl) > 512 || avatarUrl == "" {
+	if len(avatarUrl) > 512 {
 		// Ignore the url in case it is longer than db can store
 		s.logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
 		avatarUrl = ""
