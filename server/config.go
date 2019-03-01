@@ -115,6 +115,18 @@ func CheckConfig(logger *zap.Logger, config Config) {
 	if config.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
 	}
+	if config.GetConsole().MaxMessageSizeBytes < 1 {
+		logger.Fatal("Console max message size bytes must be >= 1", zap.Int64("console.max_message_size_bytes", config.GetConsole().MaxMessageSizeBytes))
+	}
+	if config.GetConsole().ReadTimeoutMs < 1 {
+		logger.Fatal("Console read timeout milliseconds must be >= 1", zap.Int("console.read_timeout_ms", config.GetConsole().ReadTimeoutMs))
+	}
+	if config.GetConsole().WriteTimeoutMs < 1 {
+		logger.Fatal("Console write timeout milliseconds must be >= 1", zap.Int("console.write_timeout_ms", config.GetConsole().WriteTimeoutMs))
+	}
+	if config.GetConsole().IdleTimeoutMs < 1 {
+		logger.Fatal("Console idle timeout milliseconds must be >= 1", zap.Int("console.idle_timeout_ms", config.GetConsole().IdleTimeoutMs))
+	}
 	if config.GetConsole().Username == "" {
 		logger.Fatal("Console username must be set", zap.String("param", "console.username"))
 	}
@@ -123,6 +135,18 @@ func CheckConfig(logger *zap.Logger, config Config) {
 	}
 	if p := config.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
 		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", config.GetSocket().Protocol))
+	}
+	if config.GetSocket().MaxMessageSizeBytes < 1 {
+		logger.Fatal("Socket max message size bytes must be >= 1", zap.Int64("socket.max_message_size_bytes", config.GetSocket().MaxMessageSizeBytes))
+	}
+	if config.GetSocket().ReadTimeoutMs < 1 {
+		logger.Fatal("Socket read timeout milliseconds must be >= 1", zap.Int("socket.read_timeout_ms", config.GetSocket().ReadTimeoutMs))
+	}
+	if config.GetSocket().WriteTimeoutMs < 1 {
+		logger.Fatal("Socket write timeout milliseconds must be >= 1", zap.Int("socket.write_timeout_ms", config.GetSocket().WriteTimeoutMs))
+	}
+	if config.GetSocket().IdleTimeoutMs < 1 {
+		logger.Fatal("Socket idle timeout milliseconds must be >= 1", zap.Int("socket.idle_timeout_ms", config.GetSocket().IdleTimeoutMs))
 	}
 	if config.GetSocket().PingPeriodMs >= config.GetSocket().PongWaitMs {
 		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", config.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", config.GetSocket().PongWaitMs))
@@ -523,17 +547,25 @@ func NewTrackerConfig() *TrackerConfig {
 
 // ConsoleConfig is configuration relevant to the embedded console.
 type ConsoleConfig struct {
-	Port     int    `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
-	Username string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
-	Password string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
+	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
+	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
+	ReadTimeoutMs       int    `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request."`
+	WriteTimeoutMs      int    `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response."`
+	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
+	Username            string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
+	Password            string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
 }
 
 // NewConsoleConfig creates a new ConsoleConfig struct.
 func NewConsoleConfig() *ConsoleConfig {
 	return &ConsoleConfig{
-		Port:     7351,
-		Username: "admin",
-		Password: "password",
+		Port:                7351,
+		MaxMessageSizeBytes: 4096,
+		ReadTimeoutMs:       10 * 1000,
+		WriteTimeoutMs:      60 * 1000,
+		IdleTimeoutMs:       300 * 1000,
+		Username:            "admin",
+		Password:            "password",
 	}
 }
 

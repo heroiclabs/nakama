@@ -45,9 +45,17 @@ type ConsoleServer struct {
 }
 
 func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB) *ConsoleServer {
+	var gatewayContextTimeoutMs string
+	if config.GetConsole().IdleTimeoutMs > 500 {
+		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
+		gatewayContextTimeoutMs = fmt.Sprintf("%vm", config.GetConsole().IdleTimeoutMs-500)
+	} else {
+		gatewayContextTimeoutMs = fmt.Sprintf("%vm", config.GetConsole().IdleTimeoutMs)
+	}
+
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
-		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
+		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
 		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config)),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
@@ -77,7 +85,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
 		grpc.WithInsecure(),
 	}
 
@@ -100,9 +108,24 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
 		zpages.Handler.ServeHTTP(w, r)
 	})
-	// Enable compression on gateway responses.
-	handlerWithGzip := handlers.CompressHandler(grpcGateway)
-	grpcGatewayRouter.NewRoute().Handler(handlerWithGzip)
+
+	// Enable max size check on requests coming arriving the gateway.
+	// Enable compression on responses sent by the gateway.
+	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
+	maxMessageSizeBytes := config.GetConsole().MaxMessageSizeBytes
+	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check max body size before decompressing incoming request body.
+		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)
+		handlerWithCompressResponse.ServeHTTP(w, r)
+	})
+	grpcGatewayRouter.NewRoute().HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Ensure some headers have required values.
+		// Override any value set by the client if needed.
+		r.Header.Set("Grpc-Timeout", gatewayContextTimeoutMs)
+
+		// Allow GRPC Gateway to handle the request.
+		handlerWithMaxBody.ServeHTTP(w, r)
+	})
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
@@ -113,9 +136,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", config.GetConsole().Port),
-		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
-		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
-		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
+		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetConsole().ReadTimeoutMs)),
+		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetConsole().WriteTimeoutMs)),
+		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetConsole().IdleTimeoutMs)),
 		Handler:      handlerWithCORS,
 	}
 

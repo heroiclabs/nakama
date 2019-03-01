@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Strict validation of socket timeout configuration parameters.
+
 ### Changed
 - Default maximum database connection lifetime is now 1 hour.
 - Improved parsing of client IP and port for incoming requests and socket connections.
@@ -11,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.
+- Set console gateway timeout to match connection idle timeout value.
 
 ## [2.4.0] - 2019-02-03
 ### Added
