@@ -471,18 +471,18 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		}
 	}
 
-	displayName := googleProfile.Name
-	if len(displayName) > 255 {
-		// Trim the name in case it is longer than db can store
-		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
-		displayName = dbDisplayName.String
+	var displayName string
+	if len(googleProfile.Name) <= 255 {
+		displayName = googleProfile.Name
+	} else {
+		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", googleProfile.Name))
 	}
-	
-	avatarUrl := googleProfile.Picture
-	if len(avatarUrl) > 512 || avatarUrl == "" {
-		// Ignore the url in case it is longer than db can store
+
+	var avatarUrl string
+	if len(googleProfile.Picture) <= 512 {
+		avatarUrl = googleProfile.Picture
+	} else {
 		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
-		avatarUrl = dbAvatarUrl.String
 	}
 
 	// Existing account found.
@@ -493,13 +493,26 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		// Check if display name / avatar received from Google different from those in the DB
-		if dbDisplayName.String != displayName || dbAvatarUrl.String != avatarUrl {
-			// At least one difference found, update the DB to reflect changed values
-			if _, err = db.ExecContext(ctx, "UPDATE users SET display_name = $1, avatar_url = $2, update_time = now() WHERE id = $3", displayName, avatarUrl, dbUserID); err != nil {
+		// Check if the display name or avatar received from Google are different from those in the DB.
+		if (displayName != "" && dbDisplayName.String != displayName) || (avatarUrl != "" && dbAvatarUrl.String != avatarUrl) {
+			// At least one difference found, update the DB to reflect changes.
+			params := make([]interface{}, 0, 3)
+			params = append(params, dbUserID)
+
+			// Ensure only changed values are applied.
+			statements := make([]string, 0, 2)
+			if displayName != "" && dbDisplayName.String != displayName {
+				params = append(params, displayName)
+				statements = append(statements, "display_name = $"+strconv.Itoa(len(params)))
+			}
+			if avatarUrl != "" && dbAvatarUrl.String != avatarUrl {
+				params = append(params, avatarUrl)
+				statements = append(statements, "avatar_url = $"+strconv.Itoa(len(params)))
+			}
+
+			if _, err = db.ExecContext(ctx, "UPDATE users SET "+strings.Join(statements, ", ")+", update_time = now() WHERE id = $1", params...); err != nil {
+				// Failure to update does not interrupt the execution. Just log the error and continue.
 				logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleId", googleProfile.Sub), zap.String("display_name", googleProfile.Name), zap.String("display_name", googleProfile.Picture))
-				// Do no return error. Failure to update the display_name / avatar_url should not
-				// interrupt the execution. Ignore the result and the error, just log the error.
 			}
 		}
 
