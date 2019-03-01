@@ -432,10 +432,8 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 	})
 }
 
-func extractClientAddress(logger *zap.Logger, ctx context.Context) (string, string) {
-	clientAddr := ""
-	clientIP := ""
-	clientPort := ""
+func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (string, string) {
+	var clientAddr string
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for gRPC-Gateway / LB header.
@@ -445,14 +443,41 @@ func extractClientAddress(logger *zap.Logger, ctx context.Context) (string, stri
 		clientAddr = peerInfo.Addr.String()
 	}
 
-	clientAddr = strings.TrimSpace(clientAddr)
-	if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-		clientIP = host
-		clientPort = port
-	} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
-		clientIP = clientAddr
+	return extractClientAddress(logger, clientAddr)
+}
+
+func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
+	var clientAddr string
+	if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
+		clientAddr = strings.Split(ips, ",")[0]
 	} else {
-		logger.Debug("Could not extract client address from request.", zap.Error(err))
+		clientAddr = r.RemoteAddr
+	}
+
+	return extractClientAddress(logger, clientAddr)
+}
+
+func extractClientAddress(logger *zap.Logger, clientAddr string) (string, string) {
+	var clientIP, clientPort string
+
+	if clientAddr != "" {
+		// It's possible the request metadata had no client address string.
+
+		clientAddr = strings.TrimSpace(clientAddr)
+		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
+			clientIP = host
+			clientPort = port
+		} else if addrErr, ok := err.(*net.AddrError); ok {
+			switch addrErr.Err {
+			case "missing port in address":
+				fallthrough
+			case "too many colons in address":
+				clientIP = clientAddr
+			default:
+				// Unknown address error, ignore the address.
+			}
+		}
+		// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
 	}
 
 	return clientIP, clientPort
@@ -460,12 +485,11 @@ func extractClientAddress(logger *zap.Logger, ctx context.Context) (string, stri
 
 func traceApiBefore(ctx context.Context, logger *zap.Logger, fullMethodName string, fn func(clientIP, clientPort string) error) error {
 	name := fmt.Sprintf("%v-before", fullMethodName)
-	clientIP, clientPort := extractClientAddress(logger, ctx)
+	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
 	statsCtx, err := tag.New(ctx, tag.Upsert(MetricsFunction, name))
 	if err != nil {
 		// If there was an error processing the stats, just execute the function.
 		logger.Warn("Error tagging API before stats", zap.String("full_method_name", fullMethodName), zap.Error(err))
-		clientIP, clientPort := extractClientAddress(logger, ctx)
 		return fn(clientIP, clientPort)
 	}
 	startNanos := time.Now().UTC().UnixNano()
@@ -481,7 +505,7 @@ func traceApiBefore(ctx context.Context, logger *zap.Logger, fullMethodName stri
 
 func traceApiAfter(ctx context.Context, logger *zap.Logger, fullMethodName string, fn func(clientIP, clientPort string)) {
 	name := fmt.Sprintf("%v-after", logger)
-	clientIP, clientPort := extractClientAddress(logger, ctx)
+	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
 	statsCtx, err := tag.New(ctx, tag.Upsert(MetricsFunction, name))
 	if err != nil {
 		// If there was an error processing the stats, just execute the function.

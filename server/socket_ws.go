@@ -15,11 +15,8 @@
 package server
 
 import (
-	"net"
-	"net/http"
-	"strings"
-
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -67,24 +64,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 
-		clientAddr := ""
-		clientIP := ""
-		clientPort := ""
-		if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
-			clientAddr = strings.Split(ips, ",")[0]
-		} else {
-			clientAddr = r.RemoteAddr
-		}
-
-		clientAddr = strings.TrimSpace(clientAddr)
-		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-			clientIP = host
-			clientPort = port
-		} else if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "missing port in address" {
-			clientIP = clientAddr
-		} else {
-			logger.Debug("Could not extract client address from request.", zap.Error(err))
-		}
+		clientIP, clientPort := extractClientAddressFromRequest(logger, r)
 
 		status := false
 		if r.URL.Query().Get("status") == "true" {
