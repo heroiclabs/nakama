@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Default maximum database connection lifetime is now 1 hour.
+
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.
 

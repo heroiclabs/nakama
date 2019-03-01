@@ -427,7 +427,7 @@ func NewSocketConfig() *SocketConfig {
 // DatabaseConfig is configuration relevant to the Database storage.
 type DatabaseConfig struct {
 	Addresses         []string `yaml:"address" json:"address" usage:"List of database servers (username:password@address:port/dbname). Default 'root@127.0.0.1:26257'."`
-	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created. Default 0 (unlimited)."`
+	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created. Default 3600000 (1 hour)."`
 	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database. Default 100."`
 	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database. Default 100."`
 }
@@ -436,7 +436,7 @@ type DatabaseConfig struct {
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Addresses:         []string{"root@127.0.0.1:26257"},
-		ConnMaxLifetimeMs: 0,
+		ConnMaxLifetimeMs: 3600000,
 		MaxOpenConns:      100,
 		MaxIdleConns:      100,
 	}
