@@ -493,26 +493,28 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
 
-		// Check if the display name or avatar received from Google are different from those in the DB.
-		if (displayName != "" && dbDisplayName.String != displayName) || (avatarUrl != "" && dbAvatarUrl.String != avatarUrl) {
-			// At least one difference found, update the DB to reflect changes.
+		// Check if the display name or avatar received from Google have values but the DB does not.
+		if (dbDisplayName.String == "" && displayName != "") || (dbAvatarUrl.String == "" && avatarUrl != "") {
+			// At least one valid change found, update the DB to reflect changes.
 			params := make([]interface{}, 0, 3)
 			params = append(params, dbUserID)
 
 			// Ensure only changed values are applied.
 			statements := make([]string, 0, 2)
-			if displayName != "" && dbDisplayName.String != displayName {
+			if dbDisplayName.String == "" && displayName != "" {
 				params = append(params, displayName)
 				statements = append(statements, "display_name = $"+strconv.Itoa(len(params)))
 			}
-			if avatarUrl != "" && dbAvatarUrl.String != avatarUrl {
+			if dbAvatarUrl.String == "" && avatarUrl != "" {
 				params = append(params, avatarUrl)
 				statements = append(statements, "avatar_url = $"+strconv.Itoa(len(params)))
 			}
 
-			if _, err = db.ExecContext(ctx, "UPDATE users SET "+strings.Join(statements, ", ")+", update_time = now() WHERE id = $1", params...); err != nil {
-				// Failure to update does not interrupt the execution. Just log the error and continue.
-				logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleId", googleProfile.Sub), zap.String("display_name", googleProfile.Name), zap.String("display_name", googleProfile.Picture))
+			if len(statements) > 0 {
+				if _, err = db.ExecContext(ctx, "UPDATE users SET "+strings.Join(statements, ", ")+", update_time = now() WHERE id = $1", params...); err != nil {
+					// Failure to update does not interrupt the execution. Just log the error and continue.
+					logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleId", googleProfile.Sub), zap.String("display_name", googleProfile.Name), zap.String("display_name", googleProfile.Picture))
+				}
 			}
 		}
 
