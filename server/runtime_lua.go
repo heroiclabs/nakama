@@ -122,7 +122,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", lua.LuaLDir))
+	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	for _, path := range paths {
 		if strings.ToLower(filepath.Ext(path)) != ".lua" {
@@ -212,8 +212,6 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 
 		statsCtx: context.Background(),
 	}
-
-	startupLogger.Info("Evaluating Lua runtime modules")
 
 	r, err := newRuntimeLuaVM(logger, db, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {

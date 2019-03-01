@@ -1792,6 +1792,8 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 	// The baseline context that will be passed to all InitModule calls.
 	ctx := NewRuntimeGoContext(context.Background(), env, RuntimeExecutionModeRunOnce, nil, 0, "", "", "", "", "")
 
+	startupLogger.Info("Initialising Go runtime provider", zap.String("path", rootPath))
+
 	modulePaths := make([]string, 0)
 	for _, path := range paths {
 		if strings.ToLower(filepath.Ext(path)) != ".so" {
@@ -1829,6 +1831,8 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		}
 		modulePaths = append(modulePaths, relPath)
 	}
+
+	startupLogger.Info("Go runtime modules loaded")
 
 	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, matchCreateFn, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, nk.SetMatchCreateFn, matchNamesListFn, nil
 }

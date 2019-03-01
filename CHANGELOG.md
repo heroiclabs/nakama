@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Default maximum database connection lifetime is now 1 hour.
 - Improved parsing of client IP and port for incoming requests and socket connections.
 - WebSocket sessions no longer log the client IP and port number in error messages.
+- Made Go and Lua runtime startup log messages consistent.
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.
