@@ -303,7 +303,7 @@ func (s *sessionWS) pingNow() bool {
 	err := s.conn.WriteMessage(websocket.PingMessage, []byte{})
 	s.Unlock()
 	if err != nil {
-		s.logger.Warn("Could not send ping", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)), zap.Error(err))
+		s.logger.Warn("Could not send ping", zap.Error(err))
 		return false
 	}
 
@@ -398,7 +398,7 @@ func (s *sessionWS) Close() {
 	s.ctxCancelFn()
 
 	if s.logger.Core().Enabled(zap.DebugLevel) {
-		s.logger.Info("Cleaning up closed client connection", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
+		s.logger.Info("Cleaning up closed client connection")
 	}
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
@@ -406,15 +406,15 @@ func (s *sessionWS) Close() {
 		s.logger.Warn("Failed to remove all matchmaking tickets", zap.Error(err))
 	}
 	if s.logger.Core().Enabled(zap.DebugLevel) {
-		s.logger.Info("Cleaned up closed connection matchmaker", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
+		s.logger.Info("Cleaned up closed connection matchmaker")
 	}
 	s.tracker.UntrackAll(s.id)
 	if s.logger.Core().Enabled(zap.DebugLevel) {
-		s.logger.Info("Cleaned up closed connection tracker", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
+		s.logger.Info("Cleaned up closed connection tracker")
 	}
 	s.sessionRegistry.Remove(s.id)
 	if s.logger.Core().Enabled(zap.DebugLevel) {
-		s.logger.Info("Cleaned up closed connection session registry", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)))
+		s.logger.Info("Cleaned up closed connection session registry")
 	}
 
 	// Clean up internals.
@@ -423,11 +423,11 @@ func (s *sessionWS) Close() {
 
 	// Send close message.
 	if err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(s.writeWaitDuration)); err != nil {
-		s.logger.Debug("Could not send close message", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)), zap.Error(err))
+		s.logger.Debug("Could not send close message", zap.Error(err))
 	}
 	// Close WebSocket.
 	if err := s.conn.Close(); err != nil {
-		s.logger.Debug("Could not close", zap.String("remoteAddress", fmt.Sprintf("%v:%v", s.clientIP, s.clientPort)), zap.Error(err))
+		s.logger.Debug("Could not close", zap.Error(err))
 	}
 
 	s.logger.Info("Closed client connection")

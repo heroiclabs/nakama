@@ -6,7 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Default maximum database connection lifetime is now 1 hour.
-- Improved parsing of client address and port for incoming requests and socket connections.
+- Improved parsing of client IP and port for incoming requests and socket connections.
+- WebSocket sessions no longer log the client IP and port number in error messages.
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.
