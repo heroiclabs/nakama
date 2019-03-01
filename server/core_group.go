@@ -217,7 +217,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		return ErrGroupNoUpdateOps
 	}
 
-	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')"
+	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')"
 	res, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
 		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
@@ -274,7 +274,7 @@ func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router Messa
 	query := `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups 
-WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00')`
+WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
 		logger.Error("Could not look up group while trying to join it.", zap.Error(err))
@@ -440,7 +440,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 
 		// check to ensure we are not decrementing the count when the relationship was an invite.
 		if myState.Int64 < 3 {
-			query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE (id = $1::UUID) AND (disable_time = '1970-01-01 00:00:00')"
+			query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE (id = $1::UUID) AND (disable_time = '1970-01-01 00:00:00 UTC')"
 			res, err := tx.ExecContext(ctx, query, groupID)
 			if err != nil {
 				logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -488,7 +488,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	}
 
 	var groupName sql.NullString
-	query := "SELECT name FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00'"
+	query := "SELECT name FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC'"
 	if err := db.QueryRowContext(ctx, query, groupID).Scan(&groupName); err != nil {
 		if err == sql.ErrNoRows {
 			logger.Info("Cannot add users to disabled group.", zap.String("group_id", groupID.String()))
@@ -636,7 +636,7 @@ WHERE
 		(source_id = $2::UUID AND destination_id = $1::UUID)
 	)
 AND
-	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')
+	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	NOT (
 		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
@@ -655,7 +655,7 @@ WHERE
 		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 1)
 	)
 AND
-	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')
+	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')
 RETURNING state`
 			}
 
@@ -712,7 +712,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 	}
 
 	var groupExists sql.NullBool
-	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00')"
+	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
 	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
 	if err != nil {
 		logger.Error("Could not look up group when promoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
@@ -785,7 +785,7 @@ SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.edge_count,
 	u.create_time, u.update_time, ge.state
 FROM users u, group_edge ge
-WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-01-01 00:00:00'`
+WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-01-01 00:00:00 UTC'`
 
 	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
@@ -866,7 +866,7 @@ lang_tag, metadata, groups.state, edge_count, max_count,
 create_time, groups.update_time, group_edge.state
 FROM groups 
 JOIN group_edge ON (group_edge.source_id = id)
-WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00'`
+WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC'`
 
 	rows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -951,7 +951,7 @@ func GetGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string
 
 	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE disable_time = '1970-01-01 00:00:00'
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
 AND id IN (` + strings.Join(statements, ",") + `)`
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -996,7 +996,7 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE disable_time = '1970-01-01 00:00:00'
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
@@ -1004,7 +1004,7 @@ LIMIT $1`
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE
-	(disable_time = '1970-01-01 00:00:00')
+	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	((lang_tag, edge_count, id) > ($2, $3, $4))
 LIMIT $1`
@@ -1015,7 +1015,7 @@ LIMIT $1`
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE
-	(disable_time = '1970-01-01 00:00:00')
+	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	(name LIKE $2)
 LIMIT $1`
@@ -1025,7 +1025,7 @@ LIMIT $1`
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE
-	(disable_time = '1970-01-01 00:00:00')
+	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	(name LIKE $2)
 AND

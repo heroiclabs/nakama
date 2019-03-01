@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS users (
     edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
     create_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
     update_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
-    verify_time   TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00' NOT NULL,
-    disable_time  TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00' NOT NULL
+    verify_time   TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL,
+    disable_time  TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
 );
 
 -- Setup System user.
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
   metadata       JSONB         DEFAULT '{}' NOT NULL,
   create_time    TIMESTAMPTZ   DEFAULT now() NOT NULL,
   update_time    TIMESTAMPTZ   DEFAULT now() NOT NULL,
-  expiry_time    TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00' NOT NULL,
+  expiry_time    TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL,
 
   UNIQUE (owner_id, leaderboard_id, expiry_time)
 );
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS groups (
   max_count    INT           DEFAULT 100 CHECK (max_count >= 1) NOT NULL,
   create_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
   update_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
-  disable_time TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00' NOT NULL
+  disable_time TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
 );
 CREATE INDEX IF NOT EXISTS edge_count_update_time_id_idx ON groups (disable_time, edge_count, update_time, id);
 CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time, update_time, edge_count, id);
