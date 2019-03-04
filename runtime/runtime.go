@@ -136,6 +136,21 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
+
+	//PERM_PUBLIC_READ is permission for public read means that any user can read that object.
+	PERM_PUBLIC_READ = 2
+
+	//PERM_OWNER_READ may only be accessed by the user who owns it. No other client may access the object.
+	PERM_OWNER_READ = 1
+
+	//PERM_NO_READ is only reachable by server.
+	PERM_NO_READ = 0
+
+	//PERM_OWNER_WRITE may only be modified by the user who owns it. No other client may access the object.
+	PERM_OWNER_WRITE = 1
+
+	//PERM_NO_WRITE is only arrangable by server.
+	PERM_NO_WRITE = 0
 )
 
 /*
