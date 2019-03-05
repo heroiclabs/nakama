@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - WebSocket sessions no longer log the client IP and port number in error messages.
 - Made Go and Lua runtime startup log messages consistent.
 - All schema and query statements that use the '1970-01-01 00:00:00' constant now specify UTC timezone.
+- Storage write error message now correctly indicates that values must be encoded JSON objects.
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.
