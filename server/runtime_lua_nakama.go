@@ -155,6 +155,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"account_get_id":              n.accountGetId,
 		"accounts_get_id":             n.accountsGetId,
 		"account_update_id":           n.accountUpdateId,
+		"account_delete_id":           n.accountDeleteId,
 		"users_get_id":                n.usersGetId,
 		"users_get_username":          n.usersGetUsername,
 		"users_ban_id":                n.usersBanId,
