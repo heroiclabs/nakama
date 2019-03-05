@@ -65,20 +65,25 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 
 	// Parse config file if path is set.
 	mainConfig := NewConfig(logger)
-	if configFilePath.Config != "" {
-		data, err := ioutil.ReadFile(configFilePath.Config)
+	runtimeEnvironment := mainConfig.GetRuntime().Environment
+	var runtimeEnvironmentList []string
+	for _, cfg := range configFilePath.Config {
+		data, err := ioutil.ReadFile(cfg)
 		if err != nil {
-			logger.Fatal("Could not read config file", zap.Error(err))
-		} else {
-			err = yaml.Unmarshal(data, mainConfig)
-			if err != nil {
-				logger.Fatal("Could not parse config file", zap.Error(err))
-			} else {
-				mainConfig.Config = configFilePath.Config
-			}
+			logger.Fatal("Could not read config file", zap.String("path", cfg), zap.Error(err))
 		}
+
+		err = yaml.Unmarshal(data, mainConfig)
+		if err != nil {
+			logger.Fatal("Could not parse config file", zap.String("path", cfg), zap.Error(err))
+		}
+
+		// Convert and preserve the runtime environment key-value pairs.
+		runtimeEnvironment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
+		runtimeEnvironmentList = append(runtimeEnvironmentList, mainConfig.GetRuntime().Env...)
 	}
-	runtimeEnvironment := convertRuntimeEnv(logger, mainConfig.GetRuntime().Environment, mainConfig.GetRuntime().Env)
+	// Preserve the config file path arguments.
+	mainConfig.Config = configFilePath.Config
 
 	// Override config with those passed from command-line.
 	mainFlagSet := flag.NewFlagSet("nakama", flag.ExitOnError)
@@ -94,6 +99,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 
 	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
+	mainConfig.GetRuntime().Env = append(runtimeEnvironmentList, mainConfig.GetRuntime().Env...)
 
 	return mainConfig
 }
@@ -248,7 +254,7 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 
 type config struct {
 	Name             string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config           string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	Config           []string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
 	ShutdownGraceSec int                `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
 	Datadir          string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
 	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`

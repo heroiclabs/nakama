@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Strict validation of socket timeout configuration parameters.
 - New runtime constants representing storage permissions.
 - New runtime function to programmatically delete user accounts.
+- Allow multiple config files to be read at startup and merged into a final server configuration.
 
 ### Changed
 - Default maximum database connection lifetime is now 1 hour.
