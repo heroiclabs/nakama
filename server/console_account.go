@@ -18,7 +18,6 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -34,41 +33,8 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	err := DeleteAccount(ctx, s.logger, s.db, userID, in.RecordDeletion != nil && in.RecordDeletion.Value)
 	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
-	}
-
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
-		count, err := DeleteUser(ctx, tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		} else if count == 0 {
-			s.logger.Info("No user was found to delete. Skipping blacklist.", zap.String("user_id", in.Id))
-			return nil
-		}
-
-		err = LeaderboardRecordsDeleteAll(ctx, s.logger, tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		}
-
-		err = GroupDeleteAll(ctx, s.logger, tx, userID)
-		if err != nil {
-			s.logger.Debug("Could not delete groups and relationships.", zap.Error(err), zap.String("user_id", in.Id))
-			return err
-		}
-
-		if in.RecordDeletion == nil || in.RecordDeletion.GetValue() {
-			return s.RecordAccountDeletion(ctx, tx, userID)
-		}
-
-		return nil
-	}); err != nil {
-		s.logger.Error("Error occurred while trying to delete the user.", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
 

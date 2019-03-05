@@ -16,8 +16,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
-
 	"encoding/json"
 
 	"github.com/gofrs/uuid"
@@ -28,14 +26,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-func (s *ConsoleServer) RecordAccountDeletion(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
-	if _, err := tx.ExecContext(ctx, `INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
-		s.logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", userID.String()))
-		return err
-	}
-	return nil
-}
 
 func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountIdRequest) (*console.AccountExport, error) {
 	userID := uuid.FromStringOrNil(in.Id)

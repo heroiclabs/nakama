@@ -136,21 +136,23 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
+)
 
-	//PERM_PUBLIC_READ is permission for public read means that any user can read that object.
-	PERM_PUBLIC_READ = 2
+const (
+	// Storage permission for public read, any user can read the object.
+	STORAGE_PERMISSION_PUBLIC_READ = 2
 
-	//PERM_OWNER_READ may only be accessed by the user who owns it. No other client may access the object.
-	PERM_OWNER_READ = 1
+	// Storage permission for owner read, only the user who owns it may access.
+	STORAGE_PERMISSION_OWNER_READ = 1
 
-	//PERM_NO_READ is only reachable by server.
-	PERM_NO_READ = 0
+	// Storage permission for no read. The object is only readable by server runtime.
+	STORAGE_PERMISSION_NO_READ = 0
 
-	//PERM_OWNER_WRITE may only be modified by the user who owns it. No other client may access the object.
-	PERM_OWNER_WRITE = 1
+	// Storage permission for owner write, only the user who owns it may write.
+	STORAGE_PERMISSION_OWNER_WRITE = 1
 
-	//PERM_NO_WRITE is only arrangable by server.
-	PERM_NO_WRITE = 0
+	// Storage permission for no write. The object is only writable by server runtime.
+	STORAGE_PERMISSION_NO_WRITE = 0
 )
 
 /*
@@ -761,6 +763,8 @@ type NakamaModule interface {
 	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
 	AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error)
 	AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error
+
+	AccountDeleteId(ctx context.Context, userID string, recorded bool) error
 
 	UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error)
 	UsersGetUsername(ctx context.Context, usernames []string) ([]*api.User, error)

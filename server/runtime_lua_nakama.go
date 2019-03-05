@@ -5140,7 +5140,22 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 
 	if err = UpdateAccount(l.Context(), n.logger, n.db, userID, username, displayName, timezone, location, lang, avatar, metadata); err != nil {
 		l.RaiseError("error while trying to update user: %v", err.Error())
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
 		return 0
+	}
+
+	recorded := l.OptBool(2, false)
+
+	if err := DeleteAccount(l.Context(), n.logger, n.db, userID, recorded); err != nil {
+		l.RaiseError("error while trying to delete account: %v", err.Error())
 	}
 
 	return 0

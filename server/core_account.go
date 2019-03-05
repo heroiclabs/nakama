@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"github.com/cockroachdb/cockroach-go/crdb"
 	"strconv"
 	"strings"
 
@@ -294,6 +295,52 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 			zap.Any("location", location.GetValue()),
 			zap.Any("lang_tag", langTag.GetValue()),
 			zap.Any("avatar_url", avatarURL.GetValue()))
+		return err
+	}
+
+	return nil
+}
+
+func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, recorded bool) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+		count, err := DeleteUser(ctx, tx, userID)
+		if err != nil {
+			logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		} else if count == 0 {
+			logger.Info("No user was found to delete. Skipping blacklist.", zap.String("user_id", userID.String()))
+			return nil
+		}
+
+		err = LeaderboardRecordsDeleteAll(ctx, logger, tx, userID)
+		if err != nil {
+			logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		}
+
+		err = GroupDeleteAll(ctx, logger, tx, userID)
+		if err != nil {
+			logger.Debug("Could not delete groups and relationships.", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		}
+
+		if recorded {
+			_, err = tx.ExecContext(ctx, `INSERT INTO user_tombstone (user_id) VALUES ($1) ON CONFLICT(user_id) DO NOTHING`, userID)
+			if err != nil {
+				logger.Debug("Could not insert user ID into tombstone", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("Error occurred while trying to delete the user.", zap.Error(err), zap.String("user_id", userID.String()))
 		return err
 	}
 
