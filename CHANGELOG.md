@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime constants representing storage permissions.
 - New runtime function to programmatically delete user accounts.
 - Allow multiple config files to be read at startup and merged into a final server configuration.
+- Storage listing operations can now disambiguate between listing system-owned data and listing all data.
 
 ### Changed
 - Default maximum database connection lifetime is now 1 hour.
@@ -17,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Made Go and Lua runtime startup log messages consistent.
 - All schema and query statements that use the '1970-01-01 00:00:00' constant now specify UTC timezone.
 - Storage write error message now correctly indicates that values must be encoded JSON objects.
+- Storage listing operations now treat empty owner IDs as listing across all data rather than system-owned data.
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent processing.

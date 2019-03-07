@@ -39,7 +39,7 @@ type storageCursor struct {
 	Read   int32
 }
 
-func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
+func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID *uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
 	var sc *storageCursor = nil
 	if cursor != "" {
 		sc = &storageCursor{}
@@ -56,19 +56,28 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 
 	var result *api.StorageObjectList
 	var resultErr error
+
 	if caller == uuid.Nil {
-		// disregard permissions
-		result, resultErr = StorageListObjectsUser(ctx, logger, db, true, ownerID, collection, limit, cursor, sc)
-	} else if ownerID == uuid.Nil {
-		// not authoritative but trying to list global data from context of a user.
-		result, resultErr = StorageListObjectsPublicRead(ctx, logger, db, collection, limit, cursor, sc)
-	} else {
-		if caller == ownerID {
-			// trying to list own user data
-			result, resultErr = StorageListObjectsUser(ctx, logger, db, false, ownerID, collection, limit, cursor, sc)
+		// Call from the runtime.
+		if ownerID == nil {
+			// List storage regardless of user.
+			// TODO
+			result, resultErr = StorageListObjectsAll(ctx, logger, db, true, collection, limit, cursor, sc)
 		} else {
-			// trying to list someone else's data
-			result, resultErr = StorageListObjectsPublicReadUser(ctx, logger, db, ownerID, collection, limit, cursor, sc)
+			// List for a particular user ID.
+			result, resultErr = StorageListObjectsUser(ctx, logger, db, true, *ownerID, collection, limit, cursor, sc)
+		}
+	} else {
+		// Call from a client.
+		if ownerID == nil {
+			// List publicly readable storage regardless of owner.
+			result, resultErr = StorageListObjectsAll(ctx, logger, db, false, collection, limit, cursor, sc)
+		} else if o := *ownerID; caller == o {
+			// User listing their own data.
+			result, resultErr = StorageListObjectsUser(ctx, logger, db, false, o, collection, limit, cursor, sc)
+		} else {
+			// User listing someone else's data.
+			result, resultErr = StorageListObjectsPublicReadUser(ctx, logger, db, o, collection, limit, cursor, sc)
 		}
 	}
 
@@ -79,7 +88,7 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 	return result, codes.OK, nil
 }
 
-func StorageListObjectsPublicRead(ctx context.Context, logger *zap.Logger, db *sql.DB, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
+func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
 	params := []interface{}{collection, limit}
 	if storageCursor != nil {
@@ -87,11 +96,20 @@ func StorageListObjectsPublicRead(ctx context.Context, logger *zap.Logger, db *s
 		params = append(params, storageCursor.Key, storageCursor.UserID)
 	}
 
-	query := `
+	var query string
+	if authoritative {
+		query = `
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time
+FROM storage
+WHERE collection = $1` + cursorQuery + `
+LIMIT $2`
+	} else {
+		query = `
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1 AND read = 2` + cursorQuery + `
 LIMIT $2`
+	}
 
 	var objects *api.StorageObjectList
 	err := ExecuteRetryable(func() error {

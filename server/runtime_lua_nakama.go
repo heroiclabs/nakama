@@ -3487,14 +3487,14 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 	limit := l.CheckInt(3)
 	cursor := l.OptString(4, "")
 
-	userID := uuid.Nil
+	var userID *uuid.UUID
 	if userIDString != "" {
 		uid, err := uuid.FromString(userIDString)
 		if err != nil {
 			l.ArgError(1, "expects empty or a valid user ID")
 			return 0
 		}
-		userID = uid
+		userID = &uid
 	}
 
 	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)

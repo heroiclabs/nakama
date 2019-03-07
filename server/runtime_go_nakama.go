@@ -1016,13 +1016,13 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 }
 
 func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error) {
-	uid := uuid.Nil
-	var err error
+	var uid *uuid.UUID
 	if userID != "" {
-		uid, err = uuid.FromString(userID)
+		u, err := uuid.FromString(userID)
 		if err != nil {
 			return nil, "", errors.New("expects an empty or valid user id")
 		}
+		uid = &u
 	}
 
 	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)

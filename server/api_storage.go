@@ -60,13 +60,13 @@ func (s *ApiServer) ListStorageObjects(ctx context.Context, in *api.ListStorageO
 		limit = int(in.GetLimit().Value)
 	}
 
-	userID := uuid.Nil
+	var userID *uuid.UUID
 	if in.GetUserId() != "" {
 		uid, err := uuid.FromString(in.GetUserId())
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID - make sure user ID is a valid UUID.")
 		}
-		userID = uid
+		userID = &uid
 	}
 
 	storageObjectList, code, listingError := StorageListObjects(ctx, s.logger, s.db, caller, userID, in.GetCollection(), limit, in.GetCursor())
