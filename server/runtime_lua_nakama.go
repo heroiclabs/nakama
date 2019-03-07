@@ -113,6 +113,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"register_tournament_reset":   n.registerTournamentReset,
 		"register_leaderboard_reset":  n.registerLeaderboardReset,
 		"run_once":                    n.runOnce,
+		"get_context":                 n.getContext,
 		"localcache_get":              n.localcacheGet,
 		"localcache_put":              n.localcachePut,
 		"localcache_delete":           n.localcacheDelete,
@@ -385,6 +386,12 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 	})
 
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
+	ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", "", "", "")
+	l.Push(ctx)
+	return 1
 }
 
 func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {
