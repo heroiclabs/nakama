@@ -15,7 +15,7 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.11.5-alpine3.8 as builder
+FROM golang:1.12.0-alpine3.9 as builder
 
 ARG commit
 ARG version
@@ -32,7 +32,7 @@ WORKDIR /go/src/github.com/heroiclabs/nakama
 RUN git checkout --quiet "$commit" && \
     go build -o /go/build/nakama -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
-FROM alpine:3.8
+FROM alpine:3.9
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
