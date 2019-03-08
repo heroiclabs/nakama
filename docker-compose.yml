@@ -1,7 +1,7 @@
 version: '3'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v2.1.3
+    image: cockroachdb/cockroach:v2.1.5
     command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: "no"
     volumes:
@@ -13,7 +13,7 @@ services:
       - "26257:26257"
       - "8080:8080"
   nakama:
-    image: heroiclabs/nakama:2.4.0
+    image: heroiclabs/nakama:2.4.1
     entrypoint:
       - "/bin/sh"
       - "-ecx"
