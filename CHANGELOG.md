@@ -3,10 +3,10 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.4.1] - 2019-03-08
 ### Added
 - Strict validation of socket timeout configuration parameters.
-- New runtime constants representing storage permissions.
+- New Go runtime constants representing storage permissions.
 - New runtime function to programmatically delete user accounts.
 - Allow multiple config files to be read at startup and merged into a final server configuration.
 - Storage listing operations can now disambiguate between listing system-owned data and listing all data.
@@ -15,14 +15,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Default maximum database connection lifetime is now 1 hour.
 - Improved parsing of client IP and port for incoming requests and socket connections.
 - WebSocket sessions no longer log the client IP and port number in error messages.
-- Made Go and Lua runtime startup log messages consistent.
+- Go and Lua server runtime startup log messages are now consistent.
 - All schema and query statements that use the '1970-01-01 00:00:00' constant now specify UTC timezone.
-- Storage write error message now correctly indicates that values must be encoded JSON objects.
+- Storage write error message are more descriptive for when values must be encoded JSON objects.
 - Storage listing operations now treat empty owner IDs as listing across all data rather than system-owned data.
 
 ### Fixed
-- CRON expressions for leaderboard and tournament resets now allow concurrent processing.
-- Set console gateway timeout to match connection idle timeout value.
+- CRON expressions for leaderboard and tournament resets now allow concurrent usage safely.
+- Set console API gateway timeout to match connection idle timeout value.
 
 ## [2.4.0] - 2019-02-03
 ### Added
