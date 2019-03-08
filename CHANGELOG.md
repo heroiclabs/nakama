@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
 ## [2.4.1] - 2019-03-08
 ### Added
 - Strict validation of socket timeout configuration parameters.
