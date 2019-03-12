@@ -80,7 +80,7 @@ func main() {
 
 	config := server.ParseArgs(tmpLogger, os.Args)
 	logger, startupLogger := server.SetupLogging(tmpLogger, config)
-	server.CheckConfig(logger, config)
+	configWarnings := server.CheckConfig(logger, config)
 
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()))
@@ -118,7 +118,7 @@ func main() {
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtime)
 	metrics := server.NewMetrics(logger, startupLogger, config)
 
-	consoleServer := server.StartConsoleServer(logger, startupLogger, config, db)
+	consoleServer := server.StartConsoleServer(logger, startupLogger, config, db, configWarnings)
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtime)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1

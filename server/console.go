@@ -43,11 +43,12 @@ type ConsoleServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config
+	configWarnings    map[string]string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB, configWarnings map[string]string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -64,10 +65,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ConsoleServer{
-		logger:     logger,
-		db:         db,
-		config:     config,
-		grpcServer: grpcServer,
+		logger:         logger,
+		db:             db,
+		config:         config,
+		configWarnings: configWarnings,
+		grpcServer:     grpcServer,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)

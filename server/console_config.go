@@ -16,10 +16,31 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/console"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
-	return &console.Config{}, nil
+	config, err := json.Marshal(s.config)
+	if err != nil {
+		s.logger.Error("Error encoding config.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error encoding config.")
+	}
+
+	configWarnings := make([]*console.Config_Warning, 0, len(s.configWarnings))
+	for key, message := range s.configWarnings {
+		configWarnings = append(configWarnings, &console.Config_Warning{
+			Field:   key,
+			Message: message,
+		})
+	}
+
+	return &console.Config{
+		Config:   string(config),
+		Warnings: configWarnings,
+	}, nil
 }

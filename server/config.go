@@ -104,7 +104,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	return mainConfig
 }
 
-func CheckConfig(logger *zap.Logger, config Config) {
+func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	// Fail fast on invalid values.
 	if l := len(config.GetName()); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
@@ -199,24 +199,32 @@ func CheckConfig(logger *zap.Logger, config Config) {
 		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
 
+	configWarnings := make(map[string]string, 8)
+
 	// Log warnings for insecure default parameter values.
 	if config.GetConsole().Username == "admin" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.username"))
+		configWarnings["console.username"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetConsole().Password == "password" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
+		configWarnings["console.password"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetConsole().SigningKey == "defaultsigningkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.signing_key"))
+		configWarnings["console.signing_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
+		configWarnings["socket.server_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
+		configWarnings["socket.encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetRuntime().HTTPKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
+		configWarnings["runtime.http_key"] = "Insecure default parameter value, change this for production!"
 	}
 
 	// Log warnings for SSL usage.
@@ -232,9 +240,13 @@ func CheckConfig(logger *zap.Logger, config Config) {
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate", zap.Error(err))
 		}
+		configWarnings["socket.ssl_certificate"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
+		configWarnings["socket.ssl_private_key"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		logger.Info("SSL mode enabled")
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
+
+	return configWarnings
 }
 
 func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
