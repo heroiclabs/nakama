@@ -139,6 +139,9 @@ func CheckConfig(logger *zap.Logger, config Config) {
 	if config.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
 	}
+	if config.GetConsole().SigningKey == "" {
+		logger.Fatal("Console signing key must be set", zap.String("param", "console.signing_key"))
+	}
 	if p := config.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
 		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", config.GetSocket().Protocol))
 	}
@@ -202,6 +205,9 @@ func CheckConfig(logger *zap.Logger, config Config) {
 	}
 	if config.GetConsole().Password == "password" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
+	}
+	if config.GetConsole().SigningKey == "defaultsigningkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.signing_key"))
 	}
 	if config.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
@@ -560,6 +566,7 @@ type ConsoleConfig struct {
 	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
 	Username            string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
 	Password            string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
+	SigningKey          string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
 }
 
 // NewConsoleConfig creates a new ConsoleConfig struct.
@@ -572,6 +579,7 @@ func NewConsoleConfig() *ConsoleConfig {
 		IdleTimeoutMs:       300 * 1000,
 		Username:            "admin",
 		Password:            "password",
+		SigningKey:          "defaultsigningkey",
 	}
 }
 

@@ -16,10 +16,10 @@ package server
 
 import (
 	"context"
-	"database/sql"
-
+	"encoding/json"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/console"
 	"go.uber.org/zap"
@@ -41,19 +41,19 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
-	query := "TRUNCATE TABLE users, leaderboard, groups CASCADE"
-	_, err := s.db.ExecContext(ctx, query)
-
-	if err != nil {
-		s.logger.Error("Error occurred while trying to deleting all users.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to delete all users.")
-	}
-
+func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFriendRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountIdRequest) (*api.Account, error) {
+func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteGroupUserRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
+}
+
+func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.DeleteWalletLedgerRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
+}
+
+func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId) (*console.AccountExport, error) {
 	userID := uuid.FromStringOrNil(in.Id)
 	if userID == uuid.Nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID was provided.")
@@ -69,37 +69,109 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountIdReq
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
-	return account, nil
+	// Friends.
+	friends, err := GetFriendIDs(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch friend IDs", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	// Messages.
+	messages, err := GetChannelMessages(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch messages", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	// Leaderboard records.
+	leaderboardRecords, err := LeaderboardRecordReadAll(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch leaderboard records", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	groups := make([]*api.Group, 0)
+	groupUsers, err := ListUserGroups(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+	for _, g := range groupUsers.UserGroups {
+		groups = append(groups, g.Group)
+	}
+
+	// Notifications.
+	notifications, err := NotificationList(ctx, s.logger, s.db, userID, 0, "", nil)
+	if err != nil {
+		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	// Storage objects where user is the owner.
+	storageObjects, err := StorageReadAllUserObjects(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	// History of user's wallet.
+	walletLedgers, err := ListWalletLedger(ctx, s.logger, s.db, userID)
+	if err != nil {
+		s.logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", in.Id))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+	wl := make([]*console.WalletLedger, len(walletLedgers))
+	for i, w := range walletLedgers {
+		changeset, err := json.Marshal(w.Changeset)
+		if err != nil {
+			s.logger.Error("Could not fetch wallet ledger items, error encoding changeset", zap.Error(err), zap.String("user_id", in.Id))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		}
+		metadata, err := json.Marshal(w.Metadata)
+		if err != nil {
+			s.logger.Error("Could not fetch wallet ledger items, error encoding metadata", zap.Error(err), zap.String("user_id", in.Id))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		}
+		wl[i] = &console.WalletLedger{
+			Id:         w.ID,
+			UserId:     w.UserID,
+			Changeset:  string(changeset),
+			Metadata:   string(metadata),
+			CreateTime: &timestamp.Timestamp{Seconds: w.CreateTime},
+			UpdateTime: &timestamp.Timestamp{Seconds: w.UpdateTime},
+		}
+	}
+
+	export := &console.AccountExport{
+		Account:            account,
+		Objects:            storageObjects,
+		Friends:            friends.GetFriends(),
+		Messages:           messages,
+		Groups:             groups,
+		LeaderboardRecords: leaderboardRecords,
+		Notifications:      notifications.GetNotifications(),
+		WalletLedgers:      wl,
+	}
+
+	return export, nil
 }
 
-func (s *ConsoleServer) ListAccounts(ctx context.Context, in *empty.Empty) (*console.AccountList, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM users WHERE id != $1 ORDER BY update_time DESC LIMIT 100", uuid.Nil)
-	if err != nil {
-		s.logger.Error("Could not list users.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-	}
+func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*api.Account, error) {
+	return &api.Account{}, nil
+}
 
-	userIDs := make([]string, 0)
-	for rows.Next() {
-		var userID sql.NullString
-		if err = rows.Scan(&userID); err != nil {
-			rows.Close()
-			s.logger.Error("Could not list users.", zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-		}
-		userIDs = append(userIDs, userID.String)
-	}
-	rows.Close()
+func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.Friends, error) {
+	return &api.Friends{}, nil
+}
 
-	accounts := make([]*api.Account, 0)
-	for _, id := range userIDs {
-		account, err := GetAccount(ctx, s.logger, s.db, nil, uuid.Must(uuid.FromString(id)))
-		if err != nil {
-			s.logger.Error("Could not get user while listing.", zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-		}
-		accounts = append(accounts, account)
-	}
+func (s *ConsoleServer) GetGroups(ctx context.Context, in *console.AccountId) (*api.UserGroupList, error) {
+	return &api.UserGroupList{}, nil
+}
 
-	return &console.AccountList{Accounts: accounts}, nil
+func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.AccountId) (*console.WalletLedgerList, error) {
+	return &console.WalletLedgerList{}, nil
+}
+
+func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Nakama Authors
+// Copyright 2019 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,23 +16,22 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama/console"
-
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/heroiclabs/nakama/console"
 )
 
-func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
+func (s *ConsoleServer) BanUser(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) UnbanUser(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	return &console.StorageList{}, nil
+func (s *ConsoleServer) DeleteUsers(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, nil
+func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequest) (*console.UserList, error) {
+	return &console.UserList{}, nil
 }
