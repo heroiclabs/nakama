@@ -186,7 +186,7 @@ func (m *AccountExport) GetWalletLedgers() []*WalletLedger {
 
 // *
 // The identifier for a user account.
-type AccountIdRequest struct {
+type AccountId struct {
 	// The unique identifier of the user account.
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -194,32 +194,32 @@ type AccountIdRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AccountIdRequest) Reset()         { *m = AccountIdRequest{} }
-func (m *AccountIdRequest) String() string { return proto.CompactTextString(m) }
-func (*AccountIdRequest) ProtoMessage()    {}
-func (*AccountIdRequest) Descriptor() ([]byte, []int) {
+func (m *AccountId) Reset()         { *m = AccountId{} }
+func (m *AccountId) String() string { return proto.CompactTextString(m) }
+func (*AccountId) ProtoMessage()    {}
+func (*AccountId) Descriptor() ([]byte, []int) {
 	return fileDescriptor_9289ac5ba895f2a7, []int{2}
 }
 
-func (m *AccountIdRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AccountIdRequest.Unmarshal(m, b)
+func (m *AccountId) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AccountId.Unmarshal(m, b)
 }
-func (m *AccountIdRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AccountIdRequest.Marshal(b, m, deterministic)
+func (m *AccountId) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AccountId.Marshal(b, m, deterministic)
 }
-func (m *AccountIdRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AccountIdRequest.Merge(m, src)
+func (m *AccountId) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AccountId.Merge(m, src)
 }
-func (m *AccountIdRequest) XXX_Size() int {
-	return xxx_messageInfo_AccountIdRequest.Size(m)
+func (m *AccountId) XXX_Size() int {
+	return xxx_messageInfo_AccountId.Size(m)
 }
-func (m *AccountIdRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_AccountIdRequest.DiscardUnknown(m)
+func (m *AccountId) XXX_DiscardUnknown() {
+	xxx_messageInfo_AccountId.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_AccountIdRequest proto.InternalMessageInfo
+var xxx_messageInfo_AccountId proto.InternalMessageInfo
 
-func (m *AccountIdRequest) GetId() string {
+func (m *AccountId) GetId() string {
 	if m != nil {
 		return m.Id
 	}
@@ -227,48 +227,7 @@ func (m *AccountIdRequest) GetId() string {
 }
 
 // *
-// Get the recent list of accounts.
-type AccountList struct {
-	Accounts             []*api.Account `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
-}
-
-func (m *AccountList) Reset()         { *m = AccountList{} }
-func (m *AccountList) String() string { return proto.CompactTextString(m) }
-func (*AccountList) ProtoMessage()    {}
-func (*AccountList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{3}
-}
-
-func (m *AccountList) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AccountList.Unmarshal(m, b)
-}
-func (m *AccountList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AccountList.Marshal(b, m, deterministic)
-}
-func (m *AccountList) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AccountList.Merge(m, src)
-}
-func (m *AccountList) XXX_Size() int {
-	return xxx_messageInfo_AccountList.Size(m)
-}
-func (m *AccountList) XXX_DiscardUnknown() {
-	xxx_messageInfo_AccountList.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AccountList proto.InternalMessageInfo
-
-func (m *AccountList) GetAccounts() []*api.Account {
-	if m != nil {
-		return m.Accounts
-	}
-	return nil
-}
-
-// *
-// Authenticate against the server with username+password.
+// Authenticate a console user with username and password.
 type AuthenticateRequest struct {
 	// The username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -283,7 +242,7 @@ func (m *AuthenticateRequest) Reset()         { *m = AuthenticateRequest{} }
 func (m *AuthenticateRequest) String() string { return proto.CompactTextString(m) }
 func (*AuthenticateRequest) ProtoMessage()    {}
 func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{4}
+	return fileDescriptor_9289ac5ba895f2a7, []int{3}
 }
 
 func (m *AuthenticateRequest) XXX_Unmarshal(b []byte) error {
@@ -318,14 +277,219 @@ func (m *AuthenticateRequest) GetPassword() string {
 	return ""
 }
 
-// Delete a storage object.
+// *
+// Configuration and config warnings information.
+type Config struct {
+	// JSON-encoded effective server configuration.
+	Config string `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
+	// Any warnings about the current config.
+	Warnings             []*Config_Warning `protobuf:"bytes,2,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *Config) Reset()         { *m = Config{} }
+func (m *Config) String() string { return proto.CompactTextString(m) }
+func (*Config) ProtoMessage()    {}
+func (*Config) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{4}
+}
+
+func (m *Config) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Config.Unmarshal(m, b)
+}
+func (m *Config) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Config.Marshal(b, m, deterministic)
+}
+func (m *Config) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Config.Merge(m, src)
+}
+func (m *Config) XXX_Size() int {
+	return xxx_messageInfo_Config.Size(m)
+}
+func (m *Config) XXX_DiscardUnknown() {
+	xxx_messageInfo_Config.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Config proto.InternalMessageInfo
+
+func (m *Config) GetConfig() string {
+	if m != nil {
+		return m.Config
+	}
+	return ""
+}
+
+func (m *Config) GetWarnings() []*Config_Warning {
+	if m != nil {
+		return m.Warnings
+	}
+	return nil
+}
+
+type Config_Warning struct {
+	// The config field this warning is for in a JSON pointer format.
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// Warning message text.
+	Message              string   `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Config_Warning) Reset()         { *m = Config_Warning{} }
+func (m *Config_Warning) String() string { return proto.CompactTextString(m) }
+func (*Config_Warning) ProtoMessage()    {}
+func (*Config_Warning) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{4, 0}
+}
+
+func (m *Config_Warning) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Config_Warning.Unmarshal(m, b)
+}
+func (m *Config_Warning) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Config_Warning.Marshal(b, m, deterministic)
+}
+func (m *Config_Warning) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Config_Warning.Merge(m, src)
+}
+func (m *Config_Warning) XXX_Size() int {
+	return xxx_messageInfo_Config_Warning.Size(m)
+}
+func (m *Config_Warning) XXX_DiscardUnknown() {
+	xxx_messageInfo_Config_Warning.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Config_Warning proto.InternalMessageInfo
+
+func (m *Config_Warning) GetField() string {
+	if m != nil {
+		return m.Field
+	}
+	return ""
+}
+
+func (m *Config_Warning) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+// *
+// Delete friend relationship between two users.
+type DeleteFriendRequest struct {
+	// The user do delete for.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// User ID of the friend to remove.
+	FriendId             string   `protobuf:"bytes,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteFriendRequest) Reset()         { *m = DeleteFriendRequest{} }
+func (m *DeleteFriendRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteFriendRequest) ProtoMessage()    {}
+func (*DeleteFriendRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{5}
+}
+
+func (m *DeleteFriendRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteFriendRequest.Unmarshal(m, b)
+}
+func (m *DeleteFriendRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteFriendRequest.Marshal(b, m, deterministic)
+}
+func (m *DeleteFriendRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteFriendRequest.Merge(m, src)
+}
+func (m *DeleteFriendRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteFriendRequest.Size(m)
+}
+func (m *DeleteFriendRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteFriendRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteFriendRequest proto.InternalMessageInfo
+
+func (m *DeleteFriendRequest) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *DeleteFriendRequest) GetFriendId() string {
+	if m != nil {
+		return m.FriendId
+	}
+	return ""
+}
+
+// *
+// Remove a user from a group.
+type DeleteGroupUserRequest struct {
+	// User to remove.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// ID of the group to remove them from.
+	GroupId              string   `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteGroupUserRequest) Reset()         { *m = DeleteGroupUserRequest{} }
+func (m *DeleteGroupUserRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteGroupUserRequest) ProtoMessage()    {}
+func (*DeleteGroupUserRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{6}
+}
+
+func (m *DeleteGroupUserRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteGroupUserRequest.Unmarshal(m, b)
+}
+func (m *DeleteGroupUserRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteGroupUserRequest.Marshal(b, m, deterministic)
+}
+func (m *DeleteGroupUserRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteGroupUserRequest.Merge(m, src)
+}
+func (m *DeleteGroupUserRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteGroupUserRequest.Size(m)
+}
+func (m *DeleteGroupUserRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteGroupUserRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteGroupUserRequest proto.InternalMessageInfo
+
+func (m *DeleteGroupUserRequest) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *DeleteGroupUserRequest) GetGroupId() string {
+	if m != nil {
+		return m.GroupId
+	}
+	return ""
+}
+
+// *
+// Delete an individual storage object.
 type DeleteStorageObjectRequest struct {
-	// The collection which stores the object.
+	// Collection.
 	Collection string `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
-	// The key of the object within the collection.
+	// Key.
 	Key string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	// ID of the user that this object belongs to.
-	UserId               string   `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Owner user ID.
+	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Version for OCC.
+	Version              string   `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -335,7 +499,7 @@ func (m *DeleteStorageObjectRequest) Reset()         { *m = DeleteStorageObjectR
 func (m *DeleteStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteStorageObjectRequest) ProtoMessage()    {}
 func (*DeleteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{5}
+	return fileDescriptor_9289ac5ba895f2a7, []int{7}
 }
 
 func (m *DeleteStorageObjectRequest) XXX_Unmarshal(b []byte) error {
@@ -377,318 +541,750 @@ func (m *DeleteStorageObjectRequest) GetUserId() string {
 	return ""
 }
 
-// Retrieve a storage object.
-type GetStorageObjectRequest struct {
-	// The collection which stores the object.
-	Collection string `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
-	// The key of the object within the collection.
-	Key string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	// The user owner of the object.
-	UserId               string   `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *GetStorageObjectRequest) Reset()         { *m = GetStorageObjectRequest{} }
-func (m *GetStorageObjectRequest) String() string { return proto.CompactTextString(m) }
-func (*GetStorageObjectRequest) ProtoMessage()    {}
-func (*GetStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{6}
-}
-
-func (m *GetStorageObjectRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetStorageObjectRequest.Unmarshal(m, b)
-}
-func (m *GetStorageObjectRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetStorageObjectRequest.Marshal(b, m, deterministic)
-}
-func (m *GetStorageObjectRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetStorageObjectRequest.Merge(m, src)
-}
-func (m *GetStorageObjectRequest) XXX_Size() int {
-	return xxx_messageInfo_GetStorageObjectRequest.Size(m)
-}
-func (m *GetStorageObjectRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetStorageObjectRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetStorageObjectRequest proto.InternalMessageInfo
-
-func (m *GetStorageObjectRequest) GetCollection() string {
+func (m *DeleteStorageObjectRequest) GetVersion() string {
 	if m != nil {
-		return m.Collection
-	}
-	return ""
-}
-
-func (m *GetStorageObjectRequest) GetKey() string {
-	if m != nil {
-		return m.Key
-	}
-	return ""
-}
-
-func (m *GetStorageObjectRequest) GetUserId() string {
-	if m != nil {
-		return m.UserId
-	}
-	return ""
-}
-
-// List object belonging to a user and/or a collection.
-type ListStorageObjectRequest struct {
-	// The collection which stores the object.
-	Collection string `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
-	// ID of the user that this object belongs to.
-	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// The cursor to page through results from.
-	Cursor               string   `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ListStorageObjectRequest) Reset()         { *m = ListStorageObjectRequest{} }
-func (m *ListStorageObjectRequest) String() string { return proto.CompactTextString(m) }
-func (*ListStorageObjectRequest) ProtoMessage()    {}
-func (*ListStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{7}
-}
-
-func (m *ListStorageObjectRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListStorageObjectRequest.Unmarshal(m, b)
-}
-func (m *ListStorageObjectRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListStorageObjectRequest.Marshal(b, m, deterministic)
-}
-func (m *ListStorageObjectRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListStorageObjectRequest.Merge(m, src)
-}
-func (m *ListStorageObjectRequest) XXX_Size() int {
-	return xxx_messageInfo_ListStorageObjectRequest.Size(m)
-}
-func (m *ListStorageObjectRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListStorageObjectRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ListStorageObjectRequest proto.InternalMessageInfo
-
-func (m *ListStorageObjectRequest) GetCollection() string {
-	if m != nil {
-		return m.Collection
-	}
-	return ""
-}
-
-func (m *ListStorageObjectRequest) GetUserId() string {
-	if m != nil {
-		return m.UserId
-	}
-	return ""
-}
-
-func (m *ListStorageObjectRequest) GetCursor() string {
-	if m != nil {
-		return m.Cursor
+		return m.Version
 	}
 	return ""
 }
 
 // *
-// List of collections available in storage.
-type StorageCollectionList struct {
-	// Storage collections.
-	Collections          []string `protobuf:"bytes,1,rep,name=collections,proto3" json:"collections,omitempty"`
+// Delete a single wallet ledger item.
+type DeleteWalletLedgerRequest struct {
+	// User ID to remove wallet ledger item from.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// ID of the wallet ledger item to remove.
+	WalletId             string   `protobuf:"bytes,2,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *StorageCollectionList) Reset()         { *m = StorageCollectionList{} }
-func (m *StorageCollectionList) String() string { return proto.CompactTextString(m) }
-func (*StorageCollectionList) ProtoMessage()    {}
-func (*StorageCollectionList) Descriptor() ([]byte, []int) {
+func (m *DeleteWalletLedgerRequest) Reset()         { *m = DeleteWalletLedgerRequest{} }
+func (m *DeleteWalletLedgerRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteWalletLedgerRequest) ProtoMessage()    {}
+func (*DeleteWalletLedgerRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_9289ac5ba895f2a7, []int{8}
 }
 
-func (m *StorageCollectionList) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_StorageCollectionList.Unmarshal(m, b)
+func (m *DeleteWalletLedgerRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteWalletLedgerRequest.Unmarshal(m, b)
 }
-func (m *StorageCollectionList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_StorageCollectionList.Marshal(b, m, deterministic)
+func (m *DeleteWalletLedgerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteWalletLedgerRequest.Marshal(b, m, deterministic)
 }
-func (m *StorageCollectionList) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StorageCollectionList.Merge(m, src)
+func (m *DeleteWalletLedgerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteWalletLedgerRequest.Merge(m, src)
 }
-func (m *StorageCollectionList) XXX_Size() int {
-	return xxx_messageInfo_StorageCollectionList.Size(m)
+func (m *DeleteWalletLedgerRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteWalletLedgerRequest.Size(m)
 }
-func (m *StorageCollectionList) XXX_DiscardUnknown() {
-	xxx_messageInfo_StorageCollectionList.DiscardUnknown(m)
+func (m *DeleteWalletLedgerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteWalletLedgerRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_StorageCollectionList proto.InternalMessageInfo
+var xxx_messageInfo_DeleteWalletLedgerRequest proto.InternalMessageInfo
 
-func (m *StorageCollectionList) GetCollections() []string {
+func (m *DeleteWalletLedgerRequest) GetId() string {
 	if m != nil {
-		return m.Collections
+		return m.Id
+	}
+	return ""
+}
+
+func (m *DeleteWalletLedgerRequest) GetWalletId() string {
+	if m != nil {
+		return m.WalletId
+	}
+	return ""
+}
+
+// *
+// List (and optionally filter) storage data.
+type ListStorageRequest struct {
+	// User ID to filter data for.
+	UserId               string   `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListStorageRequest) Reset()         { *m = ListStorageRequest{} }
+func (m *ListStorageRequest) String() string { return proto.CompactTextString(m) }
+func (*ListStorageRequest) ProtoMessage()    {}
+func (*ListStorageRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{9}
+}
+
+func (m *ListStorageRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListStorageRequest.Unmarshal(m, b)
+}
+func (m *ListStorageRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListStorageRequest.Marshal(b, m, deterministic)
+}
+func (m *ListStorageRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListStorageRequest.Merge(m, src)
+}
+func (m *ListStorageRequest) XXX_Size() int {
+	return xxx_messageInfo_ListStorageRequest.Size(m)
+}
+func (m *ListStorageRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListStorageRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListStorageRequest proto.InternalMessageInfo
+
+func (m *ListStorageRequest) GetUserId() string {
+	if m != nil {
+		return m.UserId
+	}
+	return ""
+}
+
+// *
+// List (and optionally filter) users.
+type ListUsersRequest struct {
+	// User ID or username filter.
+	Filter string `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
+	// Search only banned users.
+	Banned bool `protobuf:"varint,2,opt,name=banned,proto3" json:"banned,omitempty"`
+	// Search only recorded deletes.
+	Tombstones bool `protobuf:"varint,3,opt,name=tombstones,proto3" json:"tombstones,omitempty"`
+	// Optional cursor to fetch next page.
+	Cursor               []byte   `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListUsersRequest) Reset()         { *m = ListUsersRequest{} }
+func (m *ListUsersRequest) String() string { return proto.CompactTextString(m) }
+func (*ListUsersRequest) ProtoMessage()    {}
+func (*ListUsersRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{10}
+}
+
+func (m *ListUsersRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListUsersRequest.Unmarshal(m, b)
+}
+func (m *ListUsersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListUsersRequest.Marshal(b, m, deterministic)
+}
+func (m *ListUsersRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListUsersRequest.Merge(m, src)
+}
+func (m *ListUsersRequest) XXX_Size() int {
+	return xxx_messageInfo_ListUsersRequest.Size(m)
+}
+func (m *ListUsersRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListUsersRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListUsersRequest proto.InternalMessageInfo
+
+func (m *ListUsersRequest) GetFilter() string {
+	if m != nil {
+		return m.Filter
+	}
+	return ""
+}
+
+func (m *ListUsersRequest) GetBanned() bool {
+	if m != nil {
+		return m.Banned
+	}
+	return false
+}
+
+func (m *ListUsersRequest) GetTombstones() bool {
+	if m != nil {
+		return m.Tombstones
+	}
+	return false
+}
+
+func (m *ListUsersRequest) GetCursor() []byte {
+	if m != nil {
+		return m.Cursor
 	}
 	return nil
 }
 
-// A storage record.
-type StorageObject struct {
-	// The collection to store the object.
-	Collection string `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
-	// The key for the object within the collection.
-	Key string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	// ID of the user that this object belongs to.
-	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// The value of the object.
-	Value string `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
-	// The read access permissions for the object.
-	PermissionRead int32 `protobuf:"varint,5,opt,name=permission_read,json=permissionRead,proto3" json:"permission_read,omitempty"`
-	// The write access permissions for the object.
-	PermissionWrite      int32    `protobuf:"varint,6,opt,name=permission_write,json=permissionWrite,proto3" json:"permission_write,omitempty"`
+type StorageList struct {
+	// List of storage objects matching list/filter operation.
+	Objects []*api.StorageObject `protobuf:"bytes,1,rep,name=objects,proto3" json:"objects,omitempty"`
+	// Optional cursor for pagination.
+	Cursor               []byte   `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *StorageObject) Reset()         { *m = StorageObject{} }
-func (m *StorageObject) String() string { return proto.CompactTextString(m) }
-func (*StorageObject) ProtoMessage()    {}
-func (*StorageObject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{9}
+func (m *StorageList) Reset()         { *m = StorageList{} }
+func (m *StorageList) String() string { return proto.CompactTextString(m) }
+func (*StorageList) ProtoMessage()    {}
+func (*StorageList) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{11}
 }
 
-func (m *StorageObject) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_StorageObject.Unmarshal(m, b)
+func (m *StorageList) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StorageList.Unmarshal(m, b)
 }
-func (m *StorageObject) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_StorageObject.Marshal(b, m, deterministic)
+func (m *StorageList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StorageList.Marshal(b, m, deterministic)
 }
-func (m *StorageObject) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StorageObject.Merge(m, src)
+func (m *StorageList) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StorageList.Merge(m, src)
 }
-func (m *StorageObject) XXX_Size() int {
-	return xxx_messageInfo_StorageObject.Size(m)
+func (m *StorageList) XXX_Size() int {
+	return xxx_messageInfo_StorageList.Size(m)
 }
-func (m *StorageObject) XXX_DiscardUnknown() {
-	xxx_messageInfo_StorageObject.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_StorageObject proto.InternalMessageInfo
-
-func (m *StorageObject) GetCollection() string {
-	if m != nil {
-		return m.Collection
-	}
-	return ""
+func (m *StorageList) XXX_DiscardUnknown() {
+	xxx_messageInfo_StorageList.DiscardUnknown(m)
 }
 
-func (m *StorageObject) GetKey() string {
-	if m != nil {
-		return m.Key
-	}
-	return ""
-}
+var xxx_messageInfo_StorageList proto.InternalMessageInfo
 
-func (m *StorageObject) GetUserId() string {
-	if m != nil {
-		return m.UserId
-	}
-	return ""
-}
-
-func (m *StorageObject) GetValue() string {
-	if m != nil {
-		return m.Value
-	}
-	return ""
-}
-
-func (m *StorageObject) GetPermissionRead() int32 {
-	if m != nil {
-		return m.PermissionRead
-	}
-	return 0
-}
-
-func (m *StorageObject) GetPermissionWrite() int32 {
-	if m != nil {
-		return m.PermissionWrite
-	}
-	return 0
-}
-
-// *
-// List of objects in a given collection.
-type StorageObjectList struct {
-	// The list of storage objects.
-	Objects []*StorageObject `protobuf:"bytes,1,rep,name=objects,proto3" json:"objects,omitempty"`
-	// The cursor associated with the query a page of results.
-	Cursor               string   `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *StorageObjectList) Reset()         { *m = StorageObjectList{} }
-func (m *StorageObjectList) String() string { return proto.CompactTextString(m) }
-func (*StorageObjectList) ProtoMessage()    {}
-func (*StorageObjectList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{10}
-}
-
-func (m *StorageObjectList) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_StorageObjectList.Unmarshal(m, b)
-}
-func (m *StorageObjectList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_StorageObjectList.Marshal(b, m, deterministic)
-}
-func (m *StorageObjectList) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StorageObjectList.Merge(m, src)
-}
-func (m *StorageObjectList) XXX_Size() int {
-	return xxx_messageInfo_StorageObjectList.Size(m)
-}
-func (m *StorageObjectList) XXX_DiscardUnknown() {
-	xxx_messageInfo_StorageObjectList.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_StorageObjectList proto.InternalMessageInfo
-
-func (m *StorageObjectList) GetObjects() []*StorageObject {
+func (m *StorageList) GetObjects() []*api.StorageObject {
 	if m != nil {
 		return m.Objects
 	}
 	return nil
 }
 
-func (m *StorageObjectList) GetCursor() string {
+func (m *StorageList) GetCursor() []byte {
 	if m != nil {
 		return m.Cursor
+	}
+	return nil
+}
+
+// *
+// Unlink a particular device ID from a user's account.
+type UnlinkDeviceRequest struct {
+	// User ID to unlink from.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Device ID to unlink.
+	DeviceId             string   `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UnlinkDeviceRequest) Reset()         { *m = UnlinkDeviceRequest{} }
+func (m *UnlinkDeviceRequest) String() string { return proto.CompactTextString(m) }
+func (*UnlinkDeviceRequest) ProtoMessage()    {}
+func (*UnlinkDeviceRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{12}
+}
+
+func (m *UnlinkDeviceRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UnlinkDeviceRequest.Unmarshal(m, b)
+}
+func (m *UnlinkDeviceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UnlinkDeviceRequest.Marshal(b, m, deterministic)
+}
+func (m *UnlinkDeviceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnlinkDeviceRequest.Merge(m, src)
+}
+func (m *UnlinkDeviceRequest) XXX_Size() int {
+	return xxx_messageInfo_UnlinkDeviceRequest.Size(m)
+}
+func (m *UnlinkDeviceRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnlinkDeviceRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnlinkDeviceRequest proto.InternalMessageInfo
+
+func (m *UnlinkDeviceRequest) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *UnlinkDeviceRequest) GetDeviceId() string {
+	if m != nil {
+		return m.DeviceId
 	}
 	return ""
 }
 
 // *
-// A wallet ledger item representing a change to the user's wallet.
-type WalletLedger struct {
-	// The unique ID of the change.
+// Update user account information.
+type UpdateAccountRequest struct {
+	// User ID to update.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// The user ID this change belongs to.
-	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// The changes to the wallet.
-	Changeset string `protobuf:"bytes,3,opt,name=changeset,proto3" json:"changeset,omitempty"`
+	// Username.
+	Username *wrappers.StringValue `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	// Display name.
+	DisplayName *wrappers.StringValue `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// Metadata.
+	Metadata *wrappers.StringValue `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// Avatar URL.
+	AvatarUrl *wrappers.StringValue `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	// Langtag.
+	LangTag *wrappers.StringValue `protobuf:"bytes,6,opt,name=lang_tag,json=langTag,proto3" json:"lang_tag,omitempty"`
+	// Location.
+	Location *wrappers.StringValue `protobuf:"bytes,7,opt,name=location,proto3" json:"location,omitempty"`
+	// Timezone.
+	Timezone *wrappers.StringValue `protobuf:"bytes,8,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	// Custom ID.
+	CustomId *wrappers.StringValue `protobuf:"bytes,9,opt,name=custom_id,json=customId,proto3" json:"custom_id,omitempty"`
+	// Email.
+	Email *wrappers.StringValue `protobuf:"bytes,10,opt,name=email,proto3" json:"email,omitempty"`
+	// Device ID modifications.
+	DeviceIds map[string]string `protobuf:"bytes,11,rep,name=device_ids,json=deviceIds,proto3" json:"device_ids,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Wallet.
+	Wallet               *wrappers.StringValue `protobuf:"bytes,12,opt,name=wallet,proto3" json:"wallet,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *UpdateAccountRequest) Reset()         { *m = UpdateAccountRequest{} }
+func (m *UpdateAccountRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateAccountRequest) ProtoMessage()    {}
+func (*UpdateAccountRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{13}
+}
+
+func (m *UpdateAccountRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateAccountRequest.Unmarshal(m, b)
+}
+func (m *UpdateAccountRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateAccountRequest.Marshal(b, m, deterministic)
+}
+func (m *UpdateAccountRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateAccountRequest.Merge(m, src)
+}
+func (m *UpdateAccountRequest) XXX_Size() int {
+	return xxx_messageInfo_UpdateAccountRequest.Size(m)
+}
+func (m *UpdateAccountRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateAccountRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateAccountRequest proto.InternalMessageInfo
+
+func (m *UpdateAccountRequest) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *UpdateAccountRequest) GetUsername() *wrappers.StringValue {
+	if m != nil {
+		return m.Username
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetDisplayName() *wrappers.StringValue {
+	if m != nil {
+		return m.DisplayName
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetMetadata() *wrappers.StringValue {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetAvatarUrl() *wrappers.StringValue {
+	if m != nil {
+		return m.AvatarUrl
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetLangTag() *wrappers.StringValue {
+	if m != nil {
+		return m.LangTag
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetLocation() *wrappers.StringValue {
+	if m != nil {
+		return m.Location
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetTimezone() *wrappers.StringValue {
+	if m != nil {
+		return m.Timezone
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetCustomId() *wrappers.StringValue {
+	if m != nil {
+		return m.CustomId
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetEmail() *wrappers.StringValue {
+	if m != nil {
+		return m.Email
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetDeviceIds() map[string]string {
+	if m != nil {
+		return m.DeviceIds
+	}
+	return nil
+}
+
+func (m *UpdateAccountRequest) GetWallet() *wrappers.StringValue {
+	if m != nil {
+		return m.Wallet
+	}
+	return nil
+}
+
+// *
+// A list of users.
+type UserList struct {
+	// A list of users.
+	Users []*api.User `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	// A cursor to fetch more results.
+	Cursor               []byte   `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UserList) Reset()         { *m = UserList{} }
+func (m *UserList) String() string { return proto.CompactTextString(m) }
+func (*UserList) ProtoMessage()    {}
+func (*UserList) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{14}
+}
+
+func (m *UserList) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UserList.Unmarshal(m, b)
+}
+func (m *UserList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UserList.Marshal(b, m, deterministic)
+}
+func (m *UserList) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UserList.Merge(m, src)
+}
+func (m *UserList) XXX_Size() int {
+	return xxx_messageInfo_UserList.Size(m)
+}
+func (m *UserList) XXX_DiscardUnknown() {
+	xxx_messageInfo_UserList.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UserList proto.InternalMessageInfo
+
+func (m *UserList) GetUsers() []*api.User {
+	if m != nil {
+		return m.Users
+	}
+	return nil
+}
+
+func (m *UserList) GetCursor() []byte {
+	if m != nil {
+		return m.Cursor
+	}
+	return nil
+}
+
+// *
+// A console user session.
+type Session struct {
+	// Session token.
+	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Session) Reset()         { *m = Session{} }
+func (m *Session) String() string { return proto.CompactTextString(m) }
+func (*Session) ProtoMessage()    {}
+func (*Session) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{15}
+}
+
+func (m *Session) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Session.Unmarshal(m, b)
+}
+func (m *Session) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Session.Marshal(b, m, deterministic)
+}
+func (m *Session) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Session.Merge(m, src)
+}
+func (m *Session) XXX_Size() int {
+	return xxx_messageInfo_Session.Size(m)
+}
+func (m *Session) XXX_DiscardUnknown() {
+	xxx_messageInfo_Session.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Session proto.InternalMessageInfo
+
+func (m *Session) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+// *
+// List of nodes and their stats.
+type StatusList struct {
+	// List of nodes and their stats.
+	Nodes                []*StatusList_Status `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *StatusList) Reset()         { *m = StatusList{} }
+func (m *StatusList) String() string { return proto.CompactTextString(m) }
+func (*StatusList) ProtoMessage()    {}
+func (*StatusList) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{16}
+}
+
+func (m *StatusList) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StatusList.Unmarshal(m, b)
+}
+func (m *StatusList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StatusList.Marshal(b, m, deterministic)
+}
+func (m *StatusList) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StatusList.Merge(m, src)
+}
+func (m *StatusList) XXX_Size() int {
+	return xxx_messageInfo_StatusList.Size(m)
+}
+func (m *StatusList) XXX_DiscardUnknown() {
+	xxx_messageInfo_StatusList.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StatusList proto.InternalMessageInfo
+
+func (m *StatusList) GetNodes() []*StatusList_Status {
+	if m != nil {
+		return m.Nodes
+	}
+	return nil
+}
+
+type StatusList_Status struct {
+	// Node name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Currently connected sessions.
+	SessionCount int32 `protobuf:"varint,2,opt,name=session_count,json=sessionCount,proto3" json:"session_count,omitempty"`
+	// Currently registered live presences.
+	PresenceCount int32 `protobuf:"varint,3,opt,name=presence_count,json=presenceCount,proto3" json:"presence_count,omitempty"`
+	// Current number of active authoritative matches.
+	MatchCount int32 `protobuf:"varint,4,opt,name=match_count,json=matchCount,proto3" json:"match_count,omitempty"`
+	// Current number of running goroutines.
+	GoroutineCount int32 `protobuf:"varint,5,opt,name=goroutine_count,json=goroutineCount,proto3" json:"goroutine_count,omitempty"`
+	// Latest average response latency in milliseconds.
+	AvgLatencyMs float64 `protobuf:"fixed64,6,opt,name=avg_latency_ms,json=avgLatencyMs,proto3" json:"avg_latency_ms,omitempty"`
+	// Average response latency in milliseconds over the last minute.
+	AvgLatencyMsMin float64 `protobuf:"fixed64,7,opt,name=avg_latency_ms_min,json=avgLatencyMsMin,proto3" json:"avg_latency_ms_min,omitempty"`
+	// Average response latency in milliseconds over the last hour.
+	AvgLatencyMsHr float64 `protobuf:"fixed64,8,opt,name=avg_latency_ms_hr,json=avgLatencyMsHr,proto3" json:"avg_latency_ms_hr,omitempty"`
+	// Latest number of requests per second.
+	RateSec float64 `protobuf:"fixed64,9,opt,name=rate_sec,json=rateSec,proto3" json:"rate_sec,omitempty"`
+	// Number of requests per second over the last minute.
+	RateSecMin float64 `protobuf:"fixed64,10,opt,name=rate_sec_min,json=rateSecMin,proto3" json:"rate_sec_min,omitempty"`
+	// Number of requests per second over the last hour.
+	RateSecHr float64 `protobuf:"fixed64,11,opt,name=rate_sec_hr,json=rateSecHr,proto3" json:"rate_sec_hr,omitempty"`
+	// Latest input bandwidth usage.
+	InputKbs float64 `protobuf:"fixed64,12,opt,name=input_kbs,json=inputKbs,proto3" json:"input_kbs,omitempty"`
+	// Input bandwidth usage over the last minute.
+	InputKbsMin float64 `protobuf:"fixed64,13,opt,name=input_kbs_min,json=inputKbsMin,proto3" json:"input_kbs_min,omitempty"`
+	// Input bandwidth usage over the last hour.
+	InputKbsHr float64 `protobuf:"fixed64,14,opt,name=input_kbs_hr,json=inputKbsHr,proto3" json:"input_kbs_hr,omitempty"`
+	// Latest output bandwidth usage.
+	OutputKbs float64 `protobuf:"fixed64,15,opt,name=output_kbs,json=outputKbs,proto3" json:"output_kbs,omitempty"`
+	// Output bandwidth usage over the last minute.
+	OutputKbsMin float64 `protobuf:"fixed64,16,opt,name=output_kbs_min,json=outputKbsMin,proto3" json:"output_kbs_min,omitempty"`
+	// Output bandwidth usage over the last hour.
+	OutputKbsHt          float64  `protobuf:"fixed64,17,opt,name=output_kbs_ht,json=outputKbsHt,proto3" json:"output_kbs_ht,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StatusList_Status) Reset()         { *m = StatusList_Status{} }
+func (m *StatusList_Status) String() string { return proto.CompactTextString(m) }
+func (*StatusList_Status) ProtoMessage()    {}
+func (*StatusList_Status) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{16, 0}
+}
+
+func (m *StatusList_Status) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StatusList_Status.Unmarshal(m, b)
+}
+func (m *StatusList_Status) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StatusList_Status.Marshal(b, m, deterministic)
+}
+func (m *StatusList_Status) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StatusList_Status.Merge(m, src)
+}
+func (m *StatusList_Status) XXX_Size() int {
+	return xxx_messageInfo_StatusList_Status.Size(m)
+}
+func (m *StatusList_Status) XXX_DiscardUnknown() {
+	xxx_messageInfo_StatusList_Status.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StatusList_Status proto.InternalMessageInfo
+
+func (m *StatusList_Status) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *StatusList_Status) GetSessionCount() int32 {
+	if m != nil {
+		return m.SessionCount
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetPresenceCount() int32 {
+	if m != nil {
+		return m.PresenceCount
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetMatchCount() int32 {
+	if m != nil {
+		return m.MatchCount
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetGoroutineCount() int32 {
+	if m != nil {
+		return m.GoroutineCount
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetAvgLatencyMs() float64 {
+	if m != nil {
+		return m.AvgLatencyMs
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetAvgLatencyMsMin() float64 {
+	if m != nil {
+		return m.AvgLatencyMsMin
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetAvgLatencyMsHr() float64 {
+	if m != nil {
+		return m.AvgLatencyMsHr
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetRateSec() float64 {
+	if m != nil {
+		return m.RateSec
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetRateSecMin() float64 {
+	if m != nil {
+		return m.RateSecMin
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetRateSecHr() float64 {
+	if m != nil {
+		return m.RateSecHr
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetInputKbs() float64 {
+	if m != nil {
+		return m.InputKbs
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetInputKbsMin() float64 {
+	if m != nil {
+		return m.InputKbsMin
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetInputKbsHr() float64 {
+	if m != nil {
+		return m.InputKbsHr
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetOutputKbs() float64 {
+	if m != nil {
+		return m.OutputKbs
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetOutputKbsMin() float64 {
+	if m != nil {
+		return m.OutputKbsMin
+	}
+	return 0
+}
+
+func (m *StatusList_Status) GetOutputKbsHt() float64 {
+	if m != nil {
+		return m.OutputKbsHt
+	}
+	return 0
+}
+
+// *
+// An individual update to a user's wallet.
+type WalletLedger struct {
+	// The identifier of this wallet change.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The user ID this wallet ledger item belongs to.
+	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// The changeset.
+	Changeset string `protobuf:"bytes,3,opt,name=changeset,proto3" json:"changeset,omitempty"`
+	// Any associated metadata.
 	Metadata string `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// The UNIX time when the wallet ledger item was created.
-	CreateTime *timestamp.Timestamp `protobuf:"bytes,8,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamp.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// The UNIX time when the wallet ledger item was updated.
-	UpdateTime           *timestamp.Timestamp `protobuf:"bytes,9,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	UpdateTime           *timestamp.Timestamp `protobuf:"bytes,6,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`
@@ -698,7 +1294,7 @@ func (m *WalletLedger) Reset()         { *m = WalletLedger{} }
 func (m *WalletLedger) String() string { return proto.CompactTextString(m) }
 func (*WalletLedger) ProtoMessage()    {}
 func (*WalletLedger) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{11}
+	return fileDescriptor_9289ac5ba895f2a7, []int{17}
 }
 
 func (m *WalletLedger) XXX_Unmarshal(b []byte) error {
@@ -761,19 +1357,75 @@ func (m *WalletLedger) GetUpdateTime() *timestamp.Timestamp {
 	return nil
 }
 
-// Write an object to storage.
+// *
+// List of wallet ledger items for a particular user.
+type WalletLedgerList struct {
+	// A list of wallet ledger items.
+	Items                []*WalletLedger `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
+}
+
+func (m *WalletLedgerList) Reset()         { *m = WalletLedgerList{} }
+func (m *WalletLedgerList) String() string { return proto.CompactTextString(m) }
+func (*WalletLedgerList) ProtoMessage()    {}
+func (*WalletLedgerList) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9289ac5ba895f2a7, []int{18}
+}
+
+func (m *WalletLedgerList) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_WalletLedgerList.Unmarshal(m, b)
+}
+func (m *WalletLedgerList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_WalletLedgerList.Marshal(b, m, deterministic)
+}
+func (m *WalletLedgerList) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WalletLedgerList.Merge(m, src)
+}
+func (m *WalletLedgerList) XXX_Size() int {
+	return xxx_messageInfo_WalletLedgerList.Size(m)
+}
+func (m *WalletLedgerList) XXX_DiscardUnknown() {
+	xxx_messageInfo_WalletLedgerList.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WalletLedgerList proto.InternalMessageInfo
+
+func (m *WalletLedgerList) GetItems() []*WalletLedger {
+	if m != nil {
+		return m.Items
+	}
+	return nil
+}
+
+// *
+// Write a new storage object or update an existing one.
 type WriteStorageObjectRequest struct {
-	Object               *StorageObject `protobuf:"bytes,1,opt,name=object,proto3" json:"object,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	// Collection.
+	Collection string `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
+	// Key.
+	Key string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	// Owner user ID.
+	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Value.
+	Value *wrappers.StringValue `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
+	// Version for OCC.
+	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	// Read permission value.
+	PermissionRead *wrappers.Int32Value `protobuf:"bytes,6,opt,name=permission_read,json=permissionRead,proto3" json:"permission_read,omitempty"`
+	// Write permission value.
+	PermissionWrite      *wrappers.Int32Value `protobuf:"bytes,7,opt,name=permission_write,json=permissionWrite,proto3" json:"permission_write,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
 }
 
 func (m *WriteStorageObjectRequest) Reset()         { *m = WriteStorageObjectRequest{} }
 func (m *WriteStorageObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*WriteStorageObjectRequest) ProtoMessage()    {}
 func (*WriteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9289ac5ba895f2a7, []int{12}
+	return fileDescriptor_9289ac5ba895f2a7, []int{19}
 }
 
 func (m *WriteStorageObjectRequest) XXX_Unmarshal(b []byte) error {
@@ -794,9 +1446,51 @@ func (m *WriteStorageObjectRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WriteStorageObjectRequest proto.InternalMessageInfo
 
-func (m *WriteStorageObjectRequest) GetObject() *StorageObject {
+func (m *WriteStorageObjectRequest) GetCollection() string {
 	if m != nil {
-		return m.Object
+		return m.Collection
+	}
+	return ""
+}
+
+func (m *WriteStorageObjectRequest) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+func (m *WriteStorageObjectRequest) GetUserId() string {
+	if m != nil {
+		return m.UserId
+	}
+	return ""
+}
+
+func (m *WriteStorageObjectRequest) GetValue() *wrappers.StringValue {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (m *WriteStorageObjectRequest) GetVersion() string {
+	if m != nil {
+		return m.Version
+	}
+	return ""
+}
+
+func (m *WriteStorageObjectRequest) GetPermissionRead() *wrappers.Int32Value {
+	if m != nil {
+		return m.PermissionRead
+	}
+	return nil
+}
+
+func (m *WriteStorageObjectRequest) GetPermissionWrite() *wrappers.Int32Value {
+	if m != nil {
+		return m.PermissionWrite
 	}
 	return nil
 }
@@ -804,107 +1498,184 @@ func (m *WriteStorageObjectRequest) GetObject() *StorageObject {
 func init() {
 	proto.RegisterType((*AccountDeleteRequest)(nil), "nakama.console.AccountDeleteRequest")
 	proto.RegisterType((*AccountExport)(nil), "nakama.console.AccountExport")
-	proto.RegisterType((*AccountIdRequest)(nil), "nakama.console.AccountIdRequest")
-	proto.RegisterType((*AccountList)(nil), "nakama.console.AccountList")
+	proto.RegisterType((*AccountId)(nil), "nakama.console.AccountId")
 	proto.RegisterType((*AuthenticateRequest)(nil), "nakama.console.AuthenticateRequest")
+	proto.RegisterType((*Config)(nil), "nakama.console.Config")
+	proto.RegisterType((*Config_Warning)(nil), "nakama.console.Config.Warning")
+	proto.RegisterType((*DeleteFriendRequest)(nil), "nakama.console.DeleteFriendRequest")
+	proto.RegisterType((*DeleteGroupUserRequest)(nil), "nakama.console.DeleteGroupUserRequest")
 	proto.RegisterType((*DeleteStorageObjectRequest)(nil), "nakama.console.DeleteStorageObjectRequest")
-	proto.RegisterType((*GetStorageObjectRequest)(nil), "nakama.console.GetStorageObjectRequest")
-	proto.RegisterType((*ListStorageObjectRequest)(nil), "nakama.console.ListStorageObjectRequest")
-	proto.RegisterType((*StorageCollectionList)(nil), "nakama.console.StorageCollectionList")
-	proto.RegisterType((*StorageObject)(nil), "nakama.console.StorageObject")
-	proto.RegisterType((*StorageObjectList)(nil), "nakama.console.StorageObjectList")
+	proto.RegisterType((*DeleteWalletLedgerRequest)(nil), "nakama.console.DeleteWalletLedgerRequest")
+	proto.RegisterType((*ListStorageRequest)(nil), "nakama.console.ListStorageRequest")
+	proto.RegisterType((*ListUsersRequest)(nil), "nakama.console.ListUsersRequest")
+	proto.RegisterType((*StorageList)(nil), "nakama.console.StorageList")
+	proto.RegisterType((*UnlinkDeviceRequest)(nil), "nakama.console.UnlinkDeviceRequest")
+	proto.RegisterType((*UpdateAccountRequest)(nil), "nakama.console.UpdateAccountRequest")
+	proto.RegisterMapType((map[string]string)(nil), "nakama.console.UpdateAccountRequest.DeviceIdsEntry")
+	proto.RegisterType((*UserList)(nil), "nakama.console.UserList")
+	proto.RegisterType((*Session)(nil), "nakama.console.Session")
+	proto.RegisterType((*StatusList)(nil), "nakama.console.StatusList")
+	proto.RegisterType((*StatusList_Status)(nil), "nakama.console.StatusList.Status")
 	proto.RegisterType((*WalletLedger)(nil), "nakama.console.WalletLedger")
+	proto.RegisterType((*WalletLedgerList)(nil), "nakama.console.WalletLedgerList")
 	proto.RegisterType((*WriteStorageObjectRequest)(nil), "nakama.console.WriteStorageObjectRequest")
 }
 
 func init() { proto.RegisterFile("console/console.proto", fileDescriptor_9289ac5ba895f2a7) }
 
 var fileDescriptor_9289ac5ba895f2a7 = []byte{
-	// 1329 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xdf, 0x6e, 0xd4, 0x46,
-	0x17, 0xc7, 0x1b, 0xb2, 0xbb, 0x39, 0xcb, 0x6e, 0xc2, 0x24, 0x01, 0xe3, 0xf0, 0xc7, 0x18, 0xbe,
-	0x8f, 0xb0, 0x02, 0x3b, 0x2c, 0xe2, 0xe3, 0x6b, 0x2a, 0xa1, 0x26, 0x81, 0x22, 0xa4, 0x40, 0x91,
-	0x8b, 0x40, 0x42, 0xaa, 0xb6, 0xb3, 0xf6, 0xb0, 0x6b, 0xe2, 0xf5, 0xb8, 0x33, 0xb3, 0x49, 0xa3,
-	0x28, 0x37, 0x7d, 0x80, 0x5e, 0xc0, 0x7d, 0x5f, 0xa0, 0x4f, 0xd0, 0xfb, 0x4a, 0x7d, 0x80, 0x5e,
-	0xf5, 0xbe, 0x77, 0x7d, 0x89, 0xca, 0xe3, 0xf1, 0xae, 0xf7, 0x8f, 0x89, 0xa8, 0xe8, 0x45, 0xb4,
-	0x99, 0x33, 0xbf, 0x73, 0x7e, 0x67, 0xce, 0x39, 0x73, 0xce, 0x18, 0x56, 0x3d, 0x1a, 0x71, 0x1a,
-	0x12, 0x47, 0xfd, 0xda, 0x31, 0xa3, 0x82, 0xa2, 0x46, 0x84, 0xf7, 0x70, 0x1f, 0xdb, 0x4a, 0x6a,
-	0x34, 0xbb, 0x81, 0xe8, 0x0d, 0x3a, 0xb6, 0x47, 0xfb, 0x4e, 0x8f, 0x30, 0x1a, 0x78, 0x21, 0xee,
-	0x70, 0x27, 0x45, 0x39, 0x38, 0x0e, 0x92, 0xbf, 0x54, 0xd7, 0xb8, 0xd8, 0xa5, 0xb4, 0x1b, 0x92,
-	0x54, 0x1a, 0x45, 0x54, 0x60, 0x11, 0xd0, 0x88, 0xab, 0xdd, 0x35, 0xb5, 0x2b, 0x57, 0x9d, 0xc1,
-	0x1b, 0x87, 0xf4, 0x63, 0x71, 0xa8, 0x36, 0xaf, 0x4c, 0x6e, 0x8a, 0xa0, 0x4f, 0xb8, 0xc0, 0xfd,
-	0x58, 0x01, 0x2e, 0x4f, 0x02, 0x0e, 0x18, 0x8e, 0x63, 0xc2, 0x32, 0xeb, 0xb7, 0xe4, 0x8f, 0x77,
-	0xbb, 0x4b, 0xa2, 0xdb, 0xfc, 0x00, 0x77, 0xbb, 0x84, 0x39, 0x34, 0x96, 0xfc, 0xd3, 0xbe, 0x58,
-	0x7b, 0xb0, 0xb2, 0xe5, 0x79, 0x74, 0x10, 0x89, 0x87, 0x24, 0x24, 0x82, 0xb8, 0xe4, 0xbb, 0x01,
-	0xe1, 0x02, 0x35, 0xa0, 0x14, 0xf8, 0xba, 0x66, 0x6a, 0xeb, 0x0b, 0x6e, 0x29, 0xf0, 0xd1, 0x0e,
-	0x2c, 0x32, 0xe2, 0x51, 0xe6, 0xb7, 0xfd, 0x04, 0x17, 0xd0, 0x48, 0x2f, 0x99, 0xda, 0x7a, 0xad,
-	0x65, 0xd8, 0xa9, 0x3f, 0x76, 0xe6, 0x8f, 0xbd, 0x4d, 0x69, 0xf8, 0x12, 0x87, 0x03, 0xe2, 0x36,
-	0x52, 0x95, 0x87, 0x4a, 0xc3, 0xfa, 0x63, 0x0e, 0xea, 0x8a, 0xed, 0xd1, 0xf7, 0x31, 0x65, 0x02,
-	0xdd, 0x86, 0x0a, 0x4e, 0x05, 0x92, 0xab, 0xd6, 0x5a, 0xb6, 0x55, 0xd8, 0x93, 0x60, 0x2a, 0xac,
-	0x9b, 0x61, 0xd0, 0x5d, 0xa8, 0xd0, 0xce, 0x5b, 0xe2, 0x09, 0xae, 0x97, 0xcc, 0xb9, 0xf5, 0x5a,
-	0xeb, 0x42, 0x1e, 0xfe, 0xb5, 0xa0, 0x0c, 0x77, 0xc9, 0x57, 0x12, 0xe1, 0x66, 0x48, 0x74, 0x0b,
-	0x2a, 0x6f, 0x58, 0x40, 0x22, 0x9f, 0xeb, 0x73, 0x52, 0x09, 0xe5, 0x95, 0xbe, 0x94, 0x5b, 0x6e,
-	0x06, 0x41, 0x37, 0xa1, 0xdc, 0x65, 0x74, 0x10, 0x73, 0xfd, 0xb4, 0x04, 0x9f, 0xcd, 0x83, 0x1f,
-	0x27, 0x3b, 0xae, 0x02, 0xa0, 0xff, 0x41, 0xb5, 0x4f, 0x38, 0xc7, 0x5d, 0xc2, 0xf5, 0x79, 0x09,
-	0x36, 0xf2, 0xe0, 0x9d, 0x1e, 0x8e, 0x22, 0x12, 0x3e, 0x4d, 0x21, 0xee, 0x10, 0x8b, 0x9e, 0xc1,
-	0x72, 0x48, 0xb0, 0x4f, 0x58, 0x87, 0x62, 0xe6, 0xb7, 0xd3, 0x20, 0x71, 0xbd, 0x2c, 0x4d, 0x5c,
-	0xca, 0x9b, 0xd8, 0x1d, 0xc1, 0x5c, 0x89, 0x72, 0x51, 0x38, 0x29, 0xe2, 0xe8, 0x01, 0xd4, 0x23,
-	0x2a, 0x82, 0x37, 0x81, 0x97, 0xa6, 0x56, 0xaf, 0x48, 0x4b, 0x7a, 0xde, 0xd2, 0xb3, 0x1c, 0xc0,
-	0x1d, 0x87, 0xa3, 0x1d, 0x68, 0x1c, 0xe0, 0x30, 0x24, 0xa2, 0x1d, 0x12, 0xbf, 0x4b, 0x18, 0xd7,
-	0xab, 0xd2, 0xc0, 0x45, 0x7b, 0xfc, 0x0a, 0xd8, 0xaf, 0x24, 0x6a, 0x57, 0x82, 0xdc, 0xfa, 0x41,
-	0x6e, 0xc5, 0x2d, 0x0b, 0x96, 0x54, 0xba, 0x9e, 0xf8, 0x05, 0x45, 0x64, 0x3d, 0x80, 0x9a, 0xc2,
-	0xec, 0x06, 0x5c, 0x20, 0x07, 0xaa, 0x2a, 0xb1, 0x5c, 0xd7, 0x24, 0xe3, 0xcc, 0xec, 0x0f, 0x41,
-	0xd6, 0x53, 0x58, 0xde, 0x1a, 0x88, 0x1e, 0x89, 0x44, 0xe2, 0xfb, 0xb0, 0x56, 0x0d, 0xa8, 0x0e,
-	0x38, 0x61, 0x11, 0xee, 0x13, 0x45, 0x36, 0x5c, 0x27, 0x7b, 0x31, 0xe6, 0xfc, 0x80, 0x32, 0x5f,
-	0x16, 0xec, 0x82, 0x3b, 0x5c, 0x5b, 0x5d, 0x30, 0xd2, 0xa2, 0x1f, 0x2f, 0x1c, 0x65, 0xf5, 0x32,
-	0x80, 0x47, 0xc3, 0x90, 0x78, 0xb2, 0xd8, 0x53, 0xbb, 0x39, 0x09, 0x5a, 0x82, 0xb9, 0x3d, 0x72,
-	0xa8, 0x8c, 0x26, 0xff, 0xa2, 0xf3, 0x50, 0x49, 0x78, 0xdb, 0x81, 0xaf, 0xcf, 0x49, 0x69, 0x39,
-	0x59, 0x3e, 0xf1, 0x2d, 0x1f, 0xce, 0x3f, 0x26, 0xe2, 0xdf, 0x66, 0xd9, 0x03, 0x3d, 0x09, 0xeb,
-	0x3f, 0xa2, 0xc9, 0x19, 0x2d, 0xe5, 0x8d, 0xa2, 0x73, 0x50, 0xf6, 0x06, 0x8c, 0x53, 0x96, 0x91,
-	0xa5, 0x2b, 0xeb, 0x33, 0x58, 0x55, 0x44, 0x3b, 0x43, 0x2b, 0x32, 0xa9, 0x26, 0xd4, 0x46, 0x76,
-	0xd3, 0xbc, 0x2e, 0xb8, 0x79, 0x91, 0xf5, 0xab, 0x06, 0xf5, 0x31, 0x27, 0x3f, 0x61, 0x10, 0xd0,
-	0x0a, 0xcc, 0xef, 0x27, 0xbd, 0x47, 0x3f, 0x2d, 0xc5, 0xe9, 0x02, 0xdd, 0x80, 0xc5, 0x98, 0xb0,
-	0x7e, 0xc0, 0x79, 0x40, 0xa3, 0x36, 0x23, 0xd8, 0xd7, 0xe7, 0x4d, 0x6d, 0x7d, 0xde, 0x6d, 0x8c,
-	0xc4, 0x2e, 0xc1, 0x3e, 0xba, 0x09, 0x4b, 0x39, 0xe0, 0x01, 0x0b, 0x04, 0xd1, 0xcb, 0x12, 0x99,
-	0x33, 0xf0, 0x2a, 0x11, 0x5b, 0x3e, 0x9c, 0x1d, 0x3b, 0x85, 0x3c, 0xfd, 0xfd, 0x51, 0x83, 0xd2,
-	0xc6, 0xaf, 0x73, 0x76, 0x87, 0x0a, 0x9a, 0xd4, 0x28, 0xce, 0xa5, 0xb1, 0x38, 0xff, 0xa5, 0xc1,
-	0x99, 0xfc, 0xb5, 0x9b, 0x6a, 0xcc, 0x85, 0x99, 0xbb, 0x08, 0x0b, 0x5e, 0x0f, 0x47, 0x5d, 0xc2,
-	0x89, 0x50, 0x41, 0x1a, 0x09, 0x92, 0x7b, 0xd1, 0x27, 0x02, 0xfb, 0x58, 0x60, 0x15, 0xaa, 0xe1,
-	0x1a, 0x7d, 0x0e, 0x35, 0x8f, 0x11, 0x2c, 0x48, 0x3b, 0x99, 0x3d, 0x7a, 0xb5, 0xa0, 0xcf, 0xbf,
-	0xc8, 0x06, 0x93, 0x0b, 0x29, 0x3c, 0x11, 0x24, 0xca, 0x83, 0xd8, 0x1f, 0x2a, 0x2f, 0x9c, 0xac,
-	0x9c, 0xc2, 0x13, 0x81, 0xe5, 0xc2, 0x05, 0x19, 0xdc, 0x99, 0x35, 0x7c, 0x0f, 0xca, 0x69, 0xb4,
-	0xd4, 0xa8, 0x38, 0x21, 0xb4, 0x0a, 0xdc, 0xfa, 0xad, 0x06, 0x95, 0x9d, 0x14, 0x81, 0x04, 0xcc,
-	0xef, 0xd2, 0x6e, 0x10, 0xa1, 0x6b, 0x93, 0xba, 0x33, 0xfa, 0x8a, 0x71, 0x6e, 0xca, 0xeb, 0x47,
-	0xc9, 0xa0, 0xb6, 0xec, 0x77, 0x5b, 0xd5, 0x4e, 0x19, 0x4e, 0xc3, 0x29, 0x74, 0xea, 0x87, 0xdf,
-	0xff, 0x7c, 0x5f, 0xba, 0x64, 0xe9, 0xce, 0x7e, 0x2b, 0x7b, 0x3f, 0x38, 0x38, 0x67, 0x6b, 0x53,
-	0x6b, 0x22, 0x0a, 0xf5, 0xb4, 0xcf, 0xa8, 0x8e, 0x86, 0xae, 0x4f, 0xb1, 0xcf, 0x18, 0xc1, 0x85,
-	0xf4, 0xa6, 0xe4, 0x34, 0x9a, 0xe3, 0x9c, 0xa9, 0x05, 0xe7, 0x28, 0xf0, 0x8f, 0xd1, 0x37, 0xd0,
-	0x18, 0x23, 0xe4, 0xa8, 0xc0, 0x56, 0x21, 0xc7, 0x9a, 0xe4, 0x58, 0x6d, 0x2e, 0xcf, 0xe0, 0x40,
-	0xef, 0x35, 0x58, 0x9e, 0xd1, 0x38, 0x51, 0x73, 0xf2, 0x58, 0xc5, 0xdd, 0xb5, 0x90, 0xf8, 0xff,
-	0x92, 0xb8, 0xd5, 0xdc, 0xc8, 0x13, 0xf3, 0xd4, 0x82, 0x73, 0x34, 0xea, 0x09, 0xc7, 0xce, 0xd1,
-	0x1e, 0x39, 0x3c, 0x76, 0x8e, 0x54, 0xf1, 0x1f, 0x23, 0x0f, 0x56, 0x66, 0xf0, 0x7d, 0xa2, 0xa3,
-	0x2b, 0x0f, 0xd0, 0x21, 0xd4, 0xd3, 0x97, 0x4b, 0x96, 0x4a, 0xb3, 0x20, 0x95, 0xc3, 0x21, 0x68,
-	0x5c, 0x2a, 0x40, 0xa4, 0x76, 0xac, 0x1b, 0x92, 0xee, 0x2a, 0xba, 0x52, 0x94, 0x4d, 0x87, 0xa4,
-	0x4f, 0x25, 0x02, 0xf0, 0x98, 0x7c, 0x04, 0xef, 0xac, 0x59, 0x9a, 0xd5, 0x0e, 0x2a, 0xae, 0x9d,
-	0x1f, 0x35, 0xc9, 0xa3, 0x82, 0x88, 0x6e, 0x4c, 0xf2, 0x14, 0x0c, 0x32, 0xe3, 0xc3, 0xb7, 0x31,
-	0xcb, 0x2b, 0xfa, 0xf8, 0xbc, 0x7e, 0x0b, 0x67, 0x92, 0xd6, 0x7a, 0x62, 0x29, 0xaf, 0x15, 0x44,
-	0x24, 0x51, 0xce, 0x92, 0x8a, 0x66, 0xd6, 0xb3, 0x80, 0x73, 0xb9, 0xc1, 0x39, 0x9a, 0x67, 0xc5,
-	0x5c, 0xff, 0x29, 0x38, 0xec, 0xf8, 0x2c, 0x9c, 0xcd, 0x9a, 0x95, 0xd2, 0x2f, 0x1a, 0xa0, 0xa9,
-	0x79, 0xcd, 0xd1, 0xfa, 0xa4, 0xe9, 0xa2, 0x99, 0x6e, 0x5c, 0xfd, 0x60, 0xc4, 0xa5, 0x03, 0x2f,
-	0xa5, 0x03, 0xcf, 0x91, 0x79, 0x52, 0xd4, 0x5f, 0xdf, 0x42, 0xcd, 0x93, 0x33, 0x33, 0xcc, 0x89,
-	0x00, 0x34, 0xdd, 0xa7, 0xd1, 0xcd, 0xa9, 0xf7, 0x62, 0x51, 0x2f, 0x3f, 0xe9, 0xf2, 0x19, 0xb3,
-	0x22, 0xb6, 0xfd, 0x73, 0xe9, 0xdd, 0xd6, 0x4f, 0x25, 0x74, 0x0c, 0xab, 0xcf, 0x24, 0x8f, 0xa9,
-	0x00, 0xe6, 0xd6, 0xf3, 0x27, 0xe6, 0x7e, 0xcb, 0x6a, 0xc3, 0xd5, 0x17, 0x3d, 0x62, 0xaa, 0xcd,
-	0xa4, 0xa3, 0x53, 0xc6, 0xcd, 0xff, 0x9a, 0x3b, 0x34, 0x12, 0x2c, 0xe8, 0x0c, 0x04, 0x65, 0x1c,
-	0x5d, 0xef, 0x09, 0x11, 0xf3, 0x4d, 0xc7, 0xf9, 0xd0, 0xe7, 0x9c, 0xb1, 0xd2, 0x23, 0x61, 0x48,
-	0xbf, 0x18, 0x6d, 0x24, 0xb8, 0xd6, 0x5c, 0xcb, 0xde, 0x30, 0x1a, 0x77, 0x5a, 0xf7, 0xed, 0x0d,
-	0x7b, 0xc3, 0xbe, 0xb3, 0x79, 0xff, 0xee, 0xbd, 0x3b, 0x4d, 0x4d, 0x6b, 0x2d, 0xe1, 0x38, 0x0e,
-	0xd5, 0x73, 0xda, 0x79, 0xcb, 0x69, 0xb4, 0x39, 0x25, 0x79, 0x7d, 0x16, 0x16, 0x61, 0x61, 0x1b,
-	0xf3, 0xc0, 0x4b, 0x1c, 0x43, 0xa5, 0xaa, 0xd6, 0x59, 0x84, 0x7a, 0x5e, 0x74, 0x8a, 0x6d, 0xc3,
-	0x35, 0xe5, 0x3c, 0x27, 0x6c, 0x9f, 0xb0, 0xe1, 0x01, 0x7d, 0xea, 0x0d, 0xfa, 0x24, 0x4a, 0x3f,
-	0xdd, 0xd0, 0x5a, 0x76, 0x84, 0x71, 0xf7, 0x1c, 0x9f, 0x7a, 0xfc, 0x75, 0x45, 0xe9, 0x74, 0xca,
-	0x32, 0xb4, 0x77, 0xff, 0x0e, 0x00, 0x00, 0xff, 0xff, 0x75, 0xb9, 0x19, 0x83, 0xdf, 0x0e, 0x00,
-	0x00,
+	// 2415 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x59, 0xcd, 0x73, 0x1b, 0x49,
+	0x15, 0xdf, 0x91, 0x2d, 0x4b, 0x7a, 0xb2, 0x64, 0xa7, 0xed, 0xcd, 0x8e, 0xe5, 0xc4, 0xd1, 0xce,
+	0x66, 0xf3, 0xa1, 0xc4, 0x52, 0x22, 0x03, 0xc9, 0x9a, 0x2d, 0x20, 0x76, 0x12, 0xc7, 0x90, 0x04,
+	0x6a, 0x1c, 0x93, 0xaa, 0x40, 0xa1, 0x6a, 0xcd, 0xb4, 0xa5, 0x59, 0x8f, 0xa6, 0xb5, 0xd3, 0x2d,
+	0x1b, 0xaf, 0x71, 0x15, 0x50, 0x1c, 0xb9, 0xb0, 0x1c, 0xb8, 0x51, 0xc5, 0x99, 0xff, 0x82, 0x1b,
+	0x47, 0x8a, 0xd3, 0xde, 0xb9, 0xf1, 0x2f, 0x70, 0xa0, 0xfa, 0x63, 0xa4, 0xd1, 0xc7, 0xd8, 0x4a,
+	0xb6, 0x72, 0x48, 0x45, 0xdd, 0xfd, 0x7b, 0xef, 0xf7, 0xfa, 0xcd, 0x7b, 0xaf, 0xfb, 0xb5, 0xe1,
+	0x43, 0x87, 0x06, 0x8c, 0xfa, 0xa4, 0xa6, 0xff, 0xaf, 0x76, 0x43, 0xca, 0x29, 0x2a, 0x06, 0xf8,
+	0x10, 0x77, 0x70, 0x55, 0xcf, 0x96, 0x2a, 0x2d, 0x8f, 0xb7, 0x7b, 0xcd, 0xaa, 0x43, 0x3b, 0xb5,
+	0x36, 0x09, 0xa9, 0xe7, 0xf8, 0xb8, 0xc9, 0x6a, 0x0a, 0x55, 0xc3, 0x5d, 0x4f, 0xfc, 0x53, 0xb2,
+	0xa5, 0x2b, 0x2d, 0x4a, 0x5b, 0x3e, 0x51, 0xb3, 0x41, 0x40, 0x39, 0xe6, 0x1e, 0x0d, 0x98, 0x5e,
+	0x5d, 0xd5, 0xab, 0x72, 0xd4, 0xec, 0x1d, 0xd4, 0x48, 0xa7, 0xcb, 0x4f, 0xf4, 0xe2, 0xb5, 0xd1,
+	0x45, 0xee, 0x75, 0x08, 0xe3, 0xb8, 0xd3, 0xd5, 0x80, 0xb5, 0x51, 0xc0, 0x71, 0x88, 0xbb, 0x5d,
+	0x12, 0x46, 0xda, 0xef, 0xca, 0xff, 0x9c, 0xf5, 0x16, 0x09, 0xd6, 0xd9, 0x31, 0x6e, 0xb5, 0x48,
+	0x58, 0xa3, 0x5d, 0xc9, 0x3f, 0x6e, 0x8b, 0x75, 0x08, 0xcb, 0x8f, 0x1c, 0x87, 0xf6, 0x02, 0xfe,
+	0x98, 0xf8, 0x84, 0x13, 0x9b, 0x7c, 0xd9, 0x23, 0x8c, 0xa3, 0x22, 0xa4, 0x3c, 0xd7, 0x34, 0xca,
+	0xc6, 0xad, 0x9c, 0x9d, 0xf2, 0x5c, 0xb4, 0x0d, 0x0b, 0x21, 0x71, 0x68, 0xe8, 0x36, 0x5c, 0x81,
+	0xf3, 0x68, 0x60, 0xa6, 0xca, 0xc6, 0xad, 0x7c, 0xbd, 0x54, 0x55, 0xf6, 0x54, 0x23, 0x7b, 0xaa,
+	0x5b, 0x94, 0xfa, 0x3f, 0xc7, 0x7e, 0x8f, 0xd8, 0x45, 0x25, 0xf2, 0x58, 0x4b, 0x58, 0xdf, 0xcc,
+	0x40, 0x41, 0xb3, 0x3d, 0xf9, 0x75, 0x97, 0x86, 0x1c, 0xad, 0x43, 0x06, 0xab, 0x09, 0xc9, 0x95,
+	0xaf, 0x2f, 0x55, 0xb5, 0xdb, 0x85, 0x33, 0x35, 0xd6, 0x8e, 0x30, 0x68, 0x03, 0x32, 0xb4, 0xf9,
+	0x05, 0x71, 0x38, 0x33, 0x53, 0xe5, 0x99, 0x5b, 0xf9, 0xfa, 0x4a, 0x1c, 0xbe, 0xc7, 0x69, 0x88,
+	0x5b, 0xe4, 0xa7, 0x12, 0x61, 0x47, 0x48, 0x74, 0x17, 0x32, 0x07, 0xa1, 0x47, 0x02, 0x97, 0x99,
+	0x33, 0x52, 0x08, 0xc5, 0x85, 0x9e, 0xca, 0x25, 0x3b, 0x82, 0xa0, 0xdb, 0x30, 0xd7, 0x0a, 0x69,
+	0xaf, 0xcb, 0xcc, 0x59, 0x09, 0xbe, 0x14, 0x07, 0xef, 0x88, 0x15, 0x5b, 0x03, 0xd0, 0xf7, 0x20,
+	0xdb, 0x21, 0x8c, 0xe1, 0x16, 0x61, 0x66, 0x5a, 0x82, 0x4b, 0x71, 0xf0, 0x76, 0x1b, 0x07, 0x01,
+	0xf1, 0x5f, 0x28, 0x88, 0xdd, 0xc7, 0xa2, 0x97, 0xb0, 0xe4, 0x13, 0xec, 0x92, 0xb0, 0x49, 0x71,
+	0xe8, 0x36, 0x94, 0x93, 0x98, 0x39, 0x27, 0x55, 0x5c, 0x8d, 0xab, 0x78, 0x3e, 0x80, 0xd9, 0x12,
+	0x65, 0x23, 0x7f, 0x74, 0x8a, 0xa1, 0x1f, 0x40, 0x21, 0xa0, 0xdc, 0x3b, 0xf0, 0x1c, 0xf5, 0x69,
+	0xcd, 0x8c, 0xd4, 0x64, 0xc6, 0x35, 0xbd, 0x8c, 0x01, 0xec, 0x61, 0x38, 0xda, 0x86, 0xe2, 0x31,
+	0xf6, 0x7d, 0xc2, 0x1b, 0x3e, 0x71, 0x5b, 0x24, 0x64, 0x66, 0x56, 0x2a, 0xb8, 0x52, 0x1d, 0x4e,
+	0x81, 0xea, 0x6b, 0x89, 0x7a, 0x2e, 0x41, 0x76, 0xe1, 0x38, 0x36, 0x62, 0xd6, 0x2a, 0xe4, 0xf4,
+	0xe7, 0xda, 0x75, 0x47, 0xa3, 0xc7, 0x7a, 0x01, 0x4b, 0x8f, 0x7a, 0xbc, 0x4d, 0x02, 0x2e, 0x48,
+	0xfb, 0x41, 0x56, 0x82, 0x6c, 0x8f, 0x91, 0x30, 0xc0, 0x1d, 0xa2, 0xc1, 0xfd, 0xb1, 0x58, 0xeb,
+	0x62, 0xc6, 0x8e, 0x69, 0xe8, 0xca, 0x48, 0xcb, 0xd9, 0xfd, 0xb1, 0xf5, 0x17, 0x03, 0xe6, 0xb6,
+	0x69, 0x70, 0xe0, 0xb5, 0xd0, 0x65, 0x98, 0x73, 0xe4, 0x2f, 0xad, 0x40, 0x8f, 0xd0, 0x26, 0x64,
+	0x8f, 0x71, 0x18, 0x78, 0x41, 0x2b, 0x0a, 0x95, 0xb5, 0xd1, 0xdd, 0x28, 0x0d, 0xd5, 0xd7, 0x0a,
+	0x66, 0xf7, 0xf1, 0xa5, 0xcf, 0x20, 0xa3, 0x27, 0xd1, 0x32, 0xa4, 0x0f, 0x3c, 0xe2, 0x47, 0x7b,
+	0x51, 0x03, 0x64, 0x42, 0x46, 0x7f, 0x4c, 0x6d, 0x5a, 0x34, 0xb4, 0xb6, 0x60, 0x49, 0xe5, 0x91,
+	0x0e, 0xab, 0x84, 0x6c, 0x5a, 0x85, 0x9c, 0x8a, 0xb7, 0x86, 0xd7, 0xdf, 0x9d, 0x9a, 0xd8, 0x75,
+	0xad, 0x6d, 0xb8, 0xac, 0x74, 0xc8, 0x68, 0xdb, 0x67, 0x24, 0x4c, 0x52, 0xb3, 0x02, 0x59, 0x19,
+	0x8a, 0x03, 0x2d, 0x19, 0x39, 0xde, 0x75, 0xad, 0xdf, 0x19, 0x50, 0x52, 0x5a, 0x86, 0xb3, 0x42,
+	0x6b, 0x5a, 0x03, 0x70, 0xa8, 0xef, 0x13, 0x47, 0x66, 0xb2, 0xd2, 0x18, 0x9b, 0x41, 0x8b, 0x30,
+	0x73, 0x48, 0x4e, 0xb4, 0x52, 0xf1, 0x13, 0x7d, 0x04, 0x19, 0xf1, 0x6d, 0x04, 0xd5, 0x8c, 0xf2,
+	0xb4, 0x18, 0xee, 0x4a, 0x67, 0x1c, 0x91, 0x90, 0x09, 0x3d, 0xb3, 0xca, 0x06, 0x3d, 0xb4, 0x9e,
+	0xc1, 0x8a, 0x32, 0x61, 0x28, 0x6e, 0x92, 0x5d, 0xa2, 0x83, 0x70, 0xe0, 0x12, 0x35, 0xb1, 0xeb,
+	0x5a, 0xeb, 0x80, 0x9e, 0x7b, 0x8c, 0xeb, 0xad, 0x44, 0x2a, 0x62, 0x26, 0x19, 0x71, 0x93, 0xac,
+	0xaf, 0x60, 0x51, 0xc0, 0x85, 0xeb, 0x58, 0x04, 0xbe, 0x0c, 0x73, 0x07, 0x9e, 0xcf, 0x49, 0x18,
+	0x61, 0xd5, 0x48, 0xcc, 0x37, 0x45, 0x9e, 0x2a, 0xd2, 0xac, 0xad, 0x47, 0xc2, 0x43, 0x9c, 0x76,
+	0x9a, 0x8c, 0xd3, 0x80, 0x30, 0xb9, 0xe5, 0xac, 0x1d, 0x9b, 0x91, 0x81, 0xd7, 0x0b, 0x19, 0x0d,
+	0xe5, 0xae, 0xe7, 0x6d, 0x3d, 0xb2, 0xde, 0x40, 0x5e, 0x9b, 0x29, 0x4c, 0x88, 0x57, 0x2c, 0x63,
+	0xea, 0x8a, 0x35, 0xd0, 0x9d, 0x1a, 0xd2, 0xbd, 0x05, 0x4b, 0xfb, 0x81, 0xef, 0x05, 0x87, 0x8f,
+	0xc9, 0x91, 0xe7, 0x90, 0x73, 0x5c, 0xe9, 0x4a, 0x40, 0xcc, 0x95, 0x6a, 0x62, 0xd7, 0xb5, 0xfe,
+	0x97, 0x86, 0xe5, 0xfd, 0xae, 0x8b, 0x39, 0x89, 0xaa, 0x6b, 0x82, 0x96, 0x87, 0xb1, 0xe4, 0x54,
+	0xa5, 0xfe, 0xca, 0x58, 0xa9, 0xdf, 0xe3, 0xa1, 0x17, 0xb4, 0x54, 0xb1, 0x1f, 0xa4, 0xee, 0x0f,
+	0x61, 0xde, 0xf5, 0x58, 0xd7, 0xc7, 0x27, 0x0d, 0x29, 0x3d, 0x33, 0x85, 0x74, 0x5e, 0x4b, 0xbc,
+	0x14, 0x0a, 0x1e, 0x8a, 0xc2, 0xca, 0xb1, 0x8b, 0x39, 0x96, 0xde, 0xbd, 0x90, 0x3a, 0x42, 0xa3,
+	0xef, 0x03, 0xe0, 0x23, 0xcc, 0x71, 0xd8, 0xe8, 0x85, 0xbe, 0x99, 0x9e, 0x42, 0x36, 0xa7, 0xf0,
+	0xfb, 0xa1, 0x8f, 0x1e, 0x40, 0xd6, 0xc7, 0x41, 0xab, 0xc1, 0x71, 0xcb, 0x9c, 0x9b, 0x42, 0x34,
+	0x23, 0xd0, 0xaf, 0x70, 0x4b, 0xd8, 0xeb, 0x53, 0x55, 0x4d, 0xcd, 0xcc, 0x34, 0xf6, 0x46, 0x68,
+	0x21, 0x29, 0xce, 0xf7, 0xaf, 0x68, 0x40, 0xcc, 0xec, 0x34, 0x92, 0x11, 0x1a, 0x7d, 0x06, 0x39,
+	0xa7, 0xc7, 0x38, 0xed, 0x88, 0x8f, 0x9c, 0x9b, 0x46, 0x54, 0xc1, 0x77, 0x5d, 0x54, 0x87, 0x34,
+	0xe9, 0x60, 0xcf, 0x37, 0x61, 0x0a, 0x31, 0x05, 0x45, 0x36, 0x40, 0x3f, 0xa6, 0x98, 0x99, 0x97,
+	0xa1, 0xbc, 0x31, 0x5a, 0x51, 0x27, 0xc5, 0x55, 0xf5, 0xb1, 0x8e, 0x3c, 0xf6, 0x24, 0xe0, 0xe1,
+	0x89, 0x9d, 0x8b, 0x22, 0x91, 0xa1, 0xef, 0xc0, 0x9c, 0xca, 0x70, 0x73, 0x7e, 0x0a, 0x43, 0x34,
+	0xb6, 0xf4, 0x39, 0x14, 0x87, 0x55, 0x46, 0xc5, 0xca, 0x18, 0x14, 0xab, 0x65, 0x48, 0x1f, 0x09,
+	0x21, 0x1d, 0xfd, 0x6a, 0xb0, 0x99, 0x7a, 0x68, 0x58, 0x3f, 0x86, 0xac, 0x28, 0x0b, 0x32, 0x37,
+	0x6f, 0x40, 0x5a, 0xc4, 0x6c, 0x94, 0x99, 0x8b, 0xf1, 0xcc, 0x94, 0x65, 0x57, 0x2d, 0x27, 0xa6,
+	0xe3, 0x35, 0xc8, 0xec, 0x11, 0x26, 0x4a, 0x9d, 0x20, 0xe4, 0xf4, 0x90, 0x44, 0xa5, 0x54, 0x0d,
+	0xac, 0xbf, 0xa5, 0x01, 0xf6, 0x38, 0xe6, 0x3d, 0x26, 0xf9, 0x1e, 0x40, 0x3a, 0xa0, 0x2e, 0x89,
+	0xf8, 0x3e, 0x1e, 0x75, 0xdf, 0x00, 0xaa, 0x7f, 0xda, 0x0a, 0x5f, 0xfa, 0x66, 0x16, 0xe6, 0xd4,
+	0x0c, 0x42, 0x30, 0x1b, 0x3b, 0x2e, 0xe5, 0x6f, 0xf4, 0x09, 0x14, 0x98, 0xb2, 0xa3, 0xa1, 0xae,
+	0x52, 0xc2, 0xcc, 0xb4, 0x3d, 0xaf, 0x27, 0xb7, 0xe5, 0xd5, 0xe9, 0x53, 0x28, 0x76, 0x43, 0xc2,
+	0x48, 0xe0, 0x10, 0x8d, 0x9a, 0x91, 0xa8, 0x42, 0x34, 0xab, 0x60, 0xd7, 0x20, 0xdf, 0xc1, 0xdc,
+	0x69, 0x6b, 0xcc, 0xac, 0xc4, 0x80, 0x9c, 0x52, 0x80, 0x9b, 0xb0, 0xd0, 0xa2, 0x21, 0xed, 0x71,
+	0x2f, 0x88, 0x14, 0xa5, 0x25, 0xa8, 0xd8, 0x9f, 0x56, 0xc0, 0xeb, 0x50, 0xc4, 0x47, 0xad, 0x86,
+	0x8f, 0x39, 0x09, 0x9c, 0x93, 0x46, 0x87, 0xc9, 0x9c, 0x32, 0xec, 0x79, 0x7c, 0xd4, 0x7a, 0xae,
+	0x26, 0x5f, 0x30, 0x74, 0x07, 0xd0, 0x30, 0xaa, 0xd1, 0xf1, 0x54, 0x12, 0x19, 0xf6, 0x42, 0x1c,
+	0xf9, 0xc2, 0x0b, 0xd0, 0x6d, 0xb8, 0x34, 0x02, 0x6e, 0x87, 0x32, 0x6d, 0x0c, 0xbb, 0x18, 0xc7,
+	0x3e, 0x0b, 0xc5, 0xd1, 0x18, 0x62, 0x4e, 0x1a, 0x8c, 0x38, 0x32, 0x3b, 0x0c, 0x3b, 0x23, 0xc6,
+	0x7b, 0xc4, 0x41, 0x65, 0x98, 0x8f, 0x96, 0x24, 0x19, 0xc8, 0x65, 0xd0, 0xcb, 0x82, 0x67, 0x0d,
+	0xf2, 0x7d, 0x44, 0x3b, 0x34, 0xf3, 0x12, 0x90, 0xd3, 0x80, 0x67, 0xa1, 0x28, 0xb0, 0x5e, 0xd0,
+	0xed, 0xf1, 0xc6, 0x61, 0x93, 0xc9, 0xd8, 0x35, 0xec, 0xac, 0x9c, 0xf8, 0x49, 0x93, 0x21, 0x0b,
+	0x0a, 0xfd, 0x45, 0xa9, 0xbf, 0x20, 0x01, 0xf9, 0x08, 0x20, 0x08, 0xca, 0x30, 0x3f, 0xc0, 0xb4,
+	0x43, 0xb3, 0xa8, 0x4c, 0x88, 0x20, 0xcf, 0x42, 0x74, 0x15, 0x80, 0xf6, 0x78, 0xc4, 0xb1, 0xa0,
+	0x2c, 0x50, 0x33, 0x82, 0xe4, 0x3a, 0x14, 0x07, 0xcb, 0x92, 0x65, 0x51, 0x39, 0xb7, 0x0f, 0x11,
+	0x34, 0x16, 0x14, 0x62, 0xa8, 0x36, 0x37, 0x2f, 0x29, 0x53, 0xfa, 0xa0, 0x67, 0xdc, 0xfa, 0xaf,
+	0x01, 0xf3, 0xf1, 0xf3, 0x79, 0xec, 0x1c, 0x88, 0x9d, 0xb2, 0xa9, 0xa1, 0x83, 0xff, 0x0a, 0xe4,
+	0x9c, 0x36, 0x0e, 0x5a, 0x84, 0x11, 0xae, 0xef, 0x04, 0x83, 0x09, 0x71, 0x7f, 0x1b, 0xaa, 0xe1,
+	0xb9, 0xa1, 0x2a, 0x9d, 0x77, 0x42, 0x22, 0x3c, 0x2c, 0xca, 0x99, 0x2e, 0xd3, 0xe3, 0x8d, 0xc4,
+	0xab, 0xa8, 0xf3, 0xb1, 0x41, 0xc1, 0xc5, 0x84, 0x10, 0xee, 0xc9, 0x3a, 0xa3, 0x84, 0xe7, 0x2e,
+	0x16, 0x56, 0x70, 0x31, 0x61, 0x3d, 0x85, 0xc5, 0xf8, 0x66, 0x65, 0x5a, 0xd6, 0x21, 0xed, 0x71,
+	0xd2, 0x89, 0xd2, 0xf2, 0xfc, 0x5b, 0xaf, 0x82, 0x5a, 0xff, 0x48, 0xc1, 0xca, 0xeb, 0xd0, 0x7b,
+	0xff, 0xb7, 0xab, 0x7a, 0x54, 0xc9, 0xa6, 0x39, 0x07, 0x15, 0x34, 0x7e, 0x23, 0x4b, 0x0f, 0xdd,
+	0xc8, 0xd0, 0x63, 0x58, 0xe8, 0x92, 0xb0, 0xe3, 0xa9, 0x62, 0x11, 0x12, 0xec, 0x6a, 0xff, 0xad,
+	0x8e, 0xe9, 0xdd, 0x0d, 0xf8, 0x46, 0x5d, 0xb7, 0x71, 0x03, 0x19, 0x9b, 0x60, 0x17, 0x3d, 0x85,
+	0xc5, 0x98, 0x96, 0x63, 0xe1, 0x06, 0x7d, 0xec, 0x9d, 0xab, 0x26, 0x46, 0x2d, 0x5d, 0x57, 0xff,
+	0xe7, 0x0a, 0x64, 0xb6, 0x95, 0x93, 0xd1, 0x6f, 0x60, 0x3e, 0xde, 0x21, 0xa0, 0x4f, 0x46, 0xbf,
+	0xc2, 0x84, 0xfe, 0xa1, 0xf4, 0xd1, 0x58, 0x05, 0x55, 0x15, 0xcf, 0xaa, 0x7e, 0xfd, 0x28, 0xdb,
+	0x9c, 0x83, 0x59, 0xf8, 0x00, 0x7d, 0xf0, 0xfb, 0x7f, 0xff, 0xe7, 0xcf, 0xa9, 0xab, 0x96, 0x59,
+	0x3b, 0xaa, 0x47, 0x1d, 0x7e, 0x0d, 0xc7, 0x94, 0x6d, 0x1a, 0x15, 0xd4, 0x84, 0xcc, 0x16, 0x0e,
+	0x44, 0xcd, 0x47, 0x2b, 0x63, 0xc4, 0x51, 0x57, 0x53, 0xba, 0x3c, 0xb6, 0xbb, 0x27, 0xa2, 0x71,
+	0xb7, 0xae, 0x4b, 0x8a, 0x35, 0xeb, 0xca, 0x10, 0x85, 0x12, 0xab, 0x9d, 0x7a, 0xee, 0x59, 0xad,
+	0x89, 0x03, 0x44, 0xa1, 0xa0, 0x6e, 0xc3, 0x5a, 0x21, 0xba, 0x9e, 0xc0, 0x34, 0xd4, 0x88, 0x27,
+	0x92, 0x96, 0x25, 0x69, 0xa9, 0x62, 0x26, 0x91, 0xa2, 0xdf, 0x1a, 0x30, 0x1f, 0x6f, 0x46, 0xc6,
+	0x7d, 0x3a, 0xa1, 0x55, 0x49, 0xe4, 0xdb, 0x90, 0x7c, 0xeb, 0x95, 0x3b, 0x89, 0x9b, 0x54, 0x0d,
+	0x4c, 0xed, 0xb4, 0xdf, 0xd9, 0x9c, 0xa1, 0x3f, 0x18, 0xb0, 0x30, 0xd2, 0xcb, 0xa0, 0x1b, 0x93,
+	0xad, 0x18, 0x6d, 0x76, 0x12, 0x0d, 0xb9, 0x2f, 0x0d, 0xb9, 0x53, 0xb9, 0x9d, 0x68, 0x88, 0xec,
+	0x81, 0x6a, 0xa7, 0x51, 0x6b, 0x74, 0x86, 0x7e, 0x19, 0xb9, 0x5e, 0x67, 0x2b, 0x4a, 0xd0, 0x9d,
+	0xc8, 0xb9, 0x2a, 0x39, 0x3f, 0xac, 0x2c, 0xc5, 0x39, 0x99, 0x56, 0xf6, 0x2f, 0x23, 0x6a, 0xfa,
+	0x86, 0x8a, 0x01, 0xaa, 0x4c, 0xde, 0xe8, 0xa4, 0x8a, 0x91, 0x48, 0x7c, 0x24, 0x89, 0xbb, 0x95,
+	0x7b, 0x13, 0x88, 0x6b, 0xa7, 0x83, 0x92, 0x72, 0x56, 0x3b, 0x3d, 0x24, 0x27, 0x67, 0xb5, 0x53,
+	0x5d, 0x45, 0xce, 0xde, 0x7c, 0x5e, 0xd9, 0x7c, 0x5b, 0x99, 0xda, 0xa9, 0xae, 0x13, 0x67, 0xe8,
+	0x35, 0xe4, 0x95, 0xb5, 0xfb, 0xea, 0x06, 0xf4, 0x96, 0xfe, 0x32, 0xa5, 0xd9, 0xa8, 0xb2, 0x18,
+	0x37, 0x41, 0xd0, 0xa0, 0x3f, 0x1a, 0x80, 0xc6, 0x9b, 0x42, 0x74, 0x7b, 0xb2, 0xaf, 0x26, 0x34,
+	0x8e, 0xdf, 0x22, 0x40, 0xd5, 0x05, 0xb2, 0x76, 0xda, 0xef, 0x33, 0xcf, 0x50, 0x08, 0x05, 0xf5,
+	0x12, 0x15, 0x25, 0xe5, 0x39, 0xe9, 0x7f, 0x35, 0x61, 0x49, 0x29, 0xb0, 0x6e, 0x4a, 0xfe, 0x8f,
+	0xd1, 0xb5, 0x44, 0x7e, 0xa2, 0xde, 0xbc, 0x7e, 0x05, 0xb0, 0x43, 0xa6, 0x21, 0x9c, 0xf4, 0x16,
+	0x16, 0xe5, 0x3d, 0x4a, 0xce, 0xfb, 0xd7, 0x90, 0xdb, 0x21, 0x3c, 0x7a, 0x1f, 0x49, 0xfc, 0x72,
+	0x13, 0x5f, 0x43, 0xac, 0x92, 0x54, 0xbf, 0x8c, 0x50, 0x5c, 0xbd, 0x7e, 0x53, 0x21, 0xd2, 0xf0,
+	0xa7, 0xfa, 0xa1, 0x6c, 0x5a, 0xc3, 0x35, 0x7e, 0x0a, 0xff, 0xa8, 0xc2, 0x81, 0x3c, 0x69, 0xff,
+	0x8e, 0x7a, 0x63, 0x3b, 0x87, 0x65, 0x65, 0xf4, 0xbe, 0x2e, 0x45, 0xc4, 0x91, 0x6e, 0xdd, 0x90,
+	0x5c, 0x65, 0xb4, 0x76, 0x7e, 0x8d, 0x40, 0xbf, 0x90, 0x54, 0xfa, 0x6a, 0x9d, 0xe4, 0xaa, 0x52,
+	0xf2, 0x3d, 0x7d, 0xb2, 0xbb, 0x98, 0xd2, 0x77, 0x0c, 0x0b, 0x3b, 0x84, 0x0f, 0x85, 0xf9, 0x39,
+	0xbb, 0x29, 0x9f, 0x77, 0xed, 0x90, 0x5c, 0x17, 0x3b, 0x50, 0x05, 0x36, 0x3a, 0x84, 0x7c, 0xec,
+	0xb5, 0x04, 0x59, 0xa3, 0x9a, 0xc7, 0x9f, 0x52, 0x4a, 0xab, 0xe3, 0x7b, 0xec, 0xbf, 0x61, 0x44,
+	0xd5, 0x0f, 0x4d, 0xac, 0x7e, 0x18, 0x72, 0xfd, 0xb7, 0x16, 0x54, 0x9e, 0x44, 0x15, 0x7f, 0x86,
+	0x29, 0x99, 0x63, 0x3d, 0xa3, 0xee, 0xc6, 0xa2, 0x9a, 0x81, 0xc6, 0x6b, 0xc6, 0x01, 0xe4, 0xf6,
+	0x83, 0xe6, 0xbb, 0x9f, 0xcf, 0x3a, 0x1a, 0xac, 0xe4, 0x68, 0xe8, 0x09, 0xf5, 0xe8, 0x4b, 0x98,
+	0x57, 0xcf, 0x2b, 0xdb, 0xb2, 0x53, 0x7e, 0x17, 0xaa, 0xaa, 0xa4, 0xba, 0x65, 0xdd, 0x38, 0x87,
+	0x4a, 0x30, 0xd4, 0x54, 0x33, 0x8e, 0x4e, 0x23, 0x4a, 0xd5, 0xd2, 0x8e, 0x1f, 0xd1, 0x13, 0xde,
+	0x7b, 0xbe, 0x3d, 0xb9, 0x6a, 0xc1, 0x11, 0x85, 0xbc, 0x52, 0xff, 0x44, 0xb6, 0xf8, 0xef, 0xb0,
+	0xdd, 0x75, 0xc9, 0x78, 0xd3, 0xfa, 0xf4, 0x22, 0x46, 0xf5, 0x88, 0xd0, 0x83, 0xa2, 0x22, 0x7c,
+	0x8a, 0x1d, 0xd2, 0xa4, 0xf4, 0xf0, 0x5d, 0x38, 0xef, 0x49, 0xce, 0x8a, 0x75, 0xeb, 0x22, 0xce,
+	0x83, 0x88, 0xe4, 0x04, 0x16, 0x15, 0xed, 0x0e, 0xee, 0x90, 0x6d, 0x12, 0xf0, 0x77, 0x0b, 0xa3,
+	0xba, 0x24, 0xbe, 0x6b, 0x55, 0x2e, 0x22, 0x6e, 0xe1, 0x0e, 0x71, 0x14, 0x4d, 0x3f, 0xa4, 0x76,
+	0xa4, 0xca, 0xf7, 0x1a, 0x52, 0x4a, 0x7c, 0xf0, 0x55, 0xf7, 0x38, 0xc1, 0x9d, 0xf7, 0xfa, 0x55,
+	0x99, 0x64, 0xa0, 0x50, 0x18, 0x7a, 0xf8, 0x19, 0xbf, 0xd8, 0x4e, 0x7a, 0x17, 0xba, 0xe8, 0x62,
+	0x6b, 0x25, 0x1f, 0x70, 0x7f, 0x32, 0x00, 0x8d, 0x37, 0x5f, 0xe3, 0x77, 0x88, 0xc4, 0x06, 0x2d,
+	0x91, 0xfb, 0xa1, 0xe4, 0xae, 0x5b, 0x6f, 0x7d, 0xdd, 0xda, 0xfa, 0x7b, 0xea, 0xeb, 0x47, 0x7f,
+	0x4d, 0xa1, 0x33, 0xf8, 0xf0, 0xa5, 0x34, 0xa2, 0xac, 0xa5, 0xcb, 0x8f, 0x7e, 0xb6, 0x5b, 0x3e,
+	0xaa, 0x5b, 0x0d, 0xf8, 0xf8, 0x55, 0x9b, 0x94, 0xf5, 0xa2, 0x68, 0x66, 0x68, 0xc8, 0xca, 0x37,
+	0xca, 0xdb, 0x34, 0xe0, 0xa1, 0xd7, 0xec, 0x71, 0x1a, 0x32, 0x74, 0xbd, 0xcd, 0x79, 0x97, 0x6d,
+	0xd6, 0x6a, 0xe7, 0xfd, 0xa9, 0xb1, 0xb4, 0xdc, 0x26, 0xbe, 0x4f, 0x7f, 0x34, 0x58, 0x10, 0xb8,
+	0xfa, 0x4c, 0xbd, 0x7a, 0xaf, 0x54, 0xbc, 0x5f, 0x7f, 0x50, 0xbd, 0x57, 0xbd, 0x57, 0xbd, 0xbf,
+	0xf9, 0x60, 0xe3, 0xbb, 0xf7, 0x2b, 0x86, 0x51, 0x5f, 0xc4, 0xdd, 0xae, 0xaf, 0xff, 0xd4, 0x53,
+	0xfb, 0x82, 0xd1, 0x60, 0x73, 0x6c, 0xe6, 0xcd, 0x25, 0x58, 0x80, 0xdc, 0x16, 0x66, 0x9e, 0x23,
+	0x0c, 0x43, 0xa9, 0xac, 0xd1, 0x5c, 0x80, 0x42, 0x7c, 0xea, 0x83, 0x70, 0x0b, 0x3e, 0xd1, 0xc6,
+	0x33, 0x12, 0x1e, 0x91, 0xb0, 0xbf, 0x41, 0x97, 0x3a, 0xbd, 0x0e, 0x09, 0xd4, 0x9f, 0x15, 0xd1,
+	0x6a, 0xb4, 0x85, 0x61, 0xf3, 0x6a, 0x2e, 0x75, 0xd8, 0x9b, 0x8c, 0x96, 0x69, 0xce, 0x49, 0xbf,
+	0x6f, 0xfc, 0x3f, 0x00, 0x00, 0xff, 0xff, 0xf7, 0xdf, 0xda, 0xa0, 0x7b, 0x1d, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -919,29 +1690,61 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ConsoleClient interface {
-	// Authenticate a user with username+password.
-	Login(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Authenticate a console user with username and password.
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*Session, error)
+	// Ban a user.
+	BanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Delete all accounts.
-	DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete the friend relationship between two users.
+	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Remove a user from a group.
+	DeleteGroupUser(ctx context.Context, in *DeleteGroupUserRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete all storage data.
+	DeleteStorage(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a storage object.
 	DeleteStorageObject(ctx context.Context, in *DeleteStorageObjectRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Delete all storage objects.
-	DeleteStorageObjects(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete (non-recorded) all user accounts.
+	DeleteUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete a wallet ledger item.
+	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Export all information stored about a user account.
-	ExportAccount(ctx context.Context, in *AccountIdRequest, opts ...grpc.CallOption) (*AccountExport, error)
-	// Get info about a particular account
-	GetAccount(ctx context.Context, in *AccountIdRequest, opts ...grpc.CallOption) (*api.Account, error)
-	// Get a storage object
-	GetStorage(ctx context.Context, in *GetStorageObjectRequest, opts ...grpc.CallOption) (*StorageObject, error)
-	// List all recent accounts.
-	ListAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AccountList, error)
-	// List all storage collections.
-	ListStorageCollections(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StorageCollectionList, error)
-	// List storage objects in a given collection.
-	ListStorageObjects(ctx context.Context, in *ListStorageObjectRequest, opts ...grpc.CallOption) (*StorageObjectList, error)
-	// Create or overwrite a storage object.
+	ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error)
+	// Get detailed account information for a single user.
+	GetAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.Account, error)
+	// Get server config and configuration warnings.
+	GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Config, error)
+	// Get a user's list of friend relationships.
+	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.Friends, error)
+	// Get a list of groups the user is a member of.
+	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
+	// Get current status data for all nodes.
+	GetStatus(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StatusList, error)
+	// Get a list of the user's wallet transactions.
+	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
+	// List (and optionally filter) storage data.
+	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
+	// List (and optionally filter) users.
+	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserList, error)
+	// Unban a user.
+	UnbanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the custom ID from a user account.
+	UnlinkCustom(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the device ID from a user account.
+	UnlinkDevice(ctx context.Context, in *UnlinkDeviceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the email from a user account.
+	UnlinkEmail(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the Facebook ID from a user account.
+	UnlinkFacebook(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the Game Center ID from a user account.
+	UnlinkGameCenter(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the Google ID from a user account.
+	UnlinkGoogle(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the Steam ID from a user account.
+	UnlinkSteam(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Update one or more fields on a user account.
+	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
@@ -953,9 +1756,18 @@ func NewConsoleClient(cc *grpc.ClientConn) ConsoleClient {
 	return &consoleClient{cc}
 }
 
-func (c *consoleClient) Login(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*Session, error) {
+	out := new(Session)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/Authenticate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) BanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/Login", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/BanUser", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -971,9 +1783,27 @@ func (c *consoleClient) DeleteAccount(ctx context.Context, in *AccountDeleteRequ
 	return out, nil
 }
 
-func (c *consoleClient) DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteAccounts", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteFriend", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteGroupUser(ctx context.Context, in *DeleteGroupUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteGroupUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteStorage(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteStorage", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -989,16 +1819,25 @@ func (c *consoleClient) DeleteStorageObject(ctx context.Context, in *DeleteStora
 	return out, nil
 }
 
-func (c *consoleClient) DeleteStorageObjects(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) DeleteUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteStorageObjects", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *consoleClient) ExportAccount(ctx context.Context, in *AccountIdRequest, opts ...grpc.CallOption) (*AccountExport, error) {
+func (c *consoleClient) DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteWalletLedger", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error) {
 	out := new(AccountExport)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ExportAccount", in, out, opts...)
 	if err != nil {
@@ -1007,7 +1846,7 @@ func (c *consoleClient) ExportAccount(ctx context.Context, in *AccountIdRequest,
 	return out, nil
 }
 
-func (c *consoleClient) GetAccount(ctx context.Context, in *AccountIdRequest, opts ...grpc.CallOption) (*api.Account, error) {
+func (c *consoleClient) GetAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.Account, error) {
 	out := new(api.Account)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetAccount", in, out, opts...)
 	if err != nil {
@@ -1016,36 +1855,144 @@ func (c *consoleClient) GetAccount(ctx context.Context, in *AccountIdRequest, op
 	return out, nil
 }
 
-func (c *consoleClient) GetStorage(ctx context.Context, in *GetStorageObjectRequest, opts ...grpc.CallOption) (*StorageObject, error) {
-	out := new(StorageObject)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetStorage", in, out, opts...)
+func (c *consoleClient) GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Config, error) {
+	out := new(Config)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *consoleClient) ListAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AccountList, error) {
-	out := new(AccountList)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListAccounts", in, out, opts...)
+func (c *consoleClient) GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.Friends, error) {
+	out := new(api.Friends)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetFriends", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *consoleClient) ListStorageCollections(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StorageCollectionList, error) {
-	out := new(StorageCollectionList)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListStorageCollections", in, out, opts...)
+func (c *consoleClient) GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error) {
+	out := new(api.UserGroupList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetGroups", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *consoleClient) ListStorageObjects(ctx context.Context, in *ListStorageObjectRequest, opts ...grpc.CallOption) (*StorageObjectList, error) {
-	out := new(StorageObjectList)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListStorageObjects", in, out, opts...)
+func (c *consoleClient) GetStatus(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StatusList, error) {
+	out := new(StatusList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error) {
+	out := new(WalletLedgerList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetWalletLedger", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error) {
+	out := new(StorageList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListStorage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserList, error) {
+	out := new(UserList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListUsers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnbanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnbanUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkCustom(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkCustom", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkDevice(ctx context.Context, in *UnlinkDeviceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkDevice", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkEmail(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkEmail", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkFacebook(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkFacebook", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkGameCenter(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkGameCenter", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkGoogle(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkGoogle", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UnlinkSteam(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkSteam", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UpdateAccount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,29 +2010,61 @@ func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorage
 
 // ConsoleServer is the server API for Console service.
 type ConsoleServer interface {
-	// Authenticate a user with username+password.
-	Login(context.Context, *AuthenticateRequest) (*empty.Empty, error)
+	// Authenticate a console user with username and password.
+	Authenticate(context.Context, *AuthenticateRequest) (*Session, error)
+	// Ban a user.
+	BanUser(context.Context, *AccountId) (*empty.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*empty.Empty, error)
-	// Delete all accounts.
-	DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error)
+	// Delete the friend relationship between two users.
+	DeleteFriend(context.Context, *DeleteFriendRequest) (*empty.Empty, error)
+	// Remove a user from a group.
+	DeleteGroupUser(context.Context, *DeleteGroupUserRequest) (*empty.Empty, error)
+	// Delete all storage data.
+	DeleteStorage(context.Context, *empty.Empty) (*empty.Empty, error)
 	// Delete a storage object.
 	DeleteStorageObject(context.Context, *DeleteStorageObjectRequest) (*empty.Empty, error)
-	// Delete all storage objects.
-	DeleteStorageObjects(context.Context, *empty.Empty) (*empty.Empty, error)
+	// Delete (non-recorded) all user accounts.
+	DeleteUsers(context.Context, *empty.Empty) (*empty.Empty, error)
+	// Delete a wallet ledger item.
+	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*empty.Empty, error)
 	// Export all information stored about a user account.
-	ExportAccount(context.Context, *AccountIdRequest) (*AccountExport, error)
-	// Get info about a particular account
-	GetAccount(context.Context, *AccountIdRequest) (*api.Account, error)
-	// Get a storage object
-	GetStorage(context.Context, *GetStorageObjectRequest) (*StorageObject, error)
-	// List all recent accounts.
-	ListAccounts(context.Context, *empty.Empty) (*AccountList, error)
-	// List all storage collections.
-	ListStorageCollections(context.Context, *empty.Empty) (*StorageCollectionList, error)
-	// List storage objects in a given collection.
-	ListStorageObjects(context.Context, *ListStorageObjectRequest) (*StorageObjectList, error)
-	// Create or overwrite a storage object.
+	ExportAccount(context.Context, *AccountId) (*AccountExport, error)
+	// Get detailed account information for a single user.
+	GetAccount(context.Context, *AccountId) (*api.Account, error)
+	// Get server config and configuration warnings.
+	GetConfig(context.Context, *empty.Empty) (*Config, error)
+	// Get a user's list of friend relationships.
+	GetFriends(context.Context, *AccountId) (*api.Friends, error)
+	// Get a list of groups the user is a member of.
+	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
+	// Get current status data for all nodes.
+	GetStatus(context.Context, *empty.Empty) (*StatusList, error)
+	// Get a list of the user's wallet transactions.
+	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
+	// List (and optionally filter) storage data.
+	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
+	// List (and optionally filter) users.
+	ListUsers(context.Context, *ListUsersRequest) (*UserList, error)
+	// Unban a user.
+	UnbanUser(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the custom ID from a user account.
+	UnlinkCustom(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the device ID from a user account.
+	UnlinkDevice(context.Context, *UnlinkDeviceRequest) (*empty.Empty, error)
+	// Unlink the email from a user account.
+	UnlinkEmail(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the Facebook ID from a user account.
+	UnlinkFacebook(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the Game Center ID from a user account.
+	UnlinkGameCenter(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the Google ID from a user account.
+	UnlinkGoogle(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the Steam ID from a user account.
+	UnlinkSteam(context.Context, *AccountId) (*empty.Empty, error)
+	// Update one or more fields on a user account.
+	UpdateAccount(context.Context, *UpdateAccountRequest) (*empty.Empty, error)
+	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*empty.Empty, error)
 }
 
@@ -1093,20 +2072,38 @@ func RegisterConsoleServer(s *grpc.Server, srv ConsoleServer) {
 	s.RegisterService(&_Console_serviceDesc, srv)
 }
 
-func _Console_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_Authenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuthenticateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).Login(ctx, in)
+		return srv.(ConsoleServer).Authenticate(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/Login",
+		FullMethod: "/nakama.console.Console/Authenticate",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).Login(ctx, req.(*AuthenticateRequest))
+		return srv.(ConsoleServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_BanUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).BanUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/BanUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).BanUser(ctx, req.(*AccountId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1129,20 +2126,56 @@ func _Console_DeleteAccount_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_DeleteAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_DeleteFriend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFriendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteFriend(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteFriend",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteFriend(ctx, req.(*DeleteFriendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteGroupUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGroupUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteGroupUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteGroupUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteGroupUser(ctx, req.(*DeleteGroupUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).DeleteAccounts(ctx, in)
+		return srv.(ConsoleServer).DeleteStorage(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/DeleteAccounts",
+		FullMethod: "/nakama.console.Console/DeleteStorage",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DeleteAccounts(ctx, req.(*empty.Empty))
+		return srv.(ConsoleServer).DeleteStorage(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1165,26 +2198,44 @@ func _Console_DeleteStorageObject_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_DeleteStorageObjects_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_DeleteUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).DeleteStorageObjects(ctx, in)
+		return srv.(ConsoleServer).DeleteUsers(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/DeleteStorageObjects",
+		FullMethod: "/nakama.console.Console/DeleteUsers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DeleteStorageObjects(ctx, req.(*empty.Empty))
+		return srv.(ConsoleServer).DeleteUsers(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteWalletLedger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWalletLedgerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteWalletLedger(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteWalletLedger",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteWalletLedger(ctx, req.(*DeleteWalletLedgerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Console_ExportAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountIdRequest)
+	in := new(AccountId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1196,13 +2247,13 @@ func _Console_ExportAccount_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/nakama.console.Console/ExportAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ExportAccount(ctx, req.(*AccountIdRequest))
+		return srv.(ConsoleServer).ExportAccount(ctx, req.(*AccountId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Console_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountIdRequest)
+	in := new(AccountId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1214,79 +2265,295 @@ func _Console_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/nakama.console.Console/GetAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).GetAccount(ctx, req.(*AccountIdRequest))
+		return srv.(ConsoleServer).GetAccount(ctx, req.(*AccountId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_GetStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetStorageObjectRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConsoleServer).GetStorage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.console.Console/GetStorage",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).GetStorage(ctx, req.(*GetStorageObjectRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).ListAccounts(ctx, in)
+		return srv.(ConsoleServer).GetConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/ListAccounts",
+		FullMethod: "/nakama.console.Console/GetConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ListAccounts(ctx, req.(*empty.Empty))
+		return srv.(ConsoleServer).GetConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_ListStorageCollections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_GetFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetFriends(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetGroups",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetGroups(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).ListStorageCollections(ctx, in)
+		return srv.(ConsoleServer).GetStatus(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/ListStorageCollections",
+		FullMethod: "/nakama.console.Console/GetStatus",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ListStorageCollections(ctx, req.(*empty.Empty))
+		return srv.(ConsoleServer).GetStatus(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_ListStorageObjects_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListStorageObjectRequest)
+func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).ListStorageObjects(ctx, in)
+		return srv.(ConsoleServer).GetWalletLedger(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/ListStorageObjects",
+		FullMethod: "/nakama.console.Console/GetWalletLedger",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ListStorageObjects(ctx, req.(*ListStorageObjectRequest))
+		return srv.(ConsoleServer).GetWalletLedger(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListStorageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListStorage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListStorage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListStorage(ctx, req.(*ListStorageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListUsers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListUsers(ctx, req.(*ListUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnbanUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnbanUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnbanUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnbanUser(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkCustom_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkCustom(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkCustom",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkCustom(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlinkDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkDevice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkDevice(ctx, req.(*UnlinkDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkEmail",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkEmail(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkFacebook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkFacebook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkFacebook",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkFacebook(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkGameCenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkGameCenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkGameCenter",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkGameCenter(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkGoogle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkGoogle",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkGoogle(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UnlinkSteam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkSteam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkSteam",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkSteam(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_UpdateAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UpdateAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UpdateAccount",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UpdateAccount(ctx, req.(*UpdateAccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1314,24 +2581,40 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ConsoleServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Login",
-			Handler:    _Console_Login_Handler,
+			MethodName: "Authenticate",
+			Handler:    _Console_Authenticate_Handler,
+		},
+		{
+			MethodName: "BanUser",
+			Handler:    _Console_BanUser_Handler,
 		},
 		{
 			MethodName: "DeleteAccount",
 			Handler:    _Console_DeleteAccount_Handler,
 		},
 		{
-			MethodName: "DeleteAccounts",
-			Handler:    _Console_DeleteAccounts_Handler,
+			MethodName: "DeleteFriend",
+			Handler:    _Console_DeleteFriend_Handler,
+		},
+		{
+			MethodName: "DeleteGroupUser",
+			Handler:    _Console_DeleteGroupUser_Handler,
+		},
+		{
+			MethodName: "DeleteStorage",
+			Handler:    _Console_DeleteStorage_Handler,
 		},
 		{
 			MethodName: "DeleteStorageObject",
 			Handler:    _Console_DeleteStorageObject_Handler,
 		},
 		{
-			MethodName: "DeleteStorageObjects",
-			Handler:    _Console_DeleteStorageObjects_Handler,
+			MethodName: "DeleteUsers",
+			Handler:    _Console_DeleteUsers_Handler,
+		},
+		{
+			MethodName: "DeleteWalletLedger",
+			Handler:    _Console_DeleteWalletLedger_Handler,
 		},
 		{
 			MethodName: "ExportAccount",
@@ -1342,20 +2625,68 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_GetAccount_Handler,
 		},
 		{
-			MethodName: "GetStorage",
-			Handler:    _Console_GetStorage_Handler,
+			MethodName: "GetConfig",
+			Handler:    _Console_GetConfig_Handler,
 		},
 		{
-			MethodName: "ListAccounts",
-			Handler:    _Console_ListAccounts_Handler,
+			MethodName: "GetFriends",
+			Handler:    _Console_GetFriends_Handler,
 		},
 		{
-			MethodName: "ListStorageCollections",
-			Handler:    _Console_ListStorageCollections_Handler,
+			MethodName: "GetGroups",
+			Handler:    _Console_GetGroups_Handler,
 		},
 		{
-			MethodName: "ListStorageObjects",
-			Handler:    _Console_ListStorageObjects_Handler,
+			MethodName: "GetStatus",
+			Handler:    _Console_GetStatus_Handler,
+		},
+		{
+			MethodName: "GetWalletLedger",
+			Handler:    _Console_GetWalletLedger_Handler,
+		},
+		{
+			MethodName: "ListStorage",
+			Handler:    _Console_ListStorage_Handler,
+		},
+		{
+			MethodName: "ListUsers",
+			Handler:    _Console_ListUsers_Handler,
+		},
+		{
+			MethodName: "UnbanUser",
+			Handler:    _Console_UnbanUser_Handler,
+		},
+		{
+			MethodName: "UnlinkCustom",
+			Handler:    _Console_UnlinkCustom_Handler,
+		},
+		{
+			MethodName: "UnlinkDevice",
+			Handler:    _Console_UnlinkDevice_Handler,
+		},
+		{
+			MethodName: "UnlinkEmail",
+			Handler:    _Console_UnlinkEmail_Handler,
+		},
+		{
+			MethodName: "UnlinkFacebook",
+			Handler:    _Console_UnlinkFacebook_Handler,
+		},
+		{
+			MethodName: "UnlinkGameCenter",
+			Handler:    _Console_UnlinkGameCenter_Handler,
+		},
+		{
+			MethodName: "UnlinkGoogle",
+			Handler:    _Console_UnlinkGoogle_Handler,
+		},
+		{
+			MethodName: "UnlinkSteam",
+			Handler:    _Console_UnlinkSteam_Handler,
+		},
+		{
+			MethodName: "UpdateAccount",
+			Handler:    _Console_UpdateAccount_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",

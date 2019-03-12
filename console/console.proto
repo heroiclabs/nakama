@@ -67,8 +67,8 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
  * The developer console RPC protocol service built with GRPC.
  */
 service Console {
-  // Authenticate a user with username+password.
-  rpc Login (AuthenticateRequest) returns (google.protobuf.Empty) {
+  // Authenticate a console user with username and password.
+  rpc Authenticate (AuthenticateRequest) returns (Session) {
     option (google.api.http) = {
       post: "/v2/console/authenticate",
       body: "*"
@@ -80,64 +80,144 @@ service Console {
     };
   }
 
+  // Ban a user.
+  rpc BanUser (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/ban";
+  }
+
   // Delete all information stored for a user account.
   rpc DeleteAccount (AccountDeleteRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}";
   }
 
-  // Delete all accounts.
-  rpc DeleteAccounts (google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/account";
+  // Delete the friend relationship between two users.
+  rpc DeleteFriend (DeleteFriendRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account/{id}/friend/{friend_id}";
+  }
+
+  // Remove a user from a group.
+  rpc DeleteGroupUser (DeleteGroupUserRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account/{id}/group/{group_id}";
+  }
+
+  // Delete all storage data.
+  rpc DeleteStorage (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/storage";
   }
 
   // Delete a storage object.
   rpc DeleteStorageObject (DeleteStorageObjectRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/storage/{collection}/{key}/{user_id}";
-  }
-
-  // Delete all storage objects.
-  rpc DeleteStorageObjects (google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/storage";
-  }
-
-  // Export all information stored about a user account.
-  rpc ExportAccount (AccountIdRequest) returns (AccountExport) {
-    option (google.api.http).get = "/v2/console/account/{id}/export";
-  }
-
-  // Get info about a particular account
-  rpc GetAccount (AccountIdRequest) returns (nakama.api.Account) {
-    option (google.api.http).get = "/v2/console/account/{id}";
-  }
-
-  // Get a storage object
-  rpc GetStorage (GetStorageObjectRequest) returns (StorageObject) {
-    option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
-  }
-
-  // List all recent accounts.
-  rpc ListAccounts (google.protobuf.Empty) returns (AccountList) {
-    option (google.api.http).get = "/v2/console/account";
-  }
-
-  // List all storage collections.
-  rpc ListStorageCollections(google.protobuf.Empty) returns (StorageCollectionList) {
-    option (google.api.http).get = "/v2/console/storage";
-  }
-
-  // List storage objects in a given collection.
-  rpc ListStorageObjects (ListStorageObjectRequest) returns (StorageObjectList) {
     option (google.api.http) = {
-      get: "/v2/console/storage/{collection}",
+      delete: "/v2/console/storage/{collection}/{key}/{user_id}",
       additional_bindings {
-        get: "/v2/console/storage/{collection}/{user_id}"
+        delete: "/v2/console/storage/{collection}/{key}/{user_id}/{version}"
       }
     };
   }
 
-  // Create or overwrite a storage object.
+  // Delete (non-recorded) all user accounts.
+  rpc DeleteUsers (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/user";
+  }
+
+  // Delete a wallet ledger item.
+  rpc DeleteWalletLedger (DeleteWalletLedgerRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account/{id}/wallet/{wallet_id}";
+  }
+
+  // Export all information stored about a user account.
+  rpc ExportAccount (AccountId) returns (AccountExport) {
+    option (google.api.http).get = "/v2/console/account/{id}/export";
+  }
+
+  // Get detailed account information for a single user.
+  rpc GetAccount (AccountId) returns (nakama.api.Account) {
+    option (google.api.http).get = "/v2/console/account/{id}";
+  }
+
+  // Get server config and configuration warnings.
+  rpc GetConfig (google.protobuf.Empty) returns (Config) {
+    option (google.api.http).get = "/v2/console/config";
+  }
+
+  // Get a user's list of friend relationships.
+  rpc GetFriends (AccountId) returns (nakama.api.Friends) {
+    option (google.api.http).get = "/v2/console/account/{id}/friend";
+  }
+
+  // Get a list of groups the user is a member of.
+  rpc GetGroups (AccountId) returns (nakama.api.UserGroupList) {
+    option (google.api.http).get = "/v2/console/account/{id}/group";
+  }
+
+  // Get current status data for all nodes.
+  rpc GetStatus (google.protobuf.Empty) returns (StatusList) {
+    option (google.api.http).get = "/v2/console/status";
+  }
+
+  // Get a list of the user's wallet transactions.
+  rpc GetWalletLedger (AccountId) returns (WalletLedgerList) {
+    option (google.api.http).get = "/v2/console/account/{id}/wallet";
+  }
+
+  // List (and optionally filter) storage data.
+  rpc ListStorage (ListStorageRequest) returns (StorageList) {
+    option (google.api.http).get = "/v2/console/storage";
+  }
+
+  // List (and optionally filter) users.
+  rpc ListUsers (ListUsersRequest) returns (UserList) {
+    option (google.api.http).get = "/v2/console/user";
+  }
+
+  // Unban a user.
+  rpc UnbanUser (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unban";
+  }
+
+  // Unlink the custom ID from a user account.
+  rpc UnlinkCustom (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/custom";
+  }
+
+  // Unlink the device ID from a user account.
+  rpc UnlinkDevice (UnlinkDeviceRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/device";
+  }
+
+  // Unlink the email from a user account.
+  rpc UnlinkEmail (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/email";
+  }
+
+  // Unlink the Facebook ID from a user account.
+  rpc UnlinkFacebook (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/facebook";
+  }
+
+  // Unlink the Game Center ID from a user account.
+  rpc UnlinkGameCenter (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/gamecenter";
+  }
+
+  // Unlink the Google ID from a user account.
+  rpc UnlinkGoogle (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/google";
+  }
+
+  // Unlink the Steam ID from a user account.
+  rpc UnlinkSteam (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/steam";
+  }
+
+  // Update one or more fields on a user account.
+  rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}";
+  }
+
+  // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).put = "/v2/console/storage";
+    option (google.api.http).post = "/v2/console/storage/{collection}/{key}/{user_id}";
   }
 }
 
@@ -176,20 +256,13 @@ message AccountExport {
 /**
  * The identifier for a user account.
  */
-message AccountIdRequest {
+message AccountId {
   // The unique identifier of the user account.
   string id = 1;
 }
 
 /**
- * Get the recent list of accounts.
- */
-message AccountList {
-  repeated nakama.api.Account accounts = 1;
-}
-
-/**
- * Authenticate against the server with username+password.
+ * Authenticate a console user with username and password.
  */
 message AuthenticateRequest {
   // The username of the user.
@@ -198,89 +271,241 @@ message AuthenticateRequest {
   string password = 2;
 }
 
-// Delete a storage object.
+/**
+ * Configuration and config warnings information.
+ */
+message Config {
+  message Warning {
+    // The config field this warning is for in a JSON pointer format.
+    string field = 1;
+    // Warning message text.
+    string message = 2;
+  }
+
+  // JSON-encoded effective server configuration.
+  string config = 1;
+  // Any warnings about the current config.
+  repeated Warning warnings = 2;
+}
+
+/**
+ * Delete friend relationship between two users.
+ */
+message DeleteFriendRequest {
+  // The user do delete for.
+  string id = 1;
+  // User ID of the friend to remove.
+  string friend_id = 2;
+}
+
+/**
+ * Remove a user from a group.
+ */
+message DeleteGroupUserRequest {
+  // User to remove.
+  string id = 1;
+  // ID of the group to remove them from.
+  string group_id = 2;
+}
+
+/**
+ * Delete an individual storage object.
+ */
 message DeleteStorageObjectRequest {
-  // The collection which stores the object.
+  // Collection.
   string collection = 1;
-  // The key of the object within the collection.
+  // Key.
   string key = 2;
-  // ID of the user that this object belongs to.
+  // Owner user ID.
   string user_id = 3;
-}
-
-// Retrieve a storage object.
-message GetStorageObjectRequest {
-  // The collection which stores the object.
-  string collection = 1;
-  // The key of the object within the collection.
-  string key = 2;
-  // The user owner of the object.
-  string user_id = 3;
-}
-
-// List object belonging to a user and/or a collection.
-message ListStorageObjectRequest {
- // The collection which stores the object.
-  string collection = 1;
-  // ID of the user that this object belongs to.
-  string user_id = 2;
-  // The cursor to page through results from.
-  string cursor = 3; // value from StorageObjectList.cursor.
+  // Version for OCC.
+  string version = 4;
 }
 
 /**
- * List of collections available in storage.
+ * Delete a single wallet ledger item.
  */
-message StorageCollectionList {
-  // Storage collections.
-  repeated string collections = 1;
-}
-
-// A storage record.
-message StorageObject {
-  // The collection to store the object.
-  string collection = 1;
-  // The key for the object within the collection.
-  string key = 2;
-  // ID of the user that this object belongs to.
-  string user_id = 3;
-  // The value of the object.
-  string value = 4;
-  // The read access permissions for the object.
-  int32 permission_read = 5;
-  // The write access permissions for the object.
-  int32 permission_write = 6;
+message DeleteWalletLedgerRequest {
+  // User ID to remove wallet ledger item from.
+  string id = 1;
+  // ID of the wallet ledger item to remove.
+  string wallet_id = 2;
 }
 
 /**
- * List of objects in a given collection.
+ * List (and optionally filter) storage data.
  */
-message StorageObjectList {
-  // The list of storage objects.
-  repeated StorageObject objects = 1;
-  // The cursor associated with the query a page of results.
-  string cursor = 2;
+message ListStorageRequest {
+  // User ID to filter data for.
+  string user_id = 1;
 }
 
 /**
- * A wallet ledger item representing a change to the user's wallet.
+ * List (and optionally filter) users.
+ */
+message ListUsersRequest {
+  // User ID or username filter.
+  string filter = 1;
+  // Search only banned users.
+  bool banned = 2;
+  // Search only recorded deletes.
+  bool tombstones = 3;
+  // Optional cursor to fetch next page.
+  bytes cursor = 4;
+}
+
+message StorageList {
+  // List of storage objects matching list/filter operation.
+  repeated nakama.api.StorageObject objects = 1;
+  // Optional cursor for pagination.
+  bytes cursor = 2;
+}
+
+/**
+ * Unlink a particular device ID from a user's account.
+ */
+message UnlinkDeviceRequest {
+  // User ID to unlink from.
+  string id = 1;
+  // Device ID to unlink.
+  string device_id = 2;
+}
+
+/**
+ * Update user account information.
+ */
+message UpdateAccountRequest {
+  // User ID to update.
+  string id = 1;
+  // Username.
+  google.protobuf.StringValue username = 2;
+  // Display name.
+  google.protobuf.StringValue display_name = 3;
+  // Metadata.
+  google.protobuf.StringValue metadata = 4;
+  // Avatar URL.
+  google.protobuf.StringValue avatar_url = 5;
+  // Langtag.
+  google.protobuf.StringValue lang_tag = 6;
+  // Location.
+  google.protobuf.StringValue location = 7;
+  // Timezone.
+  google.protobuf.StringValue timezone = 8;
+  // Custom ID.
+  google.protobuf.StringValue custom_id = 9;
+  // Email.
+  google.protobuf.StringValue email = 10;
+  // Device ID modifications.
+  map<string, string> device_ids = 11;
+  // Wallet.
+  google.protobuf.StringValue wallet = 12;
+}
+
+/**
+ * A list of users.
+ */
+message UserList {
+  // A list of users.
+  repeated nakama.api.User users = 1;
+  // A cursor to fetch more results.
+  bytes cursor = 2;
+}
+
+/**
+ * A console user session.
+ */
+message Session {
+  // Session token.
+  string token = 1;
+}
+
+/**
+ * List of nodes and their stats.
+ */
+message StatusList {
+  message Status {
+    // Node name.
+    string name = 1;
+    // Currently connected sessions.
+    int32 session_count = 2;
+    // Currently registered live presences.
+    int32 presence_count = 3;
+    // Current number of active authoritative matches.
+    int32 match_count = 4;
+    // Current number of running goroutines.
+    int32 goroutine_count = 5;
+    // Latest average response latency in milliseconds.
+    double avg_latency_ms = 6;
+    // Average response latency in milliseconds over the last minute.
+    double avg_latency_ms_min = 7; // TODO
+    // Average response latency in milliseconds over the last hour.
+    double avg_latency_ms_hr = 8; // TODO
+    // Latest number of requests per second.
+    double rate_sec = 9;
+    // Number of requests per second over the last minute.
+    double rate_sec_min = 10; // TODO
+    // Number of requests per second over the last hour.
+    double rate_sec_hr = 11; // TODO
+    // Latest input bandwidth usage.
+    double input_kbs = 12;
+    // Input bandwidth usage over the last minute.
+    double input_kbs_min = 13; // TODO
+    // Input bandwidth usage over the last hour.
+    double input_kbs_hr = 14; // TODO
+    // Latest output bandwidth usage.
+    double output_kbs = 15;
+    // Output bandwidth usage over the last minute.
+    double output_kbs_min = 16; // TODO
+    // Output bandwidth usage over the last hour.
+    double output_kbs_ht = 17; // TODO
+  }
+
+  // List of nodes and their stats.
+  repeated Status nodes = 1;
+}
+
+/**
+ * An individual update to a user's wallet.
  */
 message WalletLedger {
-  // The unique ID of the change.
+  // The identifier of this wallet change.
   string id = 1;
-  // The user ID this change belongs to.
+  // The user ID this wallet ledger item belongs to.
   string user_id = 2;
-  // The changes to the wallet.
+  // The changeset.
   string changeset = 3;
-  // Metadata.
+  // Any associated metadata.
   string metadata = 4;
   // The UNIX time when the wallet ledger item was created.
-  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp create_time = 5;
   // The UNIX time when the wallet ledger item was updated.
-  google.protobuf.Timestamp update_time = 9;
+  google.protobuf.Timestamp update_time = 6;
 }
 
-// Write an object to storage.
+/**
+ * List of wallet ledger items for a particular user.
+ */
+message WalletLedgerList {
+  // A list of wallet ledger items.
+  repeated WalletLedger items = 1;
+}
+
+/**
+ * Write a new storage object or update an existing one.
+ */
 message WriteStorageObjectRequest {
-  StorageObject object = 1;
+  // Collection.
+  string collection = 1;
+  // Key.
+  string key = 2;
+  // Owner user ID.
+  string user_id = 3;
+  // Value.
+  google.protobuf.StringValue value = 4;
+  // Version for OCC.
+  string version = 5;
+  // Read permission value.
+  google.protobuf.Int32Value permission_read = 6;
+  // Write permission value.
+  google.protobuf.Int32Value permission_write = 7;
 }

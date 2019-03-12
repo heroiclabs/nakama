@@ -104,7 +104,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	return mainConfig
 }
 
-func CheckConfig(logger *zap.Logger, config Config) {
+func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	// Fail fast on invalid values.
 	if l := len(config.GetName()); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
@@ -138,6 +138,9 @@ func CheckConfig(logger *zap.Logger, config Config) {
 	}
 	if config.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
+	}
+	if config.GetConsole().SigningKey == "" {
+		logger.Fatal("Console signing key must be set", zap.String("param", "console.signing_key"))
 	}
 	if p := config.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
 		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", config.GetSocket().Protocol))
@@ -196,21 +199,32 @@ func CheckConfig(logger *zap.Logger, config Config) {
 		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
 
+	configWarnings := make(map[string]string, 8)
+
 	// Log warnings for insecure default parameter values.
 	if config.GetConsole().Username == "admin" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.username"))
+		configWarnings["console.username"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetConsole().Password == "password" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
+		configWarnings["console.password"] = "Insecure default parameter value, change this for production!"
+	}
+	if config.GetConsole().SigningKey == "defaultsigningkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.signing_key"))
+		configWarnings["console.signing_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
+		configWarnings["socket.server_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
+		configWarnings["socket.encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetRuntime().HTTPKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
+		configWarnings["runtime.http_key"] = "Insecure default parameter value, change this for production!"
 	}
 
 	// Log warnings for SSL usage.
@@ -226,9 +240,13 @@ func CheckConfig(logger *zap.Logger, config Config) {
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate", zap.Error(err))
 		}
+		configWarnings["socket.ssl_certificate"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
+		configWarnings["socket.ssl_private_key"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		logger.Info("SSL mode enabled")
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
+
+	return configWarnings
 }
 
 func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
@@ -560,6 +578,7 @@ type ConsoleConfig struct {
 	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
 	Username            string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
 	Password            string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
+	SigningKey          string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
 }
 
 // NewConsoleConfig creates a new ConsoleConfig struct.
@@ -572,6 +591,7 @@ func NewConsoleConfig() *ConsoleConfig {
 		IdleTimeoutMs:       300 * 1000,
 		Username:            "admin",
 		Password:            "password",
+		SigningKey:          "defaultsigningkey",
 	}
 }
 

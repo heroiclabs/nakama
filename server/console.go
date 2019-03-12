@@ -16,13 +16,16 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -40,11 +43,12 @@ type ConsoleServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config
+	configWarnings    map[string]string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB, configWarnings map[string]string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -61,10 +65,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ConsoleServer{
-		logger:     logger,
-		db:         db,
-		config:     config,
-		grpcServer: grpcServer,
+		logger:         logger,
+		db:             db,
+		config:         config,
+		configWarnings: configWarnings,
+		grpcServer:     grpcServer,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
@@ -166,7 +171,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 
 		switch info.FullMethod {
 		// skip authentication check for Login endpoint
-		case "/nakama.console.Console/Login":
+		case "/nakama.console.Console/Authenticate":
 			return handler(ctx, req)
 		}
 
@@ -185,11 +190,8 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 		if len(auth) != 1 {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
-		username, password, ok := parseBasicAuth(auth[0])
-		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
-		}
-		if username != config.GetConsole().Username || password != config.GetConsole().Password {
+
+		if !checkAuth(config, auth[0]) {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 
@@ -197,11 +199,62 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 	}
 }
 
-func (s *ConsoleServer) Login(ctx context.Context, in *console.AuthenticateRequest) (*empty.Empty, error) {
-	username := s.config.GetConsole().Username
-	password := s.config.GetConsole().Password
-	if in.Username == username && in.Password == password {
-		return &empty.Empty{}, nil
+func checkAuth(config Config, auth string) bool {
+	const basicPrefix = "Basic "
+	const bearerPrefix = "Bearer "
+
+	if strings.HasPrefix(auth, basicPrefix) {
+		// Basic authentication.
+		c, err := base64.StdEncoding.DecodeString(auth[len(basicPrefix):])
+		if err != nil {
+			// Not valid Base64.
+			return false
+		}
+		cs := string(c)
+		s := strings.IndexByte(cs, ':')
+		if s < 0 {
+			// Format is not "username:password".
+			return false
+		}
+
+		if cs[:s] != config.GetConsole().Username || cs[s+1:] != config.GetConsole().Password {
+			// Username and/or password do not match.
+			return false
+		}
+
+		// Basic authentication successful.
+		return true
+	} else if strings.HasPrefix(auth, bearerPrefix) {
+		// Bearer token authentication.
+		token, err := jwt.Parse(auth[len(bearerPrefix):], func(token *jwt.Token) (interface{}, error) {
+			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(config.GetConsole().SigningKey), nil
+		})
+		if err != nil {
+			// Token verification failed.
+			return false
+		}
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok || !token.Valid {
+			// The token or its claims are invalid.
+			return false
+		}
+
+		exp, ok := claims["exp"].(float64)
+		if !ok {
+			// Expiry time claim is invalid.
+			return false
+		}
+		if int64(exp) <= time.Now().Unix() {
+			// Token expired.
+			return false
+		}
+
+		// Bearer token authentication successful.
+		return true
 	}
-	return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+
+	return false
 }
