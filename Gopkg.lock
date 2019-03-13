@@ -260,7 +260,7 @@
   version = "v3.1.2"
 
 [[projects]]
-  digest = "1:3dd078fda7500c341bc26cfbc6c6a34614f295a2457149fc1045cab767cbcf18"
+  digest = "1:d3d38150b6d77b2aad42a9e105170538b6563518993d43df78a1add6e31cce62"
   name = "github.com/golang/protobuf"
   packages = [
     "jsonpb",
@@ -278,8 +278,8 @@
     "ptypes/wrappers",
   ]
   pruneopts = ""
-  revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
-  version = "v1.2.0"
+  revision = "c823c79ea1570fb5ff454033735a8e68575d1d0f"
+  version = "v1.3.0"
 
 [[projects]]
   branch = "master"
@@ -332,17 +332,17 @@
   revision = "95ba29eb981bbb27d92e1f70bf8a1949452d926b"
 
 [[projects]]
-  digest = "1:67fa7fe174716264688b0d1c69ee4bfa75191d311ff8080f4b06caffbcc17ba6"
+  digest = "1:13cf661e001f6dbeb6535feda8c7a4991924685d98a433e3a48235f5bf643430"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
+    "internal",
     "protoc-gen-swagger/options",
     "runtime",
-    "runtime/internal",
     "utilities",
   ]
   pruneopts = ""
-  revision = "719aaadb1a4f7b11606d454e266fe5c5f789796f"
-  version = "v1.6.3"
+  revision = "e81e272f3e6fbdf9cd2837112cedf837191d3a3f"
+  version = "v1.8.4"
 
 [[projects]]
   digest = "1:13fe471d0ed891e8544eddfeeb0471fd3c9f2015609a1c000aefdedf52a19d40"
@@ -712,6 +712,7 @@
   packages = [
     "googleapis/api/annotations",
     "googleapis/api/distribution",
+    "googleapis/api/httpbody",
     "googleapis/api/label",
     "googleapis/api/metric",
     "googleapis/api/monitoredres",
@@ -724,7 +725,7 @@
   revision = "bd9b4fb69e2ffd37621a6caa54dcbead29b546f2"
 
 [[projects]]
-  digest = "1:d141efe4aaad714e3059c340901aab3147b6253e58c85dafbcca3dd8b0e88ad6"
+  digest = "1:b6c17b0c657f047118ae59b358950b28515914512cf3de02388cc42e33a92520"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -762,8 +763,8 @@
     "tap",
   ]
   pruneopts = ""
-  revision = "df014850f6dee74ba2fc94874043a9f3f75fbfd8"
-  version = "v1.17.0"
+  revision = "2fdaae294f38ed9a121193c51ec99fecd3b13eb7"
+  version = "v1.19.0"
 
 [[projects]]
   digest = "1:cf14a5ea75b0cdb3eed3315839a120110068dce6df03edbe8c3bf4bd642a6024"

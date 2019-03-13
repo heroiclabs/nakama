@@ -26,9 +26,9 @@
         "operationId": "Healthcheck",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -43,7 +43,7 @@
         "operationId": "GetAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiAccount"
             }
@@ -58,9 +58,9 @@
         "operationId": "UpdateAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -85,7 +85,7 @@
         "operationId": "AuthenticateCustom",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -100,21 +100,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -133,7 +118,7 @@
         "operationId": "AuthenticateDevice",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -148,21 +133,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -181,7 +151,7 @@
         "operationId": "AuthenticateEmail",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -196,21 +166,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -229,7 +184,7 @@
         "operationId": "AuthenticateFacebook",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -244,29 +199,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -285,7 +217,7 @@
         "operationId": "AuthenticateGameCenter",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -300,21 +232,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -333,7 +250,7 @@
         "operationId": "AuthenticateGoogle",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -348,21 +265,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -381,7 +283,7 @@
         "operationId": "AuthenticateSteam",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiSession"
             }
@@ -396,21 +298,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -429,9 +316,9 @@
         "operationId": "LinkCustom",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -456,9 +343,9 @@
         "operationId": "LinkDevice",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -483,9 +370,9 @@
         "operationId": "LinkEmail",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -510,9 +397,9 @@
         "operationId": "LinkFacebook",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -525,14 +412,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -546,9 +425,9 @@
         "operationId": "LinkGameCenter",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -573,9 +452,9 @@
         "operationId": "LinkGoogle",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -600,9 +479,9 @@
         "operationId": "LinkSteam",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -627,9 +506,9 @@
         "operationId": "UnlinkCustom",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -654,9 +533,9 @@
         "operationId": "UnlinkDevice",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -681,9 +560,9 @@
         "operationId": "UnlinkEmail",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -708,9 +587,9 @@
         "operationId": "UnlinkFacebook",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -735,9 +614,9 @@
         "operationId": "UnlinkGameCenter",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -762,9 +641,9 @@
         "operationId": "UnlinkGoogle",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -789,9 +668,9 @@
         "operationId": "UnlinkSteam",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -816,7 +695,7 @@
         "operationId": "ListChannelMessages",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiChannelMessageList"
             }
@@ -865,7 +744,7 @@
         "operationId": "ListFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiFriends"
             }
@@ -880,9 +759,9 @@
         "operationId": "DeleteFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -917,9 +796,9 @@
         "operationId": "AddFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -934,9 +813,9 @@
         "operationId": "BlockFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -951,9 +830,9 @@
         "operationId": "ImportFacebookFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -966,14 +845,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "reset",
-            "description": "Reset the current user's friends list.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -987,7 +858,7 @@
         "operationId": "ListGroups",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiGroupList"
             }
@@ -1026,7 +897,7 @@
         "operationId": "CreateGroup",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiGroup"
             }
@@ -1053,9 +924,9 @@
         "operationId": "DeleteGroup",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1077,9 +948,9 @@
         "operationId": "UpdateGroup",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1111,9 +982,9 @@
         "operationId": "AddGroupUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1137,9 +1008,9 @@
         "operationId": "JoinGroup",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1163,9 +1034,9 @@
         "operationId": "KickGroupUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1189,9 +1060,9 @@
         "operationId": "LeaveGroup",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1215,9 +1086,9 @@
         "operationId": "PromoteGroupUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1241,7 +1112,7 @@
         "operationId": "ListGroupUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiGroupUserList"
             }
@@ -1267,7 +1138,7 @@
         "operationId": "ListLeaderboardRecords",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiLeaderboardRecordList"
             }
@@ -1316,9 +1187,9 @@
         "operationId": "DeleteLeaderboardRecord",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1340,7 +1211,7 @@
         "operationId": "WriteLeaderboardRecord",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiLeaderboardRecord"
             }
@@ -1375,7 +1246,7 @@
         "operationId": "ListLeaderboardRecordsAroundOwner",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiLeaderboardRecordList"
             }
@@ -1416,7 +1287,7 @@
         "operationId": "ListMatches",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiMatchList"
             }
@@ -1481,7 +1352,7 @@
         "operationId": "ListNotifications",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiNotificationList"
             }
@@ -1513,9 +1384,9 @@
         "operationId": "DeleteNotifications",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1542,7 +1413,7 @@
         "operationId": "RpcFunc2",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiRpc"
             }
@@ -1586,7 +1457,7 @@
         "operationId": "RpcFunc",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiRpc"
             }
@@ -1627,7 +1498,7 @@
         "operationId": "ReadStorageObjects",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiStorageObjects"
             }
@@ -1652,7 +1523,7 @@
         "operationId": "WriteStorageObjects",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiStorageObjectAcks"
             }
@@ -1679,9 +1550,9 @@
         "operationId": "DeleteStorageObjects",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1706,7 +1577,7 @@
         "operationId": "ListStorageObjects",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiStorageObjectList"
             }
@@ -1754,7 +1625,7 @@
         "operationId": "ListStorageObjects2",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiStorageObjectList"
             }
@@ -1802,7 +1673,7 @@
         "operationId": "ListTournaments",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiTournamentList"
             }
@@ -1868,7 +1739,7 @@
         "operationId": "ListTournamentRecords",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiTournamentRecordList"
             }
@@ -1917,7 +1788,7 @@
         "operationId": "WriteTournamentRecord",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiLeaderboardRecord"
             }
@@ -1952,9 +1823,9 @@
         "operationId": "JoinTournament",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -1978,7 +1849,7 @@
         "operationId": "ListTournamentRecordsAroundOwner",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiTournamentRecordList"
             }
@@ -2019,7 +1890,7 @@
         "operationId": "GetUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiUsers"
             }
@@ -2068,7 +1939,7 @@
         "operationId": "ListUserGroups",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiUserGroupList"
             }
@@ -3223,11 +3094,6 @@
         }
       },
       "description": "Write objects to the storage engine."
-    },
-    "protobufEmpty": {
-      "type": "object",
-      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
-      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
     }
   },
   "securityDefinitions": {

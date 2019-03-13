@@ -291,8 +291,9 @@ func testABECreate(t *testing.T, port int) {
 		EnumValue:                gw.NumericEnum_ZERO,
 		PathEnumValue:            pathenum.PathEnum_DEF,
 		NestedPathEnumValue:      pathenum.MessagePathEnum_JKL,
+		EnumValueAnnotation:      gw.NumericEnum_ONE,
 	}
-	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything/%f/%f/%d/separator/%d/%d/%d/%d/%v/%s/%d/%d/%d/%d/%d/%s/%s/%s/%s", port, want.FloatValue, want.DoubleValue, want.Int64Value, want.Uint64Value, want.Int32Value, want.Fixed64Value, want.Fixed32Value, want.BoolValue, want.StringValue, want.Uint32Value, want.Sfixed32Value, want.Sfixed64Value, want.Sint32Value, want.Sint64Value, want.NonConventionalNameValue, want.EnumValue, want.PathEnumValue, want.NestedPathEnumValue)
+	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything/%f/%f/%d/separator/%d/%d/%d/%d/%v/%s/%d/%d/%d/%d/%d/%s/%s/%s/%s/%s", port, want.FloatValue, want.DoubleValue, want.Int64Value, want.Uint64Value, want.Int32Value, want.Fixed64Value, want.Fixed32Value, want.BoolValue, want.StringValue, want.Uint32Value, want.Sfixed32Value, want.Sfixed64Value, want.Sint32Value, want.Sint64Value, want.NonConventionalNameValue, want.EnumValue, want.PathEnumValue, want.NestedPathEnumValue, want.EnumValueAnnotation)
 
 	resp, err := http.Post(url, "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -371,6 +372,29 @@ func testABECreateBody(t *testing.T, port int) {
 		MappedNestedValue: map[string]*gw.ABitOfEverything_Nested{
 			"a": {Name: "x", Amount: 1},
 			"b": {Name: "y", Amount: 2},
+		},
+		RepeatedEnumAnnotation:   []gw.NumericEnum{
+			gw.NumericEnum_ONE,
+			gw.NumericEnum_ZERO,
+		},
+		EnumValueAnnotation:      gw.NumericEnum_ONE,
+		RepeatedStringAnnotation: []string{
+			"a",
+			"b",
+		},
+		RepeatedNestedAnnotation: []*gw.ABitOfEverything_Nested{
+			{
+				Name:   "hoge",
+				Amount: 10,
+			},
+			{
+				Name:   "fuga",
+				Amount: 20,
+			},
+		},
+		NestedAnnotation: &gw.ABitOfEverything_Nested{
+			Name:   "hoge",
+			Amount: 10,
 		},
 	}
 	url := fmt.Sprintf("http://localhost:%d/v1/example/a_bit_of_everything", port)
@@ -452,6 +476,29 @@ func testABEBulkCreate(t *testing.T, port int) {
 						Name:   "fuga",
 						Amount: 20,
 					},
+				},
+				RepeatedEnumAnnotation:   []gw.NumericEnum{
+					gw.NumericEnum_ONE,
+					gw.NumericEnum_ZERO,
+				},
+				EnumValueAnnotation:      gw.NumericEnum_ONE,
+				RepeatedStringAnnotation: []string{
+					"a",
+					"b",
+				},
+				RepeatedNestedAnnotation: []*gw.ABitOfEverything_Nested{
+					{
+						Name:   "hoge",
+						Amount: 10,
+					},
+					{
+						Name:   "fuga",
+						Amount: 20,
+					},
+				},
+				NestedAnnotation: &gw.ABitOfEverything_Nested{
+					Name:   "hoge",
+					Amount: 10,
 				},
 			}
 			var m jsonpb.Marshaler
@@ -1307,6 +1354,8 @@ func TestResponseBody(t *testing.T) {
 	}
 
 	testResponseBody(t, 8080)
+	testResponseBodies(t, 8080)
+	testResponseStrings(t, 8080)
 }
 
 func testResponseBody(t *testing.T, port int) {
@@ -1331,4 +1380,89 @@ func testResponseBody(t *testing.T, port int) {
 	if got, want := string(buf), `{"data":"foo"}`; got != want {
 		t.Errorf("response = %q; want %q", got, want)
 	}
+}
+
+func testResponseBodies(t *testing.T, port int) {
+	url := fmt.Sprintf("http://localhost:%d/responsebodies/foo", port)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("http.Get(%q) failed with %v; want success", url, err)
+		return
+	}
+	defer resp.Body.Close()
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
+		return
+	}
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Errorf("resp.StatusCode = %d; want %d", got, want)
+		t.Logf("%s", buf)
+	}
+
+	if got, want := string(buf), `[{"data":"foo"}]`; got != want {
+		t.Errorf("response = %q; want %q", got, want)
+	}
+}
+
+func testResponseStrings(t *testing.T, port int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Run Secondary server with different marshalling
+	ch := make(chan error)
+	go func() {
+		if err := runGateway(ctx, ":8081", runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{EnumsAsInts: false, EmitDefaults: true})); err != nil {
+			ch <- fmt.Errorf("cannot run gateway service: %v", err)
+		}
+	}()
+
+	port = 8081
+
+	for i, spec := range []struct {
+		endpoint     string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			endpoint:     fmt.Sprintf("http://localhost:%d/responsestrings/foo", port),
+			expectedCode: http.StatusOK,
+			expectedBody: `["hello","foo"]`,
+		},
+		{
+			endpoint:     fmt.Sprintf("http://localhost:%d/responsestrings/empty", port),
+			expectedCode: http.StatusOK,
+			expectedBody: `[]`,
+		},
+		{
+			endpoint:     fmt.Sprintf("http://localhost:%d/responsebodies/foo", port),
+			expectedCode: http.StatusOK,
+			expectedBody: `[{"data":"foo","type":"UNKNOWN"}]`,
+		},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			url := spec.endpoint
+			resp, err := http.Get(url)
+			if err != nil {
+				t.Errorf("http.Get(%q) failed with %v; want success", url, err)
+				return
+			}
+			defer resp.Body.Close()
+			buf, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("ioutil.ReadAll(resp.Body) failed with %v; want success", err)
+				return
+			}
+
+			if got, want := resp.StatusCode, spec.expectedCode; got != want {
+				t.Errorf("resp.StatusCode = %d; want %d", got, want)
+				t.Logf("%s", buf)
+			}
+
+			if got, want := string(buf), spec.expectedBody; got != want {
+				t.Errorf("response = %q; want %q", got, want)
+			}
+		})
+	}
+
 }

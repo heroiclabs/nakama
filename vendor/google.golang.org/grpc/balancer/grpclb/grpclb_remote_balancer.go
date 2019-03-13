@@ -192,7 +192,7 @@ func (lb *lbBalancer) callRemoteBalancer() (backoff bool, _ error) {
 	lbClient := &loadBalancerClient{cc: lb.ccRemoteLB}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stream, err := lbClient.BalanceLoad(ctx, grpc.FailFast(false))
+	stream, err := lbClient.BalanceLoad(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return true, fmt.Errorf("grpclb: failed to perform RPC to the remote balancer %v", err)
 	}
@@ -245,6 +245,8 @@ func (lb *lbBalancer) watchRemoteBalancer() {
 				}
 			}
 		}
+		// Trigger a re-resolve when the stream errors.
+		lb.cc.cc.ResolveNow(resolver.ResolveNowOption{})
 
 		if !doBackoff {
 			retryCount = 0
@@ -277,10 +279,7 @@ func (lb *lbBalancer) dialRemoteLB(remoteLBName string) {
 		dopts = append(dopts, grpc.WithInsecure())
 	}
 	if lb.opt.Dialer != nil {
-		// WithDialer takes a different type of function, so we instead use a
-		// special DialOption here.
-		wcd := internal.WithContextDialer.(func(func(context.Context, string) (net.Conn, error)) grpc.DialOption)
-		dopts = append(dopts, wcd(lb.opt.Dialer))
+		dopts = append(dopts, grpc.WithContextDialer(lb.opt.Dialer))
 	}
 	// Explicitly set pickfirst as the balancer.
 	dopts = append(dopts, grpc.WithBalancerName(grpc.PickFirstBalancerName))

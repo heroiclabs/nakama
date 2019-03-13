@@ -6,15 +6,15 @@ ignored = ["go.opencensus.io/exporter/stackdriver"]
 
 [[override]]
   name = "github.com/golang/protobuf"
-  version = "~1.2.0"
+  version = "~1.3.0"
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "~1.17.0"
+  version = "~1.19.0"
 
 [[constraint]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
-  version = "~1.6.3"
+  version = "~1.8.4"
 
 [[override]]
   name = "google.golang.org/genproto"

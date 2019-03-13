@@ -3,14 +3,16 @@
 
 package jsonpb
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import any "github.com/golang/protobuf/ptypes/any"
-import duration "github.com/golang/protobuf/ptypes/duration"
-import _struct "github.com/golang/protobuf/ptypes/struct"
-import timestamp "github.com/golang/protobuf/ptypes/timestamp"
-import wrappers "github.com/golang/protobuf/ptypes/wrappers"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	any "github.com/golang/protobuf/ptypes/any"
+	duration "github.com/golang/protobuf/ptypes/duration"
+	_struct "github.com/golang/protobuf/ptypes/struct"
+	timestamp "github.com/golang/protobuf/ptypes/timestamp"
+	wrappers "github.com/golang/protobuf/ptypes/wrappers"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -21,7 +23,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type Widget_Color int32
 
@@ -36,6 +38,7 @@ var Widget_Color_name = map[int32]string{
 	1: "GREEN",
 	2: "BLUE",
 }
+
 var Widget_Color_value = map[string]int32{
 	"RED":   0,
 	"GREEN": 1,
@@ -47,9 +50,11 @@ func (x Widget_Color) Enum() *Widget_Color {
 	*p = x
 	return p
 }
+
 func (x Widget_Color) String() string {
 	return proto.EnumName(Widget_Color_name, int32(x))
 }
+
 func (x *Widget_Color) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Widget_Color_value, data, "Widget_Color")
 	if err != nil {
@@ -58,8 +63,9 @@ func (x *Widget_Color) UnmarshalJSON(data []byte) error {
 	*x = Widget_Color(value)
 	return nil
 }
+
 func (Widget_Color) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{3, 0}
+	return fileDescriptor_e97c739a0ce14cc6, []int{3, 0}
 }
 
 // Test message for holding primitive types.
@@ -92,16 +98,17 @@ func (m *Simple) Reset()         { *m = Simple{} }
 func (m *Simple) String() string { return proto.CompactTextString(m) }
 func (*Simple) ProtoMessage()    {}
 func (*Simple) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{0}
+	return fileDescriptor_e97c739a0ce14cc6, []int{0}
 }
+
 func (m *Simple) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Simple.Unmarshal(m, b)
 }
 func (m *Simple) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Simple.Marshal(b, m, deterministic)
 }
-func (dst *Simple) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Simple.Merge(dst, src)
+func (m *Simple) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Simple.Merge(m, src)
 }
 func (m *Simple) XXX_Size() int {
 	return xxx_messageInfo_Simple.Size(m)
@@ -262,16 +269,17 @@ func (m *NonFinites) Reset()         { *m = NonFinites{} }
 func (m *NonFinites) String() string { return proto.CompactTextString(m) }
 func (*NonFinites) ProtoMessage()    {}
 func (*NonFinites) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{1}
+	return fileDescriptor_e97c739a0ce14cc6, []int{1}
 }
+
 func (m *NonFinites) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NonFinites.Unmarshal(m, b)
 }
 func (m *NonFinites) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_NonFinites.Marshal(b, m, deterministic)
 }
-func (dst *NonFinites) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NonFinites.Merge(dst, src)
+func (m *NonFinites) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonFinites.Merge(m, src)
 }
 func (m *NonFinites) XXX_Size() int {
 	return xxx_messageInfo_NonFinites.Size(m)
@@ -346,16 +354,17 @@ func (m *Repeats) Reset()         { *m = Repeats{} }
 func (m *Repeats) String() string { return proto.CompactTextString(m) }
 func (*Repeats) ProtoMessage()    {}
 func (*Repeats) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{2}
+	return fileDescriptor_e97c739a0ce14cc6, []int{2}
 }
+
 func (m *Repeats) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Repeats.Unmarshal(m, b)
 }
 func (m *Repeats) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Repeats.Marshal(b, m, deterministic)
 }
-func (dst *Repeats) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Repeats.Merge(dst, src)
+func (m *Repeats) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Repeats.Merge(m, src)
 }
 func (m *Repeats) XXX_Size() int {
 	return xxx_messageInfo_Repeats.Size(m)
@@ -460,16 +469,17 @@ func (m *Widget) Reset()         { *m = Widget{} }
 func (m *Widget) String() string { return proto.CompactTextString(m) }
 func (*Widget) ProtoMessage()    {}
 func (*Widget) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{3}
+	return fileDescriptor_e97c739a0ce14cc6, []int{3}
 }
+
 func (m *Widget) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Widget.Unmarshal(m, b)
 }
 func (m *Widget) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Widget.Marshal(b, m, deterministic)
 }
-func (dst *Widget) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Widget.Merge(dst, src)
+func (m *Widget) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Widget.Merge(m, src)
 }
 func (m *Widget) XXX_Size() int {
 	return xxx_messageInfo_Widget.Size(m)
@@ -534,16 +544,17 @@ func (m *Maps) Reset()         { *m = Maps{} }
 func (m *Maps) String() string { return proto.CompactTextString(m) }
 func (*Maps) ProtoMessage()    {}
 func (*Maps) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{4}
+	return fileDescriptor_e97c739a0ce14cc6, []int{4}
 }
+
 func (m *Maps) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Maps.Unmarshal(m, b)
 }
 func (m *Maps) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Maps.Marshal(b, m, deterministic)
 }
-func (dst *Maps) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Maps.Merge(dst, src)
+func (m *Maps) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Maps.Merge(m, src)
 }
 func (m *Maps) XXX_Size() int {
 	return xxx_messageInfo_Maps.Size(m)
@@ -585,16 +596,17 @@ func (m *MsgWithOneof) Reset()         { *m = MsgWithOneof{} }
 func (m *MsgWithOneof) String() string { return proto.CompactTextString(m) }
 func (*MsgWithOneof) ProtoMessage()    {}
 func (*MsgWithOneof) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{5}
+	return fileDescriptor_e97c739a0ce14cc6, []int{5}
 }
+
 func (m *MsgWithOneof) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MsgWithOneof.Unmarshal(m, b)
 }
 func (m *MsgWithOneof) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_MsgWithOneof.Marshal(b, m, deterministic)
 }
-func (dst *MsgWithOneof) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgWithOneof.Merge(dst, src)
+func (m *MsgWithOneof) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgWithOneof.Merge(m, src)
 }
 func (m *MsgWithOneof) XXX_Size() int {
 	return xxx_messageInfo_MsgWithOneof.Size(m)
@@ -681,118 +693,15 @@ func (m *MsgWithOneof) GetMsgWithRequired() *MsgWithRequired {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*MsgWithOneof) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _MsgWithOneof_OneofMarshaler, _MsgWithOneof_OneofUnmarshaler, _MsgWithOneof_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*MsgWithOneof) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*MsgWithOneof_Title)(nil),
 		(*MsgWithOneof_Salary)(nil),
 		(*MsgWithOneof_Country)(nil),
 		(*MsgWithOneof_HomeAddress)(nil),
 		(*MsgWithOneof_MsgWithRequired)(nil),
 	}
-}
-
-func _MsgWithOneof_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*MsgWithOneof)
-	// union
-	switch x := m.Union.(type) {
-	case *MsgWithOneof_Title:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.Title)
-	case *MsgWithOneof_Salary:
-		b.EncodeVarint(2<<3 | proto.WireVarint)
-		b.EncodeVarint(uint64(x.Salary))
-	case *MsgWithOneof_Country:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.Country)
-	case *MsgWithOneof_HomeAddress:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.HomeAddress)
-	case *MsgWithOneof_MsgWithRequired:
-		b.EncodeVarint(5<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.MsgWithRequired); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("MsgWithOneof.Union has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _MsgWithOneof_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*MsgWithOneof)
-	switch tag {
-	case 1: // union.title
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Union = &MsgWithOneof_Title{x}
-		return true, err
-	case 2: // union.salary
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Union = &MsgWithOneof_Salary{int64(x)}
-		return true, err
-	case 3: // union.Country
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Union = &MsgWithOneof_Country{x}
-		return true, err
-	case 4: // union.home_address
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Union = &MsgWithOneof_HomeAddress{x}
-		return true, err
-	case 5: // union.msg_with_required
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(MsgWithRequired)
-		err := b.DecodeMessage(msg)
-		m.Union = &MsgWithOneof_MsgWithRequired{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _MsgWithOneof_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*MsgWithOneof)
-	// union
-	switch x := m.Union.(type) {
-	case *MsgWithOneof_Title:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Title)))
-		n += len(x.Title)
-	case *MsgWithOneof_Salary:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(x.Salary))
-	case *MsgWithOneof_Country:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Country)))
-		n += len(x.Country)
-	case *MsgWithOneof_HomeAddress:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.HomeAddress)))
-		n += len(x.HomeAddress)
-	case *MsgWithOneof_MsgWithRequired:
-		s := proto.Size(x.MsgWithRequired)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type Real struct {
@@ -807,7 +716,7 @@ func (m *Real) Reset()         { *m = Real{} }
 func (m *Real) String() string { return proto.CompactTextString(m) }
 func (*Real) ProtoMessage()    {}
 func (*Real) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{6}
+	return fileDescriptor_e97c739a0ce14cc6, []int{6}
 }
 
 var extRange_Real = []proto.ExtensionRange{
@@ -817,14 +726,15 @@ var extRange_Real = []proto.ExtensionRange{
 func (*Real) ExtensionRangeArray() []proto.ExtensionRange {
 	return extRange_Real
 }
+
 func (m *Real) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Real.Unmarshal(m, b)
 }
 func (m *Real) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Real.Marshal(b, m, deterministic)
 }
-func (dst *Real) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Real.Merge(dst, src)
+func (m *Real) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Real.Merge(m, src)
 }
 func (m *Real) XXX_Size() int {
 	return xxx_messageInfo_Real.Size(m)
@@ -854,7 +764,7 @@ func (m *Complex) Reset()         { *m = Complex{} }
 func (m *Complex) String() string { return proto.CompactTextString(m) }
 func (*Complex) ProtoMessage()    {}
 func (*Complex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{7}
+	return fileDescriptor_e97c739a0ce14cc6, []int{7}
 }
 
 var extRange_Complex = []proto.ExtensionRange{
@@ -864,14 +774,15 @@ var extRange_Complex = []proto.ExtensionRange{
 func (*Complex) ExtensionRangeArray() []proto.ExtensionRange {
 	return extRange_Complex
 }
+
 func (m *Complex) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Complex.Unmarshal(m, b)
 }
 func (m *Complex) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Complex.Marshal(b, m, deterministic)
 }
-func (dst *Complex) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Complex.Merge(dst, src)
+func (m *Complex) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Complex.Merge(m, src)
 }
 func (m *Complex) XXX_Size() int {
 	return xxx_messageInfo_Complex.Size(m)
@@ -894,7 +805,7 @@ var E_Complex_RealExtension = &proto.ExtensionDesc{
 	ExtensionType: (*Complex)(nil),
 	Field:         123,
 	Name:          "jsonpb.Complex.real_extension",
-	Tag:           "bytes,123,opt,name=real_extension,json=realExtension",
+	Tag:           "bytes,123,opt,name=real_extension",
 	Filename:      "test_objects.proto",
 }
 
@@ -923,16 +834,17 @@ func (m *KnownTypes) Reset()         { *m = KnownTypes{} }
 func (m *KnownTypes) String() string { return proto.CompactTextString(m) }
 func (*KnownTypes) ProtoMessage()    {}
 func (*KnownTypes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{8}
+	return fileDescriptor_e97c739a0ce14cc6, []int{8}
 }
+
 func (m *KnownTypes) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_KnownTypes.Unmarshal(m, b)
 }
 func (m *KnownTypes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_KnownTypes.Marshal(b, m, deterministic)
 }
-func (dst *KnownTypes) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_KnownTypes.Merge(dst, src)
+func (m *KnownTypes) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KnownTypes.Merge(m, src)
 }
 func (m *KnownTypes) XXX_Size() int {
 	return xxx_messageInfo_KnownTypes.Size(m)
@@ -1060,16 +972,17 @@ func (m *MsgWithRequired) Reset()         { *m = MsgWithRequired{} }
 func (m *MsgWithRequired) String() string { return proto.CompactTextString(m) }
 func (*MsgWithRequired) ProtoMessage()    {}
 func (*MsgWithRequired) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{9}
+	return fileDescriptor_e97c739a0ce14cc6, []int{9}
 }
+
 func (m *MsgWithRequired) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MsgWithRequired.Unmarshal(m, b)
 }
 func (m *MsgWithRequired) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_MsgWithRequired.Marshal(b, m, deterministic)
 }
-func (dst *MsgWithRequired) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgWithRequired.Merge(dst, src)
+func (m *MsgWithRequired) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgWithRequired.Merge(m, src)
 }
 func (m *MsgWithRequired) XXX_Size() int {
 	return xxx_messageInfo_MsgWithRequired.Size(m)
@@ -1100,16 +1013,17 @@ func (m *MsgWithIndirectRequired) Reset()         { *m = MsgWithIndirectRequired
 func (m *MsgWithIndirectRequired) String() string { return proto.CompactTextString(m) }
 func (*MsgWithIndirectRequired) ProtoMessage()    {}
 func (*MsgWithIndirectRequired) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{10}
+	return fileDescriptor_e97c739a0ce14cc6, []int{10}
 }
+
 func (m *MsgWithIndirectRequired) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MsgWithIndirectRequired.Unmarshal(m, b)
 }
 func (m *MsgWithIndirectRequired) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_MsgWithIndirectRequired.Marshal(b, m, deterministic)
 }
-func (dst *MsgWithIndirectRequired) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgWithIndirectRequired.Merge(dst, src)
+func (m *MsgWithIndirectRequired) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgWithIndirectRequired.Merge(m, src)
 }
 func (m *MsgWithIndirectRequired) XXX_Size() int {
 	return xxx_messageInfo_MsgWithIndirectRequired.Size(m)
@@ -1152,16 +1066,17 @@ func (m *MsgWithRequiredBytes) Reset()         { *m = MsgWithRequiredBytes{} }
 func (m *MsgWithRequiredBytes) String() string { return proto.CompactTextString(m) }
 func (*MsgWithRequiredBytes) ProtoMessage()    {}
 func (*MsgWithRequiredBytes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{11}
+	return fileDescriptor_e97c739a0ce14cc6, []int{11}
 }
+
 func (m *MsgWithRequiredBytes) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MsgWithRequiredBytes.Unmarshal(m, b)
 }
 func (m *MsgWithRequiredBytes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_MsgWithRequiredBytes.Marshal(b, m, deterministic)
 }
-func (dst *MsgWithRequiredBytes) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgWithRequiredBytes.Merge(dst, src)
+func (m *MsgWithRequiredBytes) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgWithRequiredBytes.Merge(m, src)
 }
 func (m *MsgWithRequiredBytes) XXX_Size() int {
 	return xxx_messageInfo_MsgWithRequiredBytes.Size(m)
@@ -1190,16 +1105,17 @@ func (m *MsgWithRequiredWKT) Reset()         { *m = MsgWithRequiredWKT{} }
 func (m *MsgWithRequiredWKT) String() string { return proto.CompactTextString(m) }
 func (*MsgWithRequiredWKT) ProtoMessage()    {}
 func (*MsgWithRequiredWKT) Descriptor() ([]byte, []int) {
-	return fileDescriptor_test_objects_a4d3e593ea3c686f, []int{12}
+	return fileDescriptor_e97c739a0ce14cc6, []int{12}
 }
+
 func (m *MsgWithRequiredWKT) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MsgWithRequiredWKT.Unmarshal(m, b)
 }
 func (m *MsgWithRequiredWKT) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_MsgWithRequiredWKT.Marshal(b, m, deterministic)
 }
-func (dst *MsgWithRequiredWKT) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgWithRequiredWKT.Merge(dst, src)
+func (m *MsgWithRequiredWKT) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgWithRequiredWKT.Merge(m, src)
 }
 func (m *MsgWithRequiredWKT) XXX_Size() int {
 	return xxx_messageInfo_MsgWithRequiredWKT.Size(m)
@@ -1236,6 +1152,7 @@ var E_Extm = &proto.ExtensionDesc{
 }
 
 func init() {
+	proto.RegisterEnum("jsonpb.Widget_Color", Widget_Color_name, Widget_Color_value)
 	proto.RegisterType((*Simple)(nil), "jsonpb.Simple")
 	proto.RegisterType((*NonFinites)(nil), "jsonpb.NonFinites")
 	proto.RegisterType((*Repeats)(nil), "jsonpb.Repeats")
@@ -1245,6 +1162,7 @@ func init() {
 	proto.RegisterMapType((map[int64]string)(nil), "jsonpb.Maps.MInt64StrEntry")
 	proto.RegisterType((*MsgWithOneof)(nil), "jsonpb.MsgWithOneof")
 	proto.RegisterType((*Real)(nil), "jsonpb.Real")
+	proto.RegisterExtension(E_Complex_RealExtension)
 	proto.RegisterType((*Complex)(nil), "jsonpb.Complex")
 	proto.RegisterType((*KnownTypes)(nil), "jsonpb.KnownTypes")
 	proto.RegisterType((*MsgWithRequired)(nil), "jsonpb.MsgWithRequired")
@@ -1252,15 +1170,13 @@ func init() {
 	proto.RegisterMapType((map[string]*MsgWithRequired)(nil), "jsonpb.MsgWithIndirectRequired.MapFieldEntry")
 	proto.RegisterType((*MsgWithRequiredBytes)(nil), "jsonpb.MsgWithRequiredBytes")
 	proto.RegisterType((*MsgWithRequiredWKT)(nil), "jsonpb.MsgWithRequiredWKT")
-	proto.RegisterEnum("jsonpb.Widget_Color", Widget_Color_name, Widget_Color_value)
-	proto.RegisterExtension(E_Complex_RealExtension)
 	proto.RegisterExtension(E_Name)
 	proto.RegisterExtension(E_Extm)
 }
 
-func init() { proto.RegisterFile("test_objects.proto", fileDescriptor_test_objects_a4d3e593ea3c686f) }
+func init() { proto.RegisterFile("test_objects.proto", fileDescriptor_e97c739a0ce14cc6) }
 
-var fileDescriptor_test_objects_a4d3e593ea3c686f = []byte{
+var fileDescriptor_e97c739a0ce14cc6 = []byte{
 	// 1460 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0xdd, 0x72, 0xdb, 0x44,
 	0x14, 0x8e, 0x24, 0xcb, 0xb6, 0x8e, 0xf3, 0xd7, 0x6d, 0xda, 0x2a, 0xa1, 0x14, 0x8d, 0x5b, 0x8a,

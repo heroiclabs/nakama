@@ -23,11 +23,12 @@ type ExamplepbABitOfEverything struct {
 
 	Nested []ABitOfEverythingNested `json:"nested,omitempty"`
 
+	// Float value field
 	FloatValue float32 `json:"float_value,omitempty"`
 
-	DoubleValue float64 `json:"double_value,omitempty"`
+	DoubleValue float64 `json:"double_value"`
 
-	Int64Value string `json:"int64_value,omitempty"`
+	Int64Value string `json:"int64_value"`
 
 	Uint64Value string `json:"uint64_value,omitempty"`
 
@@ -76,4 +77,19 @@ type ExamplepbABitOfEverything struct {
 	TimestampValue time.Time `json:"timestamp_value,omitempty"`
 
 	RepeatedEnumValue []ExamplepbNumericEnum `json:"repeated_enum_value,omitempty"`
+
+	// Repeated numeric enum description.
+	RepeatedEnumAnnotation []ExamplepbNumericEnum `json:"repeated_enum_annotation,omitempty"`
+
+	// Numeric enum description.
+	EnumValueAnnotation ExamplepbNumericEnum `json:"enum_value_annotation,omitempty"`
+
+	// Repeated string description.
+	RepeatedStringAnnotation []string `json:"repeated_string_annotation,omitempty"`
+
+	// Repeated nested object description.
+	RepeatedNestedAnnotation []ABitOfEverythingNested `json:"repeated_nested_annotation,omitempty"`
+
+	// Nested object description.
+	NestedAnnotation ABitOfEverythingNested `json:"nested_annotation,omitempty"`
 }

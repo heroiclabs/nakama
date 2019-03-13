@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.Session, error) {
+func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
 	username := s.config.GetConsole().Username
 	password := s.config.GetConsole().Password
 	if in.Username == username && in.Password == password {
@@ -31,7 +31,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 			"exp": time.Now().UTC().Add(1 * time.Hour).Unix(),
 		})
 		signedToken, _ := token.SignedString([]byte(s.config.GetConsole().SigningKey))
-		return &console.Session{Token: signedToken}, nil
+		return &console.ConsoleSession{Token: signedToken}, nil
 	}
 	return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 }

@@ -44,7 +44,7 @@ func enableRetry() func() {
 	return func() { envconfig.Retry = old }
 }
 
-func TestRetryUnary(t *testing.T) {
+func (s) TestRetryUnary(t *testing.T) {
 	defer enableRetry()()
 	i := -1
 	ss := &stubServer{
@@ -112,7 +112,7 @@ func TestRetryUnary(t *testing.T) {
 	}
 }
 
-func TestRetryDisabledByDefault(t *testing.T) {
+func (s) TestRetryDisabledByDefault(t *testing.T) {
 	if strings.EqualFold(os.Getenv("GRPC_GO_RETRY"), "on") {
 		return
 	}
@@ -174,7 +174,7 @@ func TestRetryDisabledByDefault(t *testing.T) {
 	}
 }
 
-func TestRetryThrottling(t *testing.T) {
+func (s) TestRetryThrottling(t *testing.T) {
 	defer enableRetry()()
 	i := -1
 	ss := &stubServer{
@@ -250,7 +250,7 @@ func TestRetryThrottling(t *testing.T) {
 	}
 }
 
-func TestRetryStreaming(t *testing.T) {
+func (s) TestRetryStreaming(t *testing.T) {
 	defer enableRetry()()
 	req := func(b byte) *testpb.StreamingOutputCallRequest {
 		return &testpb.StreamingOutputCallRequest{Payload: &testpb.Payload{Body: []byte{b}}}
@@ -386,7 +386,7 @@ func TestRetryStreaming(t *testing.T) {
 	cCheckElapsed := func(d time.Duration) clientOp {
 		return func(_ testpb.TestService_FullDuplexCallClient) error {
 			if elapsed := time.Since(curTime); elapsed < d {
-				return fmt.Errorf("Elapsed time: %v; want >= %v", elapsed, d)
+				return fmt.Errorf("elapsed time: %v; want >= %v", elapsed, d)
 			}
 			return nil
 		}

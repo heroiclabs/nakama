@@ -138,16 +138,20 @@ message ABitOfEverything {
 		json_schema: {
 			title: "A bit of everything"
 			description: "Intentionaly complicated message type to cover many features of Protobuf."
-			required: ["uuid"]
+			required: ["uuid", "int64_value", "double_value"]
 		}
 		external_docs: {
 			url: "https://github.com/grpc-ecosystem/grpc-gateway";
 			description: "Find out more about ABitOfEverything";
 		}
+		example: { value: '{ "uuid": "0cf361e1-4b44-483d-a159-54dabdf7e814" }' }
 	};
 
 	// Nested is nested type.
 	message Nested {
+		option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+			example: { value: '{ "ok": "TRUE" }' }
+		};
 		// name is nested field.
 		string name = 1;
 		uint32 amount = 2;
@@ -158,13 +162,15 @@ message ABitOfEverything {
 			// TRUE is true.
 			TRUE = 1;
 		}
-		DeepEnum ok = 3;
+
+		// DeepEnum comment.
+		DeepEnum ok = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: "DeepEnum description."}];
 	}
 	Nested single_nested = 25;
 
 	string uuid = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}", min_length: 1}];
 	repeated Nested nested = 2;
-	float float_value = 3;
+	float float_value = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: "Float value field", default: "0.2", required: ['float_value']}];
 	double double_value = 4;
 	int64 int64_value = 5;
 	uint64 uint64_value = 6;
@@ -198,10 +204,28 @@ message ABitOfEverything {
 
 	// repeated enum value. it is comma-separated in query
 	repeated NumericEnum repeated_enum_value = 28;
+
+    // repeated numeric enum comment (This comment is overridden by the field annotation)
+	repeated NumericEnum repeated_enum_annotation = 32 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Repeated numeric enum title", description: "Repeated numeric enum description."}];
+
+	// numeric enum comment (This comment is overridden by the field annotation)
+	NumericEnum enum_value_annotation = 33 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Numeric enum title", description: "Numeric enum description."}];
+
+	// repeated string comment (This comment is overridden by the field annotation)
+	repeated string repeated_string_annotation = 34 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Repeated string title", description: "Repeated string description."}];
+
+	// repeated nested object comment (This comment is overridden by the field annotation)
+	repeated Nested repeated_nested_annotation = 35 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Repeated nested object title", description: "Repeated nested object description."}];
+
+	// nested object comments (This comment is overridden by the field annotation)
+	Nested nested_annotation = 36 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Nested object title", description: "Nested object description."}];
 }
 
 // ABitOfEverythingRepeated is used to validate repeated path parameter functionality
 message ABitOfEverythingRepeated {
+	option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+		example: { value: '{ "path_repeated_bool_value": [true, true, false, true], "path_repeated_int32_value": [1, 2, 3] }' }
+	};
 
 	// repeated values. they are comma-separated in path
 	repeated float path_repeated_float_value = 1;
@@ -263,7 +287,7 @@ service ABitOfEverythingService {
 	// This API creates a new ABitOfEverything
 	rpc Create(ABitOfEverything) returns (ABitOfEverything) {
 		option (google.api.http) = {
-			post: "/v1/example/a_bit_of_everything/{float_value}/{double_value}/{int64_value}/separator/{uint64_value}/{int32_value}/{fixed64_value}/{fixed32_value}/{bool_value}/{string_value=strprefix/*}/{uint32_value}/{sfixed32_value}/{sfixed64_value}/{sint32_value}/{sint64_value}/{nonConventionalNameValue}/{enum_value}/{path_enum_value}/{nested_path_enum_value}"
+			post: "/v1/example/a_bit_of_everything/{float_value}/{double_value}/{int64_value}/separator/{uint64_value}/{int32_value}/{fixed64_value}/{fixed32_value}/{bool_value}/{string_value=strprefix/*}/{uint32_value}/{sfixed32_value}/{sfixed64_value}/{sint32_value}/{sint64_value}/{nonConventionalNameValue}/{enum_value}/{path_enum_value}/{nested_path_enum_value}/{enum_value_annotation}"
 		};
 	}
 	rpc CreateBody(ABitOfEverything) returns (ABitOfEverything) {

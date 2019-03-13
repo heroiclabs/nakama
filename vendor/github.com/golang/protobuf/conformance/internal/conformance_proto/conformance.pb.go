@@ -3,15 +3,17 @@
 
 package conformance
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import any "github.com/golang/protobuf/ptypes/any"
-import duration "github.com/golang/protobuf/ptypes/duration"
-import _struct "github.com/golang/protobuf/ptypes/struct"
-import timestamp "github.com/golang/protobuf/ptypes/timestamp"
-import wrappers "github.com/golang/protobuf/ptypes/wrappers"
-import field_mask "google.golang.org/genproto/protobuf/field_mask"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	any "github.com/golang/protobuf/ptypes/any"
+	duration "github.com/golang/protobuf/ptypes/duration"
+	_struct "github.com/golang/protobuf/ptypes/struct"
+	timestamp "github.com/golang/protobuf/ptypes/timestamp"
+	wrappers "github.com/golang/protobuf/ptypes/wrappers"
+	field_mask "google.golang.org/genproto/protobuf/field_mask"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -22,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type WireFormat int32
 
@@ -37,6 +39,7 @@ var WireFormat_name = map[int32]string{
 	1: "PROTOBUF",
 	2: "JSON",
 }
+
 var WireFormat_value = map[string]int32{
 	"UNSPECIFIED": 0,
 	"PROTOBUF":    1,
@@ -46,8 +49,9 @@ var WireFormat_value = map[string]int32{
 func (x WireFormat) String() string {
 	return proto.EnumName(WireFormat_name, int32(x))
 }
+
 func (WireFormat) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{0}
+	return fileDescriptor_e7c910178d599565, []int{0}
 }
 
 type ForeignEnum int32
@@ -63,6 +67,7 @@ var ForeignEnum_name = map[int32]string{
 	1: "FOREIGN_BAR",
 	2: "FOREIGN_BAZ",
 }
+
 var ForeignEnum_value = map[string]int32{
 	"FOREIGN_FOO": 0,
 	"FOREIGN_BAR": 1,
@@ -72,8 +77,9 @@ var ForeignEnum_value = map[string]int32{
 func (x ForeignEnum) String() string {
 	return proto.EnumName(ForeignEnum_name, int32(x))
 }
+
 func (ForeignEnum) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{1}
+	return fileDescriptor_e7c910178d599565, []int{1}
 }
 
 type TestAllTypes_NestedEnum int32
@@ -91,6 +97,7 @@ var TestAllTypes_NestedEnum_name = map[int32]string{
 	2:  "BAZ",
 	-1: "NEG",
 }
+
 var TestAllTypes_NestedEnum_value = map[string]int32{
 	"FOO": 0,
 	"BAR": 1,
@@ -101,8 +108,9 @@ var TestAllTypes_NestedEnum_value = map[string]int32{
 func (x TestAllTypes_NestedEnum) String() string {
 	return proto.EnumName(TestAllTypes_NestedEnum_name, int32(x))
 }
+
 func (TestAllTypes_NestedEnum) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{2, 0}
+	return fileDescriptor_e7c910178d599565, []int{2, 0}
 }
 
 // Represents a single test case's input.  The testee should:
@@ -129,16 +137,17 @@ func (m *ConformanceRequest) Reset()         { *m = ConformanceRequest{} }
 func (m *ConformanceRequest) String() string { return proto.CompactTextString(m) }
 func (*ConformanceRequest) ProtoMessage()    {}
 func (*ConformanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{0}
+	return fileDescriptor_e7c910178d599565, []int{0}
 }
+
 func (m *ConformanceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConformanceRequest.Unmarshal(m, b)
 }
 func (m *ConformanceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConformanceRequest.Marshal(b, m, deterministic)
 }
-func (dst *ConformanceRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConformanceRequest.Merge(dst, src)
+func (m *ConformanceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConformanceRequest.Merge(m, src)
 }
 func (m *ConformanceRequest) XXX_Size() int {
 	return xxx_messageInfo_ConformanceRequest.Size(m)
@@ -193,70 +202,12 @@ func (m *ConformanceRequest) GetRequestedOutputFormat() WireFormat {
 	return WireFormat_UNSPECIFIED
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*ConformanceRequest) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _ConformanceRequest_OneofMarshaler, _ConformanceRequest_OneofUnmarshaler, _ConformanceRequest_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ConformanceRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*ConformanceRequest_ProtobufPayload)(nil),
 		(*ConformanceRequest_JsonPayload)(nil),
 	}
-}
-
-func _ConformanceRequest_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*ConformanceRequest)
-	// payload
-	switch x := m.Payload.(type) {
-	case *ConformanceRequest_ProtobufPayload:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		b.EncodeRawBytes(x.ProtobufPayload)
-	case *ConformanceRequest_JsonPayload:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.JsonPayload)
-	case nil:
-	default:
-		return fmt.Errorf("ConformanceRequest.Payload has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _ConformanceRequest_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*ConformanceRequest)
-	switch tag {
-	case 1: // payload.protobuf_payload
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.Payload = &ConformanceRequest_ProtobufPayload{x}
-		return true, err
-	case 2: // payload.json_payload
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Payload = &ConformanceRequest_JsonPayload{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _ConformanceRequest_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*ConformanceRequest)
-	// payload
-	switch x := m.Payload.(type) {
-	case *ConformanceRequest_ProtobufPayload:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.ProtobufPayload)))
-		n += len(x.ProtobufPayload)
-	case *ConformanceRequest_JsonPayload:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.JsonPayload)))
-		n += len(x.JsonPayload)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Represents a single test case's output.
@@ -278,16 +229,17 @@ func (m *ConformanceResponse) Reset()         { *m = ConformanceResponse{} }
 func (m *ConformanceResponse) String() string { return proto.CompactTextString(m) }
 func (*ConformanceResponse) ProtoMessage()    {}
 func (*ConformanceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{1}
+	return fileDescriptor_e7c910178d599565, []int{1}
 }
+
 func (m *ConformanceResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConformanceResponse.Unmarshal(m, b)
 }
 func (m *ConformanceResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConformanceResponse.Marshal(b, m, deterministic)
 }
-func (dst *ConformanceResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConformanceResponse.Merge(dst, src)
+func (m *ConformanceResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConformanceResponse.Merge(m, src)
 }
 func (m *ConformanceResponse) XXX_Size() int {
 	return xxx_messageInfo_ConformanceResponse.Size(m)
@@ -387,9 +339,9 @@ func (m *ConformanceResponse) GetSkipped() string {
 	return ""
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*ConformanceResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _ConformanceResponse_OneofMarshaler, _ConformanceResponse_OneofUnmarshaler, _ConformanceResponse_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ConformanceResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*ConformanceResponse_ParseError)(nil),
 		(*ConformanceResponse_SerializeError)(nil),
 		(*ConformanceResponse_RuntimeError)(nil),
@@ -397,120 +349,6 @@ func (*ConformanceResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.B
 		(*ConformanceResponse_JsonPayload)(nil),
 		(*ConformanceResponse_Skipped)(nil),
 	}
-}
-
-func _ConformanceResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*ConformanceResponse)
-	// result
-	switch x := m.Result.(type) {
-	case *ConformanceResponse_ParseError:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.ParseError)
-	case *ConformanceResponse_SerializeError:
-		b.EncodeVarint(6<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.SerializeError)
-	case *ConformanceResponse_RuntimeError:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.RuntimeError)
-	case *ConformanceResponse_ProtobufPayload:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		b.EncodeRawBytes(x.ProtobufPayload)
-	case *ConformanceResponse_JsonPayload:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.JsonPayload)
-	case *ConformanceResponse_Skipped:
-		b.EncodeVarint(5<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.Skipped)
-	case nil:
-	default:
-		return fmt.Errorf("ConformanceResponse.Result has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _ConformanceResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*ConformanceResponse)
-	switch tag {
-	case 1: // result.parse_error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Result = &ConformanceResponse_ParseError{x}
-		return true, err
-	case 6: // result.serialize_error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Result = &ConformanceResponse_SerializeError{x}
-		return true, err
-	case 2: // result.runtime_error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Result = &ConformanceResponse_RuntimeError{x}
-		return true, err
-	case 3: // result.protobuf_payload
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.Result = &ConformanceResponse_ProtobufPayload{x}
-		return true, err
-	case 4: // result.json_payload
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Result = &ConformanceResponse_JsonPayload{x}
-		return true, err
-	case 5: // result.skipped
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Result = &ConformanceResponse_Skipped{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _ConformanceResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*ConformanceResponse)
-	// result
-	switch x := m.Result.(type) {
-	case *ConformanceResponse_ParseError:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.ParseError)))
-		n += len(x.ParseError)
-	case *ConformanceResponse_SerializeError:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.SerializeError)))
-		n += len(x.SerializeError)
-	case *ConformanceResponse_RuntimeError:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.RuntimeError)))
-		n += len(x.RuntimeError)
-	case *ConformanceResponse_ProtobufPayload:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.ProtobufPayload)))
-		n += len(x.ProtobufPayload)
-	case *ConformanceResponse_JsonPayload:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.JsonPayload)))
-		n += len(x.JsonPayload)
-	case *ConformanceResponse_Skipped:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Skipped)))
-		n += len(x.Skipped)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // This proto includes every type of field in both singular and repeated
@@ -640,16 +478,17 @@ func (m *TestAllTypes) Reset()         { *m = TestAllTypes{} }
 func (m *TestAllTypes) String() string { return proto.CompactTextString(m) }
 func (*TestAllTypes) ProtoMessage()    {}
 func (*TestAllTypes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{2}
+	return fileDescriptor_e7c910178d599565, []int{2}
 }
+
 func (m *TestAllTypes) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TestAllTypes.Unmarshal(m, b)
 }
 func (m *TestAllTypes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_TestAllTypes.Marshal(b, m, deterministic)
 }
-func (dst *TestAllTypes) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TestAllTypes.Merge(dst, src)
+func (m *TestAllTypes) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TestAllTypes.Merge(m, src)
 }
 func (m *TestAllTypes) XXX_Size() int {
 	return xxx_messageInfo_TestAllTypes.Size(m)
@@ -1451,103 +1290,14 @@ func (m *TestAllTypes) GetFIELDName12() int32 {
 	return 0
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*TestAllTypes) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _TestAllTypes_OneofMarshaler, _TestAllTypes_OneofUnmarshaler, _TestAllTypes_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*TestAllTypes) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*TestAllTypes_OneofUint32)(nil),
 		(*TestAllTypes_OneofNestedMessage)(nil),
 		(*TestAllTypes_OneofString)(nil),
 		(*TestAllTypes_OneofBytes)(nil),
 	}
-}
-
-func _TestAllTypes_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*TestAllTypes)
-	// oneof_field
-	switch x := m.OneofField.(type) {
-	case *TestAllTypes_OneofUint32:
-		b.EncodeVarint(111<<3 | proto.WireVarint)
-		b.EncodeVarint(uint64(x.OneofUint32))
-	case *TestAllTypes_OneofNestedMessage:
-		b.EncodeVarint(112<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.OneofNestedMessage); err != nil {
-			return err
-		}
-	case *TestAllTypes_OneofString:
-		b.EncodeVarint(113<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.OneofString)
-	case *TestAllTypes_OneofBytes:
-		b.EncodeVarint(114<<3 | proto.WireBytes)
-		b.EncodeRawBytes(x.OneofBytes)
-	case nil:
-	default:
-		return fmt.Errorf("TestAllTypes.OneofField has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _TestAllTypes_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*TestAllTypes)
-	switch tag {
-	case 111: // oneof_field.oneof_uint32
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.OneofField = &TestAllTypes_OneofUint32{uint32(x)}
-		return true, err
-	case 112: // oneof_field.oneof_nested_message
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(TestAllTypes_NestedMessage)
-		err := b.DecodeMessage(msg)
-		m.OneofField = &TestAllTypes_OneofNestedMessage{msg}
-		return true, err
-	case 113: // oneof_field.oneof_string
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.OneofField = &TestAllTypes_OneofString{x}
-		return true, err
-	case 114: // oneof_field.oneof_bytes
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.OneofField = &TestAllTypes_OneofBytes{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _TestAllTypes_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*TestAllTypes)
-	// oneof_field
-	switch x := m.OneofField.(type) {
-	case *TestAllTypes_OneofUint32:
-		n += 2 // tag and wire
-		n += proto.SizeVarint(uint64(x.OneofUint32))
-	case *TestAllTypes_OneofNestedMessage:
-		s := proto.Size(x.OneofNestedMessage)
-		n += 2 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *TestAllTypes_OneofString:
-		n += 2 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.OneofString)))
-		n += len(x.OneofString)
-	case *TestAllTypes_OneofBytes:
-		n += 2 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.OneofBytes)))
-		n += len(x.OneofBytes)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type TestAllTypes_NestedMessage struct {
@@ -1562,16 +1312,17 @@ func (m *TestAllTypes_NestedMessage) Reset()         { *m = TestAllTypes_NestedM
 func (m *TestAllTypes_NestedMessage) String() string { return proto.CompactTextString(m) }
 func (*TestAllTypes_NestedMessage) ProtoMessage()    {}
 func (*TestAllTypes_NestedMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{2, 0}
+	return fileDescriptor_e7c910178d599565, []int{2, 0}
 }
+
 func (m *TestAllTypes_NestedMessage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TestAllTypes_NestedMessage.Unmarshal(m, b)
 }
 func (m *TestAllTypes_NestedMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_TestAllTypes_NestedMessage.Marshal(b, m, deterministic)
 }
-func (dst *TestAllTypes_NestedMessage) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TestAllTypes_NestedMessage.Merge(dst, src)
+func (m *TestAllTypes_NestedMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TestAllTypes_NestedMessage.Merge(m, src)
 }
 func (m *TestAllTypes_NestedMessage) XXX_Size() int {
 	return xxx_messageInfo_TestAllTypes_NestedMessage.Size(m)
@@ -1607,16 +1358,17 @@ func (m *ForeignMessage) Reset()         { *m = ForeignMessage{} }
 func (m *ForeignMessage) String() string { return proto.CompactTextString(m) }
 func (*ForeignMessage) ProtoMessage()    {}
 func (*ForeignMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_conformance_48ac832451f5d6c3, []int{3}
+	return fileDescriptor_e7c910178d599565, []int{3}
 }
+
 func (m *ForeignMessage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ForeignMessage.Unmarshal(m, b)
 }
 func (m *ForeignMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ForeignMessage.Marshal(b, m, deterministic)
 }
-func (dst *ForeignMessage) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ForeignMessage.Merge(dst, src)
+func (m *ForeignMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ForeignMessage.Merge(m, src)
 }
 func (m *ForeignMessage) XXX_Size() int {
 	return xxx_messageInfo_ForeignMessage.Size(m)
@@ -1635,6 +1387,9 @@ func (m *ForeignMessage) GetC() int32 {
 }
 
 func init() {
+	proto.RegisterEnum("conformance.WireFormat", WireFormat_name, WireFormat_value)
+	proto.RegisterEnum("conformance.ForeignEnum", ForeignEnum_name, ForeignEnum_value)
+	proto.RegisterEnum("conformance.TestAllTypes_NestedEnum", TestAllTypes_NestedEnum_name, TestAllTypes_NestedEnum_value)
 	proto.RegisterType((*ConformanceRequest)(nil), "conformance.ConformanceRequest")
 	proto.RegisterType((*ConformanceResponse)(nil), "conformance.ConformanceResponse")
 	proto.RegisterType((*TestAllTypes)(nil), "conformance.TestAllTypes")
@@ -1659,14 +1414,11 @@ func init() {
 	proto.RegisterMapType((map[uint64]uint64)(nil), "conformance.TestAllTypes.MapUint64Uint64Entry")
 	proto.RegisterType((*TestAllTypes_NestedMessage)(nil), "conformance.TestAllTypes.NestedMessage")
 	proto.RegisterType((*ForeignMessage)(nil), "conformance.ForeignMessage")
-	proto.RegisterEnum("conformance.WireFormat", WireFormat_name, WireFormat_value)
-	proto.RegisterEnum("conformance.ForeignEnum", ForeignEnum_name, ForeignEnum_value)
-	proto.RegisterEnum("conformance.TestAllTypes_NestedEnum", TestAllTypes_NestedEnum_name, TestAllTypes_NestedEnum_value)
 }
 
-func init() { proto.RegisterFile("conformance.proto", fileDescriptor_conformance_48ac832451f5d6c3) }
+func init() { proto.RegisterFile("conformance.proto", fileDescriptor_e7c910178d599565) }
 
-var fileDescriptor_conformance_48ac832451f5d6c3 = []byte{
+var fileDescriptor_e7c910178d599565 = []byte{
 	// 2600 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x5a, 0x5b, 0x73, 0x13, 0xc9,
 	0x15, 0xf6, 0x68, 0xc0, 0x36, 0x2d, 0xd9, 0x96, 0xdb, 0xb7, 0xc6, 0x50, 0xcb, 0x60, 0x96, 0x20,
