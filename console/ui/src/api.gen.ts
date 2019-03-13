@@ -20,37 +20,37 @@ export interface ConfigWarning {
 /**  */
 export interface StatusListStatus {
   // Latest average response latency in milliseconds.
-  avg_latency_ms?: ;
+  avg_latency_ms?: number;
   // Average response latency in milliseconds over the last hour.
-  avg_latency_ms_hr?: ;
+  avg_latency_ms_hr?: number;
   // Average response latency in milliseconds over the last minute.
-  avg_latency_ms_min?: ;
+  avg_latency_ms_min?: number;
   // Current number of running goroutines.
   goroutine_count?: number;
   // Latest input bandwidth usage.
-  input_kbs?: ;
+  input_kbs?: number;
   // Input bandwidth usage over the last hour.
-  input_kbs_hr?: ;
+  input_kbs_hr?: number;
   // Input bandwidth usage over the last minute.
-  input_kbs_min?: ;
+  input_kbs_min?: number;
   // Current number of active authoritative matches.
   match_count?: number;
   // Node name.
   name?: string;
   // Latest output bandwidth usage.
-  output_kbs?: ;
+  output_kbs?: number;
   // Output bandwidth usage over the last hour.
-  output_kbs_ht?: ;
+  output_kbs_ht?: number;
   // Output bandwidth usage over the last minute.
-  output_kbs_min?: ;
+  output_kbs_min?: number;
   // Currently registered live presences.
   presence_count?: number;
   // Latest number of requests per second.
-  rate_sec?: ;
+  rate_sec?: number;
   // Number of requests per second over the last hour.
-  rate_sec_hr?: ;
+  rate_sec_hr?: number;
   // Number of requests per second over the last minute.
-  rate_sec_min?: ;
+  rate_sec_min?: number;
   // Currently connected sessions.
   session_count?: number;
 }
@@ -319,15 +319,13 @@ export interface ConsoleWalletLedger {
   // The user ID this wallet ledger item belongs to.
   user_id?: string;
 }
-/** *
-List of wallet ledger items for a particular user. */
+/** List of wallet ledger items for a particular user. */
 export interface ConsoleWalletLedgerList {
   // A list of wallet ledger items.
   items?: Array<ConsoleWalletLedger>;
 }
-/** *
-A console user session. */
-export interface NakamaconsoleSession {
+/** A console user session. */
+export interface ConsoleSession {
   // Session token.
   token?: string;
 }
@@ -339,7 +337,7 @@ The JSON representation for `Empty` is empty JSON object `{}`. */
 export interface ProtobufEmpty {
 }
 
-export const NakamaApi = (configuration: ConfigurationParameters = {
+export const ConsoleApi = (configuration: ConfigurationParameters = {
   basePath: BASE_PATH,
   bearerToken: "",
   password: "",
@@ -376,7 +374,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       }
 
       fetchOptions.headers = {...headers, ...options.headers};
-      fetchOptions.body = body
+      fetchOptions.body = body;
 
       return Promise.race([
         fetch(configuration.basePath + urlPath + urlQuery, fetchOptions).then((response) => {
@@ -403,7 +401,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         record_deletion: recordDeletion,
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -418,7 +416,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -433,7 +431,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -448,7 +446,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -463,7 +461,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -478,7 +476,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -497,7 +495,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -512,7 +510,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -531,7 +529,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -546,7 +544,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -561,7 +559,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -576,7 +574,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -591,7 +589,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -606,7 +604,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -621,7 +619,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -636,7 +634,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -651,7 +649,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -666,7 +664,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -685,12 +683,12 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Authenticate a console user with username and password. */
-    authenticate(body: ConsoleAuthenticateRequest, options: any = {}): Promise<AkamaconsoleSession> {
+    authenticate(body: ConsoleAuthenticateRequest, options: any = {}): Promise<ConsoleSession> {
       if (body === null || body === undefined) {
         throw new Error("'body' is a required parameter but is null or undefined.");
       }
@@ -699,7 +697,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
       _body = JSON.stringify(body || {});
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
@@ -711,7 +709,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -722,7 +720,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -733,7 +731,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -745,7 +743,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         user_id: userId,
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
@@ -769,7 +767,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         version: version,
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -792,7 +790,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -819,7 +817,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -830,7 +828,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       const queryParams = {
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
@@ -845,7 +843,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         cursor: cursor,
       } as any;
 
-      var _body = null;
+      let _body = null;
 
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
