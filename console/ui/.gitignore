@@ -1,5 +1,14 @@
+/build
+/.pnp
+.pnp.js
 
-# Created by https://www.gitignore.io/api/node,macos,linux,windows,sublimetext,intellij+all,webstorm+all,visualstudiocode
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Created by https://www.gitignore.io/api/node,macos,linux,windows,sublimetext,intellij+all
+# Edit at https://www.gitignore.io/?templates=node,macos,linux,windows,sublimetext,intellij+all
 
 ### Intellij+all ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm
@@ -11,6 +20,9 @@
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+
+# Generated files
+.idea/**/contentModel.xml
 
 # Sensitive or high-churn files
 .idea/**/dataSources/
@@ -63,6 +75,9 @@ fabric.properties
 # Editor-based Rest Client
 .idea/httpRequests
 
+# Android studio 3.1+ serialized cache file
+.idea/caches/build_file_checksums.ser
+
 ### Intellij+all Patch ###
 # Ignores the whole .idea folder and all .iml files
 # See https://github.com/joeblau/gitignore.io/issues/186 and https://github.com/joeblau/gitignore.io/issues/360
@@ -75,6 +90,9 @@ fabric.properties
 modules.xml
 .idea/misc.xml
 *.ipr
+
+# Sonarlint plugin
+ .idea/sonarlint
 
 ### Linux ###
 *~
@@ -142,7 +160,7 @@ coverage
 # nyc test coverage
 .nyc_output
 
-# Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
 # Bower dependency directory (https://bower.io/)
@@ -178,6 +196,7 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.test
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -192,7 +211,13 @@ typings/
 .vuepress/dist
 
 # Serverless directories
-.serverless
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
 
 ### SublimeText ###
 # Cache files for Sublime Text
@@ -226,57 +251,6 @@ bh_unicode_properties.cache
 # https://packagecontrol.io/packages/sublime-github
 GitHub.sublime-settings
 
-### VisualStudioCode ###
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-### WebStorm+all ###
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm
-# Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
-
-# User-specific stuff
-
-# Sensitive or high-churn files
-
-# Gradle
-
-# Gradle and Maven with auto-import
-# When using Gradle or Maven with auto-import, you should exclude module files,
-# since they will be recreated, and may cause churn.  Uncomment if using
-# auto-import.
-# .idea/modules.xml
-# .idea/*.iml
-# .idea/modules
-
-# CMake
-
-# Mongo Explorer plugin
-
-# File-based project format
-
-# IntelliJ
-
-# mpeltonen/sbt-idea plugin
-
-# JIRA plugin
-
-# Cursive Clojure plugin
-
-# Crashlytics plugin (for Android Studio and IntelliJ)
-
-# Editor-based Rest Client
-
-### WebStorm+all Patch ###
-# Ignores the whole .idea folder and all .iml files
-# See https://github.com/joeblau/gitignore.io/issues/186 and https://github.com/joeblau/gitignore.io/issues/360
-
-
-# Reason: https://github.com/joeblau/gitignore.io/issues/186#issuecomment-249601023
-
-
 ### Windows ###
 # Windows thumbnail cache files
 Thumbs.db
@@ -302,5 +276,4 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-
-# End of https://www.gitignore.io/api/node,macos,linux,windows,sublimetext,intellij+all,webstorm+all,visualstudiocode
+# End of https://www.gitignore.io/api/node,macos,linux,windows,sublimetext,intellij+all
