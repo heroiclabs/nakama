@@ -26,7 +26,7 @@
         "operationId": "GetAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiAccount"
             }
@@ -50,9 +50,9 @@
         "operationId": "DeleteAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -82,9 +82,9 @@
         "operationId": "UpdateAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -108,9 +108,9 @@
         "operationId": "BanUser",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -134,7 +134,7 @@
         "operationId": "ExportAccount",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleAccountExport"
             }
@@ -160,7 +160,7 @@
         "operationId": "GetFriends",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiFriends"
             }
@@ -186,9 +186,9 @@
         "operationId": "DeleteFriend",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -219,7 +219,7 @@
         "operationId": "GetGroups",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiUserGroupList"
             }
@@ -245,9 +245,9 @@
         "operationId": "DeleteGroupUser",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -278,9 +278,9 @@
         "operationId": "UnbanUser",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -304,9 +304,9 @@
         "operationId": "UnlinkCustom",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -330,9 +330,9 @@
         "operationId": "UnlinkDevice",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -356,9 +356,9 @@
         "operationId": "UnlinkEmail",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -382,9 +382,9 @@
         "operationId": "UnlinkFacebook",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -408,9 +408,9 @@
         "operationId": "UnlinkGameCenter",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -434,9 +434,9 @@
         "operationId": "UnlinkGoogle",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -460,9 +460,9 @@
         "operationId": "UnlinkSteam",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -486,7 +486,7 @@
         "operationId": "GetWalletLedger",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleWalletLedgerList"
             }
@@ -512,9 +512,9 @@
         "operationId": "DeleteWalletLedger",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -545,9 +545,9 @@
         "operationId": "Authenticate",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/nakamaconsoleSession"
+              "$ref": "#/definitions/consoleConsoleSession"
             }
           }
         },
@@ -577,7 +577,7 @@
         "operationId": "GetConfig",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleConfig"
             }
@@ -594,7 +594,7 @@
         "operationId": "GetStatus",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleStatusList"
             }
@@ -611,7 +611,7 @@
         "operationId": "ListStorage",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleStorageList"
             }
@@ -620,7 +620,7 @@
         "parameters": [
           {
             "name": "user_id",
-            "description": "User ID to filter data for.",
+            "description": "User ID to filter objects for.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -635,9 +635,9 @@
         "operationId": "DeleteStorage",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -652,9 +652,9 @@
         "operationId": "DeleteStorageObject",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -697,9 +697,9 @@
         "operationId": "WriteStorageObject",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -737,9 +737,9 @@
         "operationId": "DeleteStorageObject2",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -784,7 +784,7 @@
         "operationId": "ListUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleUserList"
             }
@@ -816,7 +816,7 @@
           },
           {
             "name": "cursor",
-            "description": "Optional cursor to fetch next page.",
+            "description": "An (optional) cursor to fetch next page.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -832,9 +832,9 @@
         "operationId": "DeleteUsers",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "properties": {}
             }
           }
         },
@@ -856,7 +856,8 @@
           "type": "string",
           "description": "Warning message text."
         }
-      }
+      },
+      "description": "A warning for a configuration field."
     },
     "StatusListStatus": {
       "type": "object",
@@ -945,7 +946,8 @@
           "format": "double",
           "description": "Output bandwidth usage over the last hour."
         }
-      }
+      },
+      "description": "The status of a Nakama node."
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -1428,7 +1430,7 @@
           "description": "The user's wallet ledger items."
         }
       },
-      "description": "*\nAn export of all information stored for a user account."
+      "description": "An export of all information stored for a user account."
     },
     "consoleAuthenticateRequest": {
       "type": "object",
@@ -1442,14 +1444,14 @@
           "description": "The password of the user."
         }
       },
-      "description": "*\nAuthenticate a console user with username and password."
+      "description": "Authenticate a console user with username and password."
     },
     "consoleConfig": {
       "type": "object",
       "properties": {
         "config": {
           "type": "string",
-          "description": "JSON-encoded effective server configuration."
+          "description": "JSON-encoded active server configuration."
         },
         "warnings": {
           "type": "array",
@@ -1459,7 +1461,17 @@
           "description": "Any warnings about the current config."
         }
       },
-      "description": "*\nConfiguration and config warnings information."
+      "description": "The current server configuration and any associated warnings."
+    },
+    "consoleConsoleSession": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "A session token (JWT) for the console user."
+        }
+      },
+      "description": "A console user session."
     },
     "consoleStatusList": {
       "type": "object",
@@ -1472,7 +1484,7 @@
           "description": "List of nodes and their stats."
         }
       },
-      "description": "*\nList of nodes and their stats."
+      "description": "List of nodes and their stats."
     },
     "consoleStorageList": {
       "type": "object",
@@ -1487,9 +1499,10 @@
         "cursor": {
           "type": "string",
           "format": "byte",
-          "description": "Optional cursor for pagination."
+          "description": "An (optional) cursor for paging results."
         }
-      }
+      },
+      "description": "List of storage objects."
     },
     "consoleUserList": {
       "type": "object",
@@ -1507,7 +1520,7 @@
           "description": "A cursor to fetch more results."
         }
       },
-      "description": "*\nA list of users."
+      "description": "A list of users."
     },
     "consoleWalletLedger": {
       "type": "object",
@@ -1539,7 +1552,7 @@
           "description": "The UNIX time when the wallet ledger item was updated."
         }
       },
-      "description": "*\nAn individual update to a user's wallet."
+      "description": "An individual update to a user's wallet."
     },
     "consoleWalletLedgerList": {
       "type": "object",
@@ -1552,22 +1565,7 @@
           "description": "A list of wallet ledger items."
         }
       },
-      "description": "*\nList of wallet ledger items for a particular user."
-    },
-    "nakamaconsoleSession": {
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "description": "Session token."
-        }
-      },
-      "description": "*\nA console user session."
-    },
-    "protobufEmpty": {
-      "type": "object",
-      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
-      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+      "description": "List of wallet ledger items for a particular user."
     }
   },
   "securityDefinitions": {

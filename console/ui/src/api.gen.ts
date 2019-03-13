@@ -10,14 +10,14 @@ export interface ConfigurationParameters {
   bearerToken?: string;
   timeoutMs?: number;
 }
-/**  */
+/** A warning for a configuration field. */
 export interface ConfigWarning {
   // The config field this warning is for in a JSON pointer format.
   field?: string;
   // Warning message text.
   message?: string;
 }
-/**  */
+/** The status of a Nakama node. */
 export interface StatusListStatus {
   // Latest average response latency in milliseconds.
   avg_latency_ms?: number;
@@ -246,8 +246,7 @@ export interface ApiUserGroupList {
   // Group-role pairs for a user.
   user_groups?: Array<UserGroupListUserGroup>;
 }
-/** *
-An export of all information stored for a user account. */
+/** An export of all information stored for a user account. */
 export interface ConsoleAccountExport {
   // The user's account details.
   account?: ApiAccount;
@@ -266,45 +265,45 @@ export interface ConsoleAccountExport {
   // The user's wallet ledger items.
   wallet_ledgers?: Array<ConsoleWalletLedger>;
 }
-/** *
-Authenticate a console user with username and password. */
+/** Authenticate a console user with username and password. */
 export interface ConsoleAuthenticateRequest {
   // The password of the user.
   password?: string;
   // The username of the user.
   username?: string;
 }
-/** *
-Configuration and config warnings information. */
+/** The current server configuration and any associated warnings. */
 export interface ConsoleConfig {
-  // JSON-encoded effective server configuration.
+  // JSON-encoded active server configuration.
   config?: string;
   // Any warnings about the current config.
   warnings?: Array<ConfigWarning>;
 }
-/** *
-List of nodes and their stats. */
+/** A console user session. */
+export interface ConsoleConsoleSession {
+  // A session token (JWT) for the console user.
+  token?: string;
+}
+/** List of nodes and their stats. */
 export interface ConsoleStatusList {
   // List of nodes and their stats.
   nodes?: Array<StatusListStatus>;
 }
-/**  */
+/** List of storage objects. */
 export interface ConsoleStorageList {
-  // Optional cursor for pagination.
+  // An (optional) cursor for paging results.
   cursor?: string;
   // List of storage objects matching list/filter operation.
   objects?: Array<ApiStorageObject>;
 }
-/** *
-A list of users. */
+/** A list of users. */
 export interface ConsoleUserList {
   // A cursor to fetch more results.
   cursor?: string;
   // A list of users.
   users?: Array<ApiUser>;
 }
-/** *
-An individual update to a user's wallet. */
+/** An individual update to a user's wallet. */
 export interface ConsoleWalletLedger {
   // The changeset.
   changeset?: string;
@@ -324,20 +323,8 @@ export interface ConsoleWalletLedgerList {
   // A list of wallet ledger items.
   items?: Array<ConsoleWalletLedger>;
 }
-/** A console user session. */
-export interface ConsoleSession {
-  // Session token.
-  token?: string;
-}
-/** service Foo {
-      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
-    }
 
-The JSON representation for `Empty` is empty JSON object `{}`. */
-export interface ProtobufEmpty {
-}
-
-export const ConsoleApi = (configuration: ConfigurationParameters = {
+export const NakamaApi = (configuration: ConfigurationParameters = {
   basePath: BASE_PATH,
   bearerToken: "",
   password: "",
@@ -390,7 +377,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       ]);
     },
     /** Delete all information stored for a user account. */
-    deleteAccount(id: string, recordDeletion?: boolean, options: any = {}): Promise<ProtobufEmpty> {
+    deleteAccount(id: string, recordDeletion?: boolean, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -421,7 +408,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Update one or more fields on a user account. */
-    updateAccount(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    updateAccount(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -436,7 +423,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Ban a user. */
-    banUser(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    banUser(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -481,7 +468,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete the friend relationship between two users. */
-    deleteFriend(id: string, friendId: string, options: any = {}): Promise<ProtobufEmpty> {
+    deleteFriend(id: string, friendId: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -515,7 +502,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Remove a user from a group. */
-    deleteGroupUser(id: string, groupId: string, options: any = {}): Promise<ProtobufEmpty> {
+    deleteGroupUser(id: string, groupId: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -534,7 +521,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Unban a user. */
-    unbanUser(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unbanUser(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -549,7 +536,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the custom ID from a user account. */
-    unlinkCustom(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkCustom(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -564,7 +551,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the device ID from a user account. */
-    unlinkDevice(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkDevice(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -579,7 +566,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the email from a user account. */
-    unlinkEmail(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkEmail(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -594,7 +581,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Facebook ID from a user account. */
-    unlinkFacebook(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkFacebook(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -609,7 +596,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Game Center ID from a user account. */
-    unlinkGameCenter(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkGameCenter(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -624,7 +611,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Google ID from a user account. */
-    unlinkGoogle(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkGoogle(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -639,7 +626,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Steam ID from a user account. */
-    unlinkSteam(id: string, options: any = {}): Promise<ProtobufEmpty> {
+    unlinkSteam(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -669,7 +656,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete a wallet ledger item. */
-    deleteWalletLedger(id: string, walletId: string, options: any = {}): Promise<ProtobufEmpty> {
+    deleteWalletLedger(id: string, walletId: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -688,7 +675,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Authenticate a console user with username and password. */
-    authenticate(body: ConsoleAuthenticateRequest, options: any = {}): Promise<ConsoleSession> {
+    authenticate(body: ConsoleAuthenticateRequest, options: any = {}): Promise<ConsoleConsoleSession> {
       if (body === null || body === undefined) {
         throw new Error("'body' is a required parameter but is null or undefined.");
       }
@@ -725,7 +712,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete all storage data. */
-    deleteStorage(options: any = {}): Promise<ProtobufEmpty> {
+    deleteStorage(options: any = {}): Promise<any> {
       const urlPath = "/v2/console/storage";
 
       const queryParams = {
@@ -748,7 +735,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete a storage object. */
-    deleteStorageObject(collection: string, key: string, userId: string, version?: string, options: any = {}): Promise<ProtobufEmpty> {
+    deleteStorageObject(collection: string, key: string, userId: string, version?: string, options: any = {}): Promise<any> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -772,7 +759,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Write a new storage object or replace an existing one. */
-    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ProtobufEmpty> {
+    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<any> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -795,7 +782,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Delete a storage object. */
-    deleteStorageObject2(collection: string, key: string, userId: string, version: string, options: any = {}): Promise<ProtobufEmpty> {
+    deleteStorageObject2(collection: string, key: string, userId: string, version: string, options: any = {}): Promise<any> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -822,7 +809,7 @@ export const ConsoleApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Delete (non-recorded) all user accounts. */
-    deleteUsers(options: any = {}): Promise<ProtobufEmpty> {
+    deleteUsers(options: any = {}): Promise<any> {
       const urlPath = "/v2/console/user";
 
       const queryParams = {

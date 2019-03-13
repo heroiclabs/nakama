@@ -68,7 +68,7 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
  */
 service Console {
   // Authenticate a console user with username and password.
-  rpc Authenticate (AuthenticateRequest) returns (Session) {
+  rpc Authenticate (AuthenticateRequest) returns (ConsoleSession) {
     option (google.api.http) = {
       post: "/v2/console/authenticate",
       body: "*"
@@ -221,9 +221,7 @@ service Console {
   }
 }
 
-/**
- * Deletion request for a user account.
- */
+// Delete a user account.
 message AccountDeleteRequest {
   // The unique identifier of the user account.
   string id = 1;
@@ -231,9 +229,7 @@ message AccountDeleteRequest {
   google.protobuf.BoolValue record_deletion = 2;
 }
 
-/**
- * An export of all information stored for a user account.
- */
+// An export of all information stored for a user account.
 message AccountExport {
   // The user's account details.
   nakama.api.Account account = 1;
@@ -253,17 +249,13 @@ message AccountExport {
   repeated WalletLedger wallet_ledgers = 8;
 }
 
-/**
- * The identifier for a user account.
- */
+// The identifier for a user account.
 message AccountId {
   // The unique identifier of the user account.
   string id = 1;
 }
 
-/**
- * Authenticate a console user with username and password.
- */
+// Authenticate a console user with username and password.
 message AuthenticateRequest {
   // The username of the user.
   string username = 1;
@@ -271,10 +263,9 @@ message AuthenticateRequest {
   string password = 2;
 }
 
-/**
- * Configuration and config warnings information.
- */
+// The current server configuration and any associated warnings.
 message Config {
+  // A warning for a configuration field.
   message Warning {
     // The config field this warning is for in a JSON pointer format.
     string field = 1;
@@ -282,15 +273,19 @@ message Config {
     string message = 2;
   }
 
-  // JSON-encoded effective server configuration.
+  // JSON-encoded active server configuration.
   string config = 1;
   // Any warnings about the current config.
   repeated Warning warnings = 2;
 }
 
-/**
- * Delete friend relationship between two users.
- */
+// A console user session.
+message ConsoleSession {
+  // A session token (JWT) for the console user.
+  string token = 1;
+}
+
+// Delete friend relationship between two users.
 message DeleteFriendRequest {
   // The user do delete for.
   string id = 1;
@@ -298,9 +293,7 @@ message DeleteFriendRequest {
   string friend_id = 2;
 }
 
-/**
- * Remove a user from a group.
- */
+// Remove a user from a group.
 message DeleteGroupUserRequest {
   // User to remove.
   string id = 1;
@@ -308,9 +301,7 @@ message DeleteGroupUserRequest {
   string group_id = 2;
 }
 
-/**
- * Delete an individual storage object.
- */
+// Delete an individual storage object.
 message DeleteStorageObjectRequest {
   // Collection.
   string collection = 1;
@@ -322,9 +313,7 @@ message DeleteStorageObjectRequest {
   string version = 4;
 }
 
-/**
- * Delete a single wallet ledger item.
- */
+// Delete a single wallet ledger item.
 message DeleteWalletLedgerRequest {
   // User ID to remove wallet ledger item from.
   string id = 1;
@@ -332,17 +321,13 @@ message DeleteWalletLedgerRequest {
   string wallet_id = 2;
 }
 
-/**
- * List (and optionally filter) storage data.
- */
+// List (and optionally filter) storage objects.
 message ListStorageRequest {
-  // User ID to filter data for.
+  // User ID to filter objects for.
   string user_id = 1;
 }
 
-/**
- * List (and optionally filter) users.
- */
+// List (and optionally filter) users.
 message ListUsersRequest {
   // User ID or username filter.
   string filter = 1;
@@ -350,20 +335,19 @@ message ListUsersRequest {
   bool banned = 2;
   // Search only recorded deletes.
   bool tombstones = 3;
-  // Optional cursor to fetch next page.
+  // An (optional) cursor to fetch next page.
   bytes cursor = 4;
 }
 
+// List of storage objects.
 message StorageList {
   // List of storage objects matching list/filter operation.
   repeated nakama.api.StorageObject objects = 1;
-  // Optional cursor for pagination.
+  // An (optional) cursor for paging results.
   bytes cursor = 2;
 }
 
-/**
- * Unlink a particular device ID from a user's account.
- */
+// Unlink a particular device ID from a user's account.
 message UnlinkDeviceRequest {
   // User ID to unlink from.
   string id = 1;
@@ -371,9 +355,7 @@ message UnlinkDeviceRequest {
   string device_id = 2;
 }
 
-/**
- * Update user account information.
- */
+// Update user account information.
 message UpdateAccountRequest {
   // User ID to update.
   string id = 1;
@@ -401,9 +383,7 @@ message UpdateAccountRequest {
   google.protobuf.StringValue wallet = 12;
 }
 
-/**
- * A list of users.
- */
+// A list of users.
 message UserList {
   // A list of users.
   repeated nakama.api.User users = 1;
@@ -411,18 +391,9 @@ message UserList {
   bytes cursor = 2;
 }
 
-/**
- * A console user session.
- */
-message Session {
-  // Session token.
-  string token = 1;
-}
-
-/**
- * List of nodes and their stats.
- */
+// List of nodes and their stats.
 message StatusList {
+  // The status of a Nakama node.
   message Status {
     // Node name.
     string name = 1;
@@ -464,9 +435,7 @@ message StatusList {
   repeated Status nodes = 1;
 }
 
-/**
- * An individual update to a user's wallet.
- */
+// An individual update to a user's wallet.
 message WalletLedger {
   // The identifier of this wallet change.
   string id = 1;
@@ -482,17 +451,13 @@ message WalletLedger {
   google.protobuf.Timestamp update_time = 6;
 }
 
-/**
- * List of wallet ledger items for a particular user.
- */
+// List of wallet ledger items for a particular user.
 message WalletLedgerList {
   // A list of wallet ledger items.
   repeated WalletLedger items = 1;
 }
 
-/**
- * Write a new storage object or update an existing one.
- */
+// Write a new storage object or update an existing one.
 message WriteStorageObjectRequest {
   // Collection.
   string collection = 1;
