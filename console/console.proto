@@ -131,7 +131,7 @@ service Console {
   }
 
   // Get detailed account information for a single user.
-  rpc GetAccount (AccountId) returns (nakama.api.Account) {
+  rpc GetAccount (AccountId) returns (Account) {
     option (google.api.http).get = "/v2/console/account/{id}";
   }
 
@@ -217,13 +217,27 @@ service Console {
 
   // Update one or more fields on a user account.
   rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/account/{id}";
+    option (google.api.http) = {
+      post: "/v2/console/account/{id}",
+      body: "*"
+    };
   }
 
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
-    option (google.api.http).post = "/v2/console/storage/{collection}/{key}/{user_id}";
+    option (google.api.http) = {
+      put: "/v2/console/storage/{collection}/{key}/{user_id}",
+      body: "*"
+    };
   }
+}
+
+// Account information.
+message Account {
+  // The user's account details.
+  nakama.api.Account account = 1;
+  // The UNIX time when the account was disabled.
+  google.protobuf.Timestamp disable_time = 2;
 }
 
 // Delete a user account.
@@ -282,6 +296,8 @@ message Config {
   string config = 1;
   // Any warnings about the current config.
   repeated Warning warnings = 2;
+  // Server version
+  string server_version = 3;
 }
 
 // A console user session.

@@ -18,13 +18,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net/url"
-	"strings"
 )
 
 const ObfuscationString = "********"
@@ -66,7 +67,8 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*consol
 	}
 
 	return &console.Config{
-		Config:   string(cfgBytes),
-		Warnings: configWarnings,
+		Config:        string(cfgBytes),
+		Warnings:      configWarnings,
+		ServerVersion: s.serverVersion,
 	}, nil
 }

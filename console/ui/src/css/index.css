@@ -1,0 +1,34 @@
+body {
+  background-color: #FFFFFF;
+  padding: 0;
+  margin: 0;
+}
+
+.field.is-horizontal .field-label {
+  flex-grow: 2;
+}
+
+#login {
+  background-color: #F2F6FA;
+}
+
+#login img {
+  width: 200px;
+  margin-bottom: 20px;
+}
+
+.nopointer {
+  cursor: default !important;
+}
+
+#users td {
+  cursor: pointer;
+}
+
+#storage td {
+  cursor: pointer;
+}
+
+.notification {
+  padding: 0.4rem 1rem 0.4rem 1rem;
+}

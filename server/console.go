@@ -20,11 +20,12 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -46,11 +47,12 @@ type ConsoleServer struct {
 	tracker           Tracker
 	statusHandler     StatusHandler
 	configWarnings    map[string]string
+	serverVersion     string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, statusHandler StatusHandler, configWarnings map[string]string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, statusHandler StatusHandler, configWarnings map[string]string, serverVersion string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -73,6 +75,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		tracker:        tracker,
 		statusHandler:  statusHandler,
 		configWarnings: configWarnings,
+		serverVersion:  serverVersion,
 		grpcServer:     grpcServer,
 	}
 
@@ -107,15 +110,18 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter := mux.NewRouter()
 
-	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
-	// grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
-	// grpcGatewayRouter.PathPrefix("/assets/").Handler(console.Handler()).Methods("GET")
+	grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
+	grpcGatewayRouter.Handle("/manifest.json", console.Handler()).Methods("GET")
+	grpcGatewayRouter.Handle("/favicon.ico", console.Handler()).Methods("GET")
+	grpcGatewayRouter.PathPrefix("/static/").Handler(console.Handler()).Methods("GET")
 
 	zpagesMux := http.NewServeMux()
 	zpages.Handle(zpagesMux, "/metrics/")
 	grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		zpagesMux.ServeHTTP(w, r)
 	})
+
+	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
@@ -250,7 +256,7 @@ func checkAuth(config Config, auth string) bool {
 			// Expiry time claim is invalid.
 			return false
 		}
-		if int64(exp) <= time.Now().Unix() {
+		if int64(exp) <= time.Now().UTC().Unix() {
 			// Token expired.
 			return false
 		}

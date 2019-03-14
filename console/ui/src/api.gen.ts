@@ -47,21 +47,6 @@ export interface UserGroupListUserGroup {
   // The user's relationship to the group.
   state?: number;
 }
-/** A user with additional account details. Always the current user. */
-export interface ApiAccount {
-  // The custom id in the user's account.
-  custom_id?: string;
-  // The devices which belong to the user's account.
-  devices?: Array<ApiAccountDevice>;
-  // The email address of the user.
-  email?: string;
-  // The user object.
-  user?: ApiUser;
-  // The UNIX time when the user's email was verified.
-  verify_time?: string;
-  // The user's wallet data.
-  wallet?: string;
-}
 /** Send a device to the server. Used with authenticate/link/unlink and user. */
 export interface ApiAccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
@@ -246,7 +231,7 @@ export interface ApiUserGroupList {
 /** An export of all information stored for a user account. */
 export interface ConsoleAccountExport {
   // The user's account details.
-  account?: ApiAccount;
+  account?: NakamaapiAccount;
   // The user's friends.
   friends?: Array<ApiFriend>;
   // The user's groups.
@@ -273,6 +258,8 @@ export interface ConsoleAuthenticateRequest {
 export interface ConsoleConfig {
   // JSON-encoded active server configuration.
   config?: string;
+  // 
+  server_version?: string;
   // Any warnings about the current config.
   warnings?: Array<ConfigWarning>;
 }
@@ -320,6 +307,72 @@ export interface ConsoleWalletLedgerList {
   // A list of wallet ledger items.
   items?: Array<ConsoleWalletLedger>;
 }
+/** Write a new storage object or update an existing one. */
+export interface ConsoleWriteStorageObjectRequest {
+  // Collection.
+  collection?: string;
+  // Key.
+  key?: string;
+  // Read permission value.
+  permission_read?: number;
+  // Write permission value.
+  permission_write?: number;
+  // Owner user ID.
+  user_id?: string;
+  // Value.
+  value?: string;
+  // Version for OCC.
+  version?: string;
+}
+/** A user with additional account details. Always the current user. */
+export interface NakamaapiAccount {
+  // The custom id in the user's account.
+  custom_id?: string;
+  // The devices which belong to the user's account.
+  devices?: Array<ApiAccountDevice>;
+  // The email address of the user.
+  email?: string;
+  // The user object.
+  user?: ApiUser;
+  // The UNIX time when the user's email was verified.
+  verify_time?: string;
+  // The user's wallet data.
+  wallet?: string;
+}
+/** Account information. */
+export interface NakamaconsoleAccount {
+  // The user's account details.
+  account?: NakamaapiAccount;
+  // The UNIX time when the account was disabled.
+  disable_time?: string;
+}
+/** Update user account information. */
+export interface NakamaconsoleUpdateAccountRequest {
+  // Avatar URL.
+  avatar_url?: string;
+  // Custom ID.
+  custom_id?: string;
+  // Device ID modifications.
+  device_ids?: Map<string, string>;
+  // Display name.
+  display_name?: string;
+  // Email.
+  email?: string;
+  // User ID to update.
+  id?: string;
+  // Langtag.
+  lang_tag?: string;
+  // Location.
+  location?: string;
+  // Metadata.
+  metadata?: string;
+  // Timezone.
+  timezone?: string;
+  // Username.
+  username?: string;
+  // Wallet.
+  wallet?: string;
+}
 
 export const NakamaApi = (configuration: ConfigurationParameters = {
   basePath: BASE_PATH,
@@ -328,7 +381,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
   username: "",
   timeoutMs: 5000,
 }) => {
-  return {
+  const napi = {
     /** Perform the underlying Fetch operation and return Promise object **/
     doFetch(urlPath: string, method: string, queryParams: any, body?: any, options?: any): Promise<any> {
       const urlQuery = "?" + Object.keys(queryParams)
@@ -346,23 +399,30 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         .join("");
 
       const fetchOptions = {...{ method: method /*, keepalive: true */ }, ...options};
-      const headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      } as any;
-
+      fetchOptions.headers = {...options.headers};
       if (configuration.bearerToken) {
-        headers["Authorization"] = "Bearer " + configuration.bearerToken;
+        fetchOptions.headers["Authorization"] = "Bearer " + configuration.bearerToken;
       } else if (configuration.username) {
-        headers["Authorization"] = "Basic " + btoa(configuration.username + ":" + configuration.password);
+        fetchOptions.headers["Authorization"] = "Basic " + btoa(configuration.username + ":" + configuration.password);
       }
-
-      fetchOptions.headers = {...headers, ...options.headers};
+      if(!Object.keys(fetchOptions.headers).includes("Accept")) {
+        fetchOptions.headers["Accept"] = "application/json";
+      }
+      if(!Object.keys(fetchOptions.headers).includes("Content-Type")) {
+        fetchOptions.headers["Content-Type"] = "application/json";
+      }
+      Object.keys(fetchOptions.headers).forEach((key: string) => {
+        if(!fetchOptions.headers[key]) {
+          delete fetchOptions.headers[key];
+        }
+      });
       fetchOptions.body = body;
 
       return Promise.race([
         fetch(configuration.basePath + urlPath + urlQuery, fetchOptions).then((response) => {
-          if (response.status >= 200 && response.status < 300) {
+          if (response.status == 204) {
+            return response;
+          } else if (response.status >= 200 && response.status < 300) {
             return response.json();
           } else {
             throw response;
@@ -387,10 +447,10 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Get detailed account information for a single user. */
-    getAccount(id: string, options: any = {}): Promise<ApiAccount> {
+    getAccount(id: string, options: any = {}): Promise<NakamaconsoleAccount> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -402,12 +462,15 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Update one or more fields on a user account. */
-    updateAccount(id: string, options: any = {}): Promise<any> {
+    updateAccount(id: string, body: NakamaconsoleUpdateAccountRequest, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
+      }
+      if (body === null || body === undefined) {
+        throw new Error("'body' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/account/{id}"
          .replace("{id}", encodeURIComponent(String(id)));
@@ -416,8 +479,9 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       } as any;
 
       let _body = null;
+      _body = JSON.stringify(body || {});
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Ban a user. */
     banUser(id: string, options: any = {}): Promise<any> {
@@ -432,7 +496,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Export all information stored about a user account. */
     exportAccount(id: string, options: any = {}): Promise<ConsoleAccountExport> {
@@ -447,7 +511,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Get a user's list of friend relationships. */
     getFriends(id: string, options: any = {}): Promise<ApiFriends> {
@@ -462,7 +526,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete the friend relationship between two users. */
     deleteFriend(id: string, friendId: string, options: any = {}): Promise<any> {
@@ -481,7 +545,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Get a list of groups the user is a member of. */
     getGroups(id: string, options: any = {}): Promise<ApiUserGroupList> {
@@ -496,7 +560,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Remove a user from a group. */
     deleteGroupUser(id: string, groupId: string, options: any = {}): Promise<any> {
@@ -515,7 +579,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Unban a user. */
     unbanUser(id: string, options: any = {}): Promise<any> {
@@ -530,7 +594,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the custom ID from a user account. */
     unlinkCustom(id: string, options: any = {}): Promise<any> {
@@ -545,7 +609,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the device ID from a user account. */
     unlinkDevice(id: string, options: any = {}): Promise<any> {
@@ -560,7 +624,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the email from a user account. */
     unlinkEmail(id: string, options: any = {}): Promise<any> {
@@ -575,7 +639,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Facebook ID from a user account. */
     unlinkFacebook(id: string, options: any = {}): Promise<any> {
@@ -590,7 +654,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Game Center ID from a user account. */
     unlinkGameCenter(id: string, options: any = {}): Promise<any> {
@@ -605,7 +669,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Google ID from a user account. */
     unlinkGoogle(id: string, options: any = {}): Promise<any> {
@@ -620,7 +684,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the Steam ID from a user account. */
     unlinkSteam(id: string, options: any = {}): Promise<any> {
@@ -635,7 +699,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Get a list of the user's wallet transactions. */
     getWalletLedger(id: string, options: any = {}): Promise<ConsoleWalletLedgerList> {
@@ -650,7 +714,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete a wallet ledger item. */
     deleteWalletLedger(id: string, walletId: string, options: any = {}): Promise<any> {
@@ -669,7 +733,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Authenticate a console user with username and password. */
     authenticate(body: ConsoleAuthenticateRequest, options: any = {}): Promise<ConsoleConsoleSession> {
@@ -684,7 +748,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       let _body = null;
       _body = JSON.stringify(body || {});
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Get server config and configuration warnings. */
     getConfig(options: any = {}): Promise<ConsoleConfig> {
@@ -695,7 +759,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Get current status data for all nodes. */
     getStatus(options: any = {}): Promise<ConsoleStatusList> {
@@ -706,7 +770,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete all storage data. */
     deleteStorage(options: any = {}): Promise<any> {
@@ -717,7 +781,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** List (and optionally filter) storage data. */
     listStorage(userId?: string, options: any = {}): Promise<ConsoleStorageList> {
@@ -729,7 +793,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Delete a storage object. */
     deleteStorageObject(collection: string, key: string, userId: string, version?: string, options: any = {}): Promise<any> {
@@ -753,7 +817,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Get a storage object. */
     getStorage(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObject> {
@@ -776,10 +840,10 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Write a new storage object or replace an existing one. */
-    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObjectAck> {
+    writeStorageObject(collection: string, key: string, userId: string, body: ConsoleWriteStorageObjectRequest, options: any = {}): Promise<ApiStorageObjectAck> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -788,6 +852,9 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       }
       if (userId === null || userId === undefined) {
         throw new Error("'userId' is a required parameter but is null or undefined.");
+      }
+      if (body === null || body === undefined) {
+        throw new Error("'body' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/storage/{collection}/{key}/{user_id}"
          .replace("{collection}", encodeURIComponent(String(collection)))
@@ -798,8 +865,9 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       } as any;
 
       let _body = null;
+      _body = JSON.stringify(body || {});
 
-      return this.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "PUT", queryParams, _body, options)
     },
     /** Delete a storage object. */
     deleteStorageObject2(collection: string, key: string, userId: string, version: string, options: any = {}): Promise<any> {
@@ -826,7 +894,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Delete (non-recorded) all user accounts. */
     deleteUsers(options: any = {}): Promise<any> {
@@ -837,7 +905,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
+      return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** List (and optionally filter) users. */
     listUsers(filter?: string, banned?: boolean, tombstones?: boolean, options: any = {}): Promise<ConsoleUserList> {
@@ -851,7 +919,9 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       let _body = null;
 
-      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+      return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
   };
+
+  return napi;
 };
