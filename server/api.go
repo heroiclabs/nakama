@@ -230,8 +230,14 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 			startupLogger.Fatal("API server gateway listener failed to start", zap.Error(err))
 		}
 
-		if err := s.grpcGatewayServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
+		if config.GetSocket().TLSCert != nil {
+			if err := s.grpcGatewayServer.ServeTLS(listener, "", ""); err != nil && err != http.ErrServerClosed {
+				startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
+			}
+		} else {
+			if err := s.grpcGatewayServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+				startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
+			}
 		}
 	}()
 

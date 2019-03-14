@@ -813,14 +813,6 @@
             "required": false,
             "type": "boolean",
             "format": "boolean"
-          },
-          {
-            "name": "cursor",
-            "description": "An (optional) cursor to fetch next page.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "byte"
           }
         ],
         "tags": [
@@ -1513,11 +1505,6 @@
             "$ref": "#/definitions/apiUser"
           },
           "description": "A list of users."
-        },
-        "cursor": {
-          "type": "string",
-          "format": "byte",
-          "description": "A cursor to fetch more results."
         }
       },
       "description": "A list of users."

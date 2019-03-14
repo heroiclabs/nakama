@@ -335,8 +335,6 @@ message ListUsersRequest {
   bool banned = 2;
   // Search only recorded deletes.
   bool tombstones = 3;
-  // An (optional) cursor to fetch next page.
-  bytes cursor = 4;
 }
 
 // List of storage objects.
@@ -387,8 +385,6 @@ message UpdateAccountRequest {
 message UserList {
   // A list of users.
   repeated nakama.api.User users = 1;
-  // A cursor to fetch more results.
-  bytes cursor = 2;
 }
 
 // List of nodes and their stats.
