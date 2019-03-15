@@ -80,7 +80,9 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 			uid, err := uuid.FromString(in.Filter)
 			if err != nil {
 				// Filtering for a tombstone using username, no results are possible.
-				return &console.UserList{}, nil
+				return &console.UserList{
+					TotalCount: countUsers(ctx, s.logger, s.db),
+				}, nil
 			}
 			userID = &uid
 		}
@@ -91,7 +93,9 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 			err := s.db.QueryRowContext(ctx, "SELECT create_time FROM user_tombstone WHERE user_id = $1", *userID).Scan(&createTime)
 			if err != nil {
 				if err == sql.ErrNoRows {
-					return &console.UserList{}, nil
+					return &console.UserList{
+						TotalCount: countUsers(ctx, s.logger, s.db),
+					}, nil
 				}
 				s.logger.Error("Error looking up user tombstone.", zap.Any("in", in), zap.Error(err))
 				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
@@ -104,6 +108,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 						UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 					},
 				},
+				TotalCount: countUsers(ctx, s.logger, s.db),
 			}, nil
 		}
 
@@ -134,7 +139,8 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 		rows.Close()
 
 		return &console.UserList{
-			Users: users,
+			Users:      users,
+			TotalCount: countUsers(ctx, s.logger, s.db),
 		}, nil
 	}
 
@@ -174,7 +180,8 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 		rows.Close()
 
 		return &console.UserList{
-			Users: users,
+			Users:      users,
+			TotalCount: countUsers(ctx, s.logger, s.db),
 		}, nil
 	}
 
@@ -207,6 +214,15 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 	rows.Close()
 
 	return &console.UserList{
-		Users: users,
+		Users:      users,
+		TotalCount: countUsers(ctx, s.logger, s.db),
 	}, nil
+}
+
+func countUsers(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT count(id) FROM users").Scan(&count); err != nil {
+		logger.Error("Error counting users.", zap.Error(err))
+	}
+	return int32(count)
 }

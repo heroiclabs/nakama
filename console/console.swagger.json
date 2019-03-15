@@ -1488,6 +1488,11 @@
           },
           "description": "List of storage objects matching list/filter operation."
         },
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of storage objects."
+        },
         "cursor": {
           "type": "string",
           "format": "byte",
@@ -1505,6 +1510,11 @@
             "$ref": "#/definitions/apiUser"
           },
           "description": "A list of users."
+        },
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of users."
         }
       },
       "description": "A list of users."

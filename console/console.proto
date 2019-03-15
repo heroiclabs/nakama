@@ -341,8 +341,10 @@ message ListUsersRequest {
 message StorageList {
   // List of storage objects matching list/filter operation.
   repeated nakama.api.StorageObject objects = 1;
+  // Approximate total number of storage objects.
+  int32 total_count = 2;
   // An (optional) cursor for paging results.
-  bytes cursor = 2;
+  bytes cursor = 3;
 }
 
 // Unlink a particular device ID from a user's account.
@@ -385,6 +387,8 @@ message UpdateAccountRequest {
 message UserList {
   // A list of users.
   repeated nakama.api.User users = 1;
+  // Approximate total number of users.
+  int32 total_count = 2;
 }
 
 // List of nodes and their stats.
