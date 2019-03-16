@@ -100,6 +100,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -133,6 +148,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -166,6 +196,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -199,6 +244,29 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sync",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -232,6 +300,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -265,6 +348,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -298,6 +396,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -412,6 +525,14 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "sync",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -845,6 +966,14 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "reset",
+            "description": "Reset the current user's friends list.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
