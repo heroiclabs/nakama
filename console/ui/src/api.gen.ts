@@ -206,6 +206,17 @@ export interface ApiStorageObject {
   // The version hash of the object.
   version?: string;
 }
+/** A storage acknowledgement. */
+export interface ApiStorageObjectAck {
+  // The collection which stores the object.
+  collection?: string;
+  // The key of the object within the collection.
+  key?: string;
+  // The owner of the object.
+  user_id?: string;
+  // The version hash of the object.
+  version?: string;
+}
 /** A user in the server. */
 export interface ApiUser {
   // A URL for an avatar image.
@@ -291,15 +302,15 @@ export interface ConsoleStatusList {
 }
 /** List of storage objects. */
 export interface ConsoleStorageList {
-  // An (optional) cursor for paging results.
-  cursor?: string;
   // List of storage objects matching list/filter operation.
   objects?: Array<ApiStorageObject>;
+  // Approximate total number of storage objects.
+  total_count?: number;
 }
 /** A list of users. */
 export interface ConsoleUserList {
-  // A cursor to fetch more results.
-  cursor?: string;
+  // Approximate total number of users.
+  total_count?: number;
   // A list of users.
   users?: Array<ApiUser>;
 }
@@ -759,7 +770,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Write a new storage object or replace an existing one. */
-    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<any> {
+    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObjectAck> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -820,14 +831,13 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** List (and optionally filter) users. */
-    listUsers(filter?: string, banned?: boolean, tombstones?: boolean, cursor?: string, options: any = {}): Promise<ConsoleUserList> {
+    listUsers(filter?: string, banned?: boolean, tombstones?: boolean, options: any = {}): Promise<ConsoleUserList> {
       const urlPath = "/v2/console/user";
 
       const queryParams = {
         filter: filter,
         banned: banned,
         tombstones: tombstones,
-        cursor: cursor,
       } as any;
 
       let _body = null;

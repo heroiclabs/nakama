@@ -699,7 +699,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "properties": {}
+              "$ref": "#/definitions/apiStorageObjectAck"
             }
           }
         },
@@ -1278,6 +1278,28 @@
       },
       "description": "An object within the storage engine."
     },
+    "apiStorageObjectAck": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The owner of the object."
+        }
+      },
+      "description": "A storage acknowledgement."
+    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -1492,11 +1514,6 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
-        },
-        "cursor": {
-          "type": "string",
-          "format": "byte",
-          "description": "An (optional) cursor for paging results."
         }
       },
       "description": "List of storage objects."
