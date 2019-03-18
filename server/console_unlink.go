@@ -16,34 +16,243 @@ package server
 
 import (
 	"context"
+	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/console"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ConsoleServer) UnlinkCustom(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET custom_id = NULL, update_time = now()
+WHERE id = $1
+AND custom_id IS NOT NULL
+AND ((facebook_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink custom ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink custom ID when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDeviceRequest) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	if in.DeviceId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid device ID.")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		s.logger.Error("Could not begin database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Could not unlink Device ID.")
+	}
+
+	err = crdb.ExecuteInTx(ctx, tx, func() error {
+		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
+AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
+    (facebook_id IS NOT NULL
+     OR google_id IS NOT NULL
+     OR gamecenter_id IS NOT NULL
+     OR steam_id IS NOT NULL
+     OR email IS NOT NULL
+     OR custom_id IS NOT NULL))
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
+
+		res, err := tx.ExecContext(ctx, query, userID, in.DeviceId)
+		if err != nil {
+			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.PermissionDenied, "Cannot unlink device ID when there are no other identifiers.", ErrRowsAffectedCount)
+		}
+
+		res, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
+		if err != nil {
+			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.PermissionDenied, "Cannot unlink device ID when there are no other identifiers.", ErrRowsAffectedCount)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return nil, e.Status()
+		}
+		s.logger.Error("Error in database transaction.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Could not unlink device ID.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkEmail(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET email = NULL, password = NULL, update_time = now()
+WHERE id = $1
+AND email IS NOT NULL
+AND ((facebook_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR custom_id IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink email.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink email address when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkFacebook(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET facebook_id = NULL, update_time = now()
+WHERE id = $1
+AND facebook_id IS NOT NULL
+AND ((custom_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Facebook ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Facebook ID when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkGameCenter(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET gamecenter_id = NULL, update_time = now()
+WHERE id = $1
+AND gamecenter_id IS NOT NULL
+AND ((custom_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink GameCenter ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Game Center ID when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkGoogle(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET google_id = NULL, update_time = now()
+WHERE id = $1
+AND google_id IS NOT NULL
+AND ((custom_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Google ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Google ID when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) UnlinkSteam(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	query := `UPDATE users SET steam_id = NULL, update_time = now()
+WHERE id = $1
+AND steam_id IS NOT NULL
+AND ((custom_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Steam ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Steam ID when there are no other identifiers.")
+	}
+
 	return &empty.Empty{}, nil
 }

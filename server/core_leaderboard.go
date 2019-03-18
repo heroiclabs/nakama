@@ -220,7 +220,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 		if nextCursor != nil {
 			cursorBuf := new(bytes.Buffer)
-			if gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+			if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
 				logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
 				return nil, err
 			}
@@ -228,7 +228,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		}
 		if prevCursor != nil {
 			cursorBuf := new(bytes.Buffer)
-			if gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+			if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
 				logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
 				return nil, err
 			}

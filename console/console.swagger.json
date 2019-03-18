@@ -813,14 +813,6 @@
             "required": false,
             "type": "boolean",
             "format": "boolean"
-          },
-          {
-            "name": "cursor",
-            "description": "An (optional) cursor to fetch next page.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "byte"
           }
         ],
         "tags": [
@@ -1496,6 +1488,11 @@
           },
           "description": "List of storage objects matching list/filter operation."
         },
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of storage objects."
+        },
         "cursor": {
           "type": "string",
           "format": "byte",
@@ -1514,10 +1511,10 @@
           },
           "description": "A list of users."
         },
-        "cursor": {
-          "type": "string",
-          "format": "byte",
-          "description": "A cursor to fetch more results."
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of users."
         }
       },
       "description": "A list of users."

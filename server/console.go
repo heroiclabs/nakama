@@ -43,12 +43,13 @@ type ConsoleServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config
+	tracker           Tracker
 	configWarnings    map[string]string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Config, db *sql.DB, configWarnings map[string]string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, configWarnings map[string]string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -68,6 +69,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 		logger:         logger,
 		db:             db,
 		config:         config,
+		tracker:        tracker,
 		configWarnings: configWarnings,
 		grpcServer:     grpcServer,
 	}
@@ -75,7 +77,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	console.RegisterConsoleServer(grpcServer, s)
 	startupLogger.Info("Starting Console server for gRPC requests", zap.Int("port", config.GetConsole().Port-3))
 	go func() {
-		listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3))
+		listener, err := net.Listen("tcp", fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3))
 		if err != nil {
 			startupLogger.Fatal("Console server listener failed to start", zap.Error(err))
 		}
@@ -88,6 +90,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
+	if config.GetConsole().Address != "" {
+		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
+	}
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
@@ -140,7 +145,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, config Co
 
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.GetConsole().Port),
+		Addr:         fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port),
 		ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetConsole().ReadTimeoutMs)),
 		WriteTimeout: time.Millisecond * time.Duration(int64(config.GetConsole().WriteTimeoutMs)),
 		IdleTimeout:  time.Millisecond * time.Duration(int64(config.GetConsole().IdleTimeoutMs)),
