@@ -216,7 +216,7 @@ service Console {
   }
 
   // Write a new storage object or replace an existing one.
-  rpc WriteStorageObject (WriteStorageObjectRequest) returns (google.protobuf.Empty) {
+  rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
     option (google.api.http).post = "/v2/console/storage/{collection}/{key}/{user_id}";
   }
 }
@@ -343,8 +343,6 @@ message StorageList {
   repeated nakama.api.StorageObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
-  // An (optional) cursor for paging results.
-  bytes cursor = 3;
 }
 
 // Unlink a particular device ID from a user's account.
@@ -466,7 +464,7 @@ message WriteStorageObjectRequest {
   // Owner user ID.
   string user_id = 3;
   // Value.
-  google.protobuf.StringValue value = 4;
+  string value = 4;
   // Version for OCC.
   string version = 5;
   // Read permission value.
