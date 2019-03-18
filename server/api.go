@@ -124,7 +124,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	apigrpc.RegisterNakamaServer(grpcServer, s)
 	startupLogger.Info("Starting API server for gRPC requests", zap.Int("port", config.GetSocket().Port-1))
 	go func() {
-		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GetSocket().Port-1))
+		listener, err := net.Listen("tcp", fmt.Sprintf("%v:%d", config.GetSocket().Address, config.GetSocket().Port-1))
 		if err != nil {
 			startupLogger.Fatal("API server listener failed to start", zap.Error(err))
 		}
@@ -157,6 +157,9 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 		}),
 	)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-1)
+	if config.GetSocket().Address != "" {
+		dialAddr = fmt.Sprintf("%v:%d", config.GetSocket().Address, config.GetSocket().Port-1)
+	}
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),

@@ -15,6 +15,8 @@
 package server
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +48,8 @@ type Config interface {
 	GetTracker() *TrackerConfig
 	GetConsole() *ConsoleConfig
 	GetLeaderboard() *LeaderboardConfig
+
+	Clone() (Config, error)
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -160,6 +164,15 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSocket().PingPeriodMs >= config.GetSocket().PongWaitMs {
 		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", config.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", config.GetSocket().PongWaitMs))
 	}
+	if len(config.GetDatabase().Addresses) < 1 {
+		logger.Fatal("At least one database address must be specified", zap.Strings("database.address", config.GetDatabase().Addresses))
+	}
+	for _, address := range config.GetDatabase().Addresses {
+		rawUrl := fmt.Sprintf("postgresql://%s", address)
+		if _, err := url.Parse(rawUrl); err != nil {
+			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
+		}
+	}
 	if config.GetRuntime().MinCount < 0 {
 		logger.Fatal("Minimum runtime instance count must be >= 0", zap.Int("runtime.min_count", config.GetRuntime().MinCount))
 	}
@@ -236,13 +249,23 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	}
 	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey != "" {
 		logger.Warn("WARNING: enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!")
-		cert, err := tls.LoadX509KeyPair(config.GetSocket().SSLCertificate, config.GetSocket().SSLPrivateKey)
+		certPEMBlock, err := ioutil.ReadFile(config.GetSocket().SSLCertificate)
+		if err != nil {
+			logger.Fatal("Error loading SSL certificate cert file", zap.Error(err))
+		}
+		keyPEMBlock, err := ioutil.ReadFile(config.GetSocket().SSLPrivateKey)
+		if err != nil {
+			logger.Fatal("Error loading SSL certificate key file", zap.Error(err))
+		}
+		cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate", zap.Error(err))
 		}
 		configWarnings["socket.ssl_certificate"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		configWarnings["socket.ssl_private_key"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		logger.Info("SSL mode enabled")
+		config.GetSocket().CertPEMBlock = certPEMBlock
+		config.GetSocket().KeyPEMBlock = keyPEMBlock
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
@@ -310,6 +333,59 @@ func NewConfig(logger *zap.Logger) *config {
 		Console:          NewConsoleConfig(),
 		Leaderboard:      NewLeaderboardConfig(),
 	}
+}
+
+func (c *config) Clone() (Config, error) {
+	configLogger := *(c.Logger)
+	configMetrics := *(c.Metrics)
+	configSession := *(c.Session)
+	configSocket := *(c.Socket)
+	configDatabase := *(c.Database)
+	configSocial := *(c.Social)
+	configRuntime := *(c.Runtime)
+	configMatch := *(c.Match)
+	configTracker := *(c.Tracker)
+	configConsole := *(c.Console)
+	configLeaderboard := *(c.Leaderboard)
+	nc := &config{
+		Name:             c.Name,
+		Datadir:          c.Datadir,
+		ShutdownGraceSec: c.ShutdownGraceSec,
+		Logger:           &configLogger,
+		Metrics:          &configMetrics,
+		Session:          &configSession,
+		Socket:           &configSocket,
+		Database:         &configDatabase,
+		Social:           &configSocial,
+		Runtime:          &configRuntime,
+		Match:            &configMatch,
+		Tracker:          &configTracker,
+		Console:          &configConsole,
+		Leaderboard:      &configLeaderboard,
+	}
+	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
+	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
+	nc.Socket.KeyPEMBlock = make([]byte, len(c.Socket.KeyPEMBlock))
+	copy(nc.Socket.KeyPEMBlock, c.Socket.KeyPEMBlock)
+	if len(c.Socket.TLSCert) != 0 {
+		if cert, err := tls.X509KeyPair(nc.Socket.CertPEMBlock, nc.Socket.KeyPEMBlock); err != nil {
+			return nil, err
+		} else {
+			nc.Socket.TLSCert = []tls.Certificate{cert}
+		}
+	}
+	nc.Database.Addresses = make([]string, len(c.Database.Addresses))
+	copy(nc.Database.Addresses, c.Database.Addresses)
+	nc.Runtime.Env = make([]string, len(c.Runtime.Env))
+	copy(nc.Runtime.Env, c.Runtime.Env)
+	nc.Runtime.Environment = make(map[string]string, len(c.Runtime.Environment))
+	for k, v := range c.Runtime.Environment {
+		nc.Runtime.Environment[k] = v
+	}
+	nc.Leaderboard.BlacklistRankCache = make([]string, len(c.Leaderboard.BlacklistRankCache))
+	copy(nc.Leaderboard.BlacklistRankCache, c.Leaderboard.BlacklistRankCache)
+
+	return nc, nil
 }
 
 func (c *config) GetName() string {
@@ -448,7 +524,9 @@ type SocketConfig struct {
 	OutgoingQueueSize    int               `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
 	SSLCertificate       string            `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key. NOT recommended for production use."`
 	SSLPrivateKey        string            `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate. NOT recommended for production use."`
-	TLSCert              []tls.Certificate // Created by processing SSLCertificate and SSLPrivateKey, not set from input args directly.
+	CertPEMBlock         []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLCertificate, not set from input args directly.
+	KeyPEMBlock          []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLPrivateKey, not set from input args directly.
+	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
 }
 
 // NewTransportConfig creates a new TransportConfig struct.
@@ -513,14 +591,14 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment   map[string]string
-	Env           []string `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
-	Path          string   `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
-	HTTPKey       string   `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
-	MinCount      int      `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
-	MaxCount      int      `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 256."`
-	CallStackSize int      `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
-	RegistrySize  int      `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
+	Environment   map[string]string `yaml:"-" json:"-"`
+	Env           []string          `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
+	Path          string            `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
+	HTTPKey       string            `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	MinCount      int               `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
+	MaxCount      int               `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 256."`
+	CallStackSize int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
+	RegistrySize  int               `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
@@ -572,6 +650,7 @@ func NewTrackerConfig() *TrackerConfig {
 // ConsoleConfig is configuration relevant to the embedded console.
 type ConsoleConfig struct {
 	Port                int    `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
+	Address             string `yaml:"address" json:"address" usage:"The IP address of the interface to listen for console traffic on. Default listen on all available addresses/interfaces."`
 	MaxMessageSizeBytes int64  `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
 	ReadTimeoutMs       int    `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request."`
 	WriteTimeoutMs      int    `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response."`
@@ -603,6 +682,6 @@ type LeaderboardConfig struct {
 // NewLeaderboardConfig creates a new LeaderboardConfig struct.
 func NewLeaderboardConfig() *LeaderboardConfig {
 	return &LeaderboardConfig{
-		BlacklistRankCache: []string{""},
+		BlacklistRankCache: []string{},
 	}
 }
