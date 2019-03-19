@@ -647,6 +647,44 @@
       }
     },
     "/v2/console/storage/{collection}/{key}/{user_id}": {
+      "get": {
+        "summary": "Get a storage object.",
+        "operationId": "GetStorage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObject"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "The key of the object within the collection.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "The user owner of the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "delete": {
         "summary": "Delete a storage object.",
         "operationId": "DeleteStorageObject",

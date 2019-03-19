@@ -769,6 +769,29 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
+    /** Get a storage object. */
+    getStorage(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObject> {
+      if (collection === null || collection === undefined) {
+        throw new Error("'collection' is a required parameter but is null or undefined.");
+      }
+      if (key === null || key === undefined) {
+        throw new Error("'key' is a required parameter but is null or undefined.");
+      }
+      if (userId === null || userId === undefined) {
+        throw new Error("'userId' is a required parameter but is null or undefined.");
+      }
+      const urlPath = "/v2/console/storage/{collection}/{key}/{user_id}"
+         .replace("{collection}", encodeURIComponent(String(collection)))
+         .replace("{key}", encodeURIComponent(String(key)))
+         .replace("{user_id}", encodeURIComponent(String(userId)));
+
+      const queryParams = {
+      } as any;
+
+      let _body = null;
+
+      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+    },
     /** Write a new storage object or replace an existing one. */
     writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObjectAck> {
       if (collection === null || collection === undefined) {

@@ -74,6 +74,32 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 	return &empty.Empty{}, nil
 }
 
+func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
+	if in.Collection == "" {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
+	}
+	if in.Key == "" {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid key.")
+	}
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	objects, err := StorageReadObjects(ctx, s.logger, s.db, uuid.Nil, []*api.ReadStorageObjectId{in})
+	if err != nil {
+		// Errors already logged in function above.
+		return nil, status.Error(codes.Internal, "An error occurred while reading storage object.")
+	}
+
+	if objects.Objects == nil || len(objects.Objects) < 1 {
+		// Not found.
+		return nil, status.Error(codes.NotFound, "Storage object not found.")
+	}
+
+	return objects.Objects[0], nil
+}
+
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
 	var userID *uuid.UUID
 	if in.UserId != "" {
@@ -89,7 +115,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	if userID == nil {
 		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage LIMIT 50"
 	} else {
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE user_id = $1 LIMIT 50"
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
 		params = append(params, *userID)
 	}
 
@@ -178,7 +204,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		return nil, err
 	}
 
-	if acks == nil || len(acks.Acks) != 1 {
+	if acks == nil || len(acks.Acks) < 1 {
 		s.logger.Error("Failed to get storage object acks.")
 		return nil, status.Error(codes.Internal, "An error occurred while writing storage object.")
 	}

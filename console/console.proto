@@ -155,6 +155,11 @@ service Console {
     option (google.api.http).get = "/v2/console/status";
   }
 
+  // Get a storage object.
+  rpc GetStorage (nakama.api.ReadStorageObjectId) returns (nakama.api.StorageObject) {
+    option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
+  }
+
   // Get a list of the user's wallet transactions.
   rpc GetWalletLedger (AccountId) returns (WalletLedgerList) {
     option (google.api.http).get = "/v2/console/account/{id}/wallet";
