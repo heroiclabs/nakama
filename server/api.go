@@ -19,15 +19,17 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
-	"go.opencensus.io/trace"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/heroiclabs/nakama/api"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"google.golang.org/grpc/peer"
 
@@ -77,6 +79,22 @@ type ApiServer struct {
 	runtime              *Runtime
 	grpcServer           *grpc.Server
 	grpcGatewayServer    *http.Server
+}
+
+// bare minimum handler, avoid using mux.Router
+type grpcWrapperHandler struct {
+	grpcHandler func(w http.ResponseWriter, r *http.Request)
+	httpHandler func(w http.ResponseWriter, r *http.Request)
+}
+
+func (s *grpcWrapperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		s.httpHandler(w, r)
+	} else if r.ProtoMajor == 2 {
+		s.grpcHandler(w, r)
+	} else {
+		s.httpHandler(w, r)
+	}
 }
 
 func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, pipeline *Pipeline, runtime *Runtime) *ApiServer {
@@ -211,13 +229,20 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE"})
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
+	grpcWrapper := &grpcWrapperHandler{
+		grpcHandler: grpcServer.ServeHTTP,
+		httpHandler: handlerWithCORS.ServeHTTP,
+	}
+
+	h2cHandler := h2c.NewHandler(grpcWrapper, &http2.Server{})
+
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
 		ReadTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout:   time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
 		IdleTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
 		MaxHeaderBytes: 5120,
-		Handler:        handlerWithCORS,
+		Handler:        h2cHandler,
 	}
 	if config.GetSocket().TLSCert != nil {
 		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}
