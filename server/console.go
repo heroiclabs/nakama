@@ -44,12 +44,13 @@ type ConsoleServer struct {
 	db                *sql.DB
 	config            Config
 	tracker           Tracker
+	statusHandler     StatusHandler
 	configWarnings    map[string]string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, configWarnings map[string]string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, statusHandler StatusHandler, configWarnings map[string]string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -70,6 +71,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		db:             db,
 		config:         config,
 		tracker:        tracker,
+		statusHandler:  statusHandler,
 		configWarnings: configWarnings,
 		grpcServer:     grpcServer,
 	}
@@ -109,14 +111,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	// grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
 	// grpcGatewayRouter.PathPrefix("/assets/").Handler(console.Handler()).Methods("GET")
 
-	grpcGatewayRouter.HandleFunc("/rpcz", func(w http.ResponseWriter, r *http.Request) {
-		zpages.Handler.ServeHTTP(w, r)
-	})
-	grpcGatewayRouter.HandleFunc("/tracez", func(w http.ResponseWriter, r *http.Request) {
-		zpages.Handler.ServeHTTP(w, r)
-	})
-	grpcGatewayRouter.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
-		zpages.Handler.ServeHTTP(w, r)
+	zpagesMux := http.NewServeMux()
+	zpages.Handle(zpagesMux, "/metrics/")
+	grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		zpagesMux.ServeHTTP(w, r)
 	})
 
 	// Enable max size check on requests coming arriving the gateway.

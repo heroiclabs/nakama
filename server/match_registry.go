@@ -77,6 +77,8 @@ type MatchRegistry interface {
 	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
 	// Stop the match registry and close all matches it's tracking.
 	Stop(graceSeconds int) chan struct{}
+	// Returns the total number of currently active authoritative matches.
+	Count() int
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
 	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string)
@@ -510,6 +512,14 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 	}
 	r.RUnlock()
 	return r.stoppedCh
+}
+
+func (r *LocalMatchRegistry) Count() int {
+	var count int
+	r.RLock()
+	count = len(r.matches)
+	r.RUnlock()
+	return count
 }
 
 func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string) {

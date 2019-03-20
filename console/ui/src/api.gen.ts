@@ -19,38 +19,24 @@ export interface ConfigWarning {
 }
 /** The status of a Nakama node. */
 export interface StatusListStatus {
-  // Latest average response latency in milliseconds.
+  // Average input bandwidth usage.
+  avg_input_kbs?: number;
+  // Average response latency in milliseconds.
   avg_latency_ms?: number;
-  // Average response latency in milliseconds over the last hour.
-  avg_latency_ms_hr?: number;
-  // Average response latency in milliseconds over the last minute.
-  avg_latency_ms_min?: number;
+  // Average output bandwidth usage.
+  avg_output_kbs?: number;
+  // Average number of requests per second.
+  avg_rate_sec?: number;
   // Current number of running goroutines.
   goroutine_count?: number;
-  // Latest input bandwidth usage.
-  input_kbs?: number;
-  // Input bandwidth usage over the last hour.
-  input_kbs_hr?: number;
-  // Input bandwidth usage over the last minute.
-  input_kbs_min?: number;
+  // Health score.
+  health?: number;
   // Current number of active authoritative matches.
   match_count?: number;
   // Node name.
   name?: string;
-  // Latest output bandwidth usage.
-  output_kbs?: number;
-  // Output bandwidth usage over the last hour.
-  output_kbs_ht?: number;
-  // Output bandwidth usage over the last minute.
-  output_kbs_min?: number;
   // Currently registered live presences.
   presence_count?: number;
-  // Latest number of requests per second.
-  rate_sec?: number;
-  // Number of requests per second over the last hour.
-  rate_sec_hr?: number;
-  // Number of requests per second over the last minute.
-  rate_sec_min?: number;
   // Currently connected sessions.
   session_count?: number;
 }

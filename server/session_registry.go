@@ -54,6 +54,7 @@ type Session interface {
 
 type SessionRegistry interface {
 	Stop()
+	Count() int
 	Get(sessionID uuid.UUID) Session
 	Add(session Session)
 	Remove(sessionID uuid.UUID)
@@ -72,6 +73,14 @@ func NewLocalSessionRegistry() SessionRegistry {
 }
 
 func (r *LocalSessionRegistry) Stop() {}
+
+func (r *LocalSessionRegistry) Count() int {
+	var count int
+	r.RLock()
+	count = len(r.sessions)
+	r.RUnlock()
+	return count
+}
 
 func (r *LocalSessionRegistry) Get(sessionID uuid.UUID) Session {
 	var session Session
