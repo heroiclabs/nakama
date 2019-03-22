@@ -155,6 +155,11 @@ service Console {
     option (google.api.http).get = "/v2/console/status";
   }
 
+  // Get a storage object.
+  rpc GetStorage (nakama.api.ReadStorageObjectId) returns (nakama.api.StorageObject) {
+    option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
+  }
+
   // Get a list of the user's wallet transactions.
   rpc GetWalletLedger (AccountId) returns (WalletLedgerList) {
     option (google.api.http).get = "/v2/console/account/{id}/wallet";
@@ -216,7 +221,7 @@ service Console {
   }
 
   // Write a new storage object or replace an existing one.
-  rpc WriteStorageObject (WriteStorageObjectRequest) returns (google.protobuf.Empty) {
+  rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
     option (google.api.http).post = "/v2/console/storage/{collection}/{key}/{user_id}";
   }
 }
@@ -335,16 +340,14 @@ message ListUsersRequest {
   bool banned = 2;
   // Search only recorded deletes.
   bool tombstones = 3;
-  // An (optional) cursor to fetch next page.
-  bytes cursor = 4;
 }
 
 // List of storage objects.
 message StorageList {
   // List of storage objects matching list/filter operation.
   repeated nakama.api.StorageObject objects = 1;
-  // An (optional) cursor for paging results.
-  bytes cursor = 2;
+  // Approximate total number of storage objects.
+  int32 total_count = 2;
 }
 
 // Unlink a particular device ID from a user's account.
@@ -387,8 +390,8 @@ message UpdateAccountRequest {
 message UserList {
   // A list of users.
   repeated nakama.api.User users = 1;
-  // A cursor to fetch more results.
-  bytes cursor = 2;
+  // Approximate total number of users.
+  int32 total_count = 2;
 }
 
 // List of nodes and their stats.
@@ -397,38 +400,24 @@ message StatusList {
   message Status {
     // Node name.
     string name = 1;
+    // Health score.
+    int32 health = 2;
     // Currently connected sessions.
-    int32 session_count = 2;
+    int32 session_count = 3;
     // Currently registered live presences.
-    int32 presence_count = 3;
+    int32 presence_count = 4;
     // Current number of active authoritative matches.
-    int32 match_count = 4;
+    int32 match_count = 5;
     // Current number of running goroutines.
-    int32 goroutine_count = 5;
-    // Latest average response latency in milliseconds.
-    double avg_latency_ms = 6;
-    // Average response latency in milliseconds over the last minute.
-    double avg_latency_ms_min = 7; // TODO
-    // Average response latency in milliseconds over the last hour.
-    double avg_latency_ms_hr = 8; // TODO
-    // Latest number of requests per second.
-    double rate_sec = 9;
-    // Number of requests per second over the last minute.
-    double rate_sec_min = 10; // TODO
-    // Number of requests per second over the last hour.
-    double rate_sec_hr = 11; // TODO
-    // Latest input bandwidth usage.
-    double input_kbs = 12;
-    // Input bandwidth usage over the last minute.
-    double input_kbs_min = 13; // TODO
-    // Input bandwidth usage over the last hour.
-    double input_kbs_hr = 14; // TODO
-    // Latest output bandwidth usage.
-    double output_kbs = 15;
-    // Output bandwidth usage over the last minute.
-    double output_kbs_min = 16; // TODO
-    // Output bandwidth usage over the last hour.
-    double output_kbs_ht = 17; // TODO
+    int32 goroutine_count = 6;
+    // Average response latency in milliseconds.
+    double avg_latency_ms = 7;
+    // Average number of requests per second.
+    double avg_rate_sec = 8;
+    // Average input bandwidth usage.
+    double avg_input_kbs = 9;
+    // Average output bandwidth usage.
+    double avg_output_kbs = 10;
   }
 
   // List of nodes and their stats.
@@ -466,7 +455,7 @@ message WriteStorageObjectRequest {
   // Owner user ID.
   string user_id = 3;
   // Value.
-  google.protobuf.StringValue value = 4;
+  string value = 4;
   // Version for OCC.
   string version = 5;
   // Read permission value.

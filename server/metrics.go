@@ -34,25 +34,31 @@ import (
 
 var (
 	// Metrics stats measurements.
-	MetricsRuntimeCount          = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitNone)
+	MetricsRuntimeCount          = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitDimensionless)
 	MetricsSocketWsTimeSpentMsec = stats.Float64("nakama.socket/ws/server_elapsed_time", "Elapsed time in msecs spent in WebSocket connections", stats.UnitMilliseconds)
-	MetricsSocketWsOpenCount     = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitNone)
-	MetricsSocketWsCloseCount    = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitNone)
+	MetricsSocketWsOpenCount     = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitDimensionless)
+	MetricsSocketWsCloseCount    = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitDimensionless)
 	MetricsApiTimeSpentMsec      = stats.Float64("nakama.api/server/server_elapsed_time", "Elapsed time in msecs spent in API functions", stats.UnitMilliseconds)
-	MetricsApiCount              = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitNone)
+	MetricsApiCount              = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitDimensionless)
 	MetricsRtapiTimeSpentMsec    = stats.Float64("nakama.rtapi/server/server_elapsed_time", "Elapsed time in msecs spent in realtime socket functions", stats.UnitMilliseconds)
-	MetricsRtapiCount            = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitNone)
+	MetricsRtapiCount            = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitDimensionless)
 
 	// Metrics stats tag keys.
 	MetricsFunction, _ = tag.NewKey("function")
 )
 
 type Metrics struct {
+	logger *zap.Logger
+	config Config
+
 	prometheusHTTPServer *http.Server
 }
 
-func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
-	m := &Metrics{}
+func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporter *MetricsExporter) *Metrics {
+	m := &Metrics{
+		logger: logger,
+		config: config,
+	}
 
 	if err := view.Register(&view.View{
 		Name:        "nakama/runtime/count",
@@ -129,6 +135,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 
 	view.SetReportingPeriod(time.Duration(config.GetMetrics().ReportingFreqSec) * time.Second)
 
+	view.RegisterExporter(metricsExporter)
+
 	if config.GetMetrics().StackdriverProjectID != "" {
 		m.initStackdriver(logger, startupLogger, config)
 	}
@@ -147,8 +155,10 @@ func (m *Metrics) initStackdriver(logger, startupLogger *zap.Logger, config Conf
 	}
 
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
-		MetricPrefix: prefix,
-		ProjectID:    config.GetMetrics().StackdriverProjectID,
+		GetMetricDisplayName: func(view *view.View) string {
+			return prefix + "/" + view.Name
+		},
+		ProjectID: config.GetMetrics().StackdriverProjectID,
 		OnError: func(err error) {
 			logger.Error("Could not upload data to Stackdriver", zap.Error(err))
 		},

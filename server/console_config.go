@@ -17,18 +17,44 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"net/url"
+	"strings"
 )
 
+const ObfuscationString = "********"
+
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
-	config, err := json.Marshal(s.config)
+	cfg, err := s.config.Clone()
+	if err != nil {
+		s.logger.Error("Error cloning config.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error processing config.")
+	}
+
+	cfg.GetConsole().Password = ObfuscationString
+	for i, address := range cfg.GetDatabase().Addresses {
+		rawUrl := fmt.Sprintf("postgresql://%s", address)
+		parsedUrl, err := url.Parse(rawUrl)
+		if err != nil {
+			s.logger.Error("Error parsing database address in config.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error processing config.")
+		}
+		if parsedUrl.User != nil {
+			if password, isSet := parsedUrl.User.Password(); isSet {
+				cfg.GetDatabase().Addresses[i] = strings.ReplaceAll(address, parsedUrl.User.Username()+":"+password, parsedUrl.User.Username()+":"+ObfuscationString)
+			}
+		}
+	}
+
+	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
 		s.logger.Error("Error encoding config.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Error encoding config.")
+		return nil, status.Error(codes.Internal, "Error processing config.")
 	}
 
 	configWarnings := make([]*console.Config_Warning, 0, len(s.configWarnings))
@@ -40,7 +66,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*consol
 	}
 
 	return &console.Config{
-		Config:   string(config),
+		Config:   string(cfgBytes),
 		Warnings: configWarnings,
 	}, nil
 }

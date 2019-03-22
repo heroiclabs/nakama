@@ -18,8 +18,19 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/console"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ConsoleServer) GetStatus(ctx context.Context, in *empty.Empty) (*console.StatusList, error) {
-	return &console.StatusList{}, nil
+	nodes, err := s.statusHandler.GetStatus(ctx)
+	if err != nil {
+		s.logger.Error("Error getting status.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while getting status.")
+	}
+
+	return &console.StatusList{
+		Nodes: nodes,
+	}, nil
 }

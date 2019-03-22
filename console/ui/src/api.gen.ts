@@ -19,38 +19,24 @@ export interface ConfigWarning {
 }
 /** The status of a Nakama node. */
 export interface StatusListStatus {
-  // Latest average response latency in milliseconds.
+  // Average input bandwidth usage.
+  avg_input_kbs?: number;
+  // Average response latency in milliseconds.
   avg_latency_ms?: number;
-  // Average response latency in milliseconds over the last hour.
-  avg_latency_ms_hr?: number;
-  // Average response latency in milliseconds over the last minute.
-  avg_latency_ms_min?: number;
+  // Average output bandwidth usage.
+  avg_output_kbs?: number;
+  // Average number of requests per second.
+  avg_rate_sec?: number;
   // Current number of running goroutines.
   goroutine_count?: number;
-  // Latest input bandwidth usage.
-  input_kbs?: number;
-  // Input bandwidth usage over the last hour.
-  input_kbs_hr?: number;
-  // Input bandwidth usage over the last minute.
-  input_kbs_min?: number;
+  // Health score.
+  health?: number;
   // Current number of active authoritative matches.
   match_count?: number;
   // Node name.
   name?: string;
-  // Latest output bandwidth usage.
-  output_kbs?: number;
-  // Output bandwidth usage over the last hour.
-  output_kbs_ht?: number;
-  // Output bandwidth usage over the last minute.
-  output_kbs_min?: number;
   // Currently registered live presences.
   presence_count?: number;
-  // Latest number of requests per second.
-  rate_sec?: number;
-  // Number of requests per second over the last hour.
-  rate_sec_hr?: number;
-  // Number of requests per second over the last minute.
-  rate_sec_min?: number;
   // Currently connected sessions.
   session_count?: number;
 }
@@ -206,6 +192,17 @@ export interface ApiStorageObject {
   // The version hash of the object.
   version?: string;
 }
+/** A storage acknowledgement. */
+export interface ApiStorageObjectAck {
+  // The collection which stores the object.
+  collection?: string;
+  // The key of the object within the collection.
+  key?: string;
+  // The owner of the object.
+  user_id?: string;
+  // The version hash of the object.
+  version?: string;
+}
 /** A user in the server. */
 export interface ApiUser {
   // A URL for an avatar image.
@@ -291,15 +288,15 @@ export interface ConsoleStatusList {
 }
 /** List of storage objects. */
 export interface ConsoleStorageList {
-  // An (optional) cursor for paging results.
-  cursor?: string;
   // List of storage objects matching list/filter operation.
   objects?: Array<ApiStorageObject>;
+  // Approximate total number of storage objects.
+  total_count?: number;
 }
 /** A list of users. */
 export interface ConsoleUserList {
-  // A cursor to fetch more results.
-  cursor?: string;
+  // Approximate total number of users.
+  total_count?: number;
   // A list of users.
   users?: Array<ApiUser>;
 }
@@ -758,8 +755,31 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
+    /** Get a storage object. */
+    getStorage(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObject> {
+      if (collection === null || collection === undefined) {
+        throw new Error("'collection' is a required parameter but is null or undefined.");
+      }
+      if (key === null || key === undefined) {
+        throw new Error("'key' is a required parameter but is null or undefined.");
+      }
+      if (userId === null || userId === undefined) {
+        throw new Error("'userId' is a required parameter but is null or undefined.");
+      }
+      const urlPath = "/v2/console/storage/{collection}/{key}/{user_id}"
+         .replace("{collection}", encodeURIComponent(String(collection)))
+         .replace("{key}", encodeURIComponent(String(key)))
+         .replace("{user_id}", encodeURIComponent(String(userId)));
+
+      const queryParams = {
+      } as any;
+
+      let _body = null;
+
+      return this.doFetch(urlPath, "GET", queryParams, _body, options)
+    },
     /** Write a new storage object or replace an existing one. */
-    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<any> {
+    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObjectAck> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -820,14 +840,13 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return this.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** List (and optionally filter) users. */
-    listUsers(filter?: string, banned?: boolean, tombstones?: boolean, cursor?: string, options: any = {}): Promise<ConsoleUserList> {
+    listUsers(filter?: string, banned?: boolean, tombstones?: boolean, options: any = {}): Promise<ConsoleUserList> {
       const urlPath = "/v2/console/user";
 
       const queryParams = {
         filter: filter,
         banned: banned,
         tombstones: tombstones,
-        cursor: cursor,
       } as any;
 
       let _body = null;

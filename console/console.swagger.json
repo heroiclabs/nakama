@@ -647,6 +647,44 @@
       }
     },
     "/v2/console/storage/{collection}/{key}/{user_id}": {
+      "get": {
+        "summary": "Get a storage object.",
+        "operationId": "GetStorage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiStorageObject"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "collection",
+            "description": "The collection which stores the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "The key of the object within the collection.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "The user owner of the object.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "delete": {
         "summary": "Delete a storage object.",
         "operationId": "DeleteStorageObject",
@@ -699,7 +737,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "properties": {}
+              "$ref": "#/definitions/apiStorageObjectAck"
             }
           }
         },
@@ -813,14 +851,6 @@
             "required": false,
             "type": "boolean",
             "format": "boolean"
-          },
-          {
-            "name": "cursor",
-            "description": "An (optional) cursor to fetch next page.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "byte"
           }
         ],
         "tags": [
@@ -866,6 +896,11 @@
           "type": "string",
           "description": "Node name."
         },
+        "health": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Health score."
+        },
         "session_count": {
           "type": "integer",
           "format": "int32",
@@ -889,62 +924,22 @@
         "avg_latency_ms": {
           "type": "number",
           "format": "double",
-          "description": "Latest average response latency in milliseconds."
+          "description": "Average response latency in milliseconds."
         },
-        "avg_latency_ms_min": {
+        "avg_rate_sec": {
           "type": "number",
           "format": "double",
-          "description": "Average response latency in milliseconds over the last minute."
+          "description": "Average number of requests per second."
         },
-        "avg_latency_ms_hr": {
+        "avg_input_kbs": {
           "type": "number",
           "format": "double",
-          "description": "Average response latency in milliseconds over the last hour."
+          "description": "Average input bandwidth usage."
         },
-        "rate_sec": {
+        "avg_output_kbs": {
           "type": "number",
           "format": "double",
-          "description": "Latest number of requests per second."
-        },
-        "rate_sec_min": {
-          "type": "number",
-          "format": "double",
-          "description": "Number of requests per second over the last minute."
-        },
-        "rate_sec_hr": {
-          "type": "number",
-          "format": "double",
-          "description": "Number of requests per second over the last hour."
-        },
-        "input_kbs": {
-          "type": "number",
-          "format": "double",
-          "description": "Latest input bandwidth usage."
-        },
-        "input_kbs_min": {
-          "type": "number",
-          "format": "double",
-          "description": "Input bandwidth usage over the last minute."
-        },
-        "input_kbs_hr": {
-          "type": "number",
-          "format": "double",
-          "description": "Input bandwidth usage over the last hour."
-        },
-        "output_kbs": {
-          "type": "number",
-          "format": "double",
-          "description": "Latest output bandwidth usage."
-        },
-        "output_kbs_min": {
-          "type": "number",
-          "format": "double",
-          "description": "Output bandwidth usage over the last minute."
-        },
-        "output_kbs_ht": {
-          "type": "number",
-          "format": "double",
-          "description": "Output bandwidth usage over the last hour."
+          "description": "Average output bandwidth usage."
         }
       },
       "description": "The status of a Nakama node."
@@ -1286,6 +1281,28 @@
       },
       "description": "An object within the storage engine."
     },
+    "apiStorageObjectAck": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The owner of the object."
+        }
+      },
+      "description": "A storage acknowledgement."
+    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -1496,10 +1513,10 @@
           },
           "description": "List of storage objects matching list/filter operation."
         },
-        "cursor": {
-          "type": "string",
-          "format": "byte",
-          "description": "An (optional) cursor for paging results."
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of storage objects."
         }
       },
       "description": "List of storage objects."
@@ -1514,10 +1531,10 @@
           },
           "description": "A list of users."
         },
-        "cursor": {
-          "type": "string",
-          "format": "byte",
-          "description": "A cursor to fetch more results."
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of users."
         }
       },
       "description": "A list of users."
