@@ -1,0 +1,67 @@
+body
+{
+  background-color: #FFFFFF;
+  padding: 0;
+  margin: 0;
+}
+
+#login
+{
+  background-color: #F2F6FA;
+}
+#login img
+{
+  width: 200px;
+  margin-bottom: 20px;
+}
+
+#users thead th:nth-child(1)
+{
+  width: 35%;
+}
+#users thead th:nth-child(2)
+{
+  width: 15%;
+}
+#users thead th:nth-child(3)
+{
+  width: 15%;
+}
+#users thead th:nth-child(4)
+{
+  width: 25%;
+}
+#users thead th:nth-child(5)
+{
+  width: 10%;
+}
+#users td
+{
+  cursor: pointer;
+}
+
+#users thead th:nth-child(1)
+{
+  width: 35%;
+}
+#users thead th:nth-child(2)
+{
+  width: 15%;
+}
+#users thead th:nth-child(3)
+{
+  width: 15%;
+}
+#users thead th:nth-child(4)
+{
+  width: 25%;
+}
+#users thead th:nth-child(5)
+{
+  width: 10%;
+}
+#storage td
+{
+  cursor: pointer;
+}
+
