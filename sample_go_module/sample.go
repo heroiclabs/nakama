@@ -37,6 +37,12 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 	}); err != nil {
 		return err
 	}
+	if err := initializer.RegisterEventSessionStart(eventSessionStart); err != nil {
+		return err
+	}
+	if err := initializer.RegisterEventSessionEnd(eventSessionEnd); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -128,4 +134,12 @@ func (m *Match) MatchTerminate(ctx context.Context, logger runtime.Logger, db *s
 	}
 
 	return state
+}
+
+func eventSessionStart(ctx context.Context, logger runtime.Logger, evt *api.Event) {
+	logger.Printf("session start %v %v", ctx, evt)
+}
+
+func eventSessionEnd(ctx context.Context, logger runtime.Logger, evt *api.Event) {
+	logger.Printf("session end %v %v", ctx, evt)
 }

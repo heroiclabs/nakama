@@ -61,6 +61,7 @@ type sessionWS struct {
 	sessionRegistry SessionRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
+	runtime         *Runtime
 
 	stopped                bool
 	conn                   *websocket.Conn
@@ -70,7 +71,7 @@ type sessionWS struct {
 	outgoingCh             chan []byte
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, runtime *Runtime) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -108,6 +109,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userI
 		sessionRegistry: sessionRegistry,
 		matchmaker:      matchmaker,
 		tracker:         tracker,
+		runtime:         runtime,
 
 		stopped:                false,
 		conn:                   conn,
@@ -165,6 +167,11 @@ func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Sess
 		s.maybeResetPingTimer()
 		return nil
 	})
+
+	// Fire an event for session start.
+	if fn := s.runtime.EventSessionStart(); fn != nil {
+		fn(s.userID.String(), s.username.Load(), s.expiry, s.id.String(), s.clientIP, s.clientPort, time.Now().UTC().Unix())
+	}
 
 	// Start a routine to process outbound messages.
 	go s.processOutgoing()
@@ -431,4 +438,9 @@ func (s *sessionWS) Close() {
 	}
 
 	s.logger.Info("Closed client connection")
+
+	// Fire an event for session end.
+	if fn := s.runtime.EventSessionEnd(); fn != nil {
+		fn(s.userID.String(), s.username.Load(), s.expiry, s.id.String(), s.clientIP, s.clientPort, time.Now().UTC().Unix())
+	}
 }

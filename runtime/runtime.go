@@ -101,7 +101,7 @@ const (
 	RUNTIME_CTX_ENV = "env"
 
 	// The mode associated with the execution context. It's one of these values:
-	//  "run_once", "rpc", "before", "after", "match", "matchmaker", "leaderboard_reset", "tournament_reset", "tournament_end".
+	//  "event", "run_once", "rpc", "before", "after", "match", "matchmaker", "leaderboard_reset", "tournament_reset", "tournament_end".
 	RUNTIME_CTX_MODE = "execution_mode"
 
 	// Query params that was passed through from HTTP request.
@@ -647,6 +647,12 @@ type Initializer interface {
 
 	// RegisterAfterGetUsers can be used to perform additional logic after retrieving users.
 	RegisterAfterGetUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Users, in *api.GetUsersRequest) error) error
+
+	// RegisterEventSessionStart can be used to define functions triggered when client sessions start.
+	RegisterEventSessionStart(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
+
+	// RegisterEventSessionStart can be used to define functions triggered when client sessions end.
+	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 }
 
 type Leaderboard interface {
