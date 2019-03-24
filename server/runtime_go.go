@@ -1866,11 +1866,12 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		}
 	}
 	if len(initializer.sessionEndFunctions) > 0 {
-		events.sessionEndFunction = func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64) {
+		events.sessionEndFunction = func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64, reason string) {
 			ctx := NewRuntimeGoContext(context.Background(), initializer.env, RuntimeExecutionModeEvent, nil, expiry, userID, username, sessionID, clientIP, clientPort)
 			evt := &api.Event{
-				Name:      "session_end",
-				Timestamp: &timestamp.Timestamp{Seconds: evtTimeSec},
+				Name:       "session_end",
+				Properties: map[string]string{"reason": reason},
+				Timestamp:  &timestamp.Timestamp{Seconds: evtTimeSec},
 			}
 			eventQueue.Queue(func() {
 				for _, fn := range initializer.sessionEndFunctions {

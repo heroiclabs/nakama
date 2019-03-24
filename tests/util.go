@@ -105,7 +105,7 @@ func (d *DummySession) SendBytes(isStream bool, mode uint8, payload []byte) erro
 	return nil
 }
 
-func (d *DummySession) Close() {}
+func (d *DummySession) Close(reason string) {}
 
 type loggerEnabler struct{}
 

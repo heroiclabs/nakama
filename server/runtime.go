@@ -173,7 +173,7 @@ type (
 	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
 
 	RuntimeEventSessionStartFunction func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64)
-	RuntimeEventSessionEndFunction   func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64)
+	RuntimeEventSessionEndFunction   func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64, reason string)
 )
 
 type RuntimeExecutionMode int
