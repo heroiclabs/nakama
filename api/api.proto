@@ -288,6 +288,16 @@ message DeleteStorageObjectsRequest {
   repeated DeleteStorageObjectId object_ids = 1;
 }
 
+// Represents an event to be passed through the server to registered event handlers.
+message Event {
+  // An event name, type, category, or identifier.
+  string name = 1;
+  // Arbitrary event property values.
+  map<string, string> properties = 2;
+  // The time when the event was triggered.
+  google.protobuf.Timestamp timestamp = 3;
+}
+
 // A friend of a user.
 message Friend {
   // The friendship status.

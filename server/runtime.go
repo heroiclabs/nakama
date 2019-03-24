@@ -17,11 +17,10 @@ package server
 import (
 	"context"
 	"database/sql"
+	"github.com/heroiclabs/nakama/runtime"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/heroiclabs/nakama/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
@@ -170,12 +169,18 @@ type (
 	RuntimeTournamentResetFunction func(ctx context.Context, tournament *api.Tournament, end, reset int64) error
 
 	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error
+
+	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
+
+	RuntimeEventSessionStartFunction func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64)
+	RuntimeEventSessionEndFunction   func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64)
 )
 
 type RuntimeExecutionMode int
 
 const (
-	RuntimeExecutionModeRunOnce RuntimeExecutionMode = iota
+	RuntimeExecutionModeEvent RuntimeExecutionMode = iota
+	RuntimeExecutionModeRunOnce
 	RuntimeExecutionModeRPC
 	RuntimeExecutionModeBefore
 	RuntimeExecutionModeAfter
@@ -189,6 +194,8 @@ const (
 
 func (e RuntimeExecutionMode) String() string {
 	switch e {
+	case RuntimeExecutionModeEvent:
+		return "event"
 	case RuntimeExecutionModeRunOnce:
 		return "run_once"
 	case RuntimeExecutionModeRPC:
@@ -223,6 +230,11 @@ type RuntimeMatchCore interface {
 	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
 	Label() string
 	Cancel()
+}
+
+type RuntimeEventFunctions struct {
+	sessionStartFunction RuntimeEventSessionStartFunction
+	sessionEndFunction   RuntimeEventSessionEndFunction
 }
 
 type RuntimeBeforeReqFunctions struct {
@@ -362,6 +374,8 @@ type Runtime struct {
 	tournamentResetFunction RuntimeTournamentResetFunction
 
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
+
+	eventFunctions *RuntimeEventFunctions
 }
 
 func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) (*Runtime, error) {
@@ -389,7 +403,11 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		return nil, err
 	}
 
-	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, runtimeConfig.Path, paths)
+	startupLogger.Info("Initialising runtime event queue processor")
+	eventQueue := NewRuntimeEventQueue(logger, config)
+	startupLogger.Info("Runtime event queue processor started", zap.Int("size", config.GetRuntime().EventQueueSize), zap.Int("workers", config.GetRuntime().EventQueueWorkers))
+
+	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, allEventFunctions, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, runtimeConfig.Path, paths, eventQueue)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, err
@@ -412,6 +430,13 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allModules = append(allModules, module)
 	}
 	startupLogger.Info("Found runtime modules", zap.Int("count", len(allModules)), zap.Strings("modules", allModules))
+
+	if allEventFunctions.sessionStartFunction != nil {
+		startupLogger.Info("Registered event function invocation", zap.String("id", "session_start"))
+	}
+	if allEventFunctions.sessionEndFunction != nil {
+		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
+	}
 
 	allRpcFunctions := make(map[string]RuntimeRpcFunction, len(goRpcFunctions)+len(luaRpcFunctions))
 	for id, fn := range luaRpcFunctions {
@@ -1302,6 +1327,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		tournamentEndFunction:     allTournamentEndFunction,
 		tournamentResetFunction:   allTournamentResetFunction,
 		leaderboardResetFunction:  allLeaderboardResetFunction,
+		eventFunctions:            allEventFunctions,
 	}, nil
 }
 
@@ -1791,4 +1817,12 @@ func (r *Runtime) TournamentReset() RuntimeTournamentResetFunction {
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {
 	return r.leaderboardResetFunction
+}
+
+func (r *Runtime) EventSessionStart() RuntimeEventSessionStartFunction {
+	return r.eventFunctions.sessionStartFunction
+}
+
+func (r *Runtime) EventSessionEnd() RuntimeEventSessionEndFunction {
+	return r.eventFunctions.sessionEndFunction
 }

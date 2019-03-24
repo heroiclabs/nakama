@@ -18,18 +18,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"path/filepath"
-	"plugin"
-	"strings"
-	"sync"
-
 	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/runtime"
 	"github.com/heroiclabs/nakama/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"path/filepath"
+	"plugin"
+	"strings"
+	"sync"
 )
 
 // No need for a stateful RuntimeProviderGo here.
@@ -50,8 +50,21 @@ type RuntimeGoInitializer struct {
 	tournamentReset   RuntimeTournamentResetFunction
 	leaderboardReset  RuntimeLeaderboardResetFunction
 
+	sessionStartFunctions []RuntimeEventFunction
+	sessionEndFunctions   []RuntimeEventFunction
+
 	match     map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)
 	matchLock *sync.RWMutex
+}
+
+func (ri *RuntimeGoInitializer) RegisterEventSessionStart(fn func(ctx context.Context, logger runtime.Logger, evt *api.Event)) error {
+	ri.sessionStartFunctions = append(ri.sessionStartFunctions, fn)
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterEventSessionEnd(fn func(ctx context.Context, logger runtime.Logger, evt *api.Event)) error {
+	ri.sessionEndFunctions = append(ri.sessionEndFunctions, fn)
+	return nil
 }
 
 func (ri *RuntimeGoInitializer) RegisterRpc(id string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error)) error {
@@ -1736,7 +1749,7 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, func(RuntimeMatchCreateFunction), func() []string, error) {
+func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, rootPath string, paths []string, eventQueue *RuntimeEventQueue) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, *RuntimeEventFunctions, func(RuntimeMatchCreateFunction), func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	env := config.GetRuntime().Environment
 	nk := NewRuntimeGoNakamaModule(logger, db, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router)
@@ -1785,6 +1798,9 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		beforeReq: &RuntimeBeforeReqFunctions{},
 		afterReq:  &RuntimeAfterReqFunctions{},
 
+		sessionStartFunctions: make([]RuntimeEventFunction, 0),
+		sessionEndFunctions:   make([]RuntimeEventFunction, 0),
+
 		match:     match,
 		matchLock: matchLock,
 	}
@@ -1807,32 +1823,62 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, config 
 		p, err := plugin.Open(path)
 		if err != nil {
 			startupLogger.Error("Could not open Go module", zap.String("path", path), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		// Look up the required initialisation function.
 		f, err := p.Lookup("InitModule")
 		if err != nil {
 			startupLogger.Fatal("Error looking up InitModule function in Go module", zap.String("name", name))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		// Ensure the function has the correct signature.
 		fn, ok := f.(func(context.Context, runtime.Logger, *sql.DB, runtime.NakamaModule, runtime.Initializer) error)
 		if !ok {
 			startupLogger.Fatal("Error reading InitModule function in Go module", zap.String("name", name))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error reading InitModule function in Go module")
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error reading InitModule function in Go module")
 		}
 
 		// Run the initialisation.
 		if err = fn(ctx, runtimeLogger, db, nk, initializer); err != nil {
 			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
 		}
 		modulePaths = append(modulePaths, relPath)
 	}
 
 	startupLogger.Info("Go runtime modules loaded")
 
-	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, matchCreateFn, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, nk.SetMatchCreateFn, matchNamesListFn, nil
+	events := &RuntimeEventFunctions{}
+	if len(initializer.sessionStartFunctions) > 0 {
+		events.sessionStartFunction = func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64) {
+			ctx := NewRuntimeGoContext(context.Background(), initializer.env, RuntimeExecutionModeEvent, nil, expiry, userID, username, sessionID, clientIP, clientPort)
+			evt := &api.Event{
+				Name:      "session_start",
+				Timestamp: &timestamp.Timestamp{Seconds: evtTimeSec},
+			}
+			eventQueue.Queue(func() {
+				for _, fn := range initializer.sessionStartFunctions {
+					fn(ctx, initializer.logger, evt)
+				}
+			})
+		}
+	}
+	if len(initializer.sessionEndFunctions) > 0 {
+		events.sessionEndFunction = func(userID, username string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64) {
+			ctx := NewRuntimeGoContext(context.Background(), initializer.env, RuntimeExecutionModeEvent, nil, expiry, userID, username, sessionID, clientIP, clientPort)
+			evt := &api.Event{
+				Name:      "session_end",
+				Timestamp: &timestamp.Timestamp{Seconds: evtTimeSec},
+			}
+			eventQueue.Queue(func() {
+				for _, fn := range initializer.sessionEndFunctions {
+					fn(ctx, initializer.logger, evt)
+				}
+			})
+		}
+	}
+
+	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, matchCreateFn, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, events, nk.SetMatchCreateFn, matchNamesListFn, nil
 }
