@@ -1,5 +1,25 @@
 import React, {Component} from 'react';
-import {Button, Card, Checkbox, Column, Container, Control, Field, Hero, Input, Label} from 'rbx';
+import {RouteComponentProps} from 'react-router';
+
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as loginActions from '../../store/login/actions';
+import {LoginRequest, Token} from '../../store/login/types';
+
+import {
+  Button,
+  Card,
+  Checkbox,
+  Column,
+  Container,
+  Control,
+  Field,
+  Hero,
+  Notification,
+  Input,
+  Label
+} from 'rbx';
 
 import logo from '../../images/logo.png';
 
@@ -7,12 +27,41 @@ import logo from '../../images/logo.png';
  * https://dfee.github.io/rbx/
  */
 
-class Login extends Component
+interface PropsFromState
 {
+  loading: boolean,
+  data: Token,
+  errors: string|undefined
+}
+
+interface PropsFromDispatch
+{
+  fetchRequest: typeof loginActions.loginRequest
+}
+
+type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
+
+class Login extends Component<Props>
+{
+  componentWillReceiveProps(nextProps: Props)
+  {
+    if(nextProps.data && nextProps.data.token)
+    {
+      const {history} = this.props;
+      history.push('/status');
+    }
+  }
+
   login(event: React.FormEvent<HTMLFormElement>)
   {
     event.preventDefault();
-    window.location.href = '/status';
+    const data = new FormData(event.target as HTMLFormElement);
+    const payload = {
+      username: data.get('username') as string,
+      password: data.get('password') as string,
+      remember: !!data.get('remember')
+    };
+    this.props.fetchRequest(payload);
   }
   
   render()
@@ -23,25 +72,30 @@ class Login extends Component
           <img src={logo} alt="logo" />
           <Column.Group centered gapless>
             <Column size="one-third">
+              {
+                this.props.errors ?
+                <Notification color="danger">Your credentials are invalid.</Notification> :
+                null
+              }
               <Card>
                 <Card.Header>
                   <Card.Header.Title>Developer Console</Card.Header.Title>
                 </Card.Header>
                 <Card.Content>
-                  <form onSubmit={this.login}>
+                  <form onSubmit={this.login.bind(this)}>
                     <Field>
                       <Control>
-                        <Input type="text" placeholder="Your username" autoFocus />
+                        <Input type="text" name="username" placeholder="Your username" autoFocus />
                       </Control>
                     </Field>
                     <Field>
                       <Control>
-                        <Input type="password" placeholder="Your password" />
+                        <Input type="password" name="password" placeholder="Your password" />
                       </Control>
                     </Field>
                     <Field>
                       <Label>
-                        <Checkbox /> Remember me
+                        <Checkbox name="remember" /> Remember me
                       </Label>
                     </Field>
                     <Button color="info" fullwidth>Login</Button>
@@ -66,4 +120,19 @@ class Login extends Component
   }
 }
 
-export default Login;
+const mapStateToProps = ({login}: ApplicationState) => ({
+  loading: login.loading,
+  errors: login.errors,
+  data: login.data
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchRequest: (data: LoginRequest) => dispatch(
+    loginActions.loginRequest(data)
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(Login);
