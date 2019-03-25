@@ -1,5 +1,4 @@
 import React, {Component} from 'react';
-import {withRouter} from 'react-router-dom';
 import {RouteComponentProps} from 'react-router';
 import {Button, Column, Generic, Icon, Level, Section, Table, Title} from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
@@ -159,4 +158,4 @@ class Storage extends Component<Props, State>
   }
 }
 
-export default withRouter(Storage);
+export default Storage;

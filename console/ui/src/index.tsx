@@ -1,15 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 
-import {createStore} from 'redux';
+import {Store, createStore, applyMiddleware} from 'redux';
 import {Provider} from 'react-redux';
-import Reducers from './reducers';
+import createSagaMiddleware from 'redux-saga';
+import {ApplicationState, createRootReducer, rootSaga} from './store';
 
 import {BrowserRouter as Router, Switch, Route} from 'react-router-dom';
+import * as serviceWorker from './serviceWorker';
+
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {faSignOutAlt, faFileExport, faTrash, faUsersCog, faAngleDown, faFile, faFileCsv} from '@fortawesome/free-solid-svg-icons';
-
-import * as serviceWorker from './serviceWorker';
 
 import Index from './routes/index';
 import Login from './routes/login';
@@ -25,8 +26,16 @@ import './css/index.css';
 
 library.add(faSignOutAlt, faFileExport, faTrash, faUsersCog, faAngleDown, faFile, faFileCsv);
 
+const sagaMiddleware = createSagaMiddleware();
+const store = createStore(
+  createRootReducer(),
+  {},
+  applyMiddleware(sagaMiddleware)
+);
+sagaMiddleware.run(rootSaga);
+
 ReactDOM.render(
-  <Provider store={createStore(Reducers)}>
+  <Provider store={store}>
     <Router>
       <Switch>
         <Route path="/storage/:id" component={StorageDetails} />
