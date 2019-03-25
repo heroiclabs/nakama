@@ -222,10 +222,10 @@ service Console {
 
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
-  option (google.api.http) = {
-        post: "/v2/console/storage/{collection}/{key}/{user_id}",
-        body: "*"
-      };
+    option (google.api.http) = {
+      post: "/v2/console/storage/{collection}/{key}/{user_id}",
+      body: "*"
+    };
   }
 }
 
