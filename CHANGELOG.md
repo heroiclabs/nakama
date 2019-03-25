@@ -4,6 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Log more information when authoritative match handlers receive too many data messages.
+- Ensure storage writes and deletes are performed in a consistent order within each batch.
+- Ensure wallet updates are performed in a consistent order within each batch.
+
+### Fixed
+- Storage write batches now correctly abort when any query in the batch fails.
 
 ## [2.4.2] - 2019-03-25
 ### Added

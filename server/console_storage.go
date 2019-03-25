@@ -46,14 +46,15 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 	if in.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid key.")
 	}
-	userID, err := uuid.FromString(in.UserId)
+	_, err := uuid.FromString(in.UserId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	code, err := StorageDeleteObjects(ctx, s.logger, s.db, true, map[uuid.UUID][]*api.DeleteStorageObjectId{
-		userID: []*api.DeleteStorageObjectId{
-			&api.DeleteStorageObjectId{
+	code, err := StorageDeleteObjects(ctx, s.logger, s.db, true, StorageOpDeletes{
+		&StorageOpDelete{
+			OwnerID: in.UserId,
+			ObjectID: &api.DeleteStorageObjectId{
 				Collection: in.Collection,
 				Key:        in.Key,
 				Version:    in.Version,
@@ -159,7 +160,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 	if in.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid key.")
 	}
-	userID, err := uuid.FromString(in.UserId)
+	_, err := uuid.FromString(in.UserId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
@@ -181,9 +182,10 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid JSON object value.")
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, true, map[uuid.UUID][]*api.WriteStorageObject{
-		userID: []*api.WriteStorageObject{
-			&api.WriteStorageObject{
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, true, StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: in.UserId,
+			Object: &api.WriteStorageObject{
 				Collection:      in.Collection,
 				Key:             in.Key,
 				Value:           in.Value,

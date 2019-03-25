@@ -3697,7 +3697,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 1
 	}
 
-	data := make(map[uuid.UUID][]*api.WriteStorageObject)
+	ops := make(StorageOpWrites, 0, size)
 	conversionError := false
 	dataTable.ForEach(func(k, v lua.LValue) {
 		if conversionError {
@@ -3825,17 +3825,16 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 			d.PermissionWrite = &wrappers.Int32Value{Value: 1}
 		}
 
-		if objects, ok := data[userID]; !ok {
-			data[userID] = []*api.WriteStorageObject{d}
-		} else {
-			data[userID] = append(objects, d)
-		}
+		ops = append(ops, &StorageOpWrite{
+			OwnerID: userID.String(),
+			Object:  d,
+		})
 	})
 	if conversionError {
 		return 0
 	}
 
-	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, true, data)
+	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, true, ops)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
 		return 0
@@ -3871,7 +3870,7 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 		return 0
 	}
 
-	objectIDs := make(map[uuid.UUID][]*api.DeleteStorageObjectId)
+	ops := make(StorageOpDeletes, 0, size)
 	conversionError := false
 	keysTable.ForEach(func(k, v lua.LValue) {
 		if conversionError {
@@ -3958,17 +3957,16 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 			return
 		}
 
-		if objects, ok := objectIDs[userID]; !ok {
-			objectIDs[userID] = []*api.DeleteStorageObjectId{objectID}
-		} else {
-			objectIDs[userID] = append(objects, objectID)
-		}
+		ops = append(ops, &StorageOpDelete{
+			OwnerID:  userID.String(),
+			ObjectID: objectID,
+		})
 	})
 	if conversionError {
 		return 0
 	}
 
-	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, true, objectIDs); err != nil {
+	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, true, ops); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 

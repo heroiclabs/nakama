@@ -238,7 +238,7 @@ func (mh *MatchHandler) QueueData(m *MatchDataMessage) {
 		return
 	default:
 		// Match input queue is full, the handler isn't processing fast enough or there's too much incoming data.
-		mh.logger.Warn("Match handler data processing too slow, dropping data message")
+		mh.logger.Warn("Match handler data processing too slow, dropping data message", zap.Any("m", m))
 		return
 	}
 }

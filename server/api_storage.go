@@ -152,12 +152,12 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 }
 
 func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorageObjectsRequest) (*api.StorageObjectAcks, error) {
-	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID).String()
 
 	// Before hook.
 	if fn := s.runtime.BeforeWriteStorageObjects(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID, ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -206,9 +206,15 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		}
 	}
 
-	userObjects := map[uuid.UUID][]*api.WriteStorageObject{userID: in.GetObjects()}
+	ops := make(StorageOpWrites, 0, len(in.GetObjects()))
+	for _, object := range in.GetObjects() {
+		ops = append(ops, &StorageOpWrite{
+			OwnerID: userID,
+			Object:  object,
+		})
+	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, false, userObjects)
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, false, ops)
 	if err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error writing storage objects.")
@@ -219,7 +225,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 	// After hook.
 	if fn := s.runtime.AfterWriteStorageObjects(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, acks, in)
+			fn(ctx, s.logger, userID, ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, acks, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -230,18 +236,18 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 }
 
 func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
-	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID).String()
 
 	// Before hook.
 	if fn := s.runtime.BeforeDeleteStorageObjects(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID, ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
 			if result == nil {
 				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID))
 				return status.Error(codes.NotFound, "Requested resource was not found.")
 			}
 			in = result
@@ -265,9 +271,15 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 		}
 	}
 
-	objectIDs := map[uuid.UUID][]*api.DeleteStorageObjectId{userID: in.GetObjectIds()}
+	ops := make(StorageOpDeletes, 0, len(in.GetObjectIds()))
+	for _, objectID := range in.GetObjectIds() {
+		ops = append(ops, &StorageOpDelete{
+			OwnerID:  userID,
+			ObjectID: objectID,
+		})
+	}
 
-	if code, err := StorageDeleteObjects(ctx, s.logger, s.db, false, objectIDs); err != nil {
+	if code, err := StorageDeleteObjects(ctx, s.logger, s.db, false, ops); err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error deleting storage objects.")
 		}
@@ -277,7 +289,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 	// After hook.
 	if fn := s.runtime.AfterDeleteStorageObjects(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID, ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

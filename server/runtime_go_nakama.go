@@ -1077,7 +1077,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 		return make([]*api.StorageObjectAck, 0), nil
 	}
 
-	data := make(map[uuid.UUID][]*api.WriteStorageObject)
+	ops := make(StorageOpWrites, 0, size)
 
 	for _, write := range writes {
 		if write.Collection == "" {
@@ -1086,37 +1086,36 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 		if write.Key == "" {
 			return nil, errors.New("expects key to be a non-empty string")
 		}
-		uid := uuid.Nil
-		var err error
 		if write.UserID != "" {
-			uid, err = uuid.FromString(write.UserID)
-			if err != nil {
+			if _, err := uuid.FromString(write.UserID); err != nil {
 				return nil, errors.New("expects an empty or valid user id")
 			}
 		}
 		var valueMap map[string]interface{}
-		err = json.Unmarshal([]byte(write.Value), &valueMap)
-		if err != nil {
+		if err := json.Unmarshal([]byte(write.Value), &valueMap); err != nil {
 			return nil, errors.New("value must be a JSON-encoded object")
 		}
 
-		d := &api.WriteStorageObject{
-			Collection:      write.Collection,
-			Key:             write.Key,
-			Value:           write.Value,
-			Version:         write.Version,
-			PermissionRead:  &wrappers.Int32Value{Value: int32(write.PermissionRead)},
-			PermissionWrite: &wrappers.Int32Value{Value: int32(write.PermissionWrite)},
+		op := &StorageOpWrite{
+			Object: &api.WriteStorageObject{
+				Collection:      write.Collection,
+				Key:             write.Key,
+				Value:           write.Value,
+				Version:         write.Version,
+				PermissionRead:  &wrappers.Int32Value{Value: int32(write.PermissionRead)},
+				PermissionWrite: &wrappers.Int32Value{Value: int32(write.PermissionWrite)},
+			},
+		}
+		if write.UserID == "" {
+			op.OwnerID = uuid.Nil.String()
+		} else {
+			op.OwnerID = write.UserID
 		}
 
-		if objects, ok := data[uid]; !ok {
-			data[uid] = []*api.WriteStorageObject{d}
-		} else {
-			data[uid] = append(objects, d)
-		}
+		ops = append(ops, op)
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, true, data)
+	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, true, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -1130,7 +1129,7 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 		return nil
 	}
 
-	objectIDs := make(map[uuid.UUID][]*api.DeleteStorageObjectId)
+	ops := make(StorageOpDeletes, 0, size)
 
 	for _, del := range deletes {
 		if del.Collection == "" {
@@ -1139,29 +1138,29 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 		if del.Key == "" {
 			return errors.New("expects key to be a non-empty string")
 		}
-		uid := uuid.Nil
-		var err error
 		if del.UserID != "" {
-			uid, err = uuid.FromString(del.UserID)
-			if err != nil {
+			if _, err := uuid.FromString(del.UserID); err != nil {
 				return errors.New("expects an empty or valid user id")
 			}
 		}
 
-		objectID := &api.DeleteStorageObjectId{
-			Collection: del.Collection,
-			Key:        del.Key,
-			Version:    del.Version,
+		op := &StorageOpDelete{
+			ObjectID: &api.DeleteStorageObjectId{
+				Collection: del.Collection,
+				Key:        del.Key,
+				Version:    del.Version,
+			},
+		}
+		if del.UserID == "" {
+			op.OwnerID = uuid.Nil.String()
+		} else {
+			op.OwnerID = del.UserID
 		}
 
-		if objects, ok := objectIDs[uid]; !ok {
-			objectIDs[uid] = []*api.DeleteStorageObjectId{objectID}
-		} else {
-			objectIDs[uid] = append(objects, objectID)
-		}
+		ops = append(ops, op)
 	}
 
-	_, err := StorageDeleteObjects(ctx, n.logger, n.db, true, objectIDs)
+	_, err := StorageDeleteObjects(ctx, n.logger, n.db, true, ops)
 
 	return err
 }

@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -123,6 +124,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 
 		// Prepare the set of wallet updates and ledger updates.
 		updatedWallets := make(map[string][]byte, len(updates))
+		updateOrder := make([]string, 0, len(updates))
 		if updateLedger {
 			statements = make([]string, 0, len(updates))
 			params = make([]interface{}, 0, len(updates)*4)
@@ -145,6 +147,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 				return err
 			}
 			updatedWallets[userID] = walletData
+			updateOrder = append(updateOrder, userID)
 
 			// Prepare ledger updates if needed.
 			if updateLedger {
@@ -159,23 +162,34 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 			}
 		}
 
-		// Write the updated wallets.
-		query = "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1"
-		for userID, updatedWallet := range updatedWallets {
-			_, err = tx.ExecContext(ctx, query, userID, updatedWallet)
-			if err != nil {
-				logger.Debug("Error writing user wallet.", zap.String("user_id", userID), zap.Error(err))
-				return err
-			}
-		}
+		if len(updatedWallets) > 0 {
+			// Ensure updates are done in natural order of user ID.
+			sort.Strings(updateOrder)
 
-		// Write the ledger updates, if any.
-		if updateLedger && (len(statements) > 0) {
-			query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES " + strings.Join(statements, ", ")
-			_, err = tx.ExecContext(ctx, query, params...)
-			if err != nil {
-				logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
-				return err
+			// Write the updated wallets.
+			query = "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1"
+			for _, userID := range updateOrder {
+				updatedWallet, ok := updatedWallets[userID]
+				if !ok {
+					// Should not happen.
+					logger.Warn("Missing wallet update for user.", zap.String("user_id", userID))
+					continue
+				}
+				_, err = tx.ExecContext(ctx, query, userID, updatedWallet)
+				if err != nil {
+					logger.Debug("Error writing user wallet.", zap.String("user_id", userID), zap.Error(err))
+					return err
+				}
+			}
+
+			// Write the ledger updates, if any.
+			if updateLedger && (len(statements) > 0) {
+				query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES " + strings.Join(statements, ", ")
+				_, err = tx.ExecContext(ctx, query, params...)
+				if err != nil {
+					logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
+					return err
+				}
 			}
 		}
 		return nil

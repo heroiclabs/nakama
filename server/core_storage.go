@@ -21,6 +21,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"sort"
 
 	"context"
 
@@ -37,6 +38,56 @@ type storageCursor struct {
 	Key    string
 	UserID uuid.UUID
 	Read   int32
+}
+
+// Internal representation for a batch of storage write operations.
+type StorageOpWrites []*StorageOpWrite
+
+type StorageOpWrite struct {
+	OwnerID string
+	Object  *api.WriteStorageObject
+}
+
+func (s StorageOpWrites) Len() int {
+	return len(s)
+}
+func (s StorageOpWrites) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s StorageOpWrites) Less(i, j int) bool {
+	s1, s2 := s[i], s[j]
+	if s1.Object.Collection < s2.Object.Collection {
+		return true
+	}
+	if s1.Object.Key < s2.Object.Key {
+		return true
+	}
+	return s1.OwnerID < s2.OwnerID
+}
+
+// Internal representation for a batch of storage delete operations.
+type StorageOpDeletes []*StorageOpDelete
+
+type StorageOpDelete struct {
+	OwnerID  string
+	ObjectID *api.DeleteStorageObjectId
+}
+
+func (s StorageOpDeletes) Len() int {
+	return len(s)
+}
+func (s StorageOpDeletes) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s StorageOpDeletes) Less(i, j int) bool {
+	s1, s2 := s[i], s[j]
+	if s1.ObjectID.Collection < s2.ObjectID.Collection {
+		return true
+	}
+	if s1.ObjectID.Key < s2.ObjectID.Key {
+		return true
+	}
+	return s1.OwnerID < s2.OwnerID
 }
 
 func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID *uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
@@ -397,8 +448,11 @@ WHERE
 	return objects, err
 }
 
-func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeWrite bool, objects map[uuid.UUID][]*api.WriteStorageObject) (*api.StorageObjectAcks, codes.Code, error) {
-	acks := &api.StorageObjectAcks{}
+func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
+	// Ensure writes are processed in a consistent order.
+	sort.Sort(ops)
+
+	var acks []*api.StorageObjectAck
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -407,20 +461,20 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 	}
 
 	if err = crdb.ExecuteInTx(ctx, tx, func() error {
-		for ownerID, userObjects := range objects {
-			for _, object := range userObjects {
-				ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, ownerID, object)
-				if writeErr != nil {
-					if writeErr == sql.ErrNoRows {
-						return StatusError(codes.InvalidArgument, "Storage write rejected.", errors.New("Storage write rejected - not found, version check failed, or permission denied."))
-					}
+		acks = make([]*api.StorageObjectAck, 0, ops.Len())
 
-					logger.Debug("Error writing storage objects.", zap.Error(err))
-					return err
+		for _, op := range ops {
+			ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, op.OwnerID, op.Object)
+			if writeErr != nil {
+				if writeErr == sql.ErrNoRows {
+					return StatusError(codes.InvalidArgument, "Storage write rejected.", errors.New("Storage write rejected - not found, version check failed, or permission denied."))
 				}
 
-				acks.Acks = append(acks.Acks, ack)
+				logger.Debug("Error writing storage objects.", zap.Error(err))
+				return writeErr
 			}
+
+			acks = append(acks, ack)
 		}
 		return nil
 	}); err != nil {
@@ -431,10 +485,10 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 		return nil, codes.Internal, err
 	}
 
-	return acks, codes.OK, nil
+	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
 }
 
-func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID uuid.UUID, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
+func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID string, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
 	permissionRead := int32(1)
 	if object.GetPermissionRead() != nil {
 		permissionRead = object.GetPermissionRead().GetValue()
@@ -449,12 +503,12 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 	query, params := getStorageWriteQuery(authoritativeWrite, object.GetVersion(), params)
 
 	ack := &api.StorageObjectAck{}
-	if ownerID != uuid.Nil {
-		ack.UserId = ownerID.String()
+	if ownerID != uuid.Nil.String() {
+		ack.UserId = ownerID
 	}
 
 	if err := tx.QueryRowContext(ctx, query, params...).Scan(&ack.Collection, &ack.Key, &ack.Version); err != nil {
-		if err != sql.ErrNoRows {
+		if err == sql.ErrNoRows {
 			logger.Debug("Could not write storage object.", zap.Error(err), zap.String("query", query), zap.Any("object", object))
 		}
 
@@ -546,7 +600,10 @@ RETURNING collection, key, version`
 	return query, params
 }
 
-func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeDelete bool, userObjectIDs map[uuid.UUID][]*api.DeleteStorageObjectId) (codes.Code, error) {
+func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeDelete bool, ops StorageOpDeletes) (codes.Code, error) {
+	// Ensure deletes are processed in a consistent order.
+	sort.Sort(ops)
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
@@ -554,29 +611,30 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, a
 	}
 
 	if err = crdb.ExecuteInTx(ctx, tx, func() error {
-		for ownerID, objectIDs := range userObjectIDs {
-			for _, objectID := range objectIDs {
-				params := []interface{}{objectID.GetCollection(), objectID.GetKey(), ownerID}
-				query := "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
+		for _, op := range ops {
+			params := []interface{}{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
+			var query string
+			if authoritativeDelete {
+				// Deleting from the runtime.
+				query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
+			} else {
+				// Direct client request to delete.
+				query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND write > 0"
+			}
+			if op.ObjectID.GetVersion() != "" {
+				// Conditional delete.
+				params = append(params, op.ObjectID.Version)
+				query += fmt.Sprintf(" AND version = $4")
+			}
 
-				if !authoritativeDelete {
-					query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND write > 0"
-				}
+			result, err := tx.ExecContext(ctx, query, params...)
+			if err != nil {
+				logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", op.ObjectID))
+				return err
+			}
 
-				if objectID.GetVersion() != "" {
-					params = append(params, objectID.Version)
-					query += fmt.Sprintf(" AND version = $4")
-				}
-
-				result, err := tx.ExecContext(ctx, query, params...)
-				if err != nil {
-					logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", objectID))
-					return err
-				}
-
-				if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
-					return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
-				}
+			if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
+				return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
 			}
 		}
 		return nil
