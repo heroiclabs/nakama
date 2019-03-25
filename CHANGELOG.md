@@ -3,7 +3,14 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.4.2] - 2019-03-25
+### Added
+- New programmatic console API for administrative server operations.
+- Initial events subsystem with session start+end handlers.
+
+### Changed
+- Update GRPC (1.19.0), GRPC-Gateway (1.8.4), and Protobuf (1.3.0) dependencies.
+- Use Go 1.12.1 as base Docker container image and native builds.
 
 ## [2.4.1] - 2019-03-08
 ### Added
