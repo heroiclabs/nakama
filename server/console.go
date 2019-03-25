@@ -118,6 +118,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		zpagesMux.ServeHTTP(w, r)
 	})
 
+	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
+
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
 	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
