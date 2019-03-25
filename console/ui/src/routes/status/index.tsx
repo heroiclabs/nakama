@@ -225,30 +225,10 @@ class Status extends Component
     
             <Column.Group>
               <Column>
-                <Bar
-                  data={cfg.data}
-                  width={cfg.width}
-                  height={cfg.height}
-                  options={cfg.options}
-                />
-                <Bar
-                  data={cfg.data}
-                  width={cfg.width}
-                  height={cfg.height}
-                  options={cfg.options}
-                />
-                <Bar
-                  data={cfg.data}
-                  width={cfg.width}
-                  height={cfg.height}
-                  options={cfg.options}
-                />
-                <Bar
-                  data={cfg.data}
-                  width={cfg.width}
-                  height={cfg.height}
-                  options={cfg.options}
-                />
+                <Bar {...cfg} />
+                <Bar {...cfg} />
+                <Bar {...cfg} />
+                <Bar {...cfg} />
               </Column>
             </Column.Group>
           </Column>
