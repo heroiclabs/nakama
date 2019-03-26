@@ -4,7 +4,10 @@ import {LoginActionTypes, LoginRequest} from './types';
 import {loginError, loginSuccess} from './actions';
 import {NakamaApi} from '../../api.gen';
 
-const nakama = NakamaApi();
+const nakama = NakamaApi({
+  basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+  timeoutMs: 5000
+});
 
 function* handleLogin({payload: data}: AnyAction)
 {
@@ -20,7 +23,7 @@ function* handleLogin({payload: data}: AnyAction)
     {
       if(data.remember)
       {
-        localStorage.set('token', res.token);
+        localStorage.setItem('token', res.token);
       }
       yield put(loginSuccess(res));
     }

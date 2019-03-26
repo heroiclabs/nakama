@@ -1,6 +1,19 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
-import {Button, Column, Generic, Icon, Level, Section, Table, Title} from 'rbx';
+import {
+  Button,
+  Column,
+  Control,
+  Dropdown,
+  Field,
+  Generic,
+  Icon,
+  Input,
+  Level,
+  Section,
+  Table,
+  Title
+} from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 
 import Header from '../../components/header';
@@ -50,54 +63,54 @@ class Storage extends Component<Props, State>
                 </Level.Item>
 
                 <Level.Item>
-                  <div className="field has-addons">
-                    <p className="control is-expanded">
-                      <input className="input" type="text" placeholder="Find objects for user" />
-                    </p>
-                    <p className="control">
+                  <Field kind="addons">
+                    <Control expanded>
+                      <Input type="text" placeholder="Find objects for user" />
+                    </Control>
+                    <Control>
                       <Button>Lookup</Button>
-                    </p>
-                  </div>
+                    </Control>
+                  </Field>
                 </Level.Item>
               </Level.Item>
 
               <Level.Item align="right">
                 <Level.Item>
-                  <div className="dropdown is-hoverable">
-                    <div className="dropdown-trigger">
-                      <button className="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                  <Dropdown hoverable>
+                    <Dropdown.Trigger>
+                      <Button>
                         <span>Import</span>
                         <Icon>
                           <FontAwesomeIcon icon="angle-down" />
                         </Icon>
-                      </button>
-                    </div>
-                    <div className="dropdown-menu" id="dropdown-menu" role="menu">
-                      <div className="dropdown-content">
-                        <a href="#" className="dropdown-item">
+                      </Button>
+                    </Dropdown.Trigger>
+                    <Dropdown.Menu>
+                      <Dropdown.Content>
+                        <Dropdown.Item>
                           <Icon>
                             <FontAwesomeIcon icon="file-csv" />
                           </Icon>
                           <span>Import with CSV</span>
-                        </a>
-                        <a href="#" className="dropdown-item">
+                        </Dropdown.Item>
+                        <Dropdown.Item>
                           <Icon>
                             <FontAwesomeIcon icon="file" />
                           </Icon>
                           <span>Import with JSON</span>
-                        </a>
-                      </div>
-                    </div>
-                  </div>
+                        </Dropdown.Item>
+                      </Dropdown.Content>
+                    </Dropdown.Menu>
+                  </Dropdown>
                 </Level.Item>
 
                 <Level.Item>
-                  <a className="button">
+                  <Button>
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
                     <span>Delete All</span>
-                  </a>
+                  </Button>
                 </Level.Item>
               </Level.Item>
             </Level>

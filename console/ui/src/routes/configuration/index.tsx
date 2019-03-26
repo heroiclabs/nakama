@@ -1,5 +1,16 @@
 import React, {Component} from 'react';
-import {Button, Column, Control, Field, Generic, Icon, Input, Label, Level, Section} from 'rbx';
+import {
+  Button,
+  Column,
+  Control,
+  Field,
+  Generic,
+  Icon,
+  Input,
+  Label,
+  Level,
+  Section
+} from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 
 import Header from '../../components/header';

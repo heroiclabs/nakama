@@ -1,6 +1,18 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
-import {Button, Column, Control, Field, Generic, Icon, Input, Level, Section, Table, Title} from 'rbx';
+import {
+  Button,
+  Column,
+  Control,
+  Field,
+  Generic,
+  Icon,
+  Input,
+  Level,
+  Section,
+  Table,
+  Title
+} from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 
 import Header from '../../components/header';
