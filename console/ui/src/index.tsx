@@ -10,7 +10,15 @@ import {BrowserRouter as Router, Switch, Route} from 'react-router-dom';
 import * as serviceWorker from './serviceWorker';
 
 import {library} from '@fortawesome/fontawesome-svg-core';
-import {faSignOutAlt, faFileExport, faTrash, faUsersCog, faAngleDown, faFile, faFileCsv} from '@fortawesome/free-solid-svg-icons';
+import {
+  faAngleDown,
+  faFile,
+  faFileCsv,
+  faFileExport,
+  faSignOutAlt,
+  faTrash,
+  faUsersCog
+} from '@fortawesome/free-solid-svg-icons';
 
 import Index from './routes/index';
 import Login from './routes/login';
@@ -24,7 +32,15 @@ import StorageDetails from './routes/storage/details';
 import 'rbx/index.css';
 import './css/index.css';
 
-library.add(faSignOutAlt, faFileExport, faTrash, faUsersCog, faAngleDown, faFile, faFileCsv);
+library.add(
+  faAngleDown,
+  faFile,
+  faFileCsv,
+  faFileExport,
+  faSignOutAlt,
+  faTrash,
+  faUsersCog
+);
 
 const sagaMiddleware = createSagaMiddleware();
 const store = createStore(
