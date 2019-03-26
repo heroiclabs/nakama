@@ -17,6 +17,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"strings"
@@ -104,9 +105,13 @@ func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level z
 		consoleLogger.Fatal("Rotating log file is enabled but log file name is empty")
 		return nil
 	}
-	if err := os.MkdirAll(fileName, 0755); err != nil {
-		consoleLogger.Fatal("Could not create log directory", zap.Error(err))
-		return nil
+
+	logDir := filepath.Dir(fileName)
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			consoleLogger.Fatal("Could not create log directory", zap.Error(err))
+			return nil
+		}
 	}
 
 	jsonEncoder := newJSONEncoder(format)
