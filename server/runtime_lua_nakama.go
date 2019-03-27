@@ -16,12 +16,15 @@ package server
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -35,6 +38,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/gofrs/uuid"
@@ -125,6 +129,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"uuid_bytes_to_string":        n.uuidBytesToString,
 		"uuid_string_to_bytes":        n.uuidStringToBytes,
 		"http_request":                n.httpRequest,
+		"jwt_generate":                n.jwtGenerate,
 		"json_encode":                 n.jsonEncode,
 		"json_decode":                 n.jsonDecode,
 		"base64_encode":               n.base64Encode,
@@ -140,6 +145,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"md5_hash":                    n.md5Hash,
 		"sha256_hash":                 n.sha256Hash,
 		"hmac_sha256_hash":            n.hmacSHA256Hash,
+		"rsa_sha256_hash":             n.rsaSHA256Hash,
 		"bcrypt_hash":                 n.bcryptHash,
 		"bcrypt_compare":              n.bcryptCompare,
 		"authenticate_custom":         n.authenticateCustom,
@@ -699,6 +705,47 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 	return 3
 }
 
+func (n *RuntimeLuaNakamaModule) jwtGenerate(l *lua.LState) int {
+	algoType := l.CheckString(1)
+	if algoType == "" {
+		l.ArgError(1, "expects string")
+		return 0
+	}
+
+	var signingMethod jwt.SigningMethod
+	switch algoType {
+	case "HS256":
+		signingMethod = jwt.SigningMethodHS256
+	case "RS256":
+		signingMethod = jwt.SigningMethodRS256
+	default:
+		l.ArgError(3, "unsupported algo type - only allowed 'HS256', 'RS256'.")
+	}
+
+	signingKey := l.CheckString(2)
+	if signingKey == "" {
+		l.ArgError(2, "expects string")
+		return 0
+	}
+
+	claimsetTable := l.CheckTable(3)
+	if claimsetTable == nil {
+		l.ArgError(3, "expects nil")
+		return 0
+	}
+
+	claimset := RuntimeLuaConvertLuaValue(claimsetTable).(map[string]interface{})
+	jwtClaims := jwt.MapClaims{}
+	for k, v := range claimset {
+		jwtClaims[k] = v
+	}
+
+	token := jwt.NewWithClaims(signingMethod, jwtClaims)
+	signedToken, _ := token.SignedString([]byte(signingKey))
+	l.Push(lua.LString(signedToken))
+	return 1
+}
+
 func (n *RuntimeLuaNakamaModule) jsonEncode(l *lua.LState) int {
 	value := l.Get(1)
 	if value == nil {
@@ -961,6 +1008,35 @@ func (n *RuntimeLuaNakamaModule) sha256Hash(l *lua.LState) int {
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
 
 	l.Push(lua.LString(hash))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) rsaSHA256Hash(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects input string")
+		return 0
+	}
+	key := l.CheckString(2)
+	if key == "" {
+		l.ArgError(2, "expects key string")
+		return 0
+	}
+
+	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey([]byte(key))
+	if err != nil {
+		l.RaiseError("error parsing key: %v", err.Error())
+		return 0
+	}
+
+	hashed := sha256.Sum256([]byte(input))
+	signature, err := rsa.SignPKCS1v15(rand.Reader, rsaPrivateKey, crypto.SHA256, hashed[:])
+	if err != nil {
+		l.RaiseError("error parsing key: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(signature))
 	return 1
 }
 
