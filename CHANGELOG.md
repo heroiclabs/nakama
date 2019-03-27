@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New Lua runtime functions to generate JWT tokens.
+- New Lua runtime functions to hash data using RSA SHA256.
+
 ### Changed
 - Log more information when authoritative match handlers receive too many data messages.
 - Ensure storage writes and deletes are performed in a consistent order within each batch.
