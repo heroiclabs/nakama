@@ -114,10 +114,11 @@ local function google_verify_payment(context, payload)
   local json_payload = nk.json_decode(payload)
   local product_id = json_payload.product_id
   local package_name = json_payload.package_name
+  local is_subscription = json_payload.is_subscription
   local receipt = json_payload.receipt
 
   local success, result = pcall(iap.verify_payment_google, {
-    is_subscription = false,
+    is_subscription = is_subscription,
     product_id = product_id,
     package_name = package_name,
     receipt = receipt,
