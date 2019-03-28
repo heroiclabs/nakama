@@ -109,7 +109,7 @@ https://developers.google.com/android-publisher/api-ref/purchases/subscriptions
 
 local function google_verify_payment(context, payload)
   -- Google API Service Account JSON key file in base64.
-  local service_account = nk.base64_decode(context.env["iap_google_service_account"])
+  local service_account = nk.json_decode(nk.base64_decode(context.env["iap_google_service_account"]))
 
   local json_payload = nk.json_decode(payload)
   local product_id = json_payload.product_id

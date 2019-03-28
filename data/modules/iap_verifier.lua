@@ -85,19 +85,22 @@ function M.google_obtain_access_token(client_email, private_key)
 
   local algo_type = "RS256"
 
-  local jwt_claimset = nk.base64url_encode(nk.json_encode({
+  local jwt_claimset = {
     ["iss"] = client_email,
     ["scope"] = scope,
     ["aud"] = auth_url,
     ["exp"] = exp,
     ["iat"] = iat
-  }))
+  }
 
   local jwt_token = nk.jwt_generate(algo_type, private_key, jwt_claimset)
 
   local grant_type = "urn%3ietf%3params%3oauth%3grant-type%3jwt-bearer"
   local form_data = "grant_type=" .. grant_type .. "&assertion=" .. jwt_token
-  local http_headers = {["Content-Type"] = "application/x-www-form-urlencoded"}
+  local http_headers = {
+  ["Content-Type"] = "application/x-www-form-urlencoded",
+  ["Accept"] = "application/json"
+  }
 
   local success, code, _, body = pcall(nk.http_request, auth_url, "POST", http_headers, form_data)
   if (not success) then
