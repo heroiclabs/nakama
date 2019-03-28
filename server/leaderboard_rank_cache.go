@@ -120,9 +120,12 @@ func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB,
 		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 
 		// Current expiry for this leaderboard.
+		// This matches calculateTournamentDeadlines
 		var expiryUnix int64
 		if leaderboard.ResetSchedule != nil {
 			expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
+		} else {
+			expiryUnix = leaderboard.EndTime
 		}
 
 		// Prepare structure to receive rank data.

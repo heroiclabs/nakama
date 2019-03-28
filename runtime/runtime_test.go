@@ -33,7 +33,7 @@ func ExampleInitializer_registerRpc() {
 	var initializer Initializer
 
 	// We are registering 'my_custom_func' as a custom RPC call with the server. Client can use this name to invoke this function remotely.
-	err := initializer.RegisterRpc("my_custom_func", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, payload string) (string, error) {
+	err := initializer.RegisterRpc("my_custom_func", func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error) {
 		return "", NewError("Function not implemented", int(codes.Unimplemented)) // gRPC error 12, HTTP code 501
 	})
 
@@ -52,7 +52,7 @@ func ExampleInitializer_registerBeforeRt() {
 	// this is received from the InitModule function invocation
 	var initializer Initializer
 
-	err := initializer.RegisterBeforeRt("ChannelJoin", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
+	err := initializer.RegisterBeforeRt("ChannelJoin", func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
 		channelJoinMessage := envelope.GetChannelJoin()
 
 		// make sure all messages are persisted - this overrides whatever client has provided
@@ -78,7 +78,7 @@ func ExampleInitializer_registerAfterRt() {
 	// this is received from the InitModule function invocation
 	var initializer Initializer
 
-	err := initializer.RegisterAfterRt("StatusFollow", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) error {
+	err := initializer.RegisterAfterRt("StatusFollow", func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) error {
 		// This is the user that has sent the status follow messages.
 		userID := ctx.Value(RUNTIME_CTX_USER_ID).(string)
 		statusFollowMessage := envelope.GetStatusFollow()
@@ -122,12 +122,12 @@ func ExampleInitializer_disableFeatures() {
 	// this is received from the InitModule function invocation
 	var initializer Initializer
 
-	err := initializer.RegisterBeforeAuthenticateDevice(func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error) {
+	err := initializer.RegisterBeforeAuthenticateDevice(func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error) {
 		// returning nil as for the result disables the functionality
 		return nil, nil
 	})
 
-	err = initializer.RegisterBeforeRt("StatusFollow", func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
+	err = initializer.RegisterBeforeRt("StatusFollow", func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
 		// returning nil as for the result disables the functionality
 		return nil, nil
 	})
@@ -150,7 +150,7 @@ func ExampleInitializer_registerBeforeAuthenticateCustom() {
 	// this is received from the InitModule function invocation
 	var initializer Initializer
 
-	err := initializer.RegisterBeforeAuthenticateCustom(func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
+	err := initializer.RegisterBeforeAuthenticateCustom(func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
 		username := in.GetUsername()
 		uncoolNames := []string{"novabyte", "zyro", "shawshank", "anton-chigurh"} // notice no 'mofirouz' or 'bourne' since he's awesome (they are synonyms)!
 
@@ -179,7 +179,7 @@ func ExampleInitializer_registerAfterAuthenticateCustom() {
 	// this is received from the InitModule function invocation
 	var initializer Initializer
 
-	err := initializer.RegisterAfterAuthenticateCustom(func(ctx context.Context, logger *log.Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateCustomRequest) error {
+	err := initializer.RegisterAfterAuthenticateCustom(func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateCustomRequest) error {
 		// If user was not newly created, return early
 		if !out.Created {
 			return nil
