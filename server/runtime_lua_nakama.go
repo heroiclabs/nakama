@@ -741,7 +741,12 @@ func (n *RuntimeLuaNakamaModule) jwtGenerate(l *lua.LState) int {
 	}
 
 	token := jwt.NewWithClaims(signingMethod, jwtClaims)
-	signedToken, _ := token.SignedString([]byte(signingKey))
+	signedToken, err := token.SignedString([]byte(signingKey))
+	if err != nil {
+		l.RaiseError("failed to sign token: %v", err.Error())
+		return 0
+	}
+
 	l.Push(lua.LString(signedToken))
 	return 1
 }
