@@ -28,7 +28,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	password := s.config.GetConsole().Password
 	if in.Username == username && in.Password == password {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"exp": time.Now().UTC().Add(1 * time.Hour).Unix(),
+			"exp": time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
 		})
 		signedToken, _ := token.SignedString([]byte(s.config.GetConsole().SigningKey))
 		return &console.ConsoleSession{Token: signedToken}, nil

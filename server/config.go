@@ -667,6 +667,7 @@ type ConsoleConfig struct {
 	IdleTimeoutMs       int    `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
 	Username            string `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
 	Password            string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
+	TokenExpirySec      int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds. Default 86400."`
 	SigningKey          string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
 }
 
@@ -680,6 +681,7 @@ func NewConsoleConfig() *ConsoleConfig {
 		IdleTimeoutMs:       300 * 1000,
 		Username:            "admin",
 		Password:            "password",
+		TokenExpirySec:      86400,
 		SigningKey:          "defaultsigningkey",
 	}
 }
