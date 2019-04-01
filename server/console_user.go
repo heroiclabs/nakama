@@ -220,9 +220,22 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 }
 
 func countUsers(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
-	var count int
-	if err := db.QueryRowContext(ctx, "SELECT count(id) FROM users").Scan(&count); err != nil {
-		logger.Error("Error counting users.", zap.Error(err))
+	var count sql.NullInt64
+	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'users'").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+		if err == context.Canceled {
+			// If the context was cancelled do not attempt the full count.
+			return 0
+		}
 	}
-	return int32(count)
+	if count.Valid && count.Int64 != 0 {
+		// Use fast count result.
+		return int32(count.Int64)
+	}
+
+	// If the fast count failed, returned NULL, or returned 0 try a full count.
+	if err := db.QueryRowContext(ctx, "SELECT count(id) FROM users").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+	}
+	return int32(count.Int64)
 }

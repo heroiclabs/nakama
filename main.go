@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math/rand"
@@ -215,8 +216,9 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	if err != nil {
 		multiLogger.Fatal("Error connecting to database", zap.Error(err))
 	}
-	err = db.Ping()
-	if err != nil {
+	// Limit the time allowed to ping database and get version to 15 seconds total.
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	if err = db.PingContext(ctx); err != nil {
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
 
@@ -225,7 +227,7 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
 
 	var dbVersion string
-	if err := db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
+	if err = db.QueryRowContext(ctx, "SELECT version()").Scan(&dbVersion); err != nil {
 		multiLogger.Fatal("Error querying database version", zap.Error(err))
 	}
 
