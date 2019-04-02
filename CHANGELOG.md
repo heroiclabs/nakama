@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Storage write batches now correctly abort when any query in the batch fails.
 - Rank cache correctly calculates record expiry times.
+- Return correct response to group join operations when the user is already a member of the group.
 
 ## [2.4.2] - 2019-03-25
 ### Added
