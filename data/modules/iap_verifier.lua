@@ -80,8 +80,9 @@ end
 function M.google_obtain_access_token(client_email, private_key)
   local auth_url = "https://accounts.google.com/o/oauth2/token"
   local scope = "https://www.googleapis.com/auth/androidpublisher"
-  local exp = nk.time() + 3600000 -- current time + 1hr added in ms
-  local iat = nk.time()
+  local iat = nk.time() / 1000
+  local exp = iat + 3600  -- current time + 1hr added in seconds
+
 
   local algo_type = "RS256"
 
@@ -144,13 +145,13 @@ function M.verify_payment_google(request)
     error(access_token)
   end
 
-  local url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%q/purchases/subscriptions/%q/tokens/%q?access_token=%q"
+  local url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/subscriptions/%s/tokens/%s?access_token=%s"
   if (not request.is_subscription) then
-    url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%q/purchases/products/%q/tokens/%q?access_token=%q"
+    url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/products/%s/tokens/%s?access_token=%s"
   end
 
   local url = url_template:format(request.package_name, request.product_id, request.receipt, access_token)
-
+  
   local http_headers = {
     ["Content-Type"] = "application/json",
     ["Accept"] = "application/json"
