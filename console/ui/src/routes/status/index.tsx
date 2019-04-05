@@ -14,7 +14,7 @@ import Sidebar from '../../components/sidebar';
 
 class Status extends Component
 {
-  render()
+  public render()
   {
     const chartColors = {
       white: 'rgb(255, 255, 255)',

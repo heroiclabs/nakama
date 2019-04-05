@@ -5,6 +5,14 @@ import {loginSaga} from './login/sagas';
 import {loginReducer} from './login/reducer';
 import {LoginState} from './login/types';
 
+import {configurationSaga} from './configuration/sagas';
+import {configurationReducer} from './configuration/reducer';
+import {ConfigurationState} from './configuration/types';
+
+import {storageSaga} from './storage/sagas';
+import {storageReducer, storagesReducer} from './storage/reducer';
+import {StorageState, StoragesState} from './storage/types';
+
 export interface ConnectedReduxProps<A extends Action = AnyAction>
 {
   dispatch: Dispatch<A>
@@ -12,17 +20,25 @@ export interface ConnectedReduxProps<A extends Action = AnyAction>
 
 export interface ApplicationState
 {
-  login: LoginState
+  login: LoginState,
+  configuration: ConfigurationState,
+  storage: StoragesState,
+  storage_details: StorageState
 };
 
 export const createRootReducer = () =>
   combineReducers({
-    login: loginReducer
+    login: loginReducer,
+    configuration: configurationReducer,
+    storage: storagesReducer,
+    storage_details: storageReducer
   });
 
 export function* rootSaga()
 {
   yield all([
-    fork(loginSaga)
+    fork(loginSaga),
+    fork(configurationSaga),
+    fork(storageSaga)
   ]);
 };

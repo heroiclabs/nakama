@@ -1,9 +1,22 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
+import Dropzone from 'react-dropzone';
+
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as storageActions from '../../store/storage/actions';
+import {StorageObjectRequest, StorageObject, Storages} from '../../store/storage/types';
+import {Token} from '../../store/login/types';
+
+import {NakamaApi} from '../../api.gen';
+
 import {
+  Box,
   Button,
   Column,
   Control,
+  Delete,
   Dropdown,
   Field,
   Generic,
@@ -21,24 +34,137 @@ import Sidebar from '../../components/sidebar';
 
 /*
  * https://dfee.github.io/rbx/
+ * https://react-dropzone.js.org
  */
 
-type Props = RouteComponentProps & {
-};
+interface PropsFromState
+{
+  loading: boolean,
+  errors: string|undefined,
+  data: Storages,
+  login: Token
+}
+
+interface PropsFromDispatch
+{
+  fetchManyRequest: typeof storageActions.storageFetchManyRequest,
+  deleteManyRequest: typeof storageActions.storageDeleteManyRequest,
+  deleteRequest: typeof storageActions.storageDeleteRequest
+}
+
+type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
+  format: null|string
 };
 
 class Storage extends Component<Props, State>
 {
-  details(id: string)
+  public constructor(props: Props)
   {
-    const {history} = this.props;
-    history.push(`/storage/${id}`);
+    super(props);
+    this.state = {format: null};
   }
   
-  render()
+  public componentDidMount()
   {
+    this.props.fetchManyRequest({});
+  }
+  
+  public filter(user_id: string)
+  {
+    if(user_id)
+    {
+      (document.getElementById('user_id') as HTMLInputElement).value = user_id;
+    }
+    else
+    {
+      user_id = (document.getElementById('user_id') as HTMLInputElement).value;
+    }
+    this.props.fetchManyRequest({user_id});
+  }
+  
+  public upload(format: null|string, event: React.FormEvent<Element>)
+  {
+    event.stopPropagation();
+    event.preventDefault();
+    this.setState({format});
+  }
+  
+  public files(files: any[])
+  {
+    const {format} = this.state;
+    const {token} = this.props.login;
+    const reader = new FileReader();
+    
+      reader.onabort = () => console.error('File reading was aborted.');
+      reader.onerror = () => console.error('File reading has failed.');
+      reader.onload = () =>
+      {
+        const nakama = NakamaApi({
+          basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+          bearerToken: token,
+          timeoutMs: 5000
+        });
+        const boundary = '-----------------------------' + new Date().getTime();
+        const body =
+          boundary + '\n' +
+          `Content-Disposition: form-data; name="import"; filename="import.${format}"` + '\n' +
+          'Content-Type: ' + (
+            format === 'json' ?
+            'application/json' :
+            'text/plain'
+          ) + '\n\n' + reader.result + boundary + '--';
+        
+        nakama.doFetch(
+          '/v2/console/storage/import',
+          'POST',
+          {},
+          body,
+          {
+            headers:
+            {
+              'Content-Type': `multipart/form-data; boundary=${boundary}`
+            }
+          }
+        );
+      };
+    
+    files.forEach(file => reader.readAsBinaryString(file));
+  }
+  
+  public details(object: StorageObject)
+  {
+    const {history} = this.props;
+    history.push(`/storage/${object.collection}/${object.key}/${object.user_id}`);
+  }
+  
+  public remove_all()
+  {
+    if(confirm('Are you sure you want to delete all objects?'))
+    {
+      this.props.deleteManyRequest();
+      (document.getElementById('user_id') as HTMLInputElement).value = '';
+      this.props.fetchManyRequest({});
+    }
+  }
+  
+  public remove(object: StorageObject, event: React.FormEvent<Element>)
+  {
+    event.stopPropagation();
+    event.preventDefault();
+    if(confirm('Are you sure you want to delete this object?'))
+    {
+      this.props.deleteRequest(object);
+      (document.getElementById('user_id') as HTMLInputElement).value = '';
+      this.props.fetchManyRequest({});
+    }
+  }
+  
+  public render()
+  {
+    const {data} = this.props;
+    const {format} = this.state;
     return <Generic id="storage">
       <Header />
       <Section>
@@ -50,12 +176,15 @@ class Storage extends Component<Props, State>
               <Level.Item align="left">
                 <Level.Item>
                   <Title subtitle size={5}>
-                    <strong>12,106,085</strong> objects
+                    <strong>{data.total_count || 0}</strong> objects
                   </Title>
                 </Level.Item>
 
                 <Level.Item>
-                  <Button title="Select system-owned objects.">
+                  <Button
+                    title="Select system-owned objects."
+                    onClick={this.filter.bind(this, '00000000-0000-0000-0000-000000000000')}
+                  >
                     <Icon>
                       <FontAwesomeIcon icon="users-cog" />
                     </Icon>
@@ -65,10 +194,12 @@ class Storage extends Component<Props, State>
                 <Level.Item>
                   <Field kind="addons">
                     <Control expanded>
-                      <Input type="text" placeholder="Find objects for user" />
+                      <Input id="user_id" type="text" placeholder="Find objects for user" />
                     </Control>
                     <Control>
-                      <Button>Lookup</Button>
+                      <Button
+                        onClick={this.filter.bind(this, '')}
+                      >Lookup</Button>
                     </Control>
                   </Field>
                 </Level.Item>
@@ -87,13 +218,13 @@ class Storage extends Component<Props, State>
                     </Dropdown.Trigger>
                     <Dropdown.Menu>
                       <Dropdown.Content>
-                        <Dropdown.Item>
+                        <Dropdown.Item onClick={this.upload.bind(this, 'csv')}>
                           <Icon>
                             <FontAwesomeIcon icon="file-csv" />
                           </Icon>
                           <span>Import with CSV</span>
                         </Dropdown.Item>
-                        <Dropdown.Item>
+                        <Dropdown.Item onClick={this.upload.bind(this, 'json')}>
                           <Icon>
                             <FontAwesomeIcon icon="file" />
                           </Icon>
@@ -105,7 +236,9 @@ class Storage extends Component<Props, State>
                 </Level.Item>
 
                 <Level.Item>
-                  <Button>
+                  <Button
+                    onClick={this.remove_all.bind(this)}
+                  >
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
@@ -114,7 +247,38 @@ class Storage extends Component<Props, State>
                 </Level.Item>
               </Level.Item>
             </Level>
-
+            
+            {
+              format ?
+              <Dropzone
+                accept={
+                  format === 'csv' ?
+                  ['text/plain', 'application/vnd.ms-excel'] :
+                  'application/json'
+                }
+                onDrop={this.files.bind(this)}
+              >
+                {({getRootProps, getInputProps}) => (
+                  <div {...getRootProps()}>
+                    <br />
+                    <input {...getInputProps()} />
+                    <Box textAlign="centered">
+                      <Level>
+                        <Level.Item align="left">
+                          Drop your {format === 'csv' ? 'CSV' : 'JSON'} file here or click here to select.
+                        </Level.Item>
+                        <Level.Item align="right">
+                          <Delete as="button" onClick={this.upload.bind(this, null)} />
+                        </Level.Item>
+                      </Level>
+                    </Box>
+                    <br />
+                  </div>
+                )}
+              </Dropzone> :
+              null
+            }
+            
             <Table fullwidth striped hoverable>
               <Table.Head>
                 <Table.Row>
@@ -126,42 +290,22 @@ class Storage extends Component<Props, State>
                 </Table.Row>
               </Table.Head>
               <Table.Body>
-                <Table.Row onClick={this.details.bind(this, '001b0970-3291-4176-b0da-a7743c3036e3')}>
-                  <Table.Cell>savegames</Table.Cell>
-                  <Table.Cell>slot1</Table.Cell>
-                  <Table.Cell>001b0970-3291-4176-b0da-a7743c3036e3</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '001b0970-3291-4176-b0da-a7743c3036e3')}>
-                  <Table.Cell>savegames</Table.Cell>
-                  <Table.Cell>slot2</Table.Cell>
-                  <Table.Cell>001b0970-3291-4176-b0da-a7743c3036e3</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '001b0970-3291-4176-b0da-a7743c3036e3')}>
-                  <Table.Cell>savegames</Table.Cell>
-                  <Table.Cell>slot3</Table.Cell>
-                  <Table.Cell>001b0970-3291-4176-b0da-a7743c3036e3</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '001b0970-3291-4176-b0da-a7743c3036e3')}>
-                  <Table.Cell>savegames</Table.Cell>
-                  <Table.Cell>slot4</Table.Cell>
-                  <Table.Cell>001b0970-3291-4176-b0da-a7743c3036e3</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
+                {
+                  (data.objects || []).map(object =>
+                    <Table.Row key={`${object.collection}_${object.key}_${object.user_id}`} onClick={this.details.bind(this, object)}>
+                      <Table.Cell>{object.collection}</Table.Cell>
+                      <Table.Cell>{object.key}</Table.Cell>
+                      <Table.Cell>{object.user_id}</Table.Cell>
+                      <Table.Cell>{object.update_time}</Table.Cell>
+                      <Table.Cell>
+                        <Button
+                          size="small"
+                          onClick={this.remove.bind(this, object)}
+                        >Delete</Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  )
+                }
               </Table.Body>
             </Table>
           </Column>
@@ -171,4 +315,26 @@ class Storage extends Component<Props, State>
   }
 }
 
-export default Storage;
+const mapStateToProps = ({storage, login}: ApplicationState) => ({
+  loading: storage.loading,
+  errors: storage.errors,
+  data: storage.data,
+  login: login.data
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchManyRequest: (data: StorageObjectRequest) => dispatch(
+    storageActions.storageFetchManyRequest(data)
+  ),
+  deleteManyRequest: () => dispatch(
+    storageActions.storageDeleteManyRequest()
+  ),
+  deleteRequest: (data: StorageObjectRequest) => dispatch(
+    storageActions.storageDeleteRequest(data)
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(Storage);
