@@ -95,12 +95,21 @@ class Login extends Component<Props>
                   <form onSubmit={this.login.bind(this)}>
                     <Field>
                       <Control>
-                        <Input type="text" name="username" placeholder="Your username" autoFocus />
+                        <Input
+                          type="text"
+                          name="username"
+                          placeholder="Your username"
+                          autoFocus
+                        />
                       </Control>
                     </Field>
                     <Field>
                       <Control>
-                        <Input type="password" name="password" placeholder="Your password" />
+                        <Input
+                          type="password"
+                          name="password"
+                          placeholder="Your password"
+                        />
                       </Control>
                     </Field>
                     <Field>

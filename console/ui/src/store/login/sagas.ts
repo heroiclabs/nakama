@@ -12,7 +12,7 @@ function* handleLogin({payload: data}: AnyAction)
       basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
       timeoutMs: 5000
     });
-    const res = yield call(nakama.authenticate.bind(nakama), data);
+    const res = yield call(nakama.authenticate, data);
     
     if(res.error)
     {
