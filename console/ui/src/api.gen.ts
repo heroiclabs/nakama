@@ -320,6 +320,23 @@ export interface ConsoleWalletLedgerList {
   // A list of wallet ledger items.
   items?: Array<ConsoleWalletLedger>;
 }
+/** Write a new storage object or update an existing one. */
+export interface ConsoleWriteStorageObjectRequest {
+  // Collection.
+  collection?: string;
+  // Key.
+  key?: string;
+  // Read permission value.
+  permission_read?: number;
+  // Write permission value.
+  permission_write?: number;
+  // Owner user ID.
+  user_id?: string;
+  // Value.
+  value?: string;
+  // Version for OCC.
+  version?: string;
+}
 
 export const NakamaApi = (configuration: ConfigurationParameters = {
   basePath: BASE_PATH,
@@ -779,7 +796,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Write a new storage object or replace an existing one. */
-    writeStorageObject(collection: string, key: string, userId: string, options: any = {}): Promise<ApiStorageObjectAck> {
+    writeStorageObject(collection: string, key: string, userId: string, body: ConsoleWriteStorageObjectRequest, options: any = {}): Promise<ApiStorageObjectAck> {
       if (collection === null || collection === undefined) {
         throw new Error("'collection' is a required parameter but is null or undefined.");
       }
@@ -788,6 +805,9 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       }
       if (userId === null || userId === undefined) {
         throw new Error("'userId' is a required parameter but is null or undefined.");
+      }
+      if (body === null || body === undefined) {
+        throw new Error("'body' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/storage/{collection}/{key}/{user_id}"
          .replace("{collection}", encodeURIComponent(String(collection)))
@@ -798,6 +818,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       } as any;
 
       let _body = null;
+      _body = JSON.stringify(body || {});
 
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
