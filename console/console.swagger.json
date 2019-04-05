@@ -762,6 +762,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleWriteStorageObjectRequest"
+            }
           }
         ],
         "tags": [
@@ -1583,6 +1591,42 @@
         }
       },
       "description": "List of wallet ledger items for a particular user."
+    },
+    "consoleWriteStorageObjectRequest": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection."
+        },
+        "key": {
+          "type": "string",
+          "description": "Key."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Owner user ID."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version for OCC."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Read permission value."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Write permission value."
+        }
+      },
+      "description": "Write a new storage object or update an existing one."
     }
   },
   "securityDefinitions": {

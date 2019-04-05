@@ -20,11 +20,12 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
