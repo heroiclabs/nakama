@@ -27,7 +27,7 @@ function* handleFetchMany({payload: data}: AnyAction)
       timeoutMs: 5000
     });
     const res = yield call(
-      nakama.listStorage.bind(nakama),
+      nakama.listStorage,
       data && data.user_id
     );
     if(res.error)
@@ -64,7 +64,7 @@ function* handleDeleteMany()
       bearerToken: yield select((state) => state.login.data.token),
       timeoutMs: 5000
     });
-    const res = yield call(nakama.deleteStorage.bind(nakama));
+    const res = yield call(nakama.deleteStorage);
     if(res.error)
     {
       yield put(storageDeleteManyError(res.error));
@@ -100,10 +100,11 @@ function* handleCreate({payload: data}: AnyAction)
       timeoutMs: 5000
     });
     const res = yield call(
-      nakama.writeStorageObject.bind(nakama),
+      nakama.writeStorageObject,
       data && data.collection,
       data && data.key,
-      data && data.user_id
+      data && data.user_id,
+      data
     );
     if(res.error)
     {
@@ -140,7 +141,7 @@ function* handleFetch({payload: data}: AnyAction)
       timeoutMs: 5000
     });
     const res = yield call(
-      nakama.getStorage.bind(nakama),
+      nakama.getStorage,
       data && data.collection,
       data && data.key,
       data && data.user_id
@@ -180,10 +181,11 @@ function* handleUpdate({payload: data}: AnyAction)
       timeoutMs: 5000
     });
     const res = yield call(
-      nakama.writeStorageObject.bind(nakama),
+      nakama.writeStorageObject,
       data && data.collection,
       data && data.key,
-      data && data.user_id
+      data && data.user_id,
+      data
     );
     if(res.error)
     {
@@ -220,7 +222,7 @@ function* handleDelete({payload: data}: AnyAction)
       timeoutMs: 5000
     });
     const res = yield call(
-      nakama.deleteStorageObject.bind(nakama),
+      nakama.deleteStorageObject,
       data && data.collection,
       data && data.key,
       data && data.user_id

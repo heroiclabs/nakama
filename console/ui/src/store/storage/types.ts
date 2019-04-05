@@ -14,8 +14,8 @@ export interface StorageObject
   version: string,
   permission_read: number,
   permission_write: number,
-  create_time: string,
-  update_time: string
+  create_time?: string,
+  update_time?: string
 };
 
 export interface Storages
