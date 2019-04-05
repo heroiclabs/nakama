@@ -12,7 +12,7 @@ function* handleFetch()
       bearerToken: yield select((state) => state.login.data.token),
       timeoutMs: 5000
     });
-    const res = yield call(nakama.getConfig.bind(nakama));
+    const res = yield call(nakama.getConfig);
     res.config = (res.config ? JSON.parse(res.config) : {});
     
     if(res.error)

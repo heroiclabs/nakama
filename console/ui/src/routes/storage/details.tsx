@@ -62,11 +62,21 @@ class StorageDetails extends Component<Props, State>
     this.props.fetchRequest(match.params);
   }
   
-  public update()
+  public update(event: React.FormEvent<HTMLFormElement>)
   {
-    const {data, history} = this.props;
-    // Implement after rebase.
-    this.props.updateRequest(data);
+    event.preventDefault();
+    const {history} = this.props;
+    const data = new FormData(event.target as HTMLFormElement);
+    const payload = {
+      collection: data.get('collection') as string,
+      key: data.get('key') as string,
+      user_id: data.get('user_id') as string,
+      permission_read: parseInt(data.get('permission_read') as string),
+      permission_write: parseInt(data.get('permission_write') as string),
+      value: data.get('value') as string,
+      version: data.get('version') as string
+    };
+    this.props.updateRequest(payload);
     history.push('/storage');
   }
   
@@ -172,151 +182,194 @@ class StorageDetails extends Component<Props, State>
               </Level.Item>
             </Level>
 
-            <Column.Group>
-              <Column size={6}>
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Collection</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Input type="text" defaultValue={data.collection} />
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Key</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Input type="text" defaultValue={data.key} />
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>User ID</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Input type="text" defaultValue={data.user_id} />
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Version</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Input static type="text" defaultValue={data.version} />
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Read Permission</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Select.Container>
-                          <Select defaultValue={data.permission_read}>
-                            <Select.Option value="0">No Read (0)</Select.Option>
-                            <Select.Option value="1">Private Read (1)</Select.Option>
-                            <Select.Option value="2">Public Read (2)</Select.Option>
-                          </Select>
-                        </Select.Container>
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Write Permission</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Select.Container>
-                          <Select defaultValue={data.permission_write}>
-                            <Select.Option value="0">No Write (0)</Select.Option>
-                            <Select.Option value="1">Private Write (1)</Select.Option>
-                          </Select>
-                        </Select.Container>
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-              </Column>
-            </Column.Group>
-
-            <Column.Group>
-              <Column>
-                <Field>
-                  <Label>Value</Label>
-                  <Field>
-                    <Control>
-                      {
-                        data.value ?
-                        <Textarea placeholder="Value" rows={8} defaultValue={data.value} /> :
-                        null
-                      }
-                    </Control>
+            <form onSubmit={this.update.bind(this)}>
+              <Column.Group>
+                <Column size={6}>
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Collection</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="collection"
+                            defaultValue={data.collection}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
                   </Field>
-                </Field>
-              </Column>
-            </Column.Group>
-
-            <Column.Group>
-              <Column size={6}>
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Create Time</Label>
-                  </Field.Label>
-                  <Field.Body>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Key</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="key"
+                            defaultValue={data.key}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>User ID</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="user_id"
+                            defaultValue={data.user_id}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Version</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="version"
+                            defaultValue={data.version}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Read Permission</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Select.Container>
+                            <Select
+                              name="permission_read"
+                              defaultValue={data.permission_read}
+                            >
+                              <Select.Option value="0">No Read (0)</Select.Option>
+                              <Select.Option value="1">Private Read (1)</Select.Option>
+                              <Select.Option value="2">Public Read (2)</Select.Option>
+                            </Select>
+                          </Select.Container>
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Write Permission</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Select.Container>
+                            <Select
+                              name="permission_write"
+                              defaultValue={data.permission_write}
+                            >
+                              <Select.Option value="0">No Write (0)</Select.Option>
+                              <Select.Option value="1">Private Write (1)</Select.Option>
+                            </Select>
+                          </Select.Container>
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+                </Column>
+              </Column.Group>
+  
+              <Column.Group>
+                <Column>
+                  <Field>
+                    <Label>Value</Label>
                     <Field>
                       <Control>
-                        <Input static type="text" defaultValue={data.create_time} />
+                        {
+                          data.value ?
+                          <Textarea
+                            placeholder="Value"
+                            rows={8}
+                            name="value"
+                            defaultValue={data.value}
+                          /> :
+                          null
+                        }
                       </Control>
                     </Field>
-                  </Field.Body>
-                </Field>
-
-                <Field horizontal>
-                  <Field.Label size="normal">
-                    <Label>Update Time</Label>
-                  </Field.Label>
-                  <Field.Body>
-                    <Field>
-                      <Control>
-                        <Input static type="text" defaultValue={data.update_time} />
-                      </Control>
-                    </Field>
-                  </Field.Body>
-                </Field>
-              </Column>
-            </Column.Group>
-
-            <Field kind="group" align="right">
-              <Control>
-                <Button color="info" type="submit">Update</Button>
-              </Control>
-            </Field>
+                  </Field>
+                </Column>
+              </Column.Group>
+  
+              <Column.Group>
+                <Column size={6}>
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Create Time</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="create_time"
+                            defaultValue={data.create_time}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+  
+                  <Field horizontal>
+                    <Field.Label size="normal">
+                      <Label>Update Time</Label>
+                    </Field.Label>
+                    <Field.Body>
+                      <Field>
+                        <Control>
+                          <Input
+                            static
+                            type="text"
+                            name="update_time"
+                            defaultValue={data.update_time}
+                          />
+                        </Control>
+                      </Field>
+                    </Field.Body>
+                  </Field>
+                </Column>
+              </Column.Group>
+  
+              <Field kind="group" align="right">
+                <Control>
+                  <Button color="info">Update</Button>
+                </Control>
+              </Field>
+            </form>
           </Column>
         </Column.Group>
       </Section>
