@@ -10,7 +10,7 @@ import logo from '../images/logo.png';
 
 class Header extends Component
 {
-  render()
+  public render()
   {
     return <Hero color="light">
       <Hero.Head>

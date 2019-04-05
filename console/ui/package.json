@@ -1,7 +1,6 @@
 {
   "name": "ui",
-  "author":
-  {
+  "author": {
     "name": "Marat A. Denenberg",
     "email": "marat@revnode.com",
     "url": "https://www.revnode.com/"
@@ -26,6 +25,7 @@
     "react": "^16.8.4",
     "react-chartjs-2": "^2.7.4",
     "react-dom": "^16.8.4",
+    "react-dropzone": "^10.1.0",
     "react-redux": "^6.0.1",
     "react-router-dom": "^4.4.0",
     "react-scripts": "2.1.8",
