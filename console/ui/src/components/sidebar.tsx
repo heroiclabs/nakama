@@ -16,7 +16,7 @@ type State = {
 
 class Sidebar extends Component<Props, State>
 {
-  render()
+  public render()
   {
     return <Column size={2}>
       <Menu>

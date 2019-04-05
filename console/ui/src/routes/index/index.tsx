@@ -8,7 +8,7 @@ import {Generic} from 'rbx';
 
 class Index extends Component<RouteComponentProps>
 {
-  componentDidMount()
+  public componentDidMount()
   {
     const {history} = this.props;
     if(localStorage.getItem('token'))
@@ -21,7 +21,7 @@ class Index extends Component<RouteComponentProps>
     }
   }
   
-  render()
+  public render()
   {
     return <Generic id="index" />;
   }

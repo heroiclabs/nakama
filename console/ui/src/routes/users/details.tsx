@@ -17,7 +17,7 @@ type State = {
 
 class UsersDetails extends Component<Props, State>
 {
-  render()
+  public render()
   {
     return <Generic id="users_details">
       <Header />

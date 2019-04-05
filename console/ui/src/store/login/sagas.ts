@@ -1,18 +1,17 @@
 import {AnyAction} from 'redux';
 import {all, call, fork, put, takeEvery} from 'redux-saga/effects';
-import {LoginActionTypes, LoginRequest} from './types';
+import {LoginActionTypes} from './types';
 import {loginError, loginSuccess} from './actions';
 import {NakamaApi} from '../../api.gen';
-
-const nakama = NakamaApi({
-  basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-  timeoutMs: 5000
-});
 
 function* handleLogin({payload: data}: AnyAction)
 {
   try
   {
+    const nakama = NakamaApi({
+      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+      timeoutMs: 5000
+    });
     const res = yield call(nakama.authenticate.bind(nakama), data);
     
     if(res.error)
@@ -39,6 +38,8 @@ function* handleLogin({payload: data}: AnyAction)
     {
       yield put(loginError('An unknown error occured.'));
     }
+    localStorage.clear();
+    window.location.href = '/login';
   }
 }
 

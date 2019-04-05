@@ -30,13 +30,13 @@ type State = {
 
 class Users extends Component<Props, State>
 {
-  details(id: string)
+  public details(id: string)
   {
     const {history} = this.props;
     history.push(`/users/${id}`);
   }
   
-  render()
+  public render()
   {
     return <Generic id="users">
       <Header />

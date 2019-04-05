@@ -1,10 +1,19 @@
 import React, {Component} from 'react';
+import {RouteComponentProps} from 'react-router';
 import {Link} from 'react-router-dom';
+
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as storageActions from '../../store/storage/actions';
+import {StorageObjectRequest, StorageObject} from '../../store/storage/types';
+
 import {
   Breadcrumb,
   Button,
   Column,
   Control,
+  Dropdown,
   Field,
   Generic,
   Icon,
@@ -17,6 +26,8 @@ import {
 } from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 
+import json_to_csv from '../../utils/json_to_csv';
+
 import Header from '../../components/header';
 import Sidebar from '../../components/sidebar';
 
@@ -24,17 +35,79 @@ import Sidebar from '../../components/sidebar';
  * https://dfee.github.io/rbx/
  */
 
-type Props = {
-  id: string;
-};
+interface PropsFromState
+{
+  loading: boolean,
+  errors: string|undefined,
+  data: StorageObject
+}
+
+interface PropsFromDispatch
+{
+  fetchRequest: typeof storageActions.storageFetchRequest,
+  updateRequest: typeof storageActions.storageUpdateRequest,
+  deleteRequest: typeof storageActions.storageDeleteRequest
+}
+
+type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
 };
 
 class StorageDetails extends Component<Props, State>
 {
-  render()
+  public componentDidMount()
   {
+    const {match} = this.props;
+    this.props.fetchRequest(match.params);
+  }
+  
+  public update()
+  {
+    const {data, history} = this.props;
+    // Implement after rebase.
+    this.props.updateRequest(data);
+    history.push('/storage');
+  }
+  
+  public remove()
+  {
+    const {match, history} = this.props;
+    if(confirm('Are you sure you want to delete this object?'))
+    {
+      this.props.deleteRequest(match.params);
+      history.push('/storage');
+    }
+  }
+  
+  public download(format: string)
+  {
+    const {data} = this.props;
+    const element = document.createElement('a');
+    let file;
+    if(format === 'json')
+    {
+      file = new Blob(
+        [JSON.stringify([data], null, 2)],
+        {type: 'application/json'}
+      );
+    }
+    else
+    {
+      file = new Blob(
+        [json_to_csv([data])],
+        {type: 'text/plain'}
+      );
+    }
+    element.href = URL.createObjectURL(file);
+    element.download = `export.${format}`;
+    document.body.appendChild(element);
+    element.click();
+  }
+  
+  public render()
+  {
+    const {data} = this.props;
     return <Generic id="storage_details">
       <Header />
       <Section>
@@ -47,23 +120,49 @@ class StorageDetails extends Component<Props, State>
                 <Level.Item>
                   <Breadcrumb>
                     <Breadcrumb.Item as="span"><Link to="/storage">Storage</Link></Breadcrumb.Item>
-                    <Breadcrumb.Item active>savegames</Breadcrumb.Item>
-                    <Breadcrumb.Item active>slot1</Breadcrumb.Item>
-                    <Breadcrumb.Item active>001b0970-3291-4176-b0da-a7743c3036e3</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{data.collection}</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{data.key}</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{data.user_id}</Breadcrumb.Item>
                   </Breadcrumb>
                 </Level.Item>
               </Level.Item>
               <Level.Item align="right">
                 <Level.Item>
-                  <Button>
-                    <Icon>
-                      <FontAwesomeIcon icon="file-export" />
-                    </Icon>
-                    <span>Export</span>
-                  </Button>
+                  <Dropdown hoverable>
+                    <Dropdown.Trigger>
+                      <Button>
+                        <span>Export</span>
+                        <Icon>
+                          <FontAwesomeIcon icon="angle-down" />
+                        </Icon>
+                      </Button>
+                    </Dropdown.Trigger>
+                    <Dropdown.Menu>
+                      <Dropdown.Content>
+                        <Dropdown.Item
+                          onClick={this.download.bind(this, 'csv')}
+                        >
+                          <Icon>
+                            <FontAwesomeIcon icon="file-csv" />
+                          </Icon>
+                          <span>Export with CSV</span>
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                          onClick={this.download.bind(this, 'json')}
+                        >
+                          <Icon>
+                            <FontAwesomeIcon icon="file" />
+                          </Icon>
+                          <span>Export with JSON</span>
+                        </Dropdown.Item>
+                      </Dropdown.Content>
+                    </Dropdown.Menu>
+                  </Dropdown>
                 </Level.Item>
                 <Level.Item>
-                  <Button>
+                  <Button
+                    onClick={this.remove.bind(this)}
+                  >
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
@@ -82,7 +181,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input type="text" value="savegames" />
+                        <Input type="text" defaultValue={data.collection} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -95,7 +194,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input type="text" value="slot1" />
+                        <Input type="text" defaultValue={data.key} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -108,7 +207,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input type="text" value="001b0970-3291-4176-b0da-a7743c3036e3" />
+                        <Input type="text" defaultValue={data.user_id} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -121,7 +220,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input static type="text" value="8f2d67f3755c2cffd9187c178f9b9b36" />
+                        <Input static type="text" defaultValue={data.version} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -135,9 +234,9 @@ class StorageDetails extends Component<Props, State>
                     <Field>
                       <Control>
                         <Select.Container>
-                          <Select>
+                          <Select defaultValue={data.permission_read}>
                             <Select.Option value="0">No Read (0)</Select.Option>
-                            <Select.Option value="1" selected>Private Read (1)</Select.Option>
+                            <Select.Option value="1">Private Read (1)</Select.Option>
                             <Select.Option value="2">Public Read (2)</Select.Option>
                           </Select>
                         </Select.Container>
@@ -154,9 +253,9 @@ class StorageDetails extends Component<Props, State>
                     <Field>
                       <Control>
                         <Select.Container>
-                          <Select>
+                          <Select defaultValue={data.permission_write}>
                             <Select.Option value="0">No Write (0)</Select.Option>
-                            <Select.Option value="1" selected>Private Write (1)</Select.Option>
+                            <Select.Option value="1">Private Write (1)</Select.Option>
                           </Select>
                         </Select.Container>
                       </Control>
@@ -172,15 +271,11 @@ class StorageDetails extends Component<Props, State>
                   <Label>Value</Label>
                   <Field>
                     <Control>
-                      <Textarea placeholder="Value" rows={8}>
-                      {`{
-                        "recipients": [
-                          "6197da87-8219-43d0-a631-034d2a485c27",
-                          "7d6429f2-ab63-4570-ac63-ab6d6bc4382f"
-                        ],
-                        "reset_timestamp": 0
-                      }`}
-                      </Textarea>
+                      {
+                        data.value ?
+                        <Textarea placeholder="Value" rows={8} defaultValue={data.value} /> :
+                        null
+                      }
                     </Control>
                   </Field>
                 </Field>
@@ -196,7 +291,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input static type="text" value="2018-08-07 11:29:36.764366+00:00" />
+                        <Input static type="text" defaultValue={data.create_time} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -209,7 +304,7 @@ class StorageDetails extends Component<Props, State>
                   <Field.Body>
                     <Field>
                       <Control>
-                        <Input static type="text" value="2018-08-07 11:29:36.764366+00:00" />
+                        <Input static type="text" defaultValue={data.update_time} />
                       </Control>
                     </Field>
                   </Field.Body>
@@ -229,4 +324,25 @@ class StorageDetails extends Component<Props, State>
   }
 }
 
-export default StorageDetails;
+const mapStateToProps = ({storage_details}: ApplicationState) => ({
+  loading: storage_details.loading,
+  errors: storage_details.errors,
+  data: storage_details.data
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchRequest: (data: StorageObjectRequest) => dispatch(
+    storageActions.storageFetchRequest(data)
+  ),
+  updateRequest: (data: StorageObject) => dispatch(
+    storageActions.storageUpdateRequest(data)
+  ),
+  deleteRequest: (data: StorageObjectRequest) => dispatch(
+    storageActions.storageDeleteRequest(data)
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(StorageDetails);

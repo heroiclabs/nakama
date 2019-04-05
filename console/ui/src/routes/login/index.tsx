@@ -36,14 +36,24 @@ interface PropsFromState
 
 interface PropsFromDispatch
 {
-  fetchRequest: typeof loginActions.loginRequest
+  fetchRequest: typeof loginActions.loginRequest,
+  successRequest: typeof loginActions.loginSuccess
 }
 
 type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 class Login extends Component<Props>
 {
-  componentWillReceiveProps(nextProps: Props)
+  public constructor(props: Props)
+  {
+    super(props);
+    if(localStorage.getItem('token'))
+    {
+      this.props.successRequest({token: localStorage.getItem('token') as string});
+    }
+  }
+  
+  public componentWillReceiveProps(nextProps: Props)
   {
     if(nextProps.data && nextProps.data.token)
     {
@@ -52,7 +62,7 @@ class Login extends Component<Props>
     }
   }
 
-  login(event: React.FormEvent<HTMLFormElement>)
+  public login(event: React.FormEvent<HTMLFormElement>)
   {
     event.preventDefault();
     const data = new FormData(event.target as HTMLFormElement);
@@ -64,7 +74,7 @@ class Login extends Component<Props>
     this.props.fetchRequest(payload);
   }
   
-  render()
+  public render()
   {
     return <Hero id="login" size="fullheight">
       <Hero.Body>
@@ -129,6 +139,9 @@ const mapStateToProps = ({login}: ApplicationState) => ({
 const mapDispatchToProps = (dispatch: Dispatch) => ({
   fetchRequest: (data: LoginRequest) => dispatch(
     loginActions.loginRequest(data)
+  ),
+  successRequest: (data: Token) => dispatch(
+    loginActions.loginSuccess(data)
   )
 });
 
