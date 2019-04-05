@@ -84,7 +84,7 @@ Client must send through the following information:
 {
   product_id = "",
   package_name = "",
-  receipt = "",
+  purchase_token = "",
   is_subscription = false
 }
 
@@ -115,13 +115,13 @@ local function google_verify_payment(context, payload)
   local product_id = json_payload.product_id
   local package_name = json_payload.package_name
   local is_subscription = json_payload.is_subscription
-  local receipt = json_payload.receipt
+  local purchase_token = json_payload.purchase_token
 
   local success, result = pcall(iap.verify_payment_google, {
     is_subscription = is_subscription,
     product_id = product_id,
     package_name = package_name,
-    receipt = receipt,
+    purchase_token = purchase_token,
     client_email = service_account["client_email"],
     private_key = service_account["private_key"],
   })

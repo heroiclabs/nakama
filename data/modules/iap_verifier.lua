@@ -150,7 +150,7 @@ function M.verify_payment_google(request)
     url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/products/%s/tokens/%s?access_token=%s"
   end
 
-  local url = url_template:format(request.package_name, request.product_id, request.receipt, access_token)
+  local url = url_template:format(request.package_name, request.product_id, request.purchase_token, access_token)
   
   local http_headers = {
     ["Content-Type"] = "application/json",
