@@ -60,17 +60,19 @@ function M.verify_payment_apple(request)
   if (not success) then
     nk.logger_warn(("Network error occurred: %q"):format(code))
     error(code)
-  elseif (code == 200) then
-    return nk.json_decode(body)
-  elseif (code == 400) then
-    local response = nk.json_decode(body)
-    if (response.status == 21007) then  -- was supposed to be sent to sandbox
-      local success, code, _, body = pcall(nk.http_request, url_sandbox, "POST", http_headers, http_body)
-      if (not success) then
-        nk.logger_warn(("Network error occurred: %q"):format(code))
-        error(code)
-      elseif (code == 200) then
-        return nk.json_decode(body)
+  else
+    if (code == 200) then
+      local response = nk.json_decode(body)
+      if (response.status == 0) then
+        return response
+      elseif (response.status == 21007) then  -- was supposed to be sent to sandbox
+        local success, code, _, body = pcall(nk.http_request, url_sandbox, "POST", http_headers, http_body)
+        if (not success) then
+          nk.logger_warn(("Network error occurred: %q"):format(code))
+          error(code)
+        elseif (code == 200) then
+          return nk.json_decode(body)
+        end
       end
     end
   end
