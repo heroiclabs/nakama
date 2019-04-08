@@ -8,6 +8,7 @@ import {ApplicationState, createRootReducer, rootSaga} from './store';
 
 import {BrowserRouter as Router, Switch, Route} from 'react-router-dom';
 import * as serviceWorker from './serviceWorker';
+import {NakamaApi} from './api.gen';
 
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {
@@ -31,6 +32,19 @@ import StorageDetails from './routes/storage/details';
 
 import 'rbx/index.css';
 import './css/index.css';
+
+declare global
+{
+  interface Window
+  {
+    nakama_api: any;
+  }
+}
+
+window.nakama_api = NakamaApi({
+  basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+  timeoutMs: 5000
+});
 
 library.add(
   faAngleDown,

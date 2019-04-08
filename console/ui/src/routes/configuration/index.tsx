@@ -4,7 +4,7 @@ import {Dispatch} from 'redux';
 import {connect} from 'react-redux';
 import {ApplicationState, ConnectedReduxProps} from '../../store';
 import * as configurationActions from '../../store/configuration/actions';
-import {Config} from '../../store/configuration/types';
+import {Config, Warning} from '../../store/configuration/types';
 
 import {
   Button,
@@ -16,7 +16,6 @@ import {
   Input,
   Label,
   Level,
-  Notification,
   Section
 } from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
@@ -65,6 +64,65 @@ class Configuration extends Component<Props>
     element.click();
   }
   
+  public render_node(key: string, value: any, warnings: Warning[]): React.ReactNode
+  {
+    const warning = warnings.find(w => w.field === key);
+    if(Array.isArray(value))
+    {
+      return <Field key={key} horizontal marginless>
+        <Field.Label size="normal">
+          <Label>{key}</Label>
+        </Field.Label>
+        <Field.Body>
+          <Field>
+            {
+              value.map((subvalue, subkey) =>
+                <Control key={`${key}.${subkey}`}>
+                  <Input
+                    static
+                    type="text"
+                    placeholder="(empty)"
+                    defaultValue={subvalue}
+                  />
+                </Control>
+              )
+            }
+            {warning ? <p className="help is-danger">{warning.message}</p> : null}
+          </Field>
+        </Field.Body>
+      </Field>;
+    }
+    else if(value !== null && typeof value === 'object')
+    {
+      return Object.keys(value).map(subkey => this.render_node(
+        `${key}${key ? '.' : ''}${subkey}`,
+        value[subkey], 
+        warnings
+      ));
+    }
+    else
+    {
+      return <Field key={key} horizontal marginless>
+        <Field.Label size="normal">
+          <Label>{key}</Label>
+        </Field.Label>
+        <Field.Body>
+          <Field>
+            <Control>
+              <Input
+                static
+                type="text"
+                placeholder="(empty)"
+                defaultValue={value}
+              />
+            </Control>
+            {warning ? <p className="help is-danger">{warning.message}</p> : null}
+          </Field>
+        </Field.Body>
+      </Field>;
+    }
+  }
+  
   public render()
   {
     const {data} = this.props;
@@ -77,7 +135,7 @@ class Configuration extends Component<Props>
           <Column>
             <Level>
               <Level.Item align="left" />
-    
+
               <Level.Item align="right">
                 <Level.Item>
                   <Button onClick={this.download.bind(this)}>
@@ -90,313 +148,7 @@ class Configuration extends Component<Props>
               </Level.Item>
             </Level>
 
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>name</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.name}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-    
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>data_dir</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.data_dir}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>logger.stdout</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.logger && data.config.logger.stdout}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>logger.level</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.logger && data.config.logger.level}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>logger.file</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.logger && data.config.logger.file}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>metrics.reporting_freq_sec</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.metrics && data.config.metrics.reporting_freq_sec}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>metrics.namespace</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.metrics && data.config.metrics.namespace}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>metrics.stackdriver_projectid</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.metrics && data.config.metrics.stackdriver_projectid}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>metrics.prometheus_port</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.metrics && data.config.metrics.prometheus_port}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>database.address</Label>
-              </Field.Label>
-              <Field.Body>
-                <Field>
-                  {
-                    ((
-                      data.config &&
-                      data.config.database &&
-                      data.config.database.address
-                    ) || []).map((address, key) =>
-                      <Control key={`address-${key}`}>
-                        <Input
-                          static
-                          type="text"
-                          placeholder="(empty)"
-                          defaultValue={address}
-                        />
-                      </Control>
-                    )
-                  }
-                </Field>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>database.conn_max_lifetime_ms</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.database && data.config.database.conn_max_lifetime_ms}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>runtime.env</Label>
-              </Field.Label>
-              <Field.Body>
-                <Field>
-                  {
-                    ((
-                      data.config &&
-                      data.config.runtime &&
-                      data.config.runtime.env
-                    ) || []).map((env, key) =>
-                      <Control key={`env-${key}`}>
-                        <Input
-                          static
-                          type="text"
-                          placeholder="(empty)"
-                          defaultValue={env}
-                        />
-                      </Control>
-                    )
-                  }
-                </Field>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>runtime.path</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.runtime && data.config.runtime.path}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>runtime.http_key</Label>
-              </Field.Label>
-              <Field.Body>
-                <Field>
-                  <Control>
-                    <Input
-                      static
-                      type="text"
-                      placeholder="(empty)"
-                      defaultValue={data.config && data.config.runtime && data.config.runtime.http_key}
-                    />
-                  </Control>
-                  <p className="help is-danger">This value must be changed in production.</p>
-                </Field>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>socket.server_key</Label>
-              </Field.Label>
-              <Field.Body>
-                <Field>
-                  <Control>
-                    <Input
-                      static
-                      type="text"
-                      placeholder="(empty)"
-                      defaultValue={data.config && data.config.socket && data.config.socket.server_key}
-                    />
-                  </Control>
-                  <p className="help is-danger">This value must be changed in production.</p>
-                </Field>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>socket.port</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.socket && data.config.socket.port}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-
-            <Field horizontal marginless>
-              <Field.Label size="normal">
-                <Label>socket.max_message_size_bytes</Label>
-              </Field.Label>
-              <Field.Body>
-                <Control>
-                  <Input
-                    static
-                    type="text"
-                    placeholder="(empty)"
-                    defaultValue={data.config && data.config.socket && data.config.socket.max_message_size_bytes}
-                  />
-                </Control>
-              </Field.Body>
-            </Field>
-            <br /><br />
-            {
-              (data.warnings || []).map((warning, key) =>
-                <Notification color="warning" key={`warning-${key}`}>
-                  {warning.field}
-                  <br /><br />
-                  {warning.message}
-                </Notification>
-              )
-            }
+            {data.config && this.render_node('', data.config, data.warnings || [])}
           </Column>
         </Column.Group>
       </Section>
