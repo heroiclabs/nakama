@@ -8,11 +8,7 @@ function* handleLogin({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      timeoutMs: 5000
-    });
-    const res = yield call(nakama.authenticate, data);
+    const res = yield call(window.nakama_api.authenticate, data);
     
     if(res.error)
     {
@@ -20,6 +16,11 @@ function* handleLogin({payload: data}: AnyAction)
     }
     else
     {
+      window.nakama_api = NakamaApi({
+        basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+        bearerToken: res.token,
+        timeoutMs: 5000
+      });
       if(data.remember)
       {
         localStorage.setItem('token', res.token);
@@ -38,8 +39,6 @@ function* handleLogin({payload: data}: AnyAction)
     {
       yield put(loginError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 

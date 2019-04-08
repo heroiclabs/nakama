@@ -1,5 +1,6 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
+import queryString from 'query-string';
 import Dropzone from 'react-dropzone';
 
 import {Dispatch} from 'redux';
@@ -68,11 +69,17 @@ class Storage extends Component<Props, State>
   
   public componentDidMount()
   {
-    this.props.fetchManyRequest({});
+    const query = queryString.parse(this.props.location.search);
+    if(query.user_id)
+    {
+      (document.getElementById('user_id') as HTMLInputElement).value = query.user_id;
+    }
+    this.props.fetchManyRequest(query);
   }
   
   public filter(user_id: string)
   {
+    const {history, fetchManyRequest} = this.props;
     if(user_id)
     {
       (document.getElementById('user_id') as HTMLInputElement).value = user_id;
@@ -81,7 +88,8 @@ class Storage extends Component<Props, State>
     {
       user_id = (document.getElementById('user_id') as HTMLInputElement).value;
     }
-    this.props.fetchManyRequest({user_id});
+    history.push(`/storage?user_id=${user_id}`);
+    fetchManyRequest({user_id});
   }
   
   public upload(format: null|string, event: React.FormEvent<Element>)
