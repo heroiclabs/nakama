@@ -1,5 +1,5 @@
 import {AnyAction} from 'redux';
-import {all, call, fork, put, takeEvery, select} from 'redux-saga/effects';
+import {all, call, fork, put, takeEvery} from 'redux-saga/effects';
 import {StorageActionTypes} from './types';
 import {
   storageFetchManySuccess,
@@ -15,19 +15,13 @@ import {
   storageDeleteSuccess,
   storageDeleteError
 } from './actions';
-import {NakamaApi} from '../../api.gen';
 
 function* handleFetchMany({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
     const res = yield call(
-      nakama.listStorage,
+      window.nakama_api.listStorage,
       data && data.user_id
     );
     if(res.error)
@@ -42,7 +36,12 @@ function* handleFetchMany({payload: data}: AnyAction)
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageFetchManyError(err.stack!));
     }
@@ -50,8 +49,6 @@ function* handleFetchMany({payload: data}: AnyAction)
     {
       yield put(storageFetchManyError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 
@@ -59,12 +56,7 @@ function* handleDeleteMany()
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
-    const res = yield call(nakama.deleteStorage);
+    const res = yield call(window.nakama_api.deleteStorage);
     if(res.error)
     {
       yield put(storageDeleteManyError(res.error));
@@ -77,7 +69,12 @@ function* handleDeleteMany()
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageDeleteManyError(err.stack!));
     }
@@ -85,8 +82,6 @@ function* handleDeleteMany()
     {
       yield put(storageDeleteManyError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 
@@ -94,13 +89,8 @@ function* handleCreate({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
     const res = yield call(
-      nakama.writeStorageObject,
+      window.nakama_api.writeStorageObject,
       data && data.collection,
       data && data.key,
       data && data.user_id,
@@ -118,7 +108,12 @@ function* handleCreate({payload: data}: AnyAction)
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageCreateError(err.stack!));
     }
@@ -126,8 +121,6 @@ function* handleCreate({payload: data}: AnyAction)
     {
       yield put(storageCreateError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 
@@ -135,13 +128,8 @@ function* handleFetch({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
     const res = yield call(
-      nakama.getStorage,
+      window.nakama_api.getStorage,
       data && data.collection,
       data && data.key,
       data && data.user_id
@@ -158,7 +146,12 @@ function* handleFetch({payload: data}: AnyAction)
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageFetchError(err.stack!));
     }
@@ -166,8 +159,6 @@ function* handleFetch({payload: data}: AnyAction)
     {
       yield put(storageFetchError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 
@@ -175,13 +166,8 @@ function* handleUpdate({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
     const res = yield call(
-      nakama.writeStorageObject,
+      window.nakama_api.writeStorageObject,
       data && data.collection,
       data && data.key,
       data && data.user_id,
@@ -199,7 +185,12 @@ function* handleUpdate({payload: data}: AnyAction)
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageUpdateError(err.stack!));
     }
@@ -207,8 +198,6 @@ function* handleUpdate({payload: data}: AnyAction)
     {
       yield put(storageUpdateError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 
@@ -216,13 +205,8 @@ function* handleDelete({payload: data}: AnyAction)
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
     const res = yield call(
-      nakama.deleteStorageObject,
+      window.nakama_api.deleteStorageObject,
       data && data.collection,
       data && data.key,
       data && data.user_id
@@ -239,7 +223,12 @@ function* handleDelete({payload: data}: AnyAction)
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(storageDeleteError(err.stack!));
     }
@@ -247,8 +236,6 @@ function* handleDelete({payload: data}: AnyAction)
     {
       yield put(storageDeleteError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 

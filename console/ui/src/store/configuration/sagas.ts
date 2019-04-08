@@ -1,18 +1,12 @@
-import {all, call, fork, put, takeEvery, select} from 'redux-saga/effects';
+import {all, call, fork, put, takeEvery} from 'redux-saga/effects';
 import {ConfigurationActionTypes} from './types';
 import {configurationError, configurationSuccess} from './actions';
-import {NakamaApi} from '../../api.gen';
 
 function* handleFetch()
 {
   try
   {
-    const nakama = NakamaApi({
-      basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-      bearerToken: yield select((state) => state.login.data.token),
-      timeoutMs: 5000
-    });
-    const res = yield call(nakama.getConfig);
+    const res = yield call(window.nakama_api.getConfig);
     res.config = (res.config ? JSON.parse(res.config) : {});
     
     if(res.error)
@@ -27,7 +21,12 @@ function* handleFetch()
   catch(err)
   {
     console.error(err);
-    if(err instanceof Error)
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    else if(err instanceof Error)
     {
       yield put(configurationError(err.stack!));
     }
@@ -35,8 +34,6 @@ function* handleFetch()
     {
       yield put(configurationError('An unknown error occured.'));
     }
-    localStorage.clear();
-    window.location.href = '/login';
   }
 }
 

@@ -77,7 +77,7 @@ class StorageDetails extends Component<Props, State>
       version: data.get('version') as string
     };
     this.props.updateRequest(payload);
-    history.push('/storage');
+    history.goBack();
   }
   
   public remove()
@@ -86,7 +86,7 @@ class StorageDetails extends Component<Props, State>
     if(confirm('Are you sure you want to delete this object?'))
     {
       this.props.deleteRequest(match.params);
-      history.push('/storage');
+      history.goBack();
     }
   }
   
