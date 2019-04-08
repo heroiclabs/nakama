@@ -72,7 +72,7 @@ class Storage extends Component<Props, State>
     const query = queryString.parse(this.props.location.search);
     if(query.user_id)
     {
-      (document.getElementById('user_id') as HTMLInputElement).value = query.user_id;
+      (document.getElementById('user_id') as HTMLInputElement).value = query.user_id as string;
     }
     this.props.fetchManyRequest(query);
   }
