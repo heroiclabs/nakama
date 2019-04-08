@@ -253,7 +253,7 @@ func checkAuth(config Config, auth string) bool {
 			// Expiry time claim is invalid.
 			return false
 		}
-		if int64(exp) <= time.Now().Unix() {
+		if int64(exp) <= time.Now().UTC().Unix() {
 			// Token expired.
 			return false
 		}
