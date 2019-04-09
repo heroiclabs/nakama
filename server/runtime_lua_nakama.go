@@ -30,6 +30,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -740,8 +741,25 @@ func (n *RuntimeLuaNakamaModule) jwtGenerate(l *lua.LState) int {
 		jwtClaims[k] = v
 	}
 
+	block, _ := pem.Decode([]byte(signingKey))
+	if block == nil {
+		l.RaiseError("could not parse private key: no valid blocks found")
+		return 0
+	}
+
+	pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		l.RaiseError("could not parse private key: %v", err.Error())
+		return 0
+	}
+
 	token := jwt.NewWithClaims(signingMethod, jwtClaims)
-	signedToken, _ := token.SignedString([]byte(signingKey))
+	signedToken, err := token.SignedString(pk)
+	if err != nil {
+		l.RaiseError("failed to sign token: %v", err.Error())
+		return 0
+	}
+
 	l.Push(lua.LString(signedToken))
 	return 1
 }

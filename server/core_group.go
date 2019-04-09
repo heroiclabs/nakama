@@ -369,11 +369,10 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	}
 
 	if err = crdb.ExecuteInTx(ctx, tx, func() error {
-		_, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state)
-		if err != nil {
+		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
-				return nil // completed successfully
+				return e
 			}
 
 			logger.Debug("Could not add user to group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -381,14 +380,18 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		}
 
 		query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-		_, err := tx.ExecContext(ctx, query, groupID)
-		if err != nil {
+		if _, err = tx.ExecContext(ctx, query, groupID); err != nil {
 			logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
 		}
 
 		return nil
 	}); err != nil {
+		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			// No-op, user was already in group.
+			return nil
+		}
+
 		logger.Error("Error joining group.", zap.Error(err))
 		return err
 	}

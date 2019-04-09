@@ -60,17 +60,19 @@ function M.verify_payment_apple(request)
   if (not success) then
     nk.logger_warn(("Network error occurred: %q"):format(code))
     error(code)
-  elseif (code == 200) then
-    return nk.json_decode(body)
-  elseif (code == 400) then
-    local response = nk.json_decode(body)
-    if (response.status == 21007) then  -- was supposed to be sent to sandbox
-      local success, code, _, body = pcall(nk.http_request, url_sandbox, "POST", http_headers, http_body)
-      if (not success) then
-        nk.logger_warn(("Network error occurred: %q"):format(code))
-        error(code)
-      elseif (code == 200) then
-        return nk.json_decode(body)
+  else
+    if (code == 200) then
+      local response = nk.json_decode(body)
+      if (response.status == 0) then
+        return response
+      elseif (response.status == 21007) then  -- was supposed to be sent to sandbox
+        local success, code, _, body = pcall(nk.http_request, url_sandbox, "POST", http_headers, http_body)
+        if (not success) then
+          nk.logger_warn(("Network error occurred: %q"):format(code))
+          error(code)
+        elseif (code == 200) then
+          return nk.json_decode(body)
+        end
       end
     end
   end
@@ -78,10 +80,11 @@ function M.verify_payment_apple(request)
 end
 
 function M.google_obtain_access_token(client_email, private_key)
-  local auth_url = "https://accounts.google.com/o/oauth2/auth"
+  local auth_url = "https://accounts.google.com/o/oauth2/token"
   local scope = "https://www.googleapis.com/auth/androidpublisher"
-  local exp = nk.time() + 3600000 -- current time + 1hr added in ms
-  local iat = nk.time()
+  local iat = nk.time() / 1000
+  local exp = iat + 3600  -- current time + 1hr added in seconds
+
 
   local algo_type = "RS256"
 
@@ -95,11 +98,11 @@ function M.google_obtain_access_token(client_email, private_key)
 
   local jwt_token = nk.jwt_generate(algo_type, private_key, jwt_claimset)
 
-  local grant_type = "urn%3ietf%3params%3oauth%3grant-type%3jwt-bearer"
+  local grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer"
   local form_data = "grant_type=" .. grant_type .. "&assertion=" .. jwt_token
   local http_headers = {
-  ["Content-Type"] = "application/x-www-form-urlencoded",
-  ["Accept"] = "application/json"
+    ["Content-Type"] = "application/x-www-form-urlencoded",
+    ["Accept"] = "application/json"
   }
 
   local success, code, _, body = pcall(nk.http_request, auth_url, "POST", http_headers, form_data)
@@ -144,13 +147,13 @@ function M.verify_payment_google(request)
     error(access_token)
   end
 
-  local url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%q/purchases/subscriptions/%q/tokens/%q?access_token=%q"
+  local url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/subscriptions/%s/tokens/%s?access_token=%s"
   if (not request.is_subscription) then
-    url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%q/purchases/products/%q/tokens/%q?access_token=%q"
+    url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/products/%s/tokens/%s?access_token=%s"
   end
 
-  local url = url_template:format(request.package_name, request.product_id, request.receipt, access_token)
-
+  local url = url_template:format(request.package_name, request.product_id, request.purchase_token, access_token)
+  
   local http_headers = {
     ["Content-Type"] = "application/json",
     ["Accept"] = "application/json"
