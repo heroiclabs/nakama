@@ -4,7 +4,14 @@ const json_to_csv = (json: any[]) =>
   const header = Object.keys(json[0]);
   const csv = json.map(
     row => header.map(
-      field => JSON.stringify(row[field], replacer)
+      field => (
+        typeof row[field] === 'object' ?
+        JSON.stringify(row[field], replacer).replace(
+          new RegExp('\\', 'g'),
+          ''
+        ) :
+        (`${row[field]}`.includes('"') ? `"${row[field]}"` : row[field])
+      )
     ).join(',')
   );
   csv.unshift(header.join(','));
