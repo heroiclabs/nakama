@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/csv"
@@ -25,7 +26,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -197,12 +197,12 @@ func importStorageJSON(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 
 func importStorageCSV(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 
-	// TODO required by the current CSV format.
-	s := string(fileBytes)
-	s = strings.ReplaceAll(s, `\"`, `""`)
-	r := csv.NewReader(strings.NewReader(s))
+	//// TODO required by the current CSV format.
+	//s := string(fileBytes)
+	//s = strings.ReplaceAll(s, `\"`, `""`)
+	//r := csv.NewReader(strings.NewReader(s))
 
-	//r := csv.NewReader(bytes.NewReader(fileBytes))
+	r := csv.NewReader(bytes.NewReader(fileBytes))
 
 	columnIndexes := make(map[string]int)
 	ops := StorageOpWrites{}
