@@ -21,6 +21,8 @@ import {
   Label
 } from 'rbx';
 
+import {NakamaApi} from '../../api.gen';
+
 import logo from '../../images/logo.png';
 
 /*
@@ -58,6 +60,11 @@ class Login extends Component<Props>
     if(nextProps.data && nextProps.data.token)
     {
       const {history} = this.props;
+      window.nakama_api = NakamaApi({
+        basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+        bearerToken: nextProps.data.token,
+        timeoutMs: 5000
+      });
       history.push('/status');
     }
   }
@@ -76,6 +83,7 @@ class Login extends Component<Props>
   
   public render()
   {
+    const {errors} = this.props;
     return <Hero id="login" size="fullheight">
       <Hero.Body>
         <Container textAlign="centered">
@@ -83,7 +91,7 @@ class Login extends Component<Props>
           <Column.Group centered gapless>
             <Column size="one-third">
               {
-                this.props.errors ?
+                errors ?
                 <Notification color="danger">Your credentials are invalid.</Notification> :
                 null
               }

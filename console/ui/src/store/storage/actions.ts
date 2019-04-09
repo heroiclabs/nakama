@@ -55,9 +55,8 @@ export const storageUpdateRequest = (data: StorageObject) => action(
   StorageActionTypes.UPDATE_REQUEST,
   data
 );
-export const storageUpdateSuccess = (data: StorageObject) => action(
-  StorageActionTypes.UPDATE_SUCCESS,
-  data
+export const storageUpdateSuccess = () => action(
+  StorageActionTypes.UPDATE_SUCCESS
 );
 export const storageUpdateError = (message: string) => action(
   StorageActionTypes.UPDATE_ERROR,

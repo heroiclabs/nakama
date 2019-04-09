@@ -58,6 +58,7 @@ export interface StoragesState
 export interface StorageState
 {
   readonly loading: boolean,
+  readonly updated: boolean,
   readonly data: StorageObject,
   readonly errors?: string
 };

@@ -51,6 +51,7 @@ const initialStorageState: StorageState = {
     create_time: '',
     update_time: ''
   },
+  updated: false,
   errors: undefined,
   loading: false
 };
@@ -74,9 +75,9 @@ export const storageReducer: Reducer<StorageState> = (state = initialStorageStat
     case StorageActionTypes.UPDATE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.UPDATE_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, updated: true};
     case StorageActionTypes.UPDATE_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, updated: false};
     case StorageActionTypes.DELETE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.DELETE_SUCCESS:
