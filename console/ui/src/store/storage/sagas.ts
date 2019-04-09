@@ -38,8 +38,12 @@ function* handleFetchMany({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageFetchManyError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {
@@ -71,8 +75,12 @@ function* handleDeleteMany()
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageDeleteManyError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {
@@ -110,8 +118,12 @@ function* handleCreate({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageCreateError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {
@@ -148,8 +160,12 @@ function* handleFetch({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageFetchError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {
@@ -179,7 +195,9 @@ function* handleUpdate({payload: data}: AnyAction)
     }
     else
     {
-      yield put(storageUpdateSuccess(res));
+      yield put(storageUpdateError(''));
+      yield put(storageUpdateSuccess());
+      yield handleFetch({type: '@@storage/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -187,8 +205,12 @@ function* handleUpdate({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageUpdateError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {
@@ -225,8 +247,12 @@ function* handleDelete({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(storageDeleteError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {

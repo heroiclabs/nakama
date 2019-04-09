@@ -2,7 +2,6 @@ import {AnyAction} from 'redux';
 import {all, call, fork, put, takeEvery} from 'redux-saga/effects';
 import {LoginActionTypes} from './types';
 import {loginError, loginSuccess} from './actions';
-import {NakamaApi} from '../../api.gen';
 
 function* handleLogin({payload: data}: AnyAction)
 {
@@ -12,15 +11,11 @@ function* handleLogin({payload: data}: AnyAction)
     
     if(res.error)
     {
+      localStorage.clear();
       yield put(loginError(res.error));
     }
     else
     {
-      window.nakama_api = NakamaApi({
-        basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-        bearerToken: res.token,
-        timeoutMs: 5000
-      });
       if(data.remember)
       {
         localStorage.setItem('token', res.token);
@@ -30,8 +25,14 @@ function* handleLogin({payload: data}: AnyAction)
   }
   catch(err)
   {
+    localStorage.clear();
     console.error(err);
-    if(err instanceof Error)
+    if(err.json)
+    {
+      const json = yield err.json();
+      yield put(loginError(json.error || JSON.stringify(json)));
+    }
+    else if(err instanceof Error)
     {
       yield put(loginError(err.stack!));
     }

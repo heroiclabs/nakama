@@ -23,8 +23,12 @@ function* handleFetch()
     console.error(err);
     if(err.status === 401)
     {
-      localStorage.clear();
       window.location.href = '/login';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(configurationError(json.error || JSON.stringify(json)));
     }
     else if(err instanceof Error)
     {

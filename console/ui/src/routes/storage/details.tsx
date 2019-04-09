@@ -20,6 +20,7 @@ import {
   Input,
   Label,
   Level,
+  Notification,
   Section,
   Select,
   Textarea
@@ -39,6 +40,7 @@ interface PropsFromState
 {
   loading: boolean,
   errors: string|undefined,
+  updated: boolean,
   data: StorageObject
 }
 
@@ -65,7 +67,7 @@ class StorageDetails extends Component<Props, State>
   public update(event: React.FormEvent<HTMLFormElement>)
   {
     event.preventDefault();
-    const {history} = this.props;
+    const {match} = this.props;
     const data = new FormData(event.target as HTMLFormElement);
     const payload = {
       collection: data.get('collection') as string,
@@ -77,7 +79,6 @@ class StorageDetails extends Component<Props, State>
       version: data.get('version') as string
     };
     this.props.updateRequest(payload);
-    history.goBack();
   }
   
   public remove()
@@ -117,7 +118,7 @@ class StorageDetails extends Component<Props, State>
   
   public render()
   {
-    const {data} = this.props;
+    const {data, updated, errors} = this.props;
     return <Generic id="storage_details">
       <Header />
       <Section>
@@ -365,6 +366,17 @@ class StorageDetails extends Component<Props, State>
               </Column.Group>
   
               <Field kind="group" align="right">
+                {
+                  updated ?
+                  <Notification color="success">Successfully updated storage record.</Notification> :
+                  null
+                }
+                {
+                  errors ?
+                  <Notification color="danger">{errors}</Notification> :
+                  null
+                }
+                &nbsp;
                 <Control>
                   <Button color="info">Update</Button>
                 </Control>
@@ -380,6 +392,7 @@ class StorageDetails extends Component<Props, State>
 const mapStateToProps = ({storage_details}: ApplicationState) => ({
   loading: storage_details.loading,
   errors: storage_details.errors,
+  updated: storage_details.updated,
   data: storage_details.data
 });
 

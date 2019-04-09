@@ -8,7 +8,6 @@ import {connect} from 'react-redux';
 import {ApplicationState, ConnectedReduxProps} from '../../store';
 import * as storageActions from '../../store/storage/actions';
 import {StorageObjectRequest, StorageObject, Storages} from '../../store/storage/types';
-import {Token} from '../../store/login/types';
 
 import {NakamaApi} from '../../api.gen';
 
@@ -42,8 +41,7 @@ interface PropsFromState
 {
   loading: boolean,
   errors: string|undefined,
-  data: Storages,
-  login: Token
+  data: Storages
 }
 
 interface PropsFromDispatch
@@ -102,18 +100,12 @@ class Storage extends Component<Props, State>
   public files(files: any[])
   {
     const {format} = this.state;
-    const {token} = this.props.login;
     const reader = new FileReader();
     
       reader.onabort = () => console.error('File reading was aborted.');
       reader.onerror = () => console.error('File reading has failed.');
       reader.onload = () =>
       {
-        const nakama = NakamaApi({
-          basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-          bearerToken: token,
-          timeoutMs: 5000
-        });
         const boundary = '-----------------------------' + new Date().getTime();
         const body =
           boundary + '\n' +
@@ -124,7 +116,7 @@ class Storage extends Component<Props, State>
             'text/plain'
           ) + '\n\n' + reader.result + boundary + '--';
         
-        nakama.doFetch(
+        window.nakama_api.doFetch(
           '/v2/console/storage/import',
           'POST',
           {},
@@ -258,14 +250,7 @@ class Storage extends Component<Props, State>
             
             {
               format ?
-              <Dropzone
-                accept={
-                  format === 'csv' ?
-                  ['text/plain', 'application/vnd.ms-excel'] :
-                  'application/json'
-                }
-                onDrop={this.files.bind(this)}
-              >
+              <Dropzone onDrop={this.files.bind(this)}>
                 {({getRootProps, getInputProps}) => (
                   <div {...getRootProps()}>
                     <br />
@@ -323,11 +308,10 @@ class Storage extends Component<Props, State>
   }
 }
 
-const mapStateToProps = ({storage, login}: ApplicationState) => ({
+const mapStateToProps = ({storage}: ApplicationState) => ({
   loading: storage.loading,
   errors: storage.errors,
-  data: storage.data,
-  login: login.data
+  data: storage.data
 });
 
 const mapDispatchToProps = (dispatch: Dispatch) => ({
