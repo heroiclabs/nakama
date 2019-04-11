@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New Lua runtime functions to generate JWT tokens.
 - New Lua runtime functions to hash data using RSA SHA256.
+- Print max number of OS threads setting in server startup logs.
 
 ### Changed
 - Log more information when authoritative match handlers receive too many data messages.
