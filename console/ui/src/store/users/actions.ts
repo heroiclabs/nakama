@@ -7,7 +7,8 @@ import {
   UsersObject,
   LedgerObject,
   FriendObject,
-  GroupObject
+  GroupObject,
+  LedgerObjectRequest
 } from './types';
 
 export const userFetchManyRequest = (data: UsersObjectRequest) => action(
@@ -23,8 +24,9 @@ export const userFetchManyError = (message: string) => action(
   message
 );
 
-export const userDeleteManyRequest = () => action(
-  UserActionTypes.DELETE_MANY_REQUEST
+export const userDeleteManyRequest = (data: UserObjectRequest) => action(
+  UserActionTypes.DELETE_MANY_REQUEST,
+  data
 );
 export const userDeleteManySuccess = () => action(
   UserActionTypes.DELETE_MANY_SUCCESS
@@ -48,15 +50,15 @@ export const userFetchError = (message: string) => action(
 );
 
 export const userExportRequest = (data: UserObjectRequest) => action(
-  UserActionTypes.FETCH_REQUEST,
+  UserActionTypes.EXPORT_REQUEST,
   data
 );
 export const userExportSuccess = (data: UserObject) => action(
-  UserActionTypes.FETCH_SUCCESS,
+  UserActionTypes.EXPORT_SUCCESS,
   data
 );
 export const userExportError = (message: string) => action(
-  UserActionTypes.FETCH_ERROR,
+  UserActionTypes.EXPORT_ERROR,
   message
 );
 
@@ -121,7 +123,7 @@ export const userFetchLedgerError = (message: string) => action(
   message
 );
 
-export const userDeleteLedgerRequest = (data: UserObjectRequest) => action(
+export const userDeleteLedgerRequest = (data: LedgerObjectRequest) => action(
   UserActionTypes.DELETE_LEDGER_REQUEST,
   data
 );

@@ -67,7 +67,6 @@ class StorageDetails extends Component<Props, State>
   public update(event: React.FormEvent<HTMLFormElement>)
   {
     event.preventDefault();
-    const {match} = this.props;
     const data = new FormData(event.target as HTMLFormElement);
     const payload = {
       collection: data.get('collection') as string,

@@ -2,6 +2,20 @@ import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
 import {Link} from 'react-router-dom';
 
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as userActions from '../../store/users/actions';
+import {
+  UserObjectRequest,
+  UserObject,
+  ExportObject,
+  FriendObject,
+  GroupObject,
+  LedgerObject,
+  LedgerObjectRequest
+} from '../../store/users/types';
+
 import {
   Breadcrumb,
   Button,
@@ -13,6 +27,7 @@ import {
   Input,
   Label,
   Level,
+  Notification,
   Section,
   Tab,
   Table,
@@ -33,10 +48,36 @@ interface UsersDetails
   [key:string]: any;
 }
 
-type Props = RouteComponentProps;
+interface PropsFromState
+{
+  loading: boolean,
+  errors: string|undefined,
+  updated: boolean,
+  data: ExportObject,
+  friends: FriendObject[],
+  groups: GroupObject[],
+  ledgers: LedgerObject[]
+}
+
+interface PropsFromDispatch
+{
+  fetchRequest: typeof userActions.userExportRequest,
+  fetchFriendRequest: typeof userActions.userFetchFriendRequest,
+  fetchGroupRequest: typeof userActions.userFetchGroupRequest,
+  fetchLedgerRequest: typeof userActions.userFetchLedgerRequest,
+  updateRequest: typeof userActions.userUpdateRequest,
+  deleteRequest: typeof userActions.userDeleteRequest,
+  banRequest: typeof userActions.userBanRequest,
+  unbanRequest: typeof userActions.userUnbanRequest,
+  deleteFriendRequest: typeof userActions.userDeleteFriendRequest,
+  deleteGroupRequest: typeof userActions.userDeleteGroupRequest,
+  deleteLedgerRequest: typeof userActions.userDeleteLedgerRequest
+}
+
+type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
-  tab: string;
+  tab: string
 };
 
 class UsersDetails extends Component<Props, State>
@@ -47,12 +88,70 @@ class UsersDetails extends Component<Props, State>
     this.state = {tab: 'profile'};
   }
   
+  public componentDidMount()
+  {
+    const {match} = this.props;
+    this.props.fetchRequest(match.params);
+    this.props.fetchFriendRequest(match.params);
+    this.props.fetchGroupRequest(match.params);
+    this.props.fetchLedgerRequest(match.params);
+  }
+  
+  public unban()
+  {
+    const {match} = this.props;
+    if(confirm('Are you sure you want to unban this user?'))
+    {
+      this.props.unbanRequest(match.params);
+    }
+  }
+  
+  public ban()
+  {
+    const {match} = this.props;
+    if(confirm('Are you sure you want to ban this user?'))
+    {
+      this.props.banRequest(match.params);
+    }
+  }
+  
+  public remove(recorded: boolean)
+  {
+    const {match, history} = this.props;
+    if(confirm('Are you sure you want to delete this user?'))
+    {
+      this.props.deleteRequest(Object.assign({recorded}, match.params));
+      history.goBack();
+    }
+  }
+  
+  public download()
+  {
+    const {data} = this.props;
+    const element = document.createElement('a');
+    const file = new Blob(
+      [JSON.stringify([data], null, 2)],
+      {type: 'application/json'}
+    );
+    element.href = URL.createObjectURL(file);
+    element.download = 'export.json';
+    document.body.appendChild(element);
+    element.click();
+  }
+  
+  public go_to_friend(id: string)
+  {
+    const {history} = this.props;
+    history.push(`/users/${id}`);
+  }
+  
   public switch_tab(tab: string)
   {
+    const match = this.props.match;
     if(tab === 'storage')
     {
       const {history} = this.props;
-      history.push('/storage');
+      history.push(`/storage?user_id=${Object.values(match.params)[0]}`);
     }
     else
     {
@@ -60,33 +159,77 @@ class UsersDetails extends Component<Props, State>
     }
   }
   
-  public update_profile()
+  public update_profile(event: React.FormEvent<HTMLFormElement>)
   {
-    
+    event.preventDefault();
+    const data = new FormData(event.target as HTMLFormElement);
+    const payload = {
+      id: data.get('id') as string,
+      username: data.get('username') as string,
+      display_name: data.get('display_name') as string,
+      metadata: data.get('metadata') as string,
+      create_time: data.get('create_time') as string,
+      update_time: data.get('update_time') as string,
+      facebook_id: data.get('facebook_id') as string,
+      gamecenter_id: data.get('gamecenter_id') as string,
+      google_id: data.get('google_id') as string,
+      steam_id: data.get('steam_id') as string,
+      avatar_url: data.get('avatar_url') as string,
+      lang_tag: data.get('lang_tag') as string,
+      location: data.get('location') as string,
+      timezone: data.get('timezone') as string
+    };
+    this.props.updateRequest(payload);
   }
   
-  public update_account()
+  public update_account(event: React.FormEvent<HTMLFormElement>)
   {
-    
+    event.preventDefault();
+    const {match} = this.props;
+    const data = new FormData(event.target as HTMLFormElement);
+    const payload = {
+      id: '',
+      custom_id: data.get('custom_id') as string,
+      devices: data.get('devices') as string,
+      email: data.get('email') as string,
+      verify_time: data.get('verify_time') as string,
+      wallet: data.get('wallet') as string,
+    };
+    this.props.updateRequest(Object.assign(payload, match.params));
   }
   
-  public remove_friend()
+  public remove_friend(id: string)
   {
-    
+    const {match} = this.props;
+    if(confirm('Are you sure you want to delete this friend?'))
+    {
+      this.props.deleteFriendRequest({id});
+      this.props.fetchFriendRequest(match.params);
+    }
   }
   
-  public remove_group()
+  public remove_group(id: string)
   {
-    
+    const {match} = this.props;
+    if(confirm('Are you sure you want to delete this group?'))
+    {
+      this.props.deleteGroupRequest({id});
+      this.props.fetchGroupRequest(match.params);
+    }
   }
   
-  public remove_wallet()
+  public remove_ledger(id: string)
   {
-    
+    const {match} = this.props;
+    if(confirm('Are you sure you want to delete this ledger entry?'))
+    {
+      this.props.deleteLedgerRequest(Object.assign({walletId: id}, match.params));
+    }
   }
   
   public render_profile()
   {
+    const {data, updated, errors} = this.props;
     return <form onSubmit={this.update_profile.bind(this)}>
       <Column.Group>
         <Column size={6}>
@@ -101,7 +244,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="id"
-                    defaultValue="001b0970-3291-4176-b0da-a7743c3036e3"
+                    defaultValue={data.account.user.id}
                   />
                 </Control>
               </Field>
@@ -119,7 +262,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="username"
-                    defaultValue="JNbhSTvuNj"
+                    maxlength="128"
+                    defaultValue={data.account.user.username}
                   />
                 </Control>
               </Field>
@@ -137,6 +281,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="display_name"
+                    maxlength="255"
+                    defaultValue={data.account.user.display_name}
                   />
                 </Control>
               </Field>
@@ -154,7 +300,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Metadata"
                     rows={6}
                     name="metadata"
-                    defaultValue=""
+                    defaultValue={data.account.user.metadata}
                   />
                 </Control>
               </Field>
@@ -172,13 +318,13 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="create_time"
-                    defaultValue="2018-08-07 11:29:36.764366+00:00"
+                    defaultValue={data.account.user.create_time}
                   />
                 </Control>
               </Field>
             </Field.Body>
           </Field>
-  
+
           <Field horizontal>
             <Field.Label size="normal">
               <Label>Update Time</Label>
@@ -190,14 +336,14 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="update_time"
-                    value="2018-08-07 11:29:36.764366+00:00"
+                    defaultValue={data.account.user.update_time}
                   />
                 </Control>
               </Field>
             </Field.Body>
           </Field>
         </Column>
-  
+
         <Column size={6}>
           <Field horizontal>
             <Field.Label size="normal">
@@ -210,7 +356,8 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="facebook_id"
-                    defaultValue="1810399758992730"
+                    maxlength="128"
+                    defaultValue={data.account.user.facebook_id}
                   />
                 </Control>
                 <Control>
@@ -230,8 +377,9 @@ class UsersDetails extends Component<Props, State>
                   <Input
                     disabled
                     type="text"
-                    name="game_center_id"
-                    defaultValue="G:1026207127"
+                    name="gamecenter_id"
+                    maxlength="128"
+                    defaultValue={data.account.user.gamecenter_id}
                   />
                 </Control>
                 <Control>
@@ -252,7 +400,8 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="google_id"
-                    defaultValue="114522506190423282632"
+                    maxlength="128"
+                    defaultValue={data.account.user.google_id}
                   />
                 </Control>
                 <Control>
@@ -273,7 +422,8 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="steam_id"
-                    defaultValue="steamusername1"
+                    maxlength="128"
+                    defaultValue={data.account.user.steam_id}
                   />
                 </Control>
                 <Control>
@@ -294,6 +444,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="avatar_url"
+                    maxlength="512"
+                    defaultValue={data.account.user.avatar_url}
                   />
                 </Control>
               </Field>
@@ -311,6 +463,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="lang_tag"
+                    maxlength="18"
+                    defaultValue={data.account.user.lang_tag}
                   />
                 </Control>
               </Field>
@@ -328,6 +482,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="location"
+                    maxlength="255"
+                    defaultValue={data.account.user.location}
                   />
                 </Control>
               </Field>
@@ -345,6 +501,8 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="timezone"
+                    maxlength="255"
+                    defaultValue={data.account.user.timezone}
                   />
                 </Control>
               </Field>
@@ -352,6 +510,17 @@ class UsersDetails extends Component<Props, State>
           </Field>
           
           <Field kind="group" align="right">
+            {
+              updated ?
+              <Notification color="success">Successfully updated user profile record.</Notification> :
+              null
+            }
+            {
+              errors ?
+              <Notification color="danger">{errors}</Notification> :
+              null
+            }
+            &nbsp;
             <Control>
               <Button color="info">Update</Button>
             </Control>
@@ -363,6 +532,7 @@ class UsersDetails extends Component<Props, State>
   
   public render_account()
   {
+    const {data, updated, errors} = this.props;
     return <form onSubmit={this.update_account.bind(this)}>
       <Column.Group>
         <Column size={6}>
@@ -371,13 +541,15 @@ class UsersDetails extends Component<Props, State>
               <Label>Custom ID</Label>
             </Field.Label>
             <Field.Body>
-              <Field>
-                <Control>
+              <Field kind="addons">
+                <Control expanded>
                   <Input
                     disabled
                     type="text"
                     placeholder="(empty)"
                     name="custom_id"
+                    maxlength="128"
+                    defaultValue={data.account.user.custom_id}
                   />
                 </Control>
                 <Control>
@@ -386,61 +558,45 @@ class UsersDetails extends Component<Props, State>
               </Field>
             </Field.Body>
           </Field>
-  
-          <Field horizontal>
-            <Field.Label size="normal">
-              <Label>Device ID</Label>
-            </Field.Label>
-            <Field.Body>
-              <Field kind="addons">
-                <Control expanded>
-                  <Input
-                    disabled
-                    type="text"
-                    name="device_id"
-                    defaultValue="someuniqueid-1"
-                  />
-                </Control>
-                <Control>
-                  <Button>Unlink</Button>
-                </Control>
+          
+          {
+            (data.account.devices || []).map((d, key) =>
+              <Field horizontal key={`device_${key}`}>
+                <Field.Label size="normal">
+                  <Label>{key ? '' : 'Device ID'}</Label>
+                </Field.Label>
+                <Field.Body>
+                  <Field kind="addons">
+                    <Control expanded>
+                      <Input
+                        disabled
+                        type="text"
+                        name="devices[]"
+                        defaultValue={d.id}
+                      />
+                    </Control>
+                    <Control>
+                      <Button>Unlink</Button>
+                    </Control>
+                  </Field>
+                </Field.Body>
               </Field>
-            </Field.Body>
-          </Field>
-  
-          <Field horizontal>
-            <Field.Label size="normal">
-              <Label></Label>
-            </Field.Label>
-            <Field.Body>
-              <Field kind="addons">
-                <Control expanded>
-                  <Input
-                    disabled
-                    type="text"
-                    defaultValue="someuniqueid-2"
-                    name=""
-                  />
-                </Control>
-                <Control>
-                  <Button>Unlink</Button>
-                </Control>
-              </Field>
-            </Field.Body>
-          </Field>
-  
+            )
+          }
+          
           <Field horizontal>
             <Field.Label size="normal">
               <Label>Email</Label>
             </Field.Label>
             <Field.Body>
-              <Field>
-                <Control>
+              <Field kind="addons">
+                <Control expanded>
                   <Input
                     disabled
                     type="text"
-                    defaultValue="email@address.com"
                     name="email"
+                    maxlength="255"
+                    defaultValue={data.account.user.email}
                   />
                 </Control>
                 <Control>
@@ -461,7 +617,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="verified"
-                    defaultValue="false"
+                    defaultValue={data.account.user.verify_time || 'false'}
                   />
                 </Control>
               </Field>
@@ -479,6 +635,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Wallet"
                     rows="6"
                     name="wallet"
+                    defaultValue={data.account.wallet}
                   />
                 </Control>
               </Field>
@@ -486,6 +643,17 @@ class UsersDetails extends Component<Props, State>
           </Field>
           
           <Field kind="group" align="right">
+            {
+              updated ?
+              <Notification color="success">Successfully updated user profile record.</Notification> :
+              null
+            }
+            {
+              errors ?
+              <Notification color="danger">{errors}</Notification> :
+              null
+            }
+            &nbsp;
             <Control>
               <Button color="info">Update</Button>
             </Control>
@@ -497,6 +665,7 @@ class UsersDetails extends Component<Props, State>
   
   public render_friends()
   {
+    const {friends} = this.props;
     return <Table fullwidth striped hoverable>
       <Table.Head>
         <Table.Row>
@@ -508,24 +677,32 @@ class UsersDetails extends Component<Props, State>
         </Table.Row>
       </Table.Head>
       <Table.Body>
-        <Table.Row onClick="window.location='page-user-details.html';">
-          <Table.Cell>43736c58-2c63-46d7-a357-0ad67e078f9b</Table.Cell>
-          <Table.Cell>kFkdGhNOZl</Table.Cell>
-          <Table.Cell>Invite Received</Table.Cell>
-          <Table.Cell>2018-12-16 22:42:45.822557+00</Table.Cell>
-          <Table.Cell>
-            <Button
-              size="small"
-              onClick={this.remove_friend.bind(this, null)}
-            >Delete</Button>
-          </Table.Cell>
-        </Table.Row>
+        {
+          friends.map((f, key) =>
+            <Table.Row
+              key={`friend_${key}`}
+              onClick={this.go_to_friend.bind(this, f.user_id)}
+            >
+              <Table.Cell>{f.user_id}</Table.Cell>
+              <Table.Cell>{f.username}</Table.Cell>
+              <Table.Cell>{f.state}</Table.Cell>
+              <Table.Cell>{f.update_time}</Table.Cell>
+              <Table.Cell>
+                <Button
+                  size="small"
+                  onClick={this.remove_friend.bind(this, f.user_id)}
+                >Delete</Button>
+              </Table.Cell>
+            </Table.Row>
+          )
+        }
       </Table.Body>
     </Table>;
   }
   
   public render_groups()
   {
+    const {groups} = this.props;
     return <Table fullwidth striped>
       <Table.Head>
         <Table.Row>
@@ -537,24 +714,32 @@ class UsersDetails extends Component<Props, State>
         </Table.Row>
       </Table.Head>
       <Table.Body>
-        <Table.Row>
-          <Table.Cell>4875e77e-d102-4547-a436-67af46951e9e</Table.Cell>
-          <Table.Cell>Marvel Heroes</Table.Cell>
-          <Table.Cell>Join Request</Table.Cell>
-          <Table.Cell>2018-12-16 22:42:45.822557+00</Table.Cell>
-          <Table.Cell>
-            <Button
-              size="small"
-              onClick={this.remove_group.bind(this, null)}
-            >Delete</Button>
-          </Table.Cell>
-        </Table.Row>
+        {
+          groups.map((g, key) =>
+            <Table.Row
+              key={`group_${key}`}
+              onClick={this.go_to_friend.bind(this, g.id)}
+            >
+              <Table.Cell>{g.id}</Table.Cell>
+              <Table.Cell>{g.name}</Table.Cell>
+              <Table.Cell>{g.state}</Table.Cell>
+              <Table.Cell>{g.update_time}</Table.Cell>
+              <Table.Cell>
+                <Button
+                  size="small"
+                  onClick={this.remove_group.bind(this, g.id)}
+                >Delete</Button>
+              </Table.Cell>
+            </Table.Row>
+          )
+        }
       </Table.Body>
     </Table>;
   }
   
   public render_wallet()
   {
+    const {ledgers} = this.props;
     return <Table fullwidth striped>
       <Table.Head>
         <Table.Row>
@@ -566,24 +751,29 @@ class UsersDetails extends Component<Props, State>
         </Table.Row>
       </Table.Head>
       <Table.Body>
-        <Table.Row>
-          <Table.Cell>9293b42a-a497-4261-a918-55c910bc3b44</Table.Cell>
-          <Table.Cell>"balance_usd": 1</Table.Cell>
-          <Table.Cell>"gid": "1542394703"</Table.Cell>
-          <Table.Cell>2018-11-16 19:22:56.662292+00</Table.Cell>
-          <Table.Cell>
-            <Button
-              size="small"
-              onClick={this.remove_wallet.bind(this, null)}
-            >Delete</Button>
-          </Table.Cell>
-        </Table.Row>
+        {
+          ledgers.map((l, key) =>
+            <Table.Row key={`ledger_${key}`}>
+              <Table.Cell>{l.id}</Table.Cell>
+              <Table.Cell>{l.changeset}</Table.Cell>
+              <Table.Cell>{l.metadata}</Table.Cell>
+              <Table.Cell>{l.update_time}</Table.Cell>
+              <Table.Cell>
+                <Button
+                  size="small"
+                  onClick={this.remove_ledger.bind(this, l.id)}
+                >Delete</Button>
+              </Table.Cell>
+            </Table.Row>
+          )
+        }
       </Table.Body>
     </Table>;
   }
   
   public render()
   {
+    const {data, friends} = this.props;
     const {tab} = this.state;
     return <Generic id="users_details">
       <Header />
@@ -597,29 +787,40 @@ class UsersDetails extends Component<Props, State>
                 <Level.Item>
                   <Breadcrumb>
                     <Breadcrumb.Item as="span"><Link to="/users">Users</Link></Breadcrumb.Item>
-                    <Breadcrumb.Item active>001b0970-3291-4176-b0da-a7743c3036e3</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{data.account.user.id}</Breadcrumb.Item>
                   </Breadcrumb>
                 </Level.Item>
               </Level.Item>
               <Level.Item align="right">
                 <Level.Item>
-                  <Button>
+                  <Button onClick={this.download.bind(this)}>
                     <Icon>
                       <FontAwesomeIcon icon="file-export" />
                     </Icon>
                     <span>Export</span>
                   </Button>
                 </Level.Item>
+                {
+                  data.account.user.disable_time ?
+                  <Level.Item>
+                    <Button onClick={this.unban.bind(this)}>
+                      <Icon>
+                        <FontAwesomeIcon icon="ban" />
+                      </Icon>
+                      <span>Unban</span>
+                    </Button>
+                  </Level.Item> :
+                  <Level.Item>
+                    <Button onClick={this.ban.bind(this)}>
+                      <Icon>
+                        <FontAwesomeIcon icon="ban" />
+                      </Icon>
+                      <span>Ban</span>
+                    </Button>
+                  </Level.Item>
+                }
                 <Level.Item>
-                  <Button>
-                    <Icon>
-                      <FontAwesomeIcon icon="ban" />
-                    </Icon>
-                    <span>Ban</span>
-                  </Button>
-                </Level.Item>
-                <Level.Item>
-                  <Button>
+                  <Button onClick={this.remove.bind(this, false)}>
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
@@ -627,7 +828,7 @@ class UsersDetails extends Component<Props, State>
                   </Button>
                 </Level.Item>
                 <Level.Item>
-                  <Button>
+                  <Button onClick={this.remove.bind(this, true)}>
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
@@ -649,7 +850,7 @@ class UsersDetails extends Component<Props, State>
               <Tab
                 active={tab === 'friends'}
                 onClick={this.switch_tab.bind(this, 'friends')}
-              >Friends <Tag>7</Tag></Tab>
+              >Friends <Tag>{friends.length}</Tag></Tab>
               <Tab
                 active={tab === 'groups'}
                 onClick={this.switch_tab.bind(this, 'groups')}
@@ -676,4 +877,53 @@ class UsersDetails extends Component<Props, State>
   }
 }
 
-export default UsersDetails;
+const mapStateToProps = ({user_details}: ApplicationState) => ({
+  loading: user_details.loading,
+  errors: user_details.errors,
+  updated: user_details.updated,
+  data: user_details.data,
+  friends: user_details.friends,
+  groups: user_details.groups,
+  ledgers: user_details.ledgers
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userExportRequest(data)
+  ),
+  fetchFriendRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userFetchFriendRequest(data)
+  ),
+  fetchGroupRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userFetchGroupRequest(data)
+  ),
+  fetchLedgerRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userFetchLedgerRequest(data)
+  ),
+  updateRequest: (data: UserObject) => dispatch(
+    userActions.userUpdateRequest(data)
+  ),
+  deleteRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteRequest(data)
+  ),
+  banRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userBanRequest(data)
+  ),
+  unbanRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnbanRequest(data)
+  ),
+  deleteFriendRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteFriendRequest(data)
+  ),
+  deleteGroupRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteGroupRequest(data)
+  ),
+  deleteLedgerRequest: (data: LedgerObjectRequest) => dispatch(
+    userActions.userDeleteLedgerRequest(data)
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(UsersDetails);

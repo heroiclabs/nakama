@@ -13,3 +13,6 @@ export const loginError = (message: string) => action(
   LoginActionTypes.LOGIN_ERROR,
   message
 );
+export const logoutRequest = () => action(
+  LoginActionTypes.LOGOUT_REQUEST
+);

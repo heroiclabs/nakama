@@ -1,21 +1,41 @@
 export interface LedgerObject
 {
-  
+  id: string,
+  changeset: string,
+  metadata: string,
+  create_time: string,
+  update_time: string
 }
 
 export interface FriendObject
 {
-  
+  user_id: string,
+  username?: string,
+  state?: string,
+  update_time?: string
 }
 
 export interface GroupObject
 {
-  
+  id: string,
+  name?: string,
+  state?: string,
+  update_time?: string,
 }
 
 export interface UserObjectRequest
 {
-  id: string
+  id?: string,
+  recorded?: boolean,
+  filter?: string,
+  banned?: boolean,
+  tombstones?: boolean
+}
+
+export interface LedgerObjectRequest
+{
+  walletId?: string,
+  id?: string
 }
 
 export interface UserObject
@@ -54,6 +74,18 @@ export interface UsersObject
   users: UserObject[],
   total_count: number
 };
+
+export interface ExportObject
+{
+  account:
+  {
+    user: UserObject,
+    wallet?: string,
+    devices?: any[]
+  },
+  leaderboard_records?: any[],
+  wallet_ledgers?: LedgerObject[]
+}
 
 export enum UserActionTypes
 {
@@ -133,7 +165,7 @@ export interface UserState
 {
   readonly loading: boolean,
   readonly updated: boolean,
-  readonly data: UserObject,
+  readonly data: ExportObject,
   readonly ledgers: LedgerObject[],
   readonly friends: FriendObject[],
   readonly groups: GroupObject[],

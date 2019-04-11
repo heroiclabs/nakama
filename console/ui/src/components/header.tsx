@@ -1,5 +1,10 @@
 import React, {Component} from 'react';
-import {Hero, Icon} from 'rbx';
+
+import {
+  Hero,
+  Icon,
+  Navbar
+} from 'rbx';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 
 import logo from '../images/logo.png';
@@ -10,38 +15,39 @@ import logo from '../images/logo.png';
 
 class Header extends Component
 {
+  public logout()
+  {
+    localStorage.clear();
+    window.location.href = '/login';
+  }
+  
   public render()
   {
     return <Hero color="light">
       <Hero.Head>
-        <nav className="navbar has-shadow" role="navigation" aria-label="main navigation">
-          <div className="navbar-brand">
-            <a href="page-status.html" className="navbar-item">
+        <Navbar>
+          <Navbar.Brand>
+            <Navbar.Item href="/status">
               <img src={logo} alt="Nav logo" />
-            </a>
-            <span className="navbar-burger burger" data-target="navbarMenu" aria-label="menu" aria-expanded="false">
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-            </span>
-          </div>
-          <div id="navbarMenu" className="navbar-menu">
-            <div className="navbar-end">
-              <a className="navbar-item" target="_blank" href="https://heroiclabs.com">
-                <span>Heroic Labs</span>
-              </a>
-              <a className="navbar-item" target="_blank" href="https://cloud.heroiclabs.com">
-                <span>Managed Cloud</span>
-              </a>
-              <a className="navbar-item" href="page-login.html">
+            </Navbar.Item>
+          </Navbar.Brand>
+          <Navbar.Menu>
+            <Navbar.Segment align="end">
+              <Navbar.Item target="_blank" href="https://heroiclabs.com">
+                Heroic Labs
+              </Navbar.Item>
+              <Navbar.Item target="_blank" href="https://cloud.heroiclabs.com">
+                Managed Cloud
+              </Navbar.Item>
+              <Navbar.Item onClick={this.logout}>
                 <Icon>
                   <FontAwesomeIcon icon="sign-out-alt" />
                 </Icon>
                 <span>Logout</span>
-              </a>
-            </div>
-          </div>
-        </nav>
+              </Navbar.Item>
+            </Navbar.Segment>
+          </Navbar.Menu>
+        </Navbar>
       </Hero.Head>
     </Hero>;
   }

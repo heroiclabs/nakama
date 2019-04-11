@@ -1,5 +1,6 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
+import queryString from 'query-string';
 
 import {Dispatch} from 'redux';
 import {connect} from 'react-redux';
@@ -51,33 +52,84 @@ interface PropsFromDispatch
 type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
+  filter: string,
+  banned: boolean,
+  tombstones: boolean
 };
 
 class Users extends Component<Props, State>
 {
-  public componentDidMount()
+  public constructor(props: Props)
   {
-    // const query = queryString.parse(this.props.location.search);
-    // if(query.user_id)
-    // {
-    //   (document.getElementById('user_id') as HTMLInputElement).value = query.user_id as string;
-    // }
-    this.props.fetchManyRequest({});
+    super(props);
+    this.state = {filter: '', banned: false, tombstones: false};
   }
   
-  public filter(filter: string)
+  public componentDidMount()
   {
-    const {history, fetchManyRequest} = this.props;
-    // if(user_id)
-    // {
-    //   (document.getElementById('user_id') as HTMLInputElement).value = user_id;
-    // }
-    // else
-    // {
-    //   user_id = (document.getElementById('user_id') as HTMLInputElement).value;
-    // }
+    const query = queryString.parse(this.props.location.search);
+    if(query.filter)
+    {
+      (document.getElementById('filter') as HTMLInputElement).value = query.filter as string;
+    }
+    this.setState({
+      filter: query.filter as string || '',
+      banned: !!query.banned,
+      tombstones: !!query.tombstones
+    });
+    this.props.fetchManyRequest({
+      filter: query.filter as string || '',
+      banned: !!query.banned,
+      tombstones: !!query.tombstones
+    });
+  }
+  
+  public all()
+  {
+    this.setState({
+      banned: false,
+      tombstones: false
+    });
+    this.props.fetchManyRequest({
+      filter: this.state.filter,
+      banned: false,
+      tombstones: false
+    });
+  }
+  
+  public banned()
+  {
+    this.setState({
+      banned: true,
+      tombstones: false
+    });
+    this.props.fetchManyRequest({
+      filter: this.state.filter,
+      banned: true,
+      tombstones: false
+    });
+  }
+  
+  public tombstones()
+  {
+    this.setState({
+      banned: false,
+      tombstones: true
+    });
+    this.props.fetchManyRequest({
+      filter: this.state.filter,
+      banned: false,
+      tombstones: true
+    });
+  }
+  
+  public filter()
+  {
+    const {history} = this.props;
+    const filter = (document.getElementById('filter') as HTMLInputElement).value;
     history.push(`/users?filter=${filter}`);
-    fetchManyRequest({filter});
+    this.setState({filter});
+    this.props.fetchManyRequest({filter});
   }
   
   public details(id: string)
@@ -88,11 +140,9 @@ class Users extends Component<Props, State>
   
   public remove_all()
   {
-    if(confirm('Are you sure you want to delete all objects?'))
+    if(confirm('Are you sure you want to delete all users?'))
     {
-      this.props.deleteManyRequest();
-      (document.getElementById('user_id') as HTMLInputElement).value = '';
-      this.props.fetchManyRequest({});
+      this.props.deleteManyRequest(this.state);
     }
   }
   
@@ -100,16 +150,15 @@ class Users extends Component<Props, State>
   {
     event.stopPropagation();
     event.preventDefault();
-    if(confirm('Are you sure you want to delete this object?'))
+    if(confirm('Are you sure you want to delete this user?'))
     {
-      this.props.deleteRequest(object);
-      (document.getElementById('user_id') as HTMLInputElement).value = '';
-      this.props.fetchManyRequest({});
+      this.props.deleteRequest(Object.assign(object, this.state));
     }
   }
   
   public render()
   {
+    const {banned, tombstones} = this.state;
     const {data} = this.props;
     return <Generic id="users">
       <Header />
@@ -122,31 +171,41 @@ class Users extends Component<Props, State>
               <Level.Item align="left">
                 <Level.Item>
                   <Title subtitle size={5}>
-                    <strong>{data.users.length}</strong> users
+                    <strong>{data.total_count}</strong> users
                   </Title>
                 </Level.Item>
                 
                 <Level.Item>
                   <Field kind="addons">
                     <Control>
-                      <Input type="text" placeholder="Find a user" />
+                      <Input id="filter" type="text" placeholder="Find a user" />
                     </Control>
                     <Control>
-                      <Button>Lookup</Button>
+                      <Button onClick={this.filter.bind(this)}>Lookup</Button>
                     </Control>
                   </Field>
                 </Level.Item>
                 
-                <Level.Item><strong>All</strong></Level.Item>
-                
-                <Level.Item><a href="#">Banned</a></Level.Item>
-                
-                <Level.Item><a href="#">Tombstones</a></Level.Item>
+                <Level.Item>{
+                  (!banned && !tombstones) ?
+                  <strong>All</strong> :
+                  <a onClick={this.all.bind(this)}>All</a>
+                }</Level.Item>
+                <Level.Item>{
+                  banned ?
+                  <strong>Banned</strong> :
+                  <a onClick={this.banned.bind(this)}>Banned</a>
+                }</Level.Item>
+                <Level.Item>{
+                  tombstones ?
+                  <strong>Tombstones</strong> :
+                  <a onClick={this.tombstones.bind(this)}>Tombstones</a>
+                }</Level.Item>
               </Level.Item>
 
               <Level.Item align="right">
                 <Level.Item>
-                  <Button>
+                  <Button onClick={this.remove_all.bind(this)}>
                     <Icon>
                       <FontAwesomeIcon icon="trash" />
                     </Icon>
@@ -168,17 +227,20 @@ class Users extends Component<Props, State>
               </Table.Head>
               <Table.Body>
                 {
-                  data.users.map((u, key) =>
+                  (data.users || []).map((user, key) =>
                     <Table.Row
                       key={`cell_${key}`}
-                      onClick={this.details.bind(this, u.id)}
+                      onClick={this.details.bind(this, user.id)}
                     >
-                      <Table.Cell>{u.id}</Table.Cell>
-                      <Table.Cell>{u.username}</Table.Cell>
-                      <Table.Cell>{u.display_name}</Table.Cell>
-                      <Table.Cell>{u.update_time}</Table.Cell>
+                      <Table.Cell>{user.id}</Table.Cell>
+                      <Table.Cell>{user.username}</Table.Cell>
+                      <Table.Cell>{user.display_name}</Table.Cell>
+                      <Table.Cell>{user.update_time}</Table.Cell>
                       <Table.Cell>
-                        <Button size="small">Delete</Button>
+                        <Button
+                          size="small"
+                          onClick={this.remove.bind(this, user)}
+                        >Delete</Button>
                       </Table.Cell>
                     </Table.Row>
                   )
@@ -202,8 +264,8 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   fetchManyRequest: (data: UsersObjectRequest) => dispatch(
     userActions.userFetchManyRequest(data)
   ),
-  deleteManyRequest: () => dispatch(
-    userActions.userDeleteManyRequest()
+  deleteManyRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteManyRequest(data)
   ),
   deleteRequest: (data: UserObjectRequest) => dispatch(
     userActions.userDeleteRequest(data)

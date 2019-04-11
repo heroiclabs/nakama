@@ -20,7 +20,6 @@
     "@types/react-router-dom": "^4.3.1",
     "chart.js": "^2.8.0",
     "classnames": "^2.2.6",
-    "moment": "^2.24.0",
     "query-string": "^6.4.2",
     "rbx": "^2.1.0",
     "react": "^16.8.4",
