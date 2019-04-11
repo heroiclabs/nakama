@@ -62,13 +62,24 @@ interface PropsFromState
 interface PropsFromDispatch
 {
   fetchRequest: typeof userActions.userExportRequest,
+  updateRequest: typeof userActions.userUpdateRequest,
+  deleteRequest: typeof userActions.userDeleteRequest,
+  
   fetchFriendRequest: typeof userActions.userFetchFriendRequest,
   fetchGroupRequest: typeof userActions.userFetchGroupRequest,
   fetchLedgerRequest: typeof userActions.userFetchLedgerRequest,
-  updateRequest: typeof userActions.userUpdateRequest,
-  deleteRequest: typeof userActions.userDeleteRequest,
+  
   banRequest: typeof userActions.userBanRequest,
   unbanRequest: typeof userActions.userUnbanRequest,
+  
+  unlinkSteamRequest: typeof userActions.userUnlinkSteamRequest,
+  unlinkGoogleRequest: typeof userActions.userUnlinkGoogleRequest,
+  unlinkGameCenterRequest: typeof userActions.userUnlinkGameCenterRequest,
+  unlinkFacebookRequest: typeof userActions.userUnlinkFacebookRequest,
+  unlinkEmailRequest: typeof userActions.userUnlinkEmailRequest,
+  unlinkDeviceRequest: typeof userActions.userUnlinkDeviceRequest,
+  unlinkCustomRequest: typeof userActions.userUnlinkCustomRequest,
+  
   deleteFriendRequest: typeof userActions.userDeleteFriendRequest,
   deleteGroupRequest: typeof userActions.userDeleteGroupRequest,
   deleteLedgerRequest: typeof userActions.userDeleteLedgerRequest
@@ -227,6 +238,45 @@ class UsersDetails extends Component<Props, State>
     }
   }
   
+  public unlink(type: string, event: React.FormEvent<HTMLFormElement>)
+  {
+    event.preventDefault();
+    const {match} = this.props;
+    if(confirm('Are you sure you want to unlink this user?'))
+    {
+      switch(type)
+      {
+        case 'steam':
+          this.props.unlinkSteamRequest(match.params);
+          break;
+        
+        case 'google':
+          this.props.unlinkGoogleRequest(match.params);
+          break;
+        
+        case 'gamecenter':
+          this.props.unlinkGameCenterRequest(match.params);
+          break;
+        
+        case 'facebook':
+          this.props.unlinkFacebookRequest(match.params);
+          break;
+        
+        case 'email':
+          this.props.unlinkEmailRequest(match.params);
+          break;
+        
+        case 'device':
+          this.props.unlinkDeviceRequest(match.params);
+          break;
+        
+        case 'custom':
+          this.props.unlinkCustomRequest(match.params);
+          break;
+      }
+    }
+  }
+  
   public render_profile()
   {
     const {data, updated, errors} = this.props;
@@ -262,7 +312,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="username"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.username}
                   />
                 </Control>
@@ -281,7 +331,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="display_name"
-                    maxlength="255"
+                    maxLength="255"
                     defaultValue={data.account.user.display_name}
                   />
                 </Control>
@@ -356,12 +406,14 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="facebook_id"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.facebook_id}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'facebook')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -378,12 +430,14 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="gamecenter_id"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.gamecenter_id}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'gamecenter')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -400,12 +454,14 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="google_id"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.google_id}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'google')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -422,12 +478,14 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="steam_id"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.steam_id}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'steam')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -444,7 +502,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="avatar_url"
-                    maxlength="512"
+                    maxLength="512"
                     defaultValue={data.account.user.avatar_url}
                   />
                 </Control>
@@ -463,7 +521,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="lang_tag"
-                    maxlength="18"
+                    maxLength="18"
                     defaultValue={data.account.user.lang_tag}
                   />
                 </Control>
@@ -482,7 +540,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="location"
-                    maxlength="255"
+                    maxLength="255"
                     defaultValue={data.account.user.location}
                   />
                 </Control>
@@ -501,7 +559,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="timezone"
-                    maxlength="255"
+                    maxLength="255"
                     defaultValue={data.account.user.timezone}
                   />
                 </Control>
@@ -548,12 +606,14 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     placeholder="(empty)"
                     name="custom_id"
-                    maxlength="128"
+                    maxLength="128"
                     defaultValue={data.account.user.custom_id}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'custom')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -576,7 +636,9 @@ class UsersDetails extends Component<Props, State>
                       />
                     </Control>
                     <Control>
-                      <Button>Unlink</Button>
+                      <Button
+                        onClick={this.unlink.bind(this, 'device')}
+                      >Unlink</Button>
                     </Control>
                   </Field>
                 </Field.Body>
@@ -595,12 +657,14 @@ class UsersDetails extends Component<Props, State>
                     disabled
                     type="text"
                     name="email"
-                    maxlength="255"
+                    maxLength="255"
                     defaultValue={data.account.user.email}
                   />
                 </Control>
                 <Control>
-                  <Button>Unlink</Button>
+                  <Button
+                    onClick={this.unlink.bind(this, 'email')}
+                  >Unlink</Button>
                 </Control>
               </Field>
             </Field.Body>
@@ -891,6 +955,13 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   fetchRequest: (data: UserObjectRequest) => dispatch(
     userActions.userExportRequest(data)
   ),
+  updateRequest: (data: UserObject) => dispatch(
+    userActions.userUpdateRequest(data)
+  ),
+  deleteRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteRequest(data)
+  ),
+  
   fetchFriendRequest: (data: UserObjectRequest) => dispatch(
     userActions.userFetchFriendRequest(data)
   ),
@@ -900,18 +971,36 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   fetchLedgerRequest: (data: UserObjectRequest) => dispatch(
     userActions.userFetchLedgerRequest(data)
   ),
-  updateRequest: (data: UserObject) => dispatch(
-    userActions.userUpdateRequest(data)
-  ),
-  deleteRequest: (data: UserObjectRequest) => dispatch(
-    userActions.userDeleteRequest(data)
-  ),
+  
   banRequest: (data: UserObjectRequest) => dispatch(
     userActions.userBanRequest(data)
   ),
   unbanRequest: (data: UserObjectRequest) => dispatch(
     userActions.userUnbanRequest(data)
   ),
+  
+  unlinkSteamRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkSteamRequest(data)
+  ),
+  unlinkGoogleRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkGoogleRequest(data)
+  ),
+  unlinkGameCenterRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkGameCenterRequest(data)
+  ),
+  unlinkFacebookRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkFacebookRequest(data)
+  ),
+  unlinkEmailRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkEmailRequest(data)
+  ),
+  unlinkDeviceRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkDeviceRequest(data)
+  ),
+  unlinkCustomRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkCustomRequest(data)
+  ),
+  
   deleteFriendRequest: (data: UserObjectRequest) => dispatch(
     userActions.userDeleteFriendRequest(data)
   ),
