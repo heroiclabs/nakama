@@ -17,9 +17,11 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/cockroachdb/cockroach-go/crdb"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -32,7 +34,7 @@ import (
 
 var ErrAccountNotFound = errors.New("account not found")
 
-func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
+func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, time.Time, error) {
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
@@ -51,21 +53,22 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var createTime pq.NullTime
 	var updateTime pq.NullTime
 	var verifyTime pq.NullTime
+	var disableTime pq.NullTime
 	var deviceIDs pq.StringArray
 
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
-	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs); err != nil {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrAccountNotFound
+			return nil, time.Time{}, ErrAccountNotFound
 		}
 		logger.Error("Error retrieving user account.", zap.Error(err))
-		return nil, err
+		return nil, time.Time{}, err
 	}
 
 	devices := make([]*api.AccountDevice, 0, len(deviceIDs))
@@ -107,7 +110,7 @@ WHERE u.id = $1`
 		Devices:    devices,
 		CustomId:   customID.String,
 		VerifyTime: verifyTimestamp,
-	}, nil
+	}, disableTime.Time, nil
 }
 
 func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userIDs []string) ([]*api.Account, error) {

@@ -28,7 +28,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiAccount"
+              "$ref": "#/definitions/nakamaconsoleAccount"
             }
           }
         },
@@ -95,6 +95,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleUpdateAccountRequest"
+            }
           }
         ],
         "tags": [
@@ -730,7 +738,7 @@
           "Console"
         ]
       },
-      "post": {
+      "put": {
         "summary": "Write a new storage object or replace an existing one.",
         "operationId": "WriteStorageObject",
         "responses": {
@@ -966,40 +974,6 @@
         }
       },
       "description": "A single group-role pair."
-    },
-    "apiAccount": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/apiUser",
-          "description": "The user object."
-        },
-        "wallet": {
-          "type": "string",
-          "description": "The user's wallet data."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the user."
-        },
-        "devices": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiAccountDevice"
-          },
-          "description": "The devices which belong to the user's account."
-        },
-        "custom_id": {
-          "type": "string",
-          "description": "The custom id in the user's account."
-        },
-        "verify_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the user's email was verified."
-        }
-      },
-      "description": "A user with additional account details. Always the current user."
     },
     "apiAccountDevice": {
       "type": "object",
@@ -1402,7 +1376,7 @@
       "type": "object",
       "properties": {
         "account": {
-          "$ref": "#/definitions/apiAccount",
+          "$ref": "#/definitions/nakamaconsoleAccount",
           "description": "The user's account details."
         },
         "objects": {
@@ -1627,6 +1601,112 @@
         }
       },
       "description": "Write a new storage object or update an existing one."
+    },
+    "nakamaapiAccount": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "The user object."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "The user's wallet data."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user."
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAccountDevice"
+          },
+          "description": "The devices which belong to the user's account."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "The custom id in the user's account."
+        },
+        "verify_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user's email was verified."
+        }
+      },
+      "description": "A user with additional account details. Always the current user."
+    },
+    "nakamaconsoleAccount": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/nakamaapiAccount",
+          "description": "The user's account details."
+        },
+        "disable_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the account was disabled."
+        }
+      },
+      "description": "Account information."
+    },
+    "nakamaconsoleUpdateAccountRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User ID to update."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Langtag."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "Custom ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email."
+        },
+        "device_ids": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Device ID modifications."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "Wallet."
+        }
+      },
+      "description": "Update user account information."
     }
   },
   "securityDefinitions": {

@@ -18,6 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -28,8 +31,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDeleteRequest) (*empty.Empty, error) {
@@ -113,13 +114,18 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	// Core user account.
-	account, err := GetAccount(ctx, s.logger, s.db, nil, userID)
+	account, disableTime, err := GetAccount(ctx, s.logger, s.db, nil, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+	}
+
+	acc := &console.Account{Account: account}
+	if disableTime.Unix() != 0 {
+		acc.DisableTime = &timestamp.Timestamp{Seconds: disableTime.Unix()}
 	}
 
 	// Friends.
@@ -196,7 +202,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	export := &console.AccountExport{
-		Account:            account,
+		Account:            acc,
 		Objects:            storageObjects,
 		Friends:            friends.GetFriends(),
 		Messages:           messages,
@@ -209,13 +215,13 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	return export, nil
 }
 
-func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*api.Account, error) {
+func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*console.Account, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	account, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
+	account, disableTime, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
 	if err != nil {
 		// Error already logged in function above.
 		if err == ErrAccountNotFound {
@@ -224,7 +230,12 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve user account.")
 	}
 
-	return account, nil
+	acc := &console.Account{Account: account}
+	if disableTime.Unix() != 0 {
+		acc.DisableTime = &timestamp.Timestamp{Seconds: disableTime.Unix()}
+	}
+
+	return acc, nil
 }
 
 func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.Friends, error) {

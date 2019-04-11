@@ -3,11 +3,12 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"testing"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/runtime"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestUpdateWalletSingleUser(t *testing.T) {
@@ -70,7 +71,7 @@ func TestUpdateWalletSingleUser(t *testing.T) {
 		}
 	}
 
-	account, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
+	account, _, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 	if err != nil {
 		t.Fatalf("error getting user: %v", err.Error())
 	}
@@ -156,7 +157,7 @@ func TestUpdateWalletMultiUser(t *testing.T) {
 	}
 
 	for _, userID := range userIDs {
-		account, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
+		account, _, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 		if err != nil {
 			t.Fatalf("error getting user: %v", err.Error())
 		}
@@ -248,7 +249,7 @@ func TestUpdateWalletsMultiUser(t *testing.T) {
 	}
 
 	for _, userID := range userIDs {
-		account, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
+		account, _, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 		if err != nil {
 			t.Fatalf("error getting user: %v", err.Error())
 		}
@@ -341,7 +342,7 @@ func TestUpdateWalletsMultiUserSharedChangeset(t *testing.T) {
 	}
 
 	for _, userID := range userIDs {
-		account, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
+		account, _, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 		if err != nil {
 			t.Fatalf("error getting user: %v", err.Error())
 		}
@@ -443,7 +444,7 @@ func TestUpdateWalletsMultiUserSharedChangesetDeductions(t *testing.T) {
 	}
 
 	for _, userID := range userIDs {
-		account, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
+		account, _, err := server.GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 		if err != nil {
 			t.Fatalf("error getting user: %v", err.Error())
 		}

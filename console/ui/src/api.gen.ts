@@ -47,21 +47,6 @@ export interface UserGroupListUserGroup {
   // The user's relationship to the group.
   state?: number;
 }
-/** A user with additional account details. Always the current user. */
-export interface ApiAccount {
-  // The custom id in the user's account.
-  custom_id?: string;
-  // The devices which belong to the user's account.
-  devices?: Array<ApiAccountDevice>;
-  // The email address of the user.
-  email?: string;
-  // The user object.
-  user?: ApiUser;
-  // The UNIX time when the user's email was verified.
-  verify_time?: string;
-  // The user's wallet data.
-  wallet?: string;
-}
 /** Send a device to the server. Used with authenticate/link/unlink and user. */
 export interface ApiAccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
@@ -246,7 +231,7 @@ export interface ApiUserGroupList {
 /** An export of all information stored for a user account. */
 export interface ConsoleAccountExport {
   // The user's account details.
-  account?: ApiAccount;
+  account?: NakamaconsoleAccount;
   // The user's friends.
   friends?: Array<ApiFriend>;
   // The user's groups.
@@ -337,6 +322,55 @@ export interface ConsoleWriteStorageObjectRequest {
   // Version for OCC.
   version?: string;
 }
+/** A user with additional account details. Always the current user. */
+export interface NakamaapiAccount {
+  // The custom id in the user's account.
+  custom_id?: string;
+  // The devices which belong to the user's account.
+  devices?: Array<ApiAccountDevice>;
+  // The email address of the user.
+  email?: string;
+  // The user object.
+  user?: ApiUser;
+  // The UNIX time when the user's email was verified.
+  verify_time?: string;
+  // The user's wallet data.
+  wallet?: string;
+}
+/** Account information. */
+export interface NakamaconsoleAccount {
+  // The user's account details.
+  account?: NakamaapiAccount;
+  // The UNIX time when the account was disabled.
+  disable_time?: string;
+}
+/** Update user account information. */
+export interface NakamaconsoleUpdateAccountRequest {
+  // Avatar URL.
+  avatar_url?: string;
+  // Custom ID.
+  custom_id?: string;
+  // Device ID modifications.
+  device_ids?: Map<string, string>;
+  // Display name.
+  display_name?: string;
+  // Email.
+  email?: string;
+  // User ID to update.
+  id?: string;
+  // Langtag.
+  lang_tag?: string;
+  // Location.
+  location?: string;
+  // Metadata.
+  metadata?: string;
+  // Timezone.
+  timezone?: string;
+  // Username.
+  username?: string;
+  // Wallet.
+  wallet?: string;
+}
 
 export const NakamaApi = (configuration: ConfigurationParameters = {
   basePath: BASE_PATH,
@@ -407,7 +441,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "DELETE", queryParams, _body, options)
     },
     /** Get detailed account information for a single user. */
-    getAccount(id: string, options: any = {}): Promise<ApiAccount> {
+    getAccount(id: string, options: any = {}): Promise<NakamaconsoleAccount> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -422,9 +456,12 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Update one or more fields on a user account. */
-    updateAccount(id: string, options: any = {}): Promise<any> {
+    updateAccount(id: string, body: NakamaconsoleUpdateAccountRequest, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
+      }
+      if (body === null || body === undefined) {
+        throw new Error("'body' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/account/{id}"
          .replace("{id}", encodeURIComponent(String(id)));
@@ -433,6 +470,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       } as any;
 
       let _body = null;
+      _body = JSON.stringify(body || {});
 
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
@@ -820,7 +858,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       let _body = null;
       _body = JSON.stringify(body || {});
 
-      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
+      return napi.doFetch(urlPath, "PUT", queryParams, _body, options)
     },
     /** Delete a storage object. */
     deleteStorageObject2(collection: string, key: string, userId: string, version: string, options: any = {}): Promise<any> {
