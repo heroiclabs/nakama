@@ -1,5 +1,17 @@
 import React, {Component} from 'react';
 import {RouteComponentProps} from 'react-router';
+
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as userActions from '../../store/users/actions';
+import {
+  UserObjectRequest,
+  UserObject,
+  UsersObjectRequest,
+  UsersObject
+} from '../../store/users/types';
+
 import {
   Button,
   Column,
@@ -22,22 +34,83 @@ import Sidebar from '../../components/sidebar';
  * https://dfee.github.io/rbx/
  */
 
-type Props = RouteComponentProps & {
-};
+interface PropsFromState
+{
+  loading: boolean,
+  errors: string|undefined,
+  data: UsersObject
+}
+
+interface PropsFromDispatch
+{
+  fetchManyRequest: typeof userActions.userFetchManyRequest,
+  deleteManyRequest: typeof userActions.userDeleteManyRequest,
+  deleteRequest: typeof userActions.userDeleteRequest
+}
+
+type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
 };
 
 class Users extends Component<Props, State>
 {
+  public componentDidMount()
+  {
+    // const query = queryString.parse(this.props.location.search);
+    // if(query.user_id)
+    // {
+    //   (document.getElementById('user_id') as HTMLInputElement).value = query.user_id as string;
+    // }
+    this.props.fetchManyRequest({});
+  }
+  
+  public filter(filter: string)
+  {
+    const {history, fetchManyRequest} = this.props;
+    // if(user_id)
+    // {
+    //   (document.getElementById('user_id') as HTMLInputElement).value = user_id;
+    // }
+    // else
+    // {
+    //   user_id = (document.getElementById('user_id') as HTMLInputElement).value;
+    // }
+    history.push(`/users?filter=${filter}`);
+    fetchManyRequest({filter});
+  }
+  
   public details(id: string)
   {
     const {history} = this.props;
     history.push(`/users/${id}`);
   }
   
+  public remove_all()
+  {
+    if(confirm('Are you sure you want to delete all objects?'))
+    {
+      this.props.deleteManyRequest();
+      (document.getElementById('user_id') as HTMLInputElement).value = '';
+      this.props.fetchManyRequest({});
+    }
+  }
+  
+  public remove(object: UserObject, event: React.FormEvent<Element>)
+  {
+    event.stopPropagation();
+    event.preventDefault();
+    if(confirm('Are you sure you want to delete this object?'))
+    {
+      this.props.deleteRequest(object);
+      (document.getElementById('user_id') as HTMLInputElement).value = '';
+      this.props.fetchManyRequest({});
+    }
+  }
+  
   public render()
   {
+    const {data} = this.props;
     return <Generic id="users">
       <Header />
       <Section>
@@ -49,7 +122,7 @@ class Users extends Component<Props, State>
               <Level.Item align="left">
                 <Level.Item>
                   <Title subtitle size={5}>
-                    <strong>8,106,085</strong> users
+                    <strong>{data.users.length}</strong> users
                   </Title>
                 </Level.Item>
                 
@@ -94,51 +167,22 @@ class Users extends Component<Props, State>
                 </Table.Row>
               </Table.Head>
               <Table.Body>
-                <Table.Row onClick={this.details.bind(this, '001b0970-3291-4176-b0da-a7743c3036e3')}>
-                  <Table.Cell>001b0970-3291-4176-b0da-a7743c3036e3</Table.Cell>
-                  <Table.Cell>NPxDpNDrAT</Table.Cell>
-                  <Table.Cell>NULL</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '0022791e-bd2f-4cc4-8ace-617d86b402fb')}>
-                  <Table.Cell>0022791e-bd2f-4cc4-8ace-617d86b402fb</Table.Cell>
-                  <Table.Cell>JNbhSTvuNj</Table.Cell>
-                  <Table.Cell>NULL</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '007d2e07-5d30-45c7-9c99-efa1dfa52e12')}>
-                  <Table.Cell>007d2e07-5d30-45c7-9c99-efa1dfa52e12</Table.Cell>
-                  <Table.Cell>waLyXIcHwN</Table.Cell>
-                  <Table.Cell>NULL</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '015c7bf7-8c83-43fb-919a-010365f4fba9')}>
-                  <Table.Cell>015c7bf7-8c83-43fb-919a-010365f4fba9</Table.Cell>
-                  <Table.Cell>BTqGCvsuMf</Table.Cell>
-                  <Table.Cell>NULL</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
-                <Table.Row onClick={this.details.bind(this, '01baf340-bc4c-4f71-b2ce-7008a0c14e5d')}>
-                  <Table.Cell>01baf340-bc4c-4f71-b2ce-7008a0c14e5d</Table.Cell>
-                  <Table.Cell>pqWYCaLSyp</Table.Cell>
-                  <Table.Cell>NULL</Table.Cell>
-                  <Table.Cell>2018-08-07 11:29:36.764366+00:00</Table.Cell>
-                  <Table.Cell>
-                    <Button size="small">Delete</Button>
-                  </Table.Cell>
-                </Table.Row>
+                {
+                  data.users.map((u, key) =>
+                    <Table.Row
+                      key={`cell_${key}`}
+                      onClick={this.details.bind(this, u.id)}
+                    >
+                      <Table.Cell>{u.id}</Table.Cell>
+                      <Table.Cell>{u.username}</Table.Cell>
+                      <Table.Cell>{u.display_name}</Table.Cell>
+                      <Table.Cell>{u.update_time}</Table.Cell>
+                      <Table.Cell>
+                        <Button size="small">Delete</Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  )
+                }
               </Table.Body>
             </Table>
           </Column>
@@ -148,4 +192,25 @@ class Users extends Component<Props, State>
   }
 }
 
-export default Users;
+const mapStateToProps = ({user}: ApplicationState) => ({
+  loading: user.loading,
+  errors: user.errors,
+  data: user.data
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchManyRequest: (data: UsersObjectRequest) => dispatch(
+    userActions.userFetchManyRequest(data)
+  ),
+  deleteManyRequest: () => dispatch(
+    userActions.userDeleteManyRequest()
+  ),
+  deleteRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userDeleteRequest(data)
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(Users);

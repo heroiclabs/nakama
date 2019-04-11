@@ -3,6 +3,12 @@ import moment from 'moment';
 import {Box, Generic, Column, Heading, Section, Table, Title} from 'rbx';
 import {Bar} from 'react-chartjs-2';
 
+import {Dispatch} from 'redux';
+import {connect} from 'react-redux';
+import {ApplicationState, ConnectedReduxProps} from '../../store';
+import * as statusActions from '../../store/status/actions';
+import {StatusNodes} from '../../store/status/types';
+
 import Header from '../../components/header';
 import Sidebar from '../../components/sidebar';
 
@@ -12,8 +18,27 @@ import Sidebar from '../../components/sidebar';
  * http://momentjs.com/docs/
  */
 
-class Status extends Component
+interface PropsFromState
 {
+  loading: boolean,
+  data: StatusNodes,
+  errors: string|undefined
+}
+
+interface PropsFromDispatch
+{
+  fetchRequest: typeof statusActions.statusRequest
+}
+
+type Props = PropsFromState & PropsFromDispatch & ConnectedReduxProps;
+
+class Status extends Component<Props>
+{
+  public componentDidMount()
+  {
+    this.props.fetchRequest();
+  }
+  
   public render()
   {
     const chartColors = {
@@ -38,14 +63,14 @@ class Status extends Component
     }
     
     let date = moment('April 01 2017', 'MMMM DD YYYY');
-    const data = [randomBar(date, 30)];
+    const datum = [randomBar(date, 30)];
     const labels = [date];
     
-    while(data.length < 60)
+    while(datum.length < 60)
     {
       date = date.clone().add(1, 'd');
       if (date.isoWeekday() <= 5) {
-        data.push(randomBar(date, data[data.length - 1].y));
+        datum.push(randomBar(date, datum[datum.length - 1].y));
         labels.push(date);
       }
     }
@@ -60,7 +85,7 @@ class Status extends Component
           label: 'nakama-0',
           backgroundColor: chartColors.white,
           borderColor: chartColors.red,
-          data: data,
+          data: datum,
           type: 'line',
           pointRadius: 0,
           fill: false,
@@ -70,7 +95,7 @@ class Status extends Component
           label: 'nakama-1',
           ackgroundColor: chartColors.white,
           borderColor: chartColors.blue,
-          data: data,
+          data: datum,
           type: 'line',
           pointRadius: 0,
           fill: false,
@@ -97,6 +122,57 @@ class Status extends Component
       }
     };
     
+    const {data} = this.props;
+    
+    let avg_latency_ms = 0;
+    let avg_rate_sec = 0;
+    let avg_input_kbs = 0;
+    let avg_output_kbs = 0;
+    if(data.nodes.length)
+    {
+      avg_latency_ms = Math.round(
+        (
+          data.nodes
+            .map(n => n.avg_latency_ms)
+            .reduce((total, value) => total + value, 0) / data.nodes.length
+        ) * 1000
+      ) / 1000;
+      avg_rate_sec = Math.round(
+        (
+          data.nodes
+            .map(n => n.avg_rate_sec)
+            .reduce((total, value) => total + value, 0) / data.nodes.length
+        ) * 1000
+      ) / 1000;
+      avg_input_kbs = Math.round(
+        (
+          data.nodes
+            .map(n => n.avg_input_kbs)
+            .reduce((total, value) => total + value, 0) / data.nodes.length
+        ) * 1000
+      ) / 1000;
+      avg_output_kbs = Math.round(
+        (
+          data.nodes
+            .map(n => n.avg_output_kbs)
+            .reduce((total, value) => total + value, 0) / data.nodes.length
+        ) * 1000
+      ) / 1000;
+    }
+    
+    const total_sessions = data.nodes
+      .map(n => n.sessions || 0)
+      .reduce((total, value) => total + value, 0);
+    const total_presences = data.nodes
+      .map(n => n.presences || 0)
+      .reduce((total, value) => total + value, 0);
+    const total_authoritative_matches = data.nodes
+      .map(n => n.authoritative_matches || 0)
+      .reduce((total, value) => total + value, 0);
+    const total_goroutine_count = data.nodes
+      .map(n => n.goroutine_count || 0)
+      .reduce((total, value) => total + value, 0);
+    
     return <Generic id="status">
       <Header />
       <Section>
@@ -108,68 +184,28 @@ class Status extends Component
               <Column size={3}>
                 <Box>
                   <Heading>Average Latency (ms)</Heading>
-                  <Title as="h3">80.00</Title>
-                  <Column.Group multiline>
-                    <Column>
-                      <Heading>Min.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                    <Column>
-                      <Heading>Hr.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                  </Column.Group>
+                  <Title as="h3">{avg_latency_ms}</Title>
                 </Box>
               </Column>
 
               <Column size={3}>
                 <Box>
                   <Heading>Rate (rpc/s)</Heading>
-                  <Title as="h3">0.016</Title>
-                  <Column.Group multiline>
-                    <Column>
-                      <Heading>Min.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                    <Column>
-                      <Heading>Hr.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                  </Column.Group>
+                  <Title as="h3">{avg_rate_sec}</Title>
                 </Box>
               </Column>
 
               <Column size={3}>
                 <Box>
                   <Heading>Input (kb/s)</Heading>
-                  <Title as="h3">0.00</Title>
-                  <Column.Group multiline>
-                    <Column>
-                      <Heading>Min.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                    <Column>
-                      <Heading>Hr.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                  </Column.Group>
+                  <Title as="h3">{avg_input_kbs}</Title>
                 </Box>
               </Column>
 
               <Column size={3}>
                 <Box>
                   <Heading>Output (kb/s)</Heading>
-                  <Title as="h3">0.00</Title>
-                  <Column.Group multiline>
-                    <Column>
-                      <Heading>Min.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                    <Column>
-                      <Heading>Hr.</Heading>
-                      <Title as="h3" size={5}>0.00</Title>
-                    </Column>
-                  </Column.Group>
+                  <Title as="h3">{avg_output_kbs}</Title>
                 </Box>
               </Column>
             </Column.Group>
@@ -197,27 +233,24 @@ class Status extends Component
                   <Table.Foot>
                     <Table.Row>
                       <Table.Heading />
-                      <Table.Heading>227</Table.Heading>
-                      <Table.Heading>516</Table.Heading>
-                      <Table.Heading>1</Table.Heading>
-                      <Table.Heading>809</Table.Heading>
+                      <Table.Heading>{total_sessions}</Table.Heading>
+                      <Table.Heading>{total_presences}</Table.Heading>
+                      <Table.Heading>{total_authoritative_matches}</Table.Heading>
+                      <Table.Heading>{total_goroutine_count}</Table.Heading>
                     </Table.Row>
                   </Table.Foot>
                   <Table.Body>
-                    <Table.Row>
-                      <Table.Cell>nakama-0</Table.Cell>
-                      <Table.Cell>123</Table.Cell>
-                      <Table.Cell>307</Table.Cell>
-                      <Table.Cell>0</Table.Cell>
-                      <Table.Cell>438</Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>nakama-1</Table.Cell>
-                      <Table.Cell>104</Table.Cell>
-                      <Table.Cell>209</Table.Cell>
-                      <Table.Cell>1</Table.Cell>
-                      <Table.Cell>371</Table.Cell>
-                    </Table.Row>
+                    {
+                      data.nodes.map((n, key) =>
+                        <Table.Row key={`cell_${key}`}>
+                          <Table.Cell>{n.name}</Table.Cell>
+                          <Table.Cell>{n.sessions || 0}</Table.Cell>
+                          <Table.Cell>{n.presences || 0}</Table.Cell>
+                          <Table.Cell>{n.authoritative_matches || 0}</Table.Cell>
+                          <Table.Cell>{n.goroutine_count || 0}</Table.Cell>
+                        </Table.Row>
+                      )
+                    }
                   </Table.Body>
                 </Table>
               </Column>
@@ -238,4 +271,19 @@ class Status extends Component
   }
 }
 
-export default Status;
+const mapStateToProps = ({status}: ApplicationState) => ({
+  loading: status.loading,
+  errors: status.errors,
+  data: status.data
+});
+
+const mapDispatchToProps = (dispatch: Dispatch) => ({
+  fetchRequest: () => dispatch(
+    statusActions.statusRequest()
+  )
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(Status);

@@ -56,8 +56,6 @@ export interface Config
   warnings?: Warning[]
 };
 
-export type ApiResponse = Record<string, any>;
-
 export enum ConfigurationActionTypes
 {
   FETCH_REQUEST = '@@configuration/FETCH_REQUEST',
