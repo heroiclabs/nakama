@@ -26,7 +26,6 @@ function* handleLogin({payload: data}: AnyAction)
   catch(err)
   {
     localStorage.clear();
-    console.error(err);
     if(err.json)
     {
       const json = yield err.json();
@@ -34,7 +33,7 @@ function* handleLogin({payload: data}: AnyAction)
     }
     else if(err instanceof Error)
     {
-      yield put(loginError(err.stack!));
+      yield put(loginError('A network error occured. Are you sure the server is running and you are connected to the network?'));
     }
     else
     {

@@ -23,6 +23,7 @@ import {
   Icon,
   Input,
   Level,
+  Notification,
   Section,
   Table,
   Title
@@ -54,7 +55,9 @@ interface PropsFromDispatch
 type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type State = {
-  format: null|string
+  format: null|string,
+  uploaded: boolean,
+  failed: boolean
 };
 
 class Storage extends Component<Props, State>
@@ -62,7 +65,7 @@ class Storage extends Component<Props, State>
   public constructor(props: Props)
   {
     super(props);
-    this.state = {format: null};
+    this.state = {format: null, uploaded: false, failed: false};
   }
   
   public componentDidMount()
@@ -94,7 +97,7 @@ class Storage extends Component<Props, State>
   {
     event.stopPropagation();
     event.preventDefault();
-    this.setState({format});
+    this.setState({format, uploaded: false, failed: false});
   }
   
   public files(files: any[])
@@ -104,7 +107,7 @@ class Storage extends Component<Props, State>
     
       reader.onabort = () => console.error('File reading was aborted.');
       reader.onerror = () => console.error('File reading has failed.');
-      reader.onload = () =>
+      reader.onload = (() =>
       {
         const boundary = '-----------------------------' + new Date().getTime();
         const body =
@@ -116,19 +119,27 @@ class Storage extends Component<Props, State>
             'text/plain'
           ) + '\n\n' + reader.result + boundary + '--';
         
-        window.nakama_api.doFetch(
-          '/v2/console/storage/import',
-          'POST',
-          {},
-          body,
-          {
-            headers:
+        try
+        {
+          window.nakama_api.doFetch(
+            '/v2/console/storage/import',
+            'POST',
+            {},
+            body,
             {
-              'Content-Type': `multipart/form-data; boundary=${boundary}`
+              headers:
+              {
+                'Content-Type': `multipart/form-data; boundary=${boundary}`
+              }
             }
-          }
-        );
-      };
+          );
+          this.setState({uploaded: true, failed: false});
+        }
+        catch(err)
+        {
+          this.setState({uploaded: false, failed: true});
+        }
+      }).bind(this);
     
     files.forEach(file => reader.readAsBinaryString(file));
   }
@@ -164,7 +175,7 @@ class Storage extends Component<Props, State>
   public render()
   {
     const {data} = this.props;
-    const {format} = this.state;
+    const {format, uploaded, failed} = this.state;
     return <Generic id="storage">
       <Header />
       <Section>
@@ -269,6 +280,16 @@ class Storage extends Component<Props, State>
                   </div>
                 )}
               </Dropzone> :
+              null
+            }
+            {
+              uploaded ?
+              <Notification color="success">Successfully uploaded the file.</Notification> :
+              null
+            }
+            {
+              failed ?
+              <Notification color="danger">Failed to upload the file.</Notification> :
               null
             }
             

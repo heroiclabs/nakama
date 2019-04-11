@@ -81,7 +81,7 @@ ReactDOM.render(
       <Switch>
         <Route path="/storage/:collection/:key/:user_id" component={StorageDetails} />
         <Route path="/storage" component={Storage} />
-        <Route path="/users/:user_id" component={UsersDetails} />
+        <Route path="/users/:id" component={UsersDetails} />
         <Route path="/users" component={Users} />
         <Route path="/configuration" component={Configuration} />
         <Route path="/status" component={Status} />
