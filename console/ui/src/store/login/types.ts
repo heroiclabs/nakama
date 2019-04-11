@@ -10,8 +10,6 @@ export interface Token
   token: string
 };
 
-export type ApiResponse = Record<string, any>;
-
 export enum LoginActionTypes
 {
   LOGIN_REQUEST = '@@login/LOGIN_REQUEST',

@@ -10,7 +10,10 @@ const json_to_csv = (json: any[]) =>
           new RegExp('\\', 'g'),
           ''
         ) :
-        (`${row[field]}`.includes('"') ? `"${row[field]}"` : row[field])
+        (`${row[field]}`.includes('"') ? `"${row[field].replace(
+          new RegExp('"', 'g'),
+          '""'
+        )}"` : row[field])
       )
     ).join(',')
   );
