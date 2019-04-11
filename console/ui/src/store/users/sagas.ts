@@ -636,6 +636,7 @@ function* handleUnlinkSteam({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkSteamSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -676,6 +677,7 @@ function* handleUnlinkGoogle({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkGoogleSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -716,6 +718,7 @@ function* handleUnlinkGameCenter({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkGameCenterSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -756,6 +759,7 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkFacebookSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -796,6 +800,7 @@ function* handleUnlinkEmail({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkEmailSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -836,6 +841,7 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkDeviceSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -876,6 +882,7 @@ function* handleUnlinkCustom({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkCustomSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
