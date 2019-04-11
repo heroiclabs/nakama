@@ -24,8 +24,6 @@ export interface Storages
   total_count: number
 };
 
-export type ApiResponse = Record<string, any>;
-
 export enum StorageActionTypes
 {
   FETCH_MANY_REQUEST = '@@storage/FETCH_MANY_REQUEST',

@@ -13,9 +13,11 @@ import {NakamaApi} from './api.gen';
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {
   faAngleDown,
+  faBan,
   faFile,
   faFileCsv,
   faFileExport,
+  faLink,
   faSignOutAlt,
   faTrash,
   faUsersCog
@@ -41,16 +43,13 @@ declare global
   }
 }
 
-window.nakama_api = NakamaApi({
-  basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
-  timeoutMs: 5000
-});
-
 library.add(
   faAngleDown,
+  faBan,
   faFile,
   faFileCsv,
   faFileExport,
+  faLink,
   faSignOutAlt,
   faTrash,
   faUsersCog
@@ -64,13 +63,25 @@ const store = createStore(
 );
 sagaMiddleware.run(rootSaga);
 
+const state = store.getState();
+window.nakama_api = NakamaApi({
+  basePath: process.env.REACT_APP_BASE_PATH || 'http://127.0.0.1:80',
+  bearerToken: (
+    state &&
+    state.login &&
+    state.login.data &&
+    state.login.data.token
+  ) || localStorage.getItem('token') || '',
+  timeoutMs: 5000
+});
+
 ReactDOM.render(
   <Provider store={store}>
     <Router>
       <Switch>
         <Route path="/storage/:collection/:key/:user_id" component={StorageDetails} />
         <Route path="/storage" component={Storage} />
-        <Route path="/users/:id" component={UsersDetails} />
+        <Route path="/users/:user_id" component={UsersDetails} />
         <Route path="/users" component={Users} />
         <Route path="/configuration" component={Configuration} />
         <Route path="/status" component={Status} />
