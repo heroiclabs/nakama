@@ -41,7 +41,13 @@ export const usersReducer: Reducer<UsersState> = (state = initialUsersState, act
 const initialUserState: UserState = {
   data:
   {
-    id: ''
+    account:
+    {
+      user: {id: ''},
+      wallet: ''
+    },
+    leaderboard_records: [],
+    wallet_ledgers: []
   },
   ledgers: [],
   friends: [],

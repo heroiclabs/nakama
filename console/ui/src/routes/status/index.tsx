@@ -1,5 +1,4 @@
 import React, {Component} from 'react';
-import moment from 'moment';
 import {Box, Generic, Column, Heading, Section, Table, Title} from 'rbx';
 import {Bar} from 'react-chartjs-2';
 
@@ -32,133 +31,200 @@ interface PropsFromDispatch
 
 type Props = PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
-class Status extends Component<Props>
+type Point = {
+  y: number
+};
+
+type State = {
+  [key:string]: any,
+  avg_latency_ms: number,
+  avg_rate_sec: number,
+  avg_input_kbs: number,
+  avg_output_kbs: number,
+  latency_ms: Point[],
+  rate_sec: Point[],
+  input_kbs: Point[],
+  output_kbs: Point[],
+  interval: undefined|number
+};
+
+class Status extends Component<Props, State>
 {
+  public constructor(props: Props)
+  {
+    super(props);
+    this.state = {
+      avg_latency_ms: 0,
+      avg_rate_sec: 0,
+      avg_input_kbs: 0,
+      avg_output_kbs: 0,
+      latency_ms: [],
+      rate_sec: [],
+      input_kbs: [],
+      output_kbs: [],
+      interval: undefined
+    };
+  }
+  
+  public componentWillReceiveProps(next: Props)
+  {
+    const {
+      latency_ms,
+      rate_sec,
+      input_kbs,
+      output_kbs,
+      labels
+    } = this.state;
+    const {data} = next;
+    
+    if(
+      data &&
+      data.nodes &&
+      data.nodes.length
+    )
+    {
+      let avg_latency_ms = 0;
+      let avg_rate_sec = 0;
+      let avg_input_kbs = 0;
+      let avg_output_kbs = 0;
+      if(data.nodes[0].avg_latency_ms)
+      {
+        avg_latency_ms = Math.round(
+          (
+            data.nodes
+              .map(n => n.avg_latency_ms)
+              .reduce((total, value) => total + value, 0) / data.nodes.length
+          ) * 1000
+        ) / 1000;
+      }
+      if(data.nodes[0].avg_rate_sec)
+      {
+        avg_rate_sec = Math.round(
+          (
+            data.nodes
+              .map(n => n.avg_rate_sec)
+              .reduce((total, value) => total + value, 0) / data.nodes.length
+          ) * 1000
+        ) / 1000;
+      }
+      if(data.nodes[0].avg_input_kbs)
+      {
+        avg_input_kbs = Math.round(
+          (
+            data.nodes
+              .map(n => n.avg_input_kbs)
+              .reduce((total, value) => total + value, 0) / data.nodes.length
+          ) * 1000
+        ) / 1000;
+      }
+      if(data.nodes[0].avg_output_kbs)
+      {
+        avg_output_kbs = Math.round(
+          (
+            data.nodes
+              .map(n => n.avg_output_kbs)
+              .reduce((total, value) => total + value, 0) / data.nodes.length
+          ) * 1000
+        ) / 1000;
+      }
+      
+      latency_ms.push({
+        y: avg_latency_ms
+      });
+      rate_sec.push({
+        y: avg_rate_sec
+      });
+      input_kbs.push({
+        y: avg_input_kbs
+      });
+      output_kbs.push({
+        y: avg_output_kbs
+      });
+      
+      this.setState({
+        avg_latency_ms,
+        avg_rate_sec,
+        avg_input_kbs,
+        avg_output_kbs,
+        latency_ms,
+        rate_sec,
+        input_kbs,
+        output_kbs
+      });
+    }
+  }
+  
   public componentDidMount()
   {
     this.props.fetchRequest();
+    this.setState({interval: window.setInterval(this.props.fetchRequest, 5000) as number});
   }
   
-  public render()
+  public componentWillUnmount()
   {
-    const chartColors = {
-      white: 'rgb(255, 255, 255)',
-      red: 'rgb(255, 99, 132)',
-      blue: 'rgb(54, 162, 235)'
+    window.clearInterval(this.state.interval);
+    this.setState({interval: undefined});
+  }
+  
+  public generate_cfg(type: string)
+  {
+    const {data} = this.props;
+    const chartColors = [
+      'rgb(255, 255, 255)',
+      'rgb(255, 99, 132)',
+      'rgb(54, 162, 235)'
+    ];
+    const labels: {[key:string]: string} = {
+      latency_ms: 'Latency (ms)',
+      rate_sec: 'Rate (rpc/s)',
+      input_kbs: 'Input (kb/s)',
+      output_kbs: 'Output (kb/s)'
     };
     
-    function randomNumber(min: any, max: any)
-    {
-      return Math.random() * (max - min) + min;
-    }
-    
-    function randomBar(date: any, lastClose: any)
-    {
-      var open = randomNumber(lastClose * 0.95, lastClose * 1.05);
-      var close = randomNumber(open * 0.95, open * 1.05);
-      return {
-        t: date.valueOf(),
-        y: close
-      };
-    }
-    
-    let date = moment('April 01 2017', 'MMMM DD YYYY');
-    const datum = [randomBar(date, 30)];
-    const labels = [date];
-    
-    while(datum.length < 60)
-    {
-      date = date.clone().add(1, 'd');
-      if (date.isoWeekday() <= 5) {
-        datum.push(randomBar(date, datum[datum.length - 1].y));
-        labels.push(date);
-      }
-    }
-    
-    const cfg = {
+    return {
       width: 600,
       height: 150,
       data:
       {
-        labels: labels,
-        datasets: [{
-          label: 'nakama-0',
-          backgroundColor: chartColors.white,
-          borderColor: chartColors.red,
-          data: datum,
+        datasets: data.nodes.map((n, i) => ({
+          label: n.name,
+          backgroundColor: chartColors[0],
+          borderColor: chartColors[i + 1] || chartColors[1],
+          data: this.state[type],
           type: 'line',
           pointRadius: 0,
           fill: false,
           lineTension: 0,
           borderWidth: 2
-        }, {
-          label: 'nakama-1',
-          ackgroundColor: chartColors.white,
-          borderColor: chartColors.blue,
-          data: datum,
-          type: 'line',
-          pointRadius: 0,
-          fill: false,
-          lineTension: 0,
-          borderWidth: 2
-        }]
+        }))
       },
       options: {
         scales: {
-          xAxes: [{
-            type: 'time',
-            distribution: 'series',
-            ticks: {
-              source: 'labels'
-            }
-          }],
           yAxes: [{
             scaleLabel: {
               display: true,
-              labelString: 'Latency (ms)'
+              labelString: labels[type]
             }
           }]
         }
       }
     };
-    
+  }
+  
+  public render()
+  {
+    const {
+      avg_latency_ms,
+      avg_rate_sec,
+      avg_input_kbs,
+      avg_output_kbs
+    } = this.state;
     const {data} = this.props;
     
-    let avg_latency_ms = 0;
-    let avg_rate_sec = 0;
-    let avg_input_kbs = 0;
-    let avg_output_kbs = 0;
-    if(data.nodes.length)
-    {
-      avg_latency_ms = Math.round(
-        (
-          data.nodes
-            .map(n => n.avg_latency_ms)
-            .reduce((total, value) => total + value, 0) / data.nodes.length
-        ) * 1000
-      ) / 1000;
-      avg_rate_sec = Math.round(
-        (
-          data.nodes
-            .map(n => n.avg_rate_sec)
-            .reduce((total, value) => total + value, 0) / data.nodes.length
-        ) * 1000
-      ) / 1000;
-      avg_input_kbs = Math.round(
-        (
-          data.nodes
-            .map(n => n.avg_input_kbs)
-            .reduce((total, value) => total + value, 0) / data.nodes.length
-        ) * 1000
-      ) / 1000;
-      avg_output_kbs = Math.round(
-        (
-          data.nodes
-            .map(n => n.avg_output_kbs)
-            .reduce((total, value) => total + value, 0) / data.nodes.length
-        ) * 1000
-      ) / 1000;
-    }
+    const cfg_latency_ms = this.generate_cfg('latency_ms');
+    const cfg_rate_sec = this.generate_cfg('rate_sec');
+    const cfg_input_kbs = this.generate_cfg('input_kbs');
+    const cfg_output_kbs = this.generate_cfg('output_kbs');
     
     const total_sessions = data.nodes
       .map(n => n.sessions || 0)
@@ -258,10 +324,10 @@ class Status extends Component<Props>
     
             <Column.Group>
               <Column>
-                <Bar {...cfg} />
-                <Bar {...cfg} />
-                <Bar {...cfg} />
-                <Bar {...cfg} />
+                <Bar {...cfg_latency_ms} redraw />
+                <Bar {...cfg_rate_sec} redraw />
+                <Bar {...cfg_input_kbs} redraw />
+                <Bar {...cfg_output_kbs} redraw />
               </Column>
             </Column.Group>
           </Column>

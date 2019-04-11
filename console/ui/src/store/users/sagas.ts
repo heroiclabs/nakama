@@ -88,7 +88,7 @@ function* handleFetchMany({payload: data}: AnyAction)
   }
 }
 
-function* handleDeleteMany()
+function* handleDeleteMany({payload: data}: AnyAction)
 {
   try
   {
@@ -100,6 +100,10 @@ function* handleDeleteMany()
     else
     {
       yield put(userDeleteManySuccess());
+      if(typeof data.filter !== 'undefined')
+      {
+        yield handleFetchMany({type: '@@user/FETCH_MANY_REQUEST', payload: data});
+      }
     }
   }
   catch(err)
@@ -211,7 +215,8 @@ function* handleUpdate({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.updateAccount,
-      data && data.id
+      data && data.id,
+      data
     );
     if(res.error)
     {
@@ -253,7 +258,8 @@ function* handleDelete({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.deleteAccount,
-      data && data.id
+      data && data.id,
+      data && data.recorded
     );
     if(res.error)
     {
@@ -262,6 +268,10 @@ function* handleDelete({payload: data}: AnyAction)
     else
     {
       yield put(userDeleteSuccess());
+      if(typeof data.filter !== 'undefined')
+      {
+        yield handleFetchMany({type: '@@user/FETCH_MANY_REQUEST', payload: data});
+      }
     }
   }
   catch(err)
@@ -302,6 +312,7 @@ function* handleBan({payload: data}: AnyAction)
     else
     {
       yield put(userBanSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -342,6 +353,7 @@ function* handleUnban({payload: data}: AnyAction)
     else
     {
       yield put(userUnbanSuccess());
+      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -381,7 +393,7 @@ function* handleFetchLedger({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchLedgerSuccess(res));
+      yield put(userFetchLedgerSuccess(res.items));
     }
   }
   catch(err)
@@ -413,7 +425,8 @@ function* handleDeleteLedger({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.deleteWalletLedger,
-      data && data.id
+      data && data.id,
+      data && data.walletId
     );
     if(res.error)
     {
@@ -422,6 +435,7 @@ function* handleDeleteLedger({payload: data}: AnyAction)
     else
     {
       yield put(userDeleteLedgerSuccess());
+      yield handleFetchLedger({type: '@@user/FETCH_MANY_LEDGER_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -461,7 +475,7 @@ function* handleFetchFriend({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchFriendSuccess(res));
+      yield put(userFetchFriendSuccess(res.friends || []));
     }
   }
   catch(err)
@@ -541,7 +555,7 @@ function* handleFetchGroup({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchGroupSuccess(res));
+      yield put(userFetchGroupSuccess(res.groups || []));
     }
   }
   catch(err)

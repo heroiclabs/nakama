@@ -39,7 +39,8 @@ interface PropsFromState
 interface PropsFromDispatch
 {
   fetchRequest: typeof loginActions.loginRequest,
-  successRequest: typeof loginActions.loginSuccess
+  successRequest: typeof loginActions.loginSuccess,
+  logoutRequest: typeof loginActions.logoutRequest
 }
 
 type Props = RouteComponentProps & PropsFromState & PropsFromDispatch & ConnectedReduxProps;
@@ -49,6 +50,7 @@ class Login extends Component<Props>
   public constructor(props: Props)
   {
     super(props);
+    this.props.logoutRequest();
     if(localStorage.getItem('token'))
     {
       this.props.successRequest({token: localStorage.getItem('token') as string});
@@ -92,7 +94,7 @@ class Login extends Component<Props>
             <Column size="one-third">
               {
                 errors ?
-                <Notification color="danger">Your credentials are invalid.</Notification> :
+                <Notification color="danger">{errors}</Notification> :
                 null
               }
               <Card>
@@ -159,6 +161,9 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   ),
   successRequest: (data: Token) => dispatch(
     loginActions.loginSuccess(data)
+  ),
+  logoutRequest: () => dispatch(
+    loginActions.logoutRequest()
   )
 });
 

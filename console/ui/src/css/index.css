@@ -15,53 +15,17 @@ body
   margin-bottom: 20px;
 }
 
-#users thead th:nth-child(1)
-{
-  width: 35%;
-}
-#users thead th:nth-child(2)
-{
-  width: 15%;
-}
-#users thead th:nth-child(3)
-{
-  width: 15%;
-}
-#users thead th:nth-child(4)
-{
-  width: 25%;
-}
-#users thead th:nth-child(5)
-{
-  width: 10%;
-}
 #users td
 {
   cursor: pointer;
 }
 
-#users thead th:nth-child(1)
-{
-  width: 35%;
-}
-#users thead th:nth-child(2)
-{
-  width: 15%;
-}
-#users thead th:nth-child(3)
-{
-  width: 15%;
-}
-#users thead th:nth-child(4)
-{
-  width: 25%;
-}
-#users thead th:nth-child(5)
-{
-  width: 10%;
-}
 #storage td
 {
   cursor: pointer;
 }
 
+.notification
+{
+  padding: 0.4rem 1rem 0.4rem 1rem;
+}

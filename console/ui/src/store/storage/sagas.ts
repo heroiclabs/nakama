@@ -152,6 +152,14 @@ function* handleFetch({payload: data}: AnyAction)
     }
     else
     {
+      if(!res.permission_read)
+      {
+        res.permission_read = 0;
+      }
+      if(!res.permission_write)
+      {
+        res.permission_write = 0;
+      }
       yield put(storageFetchSuccess(res));
     }
   }
