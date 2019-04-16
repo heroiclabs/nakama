@@ -48,6 +48,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageFetchManyError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {
@@ -85,6 +86,7 @@ function* handleDeleteMany()
     else if(err instanceof Error)
     {
       yield put(storageDeleteManyError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {
@@ -128,6 +130,7 @@ function* handleCreate({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageCreateError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {
@@ -178,6 +181,7 @@ function* handleFetch({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageFetchError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {
@@ -223,6 +227,7 @@ function* handleUpdate({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageUpdateError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {
@@ -265,6 +270,7 @@ function* handleDelete({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageDeleteError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {

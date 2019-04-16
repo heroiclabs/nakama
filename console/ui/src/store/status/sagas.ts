@@ -32,6 +32,7 @@ function* handleFetch()
     else if(err instanceof Error)
     {
       yield put(statusError(err.stack!));
+      window.location.href = '/login';
     }
     else
     {

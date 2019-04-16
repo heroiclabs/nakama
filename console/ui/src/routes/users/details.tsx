@@ -9,6 +9,7 @@ import * as userActions from '../../store/users/actions';
 import {
   UserObjectRequest,
   UserObject,
+  AccountObject,
   ExportObject,
   FriendObject,
   GroupObject,
@@ -54,6 +55,7 @@ interface PropsFromState
   errors: string|undefined,
   updated: boolean,
   data: ExportObject,
+  account: AccountObject,
   friends: FriendObject[],
   groups: GroupObject[],
   ledgers: LedgerObject[]
@@ -61,9 +63,10 @@ interface PropsFromState
 
 interface PropsFromDispatch
 {
-  fetchRequest: typeof userActions.userExportRequest,
+  fetchRequest: typeof userActions.userFetchRequest,
   updateRequest: typeof userActions.userUpdateRequest,
   deleteRequest: typeof userActions.userDeleteRequest,
+  exportRequest: typeof userActions.userExportRequest,
   
   fetchFriendRequest: typeof userActions.userFetchFriendRequest,
   fetchGroupRequest: typeof userActions.userFetchGroupRequest,
@@ -99,13 +102,31 @@ class UsersDetails extends Component<Props, State>
     this.state = {tab: 'profile'};
   }
   
+  public componentWillReceiveProps(next: Props)
+  {
+    if(
+      this.props.data.account.user.id !== next.data.account.user.id &&
+      next.data.account.user.id
+    )
+    {
+      this.download(next.data);
+    }
+  }
+  
   public componentDidMount()
   {
-    const {match} = this.props;
-    this.props.fetchRequest(match.params);
-    this.props.fetchFriendRequest(match.params);
-    this.props.fetchGroupRequest(match.params);
-    this.props.fetchLedgerRequest(match.params);
+    const {match, history} = this.props;
+    if(Object.values(match.params)[0] === '00000000-0000-0000-0000-000000000000')
+    {
+      history.push('/users');
+    }
+    else
+    {
+      this.props.fetchRequest(match.params);
+      this.props.fetchFriendRequest(match.params);
+      this.props.fetchGroupRequest(match.params);
+      this.props.fetchLedgerRequest(match.params);
+    }
   }
   
   public unban()
@@ -136,9 +157,8 @@ class UsersDetails extends Component<Props, State>
     }
   }
   
-  public download()
+  public download(data: ExportObject)
   {
-    const {data} = this.props;
     const element = document.createElement('a');
     const file = new Blob(
       [JSON.stringify([data], null, 2)],
@@ -158,7 +178,7 @@ class UsersDetails extends Component<Props, State>
   
   public switch_tab(tab: string)
   {
-    const match = this.props.match;
+    const {match} = this.props;
     if(tab === 'storage')
     {
       const {history} = this.props;
@@ -279,7 +299,7 @@ class UsersDetails extends Component<Props, State>
   
   public render_profile()
   {
-    const {data, updated, errors} = this.props;
+    const {account, updated, errors} = this.props;
     return <form onSubmit={this.update_profile.bind(this)}>
       <Column.Group>
         <Column size={6}>
@@ -294,7 +314,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="id"
-                    defaultValue={data.account.user.id}
+                    defaultValue={account.user.id}
                   />
                 </Control>
               </Field>
@@ -313,7 +333,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="username"
                     maxLength="128"
-                    defaultValue={data.account.user.username}
+                    defaultValue={account.user.username}
                   />
                 </Control>
               </Field>
@@ -332,7 +352,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="display_name"
                     maxLength="255"
-                    defaultValue={data.account.user.display_name}
+                    defaultValue={account.user.display_name}
                   />
                 </Control>
               </Field>
@@ -350,7 +370,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Metadata"
                     rows={6}
                     name="metadata"
-                    defaultValue={data.account.user.metadata}
+                    defaultValue={account.user.metadata}
                   />
                 </Control>
               </Field>
@@ -368,7 +388,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="create_time"
-                    defaultValue={data.account.user.create_time}
+                    defaultValue={account.user.create_time}
                   />
                 </Control>
               </Field>
@@ -386,7 +406,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="update_time"
-                    defaultValue={data.account.user.update_time}
+                    defaultValue={account.user.update_time}
                   />
                 </Control>
               </Field>
@@ -407,7 +427,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="facebook_id"
                     maxLength="128"
-                    defaultValue={data.account.user.facebook_id}
+                    defaultValue={account.user.facebook_id}
                   />
                 </Control>
                 <Control>
@@ -431,7 +451,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="gamecenter_id"
                     maxLength="128"
-                    defaultValue={data.account.user.gamecenter_id}
+                    defaultValue={account.user.gamecenter_id}
                   />
                 </Control>
                 <Control>
@@ -455,7 +475,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="google_id"
                     maxLength="128"
-                    defaultValue={data.account.user.google_id}
+                    defaultValue={account.user.google_id}
                   />
                 </Control>
                 <Control>
@@ -479,7 +499,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="steam_id"
                     maxLength="128"
-                    defaultValue={data.account.user.steam_id}
+                    defaultValue={account.user.steam_id}
                   />
                 </Control>
                 <Control>
@@ -503,7 +523,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="avatar_url"
                     maxLength="512"
-                    defaultValue={data.account.user.avatar_url}
+                    defaultValue={account.user.avatar_url}
                   />
                 </Control>
               </Field>
@@ -522,7 +542,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="lang_tag"
                     maxLength="18"
-                    defaultValue={data.account.user.lang_tag}
+                    defaultValue={account.user.lang_tag}
                   />
                 </Control>
               </Field>
@@ -541,7 +561,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="location"
                     maxLength="255"
-                    defaultValue={data.account.user.location}
+                    defaultValue={account.user.location}
                   />
                 </Control>
               </Field>
@@ -560,7 +580,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="timezone"
                     maxLength="255"
-                    defaultValue={data.account.user.timezone}
+                    defaultValue={account.user.timezone}
                   />
                 </Control>
               </Field>
@@ -590,7 +610,7 @@ class UsersDetails extends Component<Props, State>
   
   public render_account()
   {
-    const {data, updated, errors} = this.props;
+    const {account, updated, errors} = this.props;
     return <form onSubmit={this.update_account.bind(this)}>
       <Column.Group>
         <Column size={6}>
@@ -607,7 +627,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="custom_id"
                     maxLength="128"
-                    defaultValue={data.account.user.custom_id}
+                    defaultValue={account.user.custom_id}
                   />
                 </Control>
                 <Control>
@@ -620,7 +640,7 @@ class UsersDetails extends Component<Props, State>
           </Field>
           
           {
-            (data.account.devices || []).map((d, key) =>
+            (account.devices || []).map((d, key) =>
               <Field horizontal key={`device_${key}`}>
                 <Field.Label size="normal">
                   <Label>{key ? '' : 'Device ID'}</Label>
@@ -658,7 +678,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="email"
                     maxLength="255"
-                    defaultValue={data.account.user.email}
+                    defaultValue={account.user.email}
                   />
                 </Control>
                 <Control>
@@ -681,7 +701,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="verified"
-                    defaultValue={data.account.user.verify_time || 'false'}
+                    defaultValue={account.user.verify_time || 'false'}
                   />
                 </Control>
               </Field>
@@ -699,7 +719,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Wallet"
                     rows="6"
                     name="wallet"
-                    defaultValue={data.account.wallet}
+                    defaultValue={account.wallet}
                   />
                 </Control>
               </Field>
@@ -742,7 +762,7 @@ class UsersDetails extends Component<Props, State>
       </Table.Head>
       <Table.Body>
         {
-          friends.map((f, key) =>
+          (friends || []).map((f, key) =>
             <Table.Row
               key={`friend_${key}`}
               onClick={this.go_to_friend.bind(this, f.user_id)}
@@ -779,7 +799,7 @@ class UsersDetails extends Component<Props, State>
       </Table.Head>
       <Table.Body>
         {
-          groups.map((g, key) =>
+          (groups || []).map((g, key) =>
             <Table.Row
               key={`group_${key}`}
               onClick={this.go_to_friend.bind(this, g.id)}
@@ -816,7 +836,7 @@ class UsersDetails extends Component<Props, State>
       </Table.Head>
       <Table.Body>
         {
-          ledgers.map((l, key) =>
+          (ledgers || []).map((l, key) =>
             <Table.Row key={`ledger_${key}`}>
               <Table.Cell>{l.id}</Table.Cell>
               <Table.Cell>{l.changeset}</Table.Cell>
@@ -837,7 +857,7 @@ class UsersDetails extends Component<Props, State>
   
   public render()
   {
-    const {data, friends} = this.props;
+    const {account, friends, match, exportRequest} = this.props;
     const {tab} = this.state;
     return <Generic id="users_details">
       <Header />
@@ -851,13 +871,13 @@ class UsersDetails extends Component<Props, State>
                 <Level.Item>
                   <Breadcrumb>
                     <Breadcrumb.Item as="span"><Link to="/users">Users</Link></Breadcrumb.Item>
-                    <Breadcrumb.Item active>{data.account.user.id}</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{account.user.id}</Breadcrumb.Item>
                   </Breadcrumb>
                 </Level.Item>
               </Level.Item>
               <Level.Item align="right">
                 <Level.Item>
-                  <Button onClick={this.download.bind(this)}>
+                  <Button onClick={exportRequest.bind(this, match.params)}>
                     <Icon>
                       <FontAwesomeIcon icon="file-export" />
                     </Icon>
@@ -865,7 +885,7 @@ class UsersDetails extends Component<Props, State>
                   </Button>
                 </Level.Item>
                 {
-                  data.account.user.disable_time ?
+                  account.user.disable_time ?
                   <Level.Item>
                     <Button onClick={this.unban.bind(this)}>
                       <Icon>
@@ -946,6 +966,7 @@ const mapStateToProps = ({user_details}: ApplicationState) => ({
   errors: user_details.errors,
   updated: user_details.updated,
   data: user_details.data,
+  account: user_details.account,
   friends: user_details.friends,
   groups: user_details.groups,
   ledgers: user_details.ledgers
@@ -953,13 +974,16 @@ const mapStateToProps = ({user_details}: ApplicationState) => ({
 
 const mapDispatchToProps = (dispatch: Dispatch) => ({
   fetchRequest: (data: UserObjectRequest) => dispatch(
-    userActions.userExportRequest(data)
+    userActions.userFetchRequest(data)
   ),
   updateRequest: (data: UserObject) => dispatch(
     userActions.userUpdateRequest(data)
   ),
   deleteRequest: (data: UserObjectRequest) => dispatch(
     userActions.userDeleteRequest(data)
+  ),
+  exportRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userExportRequest(data)
   ),
   
   fetchFriendRequest: (data: UserObjectRequest) => dispatch(

@@ -49,6 +49,11 @@ const initialUserState: UserState = {
     leaderboard_records: [],
     wallet_ledgers: []
   },
+  account:
+  {
+    user: {id: ''},
+    wallet: ''
+  },
   ledgers: [],
   friends: [],
   groups: [],
@@ -64,7 +69,7 @@ export const userReducer: Reducer<UserState> = (state = initialUserState, action
     case UserActionTypes.FETCH_REQUEST:
       return {...state, loading: true};
     case UserActionTypes.FETCH_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, account: action.payload};
     case UserActionTypes.FETCH_ERROR:
       return {...state, loading: false, errors: action.payload};
     case UserActionTypes.EXPORT_REQUEST:
