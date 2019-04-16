@@ -141,6 +141,23 @@ class Status extends Component<Props, State>
         y: avg_output_kbs
       });
       
+      if(latency_ms.length > 360)
+      {
+        latency_ms.shift();
+      }
+      if(rate_sec.length > 360)
+      {
+        rate_sec.shift();
+      }
+      if(input_kbs.length > 360)
+      {
+        input_kbs.shift();
+      }
+      if(output_kbs.length > 360)
+      {
+        output_kbs.shift();
+      }
+      
       this.setState({
         avg_latency_ms,
         avg_rate_sec,
@@ -199,6 +216,7 @@ class Status extends Component<Props, State>
         }))
       },
       options: {
+        animation: false,
         scales: {
           yAxes: [{
             scaleLabel: {

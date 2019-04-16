@@ -237,10 +237,14 @@ class Users extends Component<Props, State>
                       <Table.Cell>{user.display_name}</Table.Cell>
                       <Table.Cell>{user.update_time}</Table.Cell>
                       <Table.Cell>
-                        <Button
-                          size="small"
-                          onClick={this.remove.bind(this, user)}
-                        >Delete</Button>
+                        {
+                          user.id == '00000000-0000-0000-0000-000000000000' ?
+                          null :
+                          <Button
+                            size="small"
+                            onClick={this.remove.bind(this, user)}
+                          >Delete</Button>
+                        }
                       </Table.Cell>
                     </Table.Row>
                   )
