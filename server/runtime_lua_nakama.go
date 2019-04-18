@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"crypto"
 	"crypto/aes"
@@ -35,6 +36,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -209,6 +211,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_delete":                n.groupDelete,
 		"group_users_list":            n.groupUsersList,
 		"user_groups_list":            n.userGroupsList,
+		"read_file":                   n.readFile,
 	}
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
 
@@ -5259,4 +5262,29 @@ func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) readFile(l *lua.LState) int {
+	filename := l.CheckString(1)
+	if filename == "" {
+		l.ArgError(1, "expects filename string")
+		return 0
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		l.RaiseError("error open file %s: %v", filename, err.Error())
+		return 0
+	}
+	defer f.Close()
+
+	r := bufio.NewReader(f)
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		l.RaiseError("error read file %s: %v", filename, err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(string(b)))
+	return 1
 }
