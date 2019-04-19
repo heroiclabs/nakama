@@ -72,7 +72,7 @@ type MatchHandler struct {
 	router        MessageRouter
 
 	JoinMarkerList *MatchJoinMarkerList
-	presenceList   *MatchPresenceList
+	PresenceList   *MatchPresenceList
 	core           RuntimeMatchCore
 
 	// Identification not (directly) controlled by match init.
@@ -102,9 +102,7 @@ type MatchHandler struct {
 }
 
 func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
-	presenceList := &MatchPresenceList{
-		presences: make([]*PresenceID, 0, 10),
-	}
+	presenceList := NewMatchPresenceList()
 
 	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
 	deferMessageFn := func(msg *DeferredMessage) error {
@@ -132,11 +130,9 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		matchRegistry: matchRegistry,
 		router:        router,
 
-		JoinMarkerList: &MatchJoinMarkerList{
-			joinMarkers: make(map[uuid.UUID]*MatchJoinMarker),
-		},
-		presenceList: presenceList,
-		core:         core,
+		JoinMarkerList: NewMatchJoinMarkerList(config, int64(rateInt)),
+		PresenceList:   presenceList,
+		core:           core,
 
 		ID:    id,
 		Node:  node,
@@ -277,7 +273,11 @@ func loop(mh *MatchHandler) {
 
 	// Every 30 seconds clear expired join markers.
 	if mh.tick%(mh.Rate*30) == 0 {
-		mh.JoinMarkerList.ClearExpired(mh.tick)
+		presences := mh.JoinMarkerList.ClearExpired(mh.tick)
+		if len(presences) != 0 {
+			// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
+			mh.QueueLeave(presences)
+		}
 	}
 
 	mh.state = state
@@ -320,9 +320,11 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 
 		mh.state = state
 		if allow {
-			// Keep join markers for up to 120 seconds.
-			mh.JoinMarkerList.Add(sessionID, mh.tick+(mh.Rate*120))
+			presence := &MatchPresence{Node: node, UserID: userID, SessionID: sessionID, Username: username}
+			mh.JoinMarkerList.Add(presence, mh.tick)
+			mh.QueueJoin([]*MatchPresence{presence}, false)
 		}
+		// Signal client.
 		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.core.Label()}
 	}
 
@@ -337,7 +339,7 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 	}
 }
 
-func (mh *MatchHandler) QueueJoin(joins []*MatchPresence) bool {
+func (mh *MatchHandler) QueueJoin(joins []*MatchPresence, mark bool) bool {
 	if mh.stopped.Load() {
 		return false
 	}
@@ -347,25 +349,30 @@ func (mh *MatchHandler) QueueJoin(joins []*MatchPresence) bool {
 			return
 		}
 
-		mh.presenceList.Join(joins)
-
-		for _, join := range joins {
-			mh.JoinMarkerList.Mark(join.SessionID)
-		}
-
-		state, err := mh.core.MatchJoin(mh.tick, mh.state, joins)
-		if err != nil {
-			mh.Stop()
-			mh.logger.Warn("Stopping match after error from match_join execution", zap.Int64("tick", mh.tick), zap.Error(err))
-			return
-		}
-		if state == nil {
-			mh.Stop()
-			mh.logger.Info("Match join returned nil or no state, stopping match")
+		// Just marking joins.
+		if mark {
+			for _, join := range joins {
+				mh.JoinMarkerList.Mark(join.SessionID)
+			}
 			return
 		}
 
-		mh.state = state
+		processed := mh.PresenceList.Join(joins)
+		if len(processed) != 0 {
+			state, err := mh.core.MatchJoin(mh.tick, mh.state, processed)
+			if err != nil {
+				mh.Stop()
+				mh.logger.Warn("Stopping match after error from match_join execution", zap.Int64("tick", mh.tick), zap.Error(err))
+				return
+			}
+			if state == nil {
+				mh.Stop()
+				mh.logger.Info("Match join returned nil or no state, stopping match")
+				return
+			}
+
+			mh.state = state
+		}
 	}
 
 	return mh.queueCall(join)
@@ -381,21 +388,26 @@ func (mh *MatchHandler) QueueLeave(leaves []*MatchPresence) bool {
 			return
 		}
 
-		mh.presenceList.Leave(leaves)
+		processed := mh.PresenceList.Leave(leaves)
+		if len(processed) != 0 {
+			for _, leave := range processed {
+				mh.JoinMarkerList.Mark(leave.SessionID)
+			}
 
-		state, err := mh.core.MatchLeave(mh.tick, mh.state, leaves)
-		if err != nil {
-			mh.Stop()
-			mh.logger.Warn("Stopping match after error from match_leave execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
-			return
-		}
-		if state == nil {
-			mh.Stop()
-			mh.logger.Info("Match leave returned nil or no state, stopping match")
-			return
-		}
+			state, err := mh.core.MatchLeave(mh.tick, mh.state, leaves)
+			if err != nil {
+				mh.Stop()
+				mh.logger.Warn("Stopping match after error from match_leave execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
+				return
+			}
+			if state == nil {
+				mh.Stop()
+				mh.logger.Info("Match leave returned nil or no state, stopping match")
+				return
+			}
 
-		mh.state = state
+			mh.state = state
+		}
 	}
 
 	return mh.queueCall(leave)

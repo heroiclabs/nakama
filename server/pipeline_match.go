@@ -15,7 +15,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -207,12 +206,6 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		}
 		if mode == StreamModeMatchAuthoritative {
 			// If we've reached here, it was an accepted authoritative join.
-			ctx, ctxCancelFn := context.WithTimeout(session.Context(), time.Duration(p.config.GetMatch().JoinMarkerDeadlineMs)*time.Millisecond)
-			if err := p.matchRegistry.AwaitJoinMarker(ctx, matchID, node, session.ID(), p.node); err != nil {
-				// There was an error or a timeout waiting for the join marker, return to the client anyway since the tracker update was successful.
-				logger.Error("Error waiting for match join marker", zap.Error(err))
-			}
-			ctxCancelFn()
 			label = &wrappers.StringValue{Value: l}
 		}
 		meta = &m

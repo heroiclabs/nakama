@@ -93,8 +93,6 @@ type MatchRegistry interface {
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
 	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, receiveTime int64)
-	// Wait for the match to confirm a user has completed their join process.
-	AwaitJoinMarker(ctx context.Context, id uuid.UUID, node string, sessionID uuid.UUID, fromNode string) error
 }
 
 type LocalMatchRegistry struct {
@@ -567,7 +565,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then joins don't matter anyway.
-	mh.QueueJoin(presences)
+	mh.QueueJoin(presences, true)
 }
 
 func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
@@ -616,33 +614,4 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		Data:        data,
 		ReceiveTime: receiveTime,
 	})
-}
-
-func (r *LocalMatchRegistry) AwaitJoinMarker(ctx context.Context, id uuid.UUID, node string, sessionID uuid.UUID, fromNode string) error {
-	if node != r.node {
-		return ErrNoJoinMarker
-	}
-
-	var mh *MatchHandler
-	var ok bool
-	r.RLock()
-	mh, ok = r.matches[id]
-	r.RUnlock()
-	if !ok {
-		return ErrNoJoinMarker
-	}
-
-	ch := mh.JoinMarkerList.Get(sessionID)
-	if ch == nil {
-		return ErrNoJoinMarker
-	}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-ch:
-		// Join marker received.
-	}
-
-	return nil
 }

@@ -52,84 +52,109 @@ func (p *MatchPresence) GetStatus() string {
 
 // Used to monitor when match presences begin and complete their match join process.
 type MatchJoinMarker struct {
+	presence   *MatchPresence
 	expiryTick int64
-	marked     *atomic.Bool
-	ch         chan struct{}
 }
 
 type MatchJoinMarkerList struct {
 	sync.RWMutex
-	joinMarkers map[uuid.UUID]*MatchJoinMarker
+	expiryDelayMs int64
+	tickRate      int64
+	joinMarkers   map[uuid.UUID]*MatchJoinMarker
 }
 
-func (m *MatchJoinMarkerList) Add(sessionID uuid.UUID, expiryTick int64) {
+func NewMatchJoinMarkerList(config Config, tickRate int64) *MatchJoinMarkerList {
+	return &MatchJoinMarkerList{
+		expiryDelayMs: int64(config.GetMatch().JoinMarkerDeadlineMs),
+		tickRate:      tickRate,
+		joinMarkers:   make(map[uuid.UUID]*MatchJoinMarker),
+	}
+}
+
+func (m *MatchJoinMarkerList) Add(presence *MatchPresence, currentTick int64) {
 	m.Lock()
-	m.joinMarkers[sessionID] = &MatchJoinMarker{
-		expiryTick: expiryTick,
-		marked:     atomic.NewBool(false),
-		ch:         make(chan struct{}),
+	m.joinMarkers[presence.SessionID] = &MatchJoinMarker{
+		presence:   presence,
+		expiryTick: currentTick + (m.tickRate * (m.expiryDelayMs / 1000)),
 	}
 	m.Unlock()
 }
 
-func (m *MatchJoinMarkerList) Get(sessionID uuid.UUID) <-chan struct{} {
-	var ch chan struct{}
-	m.RLock()
-	if joinMarker, ok := m.joinMarkers[sessionID]; ok {
-		ch = joinMarker.ch
-	}
-	m.RUnlock()
-	return ch
-}
-
 func (m *MatchJoinMarkerList) Mark(sessionID uuid.UUID) {
-	m.RLock()
-	if joinMarker, ok := m.joinMarkers[sessionID]; ok {
-		if joinMarker.marked.CAS(false, true) {
-			close(joinMarker.ch)
-		}
-	}
-	m.RUnlock()
+	m.Lock()
+	delete(m.joinMarkers, sessionID)
+	m.Unlock()
 }
 
-func (m *MatchJoinMarkerList) ClearExpired(tick int64) {
+func (m *MatchJoinMarkerList) ClearExpired(tick int64) []*MatchPresence {
+	presences := make([]*MatchPresence, 0)
 	m.Lock()
 	for sessionID, joinMarker := range m.joinMarkers {
 		if joinMarker.expiryTick <= tick {
+			presences = append(presences, joinMarker.presence)
 			delete(m.joinMarkers, sessionID)
 		}
 	}
 	m.Unlock()
+	return presences
 }
 
 // Maintains the match presences for routing and validation purposes.
 type MatchPresenceList struct {
 	sync.RWMutex
-	presences []*PresenceID
+	size        *atomic.Int32
+	presences   []*PresenceID
+	presenceMap map[uuid.UUID]struct{}
 }
 
-func (m *MatchPresenceList) Join(joins []*MatchPresence) {
+func NewMatchPresenceList() *MatchPresenceList {
+	return &MatchPresenceList{
+		size:        atomic.NewInt32(0),
+		presences:   make([]*PresenceID, 0, 10),
+		presenceMap: make(map[uuid.UUID]struct{}, 10),
+	}
+}
+
+func (m *MatchPresenceList) Join(joins []*MatchPresence) []*MatchPresence {
+	processed := make([]*MatchPresence, 0, len(joins))
 	m.Lock()
 	for _, join := range joins {
-		m.presences = append(m.presences, &PresenceID{
-			Node:      join.Node,
-			SessionID: join.SessionID,
-		})
-	}
-	m.Unlock()
-}
-
-func (m *MatchPresenceList) Leave(leaves []*MatchPresence) {
-	m.Lock()
-	for _, leave := range leaves {
-		for i, presenceID := range m.presences {
-			if presenceID.SessionID == leave.SessionID && presenceID.Node == leave.Node {
-				m.presences = append(m.presences[:i], m.presences[i+1:]...)
-				break
-			}
+		if _, ok := m.presenceMap[join.SessionID]; !ok {
+			m.presences = append(m.presences, &PresenceID{
+				Node:      join.Node,
+				SessionID: join.SessionID,
+			})
+			m.presenceMap[join.SessionID] = struct{}{}
+			processed = append(processed, join)
 		}
 	}
 	m.Unlock()
+	if l := len(processed); l != 0 {
+		m.size.Add(int32(l))
+	}
+	return processed
+}
+
+func (m *MatchPresenceList) Leave(leaves []*MatchPresence) []*MatchPresence {
+	processed := make([]*MatchPresence, 0, len(leaves))
+	m.Lock()
+	for _, leave := range leaves {
+		if _, ok := m.presenceMap[leave.SessionID]; ok {
+			for i, presenceID := range m.presences {
+				if presenceID.SessionID == leave.SessionID && presenceID.Node == leave.Node {
+					m.presences = append(m.presences[:i], m.presences[i+1:]...)
+					break
+				}
+			}
+			delete(m.presenceMap, leave.SessionID)
+			processed = append(processed, leave)
+		}
+	}
+	m.Unlock()
+	if l := len(processed); l != 0 {
+		m.size.Sub(int32(l))
+	}
+	return processed
 }
 
 func (m *MatchPresenceList) Contains(presence *PresenceID) bool {
@@ -153,4 +178,8 @@ func (m *MatchPresenceList) List() []*PresenceID {
 	}
 	m.RUnlock()
 	return list
+}
+
+func (m *MatchPresenceList) Size() int {
+	return int(m.size.Load())
 }
