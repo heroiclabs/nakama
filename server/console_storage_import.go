@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -61,7 +62,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse multipart form request data.
-	if err := r.ParseMultipartForm(10485760); err != nil {
+	if err := r.ParseMultipartForm(s.config.GetConsole().MaxMessageSizeBytes); err != nil {
 		s.logger.Error("Error parsing storage import form", zap.Error(err))
 
 		w.WriteHeader(400)
@@ -74,6 +75,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Find the name of the uploaded file.
 	var filename string
 	for n, _ := range r.MultipartForm.File {
+		// If there are 2 or more files only use the first one.
 		filename = n
 		break
 	}
@@ -112,21 +114,13 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Examine contents to determine if it's a JSON or CSV import.
-	mimeType := http.DetectContentType(fileBytes)
-	switch mimeType {
-	case "application/json":
-		err = importStorageJSON(s.logger, s.db, fileBytes)
-	case "text/csv":
-		err = importStorageCSV(s.logger, s.db, fileBytes)
-	default:
-		s.logger.Warn("Unsupported MIME type in storage import multipart form.", zap.String("type", mimeType))
-
-		w.WriteHeader(400)
-		if _, err := w.Write([]byte(fmt.Sprintf("Unsupported MIME type '%v', must be 'application/json' or 'text/csv'.", mimeType))); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
-		}
-		return
+	// Examine file name to determine if it's a JSON or CSV import.
+	if strings.HasSuffix(strings.ToLower(filename), ".json") {
+		// File has .json suffix, try to import as JSON.
+		err = importStorageJSON(r.Context(), s.logger, s.db, fileBytes)
+	} else {
+		// Assume all other files are CSV.
+		err = importStorageCSV(r.Context(), s.logger, s.db, fileBytes)
 	}
 
 	if err != nil {
@@ -137,7 +131,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func importStorageJSON(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
+func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 	importedData := make([]*importStorageObject, 0)
 	ops := StorageOpWrites{}
 
@@ -185,7 +179,7 @@ func importStorageJSON(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, true, ops)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")
@@ -195,7 +189,7 @@ func importStorageJSON(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 	return nil
 }
 
-func importStorageCSV(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
+func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 	r := csv.NewReader(bytes.NewReader(fileBytes))
 
 	columnIndexes := make(map[string]int)
@@ -255,12 +249,12 @@ func importStorageCSV(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 
 			pr, err := strconv.Atoi(permissionRead)
 			if permissionRead == "" || err != nil || pr < 0 || pr > 2 {
-				return errors.New(fmt.Sprintf("invalid Read permission supplied on row #%d. It must be either 0, 1 or 2", len(ops)+1))
+				return errors.New(fmt.Sprintf("invalid read permission supplied on row #%d. It must be either 0, 1 or 2", len(ops)+1))
 			}
 
-			wr, err := strconv.Atoi(permissionRead)
-			if permissionWrite == "" || err != nil || wr < 0 || wr > 1 {
-				return errors.New(fmt.Sprintf("invalid Write permission supplied on row #%d. It must be either 0 or 1", len(ops)+1))
+			pw, err := strconv.Atoi(permissionWrite)
+			if permissionWrite == "" || err != nil || pw < 0 || pw > 1 {
+				return errors.New(fmt.Sprintf("invalid write permission supplied on row #%d. It must be either 0 or 1", len(ops)+1))
 			}
 
 			var maybeJSON map[string]interface{}
@@ -275,7 +269,7 @@ func importStorageCSV(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 					Key:             key,
 					Value:           value,
 					PermissionRead:  &wrappers.Int32Value{Value: int32(pr)},
-					PermissionWrite: &wrappers.Int32Value{Value: int32(wr)},
+					PermissionWrite: &wrappers.Int32Value{Value: int32(pw)},
 				},
 			})
 		}
@@ -286,7 +280,7 @@ func importStorageCSV(logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, true, ops)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")
