@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -153,7 +154,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 		if err != nil {
 			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
 		} else {
-			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE (username = $1 OR id = $1)"
+			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
 		}
 
 		if in.Banned {

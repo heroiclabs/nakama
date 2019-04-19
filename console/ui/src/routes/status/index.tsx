@@ -67,7 +67,7 @@ class Status extends Component<Props, State>
       interval: undefined
     };
   }
-  
+
   public componentWillReceiveProps(next: Props)
   {
     const {
@@ -78,7 +78,7 @@ class Status extends Component<Props, State>
       labels
     } = this.state;
     const {data} = next;
-    
+
     if(
       data &&
       data.nodes &&
@@ -129,7 +129,7 @@ class Status extends Component<Props, State>
           ) * 1000
         ) / 1000;
       }
-      
+
       const now = new Date();
       const t = now.valueOf();
       labels.push(now);
@@ -149,7 +149,7 @@ class Status extends Component<Props, State>
         t,
         y: avg_output_kbs
       });
-      
+
       if(labels.length > 360)
       {
         labels.shift();
@@ -170,7 +170,7 @@ class Status extends Component<Props, State>
       {
         output_kbs.shift();
       }
-      
+
       this.setState({
         avg_latency_ms,
         avg_rate_sec,
@@ -184,19 +184,19 @@ class Status extends Component<Props, State>
       });
     }
   }
-  
+
   public componentDidMount()
   {
     this.props.fetchRequest();
     this.setState({interval: window.setInterval(this.props.fetchRequest, 5000) as number});
   }
-  
+
   public componentWillUnmount()
   {
     window.clearInterval(this.state.interval);
     this.setState({interval: undefined});
   }
-  
+
   public generate_cfg(type: string)
   {
     const {data} = this.props;
@@ -212,7 +212,7 @@ class Status extends Component<Props, State>
       input_kbs: 'Input (kb/s)',
       output_kbs: 'Output (kb/s)'
     };
-    
+
     return {
       width: 600,
       height: 150,
@@ -245,6 +245,9 @@ class Status extends Component<Props, State>
             }
           }],
           yAxes: [{
+            ticks: {
+                beginAtZero: true
+            },
             scaleLabel: {
               display: true,
               labelString: types[type]
@@ -254,7 +257,7 @@ class Status extends Component<Props, State>
       }
     };
   }
-  
+
   public render()
   {
     const {
@@ -264,12 +267,12 @@ class Status extends Component<Props, State>
       avg_output_kbs
     } = this.state;
     const {data} = this.props;
-    
+
     const cfg_latency_ms = this.generate_cfg('latency_ms');
     const cfg_rate_sec = this.generate_cfg('rate_sec');
     const cfg_input_kbs = this.generate_cfg('input_kbs');
     const cfg_output_kbs = this.generate_cfg('output_kbs');
-    
+
     const total_sessions = data.nodes
       .map(n => n.sessions || 0)
       .reduce((total, value) => total + value, 0);
@@ -282,7 +285,7 @@ class Status extends Component<Props, State>
     const total_goroutine_count = data.nodes
       .map(n => n.goroutine_count || 0)
       .reduce((total, value) => total + value, 0);
-    
+
     return <Generic id="status">
       <Header />
       <Section>
@@ -319,7 +322,7 @@ class Status extends Component<Props, State>
                 </Box>
               </Column>
             </Column.Group>
-    
+
             <Column.Group>
               <Column>
                 <Table fullwidth striped>
@@ -365,7 +368,7 @@ class Status extends Component<Props, State>
                 </Table>
               </Column>
             </Column.Group>
-    
+
             <Column.Group>
               <Column>
                 <Bar {...cfg_latency_ms} redraw />

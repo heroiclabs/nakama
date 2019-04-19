@@ -231,7 +231,7 @@ export interface ApiUserGroupList {
 /** An export of all information stored for a user account. */
 export interface ConsoleAccountExport {
   // The user's account details.
-  account?: NakamaconsoleAccount;
+  account?: NakamaapiAccount;
   // The user's friends.
   friends?: Array<ApiFriend>;
   // The user's groups.
