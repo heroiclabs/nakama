@@ -14,7 +14,6 @@ import Sidebar from '../../components/sidebar';
 /*
  * https://dfee.github.io/rbx/
  * https://github.com/reactjs/react-chartjs
- * http://momentjs.com/docs/
  */
 
 interface PropsFromState
@@ -32,6 +31,7 @@ interface PropsFromDispatch
 type Props = PropsFromState & PropsFromDispatch & ConnectedReduxProps;
 
 type Point = {
+  t: any,
   y: number
 };
 
@@ -41,6 +41,7 @@ type State = {
   avg_rate_sec: number,
   avg_input_kbs: number,
   avg_output_kbs: number,
+  labels: any[],
   latency_ms: Point[],
   rate_sec: Point[],
   input_kbs: Point[],
@@ -58,6 +59,7 @@ class Status extends Component<Props, State>
       avg_rate_sec: 0,
       avg_input_kbs: 0,
       avg_output_kbs: 0,
+      labels: [],
       latency_ms: [],
       rate_sec: [],
       input_kbs: [],
@@ -128,19 +130,30 @@ class Status extends Component<Props, State>
         ) / 1000;
       }
       
+      const now = new Date();
+      const t = now.valueOf();
+      labels.push(now);
       latency_ms.push({
+        t,
         y: avg_latency_ms
       });
       rate_sec.push({
+        t,
         y: avg_rate_sec
       });
       input_kbs.push({
+        t,
         y: avg_input_kbs
       });
       output_kbs.push({
+        t,
         y: avg_output_kbs
       });
       
+      if(labels.length > 360)
+      {
+        labels.shift();
+      }
       if(latency_ms.length > 360)
       {
         latency_ms.shift();
@@ -163,6 +176,7 @@ class Status extends Component<Props, State>
         avg_rate_sec,
         avg_input_kbs,
         avg_output_kbs,
+        labels,
         latency_ms,
         rate_sec,
         input_kbs,
@@ -186,12 +200,13 @@ class Status extends Component<Props, State>
   public generate_cfg(type: string)
   {
     const {data} = this.props;
+    const {labels} = this.state;
     const chartColors = [
       'rgb(255, 255, 255)',
       'rgb(255, 99, 132)',
       'rgb(54, 162, 235)'
     ];
-    const labels: {[key:string]: string} = {
+    const types: {[key:string]: string} = {
       latency_ms: 'Latency (ms)',
       rate_sec: 'Rate (rpc/s)',
       input_kbs: 'Input (kb/s)',
@@ -203,6 +218,7 @@ class Status extends Component<Props, State>
       height: 150,
       data:
       {
+        labels,
         datasets: data.nodes.map((n, i) => ({
           label: n.name,
           backgroundColor: chartColors[0],
@@ -218,10 +234,20 @@ class Status extends Component<Props, State>
       options: {
         animation: false,
         scales: {
+          // https://www.chartjs.org/docs/latest/axes/cartesian/time.html
+          xAxes: [{
+            type: 'time',
+            distribution: 'series',
+            ticks: {
+              autoSkip: true,
+              autoSkipPadding: 10,
+              source: 'labels'
+            }
+          }],
           yAxes: [{
             scaleLabel: {
               display: true,
-              labelString: labels[type]
+              labelString: types[type]
             }
           }]
         }
