@@ -82,14 +82,12 @@ type LeaderboardWithExpiry struct {
 type LocalLeaderboardRankCache struct {
 	sync.RWMutex
 	cache        map[LeaderboardWithExpiry]*RankMap
-	logger       *zap.Logger
 	blacklistAll bool
 	blacklistIds map[string]struct{}
 }
 
-func NewLocalLeaderboardRankCache(logger, startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) LeaderboardRankCache {
+func NewLocalLeaderboardRankCache(startupLogger *zap.Logger, db *sql.DB, config *LeaderboardConfig, leaderboardCache LeaderboardCache) LeaderboardRankCache {
 	cache := &LocalLeaderboardRankCache{
-		logger:       logger,
 		blacklistIds: make(map[string]struct{}, len(config.BlacklistRankCache)),
 		blacklistAll: len(config.BlacklistRankCache) == 1 && config.BlacklistRankCache[0] == "*",
 		cache:        make(map[LeaderboardWithExpiry]*RankMap, 0),

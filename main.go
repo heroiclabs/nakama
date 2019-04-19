@@ -60,7 +60,6 @@ var (
 )
 
 func main() {
-	//startedAt := int64(time.Nanosecond) * time.Now().UTC().UnixNano() / int64(time.Millisecond)
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	// Always set default timeout on HTTP client.
 	http.DefaultClient.Timeout = 1500 * time.Millisecond
@@ -103,7 +102,7 @@ func main() {
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
-	leaderboardRankCache := server.NewLocalLeaderboardRankCache(logger, startupLogger, db, config.GetLeaderboard(), leaderboardCache)
+	leaderboardRankCache := server.NewLocalLeaderboardRankCache(startupLogger, db, config.GetLeaderboard(), leaderboardCache)
 	leaderboardScheduler := server.NewLocalLeaderboardScheduler(logger, db, leaderboardCache, leaderboardRankCache)
 	matchRegistry := server.NewLocalMatchRegistry(logger, startupLogger, config, tracker, router, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
@@ -126,7 +125,7 @@ func main() {
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)
-	gacode := "UA-89792135-1"
+	const gacode = "UA-89792135-1"
 	var telemetryClient *http.Client
 	if gaenabled {
 		telemetryClient = &http.Client{
@@ -184,7 +183,7 @@ func main() {
 	sessionRegistry.Stop()
 
 	if gaenabled {
-		ga.SendSessionStop(telemetryClient, gacode, cookie)
+		_ = ga.SendSessionStop(telemetryClient, gacode, cookie)
 	}
 
 	startupLogger.Info("Shutdown complete")
@@ -253,7 +252,7 @@ func runTelemetry(httpc *http.Client, gacode string, cookie string) {
 	if ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "version", Ea: fmt.Sprintf("%s+%s", version, commitID)}) != nil {
 		return
 	}
-	ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
+	_ = ga.SendEvent(httpc, gacode, cookie, &ga.Event{Ec: "variant", Ea: "nakama"})
 }
 
 func newOrLoadCookie(config server.Config) string {
@@ -262,7 +261,7 @@ func newOrLoadCookie(config server.Config) string {
 	cookie := uuid.FromBytesOrNil(b)
 	if err != nil || cookie == uuid.Nil {
 		cookie = uuid.Must(uuid.NewV4())
-		ioutil.WriteFile(filePath, cookie.Bytes(), 0644)
+		_ = ioutil.WriteFile(filePath, cookie.Bytes(), 0644)
 	}
 	return cookie.String()
 }
