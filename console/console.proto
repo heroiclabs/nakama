@@ -251,7 +251,7 @@ message AccountDeleteRequest {
 // An export of all information stored for a user account.
 message AccountExport {
   // The user's account details.
-  Account account = 1;
+  nakama.api.Account account = 1;
   // The user's storage.
   repeated nakama.api.StorageObject objects = 2;
   // The user's friends.

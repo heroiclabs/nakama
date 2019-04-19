@@ -114,18 +114,13 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	// Core user account.
-	account, disableTime, err := GetAccount(ctx, s.logger, s.db, nil, userID)
+	account, _, err := GetAccount(ctx, s.logger, s.db, nil, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	acc := &console.Account{Account: account}
-	if disableTime.Unix() != 0 {
-		acc.DisableTime = &timestamp.Timestamp{Seconds: disableTime.Unix()}
 	}
 
 	// Friends.
@@ -202,7 +197,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	export := &console.AccountExport{
-		Account:            acc,
+		Account:            account,
 		Objects:            storageObjects,
 		Friends:            friends.GetFriends(),
 		Messages:           messages,
@@ -335,9 +330,9 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	if v := in.Metadata; v != nil {
+	if v := in.Metadata; v != nil && v.Value != "" {
 		var metadataMap map[string]interface{}
-		if err := json.Unmarshal([]byte(v.Value), metadataMap); err != nil {
+		if err := json.Unmarshal([]byte(v.Value), &metadataMap); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Metadata must be a valid JSON object.")
 		}
 		params = append(params, v.Value)
@@ -414,7 +409,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	if v := in.Wallet; v != nil {
+	if v := in.Wallet; v != nil && v.Value != "" {
 		var walletMap map[string]interface{}
 		if err := json.Unmarshal([]byte(v.Value), walletMap); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Wallet must be a valid JSON object.")

@@ -1376,7 +1376,7 @@
       "type": "object",
       "properties": {
         "account": {
-          "$ref": "#/definitions/nakamaconsoleAccount",
+          "$ref": "#/definitions/nakamaapiAccount",
           "description": "The user's account details."
         },
         "objects": {
