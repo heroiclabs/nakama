@@ -1,7 +1,6 @@
 import React, {Component} from 'react';
 import {Box, Generic, Column, Heading, Section, Table, Title} from 'rbx';
 import {Bar} from 'react-chartjs-2';
-import moment from 'moment';
 
 import {Dispatch} from 'redux';
 import {connect} from 'react-redux';
@@ -15,7 +14,6 @@ import Sidebar from '../../components/sidebar';
 /*
  * https://dfee.github.io/rbx/
  * https://github.com/reactjs/react-chartjs
- * http://momentjs.com/docs/
  */
 
 interface PropsFromState
