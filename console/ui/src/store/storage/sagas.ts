@@ -38,6 +38,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -48,6 +49,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageFetchManyError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -76,6 +78,7 @@ function* handleDeleteMany()
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -86,6 +89,7 @@ function* handleDeleteMany()
     else if(err instanceof Error)
     {
       yield put(storageDeleteManyError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -120,6 +124,7 @@ function* handleCreate({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -130,6 +135,7 @@ function* handleCreate({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageCreateError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -171,6 +177,7 @@ function* handleFetch({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -181,6 +188,7 @@ function* handleFetch({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageFetchError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -217,6 +225,7 @@ function* handleUpdate({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -227,6 +236,7 @@ function* handleUpdate({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageUpdateError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -260,6 +270,7 @@ function* handleDelete({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -270,6 +281,7 @@ function* handleDelete({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(storageDeleteError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else

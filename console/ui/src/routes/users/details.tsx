@@ -9,7 +9,6 @@ import * as userActions from '../../store/users/actions';
 import {
   UserObjectRequest,
   UserObject,
-  AccountObject,
   ExportObject,
   FriendObject,
   GroupObject,
@@ -55,7 +54,7 @@ interface PropsFromState
   errors: string|undefined,
   updated: boolean,
   data: ExportObject,
-  account: AccountObject,
+  account: ExportObject,
   friends: FriendObject[],
   groups: GroupObject[],
   ledgers: LedgerObject[]
@@ -314,7 +313,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="id"
-                    defaultValue={account.user.id}
+                    defaultValue={account.account.user.id}
                   />
                 </Control>
               </Field>
@@ -333,7 +332,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="username"
                     maxLength="128"
-                    defaultValue={account.user.username}
+                    defaultValue={account.account.user.username}
                   />
                 </Control>
               </Field>
@@ -352,7 +351,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="display_name"
                     maxLength="255"
-                    defaultValue={account.user.display_name}
+                    defaultValue={account.account.user.display_name}
                   />
                 </Control>
               </Field>
@@ -370,7 +369,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Metadata"
                     rows={6}
                     name="metadata"
-                    defaultValue={account.user.metadata}
+                    defaultValue={account.account.user.metadata}
                   />
                 </Control>
               </Field>
@@ -388,7 +387,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="create_time"
-                    defaultValue={account.user.create_time}
+                    defaultValue={account.account.user.create_time}
                   />
                 </Control>
               </Field>
@@ -406,7 +405,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="update_time"
-                    defaultValue={account.user.update_time}
+                    defaultValue={account.account.user.update_time}
                   />
                 </Control>
               </Field>
@@ -427,7 +426,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="facebook_id"
                     maxLength="128"
-                    defaultValue={account.user.facebook_id}
+                    defaultValue={account.account.user.facebook_id}
                   />
                 </Control>
                 <Control>
@@ -451,7 +450,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="gamecenter_id"
                     maxLength="128"
-                    defaultValue={account.user.gamecenter_id}
+                    defaultValue={account.account.user.gamecenter_id}
                   />
                 </Control>
                 <Control>
@@ -475,7 +474,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="google_id"
                     maxLength="128"
-                    defaultValue={account.user.google_id}
+                    defaultValue={account.account.user.google_id}
                   />
                 </Control>
                 <Control>
@@ -499,7 +498,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="steam_id"
                     maxLength="128"
-                    defaultValue={account.user.steam_id}
+                    defaultValue={account.account.user.steam_id}
                   />
                 </Control>
                 <Control>
@@ -523,7 +522,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="avatar_url"
                     maxLength="512"
-                    defaultValue={account.user.avatar_url}
+                    defaultValue={account.account.user.avatar_url}
                   />
                 </Control>
               </Field>
@@ -542,7 +541,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="lang_tag"
                     maxLength="18"
-                    defaultValue={account.user.lang_tag}
+                    defaultValue={account.account.user.lang_tag}
                   />
                 </Control>
               </Field>
@@ -561,7 +560,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="location"
                     maxLength="255"
-                    defaultValue={account.user.location}
+                    defaultValue={account.account.user.location}
                   />
                 </Control>
               </Field>
@@ -580,7 +579,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="timezone"
                     maxLength="255"
-                    defaultValue={account.user.timezone}
+                    defaultValue={account.account.user.timezone}
                   />
                 </Control>
               </Field>
@@ -627,7 +626,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="(empty)"
                     name="custom_id"
                     maxLength="128"
-                    defaultValue={account.user.custom_id}
+                    defaultValue={account.account.user.custom_id}
                   />
                 </Control>
                 <Control>
@@ -640,7 +639,7 @@ class UsersDetails extends Component<Props, State>
           </Field>
           
           {
-            (account.devices || []).map((d, key) =>
+            (account.account.devices || []).map((d, key) =>
               <Field horizontal key={`device_${key}`}>
                 <Field.Label size="normal">
                   <Label>{key ? '' : 'Device ID'}</Label>
@@ -678,7 +677,7 @@ class UsersDetails extends Component<Props, State>
                     type="text"
                     name="email"
                     maxLength="255"
-                    defaultValue={account.user.email}
+                    defaultValue={account.account.user.email}
                   />
                 </Control>
                 <Control>
@@ -701,7 +700,7 @@ class UsersDetails extends Component<Props, State>
                     static
                     type="text"
                     name="verified"
-                    defaultValue={account.user.verify_time || 'false'}
+                    defaultValue={account.account.user.verify_time || 'false'}
                   />
                 </Control>
               </Field>
@@ -719,7 +718,7 @@ class UsersDetails extends Component<Props, State>
                     placeholder="Wallet"
                     rows="6"
                     name="wallet"
-                    defaultValue={account.wallet}
+                    defaultValue={account.account.wallet}
                   />
                 </Control>
               </Field>
@@ -871,7 +870,7 @@ class UsersDetails extends Component<Props, State>
                 <Level.Item>
                   <Breadcrumb>
                     <Breadcrumb.Item as="span"><Link to="/users">Users</Link></Breadcrumb.Item>
-                    <Breadcrumb.Item active>{account.user.id}</Breadcrumb.Item>
+                    <Breadcrumb.Item active>{account.account.user.id}</Breadcrumb.Item>
                   </Breadcrumb>
                 </Level.Item>
               </Level.Item>
@@ -885,7 +884,7 @@ class UsersDetails extends Component<Props, State>
                   </Button>
                 </Level.Item>
                 {
-                  account.user.disable_time ?
+                  account.disable_time ?
                   <Level.Item>
                     <Button onClick={this.unban.bind(this)}>
                       <Icon>

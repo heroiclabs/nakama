@@ -3,7 +3,7 @@ import {
   UserActionTypes,
   UserObjectRequest,
   UserObject,
-  AccountObject,
+  ExportObject,
   UsersObjectRequest,
   UsersObject,
   LedgerObject,
@@ -41,7 +41,7 @@ export const userFetchRequest = (data: UserObjectRequest) => action(
   UserActionTypes.FETCH_REQUEST,
   data
 );
-export const userFetchSuccess = (data: AccountObject) => action(
+export const userFetchSuccess = (data: ExportObject) => action(
   UserActionTypes.FETCH_SUCCESS,
   data
 );
@@ -54,7 +54,7 @@ export const userExportRequest = (data: UserObjectRequest) => action(
   UserActionTypes.EXPORT_REQUEST,
   data
 );
-export const userExportSuccess = (data: UserObject) => action(
+export const userExportSuccess = (data: ExportObject) => action(
   UserActionTypes.EXPORT_SUCCESS,
   data
 );

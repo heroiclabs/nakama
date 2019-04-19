@@ -51,8 +51,11 @@ const initialUserState: UserState = {
   },
   account:
   {
-    user: {id: ''},
-    wallet: ''
+    account:
+    {
+      user: {id: ''},
+      wallet: ''
+    }
   },
   ledgers: [],
   friends: [],

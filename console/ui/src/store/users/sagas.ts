@@ -70,6 +70,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -80,6 +81,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userFetchManyError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -112,6 +114,7 @@ function* handleDeleteMany({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -122,6 +125,7 @@ function* handleDeleteMany({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userDeleteManyError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -153,6 +157,7 @@ function* handleFetch({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -163,6 +168,7 @@ function* handleFetch({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userFetchError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -194,6 +200,7 @@ function* handleExport({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -204,6 +211,7 @@ function* handleExport({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userExportError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -230,7 +238,7 @@ function* handleUpdate({payload: data}: AnyAction)
     {
       yield put(userUpdateError(''));
       yield put(userUpdateSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -238,6 +246,7 @@ function* handleUpdate({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -248,6 +257,7 @@ function* handleUpdate({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUpdateError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -284,6 +294,7 @@ function* handleDelete({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -294,6 +305,7 @@ function* handleDelete({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userDeleteError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -318,7 +330,7 @@ function* handleBan({payload: data}: AnyAction)
     else
     {
       yield put(userBanSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -326,6 +338,7 @@ function* handleBan({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -336,6 +349,7 @@ function* handleBan({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userBanError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -360,7 +374,7 @@ function* handleUnban({payload: data}: AnyAction)
     else
     {
       yield put(userUnbanSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -368,6 +382,7 @@ function* handleUnban({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -378,6 +393,7 @@ function* handleUnban({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnbanError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -409,6 +425,7 @@ function* handleFetchLedger({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -419,6 +436,7 @@ function* handleFetchLedger({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userFetchLedgerError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -452,6 +470,7 @@ function* handleDeleteLedger({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -462,6 +481,7 @@ function* handleDeleteLedger({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userDeleteLedgerError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -493,6 +513,7 @@ function* handleFetchFriend({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -503,6 +524,7 @@ function* handleFetchFriend({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userFetchFriendError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -534,6 +556,7 @@ function* handleDeleteFriend({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -544,6 +567,7 @@ function* handleDeleteFriend({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userDeleteFriendError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -575,6 +599,7 @@ function* handleFetchGroup({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -585,6 +610,7 @@ function* handleFetchGroup({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userFetchGroupError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -616,6 +642,7 @@ function* handleDeleteGroup({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -626,6 +653,7 @@ function* handleDeleteGroup({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userDeleteGroupError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -650,7 +678,7 @@ function* handleUnlinkSteam({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkSteamSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -658,6 +686,7 @@ function* handleUnlinkSteam({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -668,6 +697,7 @@ function* handleUnlinkSteam({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkSteamError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -692,7 +722,7 @@ function* handleUnlinkGoogle({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkGoogleSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -700,6 +730,7 @@ function* handleUnlinkGoogle({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -710,6 +741,7 @@ function* handleUnlinkGoogle({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkGoogleError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -734,7 +766,7 @@ function* handleUnlinkGameCenter({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkGameCenterSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -742,6 +774,7 @@ function* handleUnlinkGameCenter({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -752,6 +785,7 @@ function* handleUnlinkGameCenter({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkGameCenterError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -776,7 +810,7 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkFacebookSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -784,6 +818,7 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -794,6 +829,7 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkFacebookError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -818,7 +854,7 @@ function* handleUnlinkEmail({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkEmailSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -826,6 +862,7 @@ function* handleUnlinkEmail({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -836,6 +873,7 @@ function* handleUnlinkEmail({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkEmailError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -860,7 +898,7 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkDeviceSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -868,6 +906,7 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -878,6 +917,7 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkDeviceError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
@@ -902,7 +942,7 @@ function* handleUnlinkCustom({payload: data}: AnyAction)
     else
     {
       yield put(userUnlinkCustomSuccess());
-      yield handleExport({type: '@@user/EXPORT_REQUEST', payload: data});
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
     }
   }
   catch(err)
@@ -910,6 +950,7 @@ function* handleUnlinkCustom({payload: data}: AnyAction)
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -920,6 +961,7 @@ function* handleUnlinkCustom({payload: data}: AnyAction)
     else if(err instanceof Error)
     {
       yield put(userUnlinkCustomError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else

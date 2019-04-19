@@ -58,8 +58,7 @@ export interface UserObject
   edge_count?: number,
   create_time?: string,
   update_time?: string,
-  verify_time?: string,
-  disable_time?: string
+  verify_time?: string
 };
 
 export interface UsersObjectRequest
@@ -85,6 +84,7 @@ export interface AccountObject
 export interface ExportObject
 {
   account: AccountObject,
+  disable_time?: string,
   leaderboard_records?: any[],
   wallet_ledgers?: LedgerObject[]
 };
@@ -168,7 +168,7 @@ export interface UserState
   readonly loading: boolean,
   readonly updated: boolean,
   readonly data: ExportObject,
-  readonly account: AccountObject,
+  readonly account: ExportObject,
   readonly ledgers: LedgerObject[],
   readonly friends: FriendObject[],
   readonly groups: GroupObject[],

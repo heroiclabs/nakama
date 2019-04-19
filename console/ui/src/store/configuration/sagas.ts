@@ -23,6 +23,7 @@ function* handleFetch()
     console.error(err);
     if(err.status === 401)
     {
+      localStorage.clear();
       window.location.href = '/login';
     }
     else if(err.json)
@@ -33,6 +34,7 @@ function* handleFetch()
     else if(err instanceof Error)
     {
       yield put(configurationError(err.stack!));
+      localStorage.clear();
       window.location.href = '/login';
     }
     else
