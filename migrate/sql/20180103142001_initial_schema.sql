@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
 
     UNIQUE (source_id, destination_id)
 );
+CREATE INDEX IF NOT EXISTS user_edge_auto_index_fk_destination_id_ref_users ON user_edge (destination_id);
 
 CREATE TABLE IF NOT EXISTS notification (
     -- FIXME: cockroach's analyser is not clever enough when create_time has DESC mode on the index.
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS storage (
     UNIQUE (collection, key, user_id)
 );
 CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
+CREATE INDEX IF NOT EXISTS storage_auto_index_fk_user_id_ref_users ON storage (user_id);
 
 CREATE TABLE IF NOT EXISTS message (
   PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
