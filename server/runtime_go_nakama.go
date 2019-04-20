@@ -1533,7 +1533,7 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 		metadataStr = string(metadataBytes)
 	}
 
-	maxGroupUsers := n.config.GetGroups().MaxUsers;
+	maxGroupUsers := n.config.GetGroups().MaxUsers
 	if maxCount < 0 || maxCount > maxGroupUsers {
 		return nil, errors.New("expects max_count to be > 0 and <= " + strconv.Itoa(maxGroupUsers))
 	}
@@ -1588,7 +1588,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 	}
 
 	maxCountValue := 0
-	if maxCount > 0 && maxCount <= 100 {
+	if maxCount > 0 && maxCount <= n.config.GetGroups().MaxUsers {
 		maxCountValue = maxCount
 	}
 
