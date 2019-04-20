@@ -45,6 +45,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - All schema and query statements that use the '1970-01-01 00:00:00' constant now specify UTC timezone.
 - Storage write error message are more descriptive for when values must be encoded JSON objects.
 - Storage listing operations now treat empty owner IDs as listing across all data rather than system-owned data.
+- Storage write operations now return more specific error messages.
 
 ### Fixed
 - CRON expressions for leaderboard and tournament resets now allow concurrent usage safely.

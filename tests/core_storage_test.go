@@ -152,7 +152,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
@@ -256,7 +256,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
@@ -334,7 +334,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
@@ -370,7 +370,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelineUserSingle(t *testing.T) {
@@ -635,7 +635,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
@@ -687,7 +687,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelineIfMatchExists(t *testing.T) {
@@ -828,7 +828,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
 
 func TestStorageWritePipelinePermissionFail(t *testing.T) {
@@ -880,7 +880,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
-	assert.Equal(t, "Storage write rejected - not found, version check failed, or permission denied.", err.Error(), "error message did not match")
+	assert.Equal(t, "Storage write rejected - permission denied.", err.Error(), "error message did not match")
 }
 
 func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
