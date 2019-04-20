@@ -43,6 +43,7 @@ type Config interface {
 	GetSocket() *SocketConfig
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
+	GetGroups() * GroupsConfig
 	GetRuntime() *RuntimeConfig
 	GetMatch() *MatchConfig
 	GetTracker() *TrackerConfig
@@ -310,6 +311,7 @@ type config struct {
 	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
 	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
 	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Groups           *GroupsConfig      `yaml:"groups" json:"groups" usage:"Groups settings."`
 	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
 	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
 	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
@@ -333,6 +335,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Socket:           NewSocketConfig(),
 		Database:         NewDatabaseConfig(),
 		Social:           NewSocialConfig(),
+		Groups:           NewGroupsConfig(),
 		Runtime:          NewRuntimeConfig(),
 		Match:            NewMatchConfig(),
 		Tracker:          NewTrackerConfig(),
@@ -348,6 +351,7 @@ func (c *config) Clone() (Config, error) {
 	configSocket := *(c.Socket)
 	configDatabase := *(c.Database)
 	configSocial := *(c.Social)
+	configGroups := *(c.Groups)
 	configRuntime := *(c.Runtime)
 	configMatch := *(c.Match)
 	configTracker := *(c.Tracker)
@@ -363,6 +367,7 @@ func (c *config) Clone() (Config, error) {
 		Socket:           &configSocket,
 		Database:         &configDatabase,
 		Social:           &configSocial,
+		Groups:           &configGroups,
 		Runtime:          &configRuntime,
 		Match:            &configMatch,
 		Tracker:          &configTracker,
@@ -428,6 +433,10 @@ func (c *config) GetDatabase() *DatabaseConfig {
 
 func (c *config) GetSocial() *SocialConfig {
 	return c.Social
+}
+
+func (c *config) GetGroups() *GroupsConfig {
+	return c.Groups
 }
 
 func (c *config) GetRuntime() *RuntimeConfig {
@@ -592,6 +601,18 @@ func NewSocialConfig() *SocialConfig {
 			PublisherKey: "",
 			AppID:        0,
 		},
+	}
+}
+
+// GroupsConfig is configuration relevant to Groups
+type GroupsConfig struct {
+	MaxUsers int `yaml:"max_users" json:"max_users" usage:"Max users in group."`
+}
+
+// NewGroupsConfig creates a new GroupsConfig struct.
+func NewGroupsConfig() *GroupsConfig {
+	return &GroupsConfig{
+		MaxUsers:	100,
 	}
 }
 
