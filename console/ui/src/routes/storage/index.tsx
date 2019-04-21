@@ -67,7 +67,7 @@ class Storage extends Component<Props, State>
     super(props);
     this.state = {format: null, uploaded: false, failed: false};
   }
-  
+
   public componentDidMount()
   {
     const query = queryString.parse(this.props.location.search);
@@ -77,7 +77,7 @@ class Storage extends Component<Props, State>
     }
     this.props.fetchManyRequest(query);
   }
-  
+
   public filter(user_id: string)
   {
     const {history, fetchManyRequest} = this.props;
@@ -92,19 +92,19 @@ class Storage extends Component<Props, State>
     history.push(`/storage?user_id=${user_id}`);
     fetchManyRequest({user_id});
   }
-  
+
   public upload(format: null|string, event: React.FormEvent<Element>)
   {
     event.stopPropagation();
     event.preventDefault();
     this.setState({format, uploaded: false, failed: false});
   }
-  
+
   public files(files: any[])
   {
     const {format} = this.state;
     const reader = new FileReader();
-    
+
       reader.onabort = () => console.error('File reading was aborted.');
       reader.onerror = () => console.error('File reading has failed.');
       reader.onload = (() =>
@@ -118,7 +118,7 @@ class Storage extends Component<Props, State>
             'application/json' :
             'text/plain'
           ) + '\n\n' + reader.result + boundary + '--';
-        
+
         try
         {
           window.nakama_api.doFetch(
@@ -132,24 +132,35 @@ class Storage extends Component<Props, State>
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
               }
             }
+          ).then(
+            (() =>
+            {
+              this.setState({uploaded: true, failed: false});
+            }).bind(this)
+          ).catch(
+            ((err: any) =>
+            {
+              console.error(err);
+              this.setState({uploaded: false, failed: true});
+            }).bind(this)
           );
-          this.setState({uploaded: true, failed: false});
         }
         catch(err)
         {
+          console.error(err);
           this.setState({uploaded: false, failed: true});
         }
       }).bind(this);
-    
+
     files.forEach(file => reader.readAsBinaryString(file));
   }
-  
+
   public details(object: StorageObject)
   {
     const {history} = this.props;
     history.push(`/storage/${object.collection}/${object.key}/${object.user_id}`);
   }
-  
+
   public remove_all()
   {
     if(confirm('Are you sure you want to delete all objects?'))
@@ -159,7 +170,7 @@ class Storage extends Component<Props, State>
       this.props.fetchManyRequest({});
     }
   }
-  
+
   public remove(object: StorageObject, event: React.FormEvent<Element>)
   {
     event.stopPropagation();
@@ -171,7 +182,7 @@ class Storage extends Component<Props, State>
       this.props.fetchManyRequest({});
     }
   }
-  
+
   public render()
   {
     const {data} = this.props;
@@ -258,7 +269,7 @@ class Storage extends Component<Props, State>
                 </Level.Item>
               </Level.Item>
             </Level>
-            
+
             {
               format ?
               <Dropzone onDrop={this.files.bind(this)}>
@@ -292,7 +303,7 @@ class Storage extends Component<Props, State>
               <Notification color="danger">Failed to upload the file.</Notification> :
               null
             }
-            
+
             <Table fullwidth striped hoverable>
               <Table.Head>
                 <Table.Row>

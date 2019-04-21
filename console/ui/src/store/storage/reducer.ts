@@ -18,19 +18,19 @@ export const storagesReducer: Reducer<StoragesState> = (state = initialStoragesS
     case StorageActionTypes.FETCH_MANY_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.FETCH_MANY_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, data: action.payload};
     case StorageActionTypes.FETCH_MANY_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, data: initialStoragesState.data};
     case StorageActionTypes.DELETE_MANY_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.DELETE_MANY_SUCCESS:
-      return {...state, loading: false};
+      return {...state, loading: false, errors: undefined};
     case StorageActionTypes.DELETE_MANY_ERROR:
       return {...state, loading: false, errors: action.payload};
     case StorageActionTypes.DELETE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.DELETE_SUCCESS:
-      return {...state, loading: false};
+      return {...state, loading: false, errors: undefined};
     case StorageActionTypes.DELETE_ERROR:
       return {...state, loading: false, errors: action.payload};
     default:
@@ -63,15 +63,15 @@ export const storageReducer: Reducer<StorageState> = (state = initialStorageStat
     case StorageActionTypes.CREATE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.CREATE_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, data: action.payload};
     case StorageActionTypes.CREATE_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, data: initialStorageState.data};
     case StorageActionTypes.FETCH_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.FETCH_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, data: action.payload};
     case StorageActionTypes.FETCH_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, data: initialStorageState.data};
     case StorageActionTypes.UPDATE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.UPDATE_SUCCESS:
@@ -81,7 +81,7 @@ export const storageReducer: Reducer<StorageState> = (state = initialStorageStat
     case StorageActionTypes.DELETE_REQUEST:
       return {...state, loading: true};
     case StorageActionTypes.DELETE_SUCCESS:
-      return {...state, loading: false};
+      return {...state, loading: false, errors: undefined};
     case StorageActionTypes.DELETE_ERROR:
       return {...state, loading: false, errors: action.payload};
     default:

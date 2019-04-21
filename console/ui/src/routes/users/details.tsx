@@ -296,7 +296,7 @@ class UsersDetails extends Component<Props, State>
     }
   }
   
-  public render_profile()
+  public render_profile(id: string)
   {
     const {account, updated, errors} = this.props;
     return <form onSubmit={this.update_profile.bind(this)}>
@@ -310,6 +310,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`id_${id}`}
                     static
                     type="text"
                     name="id"
@@ -328,6 +329,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`username_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="username"
@@ -347,6 +349,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`display_name_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="display_name"
@@ -366,6 +369,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Textarea
+                    key={`metadata_${id}`}
                     placeholder="Metadata"
                     rows={6}
                     name="metadata"
@@ -385,6 +389,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
+                    key={`create_time_${id}`}
                     type="text"
                     name="create_time"
                     defaultValue={account.account.user.create_time}
@@ -403,6 +408,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
+                    key={`update_time_${id}`}
                     type="text"
                     name="update_time"
                     defaultValue={account.account.user.update_time}
@@ -423,6 +429,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`facebook_id_${id}`}
                     type="text"
                     name="facebook_id"
                     maxLength="128"
@@ -431,6 +438,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.facebook_id}
                     onClick={this.unlink.bind(this, 'facebook')}
                   >Unlink</Button>
                 </Control>
@@ -447,6 +455,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`gamecenter_id_${id}`}
                     type="text"
                     name="gamecenter_id"
                     maxLength="128"
@@ -455,6 +464,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.gamecenter_id}
                     onClick={this.unlink.bind(this, 'gamecenter')}
                   >Unlink</Button>
                 </Control>
@@ -471,6 +481,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`google_id_${id}`}
                     type="text"
                     name="google_id"
                     maxLength="128"
@@ -479,6 +490,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.google_id}
                     onClick={this.unlink.bind(this, 'google')}
                   >Unlink</Button>
                 </Control>
@@ -495,6 +507,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`steam_id_${id}`}
                     type="text"
                     name="steam_id"
                     maxLength="128"
@@ -503,6 +516,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.steam_id}
                     onClick={this.unlink.bind(this, 'steam')}
                   >Unlink</Button>
                 </Control>
@@ -518,6 +532,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`avatar_url_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="avatar_url"
@@ -537,6 +552,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`lang_tag_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="lang_tag"
@@ -556,6 +572,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`location_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="location"
@@ -575,6 +592,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
+                    key={`timezone_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="timezone"
@@ -607,7 +625,7 @@ class UsersDetails extends Component<Props, State>
     </form>;
   }
   
-  public render_account()
+  public render_account(id: string)
   {
     const {account, updated, errors} = this.props;
     return <form onSubmit={this.update_account.bind(this)}>
@@ -622,6 +640,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`custom_id_${id}`}
                     type="text"
                     placeholder="(empty)"
                     name="custom_id"
@@ -631,6 +650,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.custom_id}
                     onClick={this.unlink.bind(this, 'custom')}
                   >Unlink</Button>
                 </Control>
@@ -649,6 +669,7 @@ class UsersDetails extends Component<Props, State>
                     <Control expanded>
                       <Input
                         disabled
+                        key={`device_${key}_${id}`}
                         type="text"
                         name="devices[]"
                         defaultValue={d.id}
@@ -656,6 +677,7 @@ class UsersDetails extends Component<Props, State>
                     </Control>
                     <Control>
                       <Button
+                        disabled={!d.id}
                         onClick={this.unlink.bind(this, 'device')}
                       >Unlink</Button>
                     </Control>
@@ -674,6 +696,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
+                    key={`email_${id}`}
                     type="text"
                     name="email"
                     maxLength="255"
@@ -682,6 +705,7 @@ class UsersDetails extends Component<Props, State>
                 </Control>
                 <Control>
                   <Button
+                    disabled={!account.account.user.email}
                     onClick={this.unlink.bind(this, 'email')}
                   >Unlink</Button>
                 </Control>
@@ -698,6 +722,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
+                    key={`verified_${id}`}
                     type="text"
                     name="verified"
                     defaultValue={account.account.user.verify_time || 'false'}
@@ -715,6 +740,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Textarea
+                    key={`wallet_${id}`}
                     placeholder="Wallet"
                     rows="6"
                     name="wallet"
@@ -746,10 +772,10 @@ class UsersDetails extends Component<Props, State>
     </form>;
   }
   
-  public render_friends()
+  public render_friends(id: string)
   {
     const {friends} = this.props;
-    return <Table fullwidth striped hoverable>
+    return <Table key={`friends_${id}`} fullwidth striped hoverable>
       <Table.Head>
         <Table.Row>
           <Table.Heading>User ID</Table.Heading>
@@ -783,10 +809,10 @@ class UsersDetails extends Component<Props, State>
     </Table>;
   }
   
-  public render_groups()
+  public render_groups(id: string)
   {
     const {groups} = this.props;
-    return <Table fullwidth striped>
+    return <Table key={`groups_${id}`} fullwidth striped>
       <Table.Head>
         <Table.Row>
           <Table.Heading>Group ID</Table.Heading>
@@ -820,10 +846,10 @@ class UsersDetails extends Component<Props, State>
     </Table>;
   }
   
-  public render_wallet()
+  public render_wallet(id: string)
   {
     const {ledgers} = this.props;
-    return <Table fullwidth striped>
+    return <Table key={`wallet_${id}`} fullwidth striped>
       <Table.Head>
         <Table.Row>
           <Table.Heading>ID</Table.Heading>
@@ -952,7 +978,7 @@ class UsersDetails extends Component<Props, State>
               </Tab>
             </Tab.Group>
     
-            {this[`render_${tab}`]()}
+            {this[`render_${tab}`](account.account.user.id)}
           </Column>
         </Column.Group>
       </Section>

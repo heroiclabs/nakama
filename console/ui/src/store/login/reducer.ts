@@ -17,9 +17,9 @@ export const loginReducer: Reducer<LoginState> = (state = initialState, action) 
     case LoginActionTypes.LOGIN_REQUEST:
       return {...state, loading: true};
     case LoginActionTypes.LOGIN_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, data: action.payload};
     case LoginActionTypes.LOGIN_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, data: initialState.data};
     case LoginActionTypes.LOGOUT_REQUEST:
       return initialState;
     default:
