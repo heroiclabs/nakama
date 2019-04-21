@@ -17,9 +17,9 @@ export const statusReducer: Reducer<StatusState> = (state = initialState, action
     case StatusActionTypes.FETCH_REQUEST:
       return {...state, loading: true};
     case StatusActionTypes.FETCH_SUCCESS:
-      return {...state, loading: false, data: action.payload};
+      return {...state, loading: false, errors: undefined, data: action.payload};
     case StatusActionTypes.FETCH_ERROR:
-      return {...state, loading: false, errors: action.payload};
+      return {...state, loading: false, errors: action.payload, data: initialState.data};
     default:
       return state;
   }

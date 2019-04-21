@@ -194,6 +194,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`collection_${data.version}`}
                             type="text"
                             name="collection"
                             defaultValue={data.collection}
@@ -212,6 +213,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`key_${data.version}`}
                             type="text"
                             name="key"
                             defaultValue={data.key}
@@ -230,6 +232,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`user_id_${data.version}`}
                             type="text"
                             name="user_id"
                             defaultValue={data.user_id}
@@ -248,6 +251,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`version_${data.version}`}
                             type="text"
                             name="version"
                             defaultValue={data.version}
@@ -266,6 +270,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Select.Container>
                             <Select
+                              key={`permission_read_${data.version}`}
                               name="permission_read"
                               defaultValue={data.permission_read}
                             >
@@ -288,6 +293,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Select.Container>
                             <Select
+                              key={`permission_write_${data.version}`}
                               name="permission_write"
                               defaultValue={data.permission_write}
                             >
@@ -311,6 +317,7 @@ class StorageDetails extends Component<Props, State>
                         {
                           data.value ?
                           <Textarea
+                            key={`value_${data.version}`}
                             placeholder="Value"
                             rows={8}
                             name="value"
@@ -335,6 +342,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`create_time_${data.version}`}
                             type="text"
                             name="create_time"
                             defaultValue={data.create_time}
@@ -353,6 +361,7 @@ class StorageDetails extends Component<Props, State>
                         <Control>
                           <Input
                             static
+                            key={`update_time_${data.version}`}
                             type="text"
                             name="update_time"
                             defaultValue={data.update_time}

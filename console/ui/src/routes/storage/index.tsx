@@ -132,11 +132,22 @@ class Storage extends Component<Props, State>
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
               }
             }
+          ).then(
+            (() =>
+            {
+              this.setState({uploaded: true, failed: false});
+            }).bind(this)
+          ).catch(
+            ((err) =>
+            {
+              console.error(err);
+              this.setState({uploaded: false, failed: true});
+            }).bind(this)
           );
-          this.setState({uploaded: true, failed: false});
         }
         catch(err)
         {
+          console.error(err);
           this.setState({uploaded: false, failed: true});
         }
       }).bind(this);

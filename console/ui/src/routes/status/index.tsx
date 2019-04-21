@@ -78,11 +78,17 @@ class Status extends Component<Props, State>
       labels
     } = this.state;
     const {data} = next;
-
+    const now = new Date();
+    const t = now.valueOf();
+    
     if(
       data &&
       data.nodes &&
-      data.nodes.length
+      data.nodes.length &&
+      (
+        !latency_ms.length ||
+        (t - latency_ms[latency_ms.length - 1].t) > 3000
+      )
     )
     {
       let avg_latency_ms = 0;
@@ -130,8 +136,6 @@ class Status extends Component<Props, State>
         ) / 1000;
       }
 
-      const now = new Date();
-      const t = now.valueOf();
       labels.push(now);
       latency_ms.push({
         t,
@@ -170,7 +174,7 @@ class Status extends Component<Props, State>
       {
         output_kbs.shift();
       }
-
+      
       this.setState({
         avg_latency_ms,
         avg_rate_sec,
@@ -238,17 +242,27 @@ class Status extends Component<Props, State>
           xAxes: [{
             type: 'time',
             distribution: 'series',
-            ticks: {
+            time:
+            {
+              displayFormats:
+              {
+                second: 'HH:mm:ss'
+              }
+            },
+            ticks:
+            {
               autoSkip: true,
               autoSkipPadding: 10,
               source: 'labels'
             }
           }],
           yAxes: [{
-            ticks: {
-                beginAtZero: true
+            ticks:
+            {
+              beginAtZero: true
             },
-            scaleLabel: {
+            scaleLabel:
+            {
               display: true,
               labelString: types[type]
             }
