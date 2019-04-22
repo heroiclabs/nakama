@@ -160,6 +160,10 @@ function* handleFetch({payload: data}: AnyAction)
       localStorage.clear();
       window.location.href = '/login';
     }
+    else if (err.status == 404) // tombstoned users
+    {
+      window.location.href = '/users';
+    }
     else if(err.json)
     {
       const json = yield err.json();
