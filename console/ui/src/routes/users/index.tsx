@@ -232,10 +232,10 @@ class Users extends Component<Props, State>
                       key={`cell_${key}`}
                       onClick={!tombstones ? this.details.bind(this, user.id) : null}
                     >
-                      <Table.Cell>{user.id}</Table.Cell>
+                      <Table.Cell className={user.id == '00000000-0000-0000-0000-000000000000' || tombstones ? 'nopointer' : ''}>{user.id}</Table.Cell>
                       <Table.Cell hidden={tombstones}>{user.username}</Table.Cell>
                       <Table.Cell hidden={tombstones}>{user.display_name}</Table.Cell>
-                      <Table.Cell>{user.update_time}</Table.Cell>
+                      <Table.Cell className={user.id == '00000000-0000-0000-0000-000000000000' || tombstones ? 'nopointer' : ''}>{user.update_time}</Table.Cell>
                       <Table.Cell>
                         {
                           user.id == '00000000-0000-0000-0000-000000000000' || tombstones ?

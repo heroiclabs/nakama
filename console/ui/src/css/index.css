@@ -15,6 +15,11 @@ body
   margin-bottom: 20px;
 }
 
+.nopointer
+{
+  cursor: default !important;
+}
+
 #users td
 {
   cursor: pointer;
