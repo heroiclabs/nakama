@@ -67,7 +67,7 @@ class Storage extends Component<Props, State>
     super(props);
     this.state = {format: null, uploaded: false, failed: false};
   }
-  
+
   public componentDidMount()
   {
     const query = queryString.parse(this.props.location.search);
@@ -77,7 +77,7 @@ class Storage extends Component<Props, State>
     }
     this.props.fetchManyRequest(query);
   }
-  
+
   public filter(user_id: string)
   {
     const {history, fetchManyRequest} = this.props;
@@ -92,14 +92,14 @@ class Storage extends Component<Props, State>
     history.push(`/storage?user_id=${user_id}`);
     fetchManyRequest({user_id});
   }
-  
+
   public upload(format: null|string, event: React.FormEvent<Element>)
   {
     event.stopPropagation();
     event.preventDefault();
     this.setState({format, uploaded: false, failed: false});
   }
-  
+
   public files(files: any[])
   {
     const {format} = this.state;
@@ -171,7 +171,7 @@ class Storage extends Component<Props, State>
       this.props.fetchManyRequest({});
     }
   }
-  
+
   public render()
   {
     const {data} = this.props;
@@ -258,7 +258,7 @@ class Storage extends Component<Props, State>
                 </Level.Item>
               </Level.Item>
             </Level>
-            
+
             {
               format ?
               <Dropzone onDrop={this.files.bind(this)}>
@@ -292,7 +292,7 @@ class Storage extends Component<Props, State>
               <Notification color="danger">Failed to upload the file.</Notification> :
               null
             }
-            
+
             <Table fullwidth striped hoverable>
               <Table.Head>
                 <Table.Row>

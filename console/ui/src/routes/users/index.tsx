@@ -64,7 +64,7 @@ class Users extends Component<Props, State>
     super(props);
     this.state = {filter: '', banned: false, tombstones: false};
   }
-  
+
   public componentDidMount()
   {
     const query = queryString.parse(this.props.location.search);
@@ -83,7 +83,7 @@ class Users extends Component<Props, State>
       tombstones: !!query.tombstones
     });
   }
-  
+
   public all()
   {
     this.setState({
@@ -96,7 +96,7 @@ class Users extends Component<Props, State>
       tombstones: false
     });
   }
-  
+
   public banned()
   {
     this.setState({
@@ -109,7 +109,7 @@ class Users extends Component<Props, State>
       tombstones: false
     });
   }
-  
+
   public tombstones()
   {
     this.setState({
@@ -122,7 +122,7 @@ class Users extends Component<Props, State>
       tombstones: true
     });
   }
-  
+
   public filter()
   {
     const {history} = this.props;
@@ -131,13 +131,13 @@ class Users extends Component<Props, State>
     this.setState({filter});
     this.props.fetchManyRequest({filter});
   }
-  
+
   public details(id: string)
   {
     const {history} = this.props;
     history.push(`/users/${id}`);
   }
-  
+
   public remove_all()
   {
     if(confirm('Are you sure you want to delete all users?'))
@@ -145,7 +145,7 @@ class Users extends Component<Props, State>
       this.props.deleteManyRequest(this.state);
     }
   }
-  
+
   public remove(object: UserObject, event: React.FormEvent<Element>)
   {
     event.stopPropagation();
@@ -155,7 +155,7 @@ class Users extends Component<Props, State>
       this.props.deleteRequest(Object.assign(object, this.state));
     }
   }
-  
+
   public render()
   {
     const {banned, tombstones} = this.state;
@@ -174,7 +174,7 @@ class Users extends Component<Props, State>
                     <strong>{data.total_count}</strong> users
                   </Title>
                 </Level.Item>
-                
+
                 <Level.Item>
                   <Field kind="addons">
                     <Control>
@@ -185,7 +185,7 @@ class Users extends Component<Props, State>
                     </Control>
                   </Field>
                 </Level.Item>
-                
+
                 <Level.Item>{
                   (!banned && !tombstones) ?
                   <strong>All</strong> :
@@ -219,8 +219,8 @@ class Users extends Component<Props, State>
               <Table.Head>
                 <Table.Row>
                   <Table.Heading>ID</Table.Heading>
-                  <Table.Heading>Username</Table.Heading>
-                  <Table.Heading>Display Name</Table.Heading>
+                  <Table.Heading hidden={tombstones}>Username</Table.Heading>
+                  <Table.Heading hidden={tombstones}>Display Name</Table.Heading>
                   <Table.Heading>Update Time</Table.Heading>
                   <Table.Heading>&nbsp;</Table.Heading>
                 </Table.Row>
@@ -230,15 +230,15 @@ class Users extends Component<Props, State>
                   (data.users || []).map((user, key) =>
                     <Table.Row
                       key={`cell_${key}`}
-                      onClick={this.details.bind(this, user.id)}
+                      onClick={!tombstones ? this.details.bind(this, user.id) : null}
                     >
-                      <Table.Cell>{user.id}</Table.Cell>
-                      <Table.Cell>{user.username}</Table.Cell>
-                      <Table.Cell>{user.display_name}</Table.Cell>
-                      <Table.Cell>{user.update_time}</Table.Cell>
+                      <Table.Cell className={user.id == '00000000-0000-0000-0000-000000000000' || tombstones ? 'nopointer' : ''}>{user.id}</Table.Cell>
+                      <Table.Cell hidden={tombstones}>{user.username}</Table.Cell>
+                      <Table.Cell hidden={tombstones}>{user.display_name}</Table.Cell>
+                      <Table.Cell className={user.id == '00000000-0000-0000-0000-000000000000' || tombstones ? 'nopointer' : ''}>{user.update_time}</Table.Cell>
                       <Table.Cell>
                         {
-                          user.id == '00000000-0000-0000-0000-000000000000' ?
+                          user.id == '00000000-0000-0000-0000-000000000000' || tombstones ?
                           null :
                           <Button
                             size="small"
