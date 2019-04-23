@@ -397,18 +397,23 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
         .join("");
 
       const fetchOptions = {...{ method: method /*, keepalive: true */ }, ...options};
-      const headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      } as any;
-
+      fetchOptions.headers = {...options.headers};
       if (configuration.bearerToken) {
-        headers["Authorization"] = "Bearer " + configuration.bearerToken;
+        fetchOptions.headers["Authorization"] = "Bearer " + configuration.bearerToken;
       } else if (configuration.username) {
-        headers["Authorization"] = "Basic " + btoa(configuration.username + ":" + configuration.password);
+        fetchOptions.headers["Authorization"] = "Basic " + btoa(configuration.username + ":" + configuration.password);
       }
-
-      fetchOptions.headers = {...headers, ...options.headers};
+      if(!Object.keys(fetchOptions.headers).includes("Accept")) {
+        fetchOptions.headers["Accept"] = "application/json";
+      }
+      if(!Object.keys(fetchOptions.headers).includes("Content-Type")) {
+        fetchOptions.headers["Content-Type"] = "application/json";
+      }
+      Object.keys(fetchOptions.headers).forEach((key: string) => {
+        if(!fetchOptions.headers[key]) {
+          delete fetchOptions.headers[key];
+        }
+      });
       fetchOptions.body = body;
 
       return Promise.race([
