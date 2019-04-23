@@ -128,6 +128,12 @@ class UsersDetails extends Component<Props, State>
     }
   }
   
+  public key(prefix: string)
+  {
+    const {account} = this.props;
+    return `${prefix}_${account.account.user.id}_${account.account.user.update_time}`;
+  }
+  
   public unban()
   {
     const {match} = this.props;
@@ -310,7 +316,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`id_${id}`}
+                    key={this.key('id')}
                     static
                     type="text"
                     name="id"
@@ -329,7 +335,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`username_${id}`}
+                    key={this.key('username')}
                     type="text"
                     placeholder="(empty)"
                     name="username"
@@ -349,7 +355,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`display_name_${id}`}
+                    key={this.key('display_name')}
                     type="text"
                     placeholder="(empty)"
                     name="display_name"
@@ -369,7 +375,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Textarea
-                    key={`metadata_${id}`}
+                    key={this.key('metadata')}
                     placeholder="Metadata"
                     rows={6}
                     name="metadata"
@@ -389,7 +395,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
-                    key={`create_time_${id}`}
+                    key={this.key('create_time')}
                     type="text"
                     name="create_time"
                     defaultValue={account.account.user.create_time}
@@ -408,7 +414,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
-                    key={`update_time_${id}`}
+                    key={this.key('update_time')}
                     type="text"
                     name="update_time"
                     defaultValue={account.account.user.update_time}
@@ -429,7 +435,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`facebook_id_${id}`}
+                    key={this.key('facebook_id')}
                     type="text"
                     name="facebook_id"
                     maxLength="128"
@@ -455,7 +461,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`gamecenter_id_${id}`}
+                    key={this.key('gamecenter_id')}
                     type="text"
                     name="gamecenter_id"
                     maxLength="128"
@@ -481,7 +487,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`google_id_${id}`}
+                    key={this.key('google_id')}
                     type="text"
                     name="google_id"
                     maxLength="128"
@@ -507,7 +513,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`steam_id_${id}`}
+                    key={this.key('steam_id')}
                     type="text"
                     name="steam_id"
                     maxLength="128"
@@ -532,7 +538,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`avatar_url_${id}`}
+                    key={this.key('avatar_url')}
                     type="text"
                     placeholder="(empty)"
                     name="avatar_url"
@@ -552,7 +558,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`lang_tag_${id}`}
+                    key={this.key('lang_tag')}
                     type="text"
                     placeholder="(empty)"
                     name="lang_tag"
@@ -572,7 +578,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`location_${id}`}
+                    key={this.key('location')}
                     type="text"
                     placeholder="(empty)"
                     name="location"
@@ -592,7 +598,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Input
-                    key={`timezone_${id}`}
+                    key={this.key('timezone')}
                     type="text"
                     placeholder="(empty)"
                     name="timezone"
@@ -640,7 +646,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`custom_id_${id}`}
+                    key={this.key('custom_id')}
                     type="text"
                     placeholder="(empty)"
                     name="custom_id"
@@ -660,7 +666,7 @@ class UsersDetails extends Component<Props, State>
           
           {
             (account.account.devices || []).map((d, key) =>
-              <Field horizontal key={`device_${key}`}>
+              <Field horizontal key={this.key(`device_${key}`)}>
                 <Field.Label size="normal">
                   <Label>{key ? '' : 'Device ID'}</Label>
                 </Field.Label>
@@ -669,7 +675,7 @@ class UsersDetails extends Component<Props, State>
                     <Control expanded>
                       <Input
                         disabled
-                        key={`device_${key}_${id}`}
+                        key={this.key(`device_${key}_${id}`)}
                         type="text"
                         name="devices[]"
                         defaultValue={d.id}
@@ -696,7 +702,7 @@ class UsersDetails extends Component<Props, State>
                 <Control expanded>
                   <Input
                     disabled
-                    key={`email_${id}`}
+                    key={this.key('email')}
                     type="text"
                     name="email"
                     maxLength="255"
@@ -722,7 +728,7 @@ class UsersDetails extends Component<Props, State>
                 <Control>
                   <Input
                     static
-                    key={`verified_${id}`}
+                    key={this.key('verified')}
                     type="text"
                     name="verified"
                     defaultValue={account.account.user.verify_time || 'false'}
@@ -740,7 +746,7 @@ class UsersDetails extends Component<Props, State>
               <Field>
                 <Control>
                   <Textarea
-                    key={`wallet_${id}`}
+                    key={this.key('wallet')}
                     placeholder="Wallet"
                     rows="6"
                     name="wallet"
@@ -775,7 +781,7 @@ class UsersDetails extends Component<Props, State>
   public render_friends(id: string)
   {
     const {friends} = this.props;
-    return <Table key={`friends_${id}`} fullwidth striped hoverable>
+    return <Table key={this.key(`friends_${id}`)} fullwidth striped hoverable>
       <Table.Head>
         <Table.Row>
           <Table.Heading>User ID</Table.Heading>
@@ -789,7 +795,7 @@ class UsersDetails extends Component<Props, State>
         {
           (friends || []).map((f, key) =>
             <Table.Row
-              key={`friend_${key}`}
+              key={this.key(`friends_${id}_${key}`)}
               onClick={this.go_to_friend.bind(this, f.user_id)}
             >
               <Table.Cell>{f.user_id}</Table.Cell>
@@ -812,7 +818,7 @@ class UsersDetails extends Component<Props, State>
   public render_groups(id: string)
   {
     const {groups} = this.props;
-    return <Table key={`groups_${id}`} fullwidth striped>
+    return <Table key={this.key(`groups_${id}`)} fullwidth striped>
       <Table.Head>
         <Table.Row>
           <Table.Heading>Group ID</Table.Heading>
@@ -826,7 +832,7 @@ class UsersDetails extends Component<Props, State>
         {
           (groups || []).map((g, key) =>
             <Table.Row
-              key={`group_${key}`}
+              key={this.key(`groups_${id}_${key}`)}
               onClick={this.go_to_friend.bind(this, g.id)}
             >
               <Table.Cell>{g.id}</Table.Cell>
@@ -849,7 +855,7 @@ class UsersDetails extends Component<Props, State>
   public render_wallet(id: string)
   {
     const {ledgers} = this.props;
-    return <Table key={`wallet_${id}`} fullwidth striped>
+    return <Table key={this.key(`wallet_${id}`)} fullwidth striped>
       <Table.Head>
         <Table.Row>
           <Table.Heading>ID</Table.Heading>
@@ -862,7 +868,7 @@ class UsersDetails extends Component<Props, State>
       <Table.Body>
         {
           (ledgers || []).map((l, key) =>
-            <Table.Row key={`ledger_${key}`}>
+            <Table.Row key={this.key(`wallet_${id}_${key}`)}>
               <Table.Cell>{l.id}</Table.Cell>
               <Table.Cell>{l.changeset}</Table.Cell>
               <Table.Cell>{l.metadata}</Table.Cell>

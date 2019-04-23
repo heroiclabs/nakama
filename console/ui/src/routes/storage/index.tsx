@@ -103,64 +103,53 @@ class Storage extends Component<Props, State>
   public files(files: any[])
   {
     const {format} = this.state;
-    const reader = new FileReader();
+    const body = new FormData();
     
-      reader.onabort = () => console.error('File reading was aborted.');
-      reader.onerror = () => console.error('File reading has failed.');
-      reader.onload = (() =>
-      {
-        const boundary = '-----------------------------' + new Date().getTime();
-        const body =
-          boundary + '\n' +
-          `Content-Disposition: form-data; name="import"; filename="import.${format}"` + '\n' +
-          'Content-Type: ' + (
-            format === 'json' ?
-            'application/json' :
-            'text/plain'
-          ) + '\n\n' + reader.result + boundary + '--';
-        
-        try
+    files.forEach((file, i) => body.append(
+      `import_${i}.${format}`,
+      file,
+      `import_${i}.${format}`
+    ));
+    
+    try
+    {
+      window.nakama_api.doFetch(
+        '/v2/console/storage/import',
+        'POST',
+        {},
+        body,
         {
-          window.nakama_api.doFetch(
-            '/v2/console/storage/import',
-            'POST',
-            {},
-            body,
-            {
-              headers:
-              {
-                'Content-Type': `multipart/form-data; boundary=${boundary}`
-              }
-            }
-          ).then(
-            (() =>
-            {
-              this.setState({uploaded: true, failed: false});
-            }).bind(this)
-          ).catch(
-            ((err) =>
-            {
-              console.error(err);
-              this.setState({uploaded: false, failed: true});
-            }).bind(this)
-          );
+          headers:
+          {
+            'Content-Type': null
+          }
         }
-        catch(err)
+      ).then(
+        (() =>
+        {
+          this.setState({uploaded: true, failed: false});
+        }).bind(this)
+      ).catch(
+        ((err: any) =>
         {
           console.error(err);
           this.setState({uploaded: false, failed: true});
-        }
-      }).bind(this);
-    
-    files.forEach(file => reader.readAsBinaryString(file));
+        }).bind(this)
+      );
+    }
+    catch(err)
+    {
+      console.error(err);
+      this.setState({uploaded: false, failed: true});
+    }
   }
-  
+
   public details(object: StorageObject)
   {
     const {history} = this.props;
     history.push(`/storage/${object.collection}/${object.key}/${object.user_id}`);
   }
-  
+
   public remove_all()
   {
     if(confirm('Are you sure you want to delete all objects?'))
@@ -170,7 +159,7 @@ class Storage extends Component<Props, State>
       this.props.fetchManyRequest({});
     }
   }
-  
+
   public remove(object: StorageObject, event: React.FormEvent<Element>)
   {
     event.stopPropagation();
