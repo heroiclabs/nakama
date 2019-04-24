@@ -84,7 +84,7 @@ There's a number of official [client libraries](https://github.com/heroiclabs) a
 
 ## Developer Console
 
-Nakama has an embedded Web UI that is intended to be used by developer during their project development. You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
+Nakama has an embedded Web UI that is intended to be used by developers during their project development. You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
 
 <img src=".github/login.jpg?raw=true" title="Login view" width="125" align="left">
 <img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
