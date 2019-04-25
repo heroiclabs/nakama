@@ -547,7 +547,7 @@ func NewSocketConfig() *SocketConfig {
 		WriteTimeoutMs:       10 * 1000,
 		IdleTimeoutMs:        60 * 1000,
 		WriteWaitMs:          5000,
-		PongWaitMs:           10000,
+		PongWaitMs:           13000,
 		PingPeriodMs:         8000,
 		PingBackoffThreshold: 20,
 		OutgoingQueueSize:    64,

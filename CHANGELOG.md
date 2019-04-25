@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
+- New developer console UI and related API endpoints available on the console port.
 - New Lua runtime functions to generate JWT tokens.
 - New Lua runtime functions to hash data using RSA SHA256.
 - Print max number of OS threads setting in server startup logs.
@@ -13,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Log more information when authoritative match handlers receive too many data messages.
 - Ensure storage writes and deletes are performed in a consistent order within each batch.
 - Ensure wallet updates are performed in a consistent order within each batch.
+- Increase default socket pong wait time.
 
 ### Fixed
 - Storage write batches now correctly abort when any query in the batch fails.
