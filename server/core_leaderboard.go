@@ -322,6 +322,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	var opSql string
+	var filterSql string
 	var scoreDelta int64
 	var subscoreDelta int64
 	var scoreAbs int64
@@ -345,9 +346,11 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
 			opSql = "score = ((leaderboard_record.score + $8::BIGINT - abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT - abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+			filterSql = " WHERE leaderboard_record.score > $8::BIGINT OR leaderboard_record.subscore > $9::BIGINT"
 		} else {
 			// Higher score is better.
 			opSql = "score = ((leaderboard_record.score + $8::BIGINT + abs(leaderboard_record.score - $8::BIGINT)) / 2)::BIGINT, subscore = ((leaderboard_record.subscore + $9::BIGINT + abs(leaderboard_record.subscore - $9::BIGINT)) / 2)::BIGINT"
+			filterSql = " WHERE leaderboard_record.score < $8::BIGINT OR leaderboard_record.subscore < $9::BIGINT"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
@@ -358,7 +361,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time)
             VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()`
+            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), update_time = now()` + filterSql
 	params := make([]interface{}, 0, 9)
 	params = append(params, leaderboardId, ownerId)
 	if username == "" {

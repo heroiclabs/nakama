@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure storage writes and deletes are performed in a consistent order within each batch.
 - Ensure wallet updates are performed in a consistent order within each batch.
 - Increase default socket pong wait time.
+- Ensure leaderboard record metadata, number of scores, and update time are only changed during leaderboard write operations if the score or subscore change.
 
 ### Fixed
 - Storage write batches now correctly abort when any query in the batch fails.
