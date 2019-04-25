@@ -3,6 +3,8 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
 ## [2.5.0] - 2019-04-25
 ### Added
 - New developer console UI available on http://127.0.0.1:7351.
