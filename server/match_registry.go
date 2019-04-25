@@ -34,18 +34,14 @@ import (
 )
 
 var (
-	MatchFilterValue = uint8(0)
-	MatchFilterPtr   = &MatchFilterValue
-
-	MatchFilterAny           = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr, StreamModeMatchAuthoritative: MatchFilterPtr}
-	MatchFilterRelayed       = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
-	MatchFilterAuthoritative = map[uint8]*uint8{StreamModeMatchAuthoritative: MatchFilterPtr}
+	MatchFilterValue   = uint8(0)
+	MatchFilterPtr     = &MatchFilterValue
+	MatchFilterRelayed = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
 
 	MaxLabelSize = 2048
 
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
-	ErrNoJoinMarker          = errors.New("no join marker received")
 )
 
 type MatchIndexEntry struct {
@@ -205,23 +201,17 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 }
 
 func (r *LocalMatchRegistry) GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error) {
-	q := bleve.NewDocIDQuery([]string{fmt.Sprintf("%v.%v", id.String(), node)})
-	searchReq := bleve.NewSearchRequestOptions(q, 1, 0, false)
-	searchReq.Fields = []string{"label_string"}
-	results, err := r.index.SearchInContext(ctx, searchReq)
-	if err != nil {
-		return "", fmt.Errorf("error getting match label: %v", err.Error())
-	}
-	if results.Hits.Len() == 0 {
-		// No such match or label is not available yet.
+	if node != r.node {
+		// Match does not exist.
 		return "", nil
 	}
-	label, ok := results.Hits[0].Fields["label_string"].(string)
+
+	mh, ok := r.matches.Load(id)
 	if !ok {
-		// Label was not a string, should not happen.
-		return "", errors.New("error getting match label: not a valid label string")
+		// Match does not exist, or has already ended.
+		return "", nil
 	}
-	return label, nil
+	return mh.(*MatchHandler).Label(), nil
 }
 
 func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
@@ -257,6 +247,9 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		if minSize != nil || maxSize != nil {
 			count = int(r.matchCount.Load())
 		}
+		if count == 0 {
+			return make([]*api.Match, 0), nil
+		}
 
 		// Apply the query filter to the set of known match labels.
 		var q query.Query
@@ -283,6 +276,9 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		if minSize != nil || maxSize != nil {
 			count = int(r.matchCount.Load())
 		}
+		if count == 0 {
+			return make([]*api.Match, 0), nil
+		}
 
 		// Apply the label filter to the set of known match labels.
 		indexQuery := bleve.NewMatchQuery(label.Value)
@@ -300,6 +296,9 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		count := limit
 		if minSize != nil || maxSize != nil {
 			count = int(r.matchCount.Load())
+		}
+		if count == 0 && authoritative != nil && authoritative.Value {
+			return make([]*api.Match, 0), nil
 		}
 
 		indexQuery := bleve.NewMatchAllQuery()
