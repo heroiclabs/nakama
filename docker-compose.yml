@@ -1,7 +1,7 @@
 version: '3'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v2.1.5
+    image: cockroachdb/cockroach:v2.1.6
     command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: "no"
     volumes:

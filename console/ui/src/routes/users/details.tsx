@@ -788,10 +788,7 @@ class UsersDetails extends Component<Props, State> {
       <Table.Body>
         {
           (groups || []).map((g, key) =>
-            <Table.Row
-              key={this.key(`groups_${id}_${key}`)}
-              onClick={this.go_to_friend.bind(this, g.group.id)}
-            >
+            <Table.Row key={this.key(`groups_${id}_${key}`)}>
               <Table.Cell>{g.group.id}</Table.Cell>
               <Table.Cell>{g.group.name}</Table.Cell>
               <Table.Cell>{g.state}</Table.Cell>
