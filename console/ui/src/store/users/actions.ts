@@ -8,7 +8,7 @@ import {
   UsersObject,
   LedgerObject,
   FriendObject,
-  GroupObject,
+  UserGroupObject,
   LedgerObjectRequest
 } from './types';
 
@@ -165,7 +165,7 @@ export const userFetchGroupRequest = (data: UserObjectRequest) => action(
   UserActionTypes.FETCH_MANY_GROUP_REQUEST,
   data
 );
-export const userFetchGroupSuccess = (data: GroupObject[]) => action(
+export const userFetchGroupSuccess = (data: UserGroupObject[]) => action(
   UserActionTypes.FETCH_MANY_GROUP_SUCCESS,
   data
 );

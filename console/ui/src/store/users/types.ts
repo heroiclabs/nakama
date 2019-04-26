@@ -9,18 +9,21 @@ export interface LedgerObject
 
 export interface FriendObject
 {
-  user_id: string,
-  username?: string,
-  state?: string,
-  update_time?: string
+  user: UserObject,
+  state?: string
 };
 
 export interface GroupObject
 {
   id: string,
   name?: string,
-  state?: string,
   update_time?: string,
+};
+
+export interface UserGroupObject
+{
+  group: GroupObject,
+  state?: string,
 };
 
 export interface UserObjectRequest
@@ -171,6 +174,6 @@ export interface UserState
   readonly account: ExportObject,
   readonly ledgers: LedgerObject[],
   readonly friends: FriendObject[],
-  readonly groups: GroupObject[],
+  readonly groups: UserGroupObject[],
   readonly errors?: string
 };

@@ -9,7 +9,7 @@ import * as userActions from '../../store/users/actions';
 import {
   ExportObject,
   FriendObject,
-  GroupObject,
+  UserGroupObject,
   LedgerObject,
   LedgerObjectRequest,
   UserObject,
@@ -50,7 +50,7 @@ interface PropsFromState {
   data: ExportObject,
   account: ExportObject,
   friends: FriendObject[],
-  groups: GroupObject[],
+  groups: UserGroupObject[],
   ledgers: LedgerObject[]
 }
 
@@ -754,16 +754,16 @@ class UsersDetails extends Component<Props, State> {
           (friends || []).map((f, key) =>
             <Table.Row
               key={this.key(`friends_${id}_${key}`)}
-              onClick={this.go_to_friend.bind(this, f.user_id)}
+              onClick={this.go_to_friend.bind(this, f.user.id)}
             >
-              <Table.Cell>{f.user_id}</Table.Cell>
-              <Table.Cell>{f.username}</Table.Cell>
+              <Table.Cell>{f.user.id}</Table.Cell>
+              <Table.Cell>{f.user.username}</Table.Cell>
               <Table.Cell>{f.state}</Table.Cell>
-              <Table.Cell>{f.update_time}</Table.Cell>
+              <Table.Cell>{f.user.update_time}</Table.Cell>
               <Table.Cell>
                 <Button
                   size="small"
-                  onClick={this.remove_friend.bind(this, f.user_id)}
+                  onClick={this.remove_friend.bind(this, f.user.id)}
                 >Delete</Button>
               </Table.Cell>
             </Table.Row>
@@ -790,16 +790,16 @@ class UsersDetails extends Component<Props, State> {
           (groups || []).map((g, key) =>
             <Table.Row
               key={this.key(`groups_${id}_${key}`)}
-              onClick={this.go_to_friend.bind(this, g.id)}
+              onClick={this.go_to_friend.bind(this, g.group.id)}
             >
-              <Table.Cell>{g.id}</Table.Cell>
-              <Table.Cell>{g.name}</Table.Cell>
+              <Table.Cell>{g.group.id}</Table.Cell>
+              <Table.Cell>{g.group.name}</Table.Cell>
               <Table.Cell>{g.state}</Table.Cell>
-              <Table.Cell>{g.update_time}</Table.Cell>
+              <Table.Cell>{g.group.update_time}</Table.Cell>
               <Table.Cell>
                 <Button
                   size="small"
-                  onClick={this.remove_group.bind(this, g.id)}
+                  onClick={this.remove_group.bind(this, g.group.id)}
                 >Delete</Button>
               </Table.Cell>
             </Table.Row>

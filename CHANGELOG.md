@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correctly display counters on console status page.
+- Correctly display friend names on console user details page.
+- Correctly display group names on console user details page.
 
 ## [2.5.0] - 2019-04-25
 ### Added

@@ -595,7 +595,7 @@ function* handleFetchGroup({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchGroupSuccess(res.groups || []));
+      yield put(userFetchGroupSuccess(res.user_groups || []));
     }
   }
   catch(err)
