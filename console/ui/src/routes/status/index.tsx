@@ -264,13 +264,13 @@ class Status extends Component<Props, State> {
     const cfg_output_kbs = this.generate_cfg('output_kbs');
 
     const total_sessions = data.nodes
-      .map(n => n.sessions || 0)
+      .map(n => n.session_count || 0)
       .reduce((total, value) => total + value, 0);
     const total_presences = data.nodes
-      .map(n => n.presences || 0)
+      .map(n => n.presence_count || 0)
       .reduce((total, value) => total + value, 0);
     const total_authoritative_matches = data.nodes
-      .map(n => n.authoritative_matches || 0)
+      .map(n => n.match_count || 0)
       .reduce((total, value) => total + value, 0);
     const total_goroutine_count = data.nodes
       .map(n => n.goroutine_count || 0)
@@ -347,9 +347,9 @@ class Status extends Component<Props, State> {
                       data.nodes.map((n, key) =>
                         <Table.Row key={`cell_${key}`}>
                           <Table.Cell>{n.name}</Table.Cell>
-                          <Table.Cell>{n.sessions || 0}</Table.Cell>
-                          <Table.Cell>{n.presences || 0}</Table.Cell>
-                          <Table.Cell>{n.authoritative_matches || 0}</Table.Cell>
+                          <Table.Cell>{n.session_count || 0}</Table.Cell>
+                          <Table.Cell>{n.presence_count || 0}</Table.Cell>
+                          <Table.Cell>{n.match_count || 0}</Table.Cell>
                           <Table.Cell>{n.goroutine_count || 0}</Table.Cell>
                         </Table.Row>
                       )

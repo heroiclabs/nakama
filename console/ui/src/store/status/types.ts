@@ -1,9 +1,9 @@
 export interface Node
 {
   name: string,
-  sessions?: number,
-  presences?: number,
-  authoritative_matches?: number,
+  session_count?: number,
+  presence_count?: number,
+  match_count?: number,
   goroutine_count?: number,
   avg_latency_ms: number,
   avg_rate_sec: number,
