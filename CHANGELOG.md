@@ -10,6 +10,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly display group names on console user details page.
 - Do not attempt to navigate to groups from console user details page.
 - Correctly update wallet on console user details page.
+- Correctly display custom ID, email, and verification time on console user details page.
+- Add missing placeholder text to fields on console user details page.
 
 ## [2.5.0] - 2019-04-25
 ### Added

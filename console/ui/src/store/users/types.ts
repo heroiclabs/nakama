@@ -51,17 +51,13 @@ export interface UserObject
   location?: string,
   timezone?: string,
   metadata?: string,
-  wallet?: string,
-  email?: string,
   facebook_id?: string,
   google_id?: string,
   gamecenter_id?: string,
   steam_id?: string,
-  custom_id?: string
   edge_count?: number,
   create_time?: string,
-  update_time?: string,
-  verify_time?: string
+  update_time?: string
 };
 
 export interface UsersObjectRequest
@@ -81,7 +77,10 @@ export interface AccountObject
 {
   user: UserObject,
   wallet?: string,
-  devices?: any[]
+  devices?: any[],
+  custom_id?: string,
+  email?: string,
+  verify_time?: string
 };
 
 export interface ExportObject

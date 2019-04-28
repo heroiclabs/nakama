@@ -397,6 +397,7 @@ class UsersDetails extends Component<Props, State> {
                     disabled
                     key={this.key('facebook_id')}
                     type="text"
+                    placeholder="(empty)"
                     name="facebook_id"
                     maxLength="128"
                     defaultValue={account.account.user.facebook_id}
@@ -423,6 +424,7 @@ class UsersDetails extends Component<Props, State> {
                     disabled
                     key={this.key('gamecenter_id')}
                     type="text"
+                    placeholder="(empty)"
                     name="gamecenter_id"
                     maxLength="128"
                     defaultValue={account.account.user.gamecenter_id}
@@ -449,6 +451,7 @@ class UsersDetails extends Component<Props, State> {
                     disabled
                     key={this.key('google_id')}
                     type="text"
+                    placeholder="(empty)"
                     name="google_id"
                     maxLength="128"
                     defaultValue={account.account.user.google_id}
@@ -475,6 +478,7 @@ class UsersDetails extends Component<Props, State> {
                     disabled
                     key={this.key('steam_id')}
                     type="text"
+                    placeholder="(empty)"
                     name="steam_id"
                     maxLength="128"
                     defaultValue={account.account.user.steam_id}
@@ -610,12 +614,12 @@ class UsersDetails extends Component<Props, State> {
                     placeholder="(empty)"
                     name="custom_id"
                     maxLength="128"
-                    defaultValue={account.account.user.custom_id}
+                    defaultValue={account.account.custom_id}
                   />
                 </Control>
                 <Control>
                   <Button
-                    disabled={!account.account.user.custom_id}
+                    disabled={!account.account.custom_id}
                     onClick={this.unlink.bind(this, 'custom')}
                   >Unlink</Button>
                 </Control>
@@ -663,14 +667,15 @@ class UsersDetails extends Component<Props, State> {
                     disabled
                     key={this.key('email')}
                     type="text"
+                    placeholder="(empty)"
                     name="email"
                     maxLength="255"
-                    defaultValue={account.account.user.email}
+                    defaultValue={account.account.email}
                   />
                 </Control>
                 <Control>
                   <Button
-                    disabled={!account.account.user.email}
+                    disabled={!account.account.email}
                     onClick={this.unlink.bind(this, 'email')}
                   >Unlink</Button>
                 </Control>
@@ -690,7 +695,7 @@ class UsersDetails extends Component<Props, State> {
                     key={this.key('verified')}
                     type="text"
                     name="verified"
-                    defaultValue={account.account.user.verify_time || 'false'}
+                    defaultValue={account.account.verify_time || 'false'}
                   />
                 </Control>
               </Field>
