@@ -414,7 +414,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 
 	if v := in.Wallet; v != nil && v.Value != "" {
 		var walletMap map[string]interface{}
-		if err := json.Unmarshal([]byte(v.Value), walletMap); err != nil {
+		if err := json.Unmarshal([]byte(v.Value), &walletMap); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Wallet must be a valid JSON object.")
 		}
 		if err := checkWalletFormat(walletMap, ""); err != nil {
