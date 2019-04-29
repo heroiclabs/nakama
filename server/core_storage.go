@@ -305,15 +305,14 @@ WHERE user_id = $1`
 			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 			var createTime pq.NullTime
 			var updateTime pq.NullTime
-			var userID sql.NullString
-			if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+
+			if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 				return err
 			}
 
 			o.CreateTime.Seconds = createTime.Time.Unix()
 			o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-			o.UserId = userID.String
 			funcObjects = append(funcObjects, o)
 		}
 
@@ -334,8 +333,8 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 		var createTime pq.NullTime
 		var updateTime pq.NullTime
-		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+
+		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -343,7 +342,6 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		o.CreateTime.Seconds = createTime.Time.Unix()
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-		o.UserId = userID.String
 		objects = append(objects, o)
 	}
 	rows.Close()
@@ -431,17 +429,13 @@ WHERE
 			var createTime pq.NullTime
 			var updateTime pq.NullTime
 
-			var userID sql.NullString
-			if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+			if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 				return err
 			}
 
 			o.CreateTime.Seconds = createTime.Time.Unix()
 			o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-			if uuid.FromStringOrNil(userID.String) != uuid.Nil {
-				o.UserId = userID.String
-			}
 			funcObjects.Objects = append(funcObjects.Objects, o)
 		}
 		if err = rows.Err(); err != nil {

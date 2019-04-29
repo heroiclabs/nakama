@@ -132,8 +132,8 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 		var createTime pq.NullTime
 		var updateTime pq.NullTime
-		var userID sql.NullString
-		if err := rows.Scan(&o.Collection, &o.Key, &userID, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+
+		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			rows.Close()
 			s.logger.Error("Error scanning storage objects.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
@@ -142,7 +142,6 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o.CreateTime.Seconds = createTime.Time.Unix()
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-		o.UserId = userID.String
 		objects = append(objects, o)
 	}
 	rows.Close()
