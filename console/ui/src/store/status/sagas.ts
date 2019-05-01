@@ -19,7 +19,6 @@ function* handleFetch()
   }
   catch(err)
   {
-    console.error(err);
     if(err.status === 401)
     {
       localStorage.clear();
@@ -33,8 +32,7 @@ function* handleFetch()
     else if(err instanceof Error)
     {
       yield put(statusError(err.stack!));
-      localStorage.clear();
-      window.location.href = '/';
+      // don't punt to the login screen. Just leave be.
     }
     else
     {

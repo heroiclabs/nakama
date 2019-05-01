@@ -65,7 +65,7 @@ export const storageUpdateError = (message: string) => action(
 
 export const storageDeleteRequest = (data: StorageObjectRequest) => action(
   StorageActionTypes.DELETE_REQUEST,
-  data
+  data,
 );
 export const storageDeleteSuccess = () => action(
   StorageActionTypes.DELETE_SUCCESS

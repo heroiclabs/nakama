@@ -156,7 +156,6 @@ class Storage extends Component<Props, State>
     {
       this.props.deleteManyRequest();
       (document.getElementById('user_id') as HTMLInputElement).value = '';
-      this.props.fetchManyRequest({});
     }
   }
 
@@ -166,9 +165,16 @@ class Storage extends Component<Props, State>
     event.preventDefault();
     if(confirm('Are you sure you want to delete this object?'))
     {
-      this.props.deleteRequest(object);
-      (document.getElementById('user_id') as HTMLInputElement).value = '';
-      this.props.fetchManyRequest({});
+      var user_id = (document.getElementById('user_id') as HTMLInputElement).value;
+
+      var request = {
+        filter: user_id,
+        user_id: object.user_id,
+        collection: object.collection,
+        key: object.key
+      } as StorageObjectRequest;
+
+      this.props.deleteRequest(request);
     }
   }
 

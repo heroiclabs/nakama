@@ -6,7 +6,7 @@ import {Dispatch} from 'redux';
 import {connect} from 'react-redux';
 import {ApplicationState, ConnectedReduxProps} from '../../store';
 import * as statusActions from '../../store/status/actions';
-import {StatusNodes} from '../../store/status/types';
+import {Node, StatusNodes} from '../../store/status/types';
 
 import Header from '../../components/header';
 import Sidebar from '../../components/sidebar';
@@ -70,6 +70,16 @@ class Status extends Component<Props, State> {
     const {data} = next;
     const now = new Date();
     const t = now.valueOf();
+
+    if (data && data.nodes && data.nodes.length == 0) {
+      data.nodes.push({
+        name: "",
+        avg_latency_ms: NaN,
+        avg_rate_sec: NaN,
+        avg_input_kbs: NaN,
+        avg_output_kbs: NaN
+      } as Node);
+    }
 
     if (
       data &&
@@ -209,6 +219,7 @@ class Status extends Component<Props, State> {
             pointRadius: 0,
             fill: false,
             lineTension: 0.2,
+            spanGaps: false,
             borderWidth: 2
           }))
         },

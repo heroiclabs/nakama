@@ -71,6 +71,7 @@ function* handleDeleteMany()
     else
     {
       yield put(storageDeleteManySuccess());
+      yield handleFetchMany({type: '@@storage/FETCH_MANY_REQUEST', payload: {}});
     }
   }
   catch(err)
@@ -263,6 +264,7 @@ function* handleDelete({payload: data}: AnyAction)
     else
     {
       yield put(storageDeleteSuccess());
+      yield handleFetchMany({type: '@@storage/FETCH_MANY_REQUEST', payload: {user_id: data.filter} });
     }
   }
   catch(err)

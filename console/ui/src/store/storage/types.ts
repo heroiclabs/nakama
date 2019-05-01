@@ -2,7 +2,8 @@ export interface StorageObjectRequest
 {
   collection?: string,
   key?: string,
-  user_id?: string
+  user_id?: string,
+  filter?: string
 }
 
 export interface StorageObject
