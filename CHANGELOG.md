@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Storage object get operations now also return the user ID if the owner is the root user.
+- Adjust default socket ping and pong timings.
 
 ### Fixed
 - Correctly display counters on console status page.
@@ -15,6 +16,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly update wallet on console user details page.
 - Correctly display custom ID, email, and verification time on console user details page.
 - Add missing placeholder text to fields on console user details page.
+- Console status page no longer refreshes if server is not reachable.
+- Correctly refresh console storage page when deleting records.
 
 ## [2.5.0] - 2019-04-25
 ### Added
