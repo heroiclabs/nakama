@@ -3,21 +3,21 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.5.1] - 2019-05-03
 ### Changed
 - Storage object get operations now also return the user ID if the owner is the root user.
-- Adjust default socket ping and pong timings.
+- Status view on console no longer refreshes if server is not reachable.
+- Adjust default socket ping and pong heartbeat frequency.
 
 ### Fixed
-- Correctly display counters on console status page.
-- Correctly display friend names on console user details page.
-- Correctly display group names on console user details page.
+- Display updated counters on console status page.
+- Render friend names on console user details page.
+- Render group names on console user details page.
 - Do not attempt to navigate to groups from console user details page.
-- Correctly update wallet on console user details page.
-- Correctly display custom ID, email, and verification time on console user details page.
+- Render changed wallet value after update on console user details page.
+- Display custom ID, email, and verification time on console user details page.
 - Add missing placeholder text to fields on console user details page.
-- Console status page no longer refreshes if server is not reachable.
-- Correctly refresh console storage page when deleting records.
+- Re-render the console storage view when deleting records.
 
 ## [2.5.0] - 2019-04-25
 ### Added
