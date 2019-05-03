@@ -145,37 +145,55 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		return
 	}
 
-	// Decide if it's an authoritative or relayed match.
-	mode := StreamModeMatchRelayed
-	if node != "" {
-		mode = StreamModeMatchAuthoritative
-	}
-
-	stream := PresenceStream{Mode: mode, Subject: matchID, Label: node}
-
-	// Relayed matches must 'exist' by already having some members, unless they're being joined via a token.
-	if mode == StreamModeMatchRelayed && !allowEmpty && !p.tracker.StreamExists(stream) {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
-			Message: "Match not found",
-		}}})
-		return
-	}
-
+	var mode uint8
 	var label *wrappers.StringValue
-	meta := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), stream, session.UserID())
-	isNew := meta == nil
-	if isNew {
-		username := session.Username()
-		found := true
-		allow := true
-		var reason string
-		var l string
-		// The user is not yet part of the match, attempt to join.
-		if mode == StreamModeMatchAuthoritative {
-			// If it's an authoritative match, ask the match handler if it will allow the join.
-			found, allow, reason, l = p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
+	var presences []*rtapi.UserPresence
+	username := session.Username()
+	if node == "" {
+		// Relayed match.
+		mode = StreamModeMatchRelayed
+		stream := PresenceStream{Mode: mode, Subject: matchID, Label: node}
+
+		if !allowEmpty && !p.tracker.StreamExists(stream) {
+			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
+				Message: "Match not found",
+			}}})
+			return
 		}
+
+		isNew := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), stream, session.UserID()) == nil
+		if isNew {
+			m := PresenceMeta{
+				Username: username,
+				Format:   session.Format(),
+			}
+			if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), m, false); !success {
+				// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
+				return
+			}
+		}
+
+		// Whether the user has just (successfully) joined the match or was already a member, return the match info anyway.
+		ps := p.tracker.ListByStream(stream, false, true)
+		presences = make([]*rtapi.UserPresence, 0, len(ps))
+		for _, p := range ps {
+			if isNew && p.UserID == session.UserID() && p.ID.SessionID == session.ID() {
+				// Ensure the user themselves does not appear in the list of existing match presences.
+				// Only for new joins, not if the user is joining a match they're already part of.
+				continue
+			}
+			presences = append(presences, &rtapi.UserPresence{
+				UserId:    p.UserID.String(),
+				SessionId: p.ID.SessionID.String(),
+				Username:  p.Meta.Username,
+			})
+		}
+	} else {
+		// Authoritative match.
+		mode = StreamModeMatchAuthoritative
+
+		found, allow, isNew, reason, l, ps := p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
 		if !found {
 			// Match did not exist.
 			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -196,49 +214,30 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			}}})
 			return
 		}
-		m := PresenceMeta{
-			Username: username,
-			Format:   session.Format(),
-		}
-		if success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), m, false); !success {
-			// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
-			return
-		}
-		if mode == StreamModeMatchAuthoritative {
-			// If we've reached here, it was an accepted authoritative join.
-			label = &wrappers.StringValue{Value: l}
-		}
-		meta = &m
-	} else if mode == StreamModeMatchAuthoritative {
-		// The user was already in the match, and it's an authoritative match.
-		// Look up the match label to return it anyway.
-		l, err := p.matchRegistry.GetMatchLabel(session.Context(), matchID, node)
-		if err != nil {
-			// There was a problem looking up the label.
-			logger.Error("Error looking up match label", zap.String("match_id", matchIDString), zap.String("node", node), zap.Error(err))
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Match label lookup failed.",
-			}}})
-			return
-		}
-		label = &wrappers.StringValue{Value: l}
-	}
 
-	// Whether the user has just (successfully) joined the match or was already a member, return the match info anyway.
-	ps := p.tracker.ListByStream(stream, false, true)
-	presences := make([]*rtapi.UserPresence, 0, len(ps))
-	for _, p := range ps {
-		if isNew && p.UserID == session.UserID() && p.ID.SessionID == session.ID() {
-			// Ensure the user themselves does not appear in the list of existing match presences.
-			// Only for new joins, not if the user is joining a match they're already part of.
-			continue
+		if isNew {
+			stream := PresenceStream{Mode: mode, Subject: matchID, Label: node}
+			m := PresenceMeta{
+				Username: session.Username(),
+				Format:   session.Format(),
+			}
+			p.tracker.Track(session.ID(), stream, session.UserID(), m, false)
 		}
-		presences = append(presences, &rtapi.UserPresence{
-			UserId:    p.UserID.String(),
-			SessionId: p.ID.SessionID.String(),
-			Username:  p.Meta.Username,
-		})
+
+		label = &wrappers.StringValue{Value: l}
+		presences = make([]*rtapi.UserPresence, 0, len(ps))
+		for _, p := range ps {
+			if isNew && p.UserID == session.UserID() && p.SessionID == session.ID() {
+				// Ensure the user themselves does not appear in the list of existing match presences.
+				// Only for new joins, not if the user is joining a match they're already part of.
+				continue
+			}
+			presences = append(presences, &rtapi.UserPresence{
+				UserId:    p.UserID.String(),
+				SessionId: p.SessionID.String(),
+				Username:  p.Username,
+			})
+		}
 	}
 
 	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
@@ -250,7 +249,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		Self: &rtapi.UserPresence{
 			UserId:    session.UserID().String(),
 			SessionId: session.ID().String(),
-			Username:  meta.Username,
+			Username:  username,
 		},
 	}}})
 }

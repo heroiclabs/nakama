@@ -253,7 +253,7 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 			}
 		} else {
 			// Validate multiple filtered recipients.
-			actualPresenceIDs := r.presenceList.List()
+			actualPresenceIDs := r.presenceList.ListPresenceIDs()
 			for i := 0; i < len(presenceIDs); i++ {
 				found := false
 				presenceID := presenceIDs[i]
@@ -288,7 +288,7 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 	}}}
 
 	if presenceIDs == nil {
-		presenceIDs = r.presenceList.List()
+		presenceIDs = r.presenceList.ListPresenceIDs()
 	}
 
 	return presenceIDs, msg, nil

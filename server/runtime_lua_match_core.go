@@ -674,7 +674,7 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 				return nil, nil
 			}
 		} else {
-			actualPresenceIDs := r.presenceList.List()
+			actualPresenceIDs := r.presenceList.ListPresenceIDs()
 			for i := 0; i < len(presenceIDs); i++ {
 				found := false
 				presenceID := presenceIDs[i]
@@ -709,7 +709,7 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 	}}}
 
 	if presenceIDs == nil {
-		presenceIDs = r.presenceList.List()
+		presenceIDs = r.presenceList.ListPresenceIDs()
 	}
 
 	return presenceIDs, msg

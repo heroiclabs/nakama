@@ -78,8 +78,8 @@ type MatchRegistry interface {
 	// Returns the total number of currently active authoritative matches.
 	Count() int
 
-	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, a reason for any rejection, and the match label.
-	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string)
+	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, if it's a new user for this match, a reason for any rejection, the match label, and the list of existing match participants.
+	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence)
 	// Notify a match handler that one or more users have successfully joined the match.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Join(id uuid.UUID, presences []*MatchPresence)
@@ -94,7 +94,6 @@ type MatchRegistry interface {
 }
 
 type LocalMatchRegistry struct {
-	sync.RWMutex
 	logger  *zap.Logger
 	config  Config
 	tracker Tracker
@@ -455,21 +454,26 @@ func (r *LocalMatchRegistry) Count() int {
 	return int(r.matchCount.Load())
 }
 
-func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, string, string) {
+func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence) {
 	if node != r.node {
-		return false, false, "", ""
+		return false, false, false, "", "", nil
 	}
 
 	m, ok := r.matches.Load(id)
 	if !ok {
-		return false, false, "", ""
+		return false, false, false, "", "", nil
 	}
 	mh := m.(*MatchHandler)
+
+	if mh.PresenceList.Contains(&PresenceID{Node: fromNode, SessionID: sessionID}) {
+		// The user is already part of this match.
+		return true, true, false, "", mh.Label(), mh.PresenceList.ListPresences()
+	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
 	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, fromNode, metadata) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
-		return true, false, "Match is not currently accepting join requests", ""
+		return true, false, false, "Match is not currently accepting join requests", "", nil
 	}
 
 	// Set up a limit to how long the call will wait, default is 10 seconds.
@@ -477,12 +481,12 @@ func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node
 	select {
 	case <-timer.C:
 		// The join attempt has timed out, join is assumed to be rejected.
-		return true, false, "", ""
+		return true, false, false, "", "", nil
 	case r := <-resultCh:
 		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.
 		timer.Stop()
 		// The join attempt has returned a result.
-		return true, r.Allow, r.Reason, r.Label
+		return true, r.Allow, true, r.Reason, r.Label, mh.PresenceList.ListPresences()
 	}
 }
 

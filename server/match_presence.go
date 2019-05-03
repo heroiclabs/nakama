@@ -103,15 +103,20 @@ func (m *MatchJoinMarkerList) ClearExpired(tick int64) []*MatchPresence {
 type MatchPresenceList struct {
 	sync.RWMutex
 	size        *atomic.Int32
-	presences   []*PresenceID
-	presenceMap map[uuid.UUID]struct{}
+	presences   []*MatchPresenceListItem
+	presenceMap map[uuid.UUID]string
+}
+
+type MatchPresenceListItem struct {
+	PresenceID *PresenceID
+	Presence   *MatchPresence
 }
 
 func NewMatchPresenceList() *MatchPresenceList {
 	return &MatchPresenceList{
 		size:        atomic.NewInt32(0),
-		presences:   make([]*PresenceID, 0, 10),
-		presenceMap: make(map[uuid.UUID]struct{}, 10),
+		presences:   make([]*MatchPresenceListItem, 0, 10),
+		presenceMap: make(map[uuid.UUID]string, 10),
 	}
 }
 
@@ -120,11 +125,14 @@ func (m *MatchPresenceList) Join(joins []*MatchPresence) []*MatchPresence {
 	m.Lock()
 	for _, join := range joins {
 		if _, ok := m.presenceMap[join.SessionID]; !ok {
-			m.presences = append(m.presences, &PresenceID{
-				Node:      join.Node,
-				SessionID: join.SessionID,
+			m.presences = append(m.presences, &MatchPresenceListItem{
+				PresenceID: &PresenceID{
+					Node:      join.Node,
+					SessionID: join.SessionID,
+				},
+				Presence: join,
 			})
-			m.presenceMap[join.SessionID] = struct{}{}
+			m.presenceMap[join.SessionID] = join.Node
 			processed = append(processed, join)
 		}
 	}
@@ -140,8 +148,8 @@ func (m *MatchPresenceList) Leave(leaves []*MatchPresence) []*MatchPresence {
 	m.Lock()
 	for _, leave := range leaves {
 		if _, ok := m.presenceMap[leave.SessionID]; ok {
-			for i, presenceID := range m.presences {
-				if presenceID.SessionID == leave.SessionID && presenceID.Node == leave.Node {
+			for i, presence := range m.presences {
+				if presence.PresenceID.SessionID == leave.SessionID && presence.PresenceID.Node == leave.Node {
 					m.presences = append(m.presences[:i], m.presences[i+1:]...)
 					break
 				}
@@ -160,21 +168,28 @@ func (m *MatchPresenceList) Leave(leaves []*MatchPresence) []*MatchPresence {
 func (m *MatchPresenceList) Contains(presence *PresenceID) bool {
 	var found bool
 	m.RLock()
-	for _, p := range m.presences {
-		if p.SessionID == presence.SessionID && p.Node == p.Node {
-			found = true
-			break
-		}
+	if node, ok := m.presenceMap[presence.SessionID]; ok {
+		found = node == presence.Node
 	}
 	m.RUnlock()
 	return found
 }
 
-func (m *MatchPresenceList) List() []*PresenceID {
+func (m *MatchPresenceList) ListPresenceIDs() []*PresenceID {
 	m.RLock()
 	list := make([]*PresenceID, 0, len(m.presences))
 	for _, presence := range m.presences {
-		list = append(list, presence)
+		list = append(list, presence.PresenceID)
+	}
+	m.RUnlock()
+	return list
+}
+
+func (m *MatchPresenceList) ListPresences() []*MatchPresence {
+	m.RLock()
+	list := make([]*MatchPresence, 0, len(m.presences))
+	for _, presence := range m.presences {
+		list = append(list, presence.Presence)
 	}
 	m.RUnlock()
 	return list
