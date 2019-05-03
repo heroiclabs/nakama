@@ -940,6 +940,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1124,6 +1146,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to add.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1176,6 +1208,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to kick.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1228,6 +1270,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to promote.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
