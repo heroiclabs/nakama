@@ -41,20 +41,24 @@ ALTER TABLE leaderboard
   ADD CONSTRAINT check_category CHECK (category >= 0),
   ADD CONSTRAINT check_duration CHECK (duration >= 0),
   ADD CONSTRAINT check_max_size CHECK (max_size > 0),
-  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0),
-  VALIDATE CONSTRAINT check_category,
-  VALIDATE CONSTRAINT check_duration,
-  VALIDATE CONSTRAINT check_max_size,
-  VALIDATE CONSTRAINT check_max_num_score;
+  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0);
 
 CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx ON leaderboard (duration, start_time, end_time DESC, category);
 
 CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
 
 ALTER TABLE leaderboard_record
-  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0),
-  VALIDATE CONSTRAINT check_max_num_score;
+  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0);
 COMMIT;
+
+ALTER TABLE leaderboard
+  VALIDATE CONSTRAINT check_category,
+  VALIDATE CONSTRAINT check_duration,
+  VALIDATE CONSTRAINT check_max_size,
+  VALIDATE CONSTRAINT check_max_num_score;
+
+ALTER TABLE leaderboard_record
+  VALIDATE CONSTRAINT check_max_num_score;
 
 -- +migrate Down
 ALTER TABLE IF EXISTS leaderboard

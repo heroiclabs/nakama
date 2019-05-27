@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Explicitly set cache control header in all API responses.
+- Add support for CockroachDB 19.1.
 
 ## [2.5.1] - 2019-05-03
 ### Changed
