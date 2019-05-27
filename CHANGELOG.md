@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- Explicitly set cache control header in all API responses.
 
 ## [2.5.1] - 2019-05-03
 ### Changed

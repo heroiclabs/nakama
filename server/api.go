@@ -200,9 +200,12 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 		handlerWithCompressResponse.ServeHTTP(w, r)
 	})
 	grpcGatewayRouter.NewRoute().HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Ensure some headers have required values.
+		// Ensure some request headers have required values.
 		// Override any value set by the client if needed.
 		r.Header.Set("Grpc-Timeout", gatewayContextTimeoutMs)
+
+		// Add constant response headers.
+		w.Header().Add("Cache-Control", "no-store, no-cache, must-revalidate")
 
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r)
