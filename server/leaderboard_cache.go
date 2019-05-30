@@ -540,10 +540,6 @@ func (l *LocalLeaderboardCache) Remove(id string) {
 func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, maxSize, maxNumScore int) error {
 	if startTime < 0 {
 		return fmt.Errorf("tournament start time must be a unix UTC time in the future")
-	} else if startTime == 0 {
-		startTime = int(time.Now().UTC().Unix())
-	} else if time.Now().UTC().After(time.Unix(int64(startTime), 0).UTC()) {
-		return fmt.Errorf("tournament start time must be a unix UTC time in the future")
 	}
 
 	if duration <= 0 {
@@ -563,7 +559,7 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 	}
 
 	if (endTime > 0) && (endTime < (startTime + duration)) {
-		return fmt.Errorf("tournament end time cannot be before end of first session")
+		return fmt.Errorf("tournament end time cannot be before end of first session or in the past")
 	}
 
 	var cron *cronexpr.Expression

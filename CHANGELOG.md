@@ -8,6 +8,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Explicitly set cache control header in all API responses.
 - Add support for CockroachDB 19.1.
 
+### Changed
+- Tournament start time can be set to past time.  
+
+### Fixed
+- Fix delayed first time invocation of tournament and leaderboard callbacks. 
+
 ## [2.5.1] - 2019-05-03
 ### Changed
 - Storage object get operations now also return the user ID if the owner is the root user.

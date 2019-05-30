@@ -465,6 +465,11 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 
 func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {
 	if resetSchedule != nil {
+		if t.Unix() < startTime {
+			// if startTime is in the future, always use startTime
+			t = time.Unix(startTime, 0).UTC()
+		}
+
 		schedules := resetSchedule.NextN(t, 2)
 		schedule0Unix := schedules[0].UTC().Unix()
 		schedule1Unix := schedules[1].UTC().Unix()
@@ -479,6 +484,8 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
 			endActiveUnix = startActiveUnix + duration
 			expiryUnix = startActiveUnix + (schedule1Unix - schedule0Unix)
+		} else if startTime > startActiveUnix {
+			startActiveUnix = startTime
 		}
 
 		return startActiveUnix, endActiveUnix, expiryUnix
