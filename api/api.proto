@@ -784,6 +784,8 @@ message Tournament {
   google.protobuf.Timestamp end_time = 15;
   // The UNIX timestamp for duration of a tournament.
   uint32 duration = 16;
+  // The UNIX timestamp when the tournament start being active. A computed value.
+  uint32 start_active = 17;
 }
 
 // A list of tournaments.

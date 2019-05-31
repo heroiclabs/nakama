@@ -3043,6 +3043,11 @@
           "type": "integer",
           "format": "int64",
           "description": "The UNIX timestamp for duration of a tournament."
+        },
+        "start_active": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX timestamp when the tournament start being active. A computed value."
         }
       },
       "description": "A tournament on the server."

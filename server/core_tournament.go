@@ -528,9 +528,9 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	canEnter := true
 	endTime := dbEndTime.Time.UTC().Unix()
 
-	_, endActiveUnix, expiryUnix := calculateTournamentDeadlines(dbStartTime.Time.UTC().Unix(), endTime, int64(dbDuration), resetSchedule, now)
+	startActive, endActiveUnix, expiryUnix := calculateTournamentDeadlines(dbStartTime.Time.UTC().Unix(), endTime, int64(dbDuration), resetSchedule, now)
 
-	if endActiveUnix < now.Unix() {
+	if startActive > now.Unix() || endActiveUnix < now.Unix() {
 		canEnter = false
 	}
 
@@ -554,6 +554,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
 		StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
 		Duration:    uint32(dbDuration),
+		StartActive: uint32(startActive),
 	}
 
 	if endTime > 0 {

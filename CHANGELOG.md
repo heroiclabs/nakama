@@ -7,9 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Explicitly set cache control header in all API responses.
 - Add support for CockroachDB 19.1.
+- Add tournament start active timestamp to the API response.
 
 ### Changed
-- Tournament start time can be set to past time.  
+- Tournament start time can be set to past time.
 
 ### Fixed
 - Fix delayed first time invocation of tournament and leaderboard callbacks. 

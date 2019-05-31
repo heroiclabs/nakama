@@ -4454,8 +4454,8 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 		return 0
 	}
 	startTime := l.OptInt(10, 0)
-	if startTime != 0 && startTime < int(time.Now().UTC().Unix()) {
-		l.ArgError(10, "startTime must be >= current time. Use 0 to indicate a tournament that starts immediately.")
+	if startTime < 0 {
+		l.ArgError(10, "startTime must be >= 0.")
 		return 0
 	}
 	endTime := l.OptInt(11, 0)
