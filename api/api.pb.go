@@ -4234,9 +4234,9 @@ type Tournament struct {
 	MaxNumScore uint32 `protobuf:"varint,8,opt,name=max_num_score,json=maxNumScore,proto3" json:"max_num_score,omitempty"`
 	// True if the tournament is active and can enter. A computed value.
 	CanEnter bool `protobuf:"varint,9,opt,name=can_enter,json=canEnter,proto3" json:"can_enter,omitempty"`
-	// The UNIX timestamp when the tournament stops being active until next reset. A computed value.
+	// The UNIX time when the tournament stops being active until next reset. A computed value.
 	EndActive uint32 `protobuf:"varint,10,opt,name=end_active,json=endActive,proto3" json:"end_active,omitempty"`
-	// The UNIX timestamp when the tournament is next playable. A computed value.
+	// The UNIX time when the tournament is next playable. A computed value.
 	NextReset uint32 `protobuf:"varint,11,opt,name=next_reset,json=nextReset,proto3" json:"next_reset,omitempty"`
 	// Additional information stored as a JSON object.
 	Metadata string `protobuf:"bytes,12,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4246,9 +4246,9 @@ type Tournament struct {
 	StartTime *timestamp.Timestamp `protobuf:"bytes,14,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// The UNIX time when the tournament will be stopped.
 	EndTime *timestamp.Timestamp `protobuf:"bytes,15,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
-	// The UNIX timestamp for duration of a tournament.
+	// Duration of the tournament in seconds.
 	Duration uint32 `protobuf:"varint,16,opt,name=duration,proto3" json:"duration,omitempty"`
-	// The UNIX timestamp when the tournament start being active. A computed value.
+	// The UNIX time when the tournament start being active. A computed value.
 	StartActive          uint32   `protobuf:"varint,17,opt,name=start_active,json=startActive,proto3" json:"start_active,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

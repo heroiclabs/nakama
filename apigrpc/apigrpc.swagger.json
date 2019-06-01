@@ -3013,12 +3013,12 @@
         "end_active": {
           "type": "integer",
           "format": "int64",
-          "description": "The UNIX timestamp when the tournament stops being active until next reset. A computed value."
+          "description": "The UNIX time when the tournament stops being active until next reset. A computed value."
         },
         "next_reset": {
           "type": "integer",
           "format": "int64",
-          "description": "The UNIX timestamp when the tournament is next playable. A computed value."
+          "description": "The UNIX time when the tournament is next playable. A computed value."
         },
         "metadata": {
           "type": "string",
@@ -3042,12 +3042,12 @@
         "duration": {
           "type": "integer",
           "format": "int64",
-          "description": "The UNIX timestamp for duration of a tournament."
+          "description": "Duration of the tournament in seconds."
         },
         "start_active": {
           "type": "integer",
           "format": "int64",
-          "description": "The UNIX timestamp when the tournament start being active. A computed value."
+          "description": "The UNIX time when the tournament start being active. A computed value."
         }
       },
       "description": "A tournament on the server."

@@ -770,9 +770,9 @@ message Tournament {
   uint32 max_num_score = 8;
   // True if the tournament is active and can enter. A computed value.
   bool can_enter = 9;
-  // The UNIX timestamp when the tournament stops being active until next reset. A computed value.
+  // The UNIX time when the tournament stops being active until next reset. A computed value.
   uint32 end_active = 10;
-  // The UNIX timestamp when the tournament is next playable. A computed value.
+  // The UNIX time when the tournament is next playable. A computed value.
   uint32 next_reset = 11;
   // Additional information stored as a JSON object.
   string metadata = 12;
@@ -782,9 +782,9 @@ message Tournament {
   google.protobuf.Timestamp start_time = 14;
   // The UNIX time when the tournament will be stopped.
   google.protobuf.Timestamp end_time = 15;
-  // The UNIX timestamp for duration of a tournament.
+  // Duration of the tournament in seconds.
   uint32 duration = 16;
-  // The UNIX timestamp when the tournament start being active. A computed value.
+  // The UNIX time when the tournament start being active. A computed value.
   uint32 start_active = 17;
 }
 
