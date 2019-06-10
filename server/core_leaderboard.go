@@ -64,6 +64,9 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			_, _, expiryTime = calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
 		} else if leaderboard.ResetSchedule != nil {
 			expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
+			if expiryTime > leaderboard.EndTime {
+				expiryTime = leaderboard.EndTime
+			}
 		}
 	}
 

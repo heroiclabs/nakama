@@ -76,6 +76,10 @@ func TournamentDelete(ctx context.Context, logger *zap.Logger, cache Leaderboard
 		expiryUnix = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
+	if expiryUnix > leaderboard.EndTime {
+		expiryUnix = leaderboard.EndTime
+	}
+
 	if err := cache.Delete(ctx, leaderboardId); err != nil {
 		return err
 	}
@@ -104,6 +108,9 @@ func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	expiryTime := int64(0)
 	if leaderboard.ResetSchedule != nil {
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
+		if expiryTime > leaderboard.EndTime {
+			expiryTime = leaderboard.EndTime
+		}
 	}
 
 	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3 AND expiry_time = $4`
@@ -198,7 +205,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, categor
 SELECT 
 id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
-WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AND category <= $4`
+WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND (end_time >= now() OR end_time = $3) AND category >= $4 AND category <= $5`
 
 	params := make([]interface{}, 0, 6)
 	if startTime >= 0 {
@@ -211,6 +218,9 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 	} else {
 		params = append(params, time.Unix(0, 0).UTC())
 	}
+
+	params = append(params, time.Unix(0, 0).UTC()) // add epoch for tournaments with no endtime.
+
 	if categoryStart >= 0 && categoryStart <= 127 {
 		params = append(params, categoryStart)
 	} else {
@@ -222,15 +232,15 @@ WHERE duration > 0 AND start_time >= $1 AND end_time <= $2 AND category >= $3 AN
 		params = append(params, 127)
 	}
 
-	// To ensure that there are more records, so the cursor is returned/
+	// To ensure that there are more records, so the cursor is returned
 	params = append(params, limit+1)
 
 	if cursor != nil {
-		query += " AND id > $6"
+		query += " AND id > $7"
 		params = append(params, cursor.TournamentId)
 	}
 
-	query += " LIMIT $5"
+	query += " LIMIT $6"
 
 	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -486,6 +496,10 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			expiryUnix = startActiveUnix + (schedule1Unix - schedule0Unix)
 		} else if startTime > startActiveUnix {
 			startActiveUnix = startTime
+		}
+
+		if expiryUnix > endTime {
+			expiryUnix = endTime
 		}
 
 		return startActiveUnix, endActiveUnix, expiryUnix

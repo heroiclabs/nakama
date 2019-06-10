@@ -122,6 +122,9 @@ func NewLocalLeaderboardRankCache(startupLogger *zap.Logger, db *sql.DB, config 
 		var expiryUnix int64
 		if leaderboard.ResetSchedule != nil {
 			expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
+			if expiryUnix > leaderboard.EndTime {
+				expiryUnix = leaderboard.EndTime
+			}
 		} else {
 			expiryUnix = leaderboard.EndTime
 		}
