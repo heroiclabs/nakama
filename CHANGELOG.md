@@ -8,12 +8,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Explicitly set cache control header in all API responses.
 - Add support for CockroachDB 19.1.
 - Add tournament start active timestamp to the API response.
+- Add overridable expiry time when listing leaderboard/tournaments records.
 
 ### Changed
 - Tournament start time can be set to past time.
 
 ### Fixed
-- Fix delayed first time invocation of tournament and leaderboard callbacks. 
+- Fix delayed first time invocation of tournament and leaderboard callbacks.
+- Expired tournaments will no longer be listed nor any records will be returned.
 
 ## [2.5.1] - 2019-05-03
 ### Changed

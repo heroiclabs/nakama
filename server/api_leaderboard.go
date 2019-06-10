@@ -16,6 +16,7 @@ package server
 
 import (
 	"encoding/json"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -124,7 +125,12 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 		}
 	}
 
-	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, 0)
+	overrideExpiry := int64(0)
+	if in.Expiry != nil {
+		overrideExpiry = in.Expiry.Value
+	}
+
+	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardInvalidCursor {
@@ -251,7 +257,12 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
 	}
 
-	records, err := LeaderboardRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit)
+	overrideExpiry := int64(0)
+	if in.Expiry != nil {
+		overrideExpiry = in.Expiry.Value
+	}
+
+	records, err := LeaderboardRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err != nil {

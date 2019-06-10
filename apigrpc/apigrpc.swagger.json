@@ -1379,6 +1379,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from. Optional. 0 means from current time.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
@@ -1476,6 +1484,14 @@
             "in": "query",
             "required": false,
             "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
+            "in": "query",
+            "required": false,
+            "type": "string",
             "format": "int64"
           }
         ],
@@ -1815,6 +1831,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
@@ -2079,6 +2103,14 @@
             "in": "query",
             "required": false,
             "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
+            "in": "query",
+            "required": false,
+            "type": "string",
             "format": "int64"
           }
         ],

@@ -4140,6 +4140,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 	if err := n.leaderboardCache.Delete(l.Context(), id); err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
+
+	n.leaderboardScheduler.Update()
 	return 0
 }
 
@@ -4743,7 +4745,13 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	records, err := TournamentRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit)
+	expiry := l.OptInt(4, 0)
+	if expiry < 0 {
+		l.ArgError(4, "expiry should be time since epoch in seconds and has to be a positive integer")
+		return 0
+	}
+
+	records, err := TournamentRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit, int64(expiry))
 	if err != nil {
 		l.RaiseError("error listing tournament records haystack: %v", err.Error())
 		return 0
