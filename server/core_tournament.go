@@ -76,7 +76,7 @@ func TournamentDelete(ctx context.Context, logger *zap.Logger, cache Leaderboard
 		expiryUnix = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
-	if expiryUnix > leaderboard.EndTime {
+	if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
 		expiryUnix = leaderboard.EndTime
 	}
 
@@ -108,7 +108,7 @@ func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	expiryTime := int64(0)
 	if leaderboard.ResetSchedule != nil {
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
-		if expiryTime > leaderboard.EndTime {
+		if leaderboard.EndTime > 0 && expiryTime > leaderboard.EndTime {
 			expiryTime = leaderboard.EndTime
 		}
 	}
@@ -498,7 +498,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			startActiveUnix = startTime
 		}
 
-		if expiryUnix > endTime {
+		if endTime > 0 && expiryUnix > endTime {
 			expiryUnix = endTime
 		}
 
