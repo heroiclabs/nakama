@@ -514,6 +514,8 @@ message ListLeaderboardRecordsAroundOwnerRequest {
   google.protobuf.UInt32Value limit = 2;
   // The owner to retrieve records around.
   string owner_id = 3;
+  // Expiry in seconds (since epoch) to begin fetching records from.
+  google.protobuf.Int64Value expiry = 4;
 }
 
 // List leaderboard records from a given leaderboard.
@@ -526,6 +528,8 @@ message ListLeaderboardRecordsRequest {
   google.protobuf.Int32Value limit = 3;
   // A next or previous page cursor.
   string cursor = 4;
+  // Expiry in seconds (since epoch) to begin fetching records from. Optional. 0 means from current time.
+  google.protobuf.Int64Value expiry = 5;
 }
 
 // List realtime matches.
@@ -572,6 +576,8 @@ message ListTournamentRecordsAroundOwnerRequest {
   google.protobuf.UInt32Value limit = 2;
   // The owner to retrieve records around.
   string owner_id = 3;
+  // Expiry in seconds (since epoch) to begin fetching records from.
+  google.protobuf.Int64Value expiry = 4;
 }
 
 // List tournament records from a given tournament.
@@ -584,6 +590,8 @@ message ListTournamentRecordsRequest {
   google.protobuf.Int32Value limit = 3;
   // A next or previous page cursor.
   string cursor = 4;
+  // Expiry in seconds (since epoch) to begin fetching records from.
+  google.protobuf.Int64Value expiry = 5;
 }
 
 // List active/upcoming tournaments based on given filters.

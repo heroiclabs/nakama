@@ -118,8 +118,13 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	}
 
-	if tournament.EndTime > 0 && tournament.EndTime <= time.Now().UTC().Unix() {
-		return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
+	overrideExpiry := int64(0)
+	if in.Expiry != nil {
+		overrideExpiry = in.Expiry.Value
+	} else {
+		if tournament.EndTime > 0 && tournament.EndTime <= time.Now().UTC().Unix() {
+			return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
+		}
 	}
 
 	var limit *wrappers.Int32Value
@@ -140,7 +145,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		}
 	}
 
-	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), limit, in.GetCursor(), in.GetOwnerIds(), 0)
+	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), limit, in.GetCursor(), in.GetOwnerIds(), overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	} else if err == ErrLeaderboardInvalidCursor {
@@ -386,7 +391,12 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
 	}
 
-	records, err := TournamentRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), ownerId, limit)
+	overrideExpiry := int64(0)
+	if in.Expiry != nil {
+		overrideExpiry = in.Expiry.Value
+	}
+
+	records, err := TournamentRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), ownerId, limit, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	} else if err != nil {

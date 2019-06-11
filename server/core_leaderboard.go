@@ -478,14 +478,14 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, tx *sq
 	return nil
 }
 
-func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int) ([]*api.LeaderboardRecord, error) {
+func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int, expiry int64) ([]*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
 	}
 
 	sortOrder := leaderboard.SortOrder
-	expiryTime := time.Unix(0, 0).UTC()
+	expiryTime := time.Unix(expiry, 0).UTC()
 	if leaderboard.ResetSchedule != nil {
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC()
 	}
