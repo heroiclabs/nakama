@@ -231,7 +231,6 @@ func (ls *LocalLeaderboardScheduler) Update() {
 		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", ls.nearEndActiveIds))
 
 		if ls.endActiveTimer != nil {
-			ls.logger.Warn("Stopping existing end active timer before starting a new one.")
 			ls.endActiveTimer.Stop()
 		}
 
@@ -243,7 +242,6 @@ func (ls *LocalLeaderboardScheduler) Update() {
 		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", ls.nearExpiryIds))
 
 		if ls.expiryTimer != nil {
-			ls.logger.Warn("Stopping existing expiry timer before starting a new one.")
 			ls.expiryTimer.Stop()
 		}
 

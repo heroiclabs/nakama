@@ -13,17 +13,17 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 --]]
-
-local nk = require("nakama")
-
---[[
-  Test run_once function calls at server startup.
---]]
-
-nk.run_once(function(context)
-  assert(context.execution_mode, "run_once")
-end)
-
-nk.run_once(function(context)
-  error("Should not be executed.")
-end)
+--
+--local nk = require("nakama")
+--
+----[[
+--  Test run_once function calls at server startup.
+----]]
+--
+--nk.run_once(function(context)
+--  assert(context.execution_mode, "run_once")
+--end)
+--
+--nk.run_once(function(context)
+--  error("Should not be executed.")
+--end)

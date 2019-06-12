@@ -15,7 +15,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix delayed first time invocation of tournament and leaderboard callbacks.
-- Expired tournaments will no longer be listed nor any records will be returned. 
+- Expired tournaments will no longer be listed nor any records will be returned.
+- Ensure previous leaderboard and tournament callback timers are stopped before scheduling new ones. 
 
 ## [2.5.1] - 2019-05-03
 ### Changed
