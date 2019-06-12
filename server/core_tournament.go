@@ -69,7 +69,6 @@ func TournamentDelete(ctx context.Context, logger *zap.Logger, cache Leaderboard
 		// If it does not exist treat it as success.
 		return nil
 	}
-	// Allow deletion of non-tournament leaderboards here.
 
 	var expiryUnix int64
 	if leaderboard.ResetSchedule != nil {

@@ -4140,6 +4140,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 	if err := n.leaderboardCache.Delete(l.Context(), id); err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
+
+	n.leaderboardScheduler.Update()
 	return 0
 }
 
