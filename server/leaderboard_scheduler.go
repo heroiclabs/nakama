@@ -229,22 +229,12 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	}
 	if endActiveDuration > -1 {
 		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", ls.nearEndActiveIds))
-
-		if ls.endActiveTimer != nil {
-			ls.endActiveTimer.Stop()
-		}
-
 		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
 			ls.invokeEndActiveElapse(time.Unix(earliestEndActive-1, 0).UTC())
 		})
 	}
 	if expiryDuration > -1 {
 		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", ls.nearExpiryIds))
-
-		if ls.expiryTimer != nil {
-			ls.expiryTimer.Stop()
-		}
-
 		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
 			ls.invokeExpiryElapse(time.Unix(earliestExpiry-1, 0).UTC())
 		})
