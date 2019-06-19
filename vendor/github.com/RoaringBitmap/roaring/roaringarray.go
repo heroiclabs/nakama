@@ -283,6 +283,19 @@ func (ra *roaringArray) clone() *roaringArray {
 	return &sa
 }
 
+
+// clone all containers which have needCopyOnWrite set to true
+// This can be used to make sure it is safe to munmap a []byte
+// that the roaring array may still have a reference to.
+func (ra *roaringArray) cloneCopyOnWriteContainers() {
+	for i, needCopyOnWrite := range ra.needCopyOnWrite {
+		if needCopyOnWrite {
+			ra.containers[i] = ra.containers[i].clone()
+			ra.needCopyOnWrite[i] = false
+		}
+	}
+}
+
 // unused function:
 //func (ra *roaringArray) containsKey(x uint16) bool {
 //	return (ra.binarySearch(0, int64(len(ra.keys)), x) >= 0)
@@ -558,12 +571,10 @@ func (ra *roaringArray) fromBuffer(buf []byte) (int64, error) {
 	cookie := binary.LittleEndian.Uint32(buf)
 	pos += 4
 	var size uint32 // number of containers
-	haveRunContainers := false
 	var isRunBitmap []byte
 
 	// cookie header
 	if cookie&0x0000FFFF == serialCookie {
-		haveRunContainers = true
 		size = uint32(uint16(cookie>>16) + 1) // number of containers
 
 		// create is-run-container bitmap
@@ -591,7 +602,7 @@ func (ra *roaringArray) fromBuffer(buf []byte) (int64, error) {
 	keycard := byteSliceAsUint16Slice(buf[pos : pos+2*2*int(size)])
 	pos += 2 * 2 * int(size)
 
-	if !haveRunContainers || size >= noOffsetThreshold {
+	if isRunBitmap == nil || size >= noOffsetThreshold {
 		pos += 4 * int(size)
 	}
 
@@ -618,7 +629,7 @@ func (ra *roaringArray) fromBuffer(buf []byte) (int64, error) {
 		ra.keys[i] = key
 		ra.needCopyOnWrite[i] = true
 
-		if haveRunContainers && isRunBitmap[i/8]&(1<<(i%8)) != 0 {
+		if isRunBitmap != nil && isRunBitmap[i/8]&(1<<(i%8)) != 0 {
 			// run container
 			nr := binary.LittleEndian.Uint16(buf[pos:])
 			pos += 2
@@ -661,10 +672,8 @@ func (ra *roaringArray) readFrom(stream io.Reader) (int64, error) {
 	}
 	pos += 4
 	var size uint32
-	haveRunContainers := false
 	var isRun *bitmapContainer
 	if cookie&0x0000FFFF == serialCookie {
-		haveRunContainers = true
 		size = uint32(uint16(cookie>>16) + 1)
 		bytesToRead := (int(size) + 7) / 8
 		numwords := (bytesToRead + 7) / 8
@@ -701,14 +710,14 @@ func (ra *roaringArray) readFrom(stream io.Reader) (int64, error) {
 	}
 	pos += 2 * 2 * int(size)
 	// offset header
-	if !haveRunContainers || size >= noOffsetThreshold {
+	if isRun == nil || size >= noOffsetThreshold {
 		io.CopyN(ioutil.Discard, stream, 4*int64(size)) // we never skip ahead so this data can be ignored
 		pos += 4 * int(size)
 	}
 	for i := uint32(0); i < size; i++ {
 		key := int(keycard[2*i])
 		card := int(keycard[2*i+1]) + 1
-		if haveRunContainers && isRun.contains(uint16(i)) {
+		if isRun != nil && isRun.contains(uint16(i)) {
 			nb := newRunContainer16()
 			nr, err := nb.readFrom(stream)
 			if err != nil {

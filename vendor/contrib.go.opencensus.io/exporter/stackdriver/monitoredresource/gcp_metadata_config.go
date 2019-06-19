@@ -15,11 +15,15 @@
 package monitoredresource
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/container/apiv1"
+	containerpb "google.golang.org/genproto/googleapis/container/v1"
 )
 
 // gcpMetadata represents metadata retrieved from GCP (GKE and GCE) environment.
@@ -45,6 +49,8 @@ type gcpMetadata struct {
 
 	// zone is the Compute Engine zone in which the VM is running.
 	zone string
+
+	monitoringV2 bool
 }
 
 // retrieveGCPMetadata retrieves value of each Attribute from Metadata Server
@@ -70,12 +76,33 @@ func retrieveGCPMetadata() *gcpMetadata {
 	logError(err)
 	gcpMetadata.clusterName = strings.TrimSpace(clusterName)
 
+	clusterLocation, err := metadata.InstanceAttributeValue("cluster-location")
+	logError(err)
+
 	// Following attributes are derived from environment variables. They are configured
 	// via yaml file. For details refer to:
 	// https://cloud.google.com/kubernetes-engine/docs/tutorials/custom-metrics-autoscaling#exporting_metrics_from_the_application
 	gcpMetadata.namespaceID = os.Getenv("NAMESPACE")
 	gcpMetadata.containerName = os.Getenv("CONTAINER_NAME")
 	gcpMetadata.podID = os.Getenv("HOSTNAME")
+
+	// Monitoring API version can be obtained from cluster info.q
+	if gcpMetadata.clusterName != "" {
+		ctx := context.Background()
+		c, err := container.NewClusterManagerClient(ctx)
+		logError(err)
+		if c != nil {
+			req := &containerpb.GetClusterRequest{
+				Name: fmt.Sprintf("projects/%s/locations/%s/clusters/%s", gcpMetadata.projectID, strings.TrimSpace(clusterLocation), gcpMetadata.clusterName),
+			}
+			resp, err := c.GetCluster(ctx, req)
+			logError(err)
+			if resp != nil && resp.GetMonitoringService() == "monitoring.googleapis.com/kubernetes" &&
+				resp.GetLoggingService() == "logging.googleapis.com/kubernetes" {
+				gcpMetadata.monitoringV2 = true
+			}
+		}
+	}
 
 	return &gcpMetadata
 }

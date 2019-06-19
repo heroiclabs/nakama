@@ -17,6 +17,7 @@ package stackdriver
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -104,10 +105,16 @@ func protoFromSpanData(s *trace.SpanData, projectID string, mr *monitoredrespb.M
 			AttributeMap: make(map[string]*tracepb.AttributeValue),
 		}
 	}
-	sp.Attributes.AttributeMap[agentLabel] = &tracepb.AttributeValue{
-		Value: &tracepb.AttributeValue_StringValue{
-			StringValue: trunc(userAgent, maxAttributeStringValue),
-		},
+
+	// Only set the agent label if it is not already set. That enables the
+	// OpenCensus agent/collector to set the agent label based on the library that
+	// sent the span to the agent.
+	if _, hasAgent := sp.Attributes.AttributeMap[agentLabel]; !hasAgent {
+		sp.Attributes.AttributeMap[agentLabel] = &tracepb.AttributeValue{
+			Value: &tracepb.AttributeValue_StringValue{
+				StringValue: trunc(userAgent, maxAttributeStringValue),
+			},
+		}
 	}
 
 	es := s.MessageEvents
@@ -233,6 +240,13 @@ func attributeValue(v interface{}) *tracepb.AttributeValue {
 	case int64:
 		return &tracepb.AttributeValue{
 			Value: &tracepb.AttributeValue_IntValue{IntValue: value},
+		}
+	case float64:
+		// TODO: set double value if Stackdriver Trace support it in the future.
+		return &tracepb.AttributeValue{
+			Value: &tracepb.AttributeValue_StringValue{
+				StringValue: trunc(strconv.FormatFloat(value, 'f', -1, 64),
+					maxAttributeStringValue)},
 		}
 	case string:
 		return &tracepb.AttributeValue{

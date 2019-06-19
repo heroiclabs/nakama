@@ -151,7 +151,6 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 		atomic.AddUint64(&s.stats.TotFileMergePlanNone, 1)
 		return nil
 	}
-
 	atomic.AddUint64(&s.stats.TotFileMergePlanOk, 1)
 
 	atomic.AddUint64(&s.stats.TotFileMergePlanTasks, uint64(len(resultMergePlan.Tasks)))
@@ -196,10 +195,9 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 			fileMergeZapStartTime := time.Now()
 
 			atomic.AddUint64(&s.stats.TotFileMergeZapBeg, 1)
-			newDocNums, nBytes, err := zap.Merge(segmentsToMerge, docsToDrop, path,
-				DefaultChunkFactor, s.closeCh)
+			newDocNums, _, err := zap.Merge(segmentsToMerge, docsToDrop, path,
+				DefaultChunkFactor, s.closeCh, s)
 			atomic.AddUint64(&s.stats.TotFileMergeZapEnd, 1)
-			atomic.AddUint64(&s.stats.TotFileMergeWrittenBytes, nBytes)
 
 			fileMergeZapTime := uint64(time.Since(fileMergeZapStartTime))
 			atomic.AddUint64(&s.stats.TotFileMergeZapTime, fileMergeZapTime)
@@ -221,6 +219,10 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 				s.unmarkIneligibleForRemoval(filename)
 				atomic.AddUint64(&s.stats.TotFileMergePlanTasksErr, 1)
 				return err
+			}
+			err = zap.ValidateMerge(segmentsToMerge, nil, docsToDrop, seg.(*zap.Segment))
+			if err != nil {
+				return fmt.Errorf("merge validation failed: %v", err)
 			}
 			oldNewDocNums = make(map[uint64][]uint64)
 			for i, segNewDocNums := range newDocNums {
@@ -292,7 +294,7 @@ func (s *Scorch) mergeSegmentBases(snapshot *IndexSnapshot,
 	path := s.path + string(os.PathSeparator) + filename
 
 	newDocNums, _, err :=
-		zap.MergeSegmentBases(sbs, sbsDrops, path, chunkFactor, s.closeCh)
+		zap.MergeSegmentBases(sbs, sbsDrops, path, chunkFactor, s.closeCh, s)
 
 	atomic.AddUint64(&s.stats.TotMemMergeZapEnd, 1)
 
@@ -311,6 +313,10 @@ func (s *Scorch) mergeSegmentBases(snapshot *IndexSnapshot,
 	if err != nil {
 		atomic.AddUint64(&s.stats.TotMemMergeErr, 1)
 		return nil, 0, err
+	}
+	err = zap.ValidateMerge(nil, sbs, sbsDrops, seg.(*zap.Segment))
+	if err != nil {
+		return nil, 0, fmt.Errorf("in-memory merge validation failed: %v", err)
 	}
 
 	// update persisted stats
@@ -346,4 +352,8 @@ func (s *Scorch) mergeSegmentBases(snapshot *IndexSnapshot,
 		atomic.AddUint64(&s.stats.TotMemMergeDone, 1)
 		return newSnapshot, newSegmentID, nil
 	}
+}
+
+func (s *Scorch) ReportBytesWritten(bytesWritten uint64) {
+	atomic.AddUint64(&s.stats.TotFileMergeWrittenBytes, bytesWritten)
 }

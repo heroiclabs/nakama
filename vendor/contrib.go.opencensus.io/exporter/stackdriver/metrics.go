@@ -1,4 +1,4 @@
-// Copyright 2018, OpenCensus Authors
+// Copyright 2019, OpenCensus Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,49 +23,56 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3"
 	distributionpb "google.golang.org/genproto/googleapis/api/distribution"
 	labelpb "google.golang.org/genproto/googleapis/api/label"
 	googlemetricpb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 
-	commonpb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
-	metricspb "github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1"
-	resourcepb "github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1"
+	"go.opencensus.io/metric/metricdata"
+	"go.opencensus.io/resource"
 )
 
-var errNilMetric = errors.New("expecting a non-nil metric")
+var (
+	errLableExtraction       = errors.New("error extracting labels")
+	errUnspecifiedMetricKind = errors.New("metric kind is unpsecified")
+)
 
-type metricPayload struct {
-	node     *commonpb.Node
-	resource *resourcepb.Resource
-	metric   *metricspb.Metric
-}
+const (
+	exemplarAttachmentTypeString  = "type.googleapis.com/google.protobuf.StringValue"
+	exemplarAttachmentTypeSpanCtx = "type.googleapis.com/google.monitoring.v3.SpanContext"
 
-// ExportMetric exports OpenCensus Metrics to Stackdriver Monitoring.
-func (se *statsExporter) ExportMetric(ctx context.Context, node *commonpb.Node, rsc *resourcepb.Resource, metric *metricspb.Metric) error {
-	if metric == nil {
-		return errNilMetric
+	// TODO(songy23): add support for this.
+	// exemplarAttachmentTypeDroppedLabels = "type.googleapis.com/google.monitoring.v3.DroppedLabels"
+)
+
+// ExportMetrics exports OpenCensus Metrics to Stackdriver Monitoring.
+func (se *statsExporter) ExportMetrics(ctx context.Context, metrics []*metricdata.Metric) error {
+	if len(metrics) == 0 {
+		return nil
 	}
 
-	payload := &metricPayload{
-		metric:   metric,
-		resource: rsc,
-		node:     node,
+	for _, metric := range metrics {
+		se.metricsBundler.Add(metric, 1)
+		// TODO: [rghetia] handle errors.
 	}
-	se.protoMetricsBundler.Add(payload, 1)
 
 	return nil
 }
 
-func (se *statsExporter) handleMetricsUpload(payloads []*metricPayload) error {
+func (se *statsExporter) handleMetricsUpload(metrics []*metricdata.Metric) {
+	err := se.uploadMetrics(metrics)
+	if err != nil {
+		se.o.handleError(err)
+	}
+}
+
+func (se *statsExporter) uploadMetrics(metrics []*metricdata.Metric) error {
 	ctx, cancel := se.o.newContextWithTimeout()
 	defer cancel()
 
@@ -76,22 +83,26 @@ func (se *statsExporter) handleMetricsUpload(payloads []*metricPayload) error {
 	)
 	defer span.End()
 
-	for _, payload := range payloads {
+	for _, metric := range metrics {
 		// Now create the metric descriptor remotely.
-		if err := se.createMetricDescriptor(ctx, payload.metric); err != nil {
-			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
-			return err
+		if err := se.createMetricDescriptorFromMetric(ctx, metric); err != nil {
+			span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: err.Error()})
+			//TODO: [rghetia] record error metrics.
+			continue
 		}
 	}
 
 	var allTimeSeries []*monitoringpb.TimeSeries
-	for _, payload := range payloads {
-		tsl, err := se.protoMetricToTimeSeries(ctx, payload.node, payload.resource, payload.metric)
+	for _, metric := range metrics {
+		tsl, err := se.metricToMpbTs(ctx, metric)
 		if err != nil {
-			span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
-			return err
+			span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: err.Error()})
+			//TODO: [rghetia] record error metrics.
+			continue
 		}
-		allTimeSeries = append(allTimeSeries, tsl...)
+		if tsl != nil {
+			allTimeSeries = append(allTimeSeries, tsl...)
+		}
 	}
 
 	// Now batch timeseries up and then export.
@@ -105,7 +116,7 @@ func (se *statsExporter) handleMetricsUpload(payloads []*metricPayload) error {
 		for _, ctsreq := range ctsreql {
 			if err := createTimeSeries(ctx, se.c, ctsreq); err != nil {
 				span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: err.Error()})
-				// TODO(@odeke-em): Don't fail fast here, perhaps batch errors?
+				// TODO(@rghetia): record error metrics
 				// return err
 			}
 		}
@@ -114,96 +125,38 @@ func (se *statsExporter) handleMetricsUpload(payloads []*metricPayload) error {
 	return nil
 }
 
-func (se *statsExporter) combineTimeSeriesToCreateTimeSeriesRequest(ts []*monitoringpb.TimeSeries) (ctsreql []*monitoringpb.CreateTimeSeriesRequest) {
-	if len(ts) == 0 {
-		return nil
-	}
-
-	// Since there are scenarios in which Metrics with the same Type
-	// can be bunched in the same TimeSeries, we have to ensure that
-	// we create a unique CreateTimeSeriesRequest with entirely unique Metrics
-	// per TimeSeries, lest we'll encounter:
-	//
-	//      err: rpc error: code = InvalidArgument desc = One or more TimeSeries could not be written:
-	//      Field timeSeries[2] had an invalid value: Duplicate TimeSeries encountered.
-	//      Only one point can be written per TimeSeries per request.: timeSeries[2]
-	//
-	// This scenario happens when we are using the OpenCensus Agent in which multiple metrics
-	// are streamed by various client applications.
-	// See https://github.com/census-ecosystem/opencensus-go-exporter-stackdriver/issues/73
-	uniqueTimeSeries := make([]*monitoringpb.TimeSeries, 0, len(ts))
-	nonUniqueTimeSeries := make([]*monitoringpb.TimeSeries, 0, len(ts))
-	seenMetrics := make(map[string]struct{})
-
-	for _, tti := range ts {
-		signature := tti.Metric.GetType()
-		if _, alreadySeen := seenMetrics[signature]; !alreadySeen {
-			uniqueTimeSeries = append(uniqueTimeSeries, tti)
-			seenMetrics[signature] = struct{}{}
-		} else {
-			nonUniqueTimeSeries = append(nonUniqueTimeSeries, tti)
-		}
-	}
-
-	// UniqueTimeSeries can be bunched up together
-	// While for each nonUniqueTimeSeries, we have
-	// to make a unique CreateTimeSeriesRequest.
-	ctsreql = append(ctsreql, &monitoringpb.CreateTimeSeriesRequest{
-		Name:       monitoring.MetricProjectPath(se.o.ProjectID),
-		TimeSeries: uniqueTimeSeries,
-	})
-
-	// Now recursively also combine the non-unique TimeSeries
-	// that were singly added to nonUniqueTimeSeries.
-	// The reason is that we need optimal combinations
-	// for optimal combinations because:
-	// * "a/b/c"
-	// * "a/b/c"
-	// * "x/y/z"
-	// * "a/b/c"
-	// * "x/y/z"
-	// * "p/y/z"
-	// * "d/y/z"
-	//
-	// should produce:
-	//      CreateTimeSeries(uniqueTimeSeries)    :: ["a/b/c", "x/y/z", "p/y/z", "d/y/z"]
-	//      CreateTimeSeries(nonUniqueTimeSeries) :: ["a/b/c"]
-	//      CreateTimeSeries(nonUniqueTimeSeries) :: ["a/b/c", "x/y/z"]
-	nonUniqueRequests := se.combineTimeSeriesToCreateTimeSeriesRequest(nonUniqueTimeSeries)
-	ctsreql = append(ctsreql, nonUniqueRequests...)
-
-	return ctsreql
-}
-
-// protoMetricToTimeSeries converts a metric into a Stackdriver Monitoring v3 API CreateTimeSeriesRequest
+// metricToMpbTs converts a metric into a list of Stackdriver Monitoring v3 API TimeSeries
 // but it doesn't invoke any remote API.
-func (se *statsExporter) protoMetricToTimeSeries(ctx context.Context, node *commonpb.Node, rsc *resourcepb.Resource, metric *metricspb.Metric) ([]*monitoringpb.TimeSeries, error) {
+func (se *statsExporter) metricToMpbTs(ctx context.Context, metric *metricdata.Metric) ([]*monitoringpb.TimeSeries, error) {
 	if metric == nil {
 		return nil, errNilMetric
 	}
 
-	var resource = rsc
-	if metric.Resource != nil {
-		resource = metric.Resource
+	resource := se.metricRscToMpbRsc(metric.Resource)
+
+	metricName := metric.Descriptor.Name
+	metricType, _ := se.metricTypeFromProto(metricName)
+	metricLabelKeys := metric.Descriptor.LabelKeys
+	metricKind, _ := metricDescriptorTypeToMetricKind(metric)
+
+	if metricKind == googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED {
+		// ignore these Timeserieses. TODO [rghetia] log errors.
+		return nil, nil
 	}
 
-	metricName, _, _, _ := metricProseFromProto(metric)
-	metricType, _ := se.metricTypeFromProto(metricName)
-	metricLabelKeys := metric.GetMetricDescriptor().GetLabelKeys()
-	metricKind, _ := protoMetricDescriptorTypeToMetricKind(metric)
-
-	timeSeries := make([]*monitoringpb.TimeSeries, 0, len(metric.Timeseries))
-	for _, protoTimeSeries := range metric.Timeseries {
-		sdPoints, err := se.protoTimeSeriesToMonitoringPoints(protoTimeSeries, metricKind)
+	timeSeries := make([]*monitoringpb.TimeSeries, 0, len(metric.TimeSeries))
+	for _, ts := range metric.TimeSeries {
+		sdPoints, err := se.metricTsToMpbPoint(ts, metricKind)
 		if err != nil {
-			return nil, err
+			// TODO(@rghetia): record error metrics
+			continue
 		}
 
 		// Each TimeSeries has labelValues which MUST be correlated
 		// with that from the MetricDescriptor
-		labels, err := labelsPerTimeSeries(se.defaultLabels, metricLabelKeys, protoTimeSeries.GetLabelValues())
+		labels, err := metricLabelsToTsLabels(se.defaultLabels, metricLabelKeys, ts.LabelValues)
 		if err != nil {
-			// TODO: (@odeke-em) perhaps log this error from labels extraction, if non-nil.
+			// TODO: (@rghetia) perhaps log this error from labels extraction, if non-nil.
 			continue
 		}
 		timeSeries = append(timeSeries, &monitoringpb.TimeSeries{
@@ -211,7 +164,7 @@ func (se *statsExporter) protoMetricToTimeSeries(ctx context.Context, node *comm
 				Type:   metricType,
 				Labels: labels,
 			},
-			Resource: protoResourceToMonitoredResource(resource),
+			Resource: resource,
 			Points:   sdPoints,
 		})
 	}
@@ -219,7 +172,7 @@ func (se *statsExporter) protoMetricToTimeSeries(ctx context.Context, node *comm
 	return timeSeries, nil
 }
 
-func labelsPerTimeSeries(defaults map[string]labelValue, labelKeys []*metricspb.LabelKey, labelValues []*metricspb.LabelValue) (map[string]string, error) {
+func metricLabelsToTsLabels(defaults map[string]labelValue, labelKeys []metricdata.LabelKey, labelValues []metricdata.LabelValue) (map[string]string, error) {
 	labels := make(map[string]string)
 	// Fill in the defaults firstly, irrespective of if the labelKeys and labelValues are mismatched.
 	for key, label := range defaults {
@@ -233,105 +186,78 @@ func labelsPerTimeSeries(defaults map[string]labelValue, labelKeys []*metricspb.
 
 	for i, labelKey := range labelKeys {
 		labelValue := labelValues[i]
-		labels[sanitize(labelKey.GetKey())] = labelValue.GetValue()
+		labels[sanitize(labelKey.Key)] = labelValue.Value
 	}
 
 	return labels, nil
 }
 
-func (se *statsExporter) protoMetricDescriptorToCreateMetricDescriptorRequest(ctx context.Context, metric *metricspb.Metric) (*monitoringpb.CreateMetricDescriptorRequest, error) {
-	// Otherwise, we encountered a cache-miss and
-	// should create the metric descriptor remotely.
-	inMD, err := se.protoToMonitoringMetricDescriptor(metric)
-	if err != nil {
-		return nil, err
-	}
-
-	cmrdesc := &monitoringpb.CreateMetricDescriptorRequest{
-		Name:             fmt.Sprintf("projects/%s", se.o.ProjectID),
-		MetricDescriptor: inMD,
-	}
-
-	return cmrdesc, nil
-}
-
-// createMetricDescriptor creates a metric descriptor from the OpenCensus proto metric
+// createMetricDescriptorFromMetric creates a metric descriptor from the OpenCensus metric
 // and then creates it remotely using Stackdriver's API.
-func (se *statsExporter) createMetricDescriptor(ctx context.Context, metric *metricspb.Metric) error {
-	se.protoMu.Lock()
-	defer se.protoMu.Unlock()
+func (se *statsExporter) createMetricDescriptorFromMetric(ctx context.Context, metric *metricdata.Metric) error {
+	se.metricMu.Lock()
+	defer se.metricMu.Unlock()
 
-	name := metric.GetMetricDescriptor().GetName()
-	if _, created := se.protoMetricDescriptors[name]; created {
+	name := metric.Descriptor.Name
+	if _, created := se.metricDescriptors[name]; created {
 		return nil
 	}
 
 	// Otherwise, we encountered a cache-miss and
 	// should create the metric descriptor remotely.
-	inMD, err := se.protoToMonitoringMetricDescriptor(metric)
+	inMD, err := se.metricToMpbMetricDescriptor(metric)
 	if err != nil {
 		return err
 	}
 
-	cmrdesc := &monitoringpb.CreateMetricDescriptorRequest{
-		Name:             fmt.Sprintf("projects/%s", se.o.ProjectID),
-		MetricDescriptor: inMD,
+	var md *googlemetricpb.MetricDescriptor
+	if builtinMetric(inMD.Type) {
+		gmrdesc := &monitoringpb.GetMetricDescriptorRequest{
+			Name: inMD.Name,
+		}
+		md, err = getMetricDescriptor(ctx, se.c, gmrdesc)
+	} else {
+
+		cmrdesc := &monitoringpb.CreateMetricDescriptorRequest{
+			Name:             fmt.Sprintf("projects/%s", se.o.ProjectID),
+			MetricDescriptor: inMD,
+		}
+		md, err = createMetricDescriptor(ctx, se.c, cmrdesc)
 	}
-	md, err := createMetricDescriptor(ctx, se.c, cmrdesc)
 
 	if err == nil {
 		// Now record the metric as having been created.
-		se.protoMetricDescriptors[name] = md
+		se.metricDescriptors[name] = md
 	}
 
 	return err
 }
 
-func (se *statsExporter) protoTimeSeriesToMonitoringPoints(ts *metricspb.TimeSeries, metricKind googlemetricpb.MetricDescriptor_MetricKind) (sptl []*monitoringpb.Point, err error) {
-	for _, pt := range ts.Points {
-
-		// If we have a last value aggregation point i.e. MetricDescriptor_GAUGE
-		// StartTime should be nil.
-		startTime := ts.StartTimestamp
-		if metricKind == googlemetricpb.MetricDescriptor_GAUGE {
-			startTime = nil
-		}
-
-		spt, err := fromProtoPoint(startTime, pt)
-		if err != nil {
-			return nil, err
-		}
-		sptl = append(sptl, spt)
-	}
-	return sptl, nil
-}
-
-func (se *statsExporter) protoToMonitoringMetricDescriptor(metric *metricspb.Metric) (*googlemetricpb.MetricDescriptor, error) {
+func (se *statsExporter) metricToMpbMetricDescriptor(metric *metricdata.Metric) (*googlemetricpb.MetricDescriptor, error) {
 	if metric == nil {
 		return nil, errNilMetric
 	}
 
-	metricName, description, unit, _ := metricProseFromProto(metric)
-	metricType, _ := se.metricTypeFromProto(metricName)
-	displayName := se.displayName(metricName)
-	metricKind, valueType := protoMetricDescriptorTypeToMetricKind(metric)
+	metricType, _ := se.metricTypeFromProto(metric.Descriptor.Name)
+	displayName := se.displayName(metric.Descriptor.Name)
+	metricKind, valueType := metricDescriptorTypeToMetricKind(metric)
 
 	sdm := &googlemetricpb.MetricDescriptor{
 		Name:        fmt.Sprintf("projects/%s/metricDescriptors/%s", se.o.ProjectID, metricType),
 		DisplayName: displayName,
-		Description: description,
-		Unit:        unit,
+		Description: metric.Descriptor.Description,
+		Unit:        string(metric.Descriptor.Unit),
 		Type:        metricType,
 		MetricKind:  metricKind,
 		ValueType:   valueType,
-		Labels:      labelDescriptorsFromProto(se.defaultLabels, metric.GetMetricDescriptor().GetLabelKeys()),
+		Labels:      metricLableKeysToLabels(se.defaultLabels, metric.Descriptor.LabelKeys),
 	}
 
 	return sdm, nil
 }
 
-func labelDescriptorsFromProto(defaults map[string]labelValue, protoLabelKeys []*metricspb.LabelKey) []*labelpb.LabelDescriptor {
-	labelDescriptors := make([]*labelpb.LabelDescriptor, 0, len(defaults)+len(protoLabelKeys))
+func metricLableKeysToLabels(defaults map[string]labelValue, labelKeys []metricdata.LabelKey) []*labelpb.LabelDescriptor {
+	labelDescriptors := make([]*labelpb.LabelDescriptor, 0, len(defaults)+len(labelKeys))
 
 	// Fill in the defaults first.
 	for key, lbl := range defaults {
@@ -343,50 +269,102 @@ func labelDescriptorsFromProto(defaults map[string]labelValue, protoLabelKeys []
 	}
 
 	// Now fill in those from the metric.
-	for _, protoKey := range protoLabelKeys {
+	for _, key := range labelKeys {
 		labelDescriptors = append(labelDescriptors, &labelpb.LabelDescriptor{
-			Key:         sanitize(protoKey.GetKey()),
-			Description: protoKey.GetDescription(),
+			Key:         sanitize(key.Key),
+			Description: key.Description,
 			ValueType:   labelpb.LabelDescriptor_STRING, // We only use string tags
 		})
 	}
 	return labelDescriptors
 }
 
-func metricProseFromProto(metric *metricspb.Metric) (name, description, unit string, ok bool) {
-	mname := metric.GetName()
-	if mname != "" {
-		name = mname
-		return
+func metricDescriptorTypeToMetricKind(m *metricdata.Metric) (googlemetricpb.MetricDescriptor_MetricKind, googlemetricpb.MetricDescriptor_ValueType) {
+	if m == nil {
+		return googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED, googlemetricpb.MetricDescriptor_VALUE_TYPE_UNSPECIFIED
 	}
 
-	md := metric.GetMetricDescriptor()
+	switch m.Descriptor.Type {
+	case metricdata.TypeCumulativeInt64:
+		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_INT64
 
-	name = md.GetName()
-	unit = md.GetUnit()
-	description = md.GetDescription()
+	case metricdata.TypeCumulativeFloat64:
+		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_DOUBLE
 
-	if md != nil && md.Type == metricspb.MetricDescriptor_CUMULATIVE_INT64 {
-		// If the aggregation type is count, which counts the number of recorded measurements, the unit must be "1",
-		// because this view does not apply to the recorded values.
-		unit = stats.UnitDimensionless
+	case metricdata.TypeCumulativeDistribution:
+		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_DISTRIBUTION
+
+	case metricdata.TypeGaugeFloat64:
+		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_DOUBLE
+
+	case metricdata.TypeGaugeInt64:
+		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_INT64
+
+	case metricdata.TypeGaugeDistribution:
+		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_DISTRIBUTION
+
+	case metricdata.TypeSummary:
+		// TODO: [rghetia] after upgrading to proto version3, retrun UNRECOGNIZED instead of UNSPECIFIED
+		return googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED, googlemetricpb.MetricDescriptor_VALUE_TYPE_UNSPECIFIED
+
+	default:
+		// TODO: [rghetia] after upgrading to proto version3, retrun UNRECOGNIZED instead of UNSPECIFIED
+		return googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED, googlemetricpb.MetricDescriptor_VALUE_TYPE_UNSPECIFIED
 	}
-
-	return
 }
 
-func (se *statsExporter) metricTypeFromProto(name string) (string, bool) {
-	// TODO: (@odeke-em) support non-"custom.googleapis.com" metrics names.
-	name = path.Join("custom.googleapis.com", "opencensus", name)
-	return name, true
+func (se *statsExporter) metricRscToMpbRsc(rs *resource.Resource) *monitoredrespb.MonitoredResource {
+	if rs == nil {
+		resource := se.o.Resource
+		if resource == nil {
+			resource = &monitoredrespb.MonitoredResource{
+				Type: "global",
+			}
+		}
+		return resource
+	}
+	typ := rs.Type
+	if typ == "" {
+		typ = "global"
+	}
+	mrsp := &monitoredrespb.MonitoredResource{
+		Type: typ,
+	}
+	if rs.Labels != nil {
+		mrsp.Labels = make(map[string]string, len(rs.Labels))
+		for k, v := range rs.Labels {
+			// TODO: [rghetia] add mapping between OC Labels and SD Labels.
+			mrsp.Labels[k] = v
+		}
+	}
+	return mrsp
 }
 
-func fromProtoPoint(startTime *timestamp.Timestamp, pt *metricspb.Point) (*monitoringpb.Point, error) {
+func (se *statsExporter) metricTsToMpbPoint(ts *metricdata.TimeSeries, metricKind googlemetricpb.MetricDescriptor_MetricKind) (sptl []*monitoringpb.Point, err error) {
+	for _, pt := range ts.Points {
+
+		// If we have a last value aggregation point i.e. MetricDescriptor_GAUGE
+		// StartTime should be nil.
+		startTime := timestampProto(ts.StartTime)
+		if metricKind == googlemetricpb.MetricDescriptor_GAUGE {
+			startTime = nil
+		}
+
+		spt, err := metricPointToMpbPoint(startTime, &pt, se.o.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		sptl = append(sptl, spt)
+	}
+	return sptl, nil
+}
+
+func metricPointToMpbPoint(startTime *timestamp.Timestamp, pt *metricdata.Point, projectID string) (*monitoringpb.Point, error) {
 	if pt == nil {
 		return nil, nil
 	}
 
-	mptv, err := protoToMetricPoint(pt.Value)
+	mptv, err := metricPointToMpbValue(pt, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -395,144 +373,127 @@ func fromProtoPoint(startTime *timestamp.Timestamp, pt *metricspb.Point) (*monit
 		Value: mptv,
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: startTime,
-			EndTime:   pt.Timestamp,
+			EndTime:   timestampProto(pt.Time),
 		},
 	}
 	return mpt, nil
 }
 
-func protoToMetricPoint(value interface{}) (*monitoringpb.TypedValue, error) {
-	if value == nil {
+func metricPointToMpbValue(pt *metricdata.Point, projectID string) (*monitoringpb.TypedValue, error) {
+	if pt == nil {
 		return nil, nil
 	}
 
 	var err error
 	var tval *monitoringpb.TypedValue
-	switch v := value.(type) {
+	switch v := pt.Value.(type) {
 	default:
-		// All the other types are not yet handled.
-		// TODO: (@odeke-em, @songy23) talk to the Stackdriver team to determine
-		// the use cases for:
-		//
-		//      *TypedValue_BoolValue
-		//      *TypedValue_StringValue
-		//
-		// and then file feature requests on OpenCensus-Specs and then OpenCensus-Proto,
-		// lest we shall error here.
-		//
-		// TODO: Add conversion from SummaryValue when
-		//      https://github.com/census-ecosystem/opencensus-go-exporter-stackdriver/issues/66
-		// has been figured out.
-		err = fmt.Errorf("protoToMetricPoint: unknown Data type: %T", value)
+		err = fmt.Errorf("protoToMetricPoint: unknown Data type: %T", pt.Value)
 
-	case *metricspb.Point_Int64Value:
+	case int64:
 		tval = &monitoringpb.TypedValue{
 			Value: &monitoringpb.TypedValue_Int64Value{
-				Int64Value: v.Int64Value,
+				Int64Value: v,
 			},
 		}
 
-	case *metricspb.Point_DoubleValue:
+	case float64:
 		tval = &monitoringpb.TypedValue{
 			Value: &monitoringpb.TypedValue_DoubleValue{
-				DoubleValue: v.DoubleValue,
+				DoubleValue: v,
 			},
 		}
 
-	case *metricspb.Point_DistributionValue:
-		dv := v.DistributionValue
+	case *metricdata.Distribution:
+		dv := v
 		var mv *monitoringpb.TypedValue_DistributionValue
-		if dv != nil {
-			var mean float64
-			if dv.Count > 0 {
-				mean = float64(dv.Sum) / float64(dv.Count)
-			}
-			mv = &monitoringpb.TypedValue_DistributionValue{
-				DistributionValue: &distributionpb.Distribution{
-					Count:                 dv.Count,
-					Mean:                  mean,
-					SumOfSquaredDeviation: dv.SumOfSquaredDeviation,
-					BucketCounts:          bucketCounts(dv.Buckets),
+		var mean float64
+		if dv.Count > 0 {
+			mean = float64(dv.Sum) / float64(dv.Count)
+		}
+		mv = &monitoringpb.TypedValue_DistributionValue{
+			DistributionValue: &distributionpb.Distribution{
+				Count:                 dv.Count,
+				Mean:                  mean,
+				SumOfSquaredDeviation: dv.SumOfSquaredDeviation,
+			},
+		}
+
+		insertZeroBound := false
+		if bopts := dv.BucketOptions; bopts != nil {
+			insertZeroBound = shouldInsertZeroBound(bopts.Bounds...)
+			mv.DistributionValue.BucketOptions = &distributionpb.Distribution_BucketOptions{
+				Options: &distributionpb.Distribution_BucketOptions_ExplicitBuckets{
+					ExplicitBuckets: &distributionpb.Distribution_BucketOptions_Explicit{
+						// The first bucket bound should be 0.0 because the Metrics first bucket is
+						// [0, first_bound) but Stackdriver monitoring bucket bounds begin with -infinity
+						// (first bucket is (-infinity, 0))
+						Bounds: addZeroBoundOnCondition(insertZeroBound, bopts.Bounds...),
+					},
 				},
 			}
-
-			if bopts := dv.BucketOptions; bopts != nil && bopts.Type != nil {
-				bexp, ok := bopts.Type.(*metricspb.DistributionValue_BucketOptions_Explicit_)
-				if ok && bexp != nil && bexp.Explicit != nil {
-					mv.DistributionValue.BucketOptions = &distributionpb.Distribution_BucketOptions{
-						Options: &distributionpb.Distribution_BucketOptions_ExplicitBuckets{
-							ExplicitBuckets: &distributionpb.Distribution_BucketOptions_Explicit{
-								Bounds: bexp.Explicit.Bounds[:],
-							},
-						},
-					}
-				}
-			}
 		}
+		bucketCounts, exemplars := metricBucketToBucketCountsAndExemplars(dv.Buckets, projectID)
+		mv.DistributionValue.BucketCounts = addZeroBucketCountOnCondition(insertZeroBound, bucketCounts...)
+		mv.DistributionValue.Exemplars = exemplars
+
 		tval = &monitoringpb.TypedValue{Value: mv}
 	}
 
 	return tval, err
 }
 
-func bucketCounts(buckets []*metricspb.DistributionValue_Bucket) []int64 {
+func metricBucketToBucketCountsAndExemplars(buckets []metricdata.Bucket, projectID string) ([]int64, []*distributionpb.Distribution_Exemplar) {
 	bucketCounts := make([]int64, len(buckets))
+	var exemplars []*distributionpb.Distribution_Exemplar
 	for i, bucket := range buckets {
-		if bucket != nil {
-			bucketCounts[i] = bucket.Count
+		bucketCounts[i] = bucket.Count
+		if bucket.Exemplar != nil {
+			exemplars = append(exemplars, metricExemplarToPbExemplar(bucket.Exemplar, projectID))
 		}
 	}
-	return bucketCounts
+	return bucketCounts, exemplars
 }
 
-func protoMetricDescriptorTypeToMetricKind(m *metricspb.Metric) (googlemetricpb.MetricDescriptor_MetricKind, googlemetricpb.MetricDescriptor_ValueType) {
-	dt := m.GetMetricDescriptor()
-	if dt == nil {
-		return googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED, googlemetricpb.MetricDescriptor_VALUE_TYPE_UNSPECIFIED
-	}
-
-	switch dt.Type {
-	case metricspb.MetricDescriptor_CUMULATIVE_INT64:
-		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_INT64
-
-	case metricspb.MetricDescriptor_CUMULATIVE_DOUBLE:
-		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_DOUBLE
-
-	case metricspb.MetricDescriptor_CUMULATIVE_DISTRIBUTION:
-		return googlemetricpb.MetricDescriptor_CUMULATIVE, googlemetricpb.MetricDescriptor_DISTRIBUTION
-
-	case metricspb.MetricDescriptor_GAUGE_DOUBLE:
-		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_DOUBLE
-
-	case metricspb.MetricDescriptor_GAUGE_INT64:
-		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_INT64
-
-	case metricspb.MetricDescriptor_GAUGE_DISTRIBUTION:
-		return googlemetricpb.MetricDescriptor_GAUGE, googlemetricpb.MetricDescriptor_DISTRIBUTION
-
-	default:
-		return googlemetricpb.MetricDescriptor_METRIC_KIND_UNSPECIFIED, googlemetricpb.MetricDescriptor_VALUE_TYPE_UNSPECIFIED
+func metricExemplarToPbExemplar(exemplar *metricdata.Exemplar, projectID string) *distributionpb.Distribution_Exemplar {
+	return &distributionpb.Distribution_Exemplar{
+		Value:       exemplar.Value,
+		Timestamp:   timestampProto(exemplar.Timestamp),
+		Attachments: attachmentsToPbAttachments(exemplar.Attachments, projectID),
 	}
 }
 
-func protoResourceToMonitoredResource(rsp *resourcepb.Resource) *monitoredrespb.MonitoredResource {
-	if rsp == nil {
-		return &monitoredrespb.MonitoredResource{
-			Type: "global",
+func attachmentsToPbAttachments(attachments metricdata.Attachments, projectID string) []*any.Any {
+	var pbAttachments []*any.Any
+	for _, v := range attachments {
+		switch v.(type) {
+		case trace.SpanContext:
+			spanCtx, _ := v.(trace.SpanContext)
+			pbAttachments = append(pbAttachments, toPbSpanCtxAttachment(spanCtx, projectID))
+		default:
+			// Treat everything else as plain string for now.
+			// TODO(songy23): add support for dropped label attachments.
+			pbAttachments = append(pbAttachments, toPbStringAttachment(v))
 		}
 	}
-	typ := rsp.Type
-	if typ == "" {
-		typ = "global"
+	return pbAttachments
+}
+
+func toPbStringAttachment(v interface{}) *any.Any {
+	s := fmt.Sprintf("%v", v)
+	return &any.Any{
+		TypeUrl: exemplarAttachmentTypeString,
+		Value:   []byte(s),
 	}
-	mrsp := &monitoredrespb.MonitoredResource{
-		Type: typ,
+}
+
+func toPbSpanCtxAttachment(spanCtx trace.SpanContext, projectID string) *any.Any {
+	pbSpanCtx := monitoringpb.SpanContext{
+		SpanName: fmt.Sprintf("projects/%s/traces/%s/spans/%s", projectID, spanCtx.TraceID.String(), spanCtx.SpanID.String()),
 	}
-	if rsp.Labels != nil {
-		mrsp.Labels = make(map[string]string, len(rsp.Labels))
-		for k, v := range rsp.Labels {
-			mrsp.Labels[k] = v
-		}
+	bytes, _ := proto.Marshal(&pbSpanCtx)
+	return &any.Any{
+		TypeUrl: exemplarAttachmentTypeSpanCtx,
+		Value:   bytes,
 	}
-	return mrsp
 }

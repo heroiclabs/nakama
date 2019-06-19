@@ -74,7 +74,7 @@ func (i *IndexSnapshotTermFieldReader) Next(preAlloced *index.TermFieldDoc) (*in
 		rv = &index.TermFieldDoc{}
 	}
 	// find the next hit
-	for i.segmentOffset < len(i.postings) {
+	for i.segmentOffset < len(i.iterators) {
 		next, err := i.iterators[i.segmentOffset].Next()
 		if err != nil {
 			return nil, err

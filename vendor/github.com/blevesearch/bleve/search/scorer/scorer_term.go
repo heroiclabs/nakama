@@ -40,6 +40,7 @@ type TermQueryScorer struct {
 	idf                    float64
 	options                search.SearcherOptions
 	idfExplanation         *search.Explanation
+	includeScore           bool
 	queryNorm              float64
 	queryWeight            float64
 	queryWeightExplanation *search.Explanation
@@ -62,14 +63,15 @@ func (s *TermQueryScorer) Size() int {
 
 func NewTermQueryScorer(queryTerm []byte, queryField string, queryBoost float64, docTotal, docTerm uint64, options search.SearcherOptions) *TermQueryScorer {
 	rv := TermQueryScorer{
-		queryTerm:   string(queryTerm),
-		queryField:  queryField,
-		queryBoost:  queryBoost,
-		docTerm:     docTerm,
-		docTotal:    docTotal,
-		idf:         1.0 + math.Log(float64(docTotal)/float64(docTerm+1.0)),
-		options:     options,
-		queryWeight: 1.0,
+		queryTerm:    string(queryTerm),
+		queryField:   queryField,
+		queryBoost:   queryBoost,
+		docTerm:      docTerm,
+		docTotal:     docTotal,
+		idf:          1.0 + math.Log(float64(docTotal)/float64(docTerm+1.0)),
+		options:      options,
+		queryWeight:  1.0,
+		includeScore: options.Score != "none",
 	}
 
 	if options.Explain {
@@ -159,7 +161,9 @@ func (s *TermQueryScorer) Score(ctx *search.SearchContext, termMatch *index.Term
 
 	rv := ctx.DocumentMatchPool.Get()
 	rv.IndexInternalID = append(rv.IndexInternalID, termMatch.ID...)
-	rv.Score = score
+	if s.includeScore {
+		rv.Score = score
+	}
 	if s.options.Explain {
 		rv.Expl = scoreExplanation
 	}

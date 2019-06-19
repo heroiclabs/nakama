@@ -32,7 +32,7 @@ func init() {
 }
 
 type PhraseSearcher struct {
-	mustSearcher *ConjunctionSearcher
+	mustSearcher search.Searcher
 	queryNorm    float64
 	currMust     *search.DocumentMatch
 	terms        [][]string

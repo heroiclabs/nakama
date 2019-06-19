@@ -113,10 +113,6 @@ func (p *parser) fail() {
 	var line int
 	if p.parser.problem_mark.line != 0 {
 		line = p.parser.problem_mark.line
-		// Scanner errors don't iterate line before returning error
-		if p.parser.error == yaml_SCANNER_ERROR {
-			line++
-		}
 	} else if p.parser.context_mark.line != 0 {
 		line = p.parser.context_mark.line
 	}
@@ -434,7 +430,6 @@ func (d *decoder) scalar(n *node, out reflect.Value) bool {
 			// reasons we set it as a string, so that code that unmarshals
 			// timestamp-like values into interface{} will continue to
 			// see a string and not a time.Time.
-			// TODO(v3) Drop this.
 			out.Set(reflect.ValueOf(n.value))
 		} else {
 			out.Set(reflect.ValueOf(resolved))
@@ -547,10 +542,6 @@ func (d *decoder) sequence(n *node, out reflect.Value) (good bool) {
 	switch out.Kind() {
 	case reflect.Slice:
 		out.Set(reflect.MakeSlice(out.Type(), l, l))
-	case reflect.Array:
-		if l != out.Len() {
-			failf("invalid array: want %d elements but got %d", out.Len(), l)
-		}
 	case reflect.Interface:
 		// No type hints. Will have to use a generic sequence.
 		iface = out
@@ -569,9 +560,7 @@ func (d *decoder) sequence(n *node, out reflect.Value) (good bool) {
 			j++
 		}
 	}
-	if out.Kind() != reflect.Array {
-		out.Set(out.Slice(0, j))
-	}
+	out.Set(out.Slice(0, j))
 	if iface.IsValid() {
 		iface.Set(out)
 	}

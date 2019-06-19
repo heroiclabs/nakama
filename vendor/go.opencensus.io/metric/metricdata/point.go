@@ -16,8 +16,6 @@ package metricdata
 
 import (
 	"time"
-
-	"go.opencensus.io/exemplar"
 )
 
 // Point is a single data point of a time series.
@@ -144,7 +142,7 @@ type Bucket struct {
 	// bucket_bounds.
 	Count int64
 	// Exemplar associated with this bucket (if any).
-	Exemplar *exemplar.Exemplar
+	Exemplar *Exemplar
 }
 
 // Summary is a representation of percentiles.

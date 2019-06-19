@@ -59,6 +59,14 @@ Due to subtests not being supported in older versions of Go, this package is
 only regularly tested against Go 1.7+. This package may work perfectly fine with
 Go 1.2+, but support for these older versions is not actively maintained.
 
+## Go 1.11 Modules
+
+As of v3.2.0, this repository no longer adopts Go modules, and v3.2.0 no longer has a `go.mod` file.  As a result, v3.2.0 also drops support for the `github.com/gofrs/uuid/v3` import path. Only module-based consumers are impacted.  With the v3.2.0 release, _all_ gofrs/uuid consumers should use the `github.com/gofrs/uuid` import path.
+
+An existing module-based consumer will continue to be able to build using the `github.com/gofrs/uuid/v3` import path using any valid consumer `go.mod` that worked prior to the publishing of v3.2.0, but any module-based consumer should start using the `github.com/gofrs/uuid` import path when possible and _must_ use the `github.com/gofrs/uuid` import path prior to upgrading to v3.2.0.
+
+Please refer to [Issue #61](https://github.com/gofrs/uuid/issues/61) and [Issue #66](https://github.com/gofrs/uuid/issues/66) for more details.
+
 ## Usage
 
 Here is a quick overview of how to use this package. For more detailed

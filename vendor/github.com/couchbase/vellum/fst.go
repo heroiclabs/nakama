@@ -243,7 +243,7 @@ func (f *FST) Reader() (*Reader, error) {
 	return &Reader{f: f}, nil
 }
 
-func (f *FST) getMinMaxKey(comparator func(byte, byte) bool) ([]byte, error) {
+func (f *FST) GetMinKey() ([]byte, error) {
 	var rv []byte
 
 	curr := f.decoder.getRoot()
@@ -253,34 +253,40 @@ func (f *FST) getMinMaxKey(comparator func(byte, byte) bool) ([]byte, error) {
 	}
 
 	for !state.Final() {
-		lastTransition := state.TransitionAt(0)
-		numTransitions := state.NumTransitions()
-		for i := 1; i < numTransitions; i++ {
-			transition := state.TransitionAt(i)
-			if comparator(transition, lastTransition) {
-				lastTransition = transition
-			}
-		}
-
-		_, curr, _ = state.TransitionFor(lastTransition)
+		nextTrans := state.TransitionAt(0)
+		_, curr, _ = state.TransitionFor(nextTrans)
 		state, err = f.decoder.stateAt(curr, state)
 		if err != nil {
 			return nil, err
 		}
 
-		rv = append(rv, lastTransition)
+		rv = append(rv, nextTrans)
 	}
 
 	return rv, nil
 }
 
-func (f *FST) GetMinKey() ([]byte, error) {
-	return f.getMinMaxKey(func (x byte, y byte) bool {return x < y})
-}
-
-
 func (f *FST) GetMaxKey() ([]byte, error) {
-	return f.getMinMaxKey(func (x byte, y byte) bool {return x > y})
+	var rv []byte
+
+	curr := f.decoder.getRoot()
+	state, err := f.decoder.stateAt(curr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for state.NumTransitions() > 0 {
+		nextTrans := state.TransitionAt(state.NumTransitions() - 1)
+		_, curr, _ = state.TransitionFor(nextTrans)
+		state, err = f.decoder.stateAt(curr, state)
+		if err != nil {
+			return nil, err
+		}
+
+		rv = append(rv, nextTrans)
+	}
+
+	return rv, nil
 }
 
 // A Reader is meant for a single threaded use

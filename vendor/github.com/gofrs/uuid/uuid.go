@@ -33,6 +33,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 )
 
@@ -154,6 +156,65 @@ func (u UUID) String() string {
 	hex.Encode(buf[24:], u[10:])
 
 	return string(buf)
+}
+
+// Format implements fmt.Formatter for UUID values.
+//
+// The behavior is as follows:
+// The 'x' and 'X' verbs output only the hex digits of the UUID, using a-f for 'x' and A-F for 'X'.
+// The 'v', '+v', 's' and 'q' verbs return the canonical RFC-4122 string representation.
+// The 'S' verb returns the RFC-4122 format, but with capital hex digits.
+// The '#v' verb returns the "Go syntax" representation, which is a 16 byte array initializer.
+// All other verbs not handled directly by the fmt package (like '%p') are unsupported and will return
+// "%!verb(uuid.UUID=value)" as recommended by the fmt package.
+func (u UUID) Format(f fmt.State, c rune) {
+	switch c {
+	case 'x', 'X':
+		s := hex.EncodeToString(u.Bytes())
+		if c == 'X' {
+			s = strings.Map(toCapitalHexDigits, s)
+		}
+		_, _ = io.WriteString(f, s)
+	case 'v':
+		var s string
+		if f.Flag('#') {
+			s = fmt.Sprintf("%#v", [Size]byte(u))
+		} else {
+			s = u.String()
+		}
+		_, _ = io.WriteString(f, s)
+	case 's', 'S':
+		s := u.String()
+		if c == 'S' {
+			s = strings.Map(toCapitalHexDigits, s)
+		}
+		_, _ = io.WriteString(f, s)
+	case 'q':
+		_, _ = io.WriteString(f, `"`+u.String()+`"`)
+	default:
+		// invalid/unsupported format verb
+		fmt.Fprintf(f, "%%!%c(uuid.UUID=%s)", c, u.String())
+	}
+}
+
+func toCapitalHexDigits(ch rune) rune {
+	// convert a-f hex digits to A-F
+	switch ch {
+	case 'a':
+		return 'A'
+	case 'b':
+		return 'B'
+	case 'c':
+		return 'C'
+	case 'd':
+		return 'D'
+	case 'e':
+		return 'E'
+	case 'f':
+		return 'F'
+	default:
+		return ch
+	}
 }
 
 // SetVersion sets the version bits.

@@ -43,14 +43,27 @@ type ConjunctionSearcher struct {
 	options     search.SearcherOptions
 }
 
-func NewConjunctionSearcher(indexReader index.IndexReader, qsearchers []search.Searcher, options search.SearcherOptions) (*ConjunctionSearcher, error) {
-	// build the downstream searchers
+func NewConjunctionSearcher(indexReader index.IndexReader,
+	qsearchers []search.Searcher, options search.SearcherOptions) (
+	search.Searcher, error) {
+	// build the sorted downstream searchers
 	searchers := make(OrderedSearcherList, len(qsearchers))
 	for i, searcher := range qsearchers {
 		searchers[i] = searcher
 	}
-	// sort the searchers
 	sort.Sort(searchers)
+
+	// attempt the "unadorned" conjunction optimization only when we
+	// do not need extra information like freq-norm's or term vectors
+	if len(searchers) > 1 &&
+		options.Score == "none" && !options.IncludeTermVectors {
+		rv, err := optimizeCompositeSearcher("conjunction:unadorned",
+			indexReader, searchers, options)
+		if err != nil || rv != nil {
+			return rv, err
+		}
+	}
+
 	// build our searcher
 	rv := ConjunctionSearcher{
 		indexReader: indexReader,
@@ -63,24 +76,10 @@ func NewConjunctionSearcher(indexReader index.IndexReader, qsearchers []search.S
 
 	// attempt push-down conjunction optimization when there's >1 searchers
 	if len(searchers) > 1 {
-		var octx index.OptimizableContext
-
-		for _, searcher := range searchers {
-			o, ok := searcher.(index.Optimizable)
-			if ok {
-				var err error
-				octx, err = o.Optimize("conjunction", octx)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if octx != nil {
-			err := octx.Finish()
-			if err != nil {
-				return nil, err
-			}
+		rv, err := optimizeCompositeSearcher("conjunction",
+			indexReader, searchers, options)
+		if err != nil || rv != nil {
+			return rv, err
 		}
 	}
 

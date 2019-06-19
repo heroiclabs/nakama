@@ -3,11 +3,13 @@ sudo: false
 language: go
 
 go:
- - 1.8
+ - "1.9.x"
+ - "1.10.x"
+ - "1.11.x"
 
 script:
   - go get github.com/mattn/goveralls
-  - go get github.com/kisielk/errcheck
+  - go get -u github.com/kisielk/errcheck
   - go test -v $(go list ./... | grep -v vendor/)
   - go test -race
   - go vet

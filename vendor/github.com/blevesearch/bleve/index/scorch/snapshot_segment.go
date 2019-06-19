@@ -113,14 +113,29 @@ func (s *SegmentSnapshot) Size() (rv int) {
 }
 
 type cachedFieldDocs struct {
+	m       sync.Mutex
 	readyCh chan struct{}     // closed when the cachedFieldDocs.docs is ready to be used.
 	err     error             // Non-nil if there was an error when preparing this cachedFieldDocs.
 	docs    map[uint64][]byte // Keyed by localDocNum, value is a list of terms delimited by 0xFF.
 	size    uint64
 }
 
+func (cfd *cachedFieldDocs) Size() int {
+	var rv int
+	cfd.m.Lock()
+	for _, entry := range cfd.docs {
+		rv += 8 /* size of uint64 */ + len(entry)
+	}
+	cfd.m.Unlock()
+	return rv
+}
+
 func (cfd *cachedFieldDocs) prepareField(field string, ss *SegmentSnapshot) {
-	defer close(cfd.readyCh)
+	cfd.m.Lock()
+	defer func() {
+		close(cfd.readyCh)
+		cfd.m.Unlock()
+	}()
 
 	cfd.size += uint64(size.SizeOfUint64) /* size field */
 	dict, err := ss.segment.Dictionary(field)
@@ -231,9 +246,7 @@ func (c *cachedDocs) updateSizeLOCKED() {
 	for k, v := range c.cache { // cachedFieldDocs
 		sizeInBytes += len(k)
 		if v != nil {
-			for _, entry := range v.docs { // docs
-				sizeInBytes += 8 /* size of uint64 */ + len(entry)
-			}
+			sizeInBytes += v.Size()
 		}
 	}
 	atomic.StoreUint64(&c.size, uint64(sizeInBytes))

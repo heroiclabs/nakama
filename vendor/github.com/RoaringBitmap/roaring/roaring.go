@@ -6,7 +6,6 @@
 package roaring
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -87,6 +86,12 @@ func (rb *Bitmap) ReadFrom(stream io.Reader) (int64, error) {
 // You should *not* change the copy-on-write status of the resulting
 // bitmaps (SetCopyOnWrite).
 //
+// If buf becomes unavailable, then a bitmap created with
+// FromBuffer would be effectively broken. Furthermore, any
+// bitmap derived from this bitmap (e.g., via Or, And) might
+// also be broken. Thus, before making buf unavailable, you should
+// call CloneCopyOnWriteContainers on all such bitmaps.
+//
 func (rb *Bitmap) FromBuffer(buf []byte) (int64, error) {
 	return rb.highlowcontainer.fromBuffer(buf)
 }
@@ -110,29 +115,15 @@ func (rb *Bitmap) ReadFromMsgpack(stream io.Reader) (int64, error) {
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface for the bitmap
+// (same as ToBytes)
 func (rb *Bitmap) MarshalBinary() ([]byte, error) {
-	var buf bytes.Buffer
-	writer := bufio.NewWriter(&buf)
-	_, err := rb.WriteTo(writer)
-	if err != nil {
-		return nil, err
-	}
-	err = writer.Flush()
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return rb.ToBytes()
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface for the bitmap
 func (rb *Bitmap) UnmarshalBinary(data []byte) error {
-	var buf bytes.Buffer
-	_, err := buf.Write(data)
-	if err != nil {
-		return err
-	}
-	reader := bufio.NewReader(&buf)
-	_, err = rb.ReadFrom(reader)
+	r := bytes.NewReader(data)
+	_, err := rb.ReadFrom(r)
 	return err
 }
 
@@ -364,17 +355,20 @@ func (rb *Bitmap) String() string {
 	return buffer.String()
 }
 
-// Iterator creates a new IntIterable to iterate over the integers contained in the bitmap, in sorted order
+// Iterator creates a new IntIterable to iterate over the integers contained in the bitmap, in sorted order;
+// the iterator becomes invalid if the bitmap is modified (e.g., with Add or Remove).
 func (rb *Bitmap) Iterator() IntIterable {
 	return newIntIterator(rb)
 }
 
-// ReverseIterator creates a new IntIterable to iterate over the integers contained in the bitmap, in sorted order
+// ReverseIterator creates a new IntIterable to iterate over the integers contained in the bitmap, in sorted order;
+// the iterator becomes invalid if the bitmap is modified (e.g., with Add or Remove).
 func (rb *Bitmap) ReverseIterator() IntIterable {
 	return newIntReverseIterator(rb)
 }
 
-// ManyIterator creates a new ManyIntIterable to iterate over the integers contained in the bitmap, in sorted order
+// ManyIterator creates a new ManyIntIterable to iterate over the integers contained in the bitmap, in sorted order;
+// the iterator becomes invalid if the bitmap is modified (e.g., with Add or Remove).
 func (rb *Bitmap) ManyIterator() ManyIntIterable {
 	return newManyIntIterator(rb)
 }
@@ -418,6 +412,7 @@ func (rb *Bitmap) Equals(o interface{}) bool {
 	return false
 }
 
+// AddOffset adds the value 'offset' to each and every value in a bitmap, generating a new bitmap in the process
 func AddOffset(x *Bitmap, offset uint32) (answer *Bitmap) {
 	containerOffset := highbits(offset)
 	inOffset := lowbits(offset)
@@ -1372,6 +1367,21 @@ func (rb *Bitmap) SetCopyOnWrite(val bool) {
 // GetCopyOnWrite gets this bitmap's copy-on-write property
 func (rb *Bitmap) GetCopyOnWrite() (val bool) {
 	return rb.highlowcontainer.copyOnWrite
+}
+
+// CloneCopyOnWriteContainers clones all containers which have 
+// needCopyOnWrite set to true.
+// This can be used to make sure it is safe to munmap a []byte
+// that the roaring array may still have a reference to, after
+// calling FromBuffer.
+// More generally this function is useful if you call FromBuffer 
+// to construct a bitmap with a backing array buf
+// and then later discard the buf array. Note that you should call 
+// CloneCopyOnWriteContainers on all bitmaps that were derived 
+// from the 'FromBuffer' bitmap since they map have dependencies
+// on the buf array as well.
+func (rb *Bitmap) CloneCopyOnWriteContainers() {
+	rb.highlowcontainer.cloneCopyOnWriteContainers()
 }
 
 // FlipInt calls Flip after casting the parameters (convenience method)

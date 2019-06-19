@@ -85,6 +85,10 @@ func ecnone(varargopt int) *expcontext {
 	return &expcontext{ecNone, regNotDefined, varargopt}
 }
 
+func shouldmove(ec *expcontext, reg int) bool {
+	return ec.ctype == ecLocal && ec.reg != regNotDefined && ec.reg != reg
+}
+
 func sline(pos ast.PositionHolder) int {
 	return pos.Line()
 }
@@ -1103,10 +1107,7 @@ func constFold(exp ast.Expr) ast.Expr { // {{{
 				panic(fmt.Sprintf("unknown binop: %v", expr.Operator))
 			}
 		} else {
-			retexpr := *expr
-			retexpr.Lhs = constFold(expr.Lhs)
-			retexpr.Rhs = constFold(expr.Rhs)
-			return &retexpr
+			return expr
 		}
 	case *ast.UnaryMinusOpExpr:
 		expr.Expr = constFold(expr.Expr)
@@ -1228,7 +1229,7 @@ func compileTableExpr(context *funcContext, reg int, ex *ast.TableExpr, ec *expc
 	}
 	code.SetB(tablepc, int2Fb(arraycount))
 	code.SetC(tablepc, int2Fb(len(ex.Fields)-arraycount))
-	if ec.ctype == ecLocal && ec.reg != tablereg {
+	if shouldmove(ec, tablereg) {
 		code.AddABC(OP_MOVE, ec.reg, tablereg, 0, sline(ex))
 	}
 } // }}}
@@ -1525,7 +1526,7 @@ func compileFuncCallExpr(context *funcContext, reg int, expr *ast.FuncCallExpr, 
 	context.Code.AddABC(OP_CALL, funcreg, b, ec.varargopt+2, sline(expr))
 	context.Proto.DbgCalls = append(context.Proto.DbgCalls, DbgCall{Pc: context.Code.LastPC(), Name: name})
 
-	if ec.varargopt == 0 && ec.ctype == ecLocal && funcreg != ec.reg {
+	if ec.varargopt == 0 && shouldmove(ec, funcreg) {
 		context.Code.AddABC(OP_MOVE, ec.reg, funcreg, 0, sline(expr))
 		return 1
 	}

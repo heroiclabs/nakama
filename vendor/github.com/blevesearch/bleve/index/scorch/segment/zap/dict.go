@@ -143,11 +143,14 @@ func (d *Dictionary) RangeIterator(start, end string) segment.DictionaryIterator
 	}
 
 	// need to increment the end position to be inclusive
-	endBytes := []byte(end)
-	if endBytes[len(endBytes)-1] < 0xff {
-		endBytes[len(endBytes)-1]++
-	} else {
-		endBytes = append(endBytes, 0xff)
+	var endBytes []byte
+	if len(end) > 0 {
+		endBytes = []byte(end)
+		if endBytes[len(endBytes)-1] < 0xff {
+			endBytes[len(endBytes)-1]++
+		} else {
+			endBytes = append(endBytes, 0xff)
+		}
 	}
 
 	if d.fst != nil {
@@ -225,6 +228,25 @@ func (d *Dictionary) OnlyIterator(onlyTerms [][]byte,
 	return rv
 }
 
+// ExistsIterator returns an exists iterator for this dictionary
+func (d *Dictionary) ExistsIterator() segment.DictionaryIterator {
+	rv := &DictionaryIterator{
+		d:         d,
+		omitCount: true,
+	}
+
+	if d.fst != nil {
+		itr, err := d.fst.Iterator(nil, nil)
+		if err == nil {
+			rv.itr = itr
+		} else if err != vellum.ErrIteratorDone {
+			rv.err = err
+		}
+	}
+
+	return rv
+}
+
 // DictionaryIterator is an iterator for term dictionary
 type DictionaryIterator struct {
 	d         *Dictionary
@@ -253,4 +275,14 @@ func (i *DictionaryIterator) Next() (*index.DictEntry, error) {
 	}
 	i.err = i.itr.Next()
 	return &i.entry, nil
+}
+
+func (i *DictionaryIterator) Exists(key []byte) (bool, error) {
+	if i.err != nil && i.err != vellum.ErrIteratorDone {
+		return false, i.err
+	}
+	if i.itr == nil || i.err == vellum.ErrIteratorDone {
+		return false, nil
+	}
+	return i.itr.Exists(key)
 }

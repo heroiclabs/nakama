@@ -1,3 +1,13 @@
+# This fork...
+
+I'm maintaining this fork because the original author was not replying to issues or pull requests.  For now I plan on maintaining this fork as necessary.
+
+## Status
+
+[![Build Status](https://travis-ci.org/blevesearch/go-porterstemmer.svg?branch=master)](https://travis-ci.org/blevesearch/go-porterstemmer)
+
+[![Coverage Status](https://coveralls.io/repos/blevesearch/go-porterstemmer/badge.png?branch=HEAD)](https://coveralls.io/r/blevesearch/go-porterstemmer?branch=HEAD)
+
 # Go Porter Stemmer
 
 A native Go clean room implementation of the Porter Stemming Algorithm.

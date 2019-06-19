@@ -237,9 +237,7 @@ func (sc *Scanner) scanEscape(ch int, buf *bytes.Buffer) error {
 			val, _ := strconv.ParseInt(string(bytes), 10, 32)
 			writeChar(buf, int(val))
 		} else {
-			buf.WriteByte('\\')
 			writeChar(buf, ch)
-			return sc.Error(buf.String(), "Invalid escape sequence")
 		}
 	}
 	return nil

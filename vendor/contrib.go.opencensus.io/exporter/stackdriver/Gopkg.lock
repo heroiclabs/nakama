@@ -23,7 +23,7 @@
   name = "go.opencensus.io"
   packages = [".","exporter/stackdriver/propagation","exporterutil","internal","internal/tagencoding","plugin/ocgrpc","plugin/ochttp","plugin/ochttp/propagation/b3","stats","stats/internal","stats/view","tag","trace","trace/internal","trace/propagation"]
   revision = "5897c5ce32247fc8af19c7710abd96e3304fb43c"
-  version = "v0.12.0"
+  version = "v0.20.0"
 
 [[projects]]
   branch = "master"

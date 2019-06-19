@@ -178,26 +178,56 @@ performance and debugging, but there are some limitations.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Callstack & Registry size
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Size of the callstack & registry is **fixed** for mainly performance.
-You can change the default size of the callstack & registry.
+The size of an ``LState``'s callstack controls the maximum call depth for Lua functions within a script (Go function calls do not count).
 
-.. code-block:: go
+The registry of an ``LState`` implements stack storage for calling functions (both Lua and Go functions) and also for temporary variables in expressions. Its storage requirements will increase with callstack usage and also with code complexity.
 
-   lua.RegistrySize = 1024 * 20
-   lua.CallStackSize = 1024
-   L := lua.NewState()
-   defer L.Close()
+Both the registry and the callstack can be set to either a fixed size or to auto size.
 
-You can also create an LState object that has the callstack & registry size specified by ``Options`` .
+When you have a large number of ``LStates`` instantiated in a process, it's worth taking the time to tune the registry and callstack options.
+
++++++++++
+Registry
++++++++++
+
+The registry can have an initial size, a maximum size and a step size configured on a per ``LState`` basis. This will allow the registry to grow as needed. It will not shrink again after growing.
 
 .. code-block:: go
 
     L := lua.NewState(lua.Options{
-        CallStackSize: 120,
-        RegistrySize:  120*20,
+       RegistrySize: 1024 * 20,         // this is the initial size of the registry
+       RegistryMaxSize: 1024 * 80,      // this is the maximum size that the registry can grow to. If set to `0` (the default) then the registry will not auto grow
+       RegistryGrowStep: 32,            // this is how much to step up the registry by each time it runs out of space. The default is `32`.
     })
+   defer L.Close()
 
-An LState object that has been created by ``*LState#NewThread()`` inherits the callstack & registry size from the parent LState object.
+A registry which is too small for a given script will ultimately result in a panic. A registry which is too big will waste memory (which can be significant if many ``LStates`` are instantiated).
+Auto growing registries incur a small performance hit at the point they are resized but will not otherwise affect performance.
+
++++++++++
+Callstack
++++++++++
+
+The callstack can operate in two different modes, fixed or auto size.
+A fixed size callstack has the highest performance and has a fixed memory overhead.
+An auto sizing callstack will allocate and release callstack pages on demand which will ensure the minimum amount of memory is in use at any time. The downside is it will incur a small performance impact every time a new page of callframes is allocated.
+By default an ``LState`` will allocate and free callstack frames in pages of 8, so the allocation overhead is not incurred on every function call. It is very likely that the performance impact of an auto resizing callstack will be negligible for most use cases.
+
+.. code-block:: go
+
+    L := lua.NewState(lua.Options{
+        CallStackSize: 120,                 // this is the maximum callstack size of this LState
+        MinimizeStackMemory: true,          // Defaults to `false` if not specified. If set, the callstack will auto grow and shrink as needed up to a max of `CallStackSize`. If not set, the callstack will be fixed at `CallStackSize`.
+    })
+   defer L.Close()
+
+++++++++++++++++
+Option defaults
+++++++++++++++++
+
+The above examples show how to customize the callstack and registry size on a per ``LState`` basis. You can also adjust some defaults for when options are not specified by altering the values of ``lua.RegistrySize``, ``lua.RegistryGrowStep`` and ``lua.CallStackSize``.
+
+An ``LState`` object that has been created by ``*LState#NewThread()`` inherits the callstack & registry size from the parent ``LState`` object.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Miscellaneous lua.NewState options
@@ -839,6 +869,8 @@ Libraries for GopherLua
 - `gluasql <https://github.com/tengattack/gluasql>`_ : A native Go implementation of SQL client for the GopherLua VM.
 - `purr <https://github.com/leyafo/purr>`_ : A http mock testing tool.
 - `vadv/gopher-lua-libs <https://github.com/vadv/gopher-lua-libs>`_ : Some usefull libraries for GopherLua VM.
+- `gluaperiphery <https://github.com/BixData/gluaperiphery>`_ : A periphery library for the GopherLua VM (GPIO, SPI, I2C, MMIO, and Serial peripheral I/O for Linux).
+- `glua-async <https://github.com/CuberL/glua-async>`_ : An async/await implement for gopher-lua. 
 ----------------------------------------------------------------
 Donation
 ----------------------------------------------------------------

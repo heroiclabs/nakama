@@ -104,7 +104,7 @@ type Logger struct {
 	LocalTime bool `json:"localtime" yaml:"localtime"`
 
 	// Compress determines if the rotated log files should be compressed
-	// using gzip.
+	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
 	size int64
@@ -206,13 +206,13 @@ func (l *Logger) rotate() error {
 // openNew opens a new log file for writing, moving any old log file out of the
 // way.  This methods assumes the file has already been closed.
 func (l *Logger) openNew() error {
-	err := os.MkdirAll(l.dir(), 0744)
+	err := os.MkdirAll(l.dir(), 0755)
 	if err != nil {
 		return fmt.Errorf("can't make directories for new logfile: %s", err)
 	}
 
 	name := l.filename()
-	mode := os.FileMode(0644)
+	mode := os.FileMode(0600)
 	info, err := os_Stat(name)
 	if err == nil {
 		// Copy the mode off the old logfile.
@@ -288,7 +288,7 @@ func (l *Logger) openExistingOrNew(writeLen int) error {
 	return nil
 }
 
-// genFilename generates the name of the logfile from the current time.
+// filename generates the name of the logfile from the current time.
 func (l *Logger) filename() string {
 	if l.Filename != "" {
 		return l.Filename

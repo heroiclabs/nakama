@@ -100,7 +100,7 @@ Packr takes file resolution a step further. When declaring a new box you use a r
 
 ## Usage with HTTP
 
-A box implements the [`http.FileSystem`](https://golang.org/pkg/net/http/#FileSystemhttps://golang.org/pkg/net/http/#FileSystem) interface, meaning it can be used to serve static files.
+A box implements the [`http.FileSystem`](https://golang.org/pkg/net/http/#FileSystem) interface, meaning it can be used to serve static files.
 
 ```go
 package main

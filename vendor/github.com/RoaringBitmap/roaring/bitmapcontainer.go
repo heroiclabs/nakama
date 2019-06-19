@@ -532,11 +532,31 @@ func (bc *bitmapContainer) iorBitmap(value2 *bitmapContainer) container {
 func (bc *bitmapContainer) lazyIORArray(value2 *arrayContainer) container {
 	answer := bc
 	c := value2.getCardinality()
-	for k := 0; k < c; k++ {
+	for k := 0; k+3 < c; k += 4 {
+		content := (*[4]uint16)(unsafe.Pointer(&value2.content[k]))
+		vc0 := content[0]
+		i0 := uint(vc0) >> 6
+		answer.bitmap[i0] = answer.bitmap[i0] | (uint64(1) << (vc0 % 64))
+
+		vc1 := content[1]
+		i1 := uint(vc1) >> 6
+		answer.bitmap[i1] = answer.bitmap[i1] | (uint64(1) << (vc1 % 64))
+
+		vc2 := content[2]
+		i2 := uint(vc2) >> 6
+		answer.bitmap[i2] = answer.bitmap[i2] | (uint64(1) << (vc2 % 64))
+
+		vc3 := content[3]
+		i3 := uint(vc3) >> 6
+		answer.bitmap[i3] = answer.bitmap[i3] | (uint64(1) << (vc3 % 64))
+	}
+
+	for k := c &^ 3; k < c; k++ {
 		vc := value2.content[k]
 		i := uint(vc) >> 6
 		answer.bitmap[i] = answer.bitmap[i] | (uint64(1) << (vc % 64))
 	}
+
 	answer.cardinality = invalidCardinality
 	return answer
 }
@@ -948,7 +968,7 @@ func (bc *bitmapContainer) PrevSetBit(i int) int {
 
 	w = w << uint(63-b)
 	if w != 0 {
-		return b - countLeadingZeros(w)
+		return i - countLeadingZeros(w)
 	}
 	x--
 	for ; x >= 0; x-- {

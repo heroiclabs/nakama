@@ -1,6 +1,0 @@
-[exec:nosuchcommand] exec nosuchcommand
-[exec:cat] exec cat foo
-stdout 'foo\n'
-
--- foo --
-foo

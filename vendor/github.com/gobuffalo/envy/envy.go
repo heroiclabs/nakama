@@ -68,8 +68,16 @@ func loadEnv() {
 	}
 }
 
+// Mods returns true if module support is enabled, false otherwise
+// See https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support for details
 func Mods() bool {
-	return Get(GO111MODULE, "off") == "on"
+	go111 := Get(GO111MODULE, "")
+
+	if !InGoPath() {
+		return go111 != "off"
+	}
+
+	return go111 == "on"
 }
 
 // Reload the ENV variables. Useful if
@@ -168,7 +176,7 @@ func Map() map[string]string {
 	for k, v := range env {
 		cp[k] = v
 	}
-	return env
+	return cp
 }
 
 // Temp makes a copy of the values and allows operation on
@@ -195,6 +203,16 @@ func GoBin() string {
 	return Get("GO_BIN", "go")
 }
 
+func InGoPath() bool {
+	pwd, _ := os.Getwd()
+	for _, p := range GoPaths() {
+		if strings.HasPrefix(pwd, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // GoPaths returns all possible GOPATHS that are set.
 func GoPaths() []string {
 	gp := Get("GOPATH", "")
@@ -205,6 +223,7 @@ func GoPaths() []string {
 }
 
 func importPath(path string) string {
+	path = strings.TrimPrefix(path, "/private")
 	for _, gopath := range GoPaths() {
 		srcpath := filepath.Join(gopath, "src")
 		rel, err := filepath.Rel(srcpath, path)

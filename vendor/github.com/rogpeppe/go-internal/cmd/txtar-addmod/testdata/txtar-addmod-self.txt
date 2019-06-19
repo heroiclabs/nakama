@@ -1,5 +1,0 @@
-mkdir $WORK/out
-txtar-addmod $WORK/out github.com/gobin-testrepos/simple-main
-! stdout .+
-! stderr .+
-exists $WORK/out/github.com_gobin-testrepos_simple-main_v1.0.0.txt
