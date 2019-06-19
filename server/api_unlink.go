@@ -15,7 +15,6 @@
 package server
 
 import (
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -126,7 +125,7 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 		return nil, status.Error(codes.Internal, "Could not unlink Device ID.")
 	}
 
-	err = crdb.ExecuteInTx(ctx, tx, func() error {
+	err = ExecuteInTx(ctx, tx, func() error {
 		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
     (facebook_id IS NOT NULL

@@ -25,7 +25,6 @@ import (
 
 	"context"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -159,7 +158,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
 			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id)
 			if addFriendErr == nil {
@@ -302,7 +301,7 @@ func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentU
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
 			if deleteFriendErr := deleteFriend(ctx, logger, tx, currentUser, id); deleteFriendErr != nil {
 				return deleteFriendErr
@@ -357,7 +356,7 @@ func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUs
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		for id := range uniqueFriendIDs {
 			if blockFriendErr := blockFriend(ctx, logger, tx, currentUser, id); blockFriendErr != nil {
 				return blockFriendErr

@@ -26,7 +26,6 @@ import (
 
 	"context"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -152,7 +151,7 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	err = crdb.ExecuteInTx(ctx, tx, func() error {
+	err = ExecuteInTx(ctx, tx, func() error {
 		query := `
 INSERT INTO users (id, username, create_time, update_time)
 SELECT $1 AS id,
@@ -640,7 +639,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		return status.Error(codes.Internal, "Error importing Facebook friends.")
 	}
 
-	err = crdb.ExecuteInTx(ctx, tx, func() error {
+	err = ExecuteInTx(ctx, tx, func() error {
 		if reset {
 			// Reset all friends for the current user, replacing them entirely with their Facebook friends.
 			// Note: will NOT remove blocked users.

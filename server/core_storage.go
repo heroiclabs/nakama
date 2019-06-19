@@ -26,7 +26,6 @@ import (
 
 	"context"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -461,7 +460,7 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 		return nil, codes.Internal, err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		acks = make([]*api.StorageObjectAck, 0, ops.Len())
 
 		for _, op := range ops {
@@ -582,7 +581,7 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, a
 		return codes.Internal, err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		for _, op := range ops {
 			params := []interface{}{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
 			var query string

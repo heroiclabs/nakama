@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
@@ -92,7 +91,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		// Select the wallets from the DB and decode them.
 		wallets := make(map[string]map[string]interface{}, len(updates))
 		rows, err := tx.QueryContext(ctx, query, params...)

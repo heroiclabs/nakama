@@ -161,13 +161,6 @@
   version = "v0.1.0"
 
 [[projects]]
-  digest = "1:c05e492e19a0704f4fee4d546ca899586c176b73f31c4a06051473ea75e7eaa2"
-  name = "github.com/cockroachdb/cockroach-go"
-  packages = ["crdb"]
-  pruneopts = ""
-  revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"
-
-[[projects]]
   branch = "master"
   digest = "1:21aee7b432ce1298869959e614776826b3a7f7777722589879f027fbee819820"
   name = "github.com/couchbase/vellum"
@@ -789,7 +782,6 @@
     "contrib.go.opencensus.io/exporter/stackdriver",
     "github.com/blevesearch/bleve",
     "github.com/blevesearch/bleve/analysis/analyzer/keyword",
-    "github.com/cockroachdb/cockroach-go/crdb",
     "github.com/dgrijalva/jwt-go",
     "github.com/go-yaml/yaml",
     "github.com/gobuffalo/packr",

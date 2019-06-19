@@ -77,10 +77,6 @@ ignored = ["go.opencensus.io/exporter/stackdriver"]
   version = "~1.2.2"
 
 [[constraint]]
-  name = "github.com/cockroachdb/cockroach-go"
-  revision = "59c0560478b705bf9bd12f9252224a0fad7c87df"
-
-[[constraint]]
   name = "github.com/blevesearch/bleve"
   revision = "5cf4e4e02e8a1aec8df8c6773d08e364ee694cea"
 

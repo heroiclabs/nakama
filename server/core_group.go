@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -99,7 +98,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	}
 
 	var group *api.Group
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Debug("Could not create group.", zap.Error(err))
@@ -260,7 +259,7 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		return deleteGroup(ctx, logger, tx, groupID)
 	}); err != nil {
 		logger.Error("Error deleting group.", zap.Error(err))
@@ -368,7 +367,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
 			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -433,7 +432,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, tx, func() error {
 		query = "DELETE FROM group_edge WHERE (source_id = $1::UUID AND destination_id = $2::UUID) OR (source_id = $2::UUID AND destination_id = $1::UUID)"
 		// don't need to check affectedRows as we've confirmed the existence of the relationship above
 		if _, err = tx.ExecContext(ctx, query, groupID, userID); err != nil {
@@ -517,7 +516,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	notificationSubject := fmt.Sprintf("You've been added to group %v", groupName.String)
 	var notifications map[uuid.UUID][]*api.Notification
 
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
 		notifications = make(map[uuid.UUID][]*api.Notification, len(userIDs))
 
@@ -618,7 +617,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			// shouldn't kick self
 			if uid == caller {
@@ -732,7 +731,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, tx, func() error {
 		for _, uid := range userIDs {
 			if uid == caller {
 				continue

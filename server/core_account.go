@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
-
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -311,7 +309,7 @@ func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		return err
 	}
 
-	if err := crdb.ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, tx, func() error {
 		count, err := DeleteUser(ctx, tx, userID)
 		if err != nil {
 			logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", userID.String()))

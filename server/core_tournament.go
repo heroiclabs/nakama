@@ -23,7 +23,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -151,7 +150,7 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 		return err
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		query := `INSERT INTO leaderboard_record 
 (leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score) 
 VALUES 
@@ -389,7 +388,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			return nil, err
 		}
 
-		if err := crdb.ExecuteInTx(ctx, tx, func() error {
+		if err := ExecuteInTx(ctx, tx, func() error {
 			if err := tx.QueryRowContext(ctx, query, params...).Scan(&dbNumScore, &dbMaxNumScore); err != nil {
 				return err
 			}

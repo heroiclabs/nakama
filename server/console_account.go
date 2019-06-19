@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -452,7 +451,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
 	}
 
-	if err = crdb.ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, tx, func() error {
 		for oldDeviceID, newDeviceID := range in.DeviceIds {
 			if newDeviceID == "" {
 				query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
