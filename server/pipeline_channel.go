@@ -28,7 +28,7 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -243,7 +243,8 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 					},
 				}
 
-				NotificationSend(session.Context(), logger, p.db, p.router, notifications)
+				// Any error is already logged before it's returned here.
+				_ = NotificationSend(session.Context(), logger, p.db, p.router, notifications)
 			}
 		}
 	}
@@ -415,7 +416,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 
 	if meta.Persistence {
 		// First find and update the referenced message.
-		var dbCreateTime pq.NullTime
+		var dbCreateTime pgtype.Timestamptz
 		query := "UPDATE message SET update_time = $5, username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
 		err := p.db.QueryRowContext(session.Context(), query, incoming.MessageId, message.SenderId, message.Content, message.Username, time.Unix(message.UpdateTime.Seconds, 0).UTC()).Scan(&dbCreateTime)
 		if err != nil {
@@ -495,7 +496,7 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 
 	if meta.Persistence {
 		// First find and remove the referenced message.
-		var dbCreateTime pq.NullTime
+		var dbCreateTime pgtype.Timestamptz
 		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time"
 		err := p.db.QueryRowContext(session.Context(), query, incoming.MessageId, message.SenderId).Scan(&dbCreateTime)
 		if err != nil {

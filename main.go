@@ -36,7 +36,7 @@ import (
 	"github.com/heroiclabs/nakama/migrate"
 	"github.com/heroiclabs/nakama/server"
 	"github.com/heroiclabs/nakama/social"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -211,7 +211,7 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	}
 
 	multiLogger.Debug("Complete database connection URL", zap.String("raw_url", parsedUrl.String()))
-	db, err := sql.Open("postgres", parsedUrl.String())
+	db, err := sql.Open("pgx", parsedUrl.String())
 	if err != nil {
 		multiLogger.Fatal("Error connecting to database", zap.Error(err))
 	}

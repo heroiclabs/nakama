@@ -10,6 +10,7 @@ require (
 	github.com/blevesearch/blevex v0.0.0-20180227211930-4b158bb555a3 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.2 // indirect
 	github.com/blevesearch/segment v0.0.0-20160915185041-762005e7a34f // indirect
+	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/couchbase/vellum v0.0.0-20190610201045-ec7b775d247f // indirect
 	github.com/cznic/b v0.0.0-20181122101859-a26611c4d92d // indirect
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548 // indirect
@@ -29,12 +30,16 @@ require (
 	github.com/gorilla/mux v1.7.2
 	github.com/gorilla/websocket v0.0.0-20190427040300-80c2d40e9b91
 	github.com/grpc-ecosystem/grpc-gateway v1.9.2
+	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
+	github.com/jackc/pgx v3.4.0+incompatible
 	github.com/jmhodges/levigo v1.0.0 // indirect
-	github.com/lib/pq v0.0.0-20190507191800-2ff3cb3adc01
+	github.com/lib/pq v1.1.1 // indirect
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/remyoudompheng/bigfft v0.0.0-20190512091148-babf20351dd7 // indirect
 	github.com/rubenv/sql-migrate v0.0.0-20190618074400-f4d34eae5a5c
+	github.com/satori/go.uuid v1.2.0 // indirect
+	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/steveyen/gtreap v0.0.0-20150807155958-0abe01ef9be2 // indirect
 	github.com/stretchr/testify v1.3.0
 	github.com/syndtr/goleveldb v1.0.0 // indirect

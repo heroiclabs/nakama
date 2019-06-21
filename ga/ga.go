@@ -35,24 +35,6 @@ type Event struct {
 	Ev string // event value
 }
 
-// AppInfo represents a mobile app info GA event.
-type AppInfo struct {
-	An   string // app name
-	Aid  string // app identifier
-	Av   string // app version
-	Aiid string // app installer identifier
-}
-
-// SendAppInfo will send the AppInfo struct to GA over HTTP.
-func SendAppInfo(httpc *http.Client, gacode string, cookie string, app *AppInfo) error {
-	values := url.Values{}
-	values.Add("an", app.An)
-	values.Add("av", app.Av)
-	values.Add("aid", app.Aid)
-	values.Add("aiid", app.Aiid)
-	return SendValues(httpc, gacode, cookie, values)
-}
-
 // SendEvent will send the event struct to GA over HTTP.
 func SendEvent(httpc *http.Client, gacode string, cookie string, event *Event) error {
 	if len(event.Ec) < 1 || len(event.Ea) < 1 {

@@ -16,6 +16,7 @@ package server
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,7 +31,8 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/social"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -44,7 +46,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	query := "SELECT id, username, disable_time FROM users WHERE custom_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, customID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -58,7 +60,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -76,7 +78,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, customID)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -121,7 +123,7 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 		// Load its details.
 		query = "SELECT username, disable_time FROM users WHERE id = $1"
 		var dbUsername string
-		var dbDisableTime pq.NullTime
+		var dbDisableTime pgtype.Timestamptz
 		err = db.QueryRowContext(ctx, query, dbUserID).Scan(&dbUsername, &dbDisableTime)
 		if err != nil {
 			logger.Error("Error looking up user by device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -129,7 +131,7 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 		}
 
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -169,7 +171,7 @@ WHERE NOT EXISTS
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
-			} else if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			} else if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
 			}
 			logger.Debug("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -214,7 +216,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	var dbUserID string
 	var dbUsername string
 	var dbPassword []byte
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -228,7 +230,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -253,7 +255,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -280,7 +282,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	query := "SELECT id, password, disable_time FROM users WHERE username = $1"
 	var dbUserID string
 	var dbPassword []byte
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, username).Scan(&dbUserID, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -293,7 +295,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	}
 
 	// Check if it's disabled.
-	if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 		logger.Info("User account is disabled.", zap.String("username", username))
 		return "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 	}
@@ -325,7 +327,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	query := "SELECT id, username, disable_time FROM users WHERE facebook_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -339,7 +341,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -357,7 +359,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.ID)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -391,7 +393,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	query := "SELECT id, username, disable_time FROM users WHERE gamecenter_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, playerID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -405,7 +407,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -423,7 +425,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, playerID)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -457,7 +459,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	query := "SELECT id, username, disable_time, display_name, avatar_url FROM users WHERE google_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	var dbDisplayName sql.NullString
 	var dbAvatarUrl sql.NullString
 	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarUrl)
@@ -487,7 +489,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -530,7 +532,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarUrl)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -565,7 +567,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query := "SELECT id, username, disable_time FROM users WHERE steam_id = $1"
 	var dbUserID string
 	var dbUsername string
-	var dbDisableTime pq.NullTime
+	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -579,7 +581,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	// Existing account found.
 	if found {
 		// Check if it's disabled.
-		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
 		}
@@ -597,7 +599,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, steamID)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -673,13 +675,13 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				var id string
 				err = rows.Scan(&id)
 				if err != nil {
-					rows.Close()
+					_ = rows.Close()
 					return err
 				}
 				params = append(params, id)
 				statements = append(statements, "$"+strconv.Itoa(len(params)))
 			}
-			rows.Close()
+			_ = rows.Close()
 
 			if len(statements) > 0 {
 				query = "UPDATE users SET edge_count = edge_count - 1 WHERE id IN (" + strings.Join(statements, ",") + ")"
@@ -727,10 +729,10 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			}
 			possibleFriendIDs = append(possibleFriendIDs, friendID)
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		for _, friendID := range possibleFriendIDs {
-			position := time.Now().UTC().UnixNano()
+			position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())
 
 			var state sql.NullInt64
 			err = tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
@@ -817,7 +819,8 @@ AND EXISTS
 				CreateTime: &timestamp.Timestamp{Seconds: createTime},
 			}}
 		}
-		NotificationSend(ctx, logger, db, messageRouter, notifications)
+		// Any error is already logged before it's returned here.
+		_ = NotificationSend(ctx, logger, db, messageRouter, notifications)
 	}
 
 	return nil

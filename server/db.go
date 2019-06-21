@@ -17,7 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
 )
 
 // Tx is used to permit clients to implement custom transaction logic.
@@ -35,7 +35,7 @@ type Scannable interface {
 // Retry functions that perform non-transactional database operations.
 func ExecuteRetryable(fn func() error) error {
 	if err := fn(); err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && (pqErr.Code == "CR000" || pqErr.Code == "40001") {
+		if dbErr, ok := err.(pgx.PgError); ok && (dbErr.Code == "CR000" || dbErr.Code == "40001") {
 			// A recognised error type that can be retried.
 			return ExecuteRetryable(fn)
 		}
@@ -82,8 +82,8 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 		// for either the standard PG errcode SerializationFailureError:40001 or the Cockroach extension
 		// errcode RetriableError:CR000. The Cockroach extension has been removed server-side, but support
 		// for it has been left here for now to maintain backwards compatibility.
-		pqErr, ok := errorCause(err).(*pq.Error)
-		if retryable := ok && (pqErr.Code == "CR000" || pqErr.Code == "40001"); !retryable {
+		dbErr, ok := errorCause(err).(pgx.PgError)
+		if retryable := ok && (dbErr.Code == "CR000" || dbErr.Code == "40001"); !retryable {
 			if released {
 				err = newAmbiguousCommitError(err)
 			}

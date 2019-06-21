@@ -1308,7 +1308,8 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 
 	// Import friends if requested.
 	if importFriends {
-		importFacebookFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		// Errors are logged before this point and failure here does not invalidate the whole operation.
+		_ = importFacebookFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -1329,8 +1330,8 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 		l.ArgError(2, "expects bundle ID string")
 		return 0
 	}
-	timestamp := l.CheckInt64(3)
-	if timestamp == 0 {
+	ts := l.CheckInt64(3)
+	if ts == 0 {
 		l.ArgError(3, "expects timestamp value")
 		return 0
 	}
@@ -1365,7 +1366,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(8, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGameCenter(l.Context(), n.logger, n.db, n.socialClient, playerID, bundleID, timestamp, salt, signature, publicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(l.Context(), n.logger, n.db, n.socialClient, playerID, bundleID, ts, salt, signature, publicKeyUrl, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -4490,7 +4491,7 @@ func (n *RuntimeLuaNakamaModule) tournamentDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentDelete(l.Context(), n.logger, n.leaderboardCache, n.rankCache, n.leaderboardScheduler, id); err != nil {
+	if err := TournamentDelete(l.Context(), n.leaderboardCache, n.rankCache, n.leaderboardScheduler, id); err != nil {
 		l.RaiseError("error deleting tournament: %v", err.Error())
 	}
 	return 0
@@ -4691,6 +4692,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr)
 	if err != nil {
 		l.RaiseError("error writing tournament record: %v", err.Error())
+		return 0
 	}
 
 	recordTable := l.CreateTable(0, 10)

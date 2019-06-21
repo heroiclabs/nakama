@@ -30,7 +30,8 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -108,7 +109,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 
 		groups, err := groupConvertRows(rows)
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not create group as it already exists.", zap.String("name", name))
 				return ErrGroupNameInUse
 			}
@@ -219,7 +220,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')"
 	res, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			logger.Info("Could not update group as it already exists.", zap.String("group_id", groupID.String()))
 			return ErrGroupNameInUse
 		}
@@ -303,7 +304,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		state = 3
 		_, err = groupAddUser(ctx, db, nil, uuid.Must(uuid.FromString(group.Id)), userID, state)
 		if err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return nil // completed successfully
 			}
@@ -349,11 +350,12 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 						},
 					}
 				}
-				rows.Close()
+				_ = rows.Close()
 			}
 
 			if len(notifications) > 0 {
-				NotificationSend(ctx, logger, db, router, notifications)
+				// Any error is already logged before it's returned here.
+				_ = NotificationSend(ctx, logger, db, router, notifications)
 			}
 		}
 
@@ -369,7 +371,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 	if err = ExecuteInTx(ctx, tx, func() error {
 		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
-			if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return e
 			}
@@ -386,7 +388,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 		return nil
 	}); err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			// No-op, user was already in group.
 			return nil
 		}
@@ -584,7 +586,8 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	}
 
 	if len(notifications) > 0 {
-		NotificationSend(ctx, logger, db, router, notifications)
+		// Any error is already logged before it's returned here.
+		_ = NotificationSend(ctx, logger, db, router, notifications)
 	}
 
 	return nil
@@ -638,7 +641,7 @@ WHERE
 		(source_id = $2::UUID AND destination_id = $1::UUID)
 	)
 AND
-	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	NOT (
 		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
@@ -657,7 +660,7 @@ WHERE
 		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 1)
 	)
 AND
-	EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
 RETURNING state`
 			}
 
@@ -815,8 +818,8 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 		var gamecenter sql.NullString
 		var steam sql.NullString
 		var edgeCount int
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
 		var state sql.NullInt64
 
 		if err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
@@ -892,8 +895,8 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC
 		var state sql.NullInt64
 		var edgeCount sql.NullInt64
 		var maxCount sql.NullInt64
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
 		var userState sql.NullInt64
 
 		if err := rows.Scan(&id, &creatorID, &name,
@@ -1091,8 +1094,8 @@ func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
 		var state sql.NullInt64
 		var edgeCount sql.NullInt64
 		var maxCount sql.NullInt64
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
 
 		if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &state, &edgeCount, &lang, &maxCount, &metadata, &createTime, &updateTime); err != nil {
 			return nil, err
@@ -1276,7 +1279,7 @@ WHERE group_edge.destination_id = $1`
 		var userState sql.NullInt64
 
 		if err := rows.Scan(&id, &edgeCount, &userState); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			logger.Error("Could not parse rows when listing groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
 			return err
 		}
@@ -1292,7 +1295,7 @@ WHERE group_edge.destination_id = $1`
 			deleteRelationships = append(deleteRelationships, groupID)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	countOtherSuperadminsQuery := "SELECT COUNT(source_id) FROM group_edge WHERE source_id = $1 AND destination_id != $2 AND state = 0"
 	for _, g := range checkForOtherSuperadmins {

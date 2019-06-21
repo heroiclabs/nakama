@@ -29,7 +29,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
@@ -302,8 +302,8 @@ WHERE user_id = $1`
 		funcObjects := make([]*api.StorageObject, 0)
 		for rows.Next() {
 			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-			var createTime pq.NullTime
-			var updateTime pq.NullTime
+			var createTime pgtype.Timestamptz
+			var updateTime pgtype.Timestamptz
 
 			if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 				return err
@@ -330,11 +330,11 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 	objects := make([]*api.StorageObject, 0)
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
 
 		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 
@@ -343,7 +343,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 
 		objects = append(objects, o)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	if rows.Err() != nil {
 		return nil, rows.Err()
@@ -425,8 +425,8 @@ WHERE
 		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
 		for rows.Next() {
 			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
-			var createTime pq.NullTime
-			var updateTime pq.NullTime
+			var createTime pgtype.Timestamptz
+			var updateTime pgtype.Timestamptz
 
 			if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 				return err

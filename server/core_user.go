@@ -23,7 +23,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -172,12 +172,12 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var google sql.NullString
 	var gamecenter sql.NullString
 	var steam sql.NullString
-	var edge_count int
-	var createTime pq.NullTime
-	var updateTime pq.NullTime
+	var edgeCount int
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-		&facebook, &google, &gamecenter, &steam, &edge_count, &createTime, &updateTime)
+		&facebook, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		GoogleId:     google.String,
 		GamecenterId: gamecenter.String,
 		SteamId:      steam.String,
-		EdgeCount:    int32(edge_count),
+		EdgeCount:    int32(edgeCount),
 		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 		Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),

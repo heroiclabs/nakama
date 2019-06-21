@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update GRPC (1.21.1), GRPC-Gateway (1.9.2), Protobuf (1.3.1), Mux (1.7.2), and OpenCensus (0.22.0) dependencies.
 - Use Go 1.12.6 as base Docker container image and native builds.
 - Move from dep to Go modules for dependency management.
+- Switch database driver from pq to pgx.
 
 ### Fixed
 - Fix delayed first time invocation of tournament and leaderboard callbacks.

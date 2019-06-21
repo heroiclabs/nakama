@@ -26,7 +26,8 @@ import (
 
 	"github.com/gobuffalo/packr"
 	"github.com/heroiclabs/nakama/server"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
+	_ "github.com/jackc/pgx/stdlib"
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -110,6 +111,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		exec = ms.status
 	default:
 		tmpLogger.Fatal("Unrecognized migrate subcommand. Available commands are: 'up', 'down', 'redo', 'status'.")
+		return
 	}
 
 	ms.parseSubcommand(args[1:], tmpLogger)
@@ -137,7 +139,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	logger.Info("Database connection", zap.String("dsn", ms.dbAddress))
 
 	parsedUrl.Path = ""
-	db, err := sql.Open(dialect, parsedUrl.String())
+	db, err := sql.Open("pgx", parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
@@ -152,7 +154,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	logger.Info("Database information", zap.String("version", dbVersion))
 
 	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbname)); err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorDuplicateDatabase {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorDuplicateDatabase {
 			logger.Info("Using existing database", zap.String("name", dbname))
 		} else {
 			logger.Fatal("Database query failed", zap.Error(err))
@@ -160,11 +162,11 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	} else {
 		logger.Info("Creating new database", zap.String("name", dbname))
 	}
-	db.Close()
+	_ = db.Close()
 
 	// Append dbname to data source name.
 	parsedUrl.Path = fmt.Sprintf("/%s", dbname)
-	db, err = sql.Open(dialect, parsedUrl.String())
+	db, err = sql.Open("pgx", parsedUrl.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}

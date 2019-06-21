@@ -24,8 +24,7 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
-	"github.com/lib/pq"
-	"github.com/pkg/errors"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -104,7 +103,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 			var wallet sql.NullString
 			err = rows.Scan(&id, &wallet)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				logger.Debug("Error reading user wallets.", zap.Error(err))
 				return err
 			}
@@ -112,14 +111,14 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 			var walletMap map[string]interface{}
 			err = json.Unmarshal([]byte(wallet.String), &walletMap)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				logger.Debug("Error converting user wallet.", zap.String("user_id", id), zap.Error(err))
 				return err
 			}
 
 			wallets[id] = walletMap
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		// Prepare the set of wallet updates and ledger updates.
 		updatedWallets := make(map[string][]byte, len(updates))
@@ -204,8 +203,8 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	// Metadata is expected to already be a valid JSON string.
 	var userId string
 	var changeset sql.NullString
-	var createTime pq.NullTime
-	var updateTime pq.NullTime
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
 	query := "UPDATE wallet_ledger SET update_time = now(), metadata = metadata || $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
 	err := db.QueryRowContext(ctx, query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
 	if err != nil {
@@ -241,8 +240,8 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		var id string
 		var changeset sql.NullString
 		var metadata sql.NullString
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
 		err = rows.Scan(&id, &changeset, &metadata, &createTime, &updateTime)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
@@ -295,22 +294,22 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 					}
 					wallet[k] = updated
 				} else {
-					return nil, errors.Errorf("update changeset does not match existing wallet value map type at path '%v'", currentPath)
+					return nil, fmt.Errorf("update changeset does not match existing wallet value map type at path '%v'", currentPath)
 				}
 			} else if existingValue, ok := existing.(float64); ok {
 				// Ensure they're both numeric values.
 				if changesetValue, ok := v.(float64); ok {
 					newValue := existingValue + changesetValue
 					if newValue < 0 {
-						return nil, errors.Errorf("wallet update rejected negative value at path '%v'", currentPath)
+						return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
 					}
 					wallet[k] = newValue
 				} else {
-					return nil, errors.Errorf("update changeset does not match existing wallet value number type at path '%v'", currentPath)
+					return nil, fmt.Errorf("update changeset does not match existing wallet value number type at path '%v'", currentPath)
 				}
 			} else {
 				// Existing value is not a map or float.
-				return nil, errors.Errorf("unknown existing wallet value type at path '%v', expecting map or float64", currentPath)
+				return nil, fmt.Errorf("unknown existing wallet value type at path '%v', expecting map or float64", currentPath)
 			}
 		} else {
 			// No existing value for this field.
@@ -323,12 +322,12 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 			} else if changesetValue, ok := v.(float64); ok {
 				if changesetValue < 0 {
 					// Do not allow setting negative initial values.
-					return nil, errors.Errorf("wallet update rejected negative value at path '%v'", currentPath)
+					return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
 				}
 				wallet[k] = changesetValue
 			} else {
 				// Incoming value is not a map or float.
-				return nil, errors.Errorf("unknown update changeset value type at path '%v', expecting map or float64", currentPath)
+				return nil, fmt.Errorf("unknown update changeset value type at path '%v', expecting map or float64", currentPath)
 			}
 		}
 	}

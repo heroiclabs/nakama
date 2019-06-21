@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/heroiclabs/nakama/cronexpr"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -165,21 +165,21 @@ FROM leaderboard`
 		var operator int
 		var resetSchedule sql.NullString
 		var metadata string
-		var createTime pq.NullTime
+		var createTime pgtype.Timestamptz
 		var category int
 		var description string
 		var duration int
-		var endTime pq.NullTime
+		var endTime pgtype.Timestamptz
 		var joinRequired bool
 		var maxSize int
 		var maxNumScore int
 		var title string
-		var startTime pq.NullTime
+		var startTime pgtype.Timestamptz
 
 		err = rows.Scan(&id, &authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime,
 			&category, &description, &duration, &endTime, &joinRequired, &maxSize, &maxNumScore, &title, &startTime)
 		if err != nil {
-			rows.Close()
+			_ = rows.Close()
 			l.logger.Error("Error parsing leaderboard cache from database", zap.Error(err))
 			return err
 		}
@@ -205,20 +205,20 @@ FROM leaderboard`
 		if resetSchedule.Valid {
 			expr, err := cronexpr.Parse(resetSchedule.String)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				l.logger.Error("Error parsing leaderboard reset schedule from database", zap.Error(err))
 				return err
 			}
 			leaderboard.ResetScheduleStr = resetSchedule.String
 			leaderboard.ResetSchedule = expr
 		}
-		if endTime.Valid {
+		if endTime.Status == pgtype.Present {
 			leaderboard.EndTime = endTime.Time.Unix()
 		}
 
 		leaderboards[id] = leaderboard
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	l.Lock()
 	l.leaderboards = leaderboards
@@ -277,7 +277,7 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 	if resetSchedule != "" {
 		params = append(params, resetSchedule)
 	}
-	var createTime pq.NullTime
+	var createTime pgtype.Timestamptz
 	err = l.db.QueryRowContext(ctx, query, params...).Scan(&createTime)
 	if err != nil {
 		l.Unlock()
@@ -431,9 +431,9 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 
 	l.logger.Debug("Create tournament query", zap.String("query", query))
 
-	var createTime pq.NullTime
-	var dbStartTime pq.NullTime
-	var dbEndTime pq.NullTime
+	var createTime pgtype.Timestamptz
+	var dbStartTime pgtype.Timestamptz
+	var dbEndTime pgtype.Timestamptz
 	err := l.db.QueryRowContext(ctx, query, params...).Scan(&createTime, &dbStartTime, &dbEndTime)
 	if err != nil {
 		l.logger.Error("Error creating tournament", zap.Error(err))
@@ -460,7 +460,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		Title:            title,
 		StartTime:        dbStartTime.Time.Unix(),
 	}
-	if dbEndTime.Valid {
+	if dbEndTime.Status == pgtype.Present {
 		leaderboard.EndTime = dbEndTime.Time.Unix()
 	}
 

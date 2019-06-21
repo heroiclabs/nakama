@@ -18,7 +18,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -102,7 +102,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 
 	err := UpdateAccount(ctx, s.logger, s.db, userID, username, in.GetDisplayName(), in.GetTimezone(), in.GetLocation(), in.GetLangTag(), in.GetAvatarUrl(), nil)
 	if err != nil {
-		if _, ok := err.(*pq.Error); ok {
+		if _, ok := err.(pgx.PgError); ok {
 			return nil, status.Error(codes.Internal, "Error while trying to update account.")
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())

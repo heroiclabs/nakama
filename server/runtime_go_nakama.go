@@ -171,7 +171,8 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 
 	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, token, username, create)
 	if err == nil && importFriends {
-		importFacebookFriends(ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		// Errors are logged before this point and failure here does not invalidate the whole operation.
+		_ = importFacebookFriends(ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	return dbUserID, dbUsername, created, err
@@ -1370,7 +1371,7 @@ func (n *RuntimeGoNakamaModule) TournamentDelete(ctx context.Context, id string)
 		return errors.New("expects a tournament ID string")
 	}
 
-	return TournamentDelete(ctx, n.logger, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
+	return TournamentDelete(ctx, n.leaderboardCache, n.leaderboardRankCache, n.leaderboardScheduler, id)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentAddAttempt(ctx context.Context, id, ownerID string, count int) error {

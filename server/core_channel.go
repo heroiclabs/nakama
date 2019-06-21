@@ -28,7 +28,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -132,8 +132,8 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	var dbSenderId string
 	var dbUsername string
 	var dbContent string
-	var dbCreateTime pq.NullTime
-	var dbUpdateTime pq.NullTime
+	var dbCreateTime pgtype.Timestamptz
+	var dbUpdateTime pgtype.Timestamptz
 	for rows.Next() {
 		if len(messages) >= limit {
 			nextCursor = &channelMessageListCursor{
@@ -151,7 +151,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 
 		err = rows.Scan(&dbId, &dbCode, &dbSenderId, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
-			rows.Close()
+			_ = rows.Close()
 			logger.Error("Error parsing listed channel messages", zap.Error(err))
 			return nil, err
 		}
@@ -182,11 +182,17 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			}
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	if incomingCursor != nil && !incomingCursor.IsNext {
 		// If this was a previous page listing, flip the results to their normal order and swap the cursors.
-		nextCursor, nextCursor.IsNext, prevCursor, prevCursor.IsNext = prevCursor, prevCursor.IsNext, nextCursor, nextCursor.IsNext
+		nextCursor, prevCursor = prevCursor, nextCursor
+		if nextCursor != nil {
+			nextCursor.IsNext = !nextCursor.IsNext
+		}
+		if prevCursor != nil {
+			prevCursor.IsNext = !prevCursor.IsNext
+		}
 
 		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 			messages[i], messages[j] = messages[j], messages[i]
@@ -196,7 +202,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	var nextCursorStr string
 	if nextCursor != nil {
 		cursorBuf := new(bytes.Buffer)
-		if gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
 			logger.Error("Error creating channel messages list next cursor", zap.Error(err))
 			return nil, err
 		}
@@ -205,7 +211,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	var prevCursorStr string
 	if prevCursor != nil {
 		cursorBuf := new(bytes.Buffer)
-		if gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+		if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
 			logger.Error("Error creating channel messages list previous cursor", zap.Error(err))
 			return nil, err
 		}
@@ -237,8 +243,8 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 	var dbStreamSubcontext string
 	var dbStreamLabel string
 	var dbContent string
-	var dbCreateTime pq.NullTime
-	var dbUpdateTime pq.NullTime
+	var dbCreateTime pgtype.Timestamptz
+	var dbUpdateTime pgtype.Timestamptz
 	for rows.Next() {
 		err = rows.Scan(&dbId, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamSubcontext, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {

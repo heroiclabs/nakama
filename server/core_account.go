@@ -25,7 +25,8 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -48,11 +49,11 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var steam sql.NullString
 	var customID sql.NullString
 	var edgeCount int
-	var createTime pq.NullTime
-	var updateTime pq.NullTime
-	var verifyTime pq.NullTime
-	var disableTime pq.NullTime
-	var deviceIDs pq.StringArray
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
+	var verifyTime pgtype.Timestamptz
+	var disableTime pgtype.Timestamptz
+	var deviceIDs pgtype.VarcharArray
 
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
@@ -69,13 +70,13 @@ WHERE u.id = $1`
 		return nil, time.Time{}, err
 	}
 
-	devices := make([]*api.AccountDevice, 0, len(deviceIDs))
-	for _, deviceID := range deviceIDs {
-		devices = append(devices, &api.AccountDevice{Id: deviceID})
+	devices := make([]*api.AccountDevice, 0, len(deviceIDs.Elements))
+	for _, deviceID := range deviceIDs.Elements {
+		devices = append(devices, &api.AccountDevice{Id: deviceID.String})
 	}
 
 	var verifyTimestamp *timestamp.Timestamp = nil
-	if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
+	if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
 		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}
 
@@ -150,10 +151,10 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var steam sql.NullString
 		var customID sql.NullString
 		var edgeCount int
-		var createTime pq.NullTime
-		var updateTime pq.NullTime
-		var verifyTime pq.NullTime
-		var deviceIDs pq.StringArray
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+		var verifyTime pgtype.Timestamptz
+		var deviceIDs pgtype.VarcharArray
 
 		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs)
 		if err != nil {
@@ -161,13 +162,13 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 			return nil, err
 		}
 
-		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
-		for _, deviceID := range deviceIDs {
-			devices = append(devices, &api.AccountDevice{Id: deviceID})
+		devices := make([]*api.AccountDevice, 0, len(deviceIDs.Elements))
+		for _, deviceID := range deviceIDs.Elements {
+			devices = append(devices, &api.AccountDevice{Id: deviceID.String})
 		}
 
 		var verifyTimestamp *timestamp.Timestamp
-		if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
+		if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
 			verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 		}
 
@@ -285,17 +286,17 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index)
 
 	if _, err := db.ExecContext(ctx, query, params...); err != nil {
-		if e, ok := err.(*pq.Error); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 			return errors.New("Username is already in use.")
 		}
 
 		logger.Error("Could not update user account.", zap.Error(err),
 			zap.String("username", username),
-			zap.Any("display_name", displayName.GetValue()),
-			zap.Any("timezone", timezone.GetValue()),
-			zap.Any("location", location.GetValue()),
-			zap.Any("lang_tag", langTag.GetValue()),
-			zap.Any("avatar_url", avatarURL.GetValue()))
+			zap.Any("display_name", displayName),
+			zap.Any("timezone", timezone),
+			zap.Any("location", location),
+			zap.Any("lang_tag", langTag),
+			zap.Any("avatar_url", avatarURL))
 		return err
 	}
 

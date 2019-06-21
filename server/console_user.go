@@ -23,7 +23,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/console"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -90,7 +90,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 
 		if userID != nil {
 			// Looking up a single specific tombstone.
-			var createTime pq.NullTime
+			var createTime pgtype.Timestamptz
 			err := s.db.QueryRowContext(ctx, "SELECT create_time FROM user_tombstone WHERE user_id = $1", *userID).Scan(&createTime)
 			if err != nil {
 				if err == sql.ErrNoRows {
@@ -125,9 +125,9 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 
 		for rows.Next() {
 			var id string
-			var createTime pq.NullTime
+			var createTime pgtype.Timestamptz
 			if err = rows.Scan(&id, &createTime); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				s.logger.Error("Error scanning user tombstones.", zap.Any("in", in), zap.Error(err))
 				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 			}
@@ -137,7 +137,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 				UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			})
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		return &console.UserList{
 			Users:      users,
@@ -172,13 +172,13 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 		for rows.Next() {
 			user, err := convertUser(s.tracker, rows)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 			}
 			users = append(users, user)
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		return &console.UserList{
 			Users:      users,
@@ -205,14 +205,14 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 	for rows.Next() {
 		user, err := convertUser(s.tracker, rows)
 		if err != nil {
-			rows.Close()
+			_ = rows.Close()
 			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
 
 		users = append(users, user)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	return &console.UserList{
 		Users:      users,

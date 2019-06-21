@@ -27,7 +27,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"time"
 )
@@ -94,7 +94,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, pq.NullTime{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
+		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Status: pgtype.Present}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.QueryContext(ctx, `
@@ -112,9 +112,9 @@ ORDER BY create_time ASC`+limitQuery, params...)
 	var lastCreateTime int64
 	for rows.Next() {
 		no := &api.Notification{Persistent: true, CreateTime: &timestamp.Timestamp{}}
-		var createTime pq.NullTime
+		var createTime pgtype.Timestamptz
 		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
@@ -126,7 +126,7 @@ ORDER BY create_time ASC`+limitQuery, params...)
 		}
 		notifications = append(notifications, no)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	notificationList := &api.NotificationList{}
 	cursorBuf := new(bytes.Buffer)
