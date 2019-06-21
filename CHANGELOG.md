@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use Go 1.12.6 as base Docker container image and native builds.
 - Move from dep to Go modules for dependency management.
 - Switch database driver from pq to pgx.
+- Update console handlebars (4.1.2) and js-yaml (3.13.1) dependencies.
 
 ### Fixed
 - Fix delayed first time invocation of tournament and leaderboard callbacks.

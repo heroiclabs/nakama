@@ -110,10 +110,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter := mux.NewRouter()
 
-	grpcGatewayRouter.Handle("/", console.Handler()).Methods("GET")
-	grpcGatewayRouter.Handle("/manifest.json", console.Handler()).Methods("GET")
-	grpcGatewayRouter.Handle("/favicon.ico", console.Handler()).Methods("GET")
-	grpcGatewayRouter.PathPrefix("/static/").Handler(console.Handler()).Methods("GET")
+	grpcGatewayRouter.Handle("/", console.UI).Methods("GET")
+	grpcGatewayRouter.Handle("/manifest.json", console.UI).Methods("GET")
+	grpcGatewayRouter.Handle("/favicon.ico", console.UI).Methods("GET")
+	grpcGatewayRouter.PathPrefix("/static/").Handler(console.UI).Methods("GET")
 
 	zpagesMux := http.NewServeMux()
 	zpages.Handle(zpagesMux, "/metrics/")
