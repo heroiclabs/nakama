@@ -100,21 +100,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -148,21 +133,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -196,21 +166,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -244,29 +199,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -300,21 +232,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -348,21 +265,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -396,21 +298,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -525,14 +412,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -810,6 +689,122 @@
         ]
       }
     },
+    "/v2/achievements": {
+      "get": {
+        "summary": "Get the list of achievements of a user.",
+        "operationId": "ListAchievements",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievementList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "ID of the user.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "A pagination cursor (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/achievements/{achievement_id}": {
+      "get": {
+        "summary": "Gets information about a single achievement in relation to a user.",
+        "operationId": "GetAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user whose progress should be fetched.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/achievements/{achievement_id}/progress": {
+      "post": {
+        "summary": "Update the users progress towards a progressive achievement.",
+        "operationId": "UpdateAchievementProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to update",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "put": {
+        "summary": "Update the entire progress record of an achievement for a user.",
+        "operationId": "SetAchievementProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "Unique identifier of the achievement to which this progress belongs.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/channel/{channel_id}": {
       "get": {
         "summary": "List a channel's message history.",
@@ -950,28 +945,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "ids",
-            "description": "The account id of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "usernames",
-            "description": "The account username of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ],
         "tags": [
           "Nakama"
         ]
@@ -989,28 +962,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "ids",
-            "description": "The account id of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "usernames",
-            "description": "The account username of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ],
         "tags": [
           "Nakama"
         ]
@@ -1037,14 +988,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "reset",
-            "description": "Reset the current user's friends list.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -1195,16 +1138,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to add.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1257,16 +1190,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to kick.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1319,16 +1242,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to promote.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1883,14 +1796,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "expiry",
-            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
           }
         ],
         "tags": [
@@ -2232,6 +2137,72 @@
         ]
       }
     },
+    "/v2/user/{user_id}/achievements": {
+      "get": {
+        "summary": "Get the list of achievements of a user.",
+        "operationId": "ListAchievements2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievementList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "ID of the user.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "A pagination cursor (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/user/{user_id}/achievements/{achievement_id}": {
+      "get": {
+        "summary": "Gets information about a single achievement in relation to a user.",
+        "operationId": "GetAchievement2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "ID of the user whose progress should be fetched.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/user/{user_id}/group": {
       "get": {
         "summary": "List groups the current user belongs to.",
@@ -2530,6 +2501,132 @@
         }
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."
+    },
+    "apiAchievement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier to reference this achievement."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the achievement."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the achievement."
+        },
+        "initial_state": {
+          "$ref": "#/definitions/apiAchievementState",
+          "description": "The state in which the achievement starts out."
+        },
+        "type": {
+          "$ref": "#/definitions/apiAchievementType",
+          "description": "Whether the achievement is awarded manually or progressed towards."
+        },
+        "repeatability": {
+          "$ref": "#/definitions/apiAchievementRepeatability",
+          "description": "Whether an achievement can be earned multiple times + behaviour on earning."
+        },
+        "target_value": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progressive achievements get awarded once their progress surpass this value."
+        },
+        "locked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown while the achievement is locked."
+        },
+        "unlocked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown once the achievement was unlocked."
+        },
+        "auxiliary_data": {
+          "type": "string",
+          "description": "Auxiliary data field, which may be used by developers to store custom data."
+        },
+        "progress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAchievementProgress"
+          },
+          "description": "Progress made towards the achievement. Multiple may be set if the achievement is\nearned multiple times."
+        }
+      }
+    },
+    "apiAchievementList": {
+      "type": "object",
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAchievement"
+          },
+          "title": "The list of Achievements"
+        }
+      },
+      "title": "List of Achievements"
+    },
+    "apiAchievementProgress": {
+      "type": "object",
+      "properties": {
+        "achievement_id": {
+          "type": "string",
+          "description": "Unique identifier of the achievement to which this progress belongs."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Unique identifier of the user that is progressing towards this achievement."
+        },
+        "progress": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progress of the player towards the achievement."
+        },
+        "current_state": {
+          "$ref": "#/definitions/apiAchievementState",
+          "title": "Achievement state"
+        },
+        "awarded_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was completed."
+        },
+        "auxiliary_data": {
+          "type": "string",
+          "description": "Auxiliary data field, may be used by developers to store player-specific data on achievement progress."
+        }
+      },
+      "description": "If a player made progress towards an achievement,\nan AchievementProgress is created representing their progress.\nIf they never made progress towards an achievement, this will not be present."
+    },
+    "apiAchievementRepeatability": {
+      "type": "string",
+      "enum": [
+        "NOT_REPEATABLE",
+        "AWARD_MULTIPLE_ON_OVERSHOOT"
+      ],
+      "default": "NOT_REPEATABLE",
+      "description": " - NOT_REPEATABLE: Achievement may not be earned multiple times.\n - AWARD_MULTIPLE_ON_OVERSHOOT: If progress is updated and the update amount would result in\nearning the achievement multiple times, the amount of achievements\nearned is progress / target_value."
+    },
+    "apiAchievementState": {
+      "type": "string",
+      "enum": [
+        "HIDDEN",
+        "REVEALED",
+        "EARNED"
+      ],
+      "default": "HIDDEN",
+      "description": " - HIDDEN: The achievement is hidden from the player.\n - REVEALED: The player may see the achievement, but has not earned it yet.\n - EARNED: The player has earned the achievement."
+    },
+    "apiAchievementType": {
+      "type": "string",
+      "enum": [
+        "MANUAL",
+        "PROGRESSIVE"
+      ],
+      "default": "MANUAL",
+      "description": " - MANUAL: Awarding achievement is manual (e.g. Completion of a story chapter).\n - PROGRESSIVE: The Achievement tracks player progress towards a goal (e.g. Matches won)."
     },
     "apiChannelMessage": {
       "type": "object",

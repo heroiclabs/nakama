@@ -554,4 +554,38 @@ service Nakama {
       body: "record"
     };
   }
+
+  // Get the list of achievements of a user.
+  rpc ListAchievements (api.ListAchievementsRequest) returns (api.AchievementList) {
+    option (google.api.http) = {
+      get: "/v2/achievements",
+      additional_bindings {
+        get: "/v2/user/{user_id}/achievements"
+      }
+    };
+  }
+
+  // Gets information about a single achievement in relation to a user.
+  rpc GetAchievement (api.AchievementRequest) returns (api.Achievement) {
+    option (google.api.http) = {
+      get: "/v2/achievements/{achievement_id}",
+      additional_bindings {
+        get: "/v2/user/{user_id}/achievements/{achievement_id}"
+      }
+    };
+  }
+
+  // Update the users progress towards a progressive achievement.
+  rpc UpdateAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/achievements/{achievement_id}/progress",
+    };
+  }
+
+  // Update the entire progress record of an achievement for a user.
+  rpc SetAchievementProgress (api.AchievementProgress) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/achievements/{achievement_id}/progress",
+    };
+  }
 }
