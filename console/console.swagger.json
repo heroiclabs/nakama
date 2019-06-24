@@ -351,6 +351,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleUnlinkDeviceRequest"
+            }
           }
         ],
         "tags": [
@@ -1506,6 +1514,20 @@
         }
       },
       "description": "List of storage objects."
+    },
+    "consoleUnlinkDeviceRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User ID to unlink from."
+        },
+        "device_id": {
+          "type": "string",
+          "description": "Device ID to unlink."
+        }
+      },
+      "description": "Unlink a particular device ID from a user's account."
     },
     "consoleUserList": {
       "type": "object",

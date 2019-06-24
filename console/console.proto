@@ -187,7 +187,10 @@ service Console {
 
   // Unlink the device ID from a user account.
   rpc UnlinkDevice (UnlinkDeviceRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/account/{id}/unlink/device";
+    option (google.api.http) = {
+      post: "/v2/console/account/{id}/unlink/device",
+      body: "*"
+    };
   }
 
   // Unlink the email from a user account.

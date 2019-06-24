@@ -35,6 +35,12 @@ export interface UserObjectRequest
   tombstones?: boolean
 };
 
+export interface UserUnlinkDeviceRequest
+{
+  id?: string,
+  device_id?: string
+};
+
 export interface LedgerObjectRequest
 {
   walletId?: string,

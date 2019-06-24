@@ -2,6 +2,7 @@ import {action} from 'typesafe-actions';
 import {
   UserActionTypes,
   UserObjectRequest,
+  UserUnlinkDeviceRequest,
   UserObject,
   ExportObject,
   UsersObjectRequest,
@@ -246,7 +247,7 @@ export const userUnlinkEmailError = (message: string) => action(
   message
 );
 
-export const userUnlinkDeviceRequest = (data: UserObjectRequest) => action(
+export const userUnlinkDeviceRequest = (data: UserUnlinkDeviceRequest) => action(
   UserActionTypes.UNLINK_DEVICE_REQUEST,
   data
 );

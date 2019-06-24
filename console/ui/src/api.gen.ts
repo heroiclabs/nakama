@@ -47,6 +47,13 @@ export interface UserGroupListUserGroup {
   // The user's relationship to the group.
   state?: number;
 }
+/** Unlink a particular device ID from a user's account. */
+export interface UnlinkDeviceRequest {
+  // User ID to unlink from.
+  id?: string;
+  // Device ID to unlink.
+  device_id?: string;
+}
 /** Send a device to the server. Used with authenticate/link/unlink and user. */
 export interface ApiAccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
@@ -612,9 +619,12 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the device ID from a user account. */
-    unlinkDevice(id: string, options: any = {}): Promise<any> {
+    unlinkDevice(id: string, body: UnlinkDeviceRequest, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
+      }
+      if (body === null || body === undefined) {
+        throw new Error("'body' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/account/{id}/unlink/device"
          .replace("{id}", encodeURIComponent(String(id)));
@@ -623,6 +633,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       } as any;
 
       let _body = null;
+      _body = JSON.stringify(body || {});
 
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },

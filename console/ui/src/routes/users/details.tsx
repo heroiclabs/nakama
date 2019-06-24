@@ -227,7 +227,7 @@ class UsersDetails extends Component<Props, State> {
     }
   }
 
-  public unlink(type: string, event: React.FormEvent<HTMLFormElement>) {
+  public unlink(type: string, id: string, event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const {match} = this.props;
     if (confirm('Are you sure you want to unlink this user?')) {
@@ -253,7 +253,7 @@ class UsersDetails extends Component<Props, State> {
           break;
 
         case 'device':
-          this.props.unlinkDeviceRequest(match.params);
+          this.props.unlinkDeviceRequest({id: ((match.params as Record<string, string>)["id"] as string), device_id: id});
           break;
 
         case 'custom':
@@ -406,7 +406,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.user.facebook_id}
-                    onClick={this.unlink.bind(this, 'facebook')}
+                    onClick={this.unlink.bind(this, 'facebook', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -433,7 +433,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.user.gamecenter_id}
-                    onClick={this.unlink.bind(this, 'gamecenter')}
+                    onClick={this.unlink.bind(this, 'gamecenter', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -460,7 +460,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.user.google_id}
-                    onClick={this.unlink.bind(this, 'google')}
+                    onClick={this.unlink.bind(this, 'google', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -487,7 +487,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.user.steam_id}
-                    onClick={this.unlink.bind(this, 'steam')}
+                    onClick={this.unlink.bind(this, 'steam', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -620,7 +620,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.custom_id}
-                    onClick={this.unlink.bind(this, 'custom')}
+                    onClick={this.unlink.bind(this, 'custom', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -647,7 +647,7 @@ class UsersDetails extends Component<Props, State> {
                     <Control>
                       <Button
                         disabled={!d.id}
-                        onClick={this.unlink.bind(this, 'device')}
+                        onClick={this.unlink.bind(this, 'device', d.id)}
                       >Unlink</Button>
                     </Control>
                   </Field>
@@ -676,7 +676,7 @@ class UsersDetails extends Component<Props, State> {
                 <Control>
                   <Button
                     disabled={!account.account.email}
-                    onClick={this.unlink.bind(this, 'email')}
+                    onClick={this.unlink.bind(this, 'email', "")}
                   >Unlink</Button>
                 </Control>
               </Field>

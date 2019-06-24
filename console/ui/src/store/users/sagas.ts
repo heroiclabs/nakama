@@ -893,7 +893,8 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.unlinkDevice,
-      data && data.id
+      data && data.id,
+      data
     );
     if(res.error)
     {
