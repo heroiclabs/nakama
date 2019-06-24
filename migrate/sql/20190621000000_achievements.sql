@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS achievement_progress (
     achievement_id uuid NOT NULL,
     user_id uuid NOT NULL,
     achievement_state int8 NOT NULL,
+    progress int8 NULL,
     awarded_at timestamptz NULL,
     auxiliary_data jsonb NULL,
     CONSTRAINT achievement_id_fk FOREIGN KEY (achievement_id) REFERENCES achievements(id),
