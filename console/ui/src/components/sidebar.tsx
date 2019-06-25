@@ -59,7 +59,7 @@ class Sidebar extends Component<Props, State>
           >Support</Menu.List.Item>
           <Menu.List.Item
             target="_blank"
-            href="https://gitter.im/heroiclabs/nakama"
+            href="https://forum.heroiclabs.com"
           >Community</Menu.List.Item>
         </Menu.List>
       </Menu>
