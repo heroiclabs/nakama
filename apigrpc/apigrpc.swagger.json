@@ -697,7 +697,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiAchievementList"
+              "$ref": "#/definitions/apiAchievements"
             }
           }
         },
@@ -2145,7 +2145,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiAchievementList"
+              "$ref": "#/definitions/apiAchievements"
             }
           }
         },
@@ -2518,15 +2518,18 @@
           "description": "Description of the achievement."
         },
         "initial_state": {
-          "$ref": "#/definitions/apiAchievementState",
+          "type": "integer",
+          "format": "int32",
           "description": "The state in which the achievement starts out."
         },
         "type": {
-          "$ref": "#/definitions/apiAchievementType",
+          "type": "integer",
+          "format": "int32",
           "description": "Whether the achievement is awarded manually or progressed towards."
         },
         "repeatability": {
-          "$ref": "#/definitions/apiAchievementRepeatability",
+          "type": "integer",
+          "format": "int32",
           "description": "Whether an achievement can be earned multiple times + behaviour on earning."
         },
         "target_value": {
@@ -2546,31 +2549,19 @@
           "type": "string",
           "description": "Auxiliary data field, which may be used by developers to store custom data."
         },
-        "progress": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiAchievementProgress"
-          },
-          "description": "Progress made towards the achievement. Multiple may be set if the achievement is\nearned multiple times."
+        "currentProgress": {
+          "$ref": "#/definitions/apiAchievementProgress",
+          "description": "Current progress towards the achievement."
         }
       }
-    },
-    "apiAchievementList": {
-      "type": "object",
-      "properties": {
-        "achievements": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiAchievement"
-          },
-          "title": "The list of Achievements"
-        }
-      },
-      "title": "List of Achievements"
     },
     "apiAchievementProgress": {
       "type": "object",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of this AchievementProgress."
+        },
         "achievement_id": {
           "type": "string",
           "description": "Unique identifier of the achievement to which this progress belongs."
@@ -2585,7 +2576,8 @@
           "description": "Progress of the player towards the achievement."
         },
         "current_state": {
-          "$ref": "#/definitions/apiAchievementState",
+          "type": "integer",
+          "format": "int32",
           "title": "Achievement state"
         },
         "awarded_at": {
@@ -2600,33 +2592,18 @@
       },
       "description": "If a player made progress towards an achievement,\nan AchievementProgress is created representing their progress.\nIf they never made progress towards an achievement, this will not be present."
     },
-    "apiAchievementRepeatability": {
-      "type": "string",
-      "enum": [
-        "NOT_REPEATABLE",
-        "AWARD_MULTIPLE_ON_OVERSHOOT"
-      ],
-      "default": "NOT_REPEATABLE",
-      "description": " - NOT_REPEATABLE: Achievement may not be earned multiple times.\n - AWARD_MULTIPLE_ON_OVERSHOOT: If progress is updated and the update amount would result in\nearning the achievement multiple times, the amount of achievements\nearned is progress / target_value."
-    },
-    "apiAchievementState": {
-      "type": "string",
-      "enum": [
-        "HIDDEN",
-        "REVEALED",
-        "EARNED"
-      ],
-      "default": "HIDDEN",
-      "description": " - HIDDEN: The achievement is hidden from the player.\n - REVEALED: The player may see the achievement, but has not earned it yet.\n - EARNED: The player has earned the achievement."
-    },
-    "apiAchievementType": {
-      "type": "string",
-      "enum": [
-        "MANUAL",
-        "PROGRESSIVE"
-      ],
-      "default": "MANUAL",
-      "description": " - MANUAL: Awarding achievement is manual (e.g. Completion of a story chapter).\n - PROGRESSIVE: The Achievement tracks player progress towards a goal (e.g. Matches won)."
+    "apiAchievements": {
+      "type": "object",
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAchievement"
+          },
+          "title": "The list of Achievements"
+        }
+      },
+      "title": "List of Achievements"
     },
     "apiChannelMessage": {
       "type": "object",

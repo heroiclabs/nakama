@@ -6,6 +6,8 @@ package console
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -16,7 +18,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2095,7 +2096,7 @@ func (*UnimplementedConsoleServer) GetAccount(ctx context.Context, req *AccountI
 func (*UnimplementedConsoleServer) GetConfig(ctx context.Context, req *empty.Empty) (*Config, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
 }
-func (*UnimplementedConsoleServer) GetFriends(ctx context.Context, req *AccountId) (*api.FriendList, error) {
+func (*UnimplementedConsoleServer) GetFriends(ctx context.Context, req *AccountId) (*api.Friends, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFriends not implemented")
 }
 func (*UnimplementedConsoleServer) GetGroups(ctx context.Context, req *AccountId) (*api.UserGroupList, error) {

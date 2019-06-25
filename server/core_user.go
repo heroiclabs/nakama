@@ -159,6 +159,16 @@ WHERE id = $1::UUID AND NOT EXISTS (
 	return count != 0, err
 }
 
+func UserExists(ctx context.Context, db *sql.DB, checkUserID uuid.UUID) (bool, error) {
+	var count int
+	err := db.QueryRowContext(ctx, `
+SELECT COUNT(id) FROM users
+WHERE id = $1::UUID
+`, checkUserID).Scan(&count)
+
+	return count != 0, err
+}
+
 func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var id string
 	var displayName sql.NullString

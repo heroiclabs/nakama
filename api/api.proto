@@ -1052,7 +1052,7 @@ enum AchievementRepeatability {
 }
 
 // List of Achievements
-message AchievementList {
+message Achievements {
   // The list of Achievements
   repeated Achievement achievements = 1;
 }
@@ -1077,13 +1077,13 @@ message Achievement {
   string description = 3;
   
   // The state in which the achievement starts out.
-  AchievementState initial_state = 4;
+  google.protobuf.Int32Value initial_state = 4;
 
   // Whether the achievement is awarded manually or progressed towards.
-  AchievementType type = 5;
+  google.protobuf.Int32Value type = 5;
 
   // Whether an achievement can be earned multiple times + behaviour on earning.
-  AchievementRepeatability repeatability = 6;
+  google.protobuf.Int32Value repeatability = 6;
 
   // Progressive achievements get awarded once their progress surpass this value.
   int64 target_value = 7;
@@ -1097,32 +1097,34 @@ message Achievement {
   // Auxiliary data field, which may be used by developers to store custom data.
   string auxiliary_data = 10;
 
-  // Progress made towards the achievement. Multiple may be set if the achievement is
-  // earned multiple times.
-  repeated AchievementProgress progress = 11;
+  // Current progress towards the achievement.
+  AchievementProgress currentProgress = 11;
 }
 
 // If a player made progress towards an achievement,
 // an AchievementProgress is created representing their progress.
 // If they never made progress towards an achievement, this will not be present.
 message AchievementProgress {
+  // Unique identifier of this AchievementProgress.
+  string id = 1;
+
   // Unique identifier of the achievement to which this progress belongs.
-  string achievement_id = 1;
+  string achievement_id = 2;
   
   // Unique identifier of the user that is progressing towards this achievement.
-  string user_id = 2;
+  string user_id = 3;
 
   // Progress of the player towards the achievement.
-  int64 progress = 3;
+  int64 progress = 4;
 
   // Achievement state
-  AchievementState current_state = 4;
+  google.protobuf.Int32Value current_state = 5;
 
   // The UNIX time when the progress was completed.
-  google.protobuf.Timestamp awarded_at = 5;
+  google.protobuf.Timestamp awarded_at = 6;
 
   // Auxiliary data field, may be used by developers to store player-specific data on achievement progress.
-  string auxiliary_data = 6;
+  string auxiliary_data = 7;
 }
 
 // Used to update simple achievements, where just simple progress is made.
