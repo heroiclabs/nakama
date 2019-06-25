@@ -50,7 +50,8 @@ select id,
 	target_value, 
 	locked_image_url, 
 	unlocked_image_url, 
-	auxiliary_data, 
+	auxiliary_data,
+	coalesce(times_awarded, 0) as times_awarded,
 	progress_id, 
 	progress_achievement_id,
 	progress_user_id,
@@ -78,8 +79,16 @@ left join
 		achievement_state as progress_achievement_state,
 		progress as progress_progress,
 		awarded_at as progress_awarded_at,
-		auxiliary_data as progress_auxiliary_data
+		auxiliary_data as progress_auxiliary_data,
+		times_awarded
 	from rankedprogress
+	inner join (
+		select achievement_id as count_achievement_id, user_id as count_user_id, count(if(awarded_at is null, if(achievement_state=2, 1, null), 1)) as times_awarded from achievement_progress
+		where user_id=$1::UUID
+		group by achievement_id, user_id
+	)
+	on achievement_id = count_achievement_id and user_id = count_user_id
+	
 	where
 		rankedprogress.rnk=1) as newestprogress
 on achievements.id=newestprogress.progress_achievement_id
@@ -121,6 +130,7 @@ func convertAchievements(rows *sql.Rows, includeUserProgress bool) (*api.Achieve
 		var lockedImageURL sql.NullString
 		var unlockedImageURL sql.NullString
 		var auxiliaryData []byte
+		var timesAwarded sql.NullInt64
 		var progressID sql.NullString
 		var progressAchievementID sql.NullString
 		var progressUserID sql.NullString
@@ -131,7 +141,7 @@ func convertAchievements(rows *sql.Rows, includeUserProgress bool) (*api.Achieve
 
 		if includeUserProgress {
 			err := rows.Scan(&id, &name, &description, &rawInitialState, &rawAchievementType, &rawRepeatability, &targetValue,
-				&lockedImageURL, &unlockedImageURL, &auxiliaryData, &progressID, &progressAchievementID, &progressUserID,
+				&lockedImageURL, &unlockedImageURL, &auxiliaryData, &timesAwarded, &progressID, &progressAchievementID, &progressUserID,
 				&progressRawAchievementState, &progressProgress, &progressAwardedAt, &progressAuxiliaryData)
 
 			if err != nil {
@@ -170,6 +180,7 @@ func convertAchievements(rows *sql.Rows, includeUserProgress bool) (*api.Achieve
 		}
 
 		if progressID.Valid {
+			achievement.TimesAwarded = timesAwarded.Int64
 
 			progressUUID, err := uuid.FromString(progressID.String)
 			if err != nil {

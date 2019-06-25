@@ -2549,6 +2549,11 @@
           "type": "string",
           "description": "Auxiliary data field, which may be used by developers to store custom data."
         },
+        "times_awarded": {
+          "type": "string",
+          "format": "int64",
+          "title": "Amount of times the achievement was completed previously"
+        },
         "currentProgress": {
           "$ref": "#/definitions/apiAchievementProgress",
           "description": "Current progress towards the achievement."
