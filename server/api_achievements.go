@@ -51,13 +51,38 @@ func (s *ApiServer) ListAchievements(ctx context.Context, in *api.ListAchievemen
 }
 
 func (s *ApiServer) GetAchievement(ctx context.Context, in *api.AchievementRequest) (*api.Achievement, error) {
-	var testAchievement = api.Achievement{
-		Id:          in.AchievementId,
-		Name:        "Test Achievement",
-		Description: "Test Description",
+	var userID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	if in.UserId != "" {
+		decodedUserID, err := uuid.FromString(in.UserId)
+		if err != nil {
+			return nil, err
+		}
+
+		if userExists, err := UserExists(ctx, s.db, decodedUserID); err != nil {
+			return nil, err
+		} else if !userExists {
+			return nil, errors.New("No user found for this UUID")
+		}
+
+		userID = decodedUserID
 	}
 
-	return &testAchievement, nil
+	if in.AchievementId == "" {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if decodedAchievementID, err := uuid.FromString(in.AchievementId); err == nil {
+		achievement, err := GetAchievement(ctx, s.logger, s.db, userID, decodedAchievementID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return achievement, nil
+	} else {
+		return nil, err
+	}
 }
 
 func (s *ApiServer) SetAchievementProgress(ctx context.Context, in *api.AchievementProgress) (*empty.Empty, error) {
