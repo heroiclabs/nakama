@@ -2554,7 +2554,7 @@
           "format": "int64",
           "title": "Amount of times the achievement was completed previously"
         },
-        "currentProgress": {
+        "current_progress": {
           "$ref": "#/definitions/apiAchievementProgress",
           "description": "Current progress towards the achievement."
         }

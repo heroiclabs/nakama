@@ -1101,7 +1101,7 @@ message Achievement {
   int64 times_awarded = 11;
 
   // Current progress towards the achievement.
-  AchievementProgress currentProgress = 12;
+  AchievementProgress current_progress = 12;
 }
 
 // If a player made progress towards an achievement,
