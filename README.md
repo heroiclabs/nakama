@@ -107,7 +107,7 @@ Have a look at our [Managed Cloud](https://heroiclabs.com/managed-cloud) service
 
 ## Contribute
 
-The development roadmap is managed as GitHub issues and pull requests are welcome. If you're interested to add a feature which is not mentioned on the issue tracker please open one to create a discussion or drop in and discuss it in the [community chat](https://gitter.im/heroiclabs/nakama).
+The development roadmap is managed as GitHub issues and pull requests are welcome. If you're interested to add a feature which is not mentioned on the issue tracker please open one to create a discussion or drop in and discuss it in the [community forum](https://forum.heroiclabs.com).
 
 ### Simple Builds
 
