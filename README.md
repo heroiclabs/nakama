@@ -2,7 +2,7 @@
 ======
 
 [![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg)](https://heroiclabs.com/docs/nakama-download/)
-[![Gitter](https://img.shields.io/gitter/room/heroiclabs/nakama.svg)](https://gitter.im/heroiclabs/nakama)
+[![Forum](https://img.shields.io/badge/forum-online-success.svg)](https://forum.heroiclabs.com)
 [![License](https://img.shields.io/github/license/heroiclabs/nakama.svg)](https://github.com/heroiclabs/nakama/blob/master/LICENSE)
 
 > Distributed server for social and realtime games and apps.
