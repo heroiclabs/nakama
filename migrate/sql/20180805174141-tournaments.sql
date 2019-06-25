@@ -61,6 +61,7 @@ ALTER TABLE leaderboard_record
   VALIDATE CONSTRAINT check_max_num_score;
 
 -- +migrate Down
+DROP INDEX IF EXISTS duration_start_time_end_time_category_idx;
 ALTER TABLE IF EXISTS leaderboard
   DROP COLUMN IF EXISTS category,
   DROP COLUMN IF EXISTS description,
