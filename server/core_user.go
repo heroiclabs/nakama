@@ -24,7 +24,12 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
 	"github.com/jackc/pgx/pgtype"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
+)
+
+var (
+	ErrUserNotFound = errors.New("No user found for this UUID")
 )
 
 func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {

@@ -575,17 +575,42 @@ service Nakama {
     };
   }
 
-  // Update the users progress towards a progressive achievement.
-  rpc UpdateAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
+  // Reveal an achievement to the user.
+  rpc RevealAchievement (api.AchievementRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v2/achievements/{achievement_id}/progress",
+      post: "/v2/achievements/{achievement_id}/reveal",
     };
   }
 
-  // Update the entire progress record of an achievement for a user.
-  rpc SetAchievementProgress (api.AchievementProgress) returns (google.protobuf.Empty) {
+
+  // Award an achievement to a user.
+  rpc AwardAchievement (api.AchievementRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      put: "/v2/achievements/{achievement_id}/progress",
+      post: "/v2/achievements/{achievement_id}/award",
+    };
+  }
+
+  // Increment progress of a user towards an achievement.
+  rpc IncrementAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/achievements/{achievement_id}/progress/increment",
+      body: "progress"
+    };
+  }
+
+  // Set the progress of a user towards an achievement.
+  rpc SetAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/achievements/{achievement_id}/progress/set",
+      body: "progress"
+    };
+  }
+
+  // Set the progress of a user towards an achievement.
+  rpc SetAchievementProgressAuxiliaryData (api.AchievementAuxiliaryDataUpdate) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/achievements/{achievement_id}/progress/auxiliary",
+      body: "auxiliary_data"
     };
   }
 }

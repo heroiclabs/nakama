@@ -1124,13 +1124,22 @@ message AchievementProgress {
   string auxiliary_data = 8;
 }
 
-// Used to update simple achievements, where just simple progress is made.
+// Used to update achievement progress.
 message AchievementProgressUpdate {
   // ID of the achievement to update.
   string achievement_id = 1;
 
-  // Progress to add to the achievement.
+  // Progress of the user.
   int64 progress = 2;
+}
+
+// Used to update auxiliary data of an achievement.
+message AchievementAuxiliaryDataUpdate {
+  // ID of the achievement to update.
+  string achievement_id = 1;
+
+  // Auxiliary data for the user.
+  string auxiliary_data = 2;
 }
 
 // Used to request information about an achievement.

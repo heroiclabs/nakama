@@ -1754,11 +1754,11 @@ func request_Nakama_GetAchievement_1(ctx context.Context, marshaler runtime.Mars
 }
 
 var (
-	filter_Nakama_UpdateAchievementProgress_0 = &utilities.DoubleArray{Encoding: map[string]int{"achievement_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+	filter_Nakama_RevealAchievement_0 = &utilities.DoubleArray{Encoding: map[string]int{"achievement_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
-func request_Nakama_UpdateAchievementProgress_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.AchievementProgressUpdate
+func request_Nakama_RevealAchievement_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AchievementRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -1782,21 +1782,21 @@ func request_Nakama_UpdateAchievementProgress_0(ctx context.Context, marshaler r
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_UpdateAchievementProgress_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_RevealAchievement_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.UpdateAchievementProgress(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.RevealAchievement(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
 var (
-	filter_Nakama_SetAchievementProgress_0 = &utilities.DoubleArray{Encoding: map[string]int{"achievement_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+	filter_Nakama_AwardAchievement_0 = &utilities.DoubleArray{Encoding: map[string]int{"achievement_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
-func request_Nakama_SetAchievementProgress_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.AchievementProgress
+func request_Nakama_AwardAchievement_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AchievementRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -1820,11 +1820,116 @@ func request_Nakama_SetAchievementProgress_0(ctx context.Context, marshaler runt
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_SetAchievementProgress_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_AwardAchievement_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
+	msg, err := client.AwardAchievement(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func request_Nakama_IncrementAchievementProgress_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AchievementProgressUpdate
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Progress); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["achievement_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "achievement_id")
+	}
+
+	protoReq.AchievementId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "achievement_id", err)
+	}
+
+	msg, err := client.IncrementAchievementProgress(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func request_Nakama_SetAchievementProgress_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AchievementProgressUpdate
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Progress); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["achievement_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "achievement_id")
+	}
+
+	protoReq.AchievementId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "achievement_id", err)
+	}
+
 	msg, err := client.SetAchievementProgress(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func request_Nakama_SetAchievementProgressAuxiliaryData_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AchievementAuxiliaryDataUpdate
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.AuxiliaryData); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["achievement_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "achievement_id")
+	}
+
+	protoReq.AchievementId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "achievement_id", err)
+	}
+
+	msg, err := client.SetAchievementProgressAuxiliaryData(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
@@ -3167,7 +3272,7 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_UpdateAchievementProgress_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_RevealAchievement_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
@@ -3176,14 +3281,54 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Nakama_UpdateAchievementProgress_0(rctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Nakama_RevealAchievement_0(rctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_Nakama_UpdateAchievementProgress_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_RevealAchievement_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_Nakama_AwardAchievement_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_AwardAchievement_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_AwardAchievement_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("PUT", pattern_Nakama_IncrementAchievementProgress_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_IncrementAchievementProgress_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_IncrementAchievementProgress_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -3204,6 +3349,26 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Nakama_SetAchievementProgress_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("PUT", pattern_Nakama_SetAchievementProgressAuxiliaryData_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_SetAchievementProgressAuxiliaryData_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_SetAchievementProgressAuxiliaryData_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -3341,9 +3506,15 @@ var (
 
 	pattern_Nakama_GetAchievement_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"v2", "user", "user_id", "achievements", "achievement_id"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_Nakama_UpdateAchievementProgress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "achievements", "achievement_id", "progress"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Nakama_RevealAchievement_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "achievements", "achievement_id", "reveal"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_Nakama_SetAchievementProgress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "achievements", "achievement_id", "progress"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Nakama_AwardAchievement_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "achievements", "achievement_id", "award"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_Nakama_IncrementAchievementProgress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "increment"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_Nakama_SetAchievementProgress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "set"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_Nakama_SetAchievementProgressAuxiliaryData_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "auxiliary"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
@@ -3477,7 +3648,13 @@ var (
 
 	forward_Nakama_GetAchievement_1 = runtime.ForwardResponseMessage
 
-	forward_Nakama_UpdateAchievementProgress_0 = runtime.ForwardResponseMessage
+	forward_Nakama_RevealAchievement_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_AwardAchievement_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_IncrementAchievementProgress_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_SetAchievementProgress_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_SetAchievementProgressAuxiliaryData_0 = runtime.ForwardResponseMessage
 )

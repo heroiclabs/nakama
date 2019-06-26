@@ -40,27 +40,27 @@ func GetAchievements(ctx context.Context, logger *zap.Logger, db *sql.DB, userID
 	// Also query for achievement progresses by the current user
 	if includingUserProgress {
 		query = `
-select id,
-	name, 
-	description, 
-	initial_state, 
-	type, 
-	repeatability, 
-	target_value, 
-	locked_image_url, 
-	unlocked_image_url, 
-	achievements.auxiliary_data,
-	achievement_progress.achievement_id as progress_achievement_id,
-	achievement_progress.user_id as progress_user_id,
-	achievement_progress.achievement_state as progress_achievement_state,
-	achievement_progress.progress as progress_progress,
-	achievement_progress.created_at as progress_created_at,
-	achievement_progress.updated_at as progress_updated_at,
-	achievement_progress.awarded_at as progress_awarded_at,
-	achievement_progress.auxiliary_data as progress_auxiliary_data
-from achievements
-left join achievement_progress
-on achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$1::UUID
+		select id,
+			name, 
+			description, 
+			initial_state, 
+			type, 
+			repeatability, 
+			target_value, 
+			locked_image_url, 
+			unlocked_image_url, 
+			achievements.auxiliary_data,
+			achievement_progress.achievement_id as progress_achievement_id,
+			achievement_progress.user_id as progress_user_id,
+			achievement_progress.achievement_state as progress_achievement_state,
+			achievement_progress.progress as progress_progress,
+			achievement_progress.created_at as progress_created_at,
+			achievement_progress.updated_at as progress_updated_at,
+			achievement_progress.awarded_at as progress_awarded_at,
+			achievement_progress.auxiliary_data as progress_auxiliary_data
+		from achievements
+		left join achievement_progress
+		on achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$1::UUID
 		`
 	}
 
@@ -94,27 +94,28 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 	// Also query for achievement progresses by the current user
 	if includingUserProgress {
 		query = `
-	select id, 
-		name, 
-		description, 
-		initial_state, 
-		type, 
-		repeatability, 
-		target_value, 
-		locked_image_url, 
-		unlocked_image_url, 
-		achievements.auxiliary_data,
-		achievement_progress.achievement_id as progress_achievement_id,
-		achievement_progress.user_id as progress_user_id,
-		achievement_progress.achievement_state as progress_achievement_state,
-		achievement_progress.progress as progress_progress,
-		achievement_progress.created_at as progress_created_at,
-		achievement_progress.updated_at as progress_updated_at,
-		achievement_progress.awarded_at as progress_awarded_at,
-		achievement_progress.auxiliary_data as progress_auxiliary_data
-	from achievements
-	left join achievement_progress
-	on achievements.id=$1::UUID and achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$2::UUID
+		select id, 
+			name, 
+			description, 
+			initial_state, 
+			type, 
+			repeatability, 
+			target_value, 
+			locked_image_url, 
+			unlocked_image_url, 
+			achievements.auxiliary_data,
+			achievement_progress.achievement_id as progress_achievement_id,
+			achievement_progress.user_id as progress_user_id,
+			achievement_progress.achievement_state as progress_achievement_state,
+			achievement_progress.progress as progress_progress,
+			achievement_progress.created_at as progress_created_at,
+			achievement_progress.updated_at as progress_updated_at,
+			achievement_progress.awarded_at as progress_awarded_at,
+			achievement_progress.auxiliary_data as progress_auxiliary_data
+		from achievements
+		left join achievement_progress
+		on achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$2::UUID
+		where achievements.id=$1::UUID
 		`
 	}
 
@@ -142,6 +143,87 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 	}
 
 	return res, nil
+}
+
+func RevealAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := ExecuteInTx(ctx, tx, func() error {
+		achievement, err := GetAchievement(ctx, logger, db, userID, achievementID)
+
+		if err != nil {
+			return err
+		}
+
+		if achievement.CurrentProgress == nil {
+			// Create a new achievement progress
+			err := CreateAchievementProgress(ctx, logger, db, achievement, userID)
+			if err != nil {
+				return err
+			}
+		}
+
+		// If we created a new progress or the current state is hidden, reveal the achievement.
+		if achievement.CurrentProgress == nil || api.AchievementState(achievement.CurrentProgress.CurrentState.Value) == api.AchievementState_HIDDEN {
+			err := SetAchievementProgressAchievementState(ctx, logger, db, achievementID, userID, api.AchievementState_REVEALED)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SetAchievementProgressAchievementState(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newState api.AchievementState) error {
+	query := `
+	update achievement_progress
+	set achievement_state = $1::int8, updated_at = now()
+	where achievement_id = $2::UUID, user_id = $3::UUID`
+
+	params := make([]interface{}, 0)
+	params = append(params, int32(newState))
+	params = append(params, achievementID)
+	params = append(params, userID)
+
+	_, err := db.ExecContext(ctx, query, params...)
+
+	return err
+}
+
+func CreateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievement *api.Achievement, userID uuid.UUID) error {
+	query := `
+	insert into achievement_progress (achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at)
+	values ($1::UUID, $2::UUID, $3::int8, $4::int8, now(), now(), null)`
+
+	params := make([]interface{}, 0)
+
+	if achievementUUID, err := uuid.FromString(achievement.Id); err == nil {
+		params = append(params, achievementUUID)
+	} else {
+		return err
+	}
+
+	params = append(params, userID)
+	params = append(params, achievement.InitialState.Value)
+
+	if api.AchievementType(achievement.Type.Value) == api.AchievementType_PROGRESSIVE {
+		params = append(params, 0)
+	} else {
+		params = append(params, nil)
+	}
+
+	_, err := db.ExecContext(ctx, query, params...)
+
+	return err
 }
 
 func convertAchievements(rows *sql.Rows, includeUserProgress bool) (*api.Achievements, error) {

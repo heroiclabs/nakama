@@ -18,7 +18,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
-	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
 
@@ -35,7 +34,7 @@ func (s *ApiServer) ListAchievements(ctx context.Context, in *api.ListAchievemen
 		if userExists, err := UserExists(ctx, s.db, decodedUserID); err != nil {
 			return nil, err
 		} else if !userExists {
-			return nil, errors.New("No user found for this UUID")
+			return nil, ErrUserNotFound
 		}
 
 		userID = decodedUserID
@@ -62,7 +61,7 @@ func (s *ApiServer) GetAchievement(ctx context.Context, in *api.AchievementReque
 		if userExists, err := UserExists(ctx, s.db, decodedUserID); err != nil {
 			return nil, err
 		} else if !userExists {
-			return nil, errors.New("No user found for this UUID")
+			return nil, ErrUserNotFound
 		}
 
 		userID = decodedUserID
@@ -72,25 +71,51 @@ func (s *ApiServer) GetAchievement(ctx context.Context, in *api.AchievementReque
 		return nil, ErrInvalidAchievementUUID
 	}
 
-	if decodedAchievementID, err := uuid.FromString(in.AchievementId); err == nil {
-		achievement, err := GetAchievement(ctx, s.logger, s.db, userID, decodedAchievementID)
+	decodedAchievementID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	achievement, err := GetAchievement(ctx, s.logger, s.db, userID, decodedAchievementID)
 
-		return achievement, nil
-	} else {
+	if err != nil {
 		return nil, err
 	}
+
+	return achievement, nil
 }
 
-func (s *ApiServer) SetAchievementProgress(ctx context.Context, in *api.AchievementProgress) (*empty.Empty, error) {
+func (s *ApiServer) RevealAchievement(ctx context.Context, in *api.AchievementRequest) (*empty.Empty, error) {
+	// Force the userID to be the one of the user making the request, so that they cannot affect
+	// other users achievement progress.
+	var userUUID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if err := RevealAchievement(ctx, s.logger, s.db, achievementUUID, userUUID); err != nil {
+		return nil, err
+	}
 
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) UpdateAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate) (*empty.Empty, error) {
+func (s *ApiServer) AwardAchievement(ctx context.Context, in *api.AchievementRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
+}
+
+func (s *ApiServer) SetAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate) (*empty.Empty, error) {
+
+	return &empty.Empty{}, nil
+}
+
+func (s *ApiServer) IncrementAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate) (*empty.Empty, error) {
+
+	return &empty.Empty{}, nil
+}
+
+func (s *ApiServer) SetAchievementProgressAuxiliaryData(ctx context.Context, in *api.AchievementAuxiliaryDataUpdate) (*empty.Empty, error) {
 
 	return &empty.Empty{}, nil
 }

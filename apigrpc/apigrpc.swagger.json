@@ -691,7 +691,7 @@
     },
     "/v2/achievements": {
       "get": {
-        "summary": "Get the list of achievements of a user.",
+        "summary": "Get the list of achievements with respect to a user.",
         "operationId": "ListAchievements",
         "responses": {
           "200": {
@@ -755,10 +755,36 @@
         ]
       }
     },
-    "/v2/achievements/{achievement_id}/progress": {
+    "/v2/achievements/{achievement_id}/award": {
       "post": {
-        "summary": "Update the users progress towards a progressive achievement.",
-        "operationId": "UpdateAchievementProgress",
+        "summary": "Award an achievement to a user.",
+        "operationId": "AwardAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/achievements/{achievement_id}/progress/auxiliary": {
+      "put": {
+        "summary": "Set the progress of a user towards an achievement.",
+        "operationId": "SetAchievementProgressAuxiliaryData",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -774,14 +800,61 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "description": "Auxiliary data for the user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
           "Nakama"
         ]
-      },
+      }
+    },
+    "/v2/achievements/{achievement_id}/progress/increment": {
       "put": {
-        "summary": "Update the entire progress record of an achievement for a user.",
+        "summary": "Increment progress of a user towards an achievement.",
+        "operationId": "IncrementAchievementProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "description": "Progress of the user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "int64"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/achievements/{achievement_id}/progress/set": {
+      "put": {
+        "summary": "Set the progress of a user towards an achievement.",
         "operationId": "SetAchievementProgress",
         "responses": {
           "200": {
@@ -794,7 +867,43 @@
         "parameters": [
           {
             "name": "achievement_id",
-            "description": "Unique identifier of the achievement to which this progress belongs.",
+            "description": "ID of the achievement to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "description": "Progress of the user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "int64"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/achievements/{achievement_id}/reveal": {
+      "post": {
+        "summary": "Reveal an achievement to the user.",
+        "operationId": "RevealAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2139,7 +2248,7 @@
     },
     "/v2/user/{user_id}/achievements": {
       "get": {
-        "summary": "Get the list of achievements of a user.",
+        "summary": "Get the list of achievements with respect to a user.",
         "operationId": "ListAchievements2",
         "responses": {
           "200": {
