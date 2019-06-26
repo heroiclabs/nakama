@@ -30,16 +30,17 @@ CREATE TABLE IF NOT EXISTS achievements (
 );
 
 CREATE TABLE IF NOT EXISTS achievement_progress (
-    id uuid NOT NULL,
     achievement_id uuid NOT NULL,
     user_id uuid NOT NULL,
     achievement_state int8 NOT NULL,
     progress int8 NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
     awarded_at timestamptz NULL,
     auxiliary_data jsonb NULL,
     CONSTRAINT achievement_id_fk FOREIGN KEY (achievement_id) REFERENCES achievements(id),
     CONSTRAINT achievement_owner_fk FOREIGN KEY (user_id) REFERENCES "users"(id),
-    CONSTRAINT achievement_progress_pk PRIMARY KEY (id)
+    CONSTRAINT achievement_progress_pk PRIMARY KEY (achievement_id, user_id)
 );
 
 -- +migrate Down

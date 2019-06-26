@@ -40,7 +40,7 @@ func GetAchievements(ctx context.Context, logger *zap.Logger, db *sql.DB, userID
 	// Also query for achievement progresses by the current user
 	if includingUserProgress {
 		query = `
-select id, 
+select id,
 	name, 
 	description, 
 	initial_state, 
@@ -49,48 +49,18 @@ select id,
 	target_value, 
 	locked_image_url, 
 	unlocked_image_url, 
-	auxiliary_data,
-	coalesce(times_awarded, 0) as times_awarded,
-	progress_id, 
-	progress_achievement_id,
-	progress_user_id,
-	progress_achievement_state,
-	progress_progress,
-	progress_awarded_at,
-	progress_auxiliary_data
+	achievements.auxiliary_data,
+	achievement_progress.achievement_id as progress_achievement_id,
+	achievement_progress.user_id as progress_user_id,
+	achievement_progress.achievement_state as progress_achievement_state,
+	achievement_progress.progress as progress_progress,
+	achievement_progress.created_at as progress_created_at,
+	achievement_progress.updated_at as progress_updated_at,
+	achievement_progress.awarded_at as progress_awarded_at,
+	achievement_progress.auxiliary_data as progress_auxiliary_data
 from achievements
-left join
-	(with rankedprogress as (
-		select id, 
-			achievement_id, 
-			user_id, 
-			achievement_state, 
-			progress, 
-			awarded_at, 
-			auxiliary_data, 
-			rank() over (partition by achievement_id, user_id order by coalesce(awarded_at, '9999-01-01 12:00:00') desc) as rnk
-		from achievement_progress
-		where user_id=$1::UUID)
-	select 
-		id as progress_id, 
-		achievement_id as progress_achievement_id,
-		user_id as progress_user_id,
-		achievement_state as progress_achievement_state,
-		progress as progress_progress,
-		awarded_at as progress_awarded_at,
-		auxiliary_data as progress_auxiliary_data,
-		times_awarded
-	from rankedprogress
-	inner join (
-		select achievement_id as count_achievement_id, user_id as count_user_id, count(if(awarded_at is null, if(achievement_state=2, 1, null), 1)) as times_awarded from achievement_progress
-		where user_id=$1::UUID
-		group by achievement_id, user_id
-	)
-	on achievement_id = count_achievement_id and user_id = count_user_id
-	
-	where
-		rankedprogress.rnk=1) as newestprogress
-on achievements.id=newestprogress.progress_achievement_id
+left join achievement_progress
+on achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$1::UUID
 		`
 	}
 
@@ -124,58 +94,27 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 	// Also query for achievement progresses by the current user
 	if includingUserProgress {
 		query = `
-select id, 
-	name, 
-	description, 
-	initial_state, 
-	type, 
-	repeatability, 
-	target_value, 
-	locked_image_url, 
-	unlocked_image_url, 
-	auxiliary_data,
-	coalesce(times_awarded, 0) as times_awarded,
-	progress_id, 
-	progress_achievement_id,
-	progress_user_id,
-	progress_achievement_state,
-	progress_progress,
-	progress_awarded_at,
-	progress_auxiliary_data
-from achievements
-left join
-	(with rankedprogress as (
-		select id, 
-			achievement_id, 
-			user_id, 
-			achievement_state, 
-			progress, 
-			awarded_at, 
-			auxiliary_data, 
-			rank() over (partition by achievement_id, user_id order by coalesce(awarded_at, '9999-01-01 12:00:00') desc) as rnk
-		from achievement_progress
-		where achievement_id=$1::UUID and user_id=$2::UUID)
-	select 
-		id as progress_id, 
-		achievement_id as progress_achievement_id,
-		user_id as progress_user_id,
-		achievement_state as progress_achievement_state,
-		progress as progress_progress,
-		awarded_at as progress_awarded_at,
-		auxiliary_data as progress_auxiliary_data,
-		times_awarded
-	from rankedprogress
-	inner join (
-		select achievement_id as count_achievement_id, user_id as count_user_id, count(if(awarded_at is null, if(achievement_state=2, 1, null), 1)) as times_awarded from achievement_progress
-		where achievement_id=$1::UUID and user_id=$2::UUID
-		group by achievement_id, user_id
-	)
-	on achievement_id = count_achievement_id and user_id = count_user_id
-	
-	where
-		rankedprogress.rnk=1) as newestprogress
-on achievements.id=newestprogress.progress_achievement_id
-where id = $1::UUID
+	select id, 
+		name, 
+		description, 
+		initial_state, 
+		type, 
+		repeatability, 
+		target_value, 
+		locked_image_url, 
+		unlocked_image_url, 
+		achievements.auxiliary_data,
+		achievement_progress.achievement_id as progress_achievement_id,
+		achievement_progress.user_id as progress_user_id,
+		achievement_progress.achievement_state as progress_achievement_state,
+		achievement_progress.progress as progress_progress,
+		achievement_progress.created_at as progress_created_at,
+		achievement_progress.updated_at as progress_updated_at,
+		achievement_progress.awarded_at as progress_awarded_at,
+		achievement_progress.auxiliary_data as progress_auxiliary_data
+	from achievements
+	left join achievement_progress
+	on achievements.id=$1::UUID and achievements.id=achievement_progress.achievement_id and achievement_progress.user_id=$2::UUID
 		`
 	}
 
@@ -232,19 +171,20 @@ func convertAchievement(rows *sql.Rows, includeUserProgress bool) (*api.Achievem
 	var lockedImageURL sql.NullString
 	var unlockedImageURL sql.NullString
 	var auxiliaryData []byte
-	var timesAwarded sql.NullInt64
-	var progressID sql.NullString
 	var progressAchievementID sql.NullString
 	var progressUserID sql.NullString
 	var progressRawAchievementState sql.NullInt64
 	var progressProgress sql.NullInt64
+	var progressCreatedAt pgtype.Timestamptz
+	var progressUpdatedAt pgtype.Timestamptz
 	var progressAwardedAt pgtype.Timestamptz
 	var progressAuxiliaryData []byte
 
 	if includeUserProgress {
 		err := rows.Scan(&id, &name, &description, &rawInitialState, &rawAchievementType, &rawRepeatability, &targetValue,
-			&lockedImageURL, &unlockedImageURL, &auxiliaryData, &timesAwarded, &progressID, &progressAchievementID, &progressUserID,
-			&progressRawAchievementState, &progressProgress, &progressAwardedAt, &progressAuxiliaryData)
+			&lockedImageURL, &unlockedImageURL, &auxiliaryData, &progressAchievementID, &progressUserID,
+			&progressRawAchievementState, &progressProgress, &progressCreatedAt, &progressUpdatedAt, &progressAwardedAt,
+			&progressAuxiliaryData)
 
 		if err != nil {
 			return nil, err
@@ -281,14 +221,7 @@ func convertAchievement(rows *sql.Rows, includeUserProgress bool) (*api.Achievem
 		AuxiliaryData:    string(auxiliaryData),
 	}
 
-	if progressID.Valid {
-		achievement.TimesAwarded = timesAwarded.Int64
-
-		progressUUID, err := uuid.FromString(progressID.String)
-		if err != nil {
-			return nil, err
-		}
-
+	if progressUserID.Valid {
 		progressAchievementUUID, err := uuid.FromString(progressAchievementID.String)
 		if err != nil {
 			return nil, err
@@ -305,13 +238,12 @@ func convertAchievement(rows *sql.Rows, includeUserProgress bool) (*api.Achievem
 		}
 
 		var achievementProgress = api.AchievementProgress{
-			Id:            progressUUID.String(),
 			AchievementId: progressAchievementUUID.String(),
 			UserId:        progressUserUUID.String(),
 			Progress:      progressProgress.Int64,
-			CurrentState: &wrappers.Int32Value{
-				Value: int32(progressRawAchievementState.Int64),
-			},
+			CurrentState:  &wrappers.Int32Value{Value: int32(progressRawAchievementState.Int64)},
+			CreatedAt:     &timestamp.Timestamp{Seconds: progressCreatedAt.Time.Unix()},
+			UpdatedAt:     &timestamp.Timestamp{Seconds: progressUpdatedAt.Time.Unix()},
 			AwardedAt:     ts,
 			AuxiliaryData: string(progressAuxiliaryData),
 		}

@@ -555,7 +555,7 @@ service Nakama {
     };
   }
 
-  // Get the list of achievements of a user.
+  // Get the list of achievements with respect to a user.
   rpc ListAchievements (api.ListAchievementsRequest) returns (api.Achievements) {
     option (google.api.http) = {
       get: "/v2/achievements",

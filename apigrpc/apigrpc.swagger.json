@@ -770,7 +770,7 @@
         "parameters": [
           {
             "name": "achievement_id",
-            "description": "ID of the achievement to update",
+            "description": "ID of the achievement to update.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2530,7 +2530,7 @@
         "repeatability": {
           "type": "integer",
           "format": "int32",
-          "description": "Whether an achievement can be earned multiple times + behaviour on earning."
+          "description": "Whether an achievement can be earned multiple times. Currently only non-repeatable are supported."
         },
         "target_value": {
           "type": "string",
@@ -2549,11 +2549,6 @@
           "type": "string",
           "description": "Auxiliary data field, which may be used by developers to store custom data."
         },
-        "times_awarded": {
-          "type": "string",
-          "format": "int64",
-          "title": "Amount of times the achievement was completed previously"
-        },
         "current_progress": {
           "$ref": "#/definitions/apiAchievementProgress",
           "description": "Current progress towards the achievement."
@@ -2563,10 +2558,6 @@
     "apiAchievementProgress": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier of this AchievementProgress."
-        },
         "achievement_id": {
           "type": "string",
           "description": "Unique identifier of the achievement to which this progress belongs."
@@ -2584,6 +2575,16 @@
           "type": "integer",
           "format": "int32",
           "title": "Achievement state"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was last updated."
         },
         "awarded_at": {
           "type": "string",
