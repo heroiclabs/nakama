@@ -24,6 +24,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Expired tournaments will no longer be listed nor any records will be returned.
 - Unlink device identifiers on console user account details page.
 - Add missing index drop on migrate down.
+- Handle query and parameter resets on wallet update retries.
+- Reset list of friend IDs in Facebook import when retrying the operation.
+- Reset notifications in friend add when retrying the operation.
 
 ## [2.5.1] - 2019-05-03
 ### Changed

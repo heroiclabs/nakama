@@ -461,6 +461,7 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 	}
 
 	if err = ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any acks that may have been prepared by previous attempts.
 		acks = make([]*api.StorageObjectAck, 0, ops.Len())
 
 		for _, op := range ops {

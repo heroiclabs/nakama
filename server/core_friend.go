@@ -150,7 +150,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	notificationToSend := make(map[string]bool)
+	var notificationToSend map[string]bool
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -159,6 +159,9 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 	}
 
 	if err = ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
+		notificationToSend = make(map[string]bool)
+
 		for id := range uniqueFriendIDs {
 			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id)
 			if addFriendErr == nil {

@@ -633,7 +633,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		return nil
 	}
 
-	friendUserIDs := make([]uuid.UUID, 0)
+	var friendUserIDs []uuid.UUID
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -730,6 +730,9 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			possibleFriendIDs = append(possibleFriendIDs, friendID)
 		}
 		_ = rows.Close()
+
+		// If the transaction is retried ensure we wipe any friend user IDs that may have been recorded by previous attempts.
+		friendUserIDs = make([]uuid.UUID, 0)
 
 		for _, friendID := range possibleFriendIDs {
 			position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())

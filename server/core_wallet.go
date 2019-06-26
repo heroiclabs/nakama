@@ -75,14 +75,14 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		return nil
 	}
 
-	params := make([]interface{}, 0, len(updates))
-	statements := make([]string, 0, len(updates))
+	initialParams := make([]interface{}, 0, len(updates))
+	initialStatements := make([]string, 0, len(updates))
 	for _, update := range updates {
-		params = append(params, update.UserID)
-		statements = append(statements, "$"+strconv.Itoa(len(params))+"::UUID")
+		initialParams = append(initialParams, update.UserID)
+		initialStatements = append(initialStatements, "$"+strconv.Itoa(len(initialParams))+"::UUID")
 	}
 
-	query := "SELECT id, wallet FROM users WHERE id IN (" + strings.Join(statements, ",") + ")"
+	initialQuery := "SELECT id, wallet FROM users WHERE id IN (" + strings.Join(initialStatements, ",") + ")"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -93,7 +93,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 	if err = ExecuteInTx(ctx, tx, func() error {
 		// Select the wallets from the DB and decode them.
 		wallets := make(map[string]map[string]interface{}, len(updates))
-		rows, err := tx.QueryContext(ctx, query, params...)
+		rows, err := tx.QueryContext(ctx, initialQuery, initialParams...)
 		if err != nil {
 			logger.Debug("Error retrieving user wallets.", zap.Error(err))
 			return err
@@ -123,6 +123,8 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		// Prepare the set of wallet updates and ledger updates.
 		updatedWallets := make(map[string][]byte, len(updates))
 		updateOrder := make([]string, 0, len(updates))
+		var statements []string
+		var params []interface{}
 		if updateLedger {
 			statements = make([]string, 0, len(updates))
 			params = make([]interface{}, 0, len(updates)*4)
@@ -165,7 +167,6 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 			sort.Strings(updateOrder)
 
 			// Write the updated wallets.
-			query = "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1"
 			for _, userID := range updateOrder {
 				updatedWallet, ok := updatedWallets[userID]
 				if !ok {
@@ -173,7 +174,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 					logger.Warn("Missing wallet update for user.", zap.String("user_id", userID))
 					continue
 				}
-				_, err = tx.ExecContext(ctx, query, userID, updatedWallet)
+				_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1", userID, updatedWallet)
 				if err != nil {
 					logger.Debug("Error writing user wallet.", zap.String("user_id", userID), zap.Error(err))
 					return err
@@ -182,8 +183,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 
 			// Write the ledger updates, if any.
 			if updateLedger && (len(statements) > 0) {
-				query = "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES " + strings.Join(statements, ", ")
-				_, err = tx.ExecContext(ctx, query, params...)
+				_, err = tx.ExecContext(ctx, "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES "+strings.Join(statements, ", "), params...)
 				if err != nil {
 					logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
 					return err
