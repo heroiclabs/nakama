@@ -1,0 +1,9 @@
+[Unit]
+Description=Nakama server
+
+[Service]
+ExecStart=/usr/local/bin/nakama --config /root/nakama/nakama/config.yml
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
