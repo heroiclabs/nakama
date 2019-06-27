@@ -118,11 +118,33 @@ func (s *ApiServer) AwardAchievement(ctx context.Context, in *api.AchievementReq
 }
 
 func (s *ApiServer) SetAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate) (*empty.Empty, error) {
+	// Force the userID to be the one of the user making the request, so that they cannot affect
+	// other users achievement progress.
+	var userUUID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if err := SetAchievementProgress(ctx, s.logger, s.db, achievementUUID, userUUID, in.Progress); err != nil {
+		return nil, err
+	}
 
 	return &empty.Empty{}, nil
 }
 
 func (s *ApiServer) IncrementAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate) (*empty.Empty, error) {
+	// Force the userID to be the one of the user making the request, so that they cannot affect
+	// other users achievement progress.
+	var userUUID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if err := IncrementAchievementProgress(ctx, s.logger, s.db, achievementUUID, userUUID, in.Progress); err != nil {
+		return nil, err
+	}
 
 	return &empty.Empty{}, nil
 }

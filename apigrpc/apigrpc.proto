@@ -594,7 +594,7 @@ service Nakama {
   rpc IncrementAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/achievements/{achievement_id}/progress/increment",
-      body: "progress"
+      body: "*"
     };
   }
 
@@ -602,7 +602,7 @@ service Nakama {
   rpc SetAchievementProgress (api.AchievementProgressUpdate) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/achievements/{achievement_id}/progress/set",
-      body: "progress"
+      body: "*"
     };
   }
 

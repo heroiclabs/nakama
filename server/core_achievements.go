@@ -29,7 +29,9 @@ import (
 )
 
 var (
-	ErrInvalidAchievementUUID = errors.New("Invalid Achievement UUID")
+	ErrInvalidAchievementUUID         = errors.New("Invalid Achievement UUID")
+	ErrMayNotProgressOnNonProgressive = errors.New("Cannot make progress on non-progressive achievement.")
+	ErrMayNotManuallyAwardProgressive = errors.New("May not manually award a progressive achievement.")
 )
 
 func GetAchievements(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Achievements, error) {
@@ -146,26 +148,100 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 }
 
 func RevealAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
-	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(prev api.AchievementState) api.AchievementState {
+	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(achievementType api.AchievementType, prev api.AchievementState) (api.AchievementState, error) {
 		if prev == api.AchievementState_HIDDEN {
-			return api.AchievementState_REVEALED
+			return api.AchievementState_REVEALED, nil
 		}
 
-		return prev
+		return prev, nil
 	})
 }
 
 func AwardAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
-	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(prev api.AchievementState) api.AchievementState {
-		if prev == api.AchievementState_HIDDEN || prev == api.AchievementState_REVEALED {
-			return api.AchievementState_EARNED
+	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(achievementType api.AchievementType, prev api.AchievementState) (api.AchievementState, error) {
+		if achievementType == api.AchievementType_PROGRESSIVE {
+			return prev, ErrMayNotManuallyAwardProgressive
 		}
 
-		return prev
+		if prev == api.AchievementState_HIDDEN || prev == api.AchievementState_REVEALED {
+			return api.AchievementState_EARNED, nil
+		}
+
+		return prev, nil
 	})
 }
 
-func CreateAndSetAchievementStateConditionally(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(api.AchievementState) api.AchievementState) error {
+func SetAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newProgress int64) error {
+	return CreateAndSetProgress(ctx, logger, db, achievementID, userID, func(prev int64) int64 {
+		return newProgress
+	})
+}
+
+func IncrementAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, increment int64) error {
+	return CreateAndSetProgress(ctx, logger, db, achievementID, userID, func(prev int64) int64 {
+		return prev + increment
+	})
+}
+
+func CreateAndSetProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(int64) int64) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := ExecuteInTx(ctx, tx, func() error {
+		achievement, err := GetAchievement(ctx, logger, db, userID, achievementID)
+
+		if err != nil {
+			return err
+		}
+
+		if api.AchievementType(achievement.Type.Value) != api.AchievementType_PROGRESSIVE {
+			return ErrMayNotProgressOnNonProgressive
+		}
+
+		if achievement.CurrentProgress == nil {
+			// Create a new achievement progress
+			err := CreateAchievementProgress(ctx, logger, db, achievement, userID)
+			if err != nil {
+				return err
+			}
+		}
+
+		var currentProgress int64
+		if achievement.CurrentProgress != nil {
+			currentProgress = achievement.CurrentProgress.Progress
+		}
+
+		newProgress := computeNewValue(currentProgress)
+
+		if newProgress != currentProgress {
+			err := SetAchievementProgressProgress(ctx, logger, db, achievementID, userID, newProgress)
+			if err != nil {
+				return err
+			}
+
+			// If the player did not have the achievement yet and this update surpassed the target value,
+			// award it.
+			if newProgress >= achievement.TargetValue &&
+				(achievement.CurrentProgress == nil ||
+					api.AchievementState(achievement.CurrentProgress.CurrentState.Value) != api.AchievementState_EARNED) {
+				err := SetAchievementProgressAchievementState(ctx, logger, db, achievementID, userID, api.AchievementState_EARNED)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CreateAndSetAchievementStateConditionally(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(api.AchievementType, api.AchievementState) (api.AchievementState, error)) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -191,7 +267,11 @@ func CreateAndSetAchievementStateConditionally(ctx context.Context, logger *zap.
 			currentAchievementState = api.AchievementState(achievement.CurrentProgress.CurrentState.Value)
 		}
 
-		newAchievementState := computeNewValue(currentAchievementState)
+		newAchievementState, err := computeNewValue(api.AchievementType(achievement.Type.Value), currentAchievementState)
+
+		if err != nil {
+			return err
+		}
 
 		if newAchievementState != currentAchievementState {
 			err := SetAchievementProgressAchievementState(ctx, logger, db, achievementID, userID, newAchievementState)
@@ -209,13 +289,33 @@ func CreateAndSetAchievementStateConditionally(ctx context.Context, logger *zap.
 }
 
 func SetAchievementProgressAchievementState(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newState api.AchievementState) error {
-	query := `
-	update achievement_progress
-	set achievement_state = $1::int8, updated_at = now()
-	where achievement_id = $2::UUID and user_id = $3::UUID`
+	var awardedAtQueryPart string
+	if newState == api.AchievementState_EARNED {
+		awardedAtQueryPart = ", awarded_at = now()"
+	}
+
+	query := `update achievement_progress 
+	set achievement_state = $1::int8, updated_at = now()` + awardedAtQueryPart +
+		`where achievement_id = $2::UUID and user_id = $3::UUID`
 
 	params := make([]interface{}, 0)
 	params = append(params, int32(newState))
+	params = append(params, achievementID)
+	params = append(params, userID)
+
+	_, err := db.ExecContext(ctx, query, params...)
+
+	return err
+}
+
+func SetAchievementProgressProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newValue int64) error {
+	query := `
+	update achievement_progress
+	set progress = $1::int8, updated_at = now()
+	where achievement_id = $2::UUID and user_id = $3::UUID`
+
+	params := make([]interface{}, 0)
+	params = append(params, int32(newValue))
 	params = append(params, achievementID)
 	params = append(params, userID)
 

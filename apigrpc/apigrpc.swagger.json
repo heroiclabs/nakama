@@ -838,12 +838,10 @@
           },
           {
             "name": "body",
-            "description": "Progress of the user.",
             "in": "body",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "int64"
+              "$ref": "#/definitions/apiAchievementProgressUpdate"
             }
           }
         ],
@@ -874,12 +872,10 @@
           },
           {
             "name": "body",
-            "description": "Progress of the user.",
             "in": "body",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "int64"
+              "$ref": "#/definitions/apiAchievementProgressUpdate"
             }
           }
         ],
@@ -2706,6 +2702,21 @@
         }
       },
       "description": "If a player made progress towards an achievement,\nan AchievementProgress is created representing their progress.\nIf they never made progress towards an achievement, this will not be present."
+    },
+    "apiAchievementProgressUpdate": {
+      "type": "object",
+      "properties": {
+        "achievement_id": {
+          "type": "string",
+          "description": "ID of the achievement to update."
+        },
+        "progress": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progress of the user."
+        }
+      },
+      "description": "Used to update achievement progress."
     },
     "apiAchievements": {
       "type": "object",
