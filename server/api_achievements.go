@@ -102,6 +102,18 @@ func (s *ApiServer) RevealAchievement(ctx context.Context, in *api.AchievementRe
 }
 
 func (s *ApiServer) AwardAchievement(ctx context.Context, in *api.AchievementRequest) (*empty.Empty, error) {
+	// Force the userID to be the one of the user making the request, so that they cannot affect
+	// other users achievement progress.
+	var userUUID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if err := AwardAchievement(ctx, s.logger, s.db, achievementUUID, userUUID); err != nil {
+		return nil, err
+	}
+
 	return &empty.Empty{}, nil
 }
 

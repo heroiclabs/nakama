@@ -146,7 +146,26 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 }
 
 func RevealAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
+	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(prev api.AchievementState) api.AchievementState {
+		if prev == api.AchievementState_HIDDEN {
+			return api.AchievementState_REVEALED
+		}
 
+		return prev
+	})
+}
+
+func AwardAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
+	return CreateAndSetAchievementStateConditionally(ctx, logger, db, achievementID, userID, func(prev api.AchievementState) api.AchievementState {
+		if prev == api.AchievementState_HIDDEN || prev == api.AchievementState_REVEALED {
+			return api.AchievementState_EARNED
+		}
+
+		return prev
+	})
+}
+
+func CreateAndSetAchievementStateConditionally(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(api.AchievementState) api.AchievementState) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -167,9 +186,15 @@ func RevealAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achi
 			}
 		}
 
-		// If we created a new progress or the current state is hidden, reveal the achievement.
-		if achievement.CurrentProgress == nil || api.AchievementState(achievement.CurrentProgress.CurrentState.Value) == api.AchievementState_HIDDEN {
-			err := SetAchievementProgressAchievementState(ctx, logger, db, achievementID, userID, api.AchievementState_REVEALED)
+		currentAchievementState := api.AchievementState(achievement.InitialState.Value)
+		if achievement.CurrentProgress != nil {
+			currentAchievementState = api.AchievementState(achievement.CurrentProgress.CurrentState.Value)
+		}
+
+		newAchievementState := computeNewValue(currentAchievementState)
+
+		if newAchievementState != currentAchievementState {
+			err := SetAchievementProgressAchievementState(ctx, logger, db, achievementID, userID, newAchievementState)
 			if err != nil {
 				return err
 			}
@@ -187,7 +212,7 @@ func SetAchievementProgressAchievementState(ctx context.Context, logger *zap.Log
 	query := `
 	update achievement_progress
 	set achievement_state = $1::int8, updated_at = now()
-	where achievement_id = $2::UUID, user_id = $3::UUID`
+	where achievement_id = $2::UUID and user_id = $3::UUID`
 
 	params := make([]interface{}, 0)
 	params = append(params, int32(newState))
