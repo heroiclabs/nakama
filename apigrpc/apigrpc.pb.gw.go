@@ -3514,7 +3514,7 @@ var (
 
 	pattern_Nakama_SetAchievementProgress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "set"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_Nakama_SetAchievementProgressAuxiliaryData_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "auxiliary"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Nakama_SetAchievementProgressAuxiliaryData_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3, 2, 4}, []string{"v2", "achievements", "achievement_id", "progress", "auxiliarydata"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

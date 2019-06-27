@@ -607,9 +607,10 @@ service Nakama {
   }
 
   // Set the progress of a user towards an achievement.
+  // FIXME: How to handle bodies that are not explicitly a string? E.g. if a non-enquoted JSON-Object is passed in the body
   rpc SetAchievementProgressAuxiliaryData (api.AchievementAuxiliaryDataUpdate) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      put: "/v2/achievements/{achievement_id}/progress/auxiliary",
+      put: "/v2/achievements/{achievement_id}/progress/auxiliarydata",
       body: "auxiliary_data"
     };
   }

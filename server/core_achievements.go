@@ -180,6 +180,16 @@ func AwardAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achie
 	})
 }
 
+func SetAchievementProgressAuxiliaryData(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, auxiliaryData string) error {
+	return CreateOrUpdateAchievementProgress(ctx, logger, db, achievementID, userID, func(achievement *api.Achievement) (*api.AchievementProgress, error) {
+		newProgress := proto.Clone(achievement.CurrentProgress).(*api.AchievementProgress)
+
+		newProgress.AuxiliaryData = auxiliaryData
+
+		return newProgress, nil
+	})
+}
+
 func SetAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newProgress int64) error {
 	return CreateOrUpdateAchievementProgress(ctx, logger, db, achievementID, userID,
 		SetProgressWithModifier(func(prev int64) int64 {
@@ -274,6 +284,12 @@ func UpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 	if achievement.CurrentProgress.Progress != newProgress.Progress {
 		query += ", progress = $" + strconv.Itoa(counter) + "::int8"
 		params = append(params, newProgress.Progress)
+		counter++
+	}
+
+	if achievement.CurrentProgress.AuxiliaryData != newProgress.AuxiliaryData {
+		query += ", auxiliary_data = $" + strconv.Itoa(counter) + "::JSONB"
+		params = append(params, newProgress.AuxiliaryData)
 		counter++
 	}
 

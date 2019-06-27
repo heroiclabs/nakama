@@ -150,6 +150,16 @@ func (s *ApiServer) IncrementAchievementProgress(ctx context.Context, in *api.Ac
 }
 
 func (s *ApiServer) SetAchievementProgressAuxiliaryData(ctx context.Context, in *api.AchievementAuxiliaryDataUpdate) (*empty.Empty, error) {
+	var userUUID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if err := SetAchievementProgressAuxiliaryData(ctx, s.logger, s.db, achievementUUID, userUUID, in.AuxiliaryData); err != nil {
+		return nil, err
+	}
 
 	return &empty.Empty{}, nil
 }

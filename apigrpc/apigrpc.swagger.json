@@ -781,7 +781,7 @@
         ]
       }
     },
-    "/v2/achievements/{achievement_id}/progress/auxiliary": {
+    "/v2/achievements/{achievement_id}/progress/auxiliarydata": {
       "put": {
         "summary": "Set the progress of a user towards an achievement.",
         "operationId": "SetAchievementProgressAuxiliaryData",
