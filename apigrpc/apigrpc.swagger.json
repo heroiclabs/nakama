@@ -783,7 +783,7 @@
     },
     "/v2/achievements/{achievement_id}/progress/auxiliarydata": {
       "put": {
-        "summary": "Set the progress of a user towards an achievement.",
+        "summary": "Set the progress of a user towards an achievement.\nFIXME: How to handle bodies that are not explicitly a string? E.g. if a non-enquoted JSON-Object is passed in the body",
         "operationId": "SetAchievementProgressAuxiliaryData",
         "responses": {
           "200": {

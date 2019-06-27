@@ -318,6 +318,7 @@ type NakamaClient interface {
 	// Set the progress of a user towards an achievement.
 	SetAchievementProgress(ctx context.Context, in *api.AchievementProgressUpdate, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Set the progress of a user towards an achievement.
+	// FIXME: How to handle bodies that are not explicitly a string? E.g. if a non-enquoted JSON-Object is passed in the body
 	SetAchievementProgressAuxiliaryData(ctx context.Context, in *api.AchievementAuxiliaryDataUpdate, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
@@ -1056,6 +1057,7 @@ type NakamaServer interface {
 	// Set the progress of a user towards an achievement.
 	SetAchievementProgress(context.Context, *api.AchievementProgressUpdate) (*empty.Empty, error)
 	// Set the progress of a user towards an achievement.
+	// FIXME: How to handle bodies that are not explicitly a string? E.g. if a non-enquoted JSON-Object is passed in the body
 	SetAchievementProgressAuxiliaryData(context.Context, *api.AchievementAuxiliaryDataUpdate) (*empty.Empty, error)
 }
 
