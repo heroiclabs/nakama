@@ -1,0 +1,95 @@
+{
+  "variables": {
+    "token": "{{env `DIGITALOCEAN_API_TOKEN`}}",
+    "image_name": "marketplace-snapshot-{{timestamp}}",
+    "nakama_url": "https://github.com/heroiclabs/nakama/releases/download/v2.5.1/nakama-2.5.1-linux-amd64.tar.gz",
+    "cockroach_url": "https://binaries.cockroachdb.com/cockroach-v2.1.6.linux-amd64.tgz"
+  },
+  "builders": [
+    {
+      "type": "digitalocean",
+      "api_token": "{{user `token`}}",
+      "image": "ubuntu-18-04-x64",
+      "region": "nyc3",
+      "size": "s-1vcpu-1gb",
+      "ssh_username": "root",
+      "snapshot_name": "{{user `image_name`}}"
+    }
+  ],
+  "provisioners": [
+    { 
+      "type": "shell",
+      "inline": [ 
+        "sleep 30"
+      ]
+    },
+    {
+      "type": "file",
+      "source": "files/etc/",
+      "destination": "/etc"
+    },
+    {
+      "type": "file",
+      "source": "files/var/",
+      "destination": "/var"
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "echo 'setting file permissions'",
+        "chmod 644 /etc/systemd/system/nakama.service",
+        "chmod +x /etc/update-motd.d/99-one-click",
+        "chmod +x /var/lib/cloud/scripts/per-instance/001_onboot"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "apt-get -qqy update",
+        "apt-get -qqy -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' upgrade"
+      ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+        "nakamaurl={{user `nakama_url`}}",
+        "cockroachurl={{user `cockroach_url`}}"
+      ],
+      "inline": [
+        "wget -qO- $nakamaurl | tar  xvz ",
+        "wget -qO- $cockroachurl | tar  xvz --strip-components=1",
+        "mv -i cockroach /usr/local/bin",
+        "mv -i nakama /usr/local/bin",
+        "systemctl enable nakama"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "cockroach start --background --insecure --store=path='/root/cdb-store1/' --listen-addr=localhost",
+        "nakama migrate up",
+        "cockroach quit --insecure"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "mkdir -p ~/nakama",
+        "mkdir -p ~/nakama/data"
+      ]
+    },
+    { 
+      "type": "file",
+      "source": "files/nakama/",
+      "destination": "~/nakama/"
+    },
+    {
+      "type": "shell",
+      "scripts": [
+        "scripts/01-test",
+        "scripts/90-cleanup.sh",
+        "scripts/99-img_check.sh"
+      ]
+    }
+  ]
+}
