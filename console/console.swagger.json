@@ -555,6 +555,74 @@
         ]
       }
     },
+    "/v2/console/achievements": {
+      "get": {
+        "summary": "List all achievements.",
+        "operationId": "ListAchievements",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievements"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "summary": "Create a new achievement.",
+        "operationId": "CreateAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAchievementCreationRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/achievements/{achievement_id}": {
+      "get": {
+        "summary": "Get a specific achievement by its UUID.",
+        "operationId": "GetAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievment to get.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a console user with username and password.",
@@ -999,6 +1067,115 @@
         }
       },
       "description": "Send a device to the server. Used with authenticate/link/unlink and user."
+    },
+    "apiAchievement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier to reference this achievement."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the achievement."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the achievement."
+        },
+        "initial_state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The state in which the achievement starts out."
+        },
+        "type": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Whether the achievement is awarded manually or progressed towards."
+        },
+        "repeatability": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Whether an achievement can be earned multiple times. Currently only non-repeatable are supported."
+        },
+        "target_value": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progressive achievements get awarded once their progress surpass this value."
+        },
+        "locked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown while the achievement is locked."
+        },
+        "unlocked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown once the achievement was unlocked."
+        },
+        "auxiliary_data": {
+          "type": "string",
+          "description": "Auxiliary data field, which may be used by developers to store custom data."
+        },
+        "current_progress": {
+          "$ref": "#/definitions/apiAchievementProgress",
+          "description": "Current progress towards the achievement."
+        }
+      }
+    },
+    "apiAchievementProgress": {
+      "type": "object",
+      "properties": {
+        "achievement_id": {
+          "type": "string",
+          "description": "Unique identifier of the achievement to which this progress belongs."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Unique identifier of the user that is progressing towards this achievement."
+        },
+        "progress": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progress of the player towards the achievement."
+        },
+        "current_state": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Achievement state"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was created."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was last updated."
+        },
+        "awarded_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the progress was completed."
+        },
+        "auxiliary_data": {
+          "type": "string",
+          "description": "Auxiliary data field, may be used by developers to store player-specific data on achievement progress."
+        }
+      },
+      "description": "If a player made progress towards an achievement,\nan AchievementProgress is created representing their progress.\nIf they never made progress towards an achievement, this will not be present."
+    },
+    "apiAchievements": {
+      "type": "object",
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiAchievement"
+          },
+          "title": "The list of Achievements"
+        }
+      },
+      "title": "List of Achievements"
     },
     "apiChannelMessage": {
       "type": "object",
@@ -1469,6 +1646,51 @@
         }
       },
       "description": "An export of all information stored for a user account."
+    },
+    "consoleAchievementCreationRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the achievement."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the achievement."
+        },
+        "initial_state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The state in which the achievement starts out."
+        },
+        "type": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Whether the achievement is awarded manually or progressed towards."
+        },
+        "repeatability": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Whether an achievement can be earned multiple times. Currently only non-repeatable are supported."
+        },
+        "target_value": {
+          "type": "string",
+          "format": "int64",
+          "description": "Progressive achievements get awarded once their progress surpass this value."
+        },
+        "locked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown while the achievement is locked."
+        },
+        "unlocked_image_url": {
+          "type": "string",
+          "description": "URL for the image to be shown once the achievement was unlocked."
+        },
+        "auxiliary_data": {
+          "type": "string",
+          "description": "Auxiliary data field, which may be used by developers to store custom data."
+        }
+      }
     },
     "consoleAuthenticateRequest": {
       "type": "object",

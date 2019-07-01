@@ -26,6 +26,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama/console"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -224,6 +225,72 @@ func SetProgressWithModifier(modifier func(int64) int64) func(achievement *api.A
 	}
 }
 
+func CreateAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req *console.AchievementCreationRequest) (*api.Achievement, error) {
+	query := `
+	insert into achievements (name, description, initial_state, "type", repeatability, target_value, locked_image_url, unlocked_image_url, auxiliary_data)
+	values ($1::text, $2::text, $3::int8, $4::int8, $5::int8, $6::int8, $7::text, $8::text, $9::JSONB)
+	returning id, name, description, initial_state, "type", repeatability, target_value, locked_image_url, unlocked_image_url, auxiliary_data`
+
+	params := make([]interface{}, 0)
+	params = append(params, req.Name, req.Description, req.InitialState.Value, req.Type.Value, req.Repeatability.Value, req.TargetValue, req.LockedImageUrl,
+		req.UnlockedImageUrl)
+
+	if req.AuxiliaryData != "" {
+		params = append(params, req.AuxiliaryData)
+	} else {
+		params = append(params, nil)
+	}
+
+	insertionResponse, err := db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	if !insertionResponse.Next() {
+		return nil, errors.New("No rows returned in response to insert")
+	}
+
+	var id string
+	var name string
+	var description string
+	var initialState int32
+	var achievementType int32
+	var repeatability int32
+	var targetValue int64
+	var lockedImageURL string
+	var unlockedImageURL string
+	var auxiliaryData sql.NullString
+
+	err = insertionResponse.Scan(&id, &name, &description, &initialState, &achievementType, &repeatability, &targetValue, &lockedImageURL, &unlockedImageURL, &auxiliaryData)
+	if err != nil {
+		return nil, err
+	}
+
+	outAuxData := ""
+	if auxiliaryData.Valid {
+		outAuxData = auxiliaryData.String
+	}
+
+	return &api.Achievement{
+		Id:          id,
+		Name:        name,
+		Description: description,
+		InitialState: &wrappers.Int32Value{
+			Value: initialState,
+		},
+		Type: &wrappers.Int32Value{
+			Value: achievementType,
+		},
+		Repeatability: &wrappers.Int32Value{
+			Value: repeatability,
+		},
+		TargetValue:      targetValue,
+		LockedImageUrl:   lockedImageURL,
+		UnlockedImageUrl: unlockedImageURL,
+		AuxiliaryData:    outAuxData,
+	}, nil
+}
+
 func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(*api.Achievement) (*api.AchievementProgress, error)) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -306,7 +373,8 @@ func UpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 func CreateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievement *api.Achievement, userID uuid.UUID) (*api.AchievementProgress, error) {
 	query := `
 	insert into achievement_progress (achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at)
-	values ($1::UUID, $2::UUID, $3::int8, $4::int8, now(), now(), null)`
+	values ($1::UUID, $2::UUID, $3::int8, $4::int8, now(), now(), null) 
+	returning achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at`
 
 	params := make([]interface{}, 0)
 
@@ -320,16 +388,51 @@ func CreateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 	params = append(params, achievement.InitialState.Value)
 	params = append(params, 0)
 
-	_, err := db.ExecContext(ctx, query, params...)
+	result, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 
+	var id string
+	var insertedUserID string
+	var currentState int64
+	var progress int64
+	var createdAt *pgtype.Timestamptz
+	var updatedAt *pgtype.Timestamptz
+	var awardedAt *pgtype.Timestamptz
+	var auxiliaryData sql.NullString
+
+	if !result.Next() {
+		return nil, errors.New("For some reason the insert did complete but returned no rows.")
+	}
+
+	err = result.Scan(&id, &insertedUserID, &currentState, &progress, &createdAt, &updatedAt, &awardedAt, &auxiliaryData)
+	if err != nil {
+		return nil, err
+	}
+
+	var awardedAtTimestamp *timestamp.Timestamp
+
+	if awardedAt != nil {
+		awardedAtTimestamp = &timestamp.Timestamp{Seconds: awardedAt.Time.Unix()}
+	}
+
+	var auxiliaryDataString = ""
+	if auxiliaryData.Valid {
+		auxiliaryDataString = auxiliaryData.String
+	}
+
 	return &api.AchievementProgress{
-		AchievementId: achievement.Id,
-		UserId:        userID.String(),
-		CurrentState:  achievement.InitialState,
-		Progress:      0,
+		AchievementId: id,
+		UserId:        insertedUserID,
+		CurrentState: &wrappers.Int32Value{
+			Value: int32(currentState),
+		},
+		Progress:      progress,
+		CreatedAt:     &timestamp.Timestamp{Seconds: createdAt.Time.Unix()},
+		UpdatedAt:     &timestamp.Timestamp{Seconds: updatedAt.Time.Unix()},
+		AwardedAt:     awardedAtTimestamp,
+		AuxiliaryData: auxiliaryDataString,
 	}, nil
 }
 

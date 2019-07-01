@@ -16,7 +16,7 @@
 
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS achievements (
-    id uuid NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     description text NULL,
     initial_state int8 NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS achievements (
     locked_image_url text NULL,
     unlocked_image_url text NULL,
     auxiliary_data jsonb NULL,
-    CONSTRAINT achievements_pk PRIMARY KEY (id)
+    CONSTRAINT achievements_un UNIQUE ("name")
 );
 
 CREATE TABLE IF NOT EXISTS achievement_progress (

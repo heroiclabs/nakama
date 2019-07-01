@@ -233,6 +233,28 @@ service Console {
       body: "*"
     };
   }
+
+  // List all achievements.
+  rpc ListAchievements (google.protobuf.Empty) returns (nakama.api.Achievements) {
+    option (google.api.http) = {
+      get: "/v2/console/achievements"
+    };
+  }
+
+  // Get a specific achievement by its UUID.
+  rpc GetAchievement (GetAchievementRequest) returns (nakama.api.Achievement) {
+    option (google.api.http) = {
+      get: "/v2/console/achievements/{achievement_id}"
+    };
+  }
+
+  // Create a new achievement.
+  rpc CreateAchievement (AchievementCreationRequest) returns (nakama.api.Achievement) {
+    option (google.api.http) = {
+      put: "/v2/console/achievements"
+      body: "*"
+    };
+  }
 }
 
 // Account information.
@@ -481,4 +503,38 @@ message WriteStorageObjectRequest {
   google.protobuf.Int32Value permission_read = 6;
   // Write permission value.
   google.protobuf.Int32Value permission_write = 7;
+}
+
+message GetAchievementRequest {
+  // ID of the achievment to get.
+  string achievement_id = 1;
+}
+
+message AchievementCreationRequest {
+  // The name of the achievement.
+  string name = 1;
+
+  // Description of the achievement.
+  string description = 2;
+  
+  // The state in which the achievement starts out.
+  google.protobuf.Int32Value initial_state = 3;
+
+  // Whether the achievement is awarded manually or progressed towards.
+  google.protobuf.Int32Value type = 4;
+
+  // Whether an achievement can be earned multiple times. Currently only non-repeatable are supported.
+  google.protobuf.Int32Value repeatability = 5;
+
+  // Progressive achievements get awarded once their progress surpass this value.
+  int64 target_value = 6;
+
+  // URL for the image to be shown while the achievement is locked.
+  string locked_image_url = 7;
+
+  // URL for the image to be shown once the achievement was unlocked.
+  string unlocked_image_url = 8;
+
+  // Auxiliary data field, which may be used by developers to store custom data.
+  string auxiliary_data = 9;
 }
