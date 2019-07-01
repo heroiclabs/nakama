@@ -147,7 +147,7 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 
 func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, limit}
+	params := []interface{}{collection, limit + 1}
 	if storageCursor != nil {
 		cursorQuery = ` AND (collection, read, key, user_id) > ($1, 2, $3, $4) `
 		params = append(params, storageCursor.Key, storageCursor.UserID)
@@ -173,7 +173,7 @@ LIMIT $2`
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			} else {
 				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
@@ -182,7 +182,7 @@ LIMIT $2`
 		}
 		// rows.Close() called in storageListObjects
 
-		objects, err = storageListObjects(rows, cursor)
+		objects, err = storageListObjects(rows, limit)
 		if err != nil {
 			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
 			return err
@@ -195,7 +195,7 @@ LIMIT $2`
 
 func StorageListObjectsPublicReadUser(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, userID, limit}
+	params := []interface{}{collection, userID, limit + 1}
 	if storageCursor != nil {
 		cursorQuery = ` AND (collection, read, key, user_id) > ($1, 2, $4, $5) `
 		params = append(params, storageCursor.Key, storageCursor.UserID)
@@ -212,7 +212,7 @@ LIMIT $3`
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			} else {
 				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
@@ -221,7 +221,7 @@ LIMIT $3`
 		}
 		// rows.Close() called in storageListObjects
 
-		objects, err = storageListObjects(rows, cursor)
+		objects, err = storageListObjects(rows, limit)
 		if err != nil {
 			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
 			return err
@@ -234,7 +234,7 @@ LIMIT $3`
 
 func StorageListObjectsUser(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, userID, limit}
+	params := []interface{}{collection, userID, limit + 1}
 	if storageCursor != nil {
 		cursorQuery = ` AND (collection, read, key, user_id) > ($1, $4, $5, $6) `
 		params = append(params, storageCursor.Read, storageCursor.Key, storageCursor.UserID)
@@ -259,7 +259,7 @@ LIMIT $3`
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: cursor}
+				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			} else {
 				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
@@ -268,7 +268,7 @@ LIMIT $3`
 		}
 		// rows.Close() called in storageListObjects
 
-		objects, err = storageListObjects(rows, cursor)
+		objects, err = storageListObjects(rows, limit)
 		if err != nil {
 			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
 			return err
@@ -326,9 +326,24 @@ WHERE user_id = $1`
 	return objects, err
 }
 
-func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, error) {
-	objects := make([]*api.StorageObject, 0)
+func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, error) {
+	var lastObject *api.StorageObject
+	var newCursor *storageCursor
+	objects := make([]*api.StorageObject, 0, limit)
 	for rows.Next() {
+		// If we've read enough, but there is at least 1 more, use the last read as the cursor and stop here.
+		if len(objects) >= limit && lastObject != nil {
+			newCursor = &storageCursor{
+				Key:  lastObject.Key,
+				Read: lastObject.PermissionRead,
+			}
+			if lastObject.UserId != "" {
+				newCursor.UserID = uuid.FromStringOrNil(lastObject.UserId)
+			}
+			break
+		}
+
+		// There is still room for more objects, read the next one.
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
@@ -342,6 +357,7 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
 		objects = append(objects, o)
+		lastObject = o
 	}
 	_ = rows.Close()
 
@@ -349,22 +365,11 @@ func storageListObjects(rows *sql.Rows, cursor string) (*api.StorageObjectList, 
 		return nil, rows.Err()
 	}
 
+	// Prepare the response and include the cursor, if any.
 	objectList := &api.StorageObjectList{
 		Objects: objects,
-		Cursor:  cursor,
 	}
-
-	if len(objects) > 0 {
-		lastObject := objects[len(objects)-1]
-		newCursor := &storageCursor{
-			Key:  lastObject.Key,
-			Read: lastObject.PermissionRead,
-		}
-
-		if lastObject.UserId != "" {
-			newCursor.UserID = uuid.FromStringOrNil(lastObject.UserId)
-		}
-
+	if newCursor != nil {
 		cursorBuf := new(bytes.Buffer)
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			return nil, err

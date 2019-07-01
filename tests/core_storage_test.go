@@ -1857,7 +1857,7 @@ func TestStorageListRuntimeUser(t *testing.T) {
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, list, "list was nil")
 	assert.Len(t, list.Objects, 3, "values length was not 3")
-	assert.NotEmpty(t, list.Cursor, "cursor was empty")
+	assert.Empty(t, list.Cursor, "cursor was not empty")
 }
 
 func TestStorageListPipelineUserSelf(t *testing.T) {
@@ -1916,7 +1916,7 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 	assert.Len(t, list.Objects, 2, "values length was not 2")
 	assert.Equal(t, "a", list.Objects[0].Key, "values[0].Key was not a")
 	assert.Equal(t, "b", list.Objects[1].Key, "values[1].Key was not b")
-	assert.NotEmpty(t, list.Cursor, "cursor was empty")
+	assert.Empty(t, list.Cursor, "cursor was not empty")
 }
 
 func TestStorageListPipelineUserOther(t *testing.T) {
@@ -1973,5 +1973,102 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, values, "values was nil")
 	assert.Len(t, values.Objects, 0, "values length was not 0")
+	assert.Equal(t, "", values.Cursor, "cursor was not nil")
+}
+
+func TestStorageListNoRepeats(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+
+	ops := server.StorageOpWrites{
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "1",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "2",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "3",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "4",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "5",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "6",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+		&server.StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "7",
+				Value:           "{}",
+				PermissionRead:  &wrappers.Int32Value{Value: 2},
+				PermissionWrite: &wrappers.Int32Value{Value: 1},
+			},
+		},
+	}
+
+	acks, code, err := server.StorageWriteObjects(context.Background(), logger, db, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 7, "acks length was not 7")
+
+	values, code, err := server.StorageListObjects(context.Background(), logger, db, uuid.Must(uuid.NewV4()), &uid, collection, 10, "")
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, values, "values was nil")
+	assert.Len(t, values.Objects, 7, "values length was not 7")
 	assert.Equal(t, "", values.Cursor, "cursor was not nil")
 }

@@ -27,6 +27,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Handle query and parameter resets on wallet update retries.
 - Reset list of friend IDs in Facebook import when retrying the operation.
 - Reset notifications in friend add when retrying the operation.
+- Do not return storage list cursor unless there are further objects.
 
 ## [2.5.1] - 2019-05-03
 ### Changed
