@@ -28,6 +28,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Reset list of friend IDs in Facebook import when retrying the operation.
 - Reset notifications in friend add when retrying the operation.
 - Do not return storage list cursor unless there are further objects.
+- Attempt fast user and storage count on partitioned tables in console API.
 
 ## [2.5.1] - 2019-05-03
 ### Changed

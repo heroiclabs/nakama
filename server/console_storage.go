@@ -215,19 +215,33 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 
 func countStorage(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
 	var count sql.NullInt64
+	// First try a fast count on table metadata.
 	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'storage'").Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 		if err == context.Canceled {
-			// If the context was cancelled do not attempt the full count.
+			// If the context was cancelled do not attempt any further counts.
 			return 0
 		}
 	}
 	if count.Valid && count.Int64 != 0 {
-		// Use fast count result.
+		// Use this count result.
 		return int32(count.Int64)
 	}
 
-	// If the fast count failed, returned NULL, or returned 0 try a full count.
+	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
+	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike 'storage%_pkey'").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+		if err == context.Canceled {
+			// If the context was cancelled do not attempt any further counts.
+			return 0
+		}
+	}
+	if count.Valid && count.Int64 != 0 {
+		// Use this count result.
+		return int32(count.Int64)
+	}
+
+	// If both fast counts failed, returned NULL, or returned 0 try a full count.
 	if err := db.QueryRowContext(ctx, "SELECT count(collection) FROM storage").Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 	}
