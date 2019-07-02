@@ -571,7 +571,7 @@
           "Console"
         ]
       },
-      "put": {
+      "post": {
         "summary": "Create a new achievement.",
         "operationId": "CreateAchievement",
         "responses": {
@@ -616,6 +616,40 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/achievements/{id}": {
+      "put": {
+        "summary": "Modify existing achievement.",
+        "operationId": "ModifyAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier to reference this achievement.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAchievement"
+            }
           }
         ],
         "tags": [

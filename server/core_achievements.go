@@ -241,54 +241,59 @@ func CreateAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req 
 		params = append(params, nil)
 	}
 
-	insertionResponse, err := db.QueryContext(ctx, query, params...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 
-	if !insertionResponse.Next() {
+	if !rows.Next() {
 		return nil, errors.New("No rows returned in response to insert")
 	}
 
-	var id string
-	var name string
-	var description string
-	var initialState int32
-	var achievementType int32
-	var repeatability int32
-	var targetValue int64
-	var lockedImageURL string
-	var unlockedImageURL string
-	var auxiliaryData sql.NullString
+	return convertAchievement(rows, false)
+}
 
-	err = insertionResponse.Scan(&id, &name, &description, &initialState, &achievementType, &repeatability, &targetValue, &lockedImageURL, &unlockedImageURL, &auxiliaryData)
+func UpdateAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req *api.Achievement) (*api.Achievement, error) {
+	if req.Id == "" {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	achievementUUID, err := uuid.FromString(req.Id)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	if req.Name == "" {
+		return nil, errors.New("Invalid Achievement name")
+	}
+
+	query := `
+	update achievements set name = $1::text, description = $2::text, initial_state = $3::int8, "type" = $4::int8, repeatability = $5::int8, 
+	target_value = $6::int8, locked_image_url = $7::text, unlocked_image_url = $8::text, auxiliary_data = $9::JSONB
+	where id=$10::UUID
+	returning id, name, description, initial_state, "type", repeatability, target_value, locked_image_url, unlocked_image_url, auxiliary_data
+	`
+
+	params := make([]interface{}, 0)
+	params = append(params, req.Name, req.Description, req.InitialState.Value, req.Type.Value, req.Repeatability.Value, req.TargetValue,
+		req.LockedImageUrl, req.UnlockedImageUrl)
+
+	if req.AuxiliaryData != "" {
+		params = append(params, req.AuxiliaryData, achievementUUID)
+	} else {
+		params = append(params, nil, achievementUUID)
+	}
+
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 
-	outAuxData := ""
-	if auxiliaryData.Valid {
-		outAuxData = auxiliaryData.String
+	if !rows.Next() {
+		return nil, errors.New("No rows returned in response to update")
 	}
 
-	return &api.Achievement{
-		Id:          id,
-		Name:        name,
-		Description: description,
-		InitialState: &wrappers.Int32Value{
-			Value: initialState,
-		},
-		Type: &wrappers.Int32Value{
-			Value: achievementType,
-		},
-		Repeatability: &wrappers.Int32Value{
-			Value: repeatability,
-		},
-		TargetValue:      targetValue,
-		LockedImageUrl:   lockedImageURL,
-		UnlockedImageUrl: unlockedImageURL,
-		AuxiliaryData:    outAuxData,
-	}, nil
+	return convertAchievement(rows, false)
 }
 
 func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(*api.Achievement) (*api.AchievementProgress, error)) error {

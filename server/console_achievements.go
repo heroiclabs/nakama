@@ -39,6 +39,9 @@ func (s *ConsoleServer) GetAchievement(ctx context.Context, in *console.GetAchie
 }
 
 func (s *ConsoleServer) CreateAchievement(ctx context.Context, in *console.AchievementCreationRequest) (*api.Achievement, error) {
-
 	return CreateAchievement(ctx, s.logger, s.db, in)
+}
+
+func (s *ConsoleServer) ModifyAchievement(ctx context.Context, in *api.Achievement) (*api.Achievement, error) {
+	return UpdateAchievement(ctx, s.logger, s.db, in)
 }

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS achievements (
     initial_state int8 NOT NULL,
     "type" int8 NOT NULL,
     repeatability int8 NOT NULL,
-    target_value int8 NULL,
+    target_value int8 NOT NULL,
     locked_image_url text NULL,
     unlocked_image_url text NULL,
     auxiliary_data jsonb NULL,

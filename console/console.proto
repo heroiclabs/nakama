@@ -251,7 +251,15 @@ service Console {
   // Create a new achievement.
   rpc CreateAchievement (AchievementCreationRequest) returns (nakama.api.Achievement) {
     option (google.api.http) = {
-      put: "/v2/console/achievements"
+      post: "/v2/console/achievements"
+      body: "*"
+    };
+  }
+
+  // Modify existing achievement.
+  rpc ModifyAchievement (nakama.api.Achievement) returns (nakama.api.Achievement) {
+    option (google.api.http) = {
+      put: "/v2/console/achievements/{id}"
       body: "*"
     };
   }
