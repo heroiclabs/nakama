@@ -45,3 +45,12 @@ func (s *ConsoleServer) CreateAchievement(ctx context.Context, in *console.Achie
 func (s *ConsoleServer) ModifyAchievement(ctx context.Context, in *api.Achievement) (*api.Achievement, error) {
 	return UpdateAchievement(ctx, s.logger, s.db, in)
 }
+
+func (s *ConsoleServer) DeleteAchievement(ctx context.Context, in *api.Achievement) (*empty.Empty, error) {
+	err := DeleteAchievement(ctx, s.logger, s.db, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return &empty.Empty{}, nil
+}

@@ -296,6 +296,29 @@ func UpdateAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req 
 	return convertAchievement(rows, false)
 }
 
+func DeleteAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req *api.Achievement) error {
+	if req.Id == "" {
+		return ErrInvalidAchievementUUID
+	}
+
+	achievementUUID, err := uuid.FromString(req.Id)
+	if err != nil {
+		return ErrInvalidAchievementUUID
+	}
+
+	query := `
+	delete from achievements where id=$1::UUID
+	`
+
+	_, err = db.ExecContext(ctx, query, achievementUUID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(*api.Achievement) (*api.AchievementProgress, error)) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -320,13 +343,15 @@ func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, 
 		}
 
 		newAchievementProgress, err := computeNewValue(achievement)
-
 		if err != nil {
 			return err
 		}
 
 		// write differences to db.
-		UpdateAchievementProgress(ctx, logger, db, achievement, newAchievementProgress)
+		err = UpdateAchievementProgress(ctx, logger, db, achievement, newAchievementProgress)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}); err != nil {
@@ -379,7 +404,7 @@ func CreateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 	query := `
 	insert into achievement_progress (achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at)
 	values ($1::UUID, $2::UUID, $3::int8, $4::int8, now(), now(), null) 
-	returning achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at`
+	returning achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at, auxiliary_data`
 
 	params := make([]interface{}, 0)
 

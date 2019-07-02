@@ -624,6 +624,158 @@
       }
     },
     "/v2/console/achievements/{id}": {
+      "delete": {
+        "summary": "Delete an existing achievement.",
+        "operationId": "DeleteAchievement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier to reference this achievement.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "The name of the achievement.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "description": "Description of the achievement.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "initial_state",
+            "description": "The state in which the achievement starts out.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "type",
+            "description": "Whether the achievement is awarded manually or progressed towards.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "repeatability",
+            "description": "Whether an achievement can be earned multiple times. Currently only non-repeatable are supported.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "target_value",
+            "description": "Progressive achievements get awarded once their progress surpass this value.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "locked_image_url",
+            "description": "URL for the image to be shown while the achievement is locked.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "unlocked_image_url",
+            "description": "URL for the image to be shown once the achievement was unlocked.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "auxiliary_data",
+            "description": "Auxiliary data field, which may be used by developers to store custom data.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "current_progress.achievement_id",
+            "description": "Unique identifier of the achievement to which this progress belongs.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "current_progress.user_id",
+            "description": "Unique identifier of the user that is progressing towards this achievement.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "current_progress.progress",
+            "description": "Progress of the player towards the achievement.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "current_progress.current_state",
+            "description": "Achievement state.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "current_progress.created_at",
+            "description": "The UNIX time when the progress was created.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "current_progress.updated_at",
+            "description": "The UNIX time when the progress was last updated.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "current_progress.awarded_at",
+            "description": "The UNIX time when the progress was completed.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "current_progress.auxiliary_data",
+            "description": "Auxiliary data field, may be used by developers to store player-specific data on achievement progress.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "put": {
         "summary": "Modify existing achievement.",
         "operationId": "ModifyAchievement",

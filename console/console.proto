@@ -263,6 +263,13 @@ service Console {
       body: "*"
     };
   }
+
+  // Delete an existing achievement.
+  rpc DeleteAchievement (nakama.api.Achievement) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v2/console/achievements/{id}"
+    };
+  }
 }
 
 // Account information.

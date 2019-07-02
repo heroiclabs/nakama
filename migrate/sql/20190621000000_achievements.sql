@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS achievement_progress (
     updated_at timestamptz NOT NULL,
     awarded_at timestamptz NULL,
     auxiliary_data jsonb NULL,
-    CONSTRAINT achievement_id_fk FOREIGN KEY (achievement_id) REFERENCES achievements(id),
-    CONSTRAINT achievement_owner_fk FOREIGN KEY (user_id) REFERENCES "users"(id),
+    CONSTRAINT achievement_id_fk FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE,
+    CONSTRAINT achievement_owner_fk FOREIGN KEY (user_id) REFERENCES "users"(id) ON DELETE CASCADE,
     CONSTRAINT achievement_progress_pk PRIMARY KEY (achievement_id, user_id)
 );
 
