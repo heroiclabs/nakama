@@ -575,6 +575,16 @@ service Nakama {
     };
   }
 
+  // Gets the AchievementProgress-Object of a user for a given achievement
+  rpc GetAchievementProgress (api.AchievementRequest) returns (api.AchievementProgress) {
+    option (google.api.http) = {
+      get: "/v2/achievements/{achievement_id}/progress",
+      additional_bindings {
+        get: "/v2/user/{user_id}/achievements/{achievement_id}/progress"
+      }
+    };
+  }
+
   // Reveal an achievement to the user.
   rpc RevealAchievement (api.AchievementRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {

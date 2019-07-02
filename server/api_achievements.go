@@ -85,6 +85,42 @@ func (s *ApiServer) GetAchievement(ctx context.Context, in *api.AchievementReque
 	return achievement, nil
 }
 
+func (s *ApiServer) GetAchievementProgress(ctx context.Context, in *api.AchievementRequest) (*api.AchievementProgress, error) {
+	var userID = ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	if in.UserId != "" {
+		decodedUserID, err := uuid.FromString(in.UserId)
+		if err != nil {
+			return nil, err
+		}
+
+		if userExists, err := UserExists(ctx, s.db, decodedUserID); err != nil {
+			return nil, err
+		} else if !userExists {
+			return nil, ErrUserNotFound
+		}
+
+		userID = decodedUserID
+	}
+
+	if in.AchievementId == "" {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	decodedAchievementID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	achievement, err := GetAchievementProgress(ctx, s.logger, s.db, userID, decodedAchievementID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return achievement, nil
+}
+
 func (s *ApiServer) RevealAchievement(ctx context.Context, in *api.AchievementRequest) (*empty.Empty, error) {
 	// Force the userID to be the one of the user making the request, so that they cannot affect
 	// other users achievement progress.

@@ -34,8 +34,9 @@ import (
 
 var (
 	ErrInvalidAchievementUUID         = errors.New("Invalid Achievement UUID")
-	ErrMayNotProgressOnNonProgressive = errors.New("Cannot make progress on non-progressive achievement.")
-	ErrMayNotManuallyAwardProgressive = errors.New("May not manually award a progressive achievement.")
+	ErrMayNotProgressOnNonProgressive = errors.New("Cannot make progress on non-progressive achievement")
+	ErrMayNotManuallyAwardProgressive = errors.New("May not manually award a progressive achievement")
+	ErrProgressNotFound               = errors.New("No progress found for this achievement / user combination")
 )
 
 func GetAchievements(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Achievements, error) {
@@ -144,6 +145,32 @@ func GetAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, userID,
 	}
 
 	res, err := convertAchievement(rows, includingUserProgress)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func GetAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, userID, achievementID uuid.UUID) (*api.AchievementProgress, error) {
+	query := `
+	select achievement_id, user_id, achievement_state, progress, created_at, updated_at, awarded_at, auxiliary_data
+	from achievement_progress
+	where achievement_id = $1::UUID and user_id = $2::UUID
+	`
+
+	rows, err := db.QueryContext(ctx, query, achievementID, userID)
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !rows.Next() {
+		return nil, ErrProgressNotFound
+	}
+
+	res, err := convertAchievementProgress(rows)
 	if err != nil {
 		return nil, err
 	}
@@ -574,4 +601,46 @@ func convertAchievement(rows *sql.Rows, includeUserProgress bool) (*api.Achievem
 	}
 
 	return &achievement, nil
+}
+
+func convertAchievementProgress(rows *sql.Rows) (*api.AchievementProgress, error) {
+	var achievementID string
+	var userID string
+	var rawAchievementState int32
+	var progress int64
+	var createdAt pgtype.Timestamptz
+	var updatedAt pgtype.Timestamptz
+	var awardedAt pgtype.Timestamptz
+	var auxiliaryData []byte
+
+	err := rows.Scan(&achievementID, &userID, &rawAchievementState, &progress, &createdAt, &updatedAt, &awardedAt, &auxiliaryData)
+	if err != nil {
+		return nil, err
+	}
+
+	achievementUUID, err := uuid.FromString(achievementID)
+	if err != nil {
+		return nil, err
+	}
+
+	userUUID, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var ts *timestamp.Timestamp
+	if awardedAt.Status == pgtype.Present {
+		ts = &timestamp.Timestamp{Seconds: awardedAt.Time.Unix()}
+	}
+
+	return &api.AchievementProgress{
+		AchievementId: achievementUUID.String(),
+		UserId:        userUUID.String(),
+		Progress:      progress,
+		CurrentState:  &wrappers.Int32Value{Value: rawAchievementState},
+		CreatedAt:     &timestamp.Timestamp{Seconds: createdAt.Time.Unix()},
+		UpdatedAt:     &timestamp.Timestamp{Seconds: updatedAt.Time.Unix()},
+		AwardedAt:     ts,
+		AuxiliaryData: string(auxiliaryData),
+	}, nil
 }

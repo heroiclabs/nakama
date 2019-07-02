@@ -781,6 +781,39 @@
         ]
       }
     },
+    "/v2/achievements/{achievement_id}/progress": {
+      "get": {
+        "summary": "Gets the AchievementProgress-Object of a user for a given achievement",
+        "operationId": "GetAchievementProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievementProgress"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_id",
+            "description": "ID of the user whose progress should be fetched.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/achievements/{achievement_id}/progress/auxiliarydata": {
       "put": {
         "summary": "Set the progress of a user towards an achievement.\nFIXME: How to handle bodies that are not explicitly a string? E.g. if a non-enquoted JSON-Object is passed in the body",
@@ -2284,6 +2317,39 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiAchievement"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "ID of the user whose progress should be fetched.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "achievement_id",
+            "description": "ID of the achievement to fetch.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/user/{user_id}/achievements/{achievement_id}/progress": {
+      "get": {
+        "summary": "Gets the AchievementProgress-Object of a user for a given achievement",
+        "operationId": "GetAchievementProgress2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiAchievementProgress"
             }
           }
         },
