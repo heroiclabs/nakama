@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Handle updates during leaderboard schedule reset window.
 
 ## [2.6.0] - 2019-07-01
 ### Added
