@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
+- Ensure the matchmaker cannot match together tickets from the same session.
 
 ## [2.6.0] - 2019-07-01
 ### Added

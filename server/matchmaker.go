@@ -116,8 +116,14 @@ func (m *LocalMatchmaker) Add(session Session, query string, minCount int, maxCo
 		properties[k] = v
 	}
 
-	indexQuery := bleve.NewQueryStringQuery(query)
-	search := bleve.NewSearchRequestOptions(indexQuery, maxCount-1, 0, false)
+	filterQuery := bleve.NewTermQuery(session.ID().String())
+	filterQuery.SetField("presence.session_id")
+	indexQuery := bleve.NewBooleanQuery()
+	indexQuery.AddMust(bleve.NewQueryStringQuery(query))
+	indexQuery.AddMustNot(filterQuery)
+
+	searchRequest := bleve.NewSearchRequestOptions(indexQuery, maxCount-1, 0, false)
+
 	ticket := uuid.Must(uuid.NewV4()).String()
 	entry := &MatchmakerEntry{
 		Ticket: ticket,
@@ -134,7 +140,7 @@ func (m *LocalMatchmaker) Add(session Session, query string, minCount int, maxCo
 	}
 
 	m.Lock()
-	result, err := m.index.SearchInContext(session.Context(), search)
+	result, err := m.index.SearchInContext(session.Context(), searchRequest)
 	if err != nil {
 		m.Unlock()
 		return ticket, nil, err
