@@ -313,6 +313,7 @@ func (ls *LocalLeaderboardScheduler) invokeExpiryElapse(t time.Time, ids []strin
 	fnTournamentReset := ls.runtime.TournamentReset()
 
 	ts := t.Unix()
+	tMinusOne := time.Unix(ts-1, 0).UTC()
 
 	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
 	ls.rankCache.TrimExpired(ts)
@@ -341,7 +342,7 @@ category, description, duration, end_time, max_size, max_num_score, title, size,
 FROM leaderboard
 WHERE id = $1`
 			row := ls.db.QueryRowContext(ls.ctx, query, id)
-			tournament, err := parseTournament(row, t)
+			tournament, err := parseTournament(row, tMinusOne)
 			if err != nil {
 				ls.logger.Error("Error retrieving tournament to invoke reset callback", zap.Error(err), zap.String("id", id))
 				continue
@@ -363,14 +364,9 @@ WHERE id = $1`
 		} else {
 			// Leaderboard.
 			if fnLeaderboardReset != nil {
-				nextReset := int64(0)
-				if leaderboardOrTournament.ResetSchedule != nil {
-					nextReset = leaderboardOrTournament.ResetSchedule.Next(t).UTC().Unix()
-				}
-
 				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
 				go func() {
-					if err := fnLeaderboardReset(ls.ctx, leaderboardOrTournament, nextReset); err != nil {
+					if err := fnLeaderboardReset(ls.ctx, leaderboardOrTournament, ts); err != nil {
 						ls.logger.Warn("Failed to invoke leaderboard reset callback", zap.Error(err))
 					}
 				}()

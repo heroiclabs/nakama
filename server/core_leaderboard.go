@@ -68,9 +68,6 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			}
 		} else if leaderboard.ResetSchedule != nil {
 			expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
-			if leaderboard.EndTime > 0 && expiryTime > leaderboard.EndTime {
-				expiryTime = leaderboard.EndTime
-			}
 		}
 	}
 
