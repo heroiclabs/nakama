@@ -34,7 +34,8 @@
     "typesafe-actions": "^3.2.1",
     "typescript": "3.3.3333",
     "js-yaml": "^3.13.1",
-    "handlebars": "^4.1.2"
+    "handlebars": "^4.1.2",
+    "lodash.template": "^4.5.0"
   },
   "scripts": {
     "start": "react-scripts start",
