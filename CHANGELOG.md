@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Allow RPC functions to receive and return raw JSON data.
+
 ### Changed
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
 
