@@ -980,7 +980,7 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 	return groups, nil
 }
 
-func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
+func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string, omit_full bool) (*api.GroupList, error) {
 	var cursor *groupListCursor = nil
 	if cursorStr != "" {
 		cursor = &groupListCursor{}
@@ -996,12 +996,16 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string
 	}
 
 	var query string
-	params := []interface{}{limit}
+	params := []interface{}{limit, omit_full}
+
 	if name == "" {
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE disable_time = '1970-01-01 00:00:00 UTC'
+WHERE
+	(disable_time = '1970-01-01 00:00:00 UTC')
+AND
+	((NOT $2) OR (edge_count < max_count))
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
@@ -1011,7 +1015,9 @@ FROM groups
 WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
-	((lang_tag, edge_count, id) > ($2, $3, $4))
+	((NOT $2) OR (edge_count < max_count))
+AND
+	((lang_tag, edge_count, id) > ($3, $4, $5))
 LIMIT $1`
 		}
 	} else {
@@ -1022,7 +1028,9 @@ FROM groups
 WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
-	(name LIKE $2)
+	((NOT $2) OR (edge_count < max_count))
+AND
+	(name LIKE $3)
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
@@ -1032,9 +1040,11 @@ FROM groups
 WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
-	(name LIKE $2)
+	((NOT $2) OR (edge_count < max_count))
 AND
-	((lang_tag, edge_count, id) > ($3, $4, $5))
+	(name LIKE $3)
+AND
+	((lang_tag, edge_count, id) > ($4, $5, $6))
 LIMIT $1`
 		}
 	}

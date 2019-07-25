@@ -662,7 +662,12 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 		limit = int(in.GetLimit().Value)
 	}
 
-	groups, err := ListGroups(ctx, s.logger, s.db, in.GetName(), limit, in.GetCursor())
+	omit_full := false
+	if in.GetOmitFull() != nil {
+		omit_full = in.GetOmitFull().Value
+	}
+
+	groups, err := ListGroups(ctx, s.logger, s.db, in.GetName(), limit, in.GetCursor(), omit_full)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to list groups.")
 	}
