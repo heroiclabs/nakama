@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
+- Errors from runtime before hooks no longer close the session.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
