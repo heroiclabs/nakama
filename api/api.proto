@@ -499,7 +499,7 @@ message ListGroupsRequest {
   // Max number of groups to return. Between 1 and 100.
   google.protobuf.Int32Value limit = 3;
   // Whether to include full groups in the listing.
-  google.protobuf.BoolValue omit_full = 4;
+  bool omit_full = 4;
 }
 
 // List all users that are part of a group.
