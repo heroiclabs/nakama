@@ -290,7 +290,10 @@ WHERE id = $1`
 		row := ls.db.QueryRowContext(ls.ctx, query, id)
 		tournament, err := parseTournament(row, t)
 		if err != nil {
-			ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", id))
+			if err != sql.ErrNoRows {
+				// Do not log if tournament was deleted before it reached the scheduler here.
+				ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", id))
+			}
 			continue
 		}
 
@@ -333,6 +336,10 @@ func (ls *LocalLeaderboardScheduler) invokeExpiryElapse(t time.Time, ids []strin
 	// Process the current set of leaderboard and tournament resets.
 	for _, id := range ids {
 		leaderboardOrTournament := ls.cache.Get(id)
+		if leaderboardOrTournament == nil {
+			// Cached entry was deleted before it reached the scheduler here.
+			continue
+		}
 		if leaderboardOrTournament.IsTournament() {
 			// Tournament, fetch most up to date info for size etc.
 			// Some processing is needed even if there is no runtime callback registered for tournament reset.
