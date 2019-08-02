@@ -832,7 +832,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 						return
 					}
 				}
-				err = session.SendBytes(true, stream.Mode, payloadProtobuf)
+				err = session.SendBytes(payloadProtobuf, true)
 			case SessionFormatJson:
 				fallthrough
 			default:
@@ -846,7 +846,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 						return
 					}
 				}
-				err = session.SendBytes(true, stream.Mode, payloadJson)
+				err = session.SendBytes(payloadJson, true)
 			}
 			if err != nil {
 				t.logger.Error("Failed to deliver presence event", zap.String("sid", sessionID.String()), zap.Error(err))
@@ -937,7 +937,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 						return
 					}
 				}
-				err = session.SendBytes(true, stream.Mode, payloadProtobuf)
+				err = session.SendBytes(payloadProtobuf, true)
 			case SessionFormatJson:
 				fallthrough
 			default:
@@ -951,7 +951,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 						return
 					}
 				}
-				err = session.SendBytes(true, stream.Mode, payloadJson)
+				err = session.SendBytes(payloadJson, true)
 			}
 			if err != nil {
 				t.logger.Error("Failed to deliver presence event", zap.String("sid", sessionID.String()), zap.Error(err))

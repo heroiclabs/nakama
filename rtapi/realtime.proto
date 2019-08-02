@@ -37,7 +37,7 @@ option objc_class_prefix = "NKPB";
 message Envelope {
   string cid = 1;
   oneof message {
-    // A response fron a channel join operation.
+    // A response from a channel join operation.
     Channel channel = 2;
     // Join a realtime chat channel.
     ChannelJoin channel_join = 3;
@@ -97,6 +97,10 @@ message Envelope {
     StreamData stream_data = 30;
     // Presence update for a particular stream.
     StreamPresenceEvent stream_presence_event = 31;
+    // Application-level heartbeat and connection check.
+    Ping ping = 32;
+    // Application-level heartbeat and connection check response.
+    Pong pong = 33;
   }
 }
 
@@ -253,6 +257,8 @@ message MatchData {
   int64 op_code = 3;
   // Data payload, if any.
   bytes data = 4;
+  // True if this data was delivered reliably, false otherwise.
+  bool reliable = 5;
 }
 
 // Send realtime match data to the server.
@@ -265,6 +271,8 @@ message MatchDataSend {
   bytes data = 3;
   // List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
   repeated UserPresence presences = 4;
+  // True if the data should be sent reliably, false otherwise.
+  google.protobuf.BoolValue reliable = 5;
 }
 
 // Join an existing realtime match.
@@ -353,6 +361,12 @@ message Notifications {
   repeated api.Notification notifications = 1;
 }
 
+// Application-level heartbeat and connection check.
+message Ping {}
+
+// Application-level heartbeat and connection check response.
+message Pong {}
+
 // A snapshot of statuses for some set of users.
 message Status {
   // User statuses.
@@ -407,6 +421,8 @@ message StreamData {
   UserPresence sender = 2;
   // Arbitrary contents of the data message.
   string data = 3;
+  // True if this data was delivered reliably, false otherwise.
+  bool reliable = 4;
 }
 
 // A set of joins and leaves on a particular stream.

@@ -12,6 +12,8 @@ import (
 	api "github.com/heroiclabs/nakama/api"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -948,6 +950,188 @@ type NakamaServer interface {
 	WriteStorageObjects(context.Context, *api.WriteStorageObjectsRequest) (*api.StorageObjectAcks, error)
 	// Write a record to a tournament.
 	WriteTournamentRecord(context.Context, *api.WriteTournamentRecordRequest) (*api.LeaderboardRecord, error)
+}
+
+// UnimplementedNakamaServer can be embedded to have forward compatible implementations.
+type UnimplementedNakamaServer struct {
+}
+
+func (*UnimplementedNakamaServer) AddFriends(ctx context.Context, req *api.AddFriendsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddFriends not implemented")
+}
+func (*UnimplementedNakamaServer) AddGroupUsers(ctx context.Context, req *api.AddGroupUsersRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateCustom(ctx context.Context, req *api.AuthenticateCustomRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateCustom not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateDevice(ctx context.Context, req *api.AuthenticateDeviceRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateDevice not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateEmail(ctx context.Context, req *api.AuthenticateEmailRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateEmail not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateFacebook(ctx context.Context, req *api.AuthenticateFacebookRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateFacebook not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateGameCenter(ctx context.Context, req *api.AuthenticateGameCenterRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateGameCenter not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateGoogle(ctx context.Context, req *api.AuthenticateGoogleRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateGoogle not implemented")
+}
+func (*UnimplementedNakamaServer) AuthenticateSteam(ctx context.Context, req *api.AuthenticateSteamRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateSteam not implemented")
+}
+func (*UnimplementedNakamaServer) BlockFriends(ctx context.Context, req *api.BlockFriendsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockFriends not implemented")
+}
+func (*UnimplementedNakamaServer) CreateGroup(ctx context.Context, req *api.CreateGroupRequest) (*api.Group, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateGroup not implemented")
+}
+func (*UnimplementedNakamaServer) DeleteFriends(ctx context.Context, req *api.DeleteFriendsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriends not implemented")
+}
+func (*UnimplementedNakamaServer) DeleteGroup(ctx context.Context, req *api.DeleteGroupRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteGroup not implemented")
+}
+func (*UnimplementedNakamaServer) DeleteLeaderboardRecord(ctx context.Context, req *api.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteLeaderboardRecord not implemented")
+}
+func (*UnimplementedNakamaServer) DeleteNotifications(ctx context.Context, req *api.DeleteNotificationsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteNotifications not implemented")
+}
+func (*UnimplementedNakamaServer) DeleteStorageObjects(ctx context.Context, req *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorageObjects not implemented")
+}
+func (*UnimplementedNakamaServer) GetAccount(ctx context.Context, req *empty.Empty) (*api.Account, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccount not implemented")
+}
+func (*UnimplementedNakamaServer) GetUsers(ctx context.Context, req *api.GetUsersRequest) (*api.Users, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
+}
+func (*UnimplementedNakamaServer) Healthcheck(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Healthcheck not implemented")
+}
+func (*UnimplementedNakamaServer) ImportFacebookFriends(ctx context.Context, req *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ImportFacebookFriends not implemented")
+}
+func (*UnimplementedNakamaServer) JoinGroup(ctx context.Context, req *api.JoinGroupRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method JoinGroup not implemented")
+}
+func (*UnimplementedNakamaServer) JoinTournament(ctx context.Context, req *api.JoinTournamentRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method JoinTournament not implemented")
+}
+func (*UnimplementedNakamaServer) KickGroupUsers(ctx context.Context, req *api.KickGroupUsersRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method KickGroupUsers not implemented")
+}
+func (*UnimplementedNakamaServer) LeaveGroup(ctx context.Context, req *api.LeaveGroupRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LeaveGroup not implemented")
+}
+func (*UnimplementedNakamaServer) LinkCustom(ctx context.Context, req *api.AccountCustom) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkCustom not implemented")
+}
+func (*UnimplementedNakamaServer) LinkDevice(ctx context.Context, req *api.AccountDevice) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkDevice not implemented")
+}
+func (*UnimplementedNakamaServer) LinkEmail(ctx context.Context, req *api.AccountEmail) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkEmail not implemented")
+}
+func (*UnimplementedNakamaServer) LinkFacebook(ctx context.Context, req *api.LinkFacebookRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkFacebook not implemented")
+}
+func (*UnimplementedNakamaServer) LinkGameCenter(ctx context.Context, req *api.AccountGameCenter) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkGameCenter not implemented")
+}
+func (*UnimplementedNakamaServer) LinkGoogle(ctx context.Context, req *api.AccountGoogle) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkGoogle not implemented")
+}
+func (*UnimplementedNakamaServer) LinkSteam(ctx context.Context, req *api.AccountSteam) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkSteam not implemented")
+}
+func (*UnimplementedNakamaServer) ListChannelMessages(ctx context.Context, req *api.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListChannelMessages not implemented")
+}
+func (*UnimplementedNakamaServer) ListFriends(ctx context.Context, req *empty.Empty) (*api.Friends, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFriends not implemented")
+}
+func (*UnimplementedNakamaServer) ListGroups(ctx context.Context, req *api.ListGroupsRequest) (*api.GroupList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
+}
+func (*UnimplementedNakamaServer) ListGroupUsers(ctx context.Context, req *api.ListGroupUsersRequest) (*api.GroupUserList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGroupUsers not implemented")
+}
+func (*UnimplementedNakamaServer) ListLeaderboardRecords(ctx context.Context, req *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboardRecords not implemented")
+}
+func (*UnimplementedNakamaServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, req *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboardRecordsAroundOwner not implemented")
+}
+func (*UnimplementedNakamaServer) ListMatches(ctx context.Context, req *api.ListMatchesRequest) (*api.MatchList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
+}
+func (*UnimplementedNakamaServer) ListNotifications(ctx context.Context, req *api.ListNotificationsRequest) (*api.NotificationList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNotifications not implemented")
+}
+func (*UnimplementedNakamaServer) ListStorageObjects(ctx context.Context, req *api.ListStorageObjectsRequest) (*api.StorageObjectList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListStorageObjects not implemented")
+}
+func (*UnimplementedNakamaServer) ListTournaments(ctx context.Context, req *api.ListTournamentsRequest) (*api.TournamentList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTournaments not implemented")
+}
+func (*UnimplementedNakamaServer) ListTournamentRecords(ctx context.Context, req *api.ListTournamentRecordsRequest) (*api.TournamentRecordList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTournamentRecords not implemented")
+}
+func (*UnimplementedNakamaServer) ListTournamentRecordsAroundOwner(ctx context.Context, req *api.ListTournamentRecordsAroundOwnerRequest) (*api.TournamentRecordList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTournamentRecordsAroundOwner not implemented")
+}
+func (*UnimplementedNakamaServer) ListUserGroups(ctx context.Context, req *api.ListUserGroupsRequest) (*api.UserGroupList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserGroups not implemented")
+}
+func (*UnimplementedNakamaServer) PromoteGroupUsers(ctx context.Context, req *api.PromoteGroupUsersRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupUsers not implemented")
+}
+func (*UnimplementedNakamaServer) ReadStorageObjects(ctx context.Context, req *api.ReadStorageObjectsRequest) (*api.StorageObjects, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReadStorageObjects not implemented")
+}
+func (*UnimplementedNakamaServer) RpcFunc(ctx context.Context, req *api.Rpc) (*api.Rpc, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RpcFunc not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkCustom(ctx context.Context, req *api.AccountCustom) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkDevice(ctx context.Context, req *api.AccountDevice) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkDevice not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkEmail(ctx context.Context, req *api.AccountEmail) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkEmail not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkFacebook(ctx context.Context, req *api.AccountFacebook) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkFacebook not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkGameCenter(ctx context.Context, req *api.AccountGameCenter) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGameCenter not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkGoogle(ctx context.Context, req *api.AccountGoogle) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGoogle not implemented")
+}
+func (*UnimplementedNakamaServer) UnlinkSteam(ctx context.Context, req *api.AccountSteam) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkSteam not implemented")
+}
+func (*UnimplementedNakamaServer) UpdateAccount(ctx context.Context, req *api.UpdateAccountRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccount not implemented")
+}
+func (*UnimplementedNakamaServer) UpdateGroup(ctx context.Context, req *api.UpdateGroupRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
+}
+func (*UnimplementedNakamaServer) WriteLeaderboardRecord(ctx context.Context, req *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriteLeaderboardRecord not implemented")
+}
+func (*UnimplementedNakamaServer) WriteStorageObjects(ctx context.Context, req *api.WriteStorageObjectsRequest) (*api.StorageObjectAcks, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObjects not implemented")
+}
+func (*UnimplementedNakamaServer) WriteTournamentRecord(ctx context.Context, req *api.WriteTournamentRecordRequest) (*api.LeaderboardRecord, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriteTournamentRecord not implemented")
 }
 
 func RegisterNakamaServer(s *grpc.Server, srv NakamaServer) {

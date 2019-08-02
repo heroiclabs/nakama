@@ -2838,6 +2838,9 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 		return 0
 	}
 
+	// Check if the message is intended to be sent reliably or not.
+	reliable := l.OptBool(4, true)
+
 	streamWire := &rtapi.Stream{
 		Mode:  int32(stream.Mode),
 		Label: stream.Label,
@@ -2851,15 +2854,16 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
 		// No sender.
-		Data: data,
+		Data:     data,
+		Reliable: reliable,
 	}}}
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return 0
@@ -3002,12 +3006,15 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 		return 0
 	}
 
+	// Check if the message is intended to be sent reliably or not.
+	reliable := l.OptBool(4, true)
+
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return 0

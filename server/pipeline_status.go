@@ -27,9 +27,9 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	incoming := envelope.GetStatusFollow()
 
 	if len(incoming.UserIds) == 0 && len(incoming.Usernames) == 0 {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
 			Presences: make([]*rtapi.UserPresence, 0),
-		}}})
+		}}}, true)
 		return
 	}
 
@@ -38,10 +38,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	for _, uid := range incoming.UserIds {
 		userID, err := uuid.FromString(uid)
 		if err != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid user identifier",
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -53,10 +53,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	uniqueUsernames := make(map[string]struct{}, len(incoming.Usernames))
 	for _, username := range incoming.Usernames {
 		if username == "" {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid username",
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -78,19 +78,19 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		err := p.db.QueryRowContext(session.Context(), query, params...).Scan(&dbCount)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Could not check users",
-			}}})
+			}}}, true)
 			return
 		}
 
 		// If one or more users were missing reject the whole operation.
 		if dbCount != len(params) {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "One or more users do not exist",
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -124,10 +124,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		rows, err := p.db.QueryContext(session.Context(), query, params...)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Could not check users",
-			}}})
+			}}}, true)
 			return
 		}
 		for rows.Next() {
@@ -136,20 +136,20 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			if err != nil {
 				_ = rows.Close()
 				logger.Error("Error scanning users in status follow", zap.Error(err))
-				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 					Message: "Could not check users",
-				}}})
+				}}}, true)
 				return
 			}
 			uid, err := uuid.FromString(id)
 			if err != nil {
 				_ = rows.Close()
 				logger.Error("Error parsing users in status follow", zap.Error(err))
-				session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 					Message: "Could not check users",
-				}}})
+				}}}, true)
 				return
 			}
 
@@ -160,10 +160,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		// If one or more users were missing reject the whole operation.
 		// Note: any overlap between user IDs and usernames (pointing to the same user) will also fail here.
 		if len(followUserIDs) != len(uniqueUserIDs)+len(uniqueUsernames) {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "One or more users do not exist",
-			}}})
+			}}}, true)
 			return
 		}
 	}
@@ -174,10 +174,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		stream := PresenceStream{Mode: StreamModeStatus, Subject: userID}
 		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
 		if !success {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Could not follow user status",
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -192,16 +192,16 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		}
 	}
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
 		Presences: presences,
-	}}})
+	}}}, true)
 }
 
 func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	incoming := envelope.GetStatusUnfollow()
 
 	if len(incoming.UserIds) == 0 {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 		return
 	}
 
@@ -209,10 +209,10 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 	for _, uid := range incoming.UserIds {
 		userID, err := uuid.FromString(uid)
 		if err != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid user identifier",
-			}}})
+			}}}, true)
 			return
 		}
 		userIDs = append(userIDs, userID)
@@ -222,7 +222,7 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: userID}, session.UserID())
 	}
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 }
 
 func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -231,15 +231,15 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 	if incoming.Status == nil {
 		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID())
 
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 		return
 	}
 
 	if len(incoming.Status.Value) > 128 {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Status must be 128 characters or less",
-		}}})
+		}}}, true)
 		return
 	}
 
@@ -250,12 +250,12 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 	}, false)
 
 	if !success {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error tracking status update",
-		}}})
+		}}}, true)
 		return
 	}
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 }

@@ -895,7 +895,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -905,7 +906,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1363,7 +1365,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "limit",
@@ -1618,7 +1621,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1988,7 +1992,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "limit",
@@ -2004,6 +2009,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
@@ -2140,7 +2153,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -2150,7 +2164,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "facebook_ids",
@@ -2160,7 +2175,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -2878,10 +2894,6 @@
         "token": {
           "type": "string",
           "description": "Authentication credentials."
-        },
-        "udp_token": {
-          "type": "string",
-          "description": "rUDP specific authentication credentials."
         }
       },
       "description": "A user's session used to authenticate messages."

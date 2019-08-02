@@ -167,8 +167,8 @@ func (r *RuntimeGoMatchCore) Cancel() {
 	r.ctxCancelFn()
 }
 
-func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {
-	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender)
+func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) error {
+	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender, reliable)
 	if err != nil {
 		return err
 	}
@@ -176,13 +176,13 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 		return nil
 	}
 
-	r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
+	r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
 
 	return nil
 }
 
-func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) error {
-	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender)
+func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) error {
+	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender, reliable)
 	if err != nil {
 		return err
 	}
@@ -193,10 +193,11 @@ func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte,
 	return r.deferMessageFn(&DeferredMessage{
 		PresenceIDs: presenceIDs,
 		Envelope:    msg,
+		Reliable:    reliable,
 	})
 }
 
-func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence) ([]*PresenceID, *rtapi.Envelope, error) {
+func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) ([]*PresenceID, *rtapi.Envelope, error) {
 	var presenceIDs []*PresenceID
 	if presences != nil {
 		size := len(presences)
@@ -285,6 +286,7 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 		Presence: presence,
 		OpCode:   opCode,
 		Data:     data,
+		Reliable: reliable,
 	}}}
 
 	if presenceIDs == nil {

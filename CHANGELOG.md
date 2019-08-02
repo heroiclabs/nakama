@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
 - Errors from runtime before hooks no longer close the session.
 - Switch prometheus metrics to use labels instead of a prefix.
+- Add flag on realtime socket messages that will support optional reliability.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.

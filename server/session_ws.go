@@ -50,17 +50,17 @@ type sessionWS struct {
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 
-	jsonpbMarshaler        *jsonpb.Marshaler
-	jsonpbUnmarshaler      *jsonpb.Unmarshaler
-	wsMessageType          int
-	queuePriorityThreshold int
-	pingPeriodDuration     time.Duration
-	pongWaitDuration       time.Duration
-	writeWaitDuration      time.Duration
+	jsonpbMarshaler    *jsonpb.Marshaler
+	jsonpbUnmarshaler  *jsonpb.Unmarshaler
+	wsMessageType      int
+	pingPeriodDuration time.Duration
+	pongWaitDuration   time.Duration
+	writeWaitDuration  time.Duration
 
 	sessionRegistry SessionRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
+	pipeline        *Pipeline
 	runtime         *Runtime
 
 	stopped                bool
@@ -71,7 +71,7 @@ type sessionWS struct {
 	outgoingCh             chan []byte
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, runtime *Runtime) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, pipeline *Pipeline, runtime *Runtime) Session {
 	sessionID := uuid.Must(uuid.NewV4())
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
@@ -98,17 +98,17 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userI
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
-		jsonpbMarshaler:        jsonpbMarshaler,
-		jsonpbUnmarshaler:      jsonpbUnmarshaler,
-		wsMessageType:          wsMessageType,
-		queuePriorityThreshold: (config.GetSocket().OutgoingQueueSize / 3) * 2,
-		pingPeriodDuration:     time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
-		pongWaitDuration:       time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
-		writeWaitDuration:      time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
+		jsonpbMarshaler:    jsonpbMarshaler,
+		jsonpbUnmarshaler:  jsonpbUnmarshaler,
+		wsMessageType:      wsMessageType,
+		pingPeriodDuration: time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
+		pongWaitDuration:   time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
+		writeWaitDuration:  time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
 		matchmaker:      matchmaker,
 		tracker:         tracker,
+		pipeline:        pipeline,
 		runtime:         runtime,
 
 		stopped:                false,
@@ -156,7 +156,7 @@ func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }
 
-func (s *sessionWS) Consume(processRequest func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool) {
+func (s *sessionWS) Consume() {
 	// Fire an event for session start.
 	if fn := s.runtime.EventSessionStart(); fn != nil {
 		fn(s.userID.String(), s.username.Load(), s.expiry, s.id.String(), s.clientIP, s.clientPort, time.Now().UTC().Unix())
@@ -227,13 +227,13 @@ IncomingLoop:
 
 		switch request.Cid {
 		case "":
-			if !processRequest(s.logger, s, request) {
+			if !s.pipeline.ProcessRequest(s.logger, s, request) {
 				reason = "error processing message"
 				break IncomingLoop
 			}
 		default:
 			requestLogger := s.logger.With(zap.String("cid", request.Cid))
-			if !processRequest(requestLogger, s, request) {
+			if !s.pipeline.ProcessRequest(requestLogger, s, request) {
 				reason = "error processing message"
 				break IncomingLoop
 			}
@@ -342,7 +342,7 @@ func (s *sessionWS) Format() SessionFormat {
 	return s.format
 }
 
-func (s *sessionWS) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
+func (s *sessionWS) Send(envelope *rtapi.Envelope, reliable bool) error {
 	var payload []byte
 	var err error
 	switch s.format {
@@ -370,34 +370,17 @@ func (s *sessionWS) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) er
 		}
 	}
 
-	return s.SendBytes(isStream, mode, []byte(payload))
+	return s.SendBytes([]byte(payload), reliable)
 }
 
-func (s *sessionWS) SendBytes(isStream bool, mode uint8, payload []byte) error {
+func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
 		return nil
 	}
 
-	if isStream {
-		switch mode {
-		case StreamModeChannel:
-			fallthrough
-		case StreamModeGroup:
-			fallthrough
-		case StreamModeDM:
-			// Chat messages are only allowed if the current outgoing queue size is below the threshold to
-			// ensure there is always room to queue higher priority messages.
-			if len(s.outgoingCh) < s.queuePriorityThreshold {
-				s.outgoingCh <- payload
-			}
-			s.Unlock()
-			return nil
-		}
-	}
-
-	// By default attempt to queue messages and observe failures.
+	// Attempt to queue messages and observe failures.
 	select {
 	case s.outgoingCh <- payload:
 		s.Unlock()

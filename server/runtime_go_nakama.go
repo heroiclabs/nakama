@@ -676,7 +676,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence) error {
+func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -728,21 +728,22 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, labe
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
 		// No sender.
-		Data: data,
+		Data:     data,
+		Reliable: reliable,
 	}}}
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence) error {
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -786,10 +787,10 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return nil

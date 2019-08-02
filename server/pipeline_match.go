@@ -46,7 +46,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
 		MatchId:       fmt.Sprintf("%v.", matchID.String()),
 		Authoritative: false,
 		// No label.
@@ -57,7 +57,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 			SessionId: session.ID().String(),
 			Username:  username,
 		},
-	}}})
+	}}}, true)
 }
 
 func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -74,18 +74,18 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		// Validate the match ID.
 		matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 		if len(matchIDComponents) != 2 {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match ID",
-			}}})
+			}}}, true)
 			return
 		}
 		matchID, err = uuid.FromString(matchIDComponents[0])
 		if err != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match ID",
-			}}})
+			}}}, true)
 			return
 		}
 		node = matchIDComponents[1]
@@ -97,51 +97,51 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			return []byte(p.config.GetSession().EncryptionKey), nil
 		})
 		if err != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match token",
-			}}})
+			}}}, true)
 			return
 		}
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok || !token.Valid {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match token",
-			}}})
+			}}}, true)
 			return
 		}
 		matchIDString = claims["mid"].(string)
 		// Validate the match ID.
 		matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 		if len(matchIDComponents) != 2 {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match token",
-			}}})
+			}}}, true)
 			return
 		}
 		matchID, err = uuid.FromString(matchIDComponents[0])
 		if err != nil {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid match token",
-			}}})
+			}}}, true)
 			return
 		}
 		node = matchIDComponents[1]
 		allowEmpty = true
 	case nil:
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "No match ID or token found",
-		}}})
+		}}}, true)
 		return
 	default:
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Unrecognized match ID or token",
-		}}})
+		}}}, true)
 		return
 	}
 
@@ -155,10 +155,10 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		stream := PresenceStream{Mode: mode, Subject: matchID, Label: node}
 
 		if !allowEmpty && !p.tracker.StreamExists(stream) {
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
 				Message: "Match not found",
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -196,10 +196,10 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		found, allow, isNew, reason, l, ps := p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
 		if !found {
 			// Match did not exist.
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_MATCH_NOT_FOUND),
 				Message: "Match not found",
-			}}})
+			}}}, true)
 			return
 		}
 		if !allow {
@@ -208,10 +208,10 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 				reason = "Match join rejected"
 			}
 			// Match exists, but rejected the join.
-			session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_MATCH_JOIN_REJECTED),
 				Message: reason,
-			}}})
+			}}}, true)
 			return
 		}
 
@@ -240,7 +240,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		}
 	}
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
 		MatchId:       matchIDString,
 		Authoritative: mode == StreamModeMatchAuthoritative,
 		Label:         label,
@@ -251,25 +251,25 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			SessionId: session.ID().String(),
 			Username:  username,
 		},
-	}}})
+	}}}, true)
 }
 
 func (p *Pipeline) matchLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(envelope.GetMatchLeave().MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid match ID",
-		}}})
+		}}}, true)
 		return
 	}
 	matchID, err := uuid.FromString(matchIDComponents[0])
 	if err != nil {
-		session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid match ID",
-		}}})
+		}}}, true)
 		return
 	}
 
@@ -284,7 +284,7 @@ func (p *Pipeline) matchLeave(logger *zap.Logger, session Session, envelope *rta
 
 	p.tracker.Untrack(session.ID(), stream, session.UserID())
 
-	session.Send(false, 0, &rtapi.Envelope{Cid: envelope.Cid})
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 }
 
 func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -293,18 +293,18 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(incoming.MatchId, ".", 2)
 	if len(matchIDComponents) != 2 {
-		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid match ID",
-		}}})
+		}}}, true)
 		return
 	}
 	matchID, err := uuid.FromString(matchIDComponents[0])
 	if err != nil {
-		session.Send(false, 0, &rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		session.Send(&rtapi.Envelope{Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid match ID",
-		}}})
+		}}}, true)
 		return
 	}
 
@@ -315,7 +315,7 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 			return
 		}
 
-		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data, time.Now().UTC().UnixNano()/int64(time.Millisecond))
+		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data, incoming.Reliable == nil || incoming.Reliable.Value, time.Now().UTC().UnixNano()/int64(time.Millisecond))
 		return
 	}
 
@@ -394,9 +394,10 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 			SessionId: session.ID().String(),
 			Username:  session.Username(),
 		},
-		OpCode: incoming.OpCode,
-		Data:   incoming.Data,
+		OpCode:   incoming.OpCode,
+		Data:     incoming.Data,
+		Reliable: incoming.Reliable == nil || incoming.Reliable.Value,
 	}}}
 
-	p.router.SendToPresenceIDs(logger, presenceIDs, true, stream.Mode, outgoing)
+	p.router.SendToPresenceIDs(logger, presenceIDs, outgoing, incoming.Reliable == nil || incoming.Reliable.Value)
 }

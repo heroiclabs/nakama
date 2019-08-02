@@ -27,13 +27,14 @@ import (
 type DeferredMessage struct {
 	PresenceIDs []*PresenceID
 	Envelope    *rtapi.Envelope
+	Reliable    bool
 }
 
 // MessageRouter is responsible for sending a message to a list of presences or to an entire stream.
 type MessageRouter interface {
-	SendToPresenceIDs(*zap.Logger, []*PresenceID, bool, uint8, *rtapi.Envelope)
-	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope)
-	SendDeferred(*zap.Logger, bool, uint8, []*DeferredMessage)
+	SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope, bool)
+	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope, bool)
+	SendDeferred(*zap.Logger, []*DeferredMessage)
 }
 
 type LocalMessageRouter struct {
@@ -50,7 +51,7 @@ func NewLocalMessageRouter(sessionRegistry SessionRegistry, tracker Tracker, jso
 	}
 }
 
-func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs []*PresenceID, isStream bool, mode uint8, envelope *rtapi.Envelope) {
+func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs []*PresenceID, envelope *rtapi.Envelope, reliable bool) {
 	if len(presenceIDs) == 0 {
 		return
 	}
@@ -77,7 +78,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 					return
 				}
 			}
-			err = session.SendBytes(isStream, mode, payloadProtobuf)
+			err = session.SendBytes(payloadProtobuf, reliable)
 		case SessionFormatJson:
 			fallthrough
 		default:
@@ -91,7 +92,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 					return
 				}
 			}
-			err = session.SendBytes(isStream, mode, payloadJson)
+			err = session.SendBytes(payloadJson, reliable)
 		}
 		if err != nil {
 			logger.Error("Failed to route message", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))
@@ -99,13 +100,13 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 	}
 }
 
-func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, envelope *rtapi.Envelope) {
+func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStream, envelope *rtapi.Envelope, reliable bool) {
 	presenceIDs := r.tracker.ListPresenceIDByStream(stream)
-	r.SendToPresenceIDs(logger, presenceIDs, true, stream.Mode, envelope)
+	r.SendToPresenceIDs(logger, presenceIDs, envelope, reliable)
 }
 
-func (r *LocalMessageRouter) SendDeferred(logger *zap.Logger, isStream bool, mode uint8, messages []*DeferredMessage) {
+func (r *LocalMessageRouter) SendDeferred(logger *zap.Logger, messages []*DeferredMessage) {
 	for _, message := range messages {
-		r.SendToPresenceIDs(logger, message.PresenceIDs, isStream, mode, message.Envelope)
+		r.SendToPresenceIDs(logger, message.PresenceIDs, message.Envelope, message.Reliable)
 	}
 }

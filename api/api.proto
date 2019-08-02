@@ -700,8 +700,6 @@ message Session {
   bool created = 1;
   // Authentication credentials.
   string token = 2;
-  // rUDP specific authentication credentials.
-  string udp_token = 3; // TODO(zyro): will we remove it?
 }
 
 // An object within the storage engine.

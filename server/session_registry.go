@@ -44,11 +44,11 @@ type Session interface {
 	SetUsername(string)
 
 	Expiry() int64
-	Consume(func(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool)
+	Consume()
 
 	Format() SessionFormat
-	Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error
-	SendBytes(isStream bool, mode uint8, payload []byte) error
+	Send(envelope *rtapi.Envelope, reliable bool) error
+	SendBytes(payload []byte, reliable bool) error
 
 	Close(reason string)
 }

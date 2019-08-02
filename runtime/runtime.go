@@ -689,12 +689,13 @@ type MatchData interface {
 	Presence
 	GetOpCode() int64
 	GetData() []byte
+	GetReliable() bool
 	GetReceiveTime() int64
 }
 
 type MatchDispatcher interface {
-	BroadcastMessage(opCode int64, data []byte, presences []Presence, sender Presence) error
-	BroadcastMessageDeferred(opCode int64, data []byte, presences []Presence, sender Presence) error
+	BroadcastMessage(opCode int64, data []byte, presences []Presence, sender Presence, reliable bool) error
+	BroadcastMessageDeferred(opCode int64, data []byte, presences []Presence, sender Presence, reliable bool) error
 	MatchKick(presences []Presence) error
 	MatchLabelUpdate(label string) error
 }
@@ -785,8 +786,8 @@ type NakamaModule interface {
 	StreamUserKick(mode uint8, subject, subcontext, label string, presence Presence) error
 	StreamCount(mode uint8, subject, subcontext, label string) (int, error)
 	StreamClose(mode uint8, subject, subcontext, label string) error
-	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence) error
-	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence) error
+	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence, reliable bool) error
+	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence, reliable bool) error
 
 	SessionDisconnect(ctx context.Context, sessionID, node string) error
 

@@ -14,6 +14,8 @@ import (
 	api "github.com/heroiclabs/nakama/api"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -2051,6 +2053,98 @@ type ConsoleServer interface {
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*empty.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
+}
+
+// UnimplementedConsoleServer can be embedded to have forward compatible implementations.
+type UnimplementedConsoleServer struct {
+}
+
+func (*UnimplementedConsoleServer) Authenticate(ctx context.Context, req *AuthenticateRequest) (*ConsoleSession, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
+}
+func (*UnimplementedConsoleServer) BanUser(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BanUser not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteAccount(ctx context.Context, req *AccountDeleteRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteFriend(ctx context.Context, req *DeleteFriendRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriend not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteGroupUser(ctx context.Context, req *DeleteGroupUserRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteGroupUser not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteStorage(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorage not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteStorageObject(ctx context.Context, req *DeleteStorageObjectRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorageObject not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteUsers(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUsers not implemented")
+}
+func (*UnimplementedConsoleServer) DeleteWalletLedger(ctx context.Context, req *DeleteWalletLedgerRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteWalletLedger not implemented")
+}
+func (*UnimplementedConsoleServer) ExportAccount(ctx context.Context, req *AccountId) (*AccountExport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportAccount not implemented")
+}
+func (*UnimplementedConsoleServer) GetAccount(ctx context.Context, req *AccountId) (*Account, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccount not implemented")
+}
+func (*UnimplementedConsoleServer) GetConfig(ctx context.Context, req *empty.Empty) (*Config, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (*UnimplementedConsoleServer) GetFriends(ctx context.Context, req *AccountId) (*api.Friends, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFriends not implemented")
+}
+func (*UnimplementedConsoleServer) GetGroups(ctx context.Context, req *AccountId) (*api.UserGroupList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
+}
+func (*UnimplementedConsoleServer) GetStatus(ctx context.Context, req *empty.Empty) (*StatusList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
+}
+func (*UnimplementedConsoleServer) GetStorage(ctx context.Context, req *api.ReadStorageObjectId) (*api.StorageObject, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStorage not implemented")
+}
+func (*UnimplementedConsoleServer) GetWalletLedger(ctx context.Context, req *AccountId) (*WalletLedgerList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
+}
+func (*UnimplementedConsoleServer) ListStorage(ctx context.Context, req *ListStorageRequest) (*StorageList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListStorage not implemented")
+}
+func (*UnimplementedConsoleServer) ListUsers(ctx context.Context, req *ListUsersRequest) (*UserList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
+}
+func (*UnimplementedConsoleServer) UnbanUser(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnbanUser not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkCustom(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkDevice(ctx context.Context, req *UnlinkDeviceRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkDevice not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkEmail(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkEmail not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkFacebook(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkFacebook not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkGameCenter(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGameCenter not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkGoogle(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGoogle not implemented")
+}
+func (*UnimplementedConsoleServer) UnlinkSteam(ctx context.Context, req *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkSteam not implemented")
+}
+func (*UnimplementedConsoleServer) UpdateAccount(ctx context.Context, req *UpdateAccountRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccount not implemented")
+}
+func (*UnimplementedConsoleServer) WriteStorageObject(ctx context.Context, req *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
 }
 
 func RegisterConsoleServer(s *grpc.Server, srv ConsoleServer) {
