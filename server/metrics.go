@@ -169,7 +169,7 @@ func (m *Metrics) initStackdriver(logger, startupLogger *zap.Logger, config Conf
 }
 
 func (m *Metrics) initPrometheus(logger, startupLogger *zap.Logger, config Config) {
-	labels := make(map[string]string)
+	labels := make(map[string]string, 2)
 	labels["node_name"] = config.GetName()
 
 	if config.GetMetrics().Namespace != "" {
