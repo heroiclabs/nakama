@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Allow RPC functions to receive and return raw JSON data.
+- Status follow operations now also accept usernames to follow.
 
 ### Changed
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.

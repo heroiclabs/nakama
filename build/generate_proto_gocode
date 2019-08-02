@@ -36,17 +36,17 @@ fi
 protoc_flags=(-I/usr/local/include -I../ -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway)
 
 api_pbfile="../api/api.proto"
-protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${api_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${api_pbfile}" || exit 1
 
 apigrpc_pbfile="../apigrpc/apigrpc.proto"
-protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${apigrpc_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${apigrpc_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${apigrpc_pbfile}" || exit 1
 
 console_pbfile="../console/console.proto"
-protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${console_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${console_pbfile}" || exit 1
-protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${console_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${console_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--grpc-gateway_out=logtostderr=true:../" "${console_pbfile}" || exit 1
+#protoc "${protoc_flags[@]}" "--swagger_out=logtostderr=true:../" "${console_pbfile}" || exit 1
 
 rtapi_pbfile="../rtapi/realtime.proto"
 protoc "${protoc_flags[@]}" "--go_out=plugins=grpc:../" "${rtapi_pbfile}" || exit 1

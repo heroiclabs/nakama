@@ -361,8 +361,10 @@ message Status {
 
 // Start receiving status updates for some set of users.
 message StatusFollow {
-  // Users to follow.
+  // User IDs to follow.
   repeated string user_ids = 1;
+  // Usernames to follow.
+  repeated string usernames = 2;
 }
 
 // A batch of status updates for a given user.
