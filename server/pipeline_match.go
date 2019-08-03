@@ -315,7 +315,7 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 			return
 		}
 
-		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data, incoming.Reliable == nil || incoming.Reliable.Value, time.Now().UTC().UnixNano()/int64(time.Millisecond))
+		p.matchRegistry.SendData(matchID, matchIDComponents[1], session.UserID(), session.ID(), session.Username(), p.node, incoming.OpCode, incoming.Data, incoming.Reliable, time.Now().UTC().UnixNano()/int64(time.Millisecond))
 		return
 	}
 
@@ -396,8 +396,8 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 		},
 		OpCode:   incoming.OpCode,
 		Data:     incoming.Data,
-		Reliable: incoming.Reliable == nil || incoming.Reliable.Value,
+		Reliable: incoming.Reliable,
 	}}}
 
-	p.router.SendToPresenceIDs(logger, presenceIDs, outgoing, incoming.Reliable == nil || incoming.Reliable.Value)
+	p.router.SendToPresenceIDs(logger, presenceIDs, outgoing, incoming.Reliable)
 }

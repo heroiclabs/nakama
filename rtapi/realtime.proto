@@ -272,7 +272,7 @@ message MatchDataSend {
   // List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
   repeated UserPresence presences = 4;
   // True if the data should be sent reliably, false otherwise.
-  google.protobuf.BoolValue reliable = 5;
+  bool reliable = 5;
 }
 
 // Join an existing realtime match.
