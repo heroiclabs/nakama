@@ -88,7 +88,6 @@ package runtime
 import (
 	"context"
 	"database/sql"
-
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 )
@@ -367,10 +366,10 @@ type Initializer interface {
 	RegisterAfterListChannelMessages(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error) error
 
 	// RegisterBeforeListChannelMessages can be used to perform additional logic before listing friends.
-	RegisterBeforeListFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
+	RegisterBeforeListFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error)) error
 
 	// RegisterAfterListFriends can be used to perform additional logic after friends are listed.
-	RegisterAfterListFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Friends) error) error
+	RegisterAfterListFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.FriendList) error) error
 
 	// RegisterBeforeAddFriends can be used to perform additional logic before friends are added.
 	RegisterBeforeAddFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error)) error
@@ -826,6 +825,6 @@ type NakamaModule interface {
 	GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
 	GroupDelete(ctx context.Context, id string) error
 	GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error
-	GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error)
-	UserGroupsList(ctx context.Context, userID string) ([]*api.UserGroupList_UserGroup, error)
+	GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error)
+	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, error)
 }

@@ -15,10 +15,14 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -32,7 +36,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetFriendIDs(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.Friends, error) {
+var ErrFriendInvalidCursor = errors.New("friend cursor invalid")
+
+type edgeListCursor struct {
+	// ID fields.
+	State    int64
+	Position int64
+}
+
+// Only used to get all friend IDs for the console. NOTE: Not intended for use in client/runtime APIs.
+func GetFriendIDs(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.FriendList, error) {
 	query := `
 SELECT id, state
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
@@ -72,24 +85,61 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		return nil, err
 	}
 
-	return &api.Friends{Friends: friends}, nil
+	return &api.FriendList{Friends: friends}, nil
 }
 
-func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Friends, error) {
+func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.FriendList, error) {
+	var incomingCursor *edgeListCursor
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, ErrFriendInvalidCursor
+		} else {
+			incomingCursor = &edgeListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+				return nil, ErrFriendInvalidCursor
+			}
+		}
+
+		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
+		if state != nil && int64(state.Value) != incomingCursor.State {
+			return nil, ErrFriendInvalidCursor
+		}
+	}
+
+	params := make([]interface{}, 0, 4)
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
-	create_time, users.update_time, state
+	create_time, users.update_time, state, position
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
+	params = append(params, userID)
+	if state != nil {
+		// Assumes the state has already been validated before this function.
+		query += " AND state = $2"
+		params = append(params, state.Value)
+	}
+	if incomingCursor != nil {
+		query += " AND (source_id, state, position) >= ($1, $2, $3)"
+		if state == nil {
+			params = append(params, incomingCursor.State)
+		}
+		params = append(params, incomingCursor.Position)
+	}
+	if limit != 0 {
+		// Console API can select all friends in one request. Client/runtime calls will set a non-0 limit.
+		params = append(params, limit+1)
+		query += " LIMIT $"+strconv.Itoa(len(params))
+	}
 
-	rows, err := db.QueryContext(ctx, query, userID)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving friends.", zap.Error(err))
 		return nil, err
 	}
 	defer rows.Close()
 
-	friends := make([]*api.Friend, 0)
+	friends := make([]*api.Friend, 0, limit)
+	var outgoingCursor string
 
 	for rows.Next() {
 		var id string
@@ -103,10 +153,21 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var state sql.NullInt64
+		var position sql.NullInt64
 
-		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &state); err != nil {
+		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &state, &position); err != nil {
 			logger.Error("Error retrieving friends.", zap.Error(err))
 			return nil, err
+		}
+
+		if limit != 0 && len(friends) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(&edgeListCursor{State: state.Int64, Position: position.Int64}); err != nil {
+				logger.Error("Error creating friend list cursor", zap.Error(err))
+				return nil, err
+			}
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			break
 		}
 
 		friendID := uuid.FromStringOrNil(id)
@@ -141,7 +202,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		return nil, err
 	}
 
-	return &api.Friends{Friends: friends}, nil
+	return &api.FriendList{Friends: friends, Cursor: outgoingCursor}, nil
 }
 
 func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {

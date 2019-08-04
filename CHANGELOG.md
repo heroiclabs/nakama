@@ -7,17 +7,29 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Allow RPC functions to receive and return raw JSON data.
 - Status follow operations now also accept usernames to follow.
+- Pagination support for friends listing operations.
+- Filtering by friend state in friends listing operations.
+- Pagination support for group users listing operations.
+- Filtering by user state in group users listing operations.
+- Pagination support for user groups listing operations.
+- Filtering by group state in user groups listing operations.
 
 ### Changed
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
 - Errors from runtime before hooks no longer close the session.
 - Switch prometheus metrics to use labels instead of a prefix.
 - Add flag on realtime socket messages that will support optional reliability.
+- Friends listing pages are now limited to max 100 results each.
+- Group users listing pages are now limited to max 100 results each.
+- User groups listing pages are now limited to max 100 results each.
+- Group users listing now includes disabled (banned) users.
+- User groups listing now includes disabled groups.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
 - Ensure the matchmaker cannot match together tickets from the same session.
 - Handle leaderboard deletes shortly before a scheduled reset.
+- Listing user groups no longer returns an error when the user is a member of zero groups.
 
 ## [2.6.0] - 2019-07-01
 ### Added

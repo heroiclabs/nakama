@@ -1634,13 +1634,26 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID stri
 	return KickGroupUsers(ctx, n.logger, n.db, uuid.Nil, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error) {
+func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error) {
 	groupID, err := uuid.FromString(id)
 	if err != nil {
 		return nil, errors.New("expects group ID to be a valid identifier")
 	}
 
-	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID)
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("expects limit to be 1-100")
+	}
+
+	var stateWrapper *wrappers.Int32Value
+	if state != nil {
+		stateValue := *state
+		if stateValue < 0 || stateValue > 3 {
+			return nil, errors.New("expects state to be 0-3")
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+	}
+
+	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
 	if err != nil {
 		return nil, err
 	}
@@ -1648,13 +1661,26 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) (
 	return users.GroupUsers, nil
 }
 
-func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string) ([]*api.UserGroupList_UserGroup, error) {
+func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("expects user ID to be a valid identifier")
 	}
 
-	groups, err := ListUserGroups(ctx, n.logger, n.db, uid)
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("expects limit to be 1-100")
+	}
+
+	var stateWrapper *wrappers.Int32Value
+	if state != nil {
+		stateValue := *state
+		if stateValue < 0 || stateValue > 3 {
+			return nil, errors.New("expects state to be 0-3")
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+	}
+
+	groups, err := ListUserGroups(ctx, n.logger, n.db, uid, limit, stateWrapper, cursor)
 	if err != nil {
 		return nil, err
 	}
