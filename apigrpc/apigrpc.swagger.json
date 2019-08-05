@@ -2572,6 +2572,11 @@
           "type": "boolean",
           "format": "boolean",
           "description": "Mark a group as open or not where only admins can accept members."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of group members."
         }
       },
       "description": "Create a group with the current user as owner."

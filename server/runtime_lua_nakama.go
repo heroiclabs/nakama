@@ -4913,8 +4913,8 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 	maxCount := l.OptInt(9, 100)
-	if maxCount < 1 || maxCount > 100 {
-		l.ArgError(9, "expects max_count to be >= 1 and <= 100")
+	if maxCount < 1 {
+		l.ArgError(9, "expects max_count to be >= 1")
 		return 0
 	}
 

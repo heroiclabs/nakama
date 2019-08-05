@@ -54,7 +54,15 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 		return nil, status.Error(codes.InvalidArgument, "Group name must be set.")
 	}
 
-	group, err := CreateGroup(ctx, s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), -1)
+	maxCount := 100
+	if mc := in.MaxCount; mc != 0 {
+		if mc < 1 {
+			return nil, status.Error(codes.InvalidArgument, "Group max count must be >= 1 when set.")
+		}
+		maxCount = int(mc)
+	}
+
+	group, err := CreateGroup(ctx, s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), maxCount)
 	if err != nil {
 		if err == ErrGroupNameInUse {
 			return nil, status.Error(codes.InvalidArgument, "Group name is in use.")

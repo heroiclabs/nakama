@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Filtering by user state in group users listing operations.
 - Pagination support for user groups listing operations.
 - Filtering by group state in user groups listing operations.
+- Allow max count to be set when creating groups from client calls.
 
 ### Changed
 - Use Go 1.12.7 on Alpine 3.10 as base Docker container image and native builds.
@@ -25,12 +26,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - User groups listing pages are now limited to max 100 results each.
 - Group users listing now includes disabled (banned) users.
 - User groups listing now includes disabled groups.
+- Remove hard cap on maximum number of users per group.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
 - Ensure the matchmaker cannot match together tickets from the same session.
 - Handle leaderboard deletes shortly before a scheduled reset.
 - Listing user groups no longer returns an error when the user is a member of zero groups.
+- Go runtime group creation now correctly validates max count.
 
 ## [2.6.0] - 2019-07-01
 ### Added

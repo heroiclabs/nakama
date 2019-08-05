@@ -244,6 +244,8 @@ message CreateGroupRequest {
   string avatar_url = 4;
   // Mark a group as open or not where only admins can accept members.
   bool open = 5;
+  // Maximum number of group members.
+  int32 max_count = 6;
 }
 
 // Delete one or more friends for the current user.

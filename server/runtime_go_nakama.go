@@ -1539,8 +1539,8 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 		metadataStr = string(metadataBytes)
 	}
 
-	if maxCount < 0 || maxCount > 100 {
-		return nil, errors.New("expects max_count to be > 0 and <= 100")
+	if maxCount < 1 {
+		return nil, errors.New("expects max_count to be >= 1")
 	}
 
 	return CreateGroup(ctx, n.logger, n.db, uid, cid, name, langTag, description, avatarUrl, metadataStr, open, maxCount)
