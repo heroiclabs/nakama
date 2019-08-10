@@ -39,13 +39,15 @@ import (
 )
 
 var (
-	ErrGroupNameInUse        = errors.New("group name in use")
-	ErrGroupPermissionDenied = errors.New("group permission denied")
-	ErrGroupNoUpdateOps      = errors.New("no group updates")
-	ErrGroupNotUpdated       = errors.New("group not updated")
-	ErrGroupNotFound         = errors.New("group not found")
-	ErrGroupFull             = errors.New("group is full")
-	ErrGroupLastSuperadmin   = errors.New("user is last group superadmin")
+	ErrGroupNameInUse         = errors.New("group name in use")
+	ErrGroupPermissionDenied  = errors.New("group permission denied")
+	ErrGroupNoUpdateOps       = errors.New("no group updates")
+	ErrGroupNotUpdated        = errors.New("group not updated")
+	ErrGroupNotFound          = errors.New("group not found")
+	ErrGroupFull              = errors.New("group is full")
+	ErrGroupLastSuperadmin    = errors.New("user is last group superadmin")
+  ErrGroupUserInvalidCursor = errors.New("group user cursor invalid")
+  ErrUserGroupInvalidCursor = errors.New("user group cursor invalid")
 )
 
 type groupListCursor struct {
@@ -783,16 +785,52 @@ RETURNING state`
 	return nil
 }
 
-func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID) (*api.GroupUserList, error) {
+func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.GroupUserList, error) {
+	var incomingCursor *edgeListCursor
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, ErrGroupUserInvalidCursor
+		} else {
+			incomingCursor = &edgeListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+				return nil, ErrGroupUserInvalidCursor
+			}
+		}
+
+		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
+		if state != nil && int64(state.Value) != incomingCursor.State {
+			return nil, ErrGroupUserInvalidCursor
+		}
+	}
+
+	params := make([]interface{}, 0, 4)
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.lang_tag, u.location, u.timezone, u.metadata,
 	u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.edge_count,
-	u.create_time, u.update_time, ge.state
+	u.create_time, u.update_time, ge.state, ge.position
 FROM users u, group_edge ge
-WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-01-01 00:00:00 UTC'`
+WHERE u.id = ge.destination_id AND ge.source_id = $1` // AND u.disable_time = '1970-01-01 00:00:00 UTC'`
+	params = append(params, groupID)
+	if state != nil {
+		// Assumes the state has already been validated before this function.
+		query += " AND ge.state = $2"
+		params = append(params, state.Value)
+	}
+	if incomingCursor != nil {
+		query += " AND (ge.source_id, ge.state, ge.position) >= ($1, $2, $3)"
+		if state == nil {
+			params = append(params, incomingCursor.State)
+		}
+		params = append(params, incomingCursor.Position)
+	}
+	if limit != 0 {
+		// Console API can select all group users in one request. Client/runtime calls will set a non-0 limit.
+		params = append(params, limit+1)
+		query += " LIMIT $"+strconv.Itoa(len(params))
+	}
 
-	rows, err := db.QueryContext(ctx, query, groupID)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrGroupNotFound
@@ -803,7 +841,9 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 	}
 	defer rows.Close()
 
-	groupUsers := make([]*api.GroupUserList_GroupUser, 0)
+	groupUsers := make([]*api.GroupUserList_GroupUser, 0, limit)
+	var outgoingCursor string
+
 	for rows.Next() {
 		var id string
 		var displayName sql.NullString
@@ -821,14 +861,25 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var state sql.NullInt64
+		var position sql.NullInt64
 
 		if err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-			&facebook, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state); err != nil {
+			&facebook, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state, &position); err != nil {
 			if err == sql.ErrNoRows {
 				return nil, ErrGroupNotFound
 			}
 			logger.Error("Could not parse rows when listing users in a group.", zap.Error(err), zap.String("group_id", groupID.String()))
 			return nil, err
+		}
+
+		if limit != 0 && len(groupUsers) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(&edgeListCursor{State: state.Int64, Position: position.Int64}); err != nil {
+				logger.Error("Error creating group user list cursor", zap.Error(err))
+				return nil, err
+			}
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			break
 		}
 
 		userID := uuid.Must(uuid.FromString(id))
@@ -861,19 +912,54 @@ WHERE u.id = ge.source_id AND ge.destination_id = $1 AND u.disable_time = '1970-
 		groupUsers = append(groupUsers, groupUser)
 	}
 
-	return &api.GroupUserList{GroupUsers: groupUsers}, nil
+	return &api.GroupUserList{GroupUsers: groupUsers, Cursor: outgoingCursor}, nil
 }
 
-func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*api.UserGroupList, error) {
-	query := `
-SELECT id, creator_id, name, description, avatar_url, 
-lang_tag, metadata, groups.state, edge_count, max_count, 
-create_time, groups.update_time, group_edge.state
-FROM groups 
-JOIN group_edge ON (group_edge.source_id = id)
-WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC'`
+func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.UserGroupList, error) {
+	var incomingCursor *edgeListCursor
+	if cursor != "" {
+		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+			return nil, ErrUserGroupInvalidCursor
+		} else {
+			incomingCursor = &edgeListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+				return nil, ErrUserGroupInvalidCursor
+			}
+		}
 
-	rows, err := db.QueryContext(ctx, query, userID)
+		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
+		if state != nil && int64(state.Value) != incomingCursor.State {
+			return nil, ErrUserGroupInvalidCursor
+		}
+	}
+
+	params := make([]interface{}, 0, 4)
+	query := `
+SELECT g.id, g.creator_id, g.name, g.description, g.avatar_url,
+g.lang_tag, g.metadata, g.state, g.edge_count, g.max_count,
+g.create_time, g.update_time, ge.state, ge.position
+FROM groups g, group_edge ge
+WHERE g.id = ge.destination_id AND ge.source_id = $1` // AND g.disable_time = '1970-01-01 00:00:00 UTC'`
+	params = append(params, userID)
+	if state != nil {
+		// Assumes the state has already been validated before this function.
+		query += " AND ge.state = $2"
+		params = append(params, state.Value)
+	}
+	if incomingCursor != nil {
+		query += " AND (ge.source_id, ge.state, ge.position) >= ($1, $2, $3)"
+		if state == nil {
+			params = append(params, incomingCursor.State)
+		}
+		params = append(params, incomingCursor.Position)
+	}
+	if limit != 0 {
+		// Console API can select all user groups in one request. Client/runtime calls will set a non-0 limit.
+		params = append(params, limit+1)
+		query += " LIMIT $"+strconv.Itoa(len(params))
+	}
+
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrGroupNotFound
@@ -883,7 +969,9 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC
 	}
 	defer rows.Close()
 
-	userGroups := make([]*api.UserGroupList_UserGroup, 0)
+	userGroups := make([]*api.UserGroupList_UserGroup, 0, limit)
+	var outgoingCursor string
+
 	for rows.Next() {
 		var id string
 		var creatorID sql.NullString
@@ -898,15 +986,25 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var userState sql.NullInt64
+		var userPosition sql.NullInt64
 
-		if err := rows.Scan(&id, &creatorID, &name,
-			&description, &avatarURL, &lang, &metadata, &state,
-			&edgeCount, &maxCount, &createTime, &updateTime, &userState); err != nil {
+		if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &lang, &metadata, &state,
+			&edgeCount, &maxCount, &createTime, &updateTime, &userState, &userPosition); err != nil {
 			if err == sql.ErrNoRows {
-				return nil, ErrGroupNotFound
+				return &api.UserGroupList{UserGroups: make([]*api.UserGroupList_UserGroup, 0)}, nil
 			}
 			logger.Error("Could not parse rows when listing groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
 			return nil, err
+		}
+
+		if limit != 0 && len(userGroups) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(&edgeListCursor{State: userState.Int64, Position: userPosition.Int64}); err != nil {
+				logger.Error("Error creating group user list cursor", zap.Error(err))
+				return nil, err
+			}
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			break
 		}
 
 		open := true
@@ -939,7 +1037,7 @@ WHERE group_edge.destination_id = $1 AND disable_time = '1970-01-01 00:00:00 UTC
 		userGroups = append(userGroups, userGroup)
 	}
 
-	return &api.UserGroupList{UserGroups: userGroups}, nil
+	return &api.UserGroupList{UserGroups: userGroups, Cursor: outgoingCursor}, nil
 }
 
 func GetGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string) ([]*api.Group, error) {

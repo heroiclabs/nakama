@@ -244,6 +244,8 @@ message CreateGroupRequest {
   string avatar_url = 4;
   // Mark a group as open or not where only admins can accept members.
   bool open = 5;
+  // Maximum number of group members.
+  int32 max_count = 6;
 }
 
 // Delete one or more friends for the current user.
@@ -319,9 +321,11 @@ message Friend {
 }
 
 // A collection of zero or more friends of the user.
-message Friends {
+message FriendList {
   // The Friend objects.
   repeated Friend friends = 1;
+  // Cursor for the next page of results, if any.
+  string cursor = 2;
 }
 
 // Fetch a batch of zero or more users from the server.
@@ -394,6 +398,8 @@ message GroupUserList {
 
   // User-role pairs for a group.
   repeated GroupUser group_users = 1;
+  // Cursor for the next page of results, if any.
+  string cursor = 2;
 }
 
 // Import Facebook friends into the current user's account.
@@ -456,9 +462,9 @@ message LeaderboardRecord {
 message LeaderboardRecordList {
   // A list of leaderboard records.
   repeated LeaderboardRecord records = 1;
-  // A batched set of leaderobard records belonging to specified owners.
+  // A batched set of leaderboard records belonging to specified owners.
   repeated LeaderboardRecord owner_records = 2;
-  // The cursor to send when retireving the next page, if any.
+  // The cursor to send when retrieving the next page, if any.
   string next_cursor = 3;
   // The cursor to send when retrieving the previous page, if any.
   string prev_cursor = 4;
@@ -490,6 +496,16 @@ message ListChannelMessagesRequest {
   string cursor = 4;
 }
 
+// List friends for a user.
+message ListFriendsRequest {
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 1;
+  // The friend state to list.
+  google.protobuf.Int32Value state = 2;
+  // An optional next page cursor.
+  string cursor = 3;
+}
+
 // List groups based on given filters.
 message ListGroupsRequest {
   // List groups that contain this value in their names.
@@ -504,6 +520,12 @@ message ListGroupsRequest {
 message ListGroupUsersRequest {
   // The group ID to list from.
   string group_id = 1;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 2;
+  // The group user state to list.
+  google.protobuf.Int32Value state = 3;
+  // An optional next page cursor.
+  string cursor = 4;
 }
 
 // List leaerboard records from a given leaderboard around the owner.
@@ -614,6 +636,12 @@ message ListTournamentsRequest {
 message ListUserGroupsRequest {
   // ID of the user.
   string user_id = 1;
+  // Max number of records to return. Between 1 and 100.
+  google.protobuf.Int32Value limit = 2;
+  // The user group state to list.
+  google.protobuf.Int32Value state = 3;
+  // An optional next page cursor.
+  string cursor = 4;
 }
 
 // Represents a realtime match.
@@ -700,8 +728,6 @@ message Session {
   bool created = 1;
   // Authentication credentials.
   string token = 2;
-  // rUDP specific authentication credentials.
-  string udp_token = 3; // TODO(zyro): will we remove it?
 }
 
 // An object within the storage engine.
@@ -754,7 +780,7 @@ message StorageObjects {
 message StorageObjectList {
   // The list of storage objects.
   repeated StorageObject objects = 1;
-  // The cursor associated with the query a page of results.
+  // The cursor for the next page of results, if any.
   string cursor = 2;
 }
 
@@ -908,6 +934,8 @@ message UserGroupList {
 
   // Group-role pairs for a user.
   repeated UserGroup user_groups = 1;
+  // Cursor for the next page of results, if any.
+  string cursor = 2;
 }
 
 // A collection of zero or more users.

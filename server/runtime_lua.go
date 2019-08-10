@@ -308,12 +308,12 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						return result.(*api.ListChannelMessagesRequest), nil, 0
 					}
 				case "listfriends":
-					beforeReqFunctions.beforeListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
-						_, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, nil)
-						if err != nil {
-							return err, code
+					beforeReqFunctions.beforeListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
 						}
-						return nil, 0
+						return result.(*api.ListFriendsRequest), nil, 0
 					}
 				case "addfriends":
 					beforeReqFunctions.beforeAddFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code) {
@@ -734,7 +734,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, in)
 					}
 				case "listfriends":
-					afterReqFunctions.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.Friends) error {
+					afterReqFunctions.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, out *api.FriendList) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, expiry, clientIP, clientPort, out, nil)
 					}
 				case "addfriends":

@@ -179,11 +179,16 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
 	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, matchmaker, tracker, runtime, jsonpbMarshaler, jsonpbUnmarshaler, pipeline)).Methods("GET")
 
+	// Another nested router to hijack RPC requests bound for GRPC Gateway.
+	grpcGatewayMux := mux.NewRouter()
+	grpcGatewayMux.HandleFunc("/v2/rpc/{id:.*}", s.RpcFuncHttp).Methods("GET", "POST")
+	grpcGatewayMux.NewRoute().Handler(grpcGateway)
+
 	// Enable stats recording on all request paths except:
 	// "/" is not tracked at all.
 	// "/ws" implements its own separate tracking.
 	handlerWithStats := &ochttp.Handler{
-		Handler:          grpcGateway,
+		Handler:          grpcGatewayMux,
 		IsPublicEndpoint: true,
 	}
 

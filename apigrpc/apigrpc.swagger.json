@@ -867,10 +867,35 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiFriends"
+              "$ref": "#/definitions/apiFriendList"
             }
           }
         },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "state",
+            "description": "The friend state to list.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "An optional next page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -895,7 +920,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -905,7 +931,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1328,6 +1355,29 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "state",
+            "description": "The group user state to list.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "An optional next page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1363,7 +1413,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "limit",
@@ -1618,7 +1669,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1988,7 +2040,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "limit",
@@ -2004,6 +2057,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
@@ -2140,7 +2201,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -2150,7 +2212,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "facebook_ids",
@@ -2160,7 +2223,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -2186,6 +2250,29 @@
             "description": "ID of the user.",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "state",
+            "description": "The user group state to list.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "An optional next page cursor.",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -2485,6 +2572,11 @@
           "type": "boolean",
           "format": "boolean",
           "description": "Mark a group as open or not where only admins can accept members."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of group members."
         }
       },
       "description": "Create a group with the current user as owner."
@@ -2535,7 +2627,7 @@
       },
       "description": "A friend of a user."
     },
-    "apiFriends": {
+    "apiFriendList": {
       "type": "object",
       "properties": {
         "friends": {
@@ -2544,6 +2636,10 @@
             "$ref": "#/definitions/apiFriend"
           },
           "description": "The Friend objects."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
         }
       },
       "description": "A collection of zero or more friends of the user."
@@ -2633,6 +2729,10 @@
             "$ref": "#/definitions/GroupUserListGroupUser"
           },
           "description": "User-role pairs for a group."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
         }
       },
       "description": "A list of users belonging to a group, along with their role."
@@ -2714,11 +2814,11 @@
           "items": {
             "$ref": "#/definitions/apiLeaderboardRecord"
           },
-          "description": "A batched set of leaderobard records belonging to specified owners."
+          "description": "A batched set of leaderboard records belonging to specified owners."
         },
         "next_cursor": {
           "type": "string",
-          "description": "The cursor to send when retireving the next page, if any."
+          "description": "The cursor to send when retrieving the next page, if any."
         },
         "prev_cursor": {
           "type": "string",
@@ -2878,10 +2978,6 @@
         "token": {
           "type": "string",
           "description": "Authentication credentials."
-        },
-        "udp_token": {
-          "type": "string",
-          "description": "rUDP specific authentication credentials."
         }
       },
       "description": "A user's session used to authenticate messages."
@@ -2979,7 +3075,7 @@
         },
         "cursor": {
           "type": "string",
-          "description": "The cursor associated with the query a page of results."
+          "description": "The cursor for the next page of results, if any."
         }
       },
       "description": "List of storage objects."
@@ -3273,6 +3369,10 @@
             "$ref": "#/definitions/UserGroupListUserGroup"
           },
           "description": "Group-role pairs for a user."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
         }
       },
       "description": "A list of groups belonging to a user, along with the user's role in each group."

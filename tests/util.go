@@ -52,13 +52,11 @@ var (
 
 type DummyMessageRouter struct{}
 
-func (d *DummyMessageRouter) SendDeferred(*zap.Logger, bool, uint8, []*server.DeferredMessage) {
+func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*server.DeferredMessage) {
 	panic("unused")
 }
-
-func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, bool, uint8, *rtapi.Envelope) {
-}
-func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope) {}
+func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope, bool) {}
+func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope, bool) {}
 
 type DummySession struct {
 	messages []*rtapi.Envelope
@@ -81,8 +79,7 @@ func (d *DummySession) SetUsername(string) {}
 func (d *DummySession) Expiry() int64 {
 	return int64(0)
 }
-func (d *DummySession) Consume(func(logger *zap.Logger, session server.Session, envelope *rtapi.Envelope) bool) {
-}
+func (d *DummySession) Consume() {}
 func (d *DummySession) Format() server.SessionFormat {
 	return server.SessionFormatJson
 }
@@ -95,11 +92,11 @@ func (d *DummySession) ClientPort() string {
 func (d *DummySession) Context() context.Context {
 	return context.Background()
 }
-func (d *DummySession) Send(isStream bool, mode uint8, envelope *rtapi.Envelope) error {
+func (d *DummySession) Send(envelope *rtapi.Envelope, reliable bool) error {
 	d.messages = append(d.messages, envelope)
 	return nil
 }
-func (d *DummySession) SendBytes(isStream bool, mode uint8, payload []byte) error {
+func (d *DummySession) SendBytes(payload []byte, reliable bool) error {
 	envelope := &rtapi.Envelope{}
 	jsonpbUnmarshaler.Unmarshal(bytes.NewReader(payload), envelope)
 	d.messages = append(d.messages, envelope)

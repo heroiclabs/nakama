@@ -29,7 +29,6 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var (
@@ -170,13 +169,15 @@ func (m *Metrics) initStackdriver(logger, startupLogger *zap.Logger, config Conf
 }
 
 func (m *Metrics) initPrometheus(logger, startupLogger *zap.Logger, config Config) {
-	prefix := strings.Replace(config.GetName(), "-", "_", -1)
+	labels := make(map[string]string, 2)
+	labels["node_name"] = config.GetName()
+
 	if config.GetMetrics().Namespace != "" {
-		prefix += "_" + strings.Replace(config.GetMetrics().Namespace, "-", "_", -1)
+		labels["namespace"] = config.GetMetrics().Namespace
 	}
 
 	exporter, err := ocprometheus.NewExporter(ocprometheus.Options{
-		Namespace: prefix,
+		ConstLabels: labels,
 		OnError: func(err error) {
 			logger.Error("Could not upload data to Prometheus", zap.Error(err))
 		},

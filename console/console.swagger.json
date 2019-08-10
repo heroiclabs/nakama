@@ -170,7 +170,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiFriends"
+              "$ref": "#/definitions/apiFriendList"
             }
           }
         },
@@ -1054,7 +1054,7 @@
       },
       "description": "A friend of a user."
     },
-    "apiFriends": {
+    "apiFriendList": {
       "type": "object",
       "properties": {
         "friends": {
@@ -1063,6 +1063,10 @@
             "$ref": "#/definitions/apiFriend"
           },
           "description": "The Friend objects."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
         }
       },
       "description": "A collection of zero or more friends of the user."
@@ -1376,6 +1380,10 @@
             "$ref": "#/definitions/UserGroupListUserGroup"
           },
           "description": "Group-role pairs for a user."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
         }
       },
       "description": "A list of groups belonging to a user, along with the user's role in each group."

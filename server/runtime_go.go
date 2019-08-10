@@ -386,28 +386,28 @@ func (ri *RuntimeGoInitializer) RegisterAfterListChannelMessages(fn func(ctx con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterBeforeListFriends(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) error) error {
-	ri.beforeReq.beforeListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeListFriends(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error)) error {
+	ri.beforeReq.beforeListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, "", clientIP, clientPort)
-		fnErr := fn(ctx, ri.logger, ri.db, ri.nk)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
 		if fnErr != nil {
 			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					// If error is present but code is invalid then default to 13 (Internal) as the error code.
-					return runtimeErr, codes.Internal
+					return result, runtimeErr, codes.Internal
 				}
-				return runtimeErr, codes.Code(runtimeErr.Code)
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
 			}
 			// Not a runtime error that contains a code.
-			return fnErr, codes.Internal
+			return result, fnErr, codes.Internal
 		}
-		return nil, codes.OK
+		return result, nil, codes.OK
 	}
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterListFriends(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Friends) error) error {
-	ri.afterReq.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.Friends) error {
+func (ri *RuntimeGoInitializer) RegisterAfterListFriends(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.FriendList) error) error {
+	ri.afterReq.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, expiry int64, clientIP, clientPort string, in *api.FriendList) error {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, "", clientIP, clientPort)
 		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}

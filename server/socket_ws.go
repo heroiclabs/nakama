@@ -85,7 +85,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		_, span := trace.StartSpan(SocketWsStatsCtx, "nakama.session.ws")
 
 		// Wrap the connection for application handling.
-		session := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker, runtime)
+		session := NewSessionWS(logger, config, format, userID, username, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker, pipeline, runtime)
 
 		// Add to the session registry.
 		sessionRegistry.Add(session)
@@ -97,7 +97,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		}
 
 		// Allow the server to begin processing incoming messages from this session.
-		session.Consume(pipeline.ProcessRequest)
+		session.Consume()
 
 		// Mark the end of the session.
 		span.End()

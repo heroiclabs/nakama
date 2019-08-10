@@ -76,7 +76,7 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 					Notifications: ns,
 				},
 			},
-		})
+		}, true)
 	}
 
 	return nil

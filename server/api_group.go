@@ -54,7 +54,15 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 		return nil, status.Error(codes.InvalidArgument, "Group name must be set.")
 	}
 
-	group, err := CreateGroup(ctx, s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), -1)
+	maxCount := 100
+	if mc := in.MaxCount; mc != 0 {
+		if mc < 1 {
+			return nil, status.Error(codes.InvalidArgument, "Group max count must be >= 1 when set.")
+		}
+		maxCount = int(mc)
+	}
+
+	group, err := CreateGroup(ctx, s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), maxCount)
 	if err != nil {
 		if err == ErrGroupNameInUse {
 			return nil, status.Error(codes.InvalidArgument, "Group name is in use.")
@@ -561,8 +569,26 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	groupUsers, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID)
+	limit := 100
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
+	}
+
+	state := in.GetState()
+	if state != nil {
+		if state := in.GetState().Value; state < 0 || state > 3 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 3.")
+		}
+	}
+
+	groupUsers, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, limit, state, in.GetCursor())
 	if err != nil {
+		if err == ErrGroupUserInvalidCursor {
+			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to list users in a group.")
 	}
 
@@ -612,8 +638,26 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	userGroups, err := ListUserGroups(ctx, s.logger, s.db, userID)
+	limit := 100
+	if in.GetLimit() != nil {
+		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
+		}
+		limit = int(in.GetLimit().Value)
+	}
+
+	state := in.GetState()
+	if state != nil {
+		if state := in.GetState().Value; state < 0 || state > 3 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 3.")
+		}
+	}
+
+	userGroups, err := ListUserGroups(ctx, s.logger, s.db, userID, limit, state, in.GetCursor())
 	if err != nil {
+		if err == ErrUserGroupInvalidCursor {
+			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to list groups for a user.")
 	}
 

@@ -19,6 +19,7 @@ systemctl status nakama.service
 
 echo "Stopping all"
 systemctl stop nakama.service
+sleep 30
 cockroach quit --insecure
 
 echo "Complete"

@@ -4,6 +4,10 @@
 ufw limit ssh
 ufw allow https
 ufw allow http
+ufw allow 7350
+ufw allow 7351
+ufw allow 7349
+ufw allow 7348
 ufw --force enable
 
 # Start Cockroach

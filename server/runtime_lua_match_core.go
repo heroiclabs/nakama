@@ -427,7 +427,7 @@ func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <
 		presence.RawSetString("username", lua.LString(msg.Username))
 		presence.RawSetString("node", lua.LString(msg.Node))
 
-		in := r.vm.CreateTable(0, 4)
+		in := r.vm.CreateTable(0, 5)
 		in.RawSetString("sender", presence)
 		in.RawSetString("op_code", lua.LNumber(msg.OpCode))
 		if msg.Data != nil {
@@ -435,6 +435,7 @@ func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <
 		} else {
 			in.RawSetString("data", lua.LNil)
 		}
+		in.RawSetString("reliable", lua.LBool(msg.Reliable))
 		in.RawSetString("receive_time_ms", lua.LNumber(msg.ReceiveTime))
 
 		input.RawSetInt(i, in)
@@ -508,20 +509,21 @@ func (r *RuntimeLuaMatchCore) Cancel() {
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
-	presenceIDs, msg := r.validateBroadcast(l)
+	presenceIDs, msg, reliable := r.validateBroadcast(l)
 	if len(presenceIDs) != 0 {
-		r.router.SendToPresenceIDs(r.logger, presenceIDs, true, StreamModeMatchAuthoritative, msg)
+		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
 	}
 
 	return 0
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessageDeferred(l *lua.LState) int {
-	presenceIDs, msg := r.validateBroadcast(l)
+	presenceIDs, msg, reliable := r.validateBroadcast(l)
 	if len(presenceIDs) != 0 {
 		if err := r.deferMessageFn(&DeferredMessage{
 			PresenceIDs: presenceIDs,
 			Envelope:    msg,
+			Reliable:    reliable,
 		}); err != nil {
 			l.RaiseError("error deferring message broadcast: %v", err)
 		}
@@ -530,14 +532,14 @@ func (r *RuntimeLuaMatchCore) broadcastMessageDeferred(l *lua.LState) int {
 	return 0
 }
 
-func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *rtapi.Envelope) {
+func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *rtapi.Envelope, bool) {
 	opCode := l.CheckInt64(1)
 
 	var dataBytes []byte
 	if data := l.Get(2); data.Type() != lua.LTNil {
 		if data.Type() != lua.LTString {
 			l.ArgError(2, "expects data to be a string or nil")
-			return nil, nil
+			return nil, nil, false
 		}
 		dataBytes = []byte(data.(lua.LString))
 	}
@@ -547,7 +549,7 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 	if filter != nil {
 		fl := filter.Len()
 		if fl == 0 {
-			return nil, nil
+			return nil, nil, false
 		}
 		presenceIDs = make([]*PresenceID, 0, fl)
 		conversionError := false
@@ -590,13 +592,13 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 			presenceIDs = append(presenceIDs, presenceID)
 		})
 		if conversionError {
-			return nil, nil
+			return nil, nil, false
 		}
 	}
 
 	if presenceIDs != nil && len(presenceIDs) == 0 {
 		// Filter is empty, there are no requested message targets.
-		return nil, nil
+		return nil, nil, false
 	}
 
 	sender := l.OptTable(4, nil)
@@ -635,43 +637,43 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 		})
 		if presence.UserId == "" || presence.SessionId == "" || presence.Username == "" {
 			l.ArgError(4, "expects presence to have a valid user_id, session_id, and username")
-			return nil, nil
+			return nil, nil, false
 		}
 		if conversionError {
-			return nil, nil
+			return nil, nil, false
 		}
 	}
 
 	if presenceIDs != nil {
 		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
-		if len(presenceIDs) == 1 {
+		if len(presenceIDs) == 1 && filter != nil {
 			// Shorter validation cycle if there is only one intended recipient.
 			presenceValue := filter.RawGetInt(1)
 			if presenceValue == lua.LNil {
 				l.ArgError(3, "expects each presence to be non-nil")
-				return nil, nil
+				return nil, nil, false
 			}
 			presenceTable, ok := presenceValue.(*lua.LTable)
 			if !ok {
 				l.ArgError(3, "expects each presence to be a table")
-				return nil, nil
+				return nil, nil, false
 			}
 			userIDValue := presenceTable.RawGetString("user_id")
 			if userIDValue == nil {
 				l.ArgError(3, "expects each presence to have a valid user_id")
-				return nil, nil
+				return nil, nil, false
 			}
 			if userIDValue.Type() != lua.LTString {
 				l.ArgError(3, "expects each presence to have a valid user_id")
-				return nil, nil
+				return nil, nil, false
 			}
 			_, err := uuid.FromString(userIDValue.String())
 			if err != nil {
 				l.ArgError(3, "expects each presence to have a valid user_id")
-				return nil, nil
+				return nil, nil, false
 			}
 			if !r.presenceList.Contains(presenceIDs[0]) {
-				return nil, nil
+				return nil, nil, false
 			}
 		} else {
 			actualPresenceIDs := r.presenceList.ListPresenceIDs()
@@ -696,23 +698,26 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 			}
 			if len(presenceIDs) == 0 {
 				// None of the target presenceIDs existed in the list of match members.
-				return nil, nil
+				return nil, nil, false
 			}
 		}
 	}
+
+	reliable := l.OptBool(5, true)
 
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_MatchData{MatchData: &rtapi.MatchData{
 		MatchId:  r.idStr,
 		Presence: presence,
 		OpCode:   opCode,
 		Data:     dataBytes,
+		Reliable: reliable,
 	}}}
 
 	if presenceIDs == nil {
 		presenceIDs = r.presenceList.ListPresenceIDs()
 	}
 
-	return presenceIDs, msg
+	return presenceIDs, msg, reliable
 }
 
 func (r *RuntimeLuaMatchCore) matchKick(l *lua.LState) int {

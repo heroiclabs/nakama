@@ -144,7 +144,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	}
 
 	groups := make([]*api.Group, 0)
-	groupUsers, err := ListUserGroups(ctx, s.logger, s.db, userID)
+	groupUsers, err := ListUserGroups(ctx, s.logger, s.db, userID, 0, nil, "")
 	if err != nil {
 		s.logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", in.Id))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
@@ -232,13 +232,13 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 	return acc, nil
 }
 
-func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.Friends, error) {
+func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.FriendList, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	friends, err := GetFriends(ctx, s.logger, s.db, s.tracker, userID)
+	friends, err := GetFriends(ctx, s.logger, s.db, s.tracker, userID, 0, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's friends.")
@@ -253,7 +253,7 @@ func (s *ConsoleServer) GetGroups(ctx context.Context, in *console.AccountId) (*
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	groups, err := ListUserGroups(ctx, s.logger, s.db, userID)
+	groups, err := ListUserGroups(ctx, s.logger, s.db, userID, 0, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's groups.")

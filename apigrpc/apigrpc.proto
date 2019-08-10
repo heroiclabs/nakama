@@ -358,7 +358,7 @@ service Nakama {
   }
 
   // List all friends for the current user.
-  rpc ListFriends (google.protobuf.Empty) returns (api.Friends) {
+  rpc ListFriends (api.ListFriendsRequest) returns (api.FriendList) {
     option (google.api.http).get = "/v2/friend";
   }
 

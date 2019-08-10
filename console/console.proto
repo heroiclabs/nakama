@@ -141,7 +141,7 @@ service Console {
   }
 
   // Get a user's list of friend relationships.
-  rpc GetFriends (AccountId) returns (nakama.api.Friends) {
+  rpc GetFriends (AccountId) returns (nakama.api.FriendList) {
     option (google.api.http).get = "/v2/console/account/{id}/friend";
   }
 

@@ -676,7 +676,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence) error {
+func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -728,21 +728,22 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, labe
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
 		// No sender.
-		Data: data,
+		Data:     data,
+		Reliable: reliable,
 	}}}
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence) error {
+func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
 		Label: label,
@@ -786,10 +787,10 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return nil
@@ -1538,8 +1539,8 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 		metadataStr = string(metadataBytes)
 	}
 
-	if maxCount < 0 || maxCount > 100 {
-		return nil, errors.New("expects max_count to be > 0 and <= 100")
+	if maxCount < 1 {
+		return nil, errors.New("expects max_count to be >= 1")
 	}
 
 	return CreateGroup(ctx, n.logger, n.db, uid, cid, name, langTag, description, avatarUrl, metadataStr, open, maxCount)
@@ -1633,13 +1634,26 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID stri
 	return KickGroupUsers(ctx, n.logger, n.db, uuid.Nil, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) ([]*api.GroupUserList_GroupUser, error) {
+func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error) {
 	groupID, err := uuid.FromString(id)
 	if err != nil {
 		return nil, errors.New("expects group ID to be a valid identifier")
 	}
 
-	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID)
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("expects limit to be 1-100")
+	}
+
+	var stateWrapper *wrappers.Int32Value
+	if state != nil {
+		stateValue := *state
+		if stateValue < 0 || stateValue > 3 {
+			return nil, errors.New("expects state to be 0-3")
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+	}
+
+	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
 	if err != nil {
 		return nil, err
 	}
@@ -1647,13 +1661,26 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string) (
 	return users.GroupUsers, nil
 }
 
-func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string) ([]*api.UserGroupList_UserGroup, error) {
+func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("expects user ID to be a valid identifier")
 	}
 
-	groups, err := ListUserGroups(ctx, n.logger, n.db, uid)
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("expects limit to be 1-100")
+	}
+
+	var stateWrapper *wrappers.Int32Value
+	if state != nil {
+		stateValue := *state
+		if stateValue < 0 || stateValue > 3 {
+			return nil, errors.New("expects state to be 0-3")
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+	}
+
+	groups, err := ListUserGroups(ctx, n.logger, n.db, uid, limit, stateWrapper, cursor)
 	if err != nil {
 		return nil, err
 	}

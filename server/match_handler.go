@@ -32,6 +32,7 @@ type MatchDataMessage struct {
 	Node        string
 	OpCode      int64
 	Data        []byte
+	Reliable    bool
 	ReceiveTime int64
 }
 
@@ -61,6 +62,9 @@ func (m *MatchDataMessage) GetOpCode() int64 {
 }
 func (m *MatchDataMessage) GetData() []byte {
 	return m.Data
+}
+func (m *MatchDataMessage) GetReliable() bool {
+	return m.Reliable
 }
 func (m *MatchDataMessage) GetReceiveTime() int64 {
 	return m.ReceiveTime
@@ -261,7 +265,7 @@ func loop(mh *MatchHandler) {
 			deferredMessages[i] = msg
 		}
 
-		mh.router.SendDeferred(mh.logger, true, StreamModeMatchAuthoritative, deferredMessages)
+		mh.router.SendDeferred(mh.logger, deferredMessages)
 	}
 
 	// Check if we need to stop the match.

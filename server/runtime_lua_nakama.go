@@ -2838,6 +2838,9 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 		return 0
 	}
 
+	// Check if the message is intended to be sent reliably or not.
+	reliable := l.OptBool(4, true)
+
 	streamWire := &rtapi.Stream{
 		Mode:  int32(stream.Mode),
 		Label: stream.Label,
@@ -2851,15 +2854,16 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	msg := &rtapi.Envelope{Message: &rtapi.Envelope_StreamData{StreamData: &rtapi.StreamData{
 		Stream: streamWire,
 		// No sender.
-		Data: data,
+		Data:     data,
+		Reliable: reliable,
 	}}}
 
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return 0
@@ -3002,12 +3006,15 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 		return 0
 	}
 
+	// Check if the message is intended to be sent reliably or not.
+	reliable := l.OptBool(4, true)
+
 	if len(presenceIDs) == 0 {
 		// Sending to whole stream.
-		n.router.SendToStream(n.logger, stream, msg)
+		n.router.SendToStream(n.logger, stream, msg, reliable)
 	} else {
 		// Sending to a subset of stream users.
-		n.router.SendToPresenceIDs(n.logger, presenceIDs, true, stream.Mode, msg)
+		n.router.SendToPresenceIDs(n.logger, presenceIDs, msg, reliable)
 	}
 
 	return 0
@@ -4906,8 +4913,8 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 	maxCount := l.OptInt(9, 100)
-	if maxCount < 1 || maxCount > 100 {
-		l.ArgError(9, "expects max_count to be >= 1 and <= 100")
+	if maxCount < 1 {
+		l.ArgError(9, "expects max_count to be >= 1")
 		return 0
 	}
 
@@ -5092,7 +5099,25 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 		return 0
 	}
 
-	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID)
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects limit to be 1-100")
+		return 0
+	}
+
+	state := l.OptInt(3, -1)
+	var stateWrapper *wrappers.Int32Value
+	if state != -1 {
+		if state < 0 || state > 3 {
+			l.ArgError(2, "expects state to be 0-3")
+			return 0
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+	}
+
+	cursor := l.OptString(4, "")
+
+	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
 	if err != nil {
 		l.RaiseError("error while trying to list users in a group: %v", err.Error())
 		return 0
@@ -5144,7 +5169,12 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	}
 
 	l.Push(groupUsers)
-	return 1
+	if res.Cursor == "" {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(res.Cursor))
+	}
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
@@ -5154,7 +5184,25 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 		return 0
 	}
 
-	res, err := ListUserGroups(l.Context(), n.logger, n.db, userID)
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects limit to be 1-100")
+		return 0
+	}
+
+	state := l.OptInt(3, -1)
+	var stateWrapper *wrappers.Int32Value
+	if state != -1 {
+		if state < 0 || state > 3 {
+			l.ArgError(2, "expects state to be 0-3")
+			return 0
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+	}
+
+	cursor := l.OptString(4, "")
+
+	res, err := ListUserGroups(l.Context(), n.logger, n.db, userID, limit, stateWrapper, cursor)
 	if err != nil {
 		l.RaiseError("error while trying to list groups for a user: %v", err.Error())
 		return 0
@@ -5194,7 +5242,12 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 	}
 
 	l.Push(userGroups)
-	return 1
+	if res.Cursor == "" {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(res.Cursor))
+	}
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
