@@ -34,6 +34,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Handle leaderboard deletes shortly before a scheduled reset.
 - Listing user groups no longer returns an error when the user is a member of zero groups.
 - Go runtime group creation now correctly validates max count.
+- Consistent expiry calculation in leaderboard records haystack queries.
 
 ## [2.6.0] - 2019-07-01
 ### Added

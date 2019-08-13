@@ -57,18 +57,10 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, ErrLeaderboardNotFound
 	}
 
-	expiryTime := overrideExpiry
-	if expiryTime == 0 {
-		now := time.Now().UTC()
-		if leaderboard.IsTournament() {
-			_, _, expiryTime = calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
-			if expiryTime != 0 && expiryTime <= now.Unix() {
-				// if the expiry time is in the past, we wont have any records to return
-				return &api.LeaderboardRecordList{}, nil
-			}
-		} else if leaderboard.ResetSchedule != nil {
-			expiryTime = leaderboard.ResetSchedule.Next(now).UTC().Unix()
-		}
+	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
+	if !recordsPossible {
+		// If the expiry time is in the past, we wont have any records to return.
+		return &api.LeaderboardRecordList{}, nil
 	}
 
 	records := make([]*api.LeaderboardRecord, 0)
@@ -475,19 +467,19 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, tx *sq
 	return nil
 }
 
-func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int, expiry int64) ([]*api.LeaderboardRecord, error) {
+func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int, overrideExpiry int64) ([]*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
 	}
 
-	sortOrder := leaderboard.SortOrder
-	expiryTime := time.Unix(expiry, 0).UTC()
-	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC()
+	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
+	if !recordsPossible {
+		// If the expiry time is in the past, we wont have any records to return.
+		return make([]*api.LeaderboardRecord, 0), nil
 	}
 
-	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerId, limit, leaderboard.Id, leaderboard.SortOrder, time.Unix(expiryTime, 0).UTC())
 }
 
 func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, rankCache LeaderboardRankCache, ownerId uuid.UUID, limit int, leaderboardId string, sortOrder int, expiryTime time.Time) ([]*api.LeaderboardRecord, error) {
@@ -661,4 +653,22 @@ func parseLeaderboardRecords(logger *zap.Logger, rows *sql.Rows) ([]*api.Leaderb
 	}
 
 	return records, nil
+}
+
+func calculateExpiryOverride(overrideExpiry int64, leaderboard *Leaderboard) (int64, bool) {
+	if overrideExpiry == 0 {
+		if leaderboard.IsTournament() {
+			now := time.Now().UTC()
+			_, _, expiryTime := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
+			if expiryTime != 0 && expiryTime <= now.Unix() {
+				// If the expiry time is in the past, we wont have any records to return.
+				return 0, false
+			}
+			return expiryTime, true
+		} else if leaderboard.ResetSchedule != nil {
+			now := time.Now().UTC()
+			return leaderboard.ResetSchedule.Next(now).UTC().Unix(), true
+		}
+	}
+	return overrideExpiry, true
 }
