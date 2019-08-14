@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -218,6 +219,9 @@ func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) 
 	// Limit the time allowed to ping database and get version to 15 seconds total.
 	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
 	if err = db.PingContext(ctx); err != nil {
+		if strings.HasSuffix(err.Error(), "does not exist (SQLSTATE 3D000)") {
+			multiLogger.Fatal("Database schema not found, run `nakama migrate up`", zap.Error(err))
+		}
 		multiLogger.Fatal("Error pinging database", zap.Error(err))
 	}
 
