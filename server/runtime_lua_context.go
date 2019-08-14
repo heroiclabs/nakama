@@ -171,7 +171,13 @@ func RuntimeLuaConvertLuaValue(lv lua.LValue) interface{} {
 	case lua.LString:
 		return string(v)
 	case lua.LNumber:
-		return float64(v)
+		vf := float64(v)
+		vi := int64(v)
+		if vf == float64(vi) {
+			// If it's a whole number use an actual integer type.
+			return vi
+		}
+		return vf
 	case *lua.LTable:
 		maxn := v.MaxN()
 		if maxn == 0 {

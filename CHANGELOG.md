@@ -35,6 +35,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Listing user groups no longer returns an error when the user is a member of zero groups.
 - Go runtime group creation now correctly validates max count.
 - Consistent expiry calculation in leaderboard records haystack queries.
+- Convert custom SQL query and exec parameters to integers where appropriate.
 
 ## [2.6.0] - 2019-07-01
 ### Added

@@ -304,6 +304,12 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 						return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
 					}
 					wallet[k] = newValue
+				} else if changesetValue, ok := v.(int64); ok {
+					newValue := existingValue + float64(changesetValue)
+					if newValue < 0 {
+						return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
+					}
+					wallet[k] = newValue
 				} else {
 					return nil, fmt.Errorf("update changeset does not match existing wallet value number type at path '%v'", currentPath)
 				}
@@ -325,6 +331,12 @@ func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]inter
 					return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
 				}
 				wallet[k] = changesetValue
+			} else if changesetValue, ok := v.(int64); ok {
+				if changesetValue < 0 {
+					// Do not allow setting negative initial values.
+					return nil, fmt.Errorf("wallet update rejected negative value at path '%v'", currentPath)
+				}
+				wallet[k] = float64(changesetValue)
 			} else {
 				// Incoming value is not a map or float.
 				return nil, fmt.Errorf("unknown update changeset value type at path '%v', expecting map or float64", currentPath)
