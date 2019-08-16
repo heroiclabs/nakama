@@ -17,7 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Log better startup error message when database schema is not set up at all.
 
 ### Changed
-- Use Go 1.12.8 on Alpine 3.10 as base Docker container image and native builds.
+- Use Go 1.12.9 on Alpine 3.10 as base Docker container image and native builds.
 - Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
 - Errors from runtime before hooks no longer close the session.
 - Switch prometheus metrics to use labels instead of a prefix.
