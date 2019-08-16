@@ -124,6 +124,9 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		return nil, err
 	}
 
+	groupId := stream.Subject.String()
+	userIdOne := stream.Subject.String()
+	userIdTwo := stream.Subcontext.String()
 	messages := make([]*api.ChannelMessage, 0, limit)
 	var nextCursor, prevCursor *channelMessageListCursor
 
@@ -156,7 +159,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			return nil, err
 		}
 
-		messages = append(messages, &api.ChannelMessage{
+		message := &api.ChannelMessage{
 			ChannelId:  channelId,
 			MessageId:  dbId,
 			Code:       &wrappers.Int32Value{Value: dbCode},
@@ -166,7 +169,18 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
 			UpdateTime: &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
 			Persistent: &wrappers.BoolValue{Value: true},
-		})
+		}
+		switch stream.Mode {
+		case StreamModeChannel:
+			message.RoomName = stream.Label
+		case StreamModeGroup:
+			message.GroupId = groupId
+		case StreamModeDM:
+			message.UserIdOne = userIdOne
+			message.UserIdTwo = userIdTwo
+		}
+
+		messages = append(messages, message)
 
 		// There can only be a previous page if this is a paginated listing.
 		if incomingCursor != nil && prevCursor == nil {

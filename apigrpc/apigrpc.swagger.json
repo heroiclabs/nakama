@@ -2524,6 +2524,22 @@
           "type": "boolean",
           "format": "boolean",
           "description": "True if the message was persisted to the channel's history, false otherwise."
+        },
+        "room_name": {
+          "type": "string",
+          "description": "The name of the chat room, or an empty string if this message was not sent through a chat room."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "The ID of the group, or an empty string if this message was not sent through a group channel."
+        },
+        "user_id_one": {
+          "type": "string",
+          "description": "The ID of the first DM user, or an empty string if this message was not sent through a DM chat."
+        },
+        "user_id_two": {
+          "type": "string",
+          "description": "The ID of the second DM user, or an empty string if this message was not sent through a DM chat."
         }
       },
       "description": "A message sent on a channel."

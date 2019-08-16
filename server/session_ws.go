@@ -370,7 +370,7 @@ func (s *sessionWS) Send(envelope *rtapi.Envelope, reliable bool) error {
 		}
 	}
 
-	return s.SendBytes([]byte(payload), reliable)
+	return s.SendBytes(payload, reliable)
 }
 
 func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {

@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow max count to be set when creating groups from client calls.
 - Log better startup error message when database schema is not set up at all.
 - New `check` command to validate runtime modules without starting the server.
+- Add discrete channel identifier fields in all messages and message history listings.
 
 ### Changed
 - Use Go 1.12.9 on Alpine 3.10 as base Docker container image and native builds.
