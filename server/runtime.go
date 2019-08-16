@@ -378,18 +378,15 @@ type Runtime struct {
 	eventFunctions *RuntimeEventFunctions
 }
 
-func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) (*Runtime, error) {
-	runtimeConfig := config.GetRuntime()
-	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
-
-	if err := os.MkdirAll(runtimeConfig.Path, os.ModePerm); err != nil {
+func GetRuntimePaths(logger *zap.Logger, rootPath string) ([]string, error) {
+	if err := os.MkdirAll(rootPath, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	paths := make([]string, 0)
-	if err := filepath.Walk(runtimeConfig.Path, func(path string, f os.FileInfo, err error) error {
+	if err := filepath.Walk(rootPath, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
-			startupLogger.Error("Error listing runtime path", zap.String("path", path), zap.Error(err))
+			logger.Error("Error listing runtime path", zap.String("path", path), zap.Error(err))
 			return err
 		}
 
@@ -399,7 +396,41 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		}
 		return nil
 	}); err != nil {
-		startupLogger.Error("Failed to list runtime path", zap.Error(err))
+		logger.Error("Failed to list runtime path", zap.Error(err))
+		return nil, err
+	}
+
+	return paths, nil
+}
+
+func CheckRuntime(logger *zap.Logger, config Config) error {
+	// Get all paths inside the configured runtime.
+	paths, err := GetRuntimePaths(logger, config.GetRuntime().Path)
+	if err != nil {
+		return err
+	}
+
+	// Check any Go runtime modules.
+	err = CheckRuntimeProviderGo(logger, config.GetRuntime().Path, paths)
+	if err != nil {
+		return err
+	}
+
+	// Check any Lua runtime modules.
+	err = CheckRuntimeProviderLua(logger, config, paths)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) (*Runtime, error) {
+	runtimeConfig := config.GetRuntime()
+	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
+
+	paths, err := GetRuntimePaths(startupLogger, runtimeConfig.Path)
+	if err != nil {
 		return nil, err
 	}
 

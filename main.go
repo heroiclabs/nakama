@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -76,6 +77,23 @@ func main() {
 			return
 		case "migrate":
 			migrate.Parse(os.Args[2:], tmpLogger)
+		case "check":
+			// Parse any command line args to look up runtime path.
+			// Use full config structure even if not all of its options are available in this command.
+			config := server.NewConfig(tmpLogger)
+			var runtimePath string
+			flags := flag.NewFlagSet("check", flag.ExitOnError)
+			flags.StringVar(&runtimePath, "runtime.path", filepath.Join(config.GetDataDir(), "modules"), "Path for the server to scan for Lua and Go library files.")
+			if err := flags.Parse(os.Args[2:]); err != nil {
+				tmpLogger.Fatal("Could not parse check flags.")
+			}
+			config.GetRuntime().Path = runtimePath
+
+			if err := server.CheckRuntime(tmpLogger, config); err != nil {
+				// Errors are already logged in the function above.
+				os.Exit(1)
+			}
+			return
 		}
 	}
 

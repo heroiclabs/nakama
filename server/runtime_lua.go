@@ -108,57 +108,15 @@ type RuntimeProviderLua struct {
 }
 
 func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
-	moduleCache := &RuntimeLuaModuleCache{
-		Names:   make([]string, 0),
-		Modules: make(map[string]*RuntimeLuaModule, 0),
-	}
-	modulePaths := make([]string, 0)
+	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
-	// Override before Package library is invoked.
-	lua.LuaLDir = rootPath
-	lua.LuaPathDefault = lua.LuaLDir + string(os.PathSeparator) + "?.lua;" + lua.LuaLDir + string(os.PathSeparator) + "?" + string(os.PathSeparator) + "init.lua"
-	if err := os.Setenv(lua.LuaPath, lua.LuaPathDefault); err != nil {
-		startupLogger.Error("Could not set Lua module path", zap.Error(err))
+	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
+	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
+	if err != nil {
+		// Errors already logged in the function call above.
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
-
-	for _, path := range paths {
-		if strings.ToLower(filepath.Ext(path)) != ".lua" {
-			continue
-		}
-
-		// Load the file contents into memory.
-		var content []byte
-		var err error
-		if content, err = ioutil.ReadFile(path); err != nil {
-			startupLogger.Error("Could not read Lua module", zap.String("path", path), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-		}
-
-		relPath, _ := filepath.Rel(rootPath, path)
-		name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-		// Make paths Lua friendly.
-		name = strings.Replace(name, string(os.PathSeparator), ".", -1)
-
-		moduleCache.Add(&RuntimeLuaModule{
-			Name:    name,
-			Path:    path,
-			Content: content,
-		})
-		modulePaths = append(modulePaths, relPath)
-	}
-
-	stdLibs := map[string]lua.LGFunction{
-		lua.LoadLibName:   OpenPackage(moduleCache),
-		lua.BaseLibName:   lua.OpenBase,
-		lua.TabLibName:    lua.OpenTable,
-		lua.OsLibName:     OpenOs,
-		lua.StringLibName: lua.OpenString,
-		lua.MathLibName:   lua.OpenMath,
-		Bit32LibName:      OpenBit32,
-	}
 	once := &sync.Once{}
 	localCache := NewRuntimeLuaLocalCache()
 	rpcFunctions := make(map[string]RuntimeRpcFunction, 0)
@@ -962,6 +920,78 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, allMatchCreateFn, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
+func CheckRuntimeProviderLua(logger *zap.Logger, config Config, paths []string) error {
+	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
+	moduleCache, _, stdLibs, err := openLuaModules(logger, config.GetRuntime().Path, paths)
+	if err != nil {
+		// Errors already logged in the function call above.
+		return err
+	}
+
+	// Evaluate (but do not execute) available Lua modules.
+	err = checkRuntimeLuaVM(logger, config, stdLibs, moduleCache)
+	if err != nil {
+		// Errors already logged in the function call above.
+		return err
+	}
+
+	return nil
+}
+
+func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*RuntimeLuaModuleCache, []string, map[string]lua.LGFunction, error) {
+	moduleCache := &RuntimeLuaModuleCache{
+		Names:   make([]string, 0),
+		Modules: make(map[string]*RuntimeLuaModule, 0),
+	}
+	modulePaths := make([]string, 0)
+
+	// Override before Package library is invoked.
+	lua.LuaLDir = rootPath
+	lua.LuaPathDefault = lua.LuaLDir + string(os.PathSeparator) + "?.lua;" + lua.LuaLDir + string(os.PathSeparator) + "?" + string(os.PathSeparator) + "init.lua"
+	if err := os.Setenv(lua.LuaPath, lua.LuaPathDefault); err != nil {
+		logger.Error("Could not set Lua module path", zap.Error(err))
+		return nil, nil, nil, err
+	}
+
+	for _, path := range paths {
+		if strings.ToLower(filepath.Ext(path)) != ".lua" {
+			continue
+		}
+
+		// Load the file contents into memory.
+		var content []byte
+		var err error
+		if content, err = ioutil.ReadFile(path); err != nil {
+			logger.Error("Could not read Lua module", zap.String("path", path), zap.Error(err))
+			return nil, nil, nil, err
+		}
+
+		relPath, _ := filepath.Rel(rootPath, path)
+		name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+		// Make paths Lua friendly.
+		name = strings.Replace(name, string(os.PathSeparator), ".", -1)
+
+		moduleCache.Add(&RuntimeLuaModule{
+			Name:    name,
+			Path:    path,
+			Content: content,
+		})
+		modulePaths = append(modulePaths, relPath)
+	}
+
+	stdLibs := map[string]lua.LGFunction{
+		lua.LoadLibName:   OpenPackage(moduleCache),
+		lua.BaseLibName:   lua.OpenBase,
+		lua.TabLibName:    lua.OpenTable,
+		lua.OsLibName:     OpenOs,
+		lua.StringLibName: lua.OpenString,
+		lua.MathLibName:   lua.OpenMath,
+		Bit32LibName:      OpenBit32,
+	}
+
+	return moduleCache, modulePaths, stdLibs, nil
+}
+
 func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams map[string][]string, userID, username string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
 	r, err := rp.Get(ctx)
 	if err != nil {
@@ -1752,8 +1782,42 @@ func (r *RuntimeLua) Stop() {
 	r.vm.Close()
 }
 
+func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {
+	vm := lua.NewState(lua.Options{
+		CallStackSize:       128,
+		RegistrySize:        512,
+		SkipOpenLibs:        true,
+		IncludeGoStackTrace: true,
+	})
+	vm.SetContext(context.Background())
+	for name, lib := range stdLibs {
+		vm.Push(vm.NewFunction(lib))
+		vm.Push(lua.LString(name))
+		vm.Call(1, 0)
+	}
+	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, config, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	vm.PreloadModule("nakama", nakamaModule.Loader)
+
+	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
+	for _, name := range moduleCache.Names {
+		module, ok := moduleCache.Modules[name]
+		if !ok {
+			logger.Fatal("Failed to find named module in cache", zap.String("name", name))
+		}
+
+		f, err := vm.Load(bytes.NewReader(module.Content), module.Path)
+		if err != nil {
+			logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
+			return err
+		} else {
+			vm.SetField(preload, module.Name, f)
+		}
+	}
+
+	return nil
+}
+
 func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
-	// Initialize a one-off runtime to ensure startup code runs and modules are valid.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
 		RegistrySize:        config.GetRuntime().RegistrySize,
