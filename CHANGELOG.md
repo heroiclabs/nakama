@@ -39,6 +39,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Go runtime group creation now correctly validates max count.
 - Consistent expiry calculation in leaderboard records haystack queries.
 - Convert custom SQL query and exec parameters to integers where appropriate.
+- Correctly validate users before adding them to groups.
+- Add missing group chat channel message when a user joins the group.
+- Add missing group chat channel message when a user leaves the group.
+- Add missing group chat channel message when a user is added to the group.
+- Add missing group chat channel message when a user is kicked from the group.
+- Add missing group chat channel message when a user is promoted in the group.
 
 ## [2.6.0] - 2019-07-01
 ### Added

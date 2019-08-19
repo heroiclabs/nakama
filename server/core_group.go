@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"github.com/heroiclabs/nakama/rtapi"
 	"strconv"
 	"strings"
 	"time"
@@ -45,9 +46,10 @@ var (
 	ErrGroupNotUpdated        = errors.New("group not updated")
 	ErrGroupNotFound          = errors.New("group not found")
 	ErrGroupFull              = errors.New("group is full")
+	ErrGroupUserNotFound      = errors.New("user not found")
 	ErrGroupLastSuperadmin    = errors.New("user is last group superadmin")
-  ErrGroupUserInvalidCursor = errors.New("group user cursor invalid")
-  ErrUserGroupInvalidCursor = errors.New("user group cursor invalid")
+	ErrGroupUserInvalidCursor = errors.New("group user cursor invalid")
+	ErrUserGroupInvalidCursor = errors.New("user group cursor invalid")
 )
 
 type groupListCursor struct {
@@ -365,6 +367,30 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		return nil
 	}
 
+	// Prepare the message we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  channelId,
+		MessageId:  uuid.Must(uuid.NewV4()).String(),
+		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupJoin},
+		SenderId:   userID.String(),
+		Username:   username,
+		Content:    "{}",
+		CreateTime: &timestamp.Timestamp{Seconds: ts},
+		UpdateTime: &timestamp.Timestamp{Seconds: ts},
+		Persistent: &wrappers.BoolValue{Value: true},
+		GroupId:    group.Id,
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
@@ -388,6 +414,13 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 			return err
 		}
 
+		query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+		if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+			logger.Debug("Could insert group join channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
@@ -399,11 +432,13 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		return err
 	}
 
+	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
 	logger.Info("Successfully joined group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 	return nil
 }
 
-func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
 	var myState sql.NullInt64
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&myState); err != nil {
@@ -428,6 +463,30 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 			logger.Info("Cannot leave group as user is last superadmin.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return ErrGroupLastSuperadmin
 		}
+	}
+
+	// Prepare the message we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  channelId,
+		MessageId:  uuid.Must(uuid.NewV4()).String(),
+		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupLeave},
+		SenderId:   userID.String(),
+		Username:   username,
+		Content:    "{}",
+		CreateTime: &timestamp.Timestamp{Seconds: ts},
+		UpdateTime: &timestamp.Timestamp{Seconds: ts},
+		Persistent: &wrappers.BoolValue{Value: true},
+		GroupId:    groupID.String(),
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -464,11 +523,21 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uui
 				return ErrGroupNotFound
 			}
 		}
+
+		query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+		if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+			logger.Debug("Could insert group leave channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		logger.Error("Error leaving group.", zap.Error(err))
 		return err
 	}
+
+	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 
 	logger.Info("Successfully left group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 	return nil
@@ -520,18 +589,44 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	notificationSubject := fmt.Sprintf("You've been added to group %v", groupName.String)
 	var notifications map[uuid.UUID][]*api.Notification
 
+	// Prepare the messages we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	var messages []*api.ChannelMessage
+
 	if err := ExecuteInTx(ctx, tx, func() error {
-		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
+		// If the transaction is retried ensure we wipe any notifications/messages that may have been prepared by previous attempts.
 		notifications = make(map[uuid.UUID][]*api.Notification, len(userIDs))
+		messages = make([]*api.ChannelMessage, len(userIDs))
 
 		for _, uid := range userIDs {
 			if uid == caller {
 				continue
 			}
 
+			// Look up the username, and implicitly if this user exists.
+			var username sql.NullString
+			query := "SELECT username FROM users WHERE id = $1::UUID"
+			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+				if err == sql.ErrNoRows {
+					return ErrGroupUserNotFound
+				}
+				logger.Debug("Could not retrieve username to add user to group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			// Check if this is a join request being accepted.
 			incrementEdgeCount := true
 			var userExists sql.NullBool
-			query := "SELECT EXISTS(SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID)"
+			query = "SELECT EXISTS(SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID)"
 			if err := tx.QueryRowContext(ctx, query, groupID, uid).Scan(&userExists); err != nil {
 				logger.Debug("Could not retrieve user state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 				return err
@@ -570,6 +665,28 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 				}
 			}
 
+			message := &api.ChannelMessage{
+				ChannelId:  channelId,
+				MessageId:  uuid.Must(uuid.NewV4()).String(),
+				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupAdd},
+				SenderId:   uid.String(),
+				Username:   username.String,
+				Content:    "{}",
+				CreateTime: &timestamp.Timestamp{Seconds: ts},
+				UpdateTime: &timestamp.Timestamp{Seconds: ts},
+				Persistent: &wrappers.BoolValue{Value: true},
+				GroupId:    groupID.String(),
+			}
+
+			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+			if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+				logger.Debug("Could insert group add channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			messages = append(messages, message)
+
 			notifications[uid] = []*api.Notification{
 				&api.Notification{
 					Id:         uuid.Must(uuid.NewV4()).String(),
@@ -587,6 +704,10 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 		return err
 	}
 
+	for _, message := range messages {
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+	}
+
 	if len(notifications) > 0 {
 		// Any error is already logged before it's returned here.
 		_ = NotificationSend(ctx, logger, db, router, notifications)
@@ -595,7 +716,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	return nil
 }
 
-func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
@@ -616,6 +737,19 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 		}
 	}
 
+	// Prepare the messages we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	var messages []*api.ChannelMessage
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
@@ -623,8 +757,11 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
+		messages = make([]*api.ChannelMessage, len(userIDs))
+
 		for _, uid := range userIDs {
-			// shouldn't kick self
+			// Shouldn't kick self.
 			if uid == caller {
 				continue
 			}
@@ -632,8 +769,8 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller 
 			params := []interface{}{groupID, uid}
 			query := ""
 			if myState == 0 {
-				// ensure we aren't removing the last superadmin when deleting authoritatively.
-				// query is for superadmin or if done authoritatively
+				// Ensure we aren't removing the last superadmin when deleting authoritatively.
+				// Query is for superadmin or if done authoritatively.
 				query = `
 DELETE FROM group_edge
 WHERE
@@ -652,7 +789,7 @@ AND
 	)
 RETURNING state`
 			} else {
-				// query is just for admins
+				// Query is just for admins.
 				query = `
 DELETE FROM group_edge
 WHERE
@@ -670,7 +807,7 @@ RETURNING state`
 			logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
 			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
 				if err == sql.ErrNoRows {
-					// ignore - move to the next uid
+					// Ignore - move to the next user ID.
 					continue
 				} else {
 					logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -678,7 +815,7 @@ RETURNING state`
 				}
 			}
 
-			// make sure that we kicked valid members, not invites
+			// Only update group edge count and send messages when we kicked valid members, not invites.
 			if deletedState.Int64 < 3 {
 				query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
 				_, err = tx.ExecContext(ctx, query, groupID)
@@ -686,6 +823,39 @@ RETURNING state`
 					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
 				}
+
+				// Look up the username.
+				var username sql.NullString
+				query = "SELECT username FROM users WHERE id = $1::UUID"
+				if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+					if err == sql.ErrNoRows {
+						return ErrGroupUserNotFound
+					}
+					logger.Debug("Could not retrieve username to kick user from group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				message := &api.ChannelMessage{
+					ChannelId:  channelId,
+					MessageId:  uuid.Must(uuid.NewV4()).String(),
+					Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupKick},
+					SenderId:   uid.String(),
+					Username:   username.String,
+					Content:    "{}",
+					CreateTime: &timestamp.Timestamp{Seconds: ts},
+					UpdateTime: &timestamp.Timestamp{Seconds: ts},
+					Persistent: &wrappers.BoolValue{Value: true},
+					GroupId:    groupID.String(),
+				}
+
+				query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+				if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+					logger.Debug("Could insert group kick channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				messages = append(messages, message)
 			}
 		}
 		return nil
@@ -694,10 +864,14 @@ RETURNING state`
 		return err
 	}
 
+	for _, message := range messages {
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+	}
+
 	return nil
 }
 
-func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
@@ -730,6 +904,19 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 		return ErrGroupNotFound
 	}
 
+	// Prepare the messages we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	var messages []*api.ChannelMessage
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
@@ -737,6 +924,9 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, call
 	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
+		messages = make([]*api.ChannelMessage, len(userIDs))
+
 		for _, uid := range userIDs {
 			if uid == caller {
 				continue
@@ -775,11 +965,48 @@ RETURNING state`
 					return ErrGroupFull
 				}
 			}
+
+			// Look up the username.
+			var username sql.NullString
+			query = "SELECT username FROM users WHERE id = $1::UUID"
+			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+				if err == sql.ErrNoRows {
+					return ErrGroupUserNotFound
+				}
+				logger.Debug("Could not retrieve username to kick user from group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			message := &api.ChannelMessage{
+				ChannelId:  channelId,
+				MessageId:  uuid.Must(uuid.NewV4()).String(),
+				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupPromote},
+				SenderId:   uid.String(),
+				Username:   username.String,
+				Content:    "{}",
+				CreateTime: &timestamp.Timestamp{Seconds: ts},
+				UpdateTime: &timestamp.Timestamp{Seconds: ts},
+				Persistent: &wrappers.BoolValue{Value: true},
+				GroupId:    groupID.String(),
+			}
+
+			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+			if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+				logger.Debug("Could insert group promote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			messages = append(messages, message)
 		}
 		return nil
 	}); err != nil {
 		logger.Error("Error promote users in group.", zap.Error(err))
 		return err
+	}
+
+	for _, message := range messages {
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 	}
 
 	return nil
@@ -827,7 +1054,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1` // AND u.disable_time = '1
 	if limit != 0 {
 		// Console API can select all group users in one request. Client/runtime calls will set a non-0 limit.
 		params = append(params, limit+1)
-		query += " LIMIT $"+strconv.Itoa(len(params))
+		query += " LIMIT $" + strconv.Itoa(len(params))
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -956,7 +1183,7 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1` // AND g.disable_time = '1
 	if limit != 0 {
 		// Console API can select all user groups in one request. Client/runtime calls will set a non-0 limit.
 		params = append(params, limit+1)
-		query += " LIMIT $"+strconv.Itoa(len(params))
+		query += " LIMIT $" + strconv.Itoa(len(params))
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)

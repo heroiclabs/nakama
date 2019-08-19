@@ -39,8 +39,9 @@ const (
 	ChannelMessageTypeChatRemove
 	ChannelMessageTypeGroupJoin
 	ChannelMessageTypeGroupAdd
+	ChannelMessageTypeGroupLeave
 	ChannelMessageTypeGroupKick
-	ChannelMessageTypeGroupPromoted
+	ChannelMessageTypeGroupPromote
 )
 
 var ErrChannelMessageUpdateNotFound = errors.New("channel message not found")

@@ -1631,7 +1631,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID stri
 		users = append(users, uid)
 	}
 
-	return KickGroupUsers(ctx, n.logger, n.db, uuid.Nil, group, users)
+	return KickGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
 }
 
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error) {
