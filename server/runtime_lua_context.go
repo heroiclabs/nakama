@@ -16,8 +16,8 @@ package server
 
 import (
 	"fmt"
-
 	"github.com/yuin/gopher-lua"
+	"time"
 )
 
 const (
@@ -113,6 +113,7 @@ func RuntimeLuaConvertValue(l *lua.LState, val interface{}) lua.LValue {
 	// Types looked up from:
 	// https://golang.org/pkg/encoding/json/#Unmarshal
 	// https://developers.google.com/protocol-buffers/docs/proto3#scalar
+	// More types added based on observations.
 	switch v := val.(type) {
 	case bool:
 		return lua.LBool(v)
@@ -156,8 +157,13 @@ func RuntimeLuaConvertValue(l *lua.LState, val interface{}) lua.LValue {
 			lt.RawSetInt(k+1, RuntimeLuaConvertValue(l, v))
 		}
 		return lt
+	case time.Time:
+		return lua.LNumber(v.UTC().Unix())
+	case nil:
+		return lua.LNil
 	default:
-		return nil
+		// Never return an actual Go `nil` or it will cause nil pointer dereferences inside gopher-lua.
+		return lua.LNil
 	}
 }
 
