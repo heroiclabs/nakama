@@ -39,7 +39,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	// Before hook.
 	if fn := s.runtime.BeforeJoinTournament(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -75,7 +75,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	// After hook.
 	if fn := s.runtime.AfterJoinTournament(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -89,7 +89,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	// Before hook.
 	if fn := s.runtime.BeforeListTournamentRecords(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -164,7 +164,7 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	// After hook.
 	if fn := s.runtime.AfterListTournamentRecords(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -179,7 +179,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	// Before hook.
 	if fn := s.runtime.BeforeListTournaments(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -257,7 +257,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	// After hook.
 	if fn := s.runtime.AfterListTournaments(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -274,7 +274,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	// Before hook.
 	if fn := s.runtime.BeforeWriteTournamentRecord(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -336,7 +336,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	// After hook.
 	if fn := s.runtime.AfterWriteTournamentRecord(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
+			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -350,7 +350,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 	// Before hook.
 	if fn := s.runtime.BeforeListTournamentRecordsAroundOwner(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -408,7 +408,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 	// After hook.
 	if fn := s.runtime.AfterListTournamentRecordsAroundOwner(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, list, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, list, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

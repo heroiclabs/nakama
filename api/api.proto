@@ -52,12 +52,16 @@ message Account {
 message AccountCustom {
   // A custom identifier.
   string id = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Send a device to the server. Used with authenticate/link/unlink and user.
 message AccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
   string id = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Send an email with password to the server. Used with authenticate/link/unlink.
@@ -66,12 +70,16 @@ message AccountEmail {
   string email = 1;
   // A password for the user account.
   string password = 2; // Ignored with unlink operations.
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 3;
 }
 
 // Send a Facebook token to the server. Used with authenticate/link/unlink.
 message AccountFacebook {
   // The OAuth token received from Facebook to access their profile API.
   string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Send Apple's Game Center account credentials to the server. Used with authenticate/link/unlink.
@@ -90,18 +98,24 @@ message AccountGameCenter {
   string signature = 5;
   // The URL for the public encryption key.
   string public_key_url = 6;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 7;
 }
 
 // Send a Google token to the server. Used with authenticate/link/unlink.
 message AccountGoogle {
   // The OAuth token received from Google to access their profile API.
   string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Send a Steam token to the server. Used with authenticate/link/unlink.
 message AccountSteam {
   // The account token received from Steam to access their profile API.
   string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Add one or more friends to the current user.

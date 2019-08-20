@@ -30,7 +30,7 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 	// Before hook.
 	if fn := s.runtime.BeforeCreateGroup(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -73,7 +73,7 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 	// After hook.
 	if fn := s.runtime.AfterCreateGroup(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, group, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, group, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -89,7 +89,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	// Before hook.
 	if fn := s.runtime.BeforeUpdateGroup(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -145,7 +145,7 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	// After hook.
 	if fn := s.runtime.AfterUpdateGroup(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -161,7 +161,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 	// Before hook.
 	if fn := s.runtime.BeforeDeleteGroup(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -201,7 +201,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 	// After hook.
 	if fn := s.runtime.AfterDeleteGroup(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -218,7 +218,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 	// Before hook.
 	if fn := s.runtime.BeforeJoinGroup(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -260,7 +260,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 	// After hook.
 	if fn := s.runtime.AfterJoinGroup(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -277,7 +277,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 	// Before hook.
 	if fn := s.runtime.BeforeLeaveGroup(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -317,7 +317,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 	// After hook.
 	if fn := s.runtime.AfterLeaveGroup(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -333,7 +333,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	// Before hook.
 	if fn := s.runtime.BeforeAddGroupUsers(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -390,7 +390,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	// After hook.
 	if fn := s.runtime.AfterAddGroupUsers(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -406,7 +406,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	// Before hook.
 	if fn := s.runtime.BeforeKickGroupUsers(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -458,7 +458,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	// After hook.
 	if fn := s.runtime.AfterKickGroupUsers(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -474,7 +474,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	// Before hook.
 	if fn := s.runtime.BeforePromoteGroupUsers(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -529,7 +529,7 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 	// After hook.
 	if fn := s.runtime.AfterPromoteGroupUsers(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -543,7 +543,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 	// Before hook.
 	if fn := s.runtime.BeforeListGroupUsers(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -598,7 +598,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 	// After hook.
 	if fn := s.runtime.AfterListGroupUsers(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, groupUsers, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, groupUsers, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -612,7 +612,7 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 	// Before hook.
 	if fn := s.runtime.BeforeListUserGroups(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -667,7 +667,7 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 	// After hook.
 	if fn := s.runtime.AfterListUserGroups(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, userGroups, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, userGroups, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -681,7 +681,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 	// Before hook.
 	if fn := s.runtime.BeforeListGroups(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -717,7 +717,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 	// After hook.
 	if fn := s.runtime.AfterListGroups(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, groups, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, groups, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

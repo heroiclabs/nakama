@@ -33,7 +33,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 	// Before hook.
 	if fn := s.runtime.BeforeDeleteLeaderboardRecord(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -69,7 +69,7 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 	// After hook.
 	if fn := s.runtime.AfterDeleteLeaderboardRecord(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -83,7 +83,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 	// Before hook.
 	if fn := s.runtime.BeforeListLeaderboardRecords(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -142,7 +142,7 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 	// After hook.
 	if fn := s.runtime.AfterListLeaderboardRecords(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, records, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -159,7 +159,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	// Before hook.
 	if fn := s.runtime.BeforeWriteLeaderboardRecord(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -202,7 +202,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	// After hook.
 	if fn := s.runtime.AfterWriteLeaderboardRecord(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
+			fn(ctx, s.logger, userID.String(), username, ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, record, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -216,7 +216,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 	// Before hook.
 	if fn := s.runtime.BeforeListLeaderboardRecordsAroundOwner(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -274,7 +274,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 	// After hook.
 	if fn := s.runtime.AfterListLeaderboardRecordsAroundOwner(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
+			fn(ctx, s.logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, recordList, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

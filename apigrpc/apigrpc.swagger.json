@@ -2393,6 +2393,13 @@
         "id": {
           "type": "string",
           "description": "A custom identifier."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a custom ID to the server. Used with authenticate/link/unlink."
@@ -2403,6 +2410,13 @@
         "id": {
           "type": "string",
           "description": "A device identifier. Should be obtained by a platform-specific device API."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a device to the server. Used with authenticate/link/unlink and user."
@@ -2417,6 +2431,13 @@
         "password": {
           "type": "string",
           "description": "A password for the user account."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send an email with password to the server. Used with authenticate/link/unlink."
@@ -2427,6 +2448,13 @@
         "token": {
           "type": "string",
           "description": "The OAuth token received from Facebook to access their profile API."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a Facebook token to the server. Used with authenticate/link/unlink."
@@ -2458,6 +2486,13 @@
         "public_key_url": {
           "type": "string",
           "description": "The URL for the public encryption key."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send Apple's Game Center account credentials to the server. Used with authenticate/link/unlink."
@@ -2468,6 +2503,13 @@
         "token": {
           "type": "string",
           "description": "The OAuth token received from Google to access their profile API."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a Google token to the server. Used with authenticate/link/unlink."
@@ -2478,6 +2520,13 @@
         "token": {
           "type": "string",
           "description": "The account token received from Steam to access their profile API."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a Steam token to the server. Used with authenticate/link/unlink."

@@ -31,7 +31,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 	// Before hook.
 	if fn := s.runtime.BeforeGetAccount(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+			err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -57,7 +57,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *empty.Empty) (*api.Accou
 	// After hook.
 	if fn := s.runtime.AfterGetAccount(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, user)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, user)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -73,7 +73,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	// Before hook.
 	if fn := s.runtime.BeforeUpdateAccount(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -111,7 +111,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	// After hook.
 	if fn := s.runtime.AfterUpdateAccount(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

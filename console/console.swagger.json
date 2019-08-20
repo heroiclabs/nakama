@@ -989,6 +989,13 @@
         "id": {
           "type": "string",
           "description": "A device identifier. Should be obtained by a platform-specific device API."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
         }
       },
       "description": "Send a device to the server. Used with authenticate/link/unlink and user."

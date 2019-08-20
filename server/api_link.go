@@ -35,7 +35,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	// Before hook.
 	if fn := s.runtime.BeforeLinkCustom(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -85,7 +85,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkCustom(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -101,7 +101,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	// Before hook.
 	if fn := s.runtime.BeforeLinkDevice(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -174,7 +174,7 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	// After hook.
 	if fn := s.runtime.AfterLinkDevice(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -190,7 +190,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	// Before hook.
 	if fn := s.runtime.BeforeLinkEmail(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -247,7 +247,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkEmail(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -263,7 +263,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 	// Before hook.
 	if fn := s.runtime.BeforeLinkFacebook(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -319,7 +319,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkFacebook(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -335,7 +335,7 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 	// Before hook.
 	if fn := s.runtime.BeforeLinkGameCenter(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -396,7 +396,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkGameCenter(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -412,7 +412,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 	// Before hook.
 	if fn := s.runtime.BeforeLinkGoogle(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -477,7 +477,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkGoogle(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -493,7 +493,7 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 	// Before hook.
 	if fn := s.runtime.BeforeLinkSteam(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -548,7 +548,7 @@ AND (NOT EXISTS
 	// After hook.
 	if fn := s.runtime.AfterLinkSteam(); fn != nil {
 		afterFn := func(clientIP, clientPort string) {
-			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

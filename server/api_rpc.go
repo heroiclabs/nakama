@@ -47,9 +47,10 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var tokenAuth bool
 	var userID uuid.UUID
 	var username string
+	var vars map[string]string
 	var expiry int64
 	if auth := r.Header["Authorization"]; len(auth) >= 1 {
-		userID, username, expiry, tokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
+		userID, username, vars, expiry, tokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
 		if !tokenAuth {
 			// Auth token not valid or expired.
 			w.WriteHeader(http.StatusUnauthorized)
@@ -156,7 +157,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	clientIP, clientPort := extractClientAddressFromRequest(s.logger, r)
 
 	// Execute the function.
-	result, fnErr, code := fn(r.Context(), queryParams, uid, username, expiry, "", clientIP, clientPort, payload)
+	result, fnErr, code := fn(r.Context(), queryParams, uid, username, vars, expiry, "", clientIP, clientPort, payload)
 	if fnErr != nil {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
 		w.WriteHeader(runtime.HTTPStatusFromCode(code))
@@ -222,6 +223,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	uid := ""
 	username := ""
+	var vars map[string]string
 	expiry := int64(0)
 	if u := ctx.Value(ctxUserIDKey{}); u != nil {
 		uid = u.(uuid.UUID).String()
@@ -229,13 +231,16 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	if u := ctx.Value(ctxUsernameKey{}); u != nil {
 		username = u.(string)
 	}
+	if v := ctx.Value(ctxVarsKey{}); v != nil {
+		vars = v.(map[string]string)
+	}
 	if e := ctx.Value(ctxExpiryKey{}); e != nil {
 		expiry = e.(int64)
 	}
 
 	clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
 
-	result, fnErr, code := fn(ctx, queryParams, uid, username, expiry, "", clientIP, clientPort, in.Payload)
+	result, fnErr, code := fn(ctx, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, in.Payload)
 	if fnErr != nil {
 		return nil, status.Error(code, fnErr.Error())
 	}

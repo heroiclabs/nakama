@@ -112,6 +112,9 @@ const (
 	// The username associated with the execution context.
 	RUNTIME_CTX_USERNAME = "username"
 
+	// Variables stored in the user's session token.
+	RUNTIME_CTX_VARS = "vars"
+
 	// The user session expiry in seconds associated with the execution context.
 	RUNTIME_CTX_USER_SESSION_EXP = "user_session_exp"
 
@@ -764,7 +767,7 @@ type NakamaModule interface {
 	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
-	AuthenticateTokenGenerate(userID, username string, exp int64) (string, int64, error)
+	AuthenticateTokenGenerate(userID, username string, vars map[string]string, exp int64) (string, int64, error)
 
 	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
 	AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error)
