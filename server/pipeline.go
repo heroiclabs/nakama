@@ -127,7 +127,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 		messageNameID = strings.ToLower(messageName)
 
 		if fn := p.runtime.BeforeRt(messageNameID); fn != nil {
-			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
+			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 
 			if hookErr != nil {
 				// Errors from before hooks do not close the session.
@@ -154,7 +154,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 
 	if messageName != "" {
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
-			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
+			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), envelope)
 		}
 	}
 

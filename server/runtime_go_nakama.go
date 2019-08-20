@@ -245,7 +245,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 	return AuthenticateSteam(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 }
 
-func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64) (string, int64, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, vars map[string]string, exp int64) (string, int64, error) {
 	if userID == "" {
 		return "", 0, errors.New("expects user id")
 	}
@@ -263,7 +263,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
-	token, exp := generateTokenWithExpiry(n.config, userID, username, exp)
+	token, exp := generateTokenWithExpiry(n.config, userID, username, vars, exp)
 	return token, exp, nil
 }
 

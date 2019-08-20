@@ -19,7 +19,7 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 )
 
-func NewRuntimeGoContext(ctx context.Context, env map[string]string, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username, sessionID, clientIP, clientPort string) context.Context {
+func NewRuntimeGoContext(ctx context.Context, env map[string]string, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort string) context.Context {
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_ENV, env)
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MODE, mode.String())
 
@@ -30,6 +30,9 @@ func NewRuntimeGoContext(ctx context.Context, env map[string]string, mode Runtim
 	if userID != "" {
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_USER_ID, userID)
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_USERNAME, username)
+		if vars != nil {
+			ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_VARS, vars)
+		}
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_USER_SESSION_EXP, sessionExpiry)
 		if sessionID != "" {
 			ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_SESSION_ID, sessionID)

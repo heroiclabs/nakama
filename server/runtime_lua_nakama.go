@@ -372,7 +372,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", "", "", "")
+		ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", nil, "", "", "")
 
 		l.Push(LSentinel)
 		l.Push(fn)
@@ -396,7 +396,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
-	ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", "", "", "")
+	ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", nil, "", "", "")
 	l.Push(ctx)
 	return 1
 }
@@ -1479,7 +1479,35 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
-	token, exp := generateTokenWithExpiry(n.config, userIDString, username, exp)
+	vars := l.OptTable(4, nil)
+	var varsMap map[string]string
+	if vars != nil {
+		var conversionError string
+		varsMap = make(map[string]string, vars.Len())
+		vars.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError != "" {
+				return
+			}
+
+			if k.Type() != lua.LTString {
+				conversionError = "vars keys must be strings"
+				return
+			}
+			if v.Type() != lua.LTString {
+				conversionError = "vars values must be strings"
+				return
+			}
+
+			varsMap[k.String()] = v.String()
+		})
+
+		if conversionError != "" {
+			l.ArgError(4, conversionError)
+			return 0
+		}
+	}
+
+	token, exp := generateTokenWithExpiry(n.config, userIDString, username, varsMap, exp)
 
 	l.Push(lua.LString(token))
 	l.Push(lua.LNumber(exp))

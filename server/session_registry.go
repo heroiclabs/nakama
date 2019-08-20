@@ -35,6 +35,7 @@ type Session interface {
 	Logger() *zap.Logger
 	ID() uuid.UUID
 	UserID() uuid.UUID
+	Vars() map[string]string
 	ClientIP() string
 	ClientPort() string
 
