@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/gob"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"

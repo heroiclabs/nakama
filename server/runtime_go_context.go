@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+
 	"github.com/heroiclabs/nakama/runtime"
 )
 

@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"
 	"github.com/heroiclabs/nakama/runtime"

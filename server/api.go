@@ -19,13 +19,14 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
-	"go.opencensus.io/trace"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
+	"go.opencensus.io/trace"
 
 	"github.com/heroiclabs/nakama/api"
 

@@ -18,6 +18,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
+	"plugin"
+	"strings"
+	"sync"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/api"
@@ -26,10 +31,6 @@ import (
 	"github.com/heroiclabs/nakama/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"path/filepath"
-	"plugin"
-	"strings"
-	"sync"
 )
 
 // No need for a stateful RuntimeProviderGo here.

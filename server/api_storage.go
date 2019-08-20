@@ -16,6 +16,7 @@ package server
 
 import (
 	"encoding/json"
+
 	"go.uber.org/zap"
 
 	"github.com/gofrs/uuid"

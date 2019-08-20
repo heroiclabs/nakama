@@ -18,10 +18,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"strings"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama/rtapi"
 	"go.uber.org/zap"
-	"strings"
 )
 
 type Pipeline struct {

@@ -16,8 +16,9 @@ package server
 
 import (
 	"context"
-	"go.uber.org/atomic"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/rtapi"

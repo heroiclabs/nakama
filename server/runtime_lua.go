@@ -21,13 +21,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"

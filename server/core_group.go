@@ -22,10 +22,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"github.com/heroiclabs/nakama/rtapi"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/heroiclabs/nakama/rtapi"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"

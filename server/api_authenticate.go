@@ -16,11 +16,12 @@ package server
 
 import (
 	"errors"
-	"go.uber.org/zap"
 	"math/rand"
 	"regexp"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"

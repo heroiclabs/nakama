@@ -17,10 +17,11 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/heroiclabs/nakama/runtime"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/heroiclabs/nakama/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"

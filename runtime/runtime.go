@@ -88,6 +88,7 @@ package runtime
 import (
 	"context"
 	"database/sql"
+
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/rtapi"
 )

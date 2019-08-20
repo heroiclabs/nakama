@@ -16,8 +16,9 @@ package server
 
 import (
 	"fmt"
-	"github.com/yuin/gopher-lua"
 	"time"
+
+	"github.com/yuin/gopher-lua"
 )
 
 const (

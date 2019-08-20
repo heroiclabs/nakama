@@ -15,6 +15,9 @@
 package server
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/api"
@@ -22,8 +25,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*empty.Empty, error) {

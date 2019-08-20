@@ -19,9 +19,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"sync"
 	"time"
+
+	"github.com/golang/protobuf/proto"
 
 	"net"
 
@@ -113,8 +114,8 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userI
 		pipeline:        pipeline,
 		runtime:         runtime,
 
-		stopped:                false,
-		conn:                   conn,
+		stopped: false,
+		conn:    conn,
 		receivedMessageCounter: config.GetSocket().PingBackoffThreshold,
 		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
 		pingTimerCAS:           atomic.NewUint32(1),
