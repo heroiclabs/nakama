@@ -21,6 +21,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 
@@ -188,7 +189,7 @@ func RevealAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achi
 		}
 
 		return newProgress, nil
-	})
+	}, false)
 }
 
 func AwardAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID) error {
@@ -205,7 +206,7 @@ func AwardAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, achie
 		}
 
 		return newProgress, nil
-	})
+	}, false)
 }
 
 func SetAchievementProgressAuxiliaryData(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, auxiliaryData string) error {
@@ -215,21 +216,21 @@ func SetAchievementProgressAuxiliaryData(ctx context.Context, logger *zap.Logger
 		newProgress.AuxiliaryData = auxiliaryData
 
 		return newProgress, nil
-	})
+	}, false)
 }
 
 func SetAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, newProgress int64) error {
 	return CreateOrUpdateAchievementProgress(ctx, logger, db, achievementID, userID,
 		SetProgressWithModifier(func(prev int64) int64 {
 			return newProgress
-		}))
+		}), false)
 }
 
 func IncrementAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, increment int64) error {
 	return CreateOrUpdateAchievementProgress(ctx, logger, db, achievementID, userID,
 		SetProgressWithModifier(func(prev int64) int64 {
 			return prev + increment
-		}))
+		}), false)
 }
 
 func SetProgressWithModifier(modifier func(int64) int64) func(achievement *api.Achievement) (*api.AchievementProgress, error) {
@@ -346,7 +347,7 @@ func DeleteAchievement(ctx context.Context, logger *zap.Logger, db *sql.DB, req 
 	return nil
 }
 
-func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(*api.Achievement) (*api.AchievementProgress, error)) error {
+func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievementID, userID uuid.UUID, computeNewValue func(*api.Achievement) (*api.AchievementProgress, error), authoritative bool) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -375,7 +376,7 @@ func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, 
 		}
 
 		// write differences to db.
-		err = UpdateAchievementProgress(ctx, logger, db, achievement, newAchievementProgress)
+		err = UpdateAchievementProgress(ctx, logger, db, achievement, newAchievementProgress, authoritative)
 		if err != nil {
 			return err
 		}
@@ -388,12 +389,43 @@ func CreateOrUpdateAchievementProgress(ctx context.Context, logger *zap.Logger, 
 	return nil
 }
 
-func UpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievement *api.Achievement, newProgress *api.AchievementProgress) error {
+func UpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.DB, achievement *api.Achievement, newProgress *api.AchievementProgress, authoritative bool) error {
 	// Fields that are ignored / overridden are created_at, updated_at and awarded_at
 
 	counter := 1
 	params := make([]interface{}, 0)
-	query := "update achievement_progress set updated_at = now()"
+	query := "update achievement_progress set "
+	if !authoritative {
+		query += "updated_at = now()"
+	} else {
+		updatedAt, err := ptypes.Timestamp(newProgress.UpdatedAt)
+		if err != nil {
+			return err
+		}
+		query += "updated_at = $" + strconv.Itoa(counter) + "::timestamptz"
+		params = append(params, updatedAt)
+		counter++
+
+		createdAt, err := ptypes.Timestamp(newProgress.CreatedAt)
+		if err != nil {
+			return err
+		}
+		query += ", created_at = $" + strconv.Itoa(counter) + "::timestamptz"
+		params = append(params, createdAt)
+		counter++
+
+		if newProgress.AwardedAt != nil {
+			awardedAt, err := ptypes.Timestamp(newProgress.AwardedAt)
+			if err != nil {
+				return err
+			}
+			query += ", awarded_at = $" + strconv.Itoa(counter) + "::timestamptz"
+			params = append(params, awardedAt)
+			counter++
+		} else {
+			query += ", awarded_at = NULL"
+		}
+	}
 
 	if achievement.CurrentProgress.CurrentState.Value != newProgress.CurrentState.Value {
 		query += ", achievement_state = $" + strconv.Itoa(counter) + "::int8"
@@ -412,9 +444,14 @@ func UpdateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 	}
 
 	if achievement.CurrentProgress.AuxiliaryData != newProgress.AuxiliaryData {
-		query += ", auxiliary_data = $" + strconv.Itoa(counter) + "::JSONB"
-		params = append(params, newProgress.AuxiliaryData)
-		counter++
+		if newProgress.AuxiliaryData != "" {
+			query += ", auxiliary_data = $" + strconv.Itoa(counter) + "::JSONB"
+			params = append(params, newProgress.AuxiliaryData)
+			counter++
+		} else {
+			query += ", auxiliary_data = NULL"
+		}
+
 	}
 
 	query = query + " where achievement_id = $" + strconv.Itoa(counter) + "::UUID and user_id = $" + strconv.Itoa(counter+1) + "::UUID"
@@ -460,7 +497,7 @@ func CreateAchievementProgress(ctx context.Context, logger *zap.Logger, db *sql.
 	var auxiliaryData sql.NullString
 
 	if !result.Next() {
-		return nil, errors.New("For some reason the insert did complete but returned no rows.")
+		return nil, errors.New("For some reason the insert did complete but returned no rows")
 	}
 
 	err = result.Scan(&id, &insertedUserID, &currentState, &progress, &createdAt, &updatedAt, &awardedAt, &auxiliaryData)

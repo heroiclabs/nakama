@@ -270,6 +270,16 @@ service Console {
       delete: "/v2/console/achievements/{id}"
     };
   }
+
+  // Set a users progress towards an achievement.
+  rpc SetUserAchievementProgress (nakama.api.AchievementProgress) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/console/user/{user_id}/achievements/{achievement_id}/progress"
+      body: "*"
+    };
+  }
+
+
 }
 
 // Account information.

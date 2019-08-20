@@ -43,11 +43,39 @@ func (s *ConsoleServer) CreateAchievement(ctx context.Context, in *console.Achie
 }
 
 func (s *ConsoleServer) ModifyAchievement(ctx context.Context, in *api.Achievement) (*api.Achievement, error) {
+	// TODO: Check that achievement being updated actually exists.
 	return UpdateAchievement(ctx, s.logger, s.db, in)
 }
 
 func (s *ConsoleServer) DeleteAchievement(ctx context.Context, in *api.Achievement) (*empty.Empty, error) {
 	err := DeleteAchievement(ctx, s.logger, s.db, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func (s *ConsoleServer) SetUserAchievementProgress(ctx context.Context, in *api.AchievementProgress) (*empty.Empty, error) {
+
+	achievementUUID, err := uuid.FromString(in.AchievementId)
+	if err != nil {
+		return nil, ErrInvalidAchievementUUID
+	}
+
+	userUUID, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	exists, err := UserExists(ctx, s.db, userUUID)
+	if !exists || err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	err = CreateOrUpdateAchievementProgress(ctx, s.logger, s.db, achievementUUID, userUUID, func(achievement *api.Achievement) (*api.AchievementProgress, error) {
+		return in, nil
+	}, true)
 	if err != nil {
 		return nil, err
 	}

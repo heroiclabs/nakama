@@ -1150,6 +1150,47 @@
           "Console"
         ]
       }
+    },
+    "/v2/console/user/{user_id}/achievements/{achievement_id}/progress": {
+      "put": {
+        "summary": "Set a users progress towards an achievement.",
+        "operationId": "SetUserAchievementProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "Unique identifier of the user that is progressing towards this achievement.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "achievement_id",
+            "description": "Unique identifier of the achievement to which this progress belongs.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAchievementProgress"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
     }
   },
   "definitions": {
