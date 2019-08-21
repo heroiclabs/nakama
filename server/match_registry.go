@@ -38,7 +38,7 @@ var (
 	MatchFilterPtr     = &MatchFilterValue
 	MatchFilterRelayed = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
 
-	MaxLabelSize = 2048
+	MatchLabelMaxBytes = 2048
 
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
@@ -214,7 +214,7 @@ func (r *LocalMatchRegistry) GetMatchLabel(ctx context.Context, id uuid.UUID, no
 }
 
 func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
-	if len(label) > MaxLabelSize {
+	if len(label) > MatchLabelMaxBytes {
 		return ErrMatchLabelTooLong
 	}
 

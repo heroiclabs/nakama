@@ -208,8 +208,8 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	r.vm.Pop(1)
 
 	labelStr := label.String()
-	if len(labelStr) > 256 {
-		return nil, 0, errors.New("match_init returned invalid label, must be 256 bytes or less")
+	if len(labelStr) > MatchLabelMaxBytes {
+		return nil, 0, fmt.Errorf("match_init returned invalid label, must be %v bytes or less", MatchLabelMaxBytes)
 	}
 
 	// Extract desired tick rate.

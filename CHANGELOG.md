@@ -47,6 +47,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add missing group chat channel message when a user is kicked from the group.
 - Add missing group chat channel message when a user is promoted in the group.
 - Handle TIMESTAMPTZ return types in Lua runtime custom SQL queries.
+- Use consistent upper bound for authoritative match label size.
 
 ## [2.6.0] - 2019-07-01
 ### Added
