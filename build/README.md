@@ -60,16 +60,35 @@ With the release generated we can create the official container image.
 
    ```
    cd build
-   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
+   docker build "$PWD" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.6.0 -t heroiclabs/nakama:2.6.0
    ```
 
 2. Push the image to the container registry.
 
    ```
    docker tag <CONTAINERID> heroiclabs/nakama:latest
-   docker push heroiclabs/nakama:2.1.0
+   docker push heroiclabs/nakama:2.6.0
    docker push heroiclabs/nakama:latest
    ```
+
+## Build Nakama Image for arm64v8
+
+1. Build the container image
+
+   ```
+   cd build
+   docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.6.0 -t heroiclabs/nakama:2.6.0-arm64v8 -f Dockerfile-arm64v8
+   ```
+
+2. Push the image to the container registry
+
+   ```
+   docker tag <CONTAINERID> heroiclabs/nakama:latest-arm64v8
+   docker push heroiclabs/nakama:2.6.0-arm64v8
+   docker push heroiclabs/nakama:latest-arm64v8
+   ```
+
+
 
 ## Build Plugin Builder Image
 
