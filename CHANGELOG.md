@@ -21,7 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Use Go 1.12.9 on Alpine 3.10 as base Docker container image and native builds.
-- Update devconsole lodash (4.17.13), lodash.template (4.5.0), and eslint-utils (1.4.1) dependencies.
+- Update devconsole lodash (4.17.13), lodash.template (4.5.0), eslint-utils (1.4.1), set-value (2.0.1), and mixin-deep (1.3.2) dependencies.
 - Errors from runtime before hooks no longer close the session.
 - Switch prometheus metrics to use labels instead of a prefix.
 - Add flag on realtime socket messages that will support optional reliability.
