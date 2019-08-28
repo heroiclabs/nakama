@@ -99,14 +99,15 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
 WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
 	if incomingCursor == nil {
-		// Ascending doesn't need an ordering clause.
-		if !forward {
+		if forward {
+			query += " ORDER BY create_time ASC, id ASC"
+		} else {
 			query += " ORDER BY create_time DESC, id DESC"
 		}
 	} else {
 		if (forward && incomingCursor.IsNext) || (!forward && !incomingCursor.IsNext) {
 			// Forward and next page == backwards and previous page.
-			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, $4, $6, $7)"
+			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time ASC, id ASC"
 		} else {
 			// Forward and previous page == backwards and next page.
 			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) < ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time DESC, id DESC"

@@ -1038,12 +1038,15 @@ SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.edge_count,
 	u.create_time, u.update_time, ge.state, ge.position
 FROM users u, group_edge ge
-WHERE u.id = ge.destination_id AND ge.source_id = $1` // AND u.disable_time = '1970-01-01 00:00:00 UTC'`
+WHERE u.id = ge.destination_id AND ge.source_id = $1`
 	params = append(params, groupID)
 	if state != nil {
 		// Assumes the state has already been validated before this function.
 		query += " AND ge.state = $2"
 		params = append(params, state.Value)
+	} else {
+		// Hint for the query analyzer to ensure it performs and index scan on the appropriate range of the group_edge pkey.
+		query += " AND ge.state >= 0 AND ge.state <= 3"
 	}
 	if incomingCursor != nil {
 		query += " AND (ge.source_id, ge.state, ge.position) >= ($1, $2, $3)"
@@ -1052,6 +1055,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1` // AND u.disable_time = '1
 		}
 		params = append(params, incomingCursor.Position)
 	}
+	query += " ORDER BY ge.state ASC, ge.position ASC"
 	if limit != 0 {
 		// Console API can select all group users in one request. Client/runtime calls will set a non-0 limit.
 		params = append(params, limit+1)
@@ -1167,12 +1171,15 @@ SELECT g.id, g.creator_id, g.name, g.description, g.avatar_url,
 g.lang_tag, g.metadata, g.state, g.edge_count, g.max_count,
 g.create_time, g.update_time, ge.state, ge.position
 FROM groups g, group_edge ge
-WHERE g.id = ge.destination_id AND ge.source_id = $1` // AND g.disable_time = '1970-01-01 00:00:00 UTC'`
+WHERE g.id = ge.destination_id AND ge.source_id = $1`
 	params = append(params, userID)
 	if state != nil {
 		// Assumes the state has already been validated before this function.
 		query += " AND ge.state = $2"
 		params = append(params, state.Value)
+	} else {
+		// Hint for the query analyzer to ensure it performs and index scan on the appropriate range of the group_edge pkey.
+		query += " AND ge.state >= 0 AND ge.state <= 3"
 	}
 	if incomingCursor != nil {
 		query += " AND (ge.source_id, ge.state, ge.position) >= ($1, $2, $3)"
@@ -1181,6 +1188,7 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1` // AND g.disable_time = '1
 		}
 		params = append(params, incomingCursor.Position)
 	}
+	query += " ORDER BY ge.state ASC, ge.position ASC"
 	if limit != 0 {
 		// Console API can select all user groups in one request. Client/runtime calls will set a non-0 limit.
 		params = append(params, limit+1)

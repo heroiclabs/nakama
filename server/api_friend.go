@@ -65,7 +65,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 		}
 	}
 
-	friends, err := GetFriends(ctx, s.logger, s.db, s.tracker, userID, limit, state, in.GetCursor())
+	friends, err := ListFriends(ctx, s.logger, s.db, s.tracker, userID, limit, state, in.GetCursor())
 	if err != nil {
 		if err == ErrFriendInvalidCursor {
 			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")

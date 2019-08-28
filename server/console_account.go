@@ -238,7 +238,7 @@ func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	friends, err := GetFriends(ctx, s.logger, s.db, s.tracker, userID, 0, nil, "")
+	friends, err := ListFriends(ctx, s.logger, s.db, s.tracker, userID, 0, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's friends.")

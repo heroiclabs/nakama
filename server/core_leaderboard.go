@@ -91,14 +91,15 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
 		if incomingCursor == nil {
-			// Ascending doesn't need an ordering clause.
-			if leaderboard.SortOrder == LeaderboardSortOrderDescending {
+			if leaderboard.SortOrder == LeaderboardSortOrderAscending {
+				query += " ORDER BY score ASC, subscore ASC, owner_id ASC"
+			} else {
 				query += " ORDER BY score DESC, subscore DESC, owner_id DESC"
 			}
 		} else {
 			if (leaderboard.SortOrder == LeaderboardSortOrderAscending && incomingCursor.IsNext) || (leaderboard.SortOrder == LeaderboardSortOrderDescending && !incomingCursor.IsNext) {
 				// Ascending and next page == descending and previous page.
-				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $4, $5, $6)"
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $4, $5, $6) ORDER BY score ASC, subscore ASC, owner_id ASC"
 			} else {
 				// Ascending and previous page == descending and next page.
 				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) < ($1, $2, $4, $5, $6) ORDER BY score DESC, subscore DESC, owner_id DESC"
@@ -543,10 +544,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	firstQuery := query
 	if sortOrder == LeaderboardSortOrderAscending {
 		// Lower score is better, but get in reverse order from current user to get those immediately above.
-		firstQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC"
+		firstQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC, owner_id DESC"
 	} else {
 		// Higher score is better.
-		firstQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC"
+		firstQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC, owner_id ASC"
 	}
 	firstParams := append(params, limit)
 	firstQuery += " LIMIT $6"
@@ -571,10 +572,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	secondQuery := query
 	if sortOrder == LeaderboardSortOrderAscending {
 		// Lower score is better.
-		secondQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC"
+		secondQuery += " AND (score, subscore, owner_id) > ($3, $4, $5) ORDER BY score ASC, subscore ASC, owner_id ASC"
 	} else {
 		// Higher score is better.
-		secondQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC"
+		secondQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC, owner_id DESC"
 	}
 	secondLimit := limit / 2
 	if l := len(firstRecords); l < limit/2 {

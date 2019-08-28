@@ -88,7 +88,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends}, nil
 }
 
-func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.FriendList, error) {
+func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.FriendList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
@@ -125,10 +125,11 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		}
 		params = append(params, incomingCursor.Position)
 	}
+	query += " ORDER BY state ASC, position ASC"
 	if limit != 0 {
 		// Console API can select all friends in one request. Client/runtime calls will set a non-0 limit.
 		params = append(params, limit+1)
-		query += " LIMIT $"+strconv.Itoa(len(params))
+		query += " LIMIT $" + strconv.Itoa(len(params))
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)

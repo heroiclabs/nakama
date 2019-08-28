@@ -27,7 +27,7 @@
     "react-dom": "^16.8.4",
     "react-dropzone": "^10.1.0",
     "react-redux": "^6.0.1",
-    "react-router-dom": "^4.4.0",
+    "react-router-dom": "^4.3.1",
     "react-scripts": "2.1.8",
     "redux": "^4.0.1",
     "redux-saga": "^1.0.2",
@@ -36,7 +36,8 @@
     "js-yaml": "^3.13.1",
     "handlebars": "^4.1.2",
     "lodash.template": "^4.5.0",
-    "lodash": "^4.17.13"
+    "lodash": "^4.17.13",
+    "eslint-utils": "^1.4.1"
   },
   "scripts": {
     "start": "react-scripts start",

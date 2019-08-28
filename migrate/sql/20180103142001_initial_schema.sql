@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS user_edge (
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
     destination_id UUID        CHECK (destination_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
-    state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite_sent(1), invite_received(2), blocked(3), deleted(4), archived(5)
+    state          SMALLINT    DEFAULT 0 NOT NULL, -- friend(0), invite_sent(1), invite_received(2), blocked(3)
 
     UNIQUE (source_id, destination_id)
 );
@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS storage (
     UNIQUE (collection, key, user_id)
 );
 CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
+CREATE INDEX IF NOT EXISTS collection_user_id_read_key_idx ON storage (collection, user_id, read, key);
 CREATE INDEX IF NOT EXISTS storage_auto_index_fk_user_id_ref_users ON storage (user_id);
 
 CREATE TABLE IF NOT EXISTS message (
@@ -202,7 +203,7 @@ CREATE TABLE IF NOT EXISTS group_edge (
   position       BIGINT      NOT NULL, -- Used for sort order on rows.
   update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
   destination_id UUID        CHECK (destination_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
-  state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3), archived(4)
+  state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3)
 
   UNIQUE (source_id, destination_id)
 );

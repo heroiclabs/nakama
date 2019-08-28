@@ -21,7 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Use Go 1.12.9 on Alpine 3.10 as base Docker container image and native builds.
-- Update devconsole lodash (4.17.13) and lodash.template (4.5.0) dependencies.
+- Update devconsole lodash (4.17.13), lodash.template (4.5.0), and eslint-utils (1.4.1) dependencies.
 - Errors from runtime before hooks no longer close the session.
 - Switch prometheus metrics to use labels instead of a prefix.
 - Add flag on realtime socket messages that will support optional reliability.
@@ -31,6 +31,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Group users listing now includes disabled (banned) users.
 - User groups listing now includes disabled groups.
 - Remove hard cap on maximum number of users per group.
+- Ensure deterministic ordering for edge relationship listings.
+- Ensure deterministic ordering for storage listing operations.
+- Ensure deterministic ordering for leaderboard scores where both score and subscore are identical.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
