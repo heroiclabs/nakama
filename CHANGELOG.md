@@ -34,6 +34,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure deterministic ordering for edge relationship listings.
 - Ensure deterministic ordering for storage listing operations.
 - Ensure deterministic ordering for leaderboard scores where both score and subscore are identical.
+- Consistent default database address between migration command and main server startup.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
