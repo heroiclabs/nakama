@@ -278,7 +278,7 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
 	query := `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups 
+FROM groups
 WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
@@ -1336,16 +1336,16 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
+ORDER BY lang_tag ASC, edge_count ASC, id ASC
 LIMIT $1`
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE
-	(disable_time = '1970-01-01 00:00:00 UTC')
-AND
-	((lang_tag, edge_count, id) > ($2, $3, $4))
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND (lang_tag, edge_count, id) > ($2, $3, $4)
+ORDER BY lang_tag ASC, edge_count ASC, id ASC
 LIMIT $1`
 		}
 	} else {
@@ -1593,7 +1593,7 @@ RETURNING state`
 
 func GroupDeleteAll(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
 	query := `
-SELECT id, edge_count, group_edge.state FROM groups 
+SELECT id, edge_count, group_edge.state FROM groups
 JOIN group_edge ON (group_edge.source_id = id)
 WHERE group_edge.destination_id = $1`
 

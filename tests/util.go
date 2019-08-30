@@ -55,7 +55,8 @@ type DummyMessageRouter struct{}
 func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*server.DeferredMessage) {
 	panic("unused")
 }
-func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope, bool) {}
+func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope, bool) {
+}
 func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope, bool) {}
 
 type DummySession struct {
@@ -76,6 +77,9 @@ func (d *DummySession) Username() string {
 	return ""
 }
 func (d *DummySession) SetUsername(string) {}
+func (d *DummySession) Vars() map[string]string {
+	return nil
+}
 func (d *DummySession) Expiry() int64 {
 	return int64(0)
 }
