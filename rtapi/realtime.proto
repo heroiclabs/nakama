@@ -194,14 +194,6 @@ message ChannelMessageUpdate {
   string message_id = 2;
   // New message content.
   string content = 3;
-  // The name of the chat room, or an empty string if this message was not sent through a chat room.
-  string room_name = 4;
-  // The ID of the group, or an empty string if this message was not sent through a group channel.
-  string group_id = 5;
-  // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
-  string user_id_one = 6;
-  // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
-  string user_id_two = 7;
 }
 
 // Remove a message previously sent to a realtime channel.
@@ -210,14 +202,6 @@ message ChannelMessageRemove {
   string channel_id = 1;
   // The ID assigned to the message to update.
   string message_id = 2;
-  // The name of the chat room, or an empty string if this message was not sent through a chat room.
-  string room_name = 3;
-  // The ID of the group, or an empty string if this message was not sent through a group channel.
-  string group_id = 4;
-  // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
-  string user_id_one = 5;
-  // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
-  string user_id_two = 6;
 }
 
 // A set of joins and leaves on a particular channel.
