@@ -12,8 +12,8 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.6.0 -t heroiclabs/nakama:2.6.0-arm64v8 -f Dockerfile-arm64v8
-# To build Version 2.6.0: docker build "$PWD" --build-arg commit="b28f8d9" --build-arg version=v2.6.0 -t heroiclabs/nakama:2.6.0-arm64v8 -f Dockerfile-arm64v8
+# To build nakama-server version 2.6.0:
+# docker build . --build-arg version="v2.6.0" -t arm64v8/nakama:2.6.0 -f Dockerfile-arm64v8-stretch
 FROM arm64v8/golang:1.12.9-stretch
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
