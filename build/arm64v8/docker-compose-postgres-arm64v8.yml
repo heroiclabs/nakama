@@ -22,7 +22,7 @@ services:
       - "8080:8080"
   nakama:
     container_name: nakama
-    image: heroiclabs/nakama:2.6.0-arm64v8 
+    image: arm64v8/nakama:v2.6.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"
@@ -36,7 +36,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - /path/to/nakama/datafolder:/nakama/data
+      - /path/to/nakama/data:/nakama/data
     expose:
       - "7349"
       - "7350"
