@@ -1883,14 +1883,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "expiry",
-            "description": "Expiry in seconds (since epoch) to begin fetching records from.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
           }
         ],
         "tags": [
