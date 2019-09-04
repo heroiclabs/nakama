@@ -775,6 +775,7 @@ type NakamaModule interface {
 	AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error
 
 	AccountDeleteId(ctx context.Context, userID string, recorded bool) error
+	AccountExportId(ctx context.Context, userID string) (string, error)
 
 	UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error)
 	UsersGetUsername(ctx context.Context, usernames []string) ([]*api.User, error)

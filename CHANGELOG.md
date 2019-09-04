@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New `check` command to validate runtime modules without starting the server.
 - Add discrete channel identifier fields in all messages and message history listings.
 - Session tokens now allow storage of arbitrary string key-value pairs.
+- New runtime function for full account data exports.
 
 ### Changed
 - Use Go 1.13.0 on Alpine 3.10 as base Docker container image and native builds.

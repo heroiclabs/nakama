@@ -112,100 +112,10 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 		return nil, status.Error(codes.InvalidArgument, "Cannot export the system user.")
 	}
 
-	// Core user account.
-	account, _, err := GetAccount(ctx, s.logger, s.db, nil, userID)
+	export, err := ExportAccount(ctx, s.logger, s.db, userID)
 	if err != nil {
-		if err == ErrAccountNotFound {
-			return nil, status.Error(codes.NotFound, "Account not found.")
-		}
-		s.logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
+		return nil, err
 	}
-
-	// Friends.
-	friends, err := GetFriendIDs(ctx, s.logger, s.db, userID)
-	if err != nil {
-		s.logger.Error("Could not fetch friend IDs", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	// Messages.
-	messages, err := GetChannelMessages(ctx, s.logger, s.db, userID)
-	if err != nil {
-		s.logger.Error("Could not fetch messages", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	// Leaderboard records.
-	leaderboardRecords, err := LeaderboardRecordReadAll(ctx, s.logger, s.db, userID)
-	if err != nil {
-		s.logger.Error("Could not fetch leaderboard records", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	groups := make([]*api.Group, 0)
-	groupUsers, err := ListUserGroups(ctx, s.logger, s.db, userID, 0, nil, "")
-	if err != nil {
-		s.logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-	for _, g := range groupUsers.UserGroups {
-		groups = append(groups, g.Group)
-	}
-
-	// Notifications.
-	notifications, err := NotificationList(ctx, s.logger, s.db, userID, 0, "", nil)
-	if err != nil {
-		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	// Storage objects where user is the owner.
-	storageObjects, err := StorageReadAllUserObjects(ctx, s.logger, s.db, userID)
-	if err != nil {
-		s.logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-
-	// History of user's wallet.
-	walletLedgers, err := ListWalletLedger(ctx, s.logger, s.db, userID)
-	if err != nil {
-		s.logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", in.Id))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-	}
-	wl := make([]*console.WalletLedger, len(walletLedgers))
-	for i, w := range walletLedgers {
-		changeset, err := json.Marshal(w.Changeset)
-		if err != nil {
-			s.logger.Error("Could not fetch wallet ledger items, error encoding changeset", zap.Error(err), zap.String("user_id", in.Id))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-		}
-		metadata, err := json.Marshal(w.Metadata)
-		if err != nil {
-			s.logger.Error("Could not fetch wallet ledger items, error encoding metadata", zap.Error(err), zap.String("user_id", in.Id))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
-		}
-		wl[i] = &console.WalletLedger{
-			Id:         w.ID,
-			UserId:     w.UserID,
-			Changeset:  string(changeset),
-			Metadata:   string(metadata),
-			CreateTime: &timestamp.Timestamp{Seconds: w.CreateTime},
-			UpdateTime: &timestamp.Timestamp{Seconds: w.UpdateTime},
-		}
-	}
-
-	export := &console.AccountExport{
-		Account:            account,
-		Objects:            storageObjects,
-		Friends:            friends.GetFriends(),
-		Messages:           messages,
-		Groups:             groups,
-		LeaderboardRecords: leaderboardRecords,
-		Notifications:      notifications.GetNotifications(),
-		WalletLedgers:      wl,
-	}
-
 	return export, nil
 }
 

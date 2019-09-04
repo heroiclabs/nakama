@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama/api"
@@ -41,6 +42,7 @@ type RuntimeGoNakamaModule struct {
 	sync.RWMutex
 	logger               *zap.Logger
 	db                   *sql.DB
+	jsonpbMarshaler      *jsonpb.Marshaler
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -57,10 +59,11 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
+		jsonpbMarshaler:      jsonpbMarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -337,6 +340,25 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 	}
 
 	return DeleteAccount(ctx, n.logger, n.db, u, recorded)
+}
+
+func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID string) (string, error) {
+	u, err := uuid.FromString(userID)
+	if err != nil {
+		return "", errors.New("expects user ID to be a valid identifier")
+	}
+
+	export, err := ExportAccount(ctx, n.logger, n.db, u)
+	if err != nil {
+		return "", errors.Errorf("error exporting account: %v", err.Error())
+	}
+
+	exportString, err := n.jsonpbMarshaler.MarshalToString(export)
+	if err != nil {
+		return "", errors.Errorf("error encoding account export: %v", err.Error())
+	}
+
+	return exportString, nil
 }
 
 func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error) {

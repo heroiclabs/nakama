@@ -57,6 +57,7 @@ import (
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
+	jsonpbMarshaler      *jsonpb.Marshaler
 	jsonpbUnmarshaler    *jsonpb.Unmarshaler
 	config               Config
 	socialClient         *social.Client
@@ -78,10 +79,11 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
+		jsonpbMarshaler:      jsonpbMarshaler,
 		jsonpbUnmarshaler:    jsonpbUnmarshaler,
 		config:               config,
 		socialClient:         socialClient,
@@ -164,6 +166,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"accounts_get_id":             n.accountsGetId,
 		"account_update_id":           n.accountUpdateId,
 		"account_delete_id":           n.accountDeleteId,
+		"account_export_id":           n.accountExportId,
 		"users_get_id":                n.usersGetId,
 		"users_get_username":          n.usersGetUsername,
 		"users_ban_id":                n.usersBanId,
@@ -5350,4 +5353,27 @@ func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	export, err := ExportAccount(l.Context(), n.logger, n.db, userID)
+	if err != nil {
+		l.RaiseError("error exporting account: %v", err.Error())
+		return 0
+	}
+
+	exportString, err := n.jsonpbMarshaler.MarshalToString(export)
+	if err != nil {
+		l.RaiseError("error encoding account export: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(exportString))
+	return 1
 }
