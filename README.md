@@ -19,7 +19,7 @@
 * **Runtime code** - Extend the server with custom logic written in Lua or native Go code.
 * **Matchmaker**, **dashboard**, **metrics**, and [more](https://heroiclabs.com/docs).
 
-Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://gitter.im/heroiclabs/nakama) for more info.
+Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://forum.heroiclabs.com) for more info.
 
 ## Getting Started
 
