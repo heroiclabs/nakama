@@ -25,7 +25,7 @@ require (
 	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/gobuffalo/packr v1.26.0
 	github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
-	github.com/golang/protobuf v1.3.1
+	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/handlers v0.0.0-20190227193432-ac6d24f88de4
 	github.com/gorilla/mux v1.7.2
 	github.com/gorilla/websocket v0.0.0-20190427040306-80c2d40e9b91

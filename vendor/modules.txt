@@ -1,9 +1,9 @@
 # cloud.google.com/go v0.38.0
 cloud.google.com/go/compute/metadata
-cloud.google.com/go/monitoring/apiv3
-cloud.google.com/go/trace/apiv2
 cloud.google.com/go/container/apiv1
 cloud.google.com/go/internal/version
+cloud.google.com/go/monitoring/apiv3
+cloud.google.com/go/trace/apiv2
 # contrib.go.opencensus.io/exporter/prometheus v0.1.0
 contrib.go.opencensus.io/exporter/prometheus
 # contrib.go.opencensus.io/exporter/stackdriver v0.12.2
@@ -12,76 +12,76 @@ contrib.go.opencensus.io/exporter/stackdriver/monitoredresource
 # github.com/RoaringBitmap/roaring v0.4.18
 github.com/RoaringBitmap/roaring
 # github.com/aws/aws-sdk-go v1.19.18
-github.com/aws/aws-sdk-go/aws/ec2metadata
-github.com/aws/aws-sdk-go/aws/session
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
+github.com/aws/aws-sdk-go/aws/awsutil
 github.com/aws/aws-sdk-go/aws/client
 github.com/aws/aws-sdk-go/aws/client/metadata
 github.com/aws/aws-sdk-go/aws/corehandlers
-github.com/aws/aws-sdk-go/aws/request
-github.com/aws/aws-sdk-go/internal/sdkuri
 github.com/aws/aws-sdk-go/aws/credentials
+github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds
+github.com/aws/aws-sdk-go/aws/credentials/endpointcreds
 github.com/aws/aws-sdk-go/aws/credentials/processcreds
 github.com/aws/aws-sdk-go/aws/credentials/stscreds
 github.com/aws/aws-sdk-go/aws/csm
 github.com/aws/aws-sdk-go/aws/defaults
+github.com/aws/aws-sdk-go/aws/ec2metadata
 github.com/aws/aws-sdk-go/aws/endpoints
+github.com/aws/aws-sdk-go/aws/request
+github.com/aws/aws-sdk-go/aws/session
+github.com/aws/aws-sdk-go/aws/signer/v4
 github.com/aws/aws-sdk-go/internal/ini
-github.com/aws/aws-sdk-go/internal/shareddefaults
 github.com/aws/aws-sdk-go/internal/sdkio
 github.com/aws/aws-sdk-go/internal/sdkrand
-github.com/aws/aws-sdk-go/aws/awsutil
-github.com/aws/aws-sdk-go/service/sts
-github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds
-github.com/aws/aws-sdk-go/aws/credentials/endpointcreds
-github.com/aws/aws-sdk-go/aws/signer/v4
-github.com/aws/aws-sdk-go/private/protocol/query
-github.com/aws/aws-sdk-go/private/protocol/rest
-github.com/aws/aws-sdk-go/private/protocol/query/queryutil
-github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
+github.com/aws/aws-sdk-go/internal/sdkuri
+github.com/aws/aws-sdk-go/internal/shareddefaults
 github.com/aws/aws-sdk-go/private/protocol
+github.com/aws/aws-sdk-go/private/protocol/query
+github.com/aws/aws-sdk-go/private/protocol/query/queryutil
+github.com/aws/aws-sdk-go/private/protocol/rest
+github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
+github.com/aws/aws-sdk-go/service/sts
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
-# github.com/blevesearch/bleve v0.0.0-20190613153500-26d2099fa968
+# github.com/blevesearch/bleve v0.0.0-20190613153557-26d2099fa968
 github.com/blevesearch/bleve
-github.com/blevesearch/bleve/analysis/analyzer/keyword
-github.com/blevesearch/bleve/search/query
 github.com/blevesearch/bleve/analysis
+github.com/blevesearch/bleve/analysis/analyzer/keyword
+github.com/blevesearch/bleve/analysis/analyzer/standard
+github.com/blevesearch/bleve/analysis/datetime/flexible
 github.com/blevesearch/bleve/analysis/datetime/optional
+github.com/blevesearch/bleve/analysis/lang/en
+github.com/blevesearch/bleve/analysis/token/lowercase
+github.com/blevesearch/bleve/analysis/token/porter
+github.com/blevesearch/bleve/analysis/token/stop
+github.com/blevesearch/bleve/analysis/tokenizer/single
+github.com/blevesearch/bleve/analysis/tokenizer/unicode
 github.com/blevesearch/bleve/document
+github.com/blevesearch/bleve/geo
 github.com/blevesearch/bleve/index
 github.com/blevesearch/bleve/index/scorch
+github.com/blevesearch/bleve/index/scorch/mergeplan
+github.com/blevesearch/bleve/index/scorch/segment
+github.com/blevesearch/bleve/index/scorch/segment/zap
 github.com/blevesearch/bleve/index/store
 github.com/blevesearch/bleve/index/store/boltdb
 github.com/blevesearch/bleve/index/store/gtreap
 github.com/blevesearch/bleve/index/upsidedown
 github.com/blevesearch/bleve/mapping
+github.com/blevesearch/bleve/numeric
 github.com/blevesearch/bleve/registry
 github.com/blevesearch/bleve/search
 github.com/blevesearch/bleve/search/collector
 github.com/blevesearch/bleve/search/facet
 github.com/blevesearch/bleve/search/highlight
-github.com/blevesearch/bleve/search/highlight/highlighter/html
-github.com/blevesearch/bleve/size
-github.com/blevesearch/bleve/analysis/tokenizer/single
-github.com/blevesearch/bleve/geo
-github.com/blevesearch/bleve/numeric
-github.com/blevesearch/bleve/search/searcher
-github.com/blevesearch/bleve/analysis/datetime/flexible
-github.com/blevesearch/bleve/index/scorch/mergeplan
-github.com/blevesearch/bleve/index/scorch/segment
-github.com/blevesearch/bleve/index/scorch/segment/zap
-github.com/blevesearch/bleve/analysis/analyzer/standard
 github.com/blevesearch/bleve/search/highlight/format/html
 github.com/blevesearch/bleve/search/highlight/fragmenter/simple
+github.com/blevesearch/bleve/search/highlight/highlighter/html
 github.com/blevesearch/bleve/search/highlight/highlighter/simple
+github.com/blevesearch/bleve/search/query
 github.com/blevesearch/bleve/search/scorer
-github.com/blevesearch/bleve/analysis/lang/en
-github.com/blevesearch/bleve/analysis/token/lowercase
-github.com/blevesearch/bleve/analysis/tokenizer/unicode
-github.com/blevesearch/bleve/analysis/token/porter
-github.com/blevesearch/bleve/analysis/token/stop
+github.com/blevesearch/bleve/search/searcher
+github.com/blevesearch/bleve/size
 # github.com/blevesearch/go-porterstemmer v1.0.2
 github.com/blevesearch/go-porterstemmer
 # github.com/blevesearch/segment v0.0.0-20160915185041-762005e7a34f
@@ -97,7 +97,7 @@ github.com/couchbase/vellum/regexp
 github.com/couchbase/vellum/utf8
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/dgrijalva/jwt-go v0.0.0-20190530174800-7cd734deee98
+# github.com/dgrijalva/jwt-go v0.0.0-20190530174854-7cd734deee98
 github.com/dgrijalva/jwt-go
 # github.com/edsrzf/mmap-go v1.0.0
 github.com/edsrzf/mmap-go
@@ -115,22 +115,22 @@ github.com/gobuffalo/packd
 github.com/gobuffalo/packr
 # github.com/gobuffalo/syncx v0.0.0-20190224160051-33c29581e754
 github.com/gobuffalo/syncx
-# github.com/gofrs/uuid v0.0.0-20190510204200-abfe1881e60e
+# github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
 github.com/gofrs/uuid
-# github.com/golang/protobuf v1.3.1
+# github.com/golang/protobuf v1.3.2
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
-github.com/golang/protobuf/ptypes/timestamp
-github.com/golang/protobuf/ptypes/wrappers
-github.com/golang/protobuf/ptypes/empty
-github.com/golang/protobuf/ptypes/struct
 github.com/golang/protobuf/protoc-gen-go/descriptor
-github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/protoc-gen-go/generator
-github.com/golang/protobuf/ptypes/duration
-github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/protoc-gen-go/generator/internal/remap
 github.com/golang/protobuf/protoc-gen-go/plugin
+github.com/golang/protobuf/ptypes
+github.com/golang/protobuf/ptypes/any
+github.com/golang/protobuf/ptypes/duration
+github.com/golang/protobuf/ptypes/empty
+github.com/golang/protobuf/ptypes/struct
+github.com/golang/protobuf/ptypes/timestamp
+github.com/golang/protobuf/ptypes/wrappers
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
 # github.com/google/go-cmp v0.3.0
@@ -142,27 +142,27 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/googleapis/gax-go/v2 v2.0.4
 github.com/googleapis/gax-go/v2
-# github.com/gorilla/handlers v0.0.0-20190227193400-ac6d24f88de4
+# github.com/gorilla/handlers v0.0.0-20190227193432-ac6d24f88de4
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.2
 github.com/gorilla/mux
-# github.com/gorilla/websocket v0.0.0-20190427040300-80c2d40e9b91
+# github.com/gorilla/websocket v0.0.0-20190427040306-80c2d40e9b91
 github.com/gorilla/websocket
 # github.com/grpc-ecosystem/grpc-gateway v1.9.2
+github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options
 github.com/grpc-ecosystem/grpc-gateway/runtime
 github.com/grpc-ecosystem/grpc-gateway/utilities
-github.com/grpc-ecosystem/grpc-gateway/internal
 # github.com/hashicorp/golang-lru v0.5.1
 github.com/hashicorp/golang-lru/simplelru
 # github.com/jackc/pgx v3.4.0+incompatible
-github.com/jackc/pgx/stdlib
 github.com/jackc/pgx
-github.com/jackc/pgx/pgtype
+github.com/jackc/pgx/chunkreader
 github.com/jackc/pgx/internal/sanitize
 github.com/jackc/pgx/pgio
 github.com/jackc/pgx/pgproto3
-github.com/jackc/pgx/chunkreader
+github.com/jackc/pgx/pgtype
+github.com/jackc/pgx/stdlib
 # github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 github.com/jmespath/go-jmespath
 # github.com/joho/godotenv v1.3.0
@@ -179,24 +179,24 @@ github.com/pkg/errors
 github.com/pmezard/go-difflib/difflib
 # github.com/prometheus/client_golang v0.9.2
 github.com/prometheus/client_golang/prometheus
-github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_golang/prometheus/internal
+github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.0.0-20181126121408-4724e9255275
 github.com/prometheus/common/expfmt
-github.com/prometheus/common/model
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
+github.com/prometheus/common/model
 # github.com/prometheus/procfs v0.0.0-20181204211112-1dc9a6cbc91a
 github.com/prometheus/procfs
+github.com/prometheus/procfs/internal/util
 github.com/prometheus/procfs/nfs
 github.com/prometheus/procfs/xfs
-github.com/prometheus/procfs/internal/util
 # github.com/rogpeppe/go-internal v1.3.0
 github.com/rogpeppe/go-internal/modfile
 github.com/rogpeppe/go-internal/module
 github.com/rogpeppe/go-internal/semver
-# github.com/rubenv/sql-migrate v0.0.0-20190618074400-f4d34eae5a5c
+# github.com/rubenv/sql-migrate v0.0.0-20190618074426-f4d34eae5a5c
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/steveyen/gtreap v0.0.0-20150807155958-0abe01ef9be2
@@ -207,32 +207,32 @@ github.com/stretchr/testify/assert
 github.com/tinylib/msgp/msgp
 # github.com/willf/bitset v1.1.10
 github.com/willf/bitset
-# github.com/yuin/gopher-lua v0.0.0-20190514113300-1cd887cd7036
+# github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036
 github.com/yuin/gopher-lua
 github.com/yuin/gopher-lua/ast
 github.com/yuin/gopher-lua/parse
 github.com/yuin/gopher-lua/pm
 # go.opencensus.io v0.22.0
+go.opencensus.io
+go.opencensus.io/internal
+go.opencensus.io/internal/tagencoding
+go.opencensus.io/metric/metricdata
+go.opencensus.io/metric/metricexport
+go.opencensus.io/metric/metricproducer
 go.opencensus.io/plugin/ocgrpc
 go.opencensus.io/plugin/ochttp
+go.opencensus.io/plugin/ochttp/propagation/b3
+go.opencensus.io/resource
+go.opencensus.io/resource/resourcekeys
 go.opencensus.io/stats
+go.opencensus.io/stats/internal
 go.opencensus.io/stats/view
 go.opencensus.io/tag
 go.opencensus.io/trace
-go.opencensus.io/zpages
-go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricexport
-go.opencensus.io
-go.opencensus.io/resource
-go.opencensus.io/resource/resourcekeys
-go.opencensus.io/trace/propagation
-go.opencensus.io/plugin/ochttp/propagation/b3
-go.opencensus.io/stats/internal
-go.opencensus.io/internal/tagencoding
-go.opencensus.io/metric/metricproducer
-go.opencensus.io/internal
 go.opencensus.io/trace/internal
+go.opencensus.io/trace/propagation
 go.opencensus.io/trace/tracestate
+go.opencensus.io/zpages
 go.opencensus.io/zpages/internal
 # go.uber.org/atomic v1.4.0
 go.uber.org/atomic
@@ -240,27 +240,27 @@ go.uber.org/atomic
 go.uber.org/multierr
 # go.uber.org/zap v1.10.0
 go.uber.org/zap
-go.uber.org/zap/zapcore
-go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/buffer
+go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
-# golang.org/x/crypto v0.0.0-20190617222500-ea8f1a30c443
+go.uber.org/zap/zapcore
+# golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443
 golang.org/x/crypto/bcrypt
-golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/blowfish
+golang.org/x/crypto/pbkdf2
 # golang.org/x/net v0.0.0-20190501004415-9ce7a6920f09
 golang.org/x/net/context
-golang.org/x/net/trace
-golang.org/x/net/internal/timeseries
+golang.org/x/net/context/ctxhttp
+golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
-golang.org/x/net/http/httpguts
 golang.org/x/net/idna
-golang.org/x/net/context/ctxhttp
+golang.org/x/net/internal/timeseries
+golang.org/x/net/trace
 # golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
-golang.org/x/oauth2/google
 golang.org/x/oauth2
+golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
@@ -270,69 +270,70 @@ golang.org/x/sync/semaphore
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.2
-golang.org/x/text/secure/precis
 golang.org/x/text/cases
-golang.org/x/text/language
-golang.org/x/text/runes
-golang.org/x/text/secure/bidirule
-golang.org/x/text/transform
-golang.org/x/text/unicode/norm
-golang.org/x/text/width
 golang.org/x/text/internal
 golang.org/x/text/internal/language
 golang.org/x/text/internal/language/compact
-golang.org/x/text/unicode/bidi
 golang.org/x/text/internal/tag
+golang.org/x/text/language
+golang.org/x/text/runes
+golang.org/x/text/secure/bidirule
+golang.org/x/text/secure/precis
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+golang.org/x/text/width
 # google.golang.org/api v0.5.0
+google.golang.org/api/googleapi/transport
+google.golang.org/api/internal
+google.golang.org/api/iterator
 google.golang.org/api/option
 google.golang.org/api/support/bundler
-google.golang.org/api/iterator
 google.golang.org/api/transport
-google.golang.org/api/internal
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-google.golang.org/api/googleapi/transport
 google.golang.org/api/transport/http/internal/propagation
 # google.golang.org/appengine v1.4.0
 google.golang.org/appengine
-google.golang.org/appengine/urlfetch
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/app_identity
-google.golang.org/appengine/internal/modules
-google.golang.org/appengine/socket
-google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
 google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/modules
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/socket
-# google.golang.org/genproto v0.0.0-20190611190200-a7e196e89fd3
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/socket
+google.golang.org/appengine/urlfetch
+# google.golang.org/genproto v0.0.0-20190611190212-a7e196e89fd3
+google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
-google.golang.org/genproto/googleapis/api/httpbody
-google.golang.org/genproto/protobuf/field_mask
-google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/api/distribution
+google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
+google.golang.org/genproto/googleapis/container/v1
 google.golang.org/genproto/googleapis/devtools/cloudtrace/v2
 google.golang.org/genproto/googleapis/monitoring/v3
-google.golang.org/genproto/googleapis/container/v1
-google.golang.org/genproto/googleapis/api
+google.golang.org/genproto/googleapis/rpc/status
+google.golang.org/genproto/protobuf/field_mask
 # google.golang.org/grpc v1.21.1
 google.golang.org/grpc
-google.golang.org/grpc/codes
-google.golang.org/grpc/grpclog
-google.golang.org/grpc/status
-google.golang.org/grpc/credentials
-google.golang.org/grpc/encoding/gzip
-google.golang.org/grpc/metadata
-google.golang.org/grpc/peer
 google.golang.org/grpc/balancer
+google.golang.org/grpc/balancer/base
 google.golang.org/grpc/balancer/roundrobin
+google.golang.org/grpc/binarylog/grpc_binarylog_v1
+google.golang.org/grpc/codes
 google.golang.org/grpc/connectivity
+google.golang.org/grpc/credentials
+google.golang.org/grpc/credentials/internal
+google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/grpclog
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancerload
@@ -341,19 +342,18 @@ google.golang.org/grpc/internal/channelz
 google.golang.org/grpc/internal/envconfig
 google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
+google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
 google.golang.org/grpc/naming
+google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
 google.golang.org/grpc/resolver/passthrough
 google.golang.org/grpc/stats
+google.golang.org/grpc/status
 google.golang.org/grpc/tap
-google.golang.org/grpc/credentials/internal
-google.golang.org/grpc/balancer/base
-google.golang.org/grpc/binarylog/grpc_binarylog_v1
-google.golang.org/grpc/internal/syscall
-google.golang.org/grpc/credentials/oauth
 # gopkg.in/gorp.v1 v1.7.2
 gopkg.in/gorp.v1
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
