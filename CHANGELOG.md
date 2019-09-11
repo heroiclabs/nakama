@@ -3,9 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.7.0] - 2019-09-11
 ### Added
-- Allow RPC functions to receive and return raw JSON data.
+- Enable RPC functions to receive and return raw JSON data.
 - Status follow operations now also accept usernames to follow.
 - Pagination support for friends listing operations.
 - Filtering by friend state in friends listing operations.
@@ -15,10 +15,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Filtering by group state in user groups listing operations.
 - Allow max count to be set when creating groups from client calls.
 - Log better startup error message when database schema is not set up at all.
-- New `check` command to validate runtime modules without starting the server.
+- New "check" command to validate runtime modules without starting the server.
 - Add discrete channel identifier fields in all messages and message history listings.
 - Session tokens now allow storage of arbitrary string key-value pairs.
-- New runtime function for full account data exports.
+- New runtime function for programmatic GDPR account data exports.
 
 ### Changed
 - Use Go 1.13.0 on Alpine 3.10 as base Docker container image and native builds.
@@ -32,11 +32,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Group users listing now includes disabled (banned) users.
 - User groups listing now includes disabled groups.
 - Remove hard cap on maximum number of users per group.
-- Ensure deterministic ordering for edge relationship listings.
-- Ensure deterministic ordering for storage listing operations.
-- Ensure deterministic ordering for leaderboard scores where both score and subscore are identical.
+- Return deterministic ordering for edge relationship listings.
+- Return deterministic ordering for storage listing operations.
+- Return deterministic ordering for leaderboard scores where both score and subscore are identical.
 - Consistent default database address between migration command and main server startup.
-- Ensure deterministic ordering for group listings without filters.
+- Return deterministic ordering for group listings without filters.
 
 ### Fixed
 - Handle updates during leaderboard schedule reset window.
@@ -45,7 +45,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Listing user groups no longer returns an error when the user is a member of zero groups.
 - Go runtime group creation now correctly validates max count.
 - Consistent expiry calculation in leaderboard records haystack queries.
-- Convert custom SQL query and exec parameters to integers where appropriate.
+- Convert custom SQL query and exec parameters to integers when necessary in Lua runtime.
 - Correctly validate users before adding them to groups.
 - Add missing group chat channel message when a user joins the group.
 - Add missing group chat channel message when a user leaves the group.
