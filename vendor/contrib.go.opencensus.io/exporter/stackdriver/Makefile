@@ -1,7 +1,7 @@
 # TODO: Fix this on windows.
 ALL_SRC := $(shell find . -name '*.go' \
-								-not -path './vendor/*' \
-								-not -path '*/gen-go/*' \
+								-not -path '*/internal/testpb/*' \
+								-not -name 'tools.go' \
 								-type f | sort)
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
@@ -10,20 +10,21 @@ GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -coverprofile=coverage.txt -covermode=a
 GOTEST=go test
 GOFMT=gofmt
 GOLINT=golint
+GOIMPORTS=goimports
 GOVET=go vet
 EMBEDMD=embedmd
+STATICCHECK=staticcheck
 # TODO decide if we need to change these names.
 README_FILES := $(shell find . -name '*README.md' | sort | tr '\n' ' ')
 
+.DEFAULT_GOAL := defaul-goal
 
-.DEFAULT_GOAL := fmt-lint-vet-embedmd-test
+.PHONY: defaul-goal
+defaul-goal: fmt lint vet embedmd goimports staticcheck test
 
-.PHONY: fmt-lint-vet-embedmd-test
-fmt-lint-vet-embedmd-test: fmt lint vet embedmd test
-
-# TODO enable test-with-coverage in tavis
+# TODO: enable test-with-cover when find out why "scripts/check-test-files.sh: 4: set: Illegal option -o pipefail"
 .PHONY: travis-ci
-travis-ci: fmt lint vet embedmd test test-386
+travis-ci: fmt lint vet embedmd goimports staticcheck test test-386 test-with-coverage
 
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
@@ -41,7 +42,19 @@ test-386:
 
 .PHONY: test-with-coverage
 test-with-coverage:
+	@echo pre-compiling tests
+	@time go test -i $(ALL_PKGS)
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+	go tool cover -html=coverage.txt -o coverage.html
+
+.PHONY: test-with-cover
+test-with-cover:
+	@echo Verifying that all packages have test files to count in coverage
+	@scripts/check-test-files.sh $(subst contrib.go.opencensus.io/exporter/stackdriver,./,$(ALL_PKGS))
+	@echo pre-compiling tests
+	@time go test -i $(ALL_PKGS)
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+	go tool cover -html=coverage.txt -o coverage.html
 
 .PHONY: fmt
 fmt:
@@ -88,8 +101,25 @@ embedmd:
 	    echo "Embedmd finished successfully"; \
 	fi
 
+.PHONY: goimports
+goimports:
+	@IMPORTSOUT=`$(GOIMPORTS) -d . 2>&1`; \
+	if [ "$$IMPORTSOUT" ]; then \
+		echo "$(GOIMPORTS) FAILED => fix the following goimports errors:\n"; \
+		echo "$$IMPORTSOUT\n"; \
+		exit 1; \
+	else \
+	    echo "Goimports finished successfully"; \
+	fi
+
+.PHONY: staticcheck
+staticcheck:
+	$(STATICCHECK) ./...
+
 .PHONY: install-tools
 install-tools:
-	go get -u golang.org/x/tools/cmd/cover
-	go get -u golang.org/x/lint/golint
-	go get -u github.com/rakyll/embedmd
+	GO111MODULE=on go install \
+		golang.org/x/lint/golint \
+		golang.org/x/tools/cmd/goimports \
+		github.com/rakyll/embedmd \
+		honnef.co/go/tools/cmd/staticcheck

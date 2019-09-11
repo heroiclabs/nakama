@@ -3,8 +3,6 @@ package packd
 import (
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var CommonSkipPrefixes = []string{".", "_", "node_modules", "vendor"}
@@ -19,7 +17,7 @@ func SkipWalker(walker Walker, skipPrefixes []string, wf WalkFunc) error {
 	return walker.Walk(func(path string, file File) error {
 		fi, err := file.FileInfo()
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		path = strings.Replace(path, "\\", "/", -1)

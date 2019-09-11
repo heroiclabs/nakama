@@ -17,7 +17,7 @@ import (
   "context"
   "database/sql"
 
-  "github.com/heroiclabs/nakama/runtime"
+  "github.com/heroiclabs/nakama-common/runtime"
 )
 
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
@@ -50,7 +50,7 @@ To setup your own project to build modules for the game server you can follow th
 
    ```
    cd $GOPATH/src/github.com/heroiclabs/nakama
-   env CGO_ENABLED=1 go build
+   env CGO_ENABLED=1 go build -trimpath
    ```
 
 5. Setup a folder for your own server code.
@@ -58,14 +58,14 @@ To setup your own project to build modules for the game server you can follow th
    ```
    mkdir -p $GOPATH/src/some_project
    cd $GOPATH/src/some_project
+   go get -u "github.com/heroiclabs/nakama-common"
    ```
 
 6. You'll need to copy the main server dependencies into your project.
 
    ```
-   cp -r $GOPATH/src/github.com/heroiclabs/nakama/vendor .
    # Add some Go code. See an example above.
-   go build --buildmode=plugin -o ./modules/some_project.so
+   go build --buildmode=plugin -trimpath -o ./modules/some_project.so
    ```
 
    __NOTE__: It is not possible to build plugins on Windows with the native compiler toolchain but they can be cross-compiled and run with Docker. See more details below.
@@ -85,7 +85,7 @@ In a regular development cycle you will often recompile your code and rerun the 
 1. Develop and compile your code.
 
    ```
-   go build --buildmode=plugin
+   go build --buildmode=plugin -trimpath
    ```
    
 2. Use "--runtime.path" when you start the server to load modules at startup.
@@ -104,7 +104,7 @@ For Windows development and environments where you want to use our official Dock
 
    ```
    cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
-   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.3.1 build --buildmode=plugin -o ./modules/plugin_project.so
+   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.7.0 build --buildmode=plugin -trimpath -o ./modules/plugin_project.so
    ```
    
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.

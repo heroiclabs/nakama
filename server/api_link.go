@@ -15,16 +15,16 @@
 package server
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

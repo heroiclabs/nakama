@@ -26,10 +26,10 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/heroiclabs/nakama/runtime"
-	"github.com/heroiclabs/nakama/social"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v2/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )

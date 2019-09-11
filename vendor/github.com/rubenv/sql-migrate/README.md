@@ -56,6 +56,19 @@ production:
     table: migrations
 ```
 
+(See more examples for different set ups [here](test-integration/dbconfig.yml))
+
+Also one can obtain env variables in datasource field via `os.ExpandEnv` embedded call for the field.
+This may be useful if one doesn't want to store credentials in file:
+
+```yml
+production:
+    dialect: postgres
+    datasource: host=prodhost dbname=proddb user=${DB_USER} password=${DB_PASSWORD} sslmode=required
+    dir: migrations
+    table: migrations
+```
+
 The `table` setting is optional and will default to `gorp_migrations`.
 
 The environment that will be used can be specified with the `-env` flag (defaults to `development`).
@@ -92,6 +105,15 @@ $ sql-migrate status
 | 1_initial.sql | 2014-09-13 08:19:06.788354925 +0000 UTC |
 | 2_record.sql  | no                                      |
 +---------------+-----------------------------------------+
+```
+
+#### Running Test Integrations
+You can see how to run setups for different setups by executing the `.sh` files in [test-integration](test-integration/)
+
+```bash
+# Run mysql-env.sh example (you need to be in the project root directory)
+
+./test-integration/mysql-env.sh
 ```
 
 ### MySQL Caveat

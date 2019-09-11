@@ -116,7 +116,7 @@ All dependencies required for a build are vendored as part of the Go project. Yo
 ```shell
 git clone https://github.com/heroiclabs/nakama.git $GOPATH/src/github.com/heroiclabs/nakama
 cd $GOPATH/src/github.com/heroiclabs/nakama
-go build -i
+go build -trimpath
 ```
 
 ### Full Source Builds

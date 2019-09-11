@@ -21,7 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
 

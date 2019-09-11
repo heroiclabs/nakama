@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"crypto"
 	"database/sql"
 	"encoding/base64"
@@ -28,7 +29,7 @@ import (
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama-common/api"
 
 	"google.golang.org/grpc/peer"
 
@@ -44,12 +45,11 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcRuntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/heroiclabs/nakama/apigrpc"
-	"github.com/heroiclabs/nakama/social"
+	"github.com/heroiclabs/nakama/v2/apigrpc"
+	"github.com/heroiclabs/nakama/v2/social"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -175,6 +175,9 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	if err := apigrpc.RegisterNakamaHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		startupLogger.Fatal("API server gateway registration failed", zap.Error(err))
 	}
+	//if err := apigrpc.RegisterNakamaHandlerServer(ctx, grpcGateway, s); err != nil {
+	//	startupLogger.Fatal("API server gateway registration failed", zap.Error(err))
+	//}
 
 	grpcGatewayRouter := mux.NewRouter()
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.

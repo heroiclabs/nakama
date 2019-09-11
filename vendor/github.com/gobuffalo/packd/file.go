@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 var _ File = &virtualFile{}
@@ -80,11 +78,11 @@ func (f *virtualFile) write(d interface{}) (c int, err error) {
 			err = e
 		}
 	default:
-		err = errors.New("unknown type of argument")
+		err = fmt.Errorf("unknown type of argument")
 	}
 
 	if err != nil {
-		return c, errors.WithStack(err)
+		return c, err
 	}
 
 	f.info.size = int64(c)
@@ -103,7 +101,7 @@ func NewFile(name string, r io.Reader) (File, error) {
 func NewDir(name string) (File, error) {
 	v, err := buildFile(name, nil)
 	if err != nil {
-		return v, errors.WithStack(err)
+		return v, err
 	}
 	v.info.isDir = true
 	return v, nil
@@ -124,5 +122,5 @@ func buildFile(name string, r io.Reader) (*virtualFile, error) {
 	} else {
 		_, err = vf.write([]byte{}) // for safety
 	}
-	return vf, errors.Wrap(err, "could not make virtual file")
+	return vf, err
 }

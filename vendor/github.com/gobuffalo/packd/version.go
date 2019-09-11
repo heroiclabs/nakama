@@ -1,4 +1,4 @@
 package packd
 
 // Version of packd
-const Version = "v0.1.0"
+const Version = "v0.3.0"

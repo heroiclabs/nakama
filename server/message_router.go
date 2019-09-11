@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
 

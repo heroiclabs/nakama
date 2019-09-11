@@ -21,7 +21,7 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/runtime"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )

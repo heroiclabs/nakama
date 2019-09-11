@@ -8,8 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gobuffalo/syncx"
-	"github.com/pkg/errors"
+	"github.com/gobuffalo/packd/internal/takeon/github.com/markbates/errx"
 )
 
 var _ Addable = NewMemoryBox()
@@ -22,7 +21,7 @@ var _ Box = NewMemoryBox()
 
 // MemoryBox is a thread-safe, in-memory, implementation of the Box interface.
 type MemoryBox struct {
-	files *syncx.ByteMap
+	files *ByteMap
 }
 
 func (m *MemoryBox) Has(path string) bool {
@@ -119,7 +118,7 @@ func (m *MemoryBox) Walk(wf WalkFunc) error {
 
 		err = wf(path, f)
 		if err != nil {
-			if errors.Cause(err) == filepath.SkipDir {
+			if errx.Unwrap(err) == filepath.SkipDir {
 				err = nil
 				return true
 			}
@@ -129,7 +128,7 @@ func (m *MemoryBox) Walk(wf WalkFunc) error {
 		return true
 	})
 
-	if errors.Cause(err) == filepath.SkipDir {
+	if errx.Unwrap(err) == filepath.SkipDir {
 		return nil
 	}
 	return err
@@ -152,6 +151,6 @@ func (m *MemoryBox) Remove(path string) {
 // NewMemoryBox returns a configured *MemoryBox
 func NewMemoryBox() *MemoryBox {
 	return &MemoryBox{
-		files: &syncx.ByteMap{},
+		files: &ByteMap{},
 	}
 }

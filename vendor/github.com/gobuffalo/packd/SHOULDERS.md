@@ -5,8 +5,6 @@ github.com/gobuffalo/packd does not try to reinvent the wheel! Instead, it uses 
 Thank you to the following **GIANTS**:
 
 
-* [github.com/gobuffalo/syncx](https://godoc.org/github.com/gobuffalo/syncx)
-
-* [github.com/pkg/errors](https://godoc.org/github.com/pkg/errors)
+* [github.com/davecgh/go-spew](https://godoc.org/github.com/davecgh/go-spew)
 
 * [github.com/stretchr/testify](https://godoc.org/github.com/stretchr/testify)

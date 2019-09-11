@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
 

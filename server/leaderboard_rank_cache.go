@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama-common/api"
 
 	"github.com/gofrs/uuid"
 	"go.uber.org/zap"

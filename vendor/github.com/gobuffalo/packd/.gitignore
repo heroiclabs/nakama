@@ -27,4 +27,3 @@ generated/
 bin/*
 gin-bin
 .idea/
-Dockerfile.gocker

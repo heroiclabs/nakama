@@ -30,7 +30,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/heroiclabs/nakama/console"
+	"github.com/heroiclabs/nakama/v2/console"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/zpages"
 	"go.uber.org/zap"

@@ -27,7 +27,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama-common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

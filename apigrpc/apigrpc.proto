@@ -22,7 +22,7 @@ package nakama.api;
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "protoc-gen-swagger/options/annotations.proto";
-import "github.com/heroiclabs/nakama/api/api.proto";
+import "github.com/heroiclabs/nakama-common/api/api.proto";
 
 option go_package = "apigrpc";
 

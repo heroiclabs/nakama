@@ -17,7 +17,7 @@ package server
 import (
 	"context"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/heroiclabs/nakama/console"
+	"github.com/heroiclabs/nakama/v2/console"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"

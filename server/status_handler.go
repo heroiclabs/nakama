@@ -16,7 +16,7 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama/console"
+	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"runtime"
 )

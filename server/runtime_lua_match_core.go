@@ -24,8 +24,8 @@ import (
 	"sync"
 
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/heroiclabs/nakama/social"
+	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama/v2/social"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 )

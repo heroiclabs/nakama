@@ -3,6 +3,7 @@ package packr
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -11,14 +12,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/gobuffalo/packd"
 )
 
 var (
 	// ErrResOutsideBox gets returned in case of the requested resources being outside the box
-	ErrResOutsideBox = errors.New("Can't find a resource outside the box")
+	ErrResOutsideBox = fmt.Errorf("Can't find a resource outside the box")
 )
 
 var _ packd.Box = Box{}

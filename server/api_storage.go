@@ -15,14 +15,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 
 	"go.uber.org/zap"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/heroiclabs/nakama/api"
-	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama-common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

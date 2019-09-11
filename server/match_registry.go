@@ -27,7 +27,7 @@ import (
 	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/heroiclabs/nakama/api"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

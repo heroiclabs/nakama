@@ -1,0 +1,474 @@
+// Copyright 2019 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * The realtime protocol for Nakama server.
+ */
+syntax = "proto3";
+
+package nakama.realtime;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "github.com/heroiclabs/nakama-common/api/api.proto";
+
+option go_package = "rtapi";
+
+option java_multiple_files = true;
+option java_outer_classname = "NakamaRealtime";
+option java_package = "com.heroiclabs.nakama.rtapi";
+
+option csharp_namespace = "Nakama";
+
+option objc_class_prefix = "NKPB";
+
+// An envelope for a realtime message.
+message Envelope {
+  string cid = 1;
+  oneof message {
+    // A response from a channel join operation.
+    Channel channel = 2;
+    // Join a realtime chat channel.
+    ChannelJoin channel_join = 3;
+    // Leave a realtime chat channel.
+    ChannelLeave channel_leave = 4;
+    // An incoming message on a realtime chat channel.
+    api.ChannelMessage channel_message = 5;
+    // An acknowledgement received in response to sending a message on a chat channel.
+    ChannelMessageAck channel_message_ack = 6;
+    // Send a message to a realtime chat channel.
+    ChannelMessageSend channel_message_send = 7;
+    // Update a message previously sent to a realtime chat channel.
+    ChannelMessageUpdate channel_message_update = 8;
+    // Remove a message previously sent to a realtime chat channel.
+    ChannelMessageRemove channel_message_remove = 9;
+    // Presence update for a particular realtime chat channel.
+    ChannelPresenceEvent channel_presence_event = 10;
+    // Describes an error which occurred on the server.
+    Error error = 11;
+    // Incoming information about a realtime match.
+    Match match = 12;
+    // A client to server request to create a realtime match.
+    MatchCreate match_create = 13;
+    // Incoming realtime match data delivered from the server.
+    MatchData match_data = 14;
+    // A client to server request to send data to a realtime match.
+    MatchDataSend match_data_send = 15;
+    // A client to server request to join a realtime match.
+    MatchJoin match_join = 16;
+    // A client to server request to leave a realtime match.
+    MatchLeave match_leave = 17;
+    // Presence update for a particular realtime match.
+    MatchPresenceEvent match_presence_event = 18;
+    // Submit a new matchmaking process request.
+    MatchmakerAdd matchmaker_add = 19;
+    // A successful matchmaking result.
+    MatchmakerMatched matchmaker_matched = 20;
+    // Cancel a matchmaking process using a ticket.
+    MatchmakerRemove matchmaker_remove = 21;
+    // A response from starting a new matchmaking process.
+    MatchmakerTicket matchmaker_ticket = 22;
+    // Notifications send by the server.
+    Notifications notifications = 23;
+    // RPC call or response.
+    api.Rpc rpc = 24;
+    // An incoming status snapshot for some set of users.
+    Status status = 25;
+    // Start following some set of users to receive their status updates.
+    StatusFollow status_follow = 26;
+    // An incoming status update.
+    StatusPresenceEvent status_presence_event = 27;
+    // Stop following some set of users to no longer receive their status updates.
+    StatusUnfollow status_unfollow = 28;
+    // Set the user's own status.
+    StatusUpdate status_update = 29;
+    // A data message delivered over a stream.
+    StreamData stream_data = 30;
+    // Presence update for a particular stream.
+    StreamPresenceEvent stream_presence_event = 31;
+    // Application-level heartbeat and connection check.
+    Ping ping = 32;
+    // Application-level heartbeat and connection check response.
+    Pong pong = 33;
+  }
+}
+
+// A realtime chat channel.
+message Channel {
+  // The ID of the channel.
+  string id = 1;
+  // The users currently in the channel.
+  repeated UserPresence presences = 2;
+  // A reference to the current user's presence in the channel.
+  UserPresence self = 3;
+  // The name of the chat room, or an empty string if this message was not sent through a chat room.
+  string room_name = 4;
+  // The ID of the group, or an empty string if this message was not sent through a group channel.
+  string group_id = 5;
+  // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_one = 6;
+  // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_two = 7;
+}
+
+// Join operation for a realtime chat channel.
+message ChannelJoin {
+  // The type of chat channel.
+  enum Type {
+    // Default case. Assumed as ROOM type.
+    TYPE_UNSPECIFIED = 0;
+    // A room which anyone can join to chat.
+    ROOM = 1;
+    // A private channel for 1-on-1 chat.
+    DIRECT_MESSAGE = 2;
+    // A channel for group chat.
+    GROUP = 3;
+  }
+
+  // The user ID to DM with, group ID to chat with, or room channel name to join.
+  string target = 1;
+  // The type of the chat channel.
+  int32 type = 2; // one of "ChannelId.Type".
+  // Whether messages sent on this channel should be persistent.
+  google.protobuf.BoolValue persistence = 3;
+  // Whether the user should appear in the channel's presence list and events.
+  google.protobuf.BoolValue hidden = 4;
+}
+
+// Leave a realtime channel.
+message ChannelLeave {
+  // The ID of the channel to leave.
+  string channel_id = 1;
+}
+
+// A receipt reply from a channel message send operation.
+message ChannelMessageAck {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The unique ID assigned to the message.
+  string message_id = 2;
+  // The code representing a message type or category.
+  google.protobuf.Int32Value code = 3;
+  // Username of the message sender.
+  string username = 4;
+  // The UNIX time when the message was created.
+  google.protobuf.Timestamp create_time = 5;
+  // The UNIX time when the message was last updated.
+  google.protobuf.Timestamp update_time = 6;
+  // True if the message was persisted to the channel's history, false otherwise.
+  google.protobuf.BoolValue persistent = 7;
+  // The name of the chat room, or an empty string if this message was not sent through a chat room.
+  string room_name = 8;
+  // The ID of the group, or an empty string if this message was not sent through a group channel.
+  string group_id = 9;
+  // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_one = 10;
+  // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_two = 11;
+}
+
+// Send a message to a realtime channel.
+message ChannelMessageSend {
+  // The channel to sent to.
+  string channel_id = 1;
+  // Message content.
+  string content = 2;
+}
+
+// Update a message previously sent to a realtime channel.
+message ChannelMessageUpdate {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The ID assigned to the message to update.
+  string message_id = 2;
+  // New message content.
+  string content = 3;
+}
+
+// Remove a message previously sent to a realtime channel.
+message ChannelMessageRemove {
+  // The channel the message was sent to.
+  string channel_id = 1;
+  // The ID assigned to the message to update.
+  string message_id = 2;
+}
+
+// A set of joins and leaves on a particular channel.
+message ChannelPresenceEvent {
+  // The channel identifier this event is for.
+  string channel_id = 1;
+  // Presences joining the channel as part of this event, if any.
+  repeated UserPresence joins = 2;
+  // Presences leaving the channel as part of this event, if any.
+  repeated UserPresence leaves = 3;
+  // The name of the chat room, or an empty string if this message was not sent through a chat room.
+  string room_name = 4;
+  // The ID of the group, or an empty string if this message was not sent through a group channel.
+  string group_id = 5;
+  // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_one = 6;
+  // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
+  string user_id_two = 7;
+}
+
+// A logical error which may occur on the server.
+message Error {
+  // The selection of possible error codes.
+  enum Code {
+    // An unexpected result from the server.
+    RUNTIME_EXCEPTION = 0;
+    // The server received a message which is not recognised.
+    UNRECOGNIZED_PAYLOAD = 1;
+    // A message was expected but contains no content.
+    MISSING_PAYLOAD = 2;
+    // Fields in the message have an invalid format.
+    BAD_INPUT = 3;
+    // The match id was not found.
+    MATCH_NOT_FOUND = 4;
+    // The match join was rejected.
+    MATCH_JOIN_REJECTED = 5;
+    // The runtime function does not exist on the server.
+    RUNTIME_FUNCTION_NOT_FOUND = 6;
+    // The runtime function executed with an error.
+    RUNTIME_FUNCTION_EXCEPTION = 7;
+  }
+
+  // The error code which should be one of "Error.Code" enums.
+  int32 code = 1;
+  // A message in English to help developers debug the response.
+  string message = 2;
+  // Additional error details which may be different for each response.
+  map<string, string> context = 3;
+}
+
+// A realtime match.
+message Match {
+  // The match unique ID.
+  string match_id = 1;
+  // True if it's an server-managed authoritative match, false otherwise.
+  bool authoritative = 2;
+  // Match label, if any.
+  google.protobuf.StringValue label = 3;
+  // The number of users currently in the match.
+  int32 size = 4;
+  // The users currently in the match.
+  repeated UserPresence presences = 5;
+  // A reference to the current user's presence in the match.
+  UserPresence self = 6;
+}
+
+// Create a new realtime match.
+message MatchCreate {}
+
+// Realtime match data received from the server.
+message MatchData {
+  // The match unique ID.
+  string match_id = 1;
+  // A reference to the user presence that sent this data, if any.
+  UserPresence presence = 2;
+  // Op code value.
+  int64 op_code = 3;
+  // Data payload, if any.
+  bytes data = 4;
+  // True if this data was delivered reliably, false otherwise.
+  bool reliable = 5;
+}
+
+// Send realtime match data to the server.
+message MatchDataSend {
+  // The match unique ID.
+  string match_id = 1;
+  // Op code value.
+  int64 op_code = 2;
+  // Data payload, if any.
+  bytes data = 3;
+  // List of presences in the match to deliver to, if filtering is required. Otherwise deliver to everyone in the match.
+  repeated UserPresence presences = 4;
+  // True if the data should be sent reliably, false otherwise.
+  bool reliable = 5;
+}
+
+// Join an existing realtime match.
+message MatchJoin {
+  oneof id {
+    // The match unique ID.
+    string match_id = 1;
+    // A matchmaking result token.
+    string token = 2;
+  }
+  // An optional set of key-value metadata pairs to be passed to the match handler, if any.
+  map<string, string> metadata = 3;
+}
+
+// Leave a realtime match.
+message MatchLeave {
+  // The match unique ID.
+  string match_id = 1;
+}
+
+// A set of joins and leaves on a particular realtime match.
+message MatchPresenceEvent {
+  // The match unique ID.
+  string match_id = 1;
+  // User presences that have just joined the match.
+  repeated UserPresence joins = 2;
+  // User presences that have just left the match.
+  repeated UserPresence leaves = 3;
+}
+
+// Start a new matchmaking process.
+message MatchmakerAdd {
+  // Minimum total user count to match together.
+  int32 min_count = 1;
+  // Maximum total user count to match together.
+  int32 max_count = 2;
+  // Filter query used to identify suitable users.
+  string query = 3;
+  // String properties.
+  map<string, string> string_properties = 4;
+  // Numeric properties.
+  map<string, double> numeric_properties = 5;
+}
+
+// A successful matchmaking result.
+message MatchmakerMatched {
+  message MatchmakerUser {
+    // User info.
+    UserPresence presence = 1;
+    // String properties.
+    map<string, string> string_properties = 5;
+    // Numeric properties.
+    map<string, double> numeric_properties = 6;
+  }
+
+  // The matchmaking ticket that has completed.
+  string ticket = 1;
+  // The match token or match ID to join.
+  oneof id {
+    // Match ID.
+    string match_id = 2;
+    // Match join token.
+    string token = 3;
+  }
+  // The users that have been matched together, and information about their matchmaking data.
+  repeated MatchmakerUser users = 4;
+  // A reference to the current user and their properties.
+  MatchmakerUser self = 5;
+}
+
+// Cancel an existing ongoing matchmaking process.
+message MatchmakerRemove {
+  // The ticket to cancel.
+  string ticket = 1;
+}
+
+// A ticket representing a new matchmaking process.
+message MatchmakerTicket {
+  // The ticket that can be used to cancel matchmaking.
+  string ticket = 1;
+}
+
+// A collection of zero or more notifications.
+message Notifications {
+  // Collection of notifications.
+  repeated api.Notification notifications = 1;
+}
+
+// Application-level heartbeat and connection check.
+message Ping {}
+
+// Application-level heartbeat and connection check response.
+message Pong {}
+
+// A snapshot of statuses for some set of users.
+message Status {
+  // User statuses.
+  repeated UserPresence presences = 1;
+}
+
+// Start receiving status updates for some set of users.
+message StatusFollow {
+  // User IDs to follow.
+  repeated string user_ids = 1;
+  // Usernames to follow.
+  repeated string usernames = 2;
+}
+
+// A batch of status updates for a given user.
+message StatusPresenceEvent {
+  // New statuses for the user.
+  repeated UserPresence joins = 2;
+  // Previous statuses for the user.
+  repeated UserPresence leaves = 3;
+}
+
+// Stop receiving status updates for some set of users.
+message StatusUnfollow {
+  // Users to unfollow.
+  repeated string user_ids = 1;
+}
+
+// Set the user's own status.
+message StatusUpdate {
+  // Status string to set, if not present the user will appear offline.
+  google.protobuf.StringValue status = 1;
+}
+
+// Represents identifying information for a stream.
+message Stream {
+  // Mode identifies the type of stream.
+  int32 mode = 1;
+  // Subject is the primary identifier, if any.
+  string subject = 2;
+  // Subcontext is a secondary identifier, if any.
+  string subcontext = 3;
+  // The label is an arbitrary identifying string, if the stream has one.
+  string label = 4;
+}
+
+// A data message delivered over a stream.
+message StreamData {
+  // The stream this data message relates to.
+  Stream stream = 1;
+  // The sender, if any.
+  UserPresence sender = 2;
+  // Arbitrary contents of the data message.
+  string data = 3;
+  // True if this data was delivered reliably, false otherwise.
+  bool reliable = 4;
+}
+
+// A set of joins and leaves on a particular stream.
+message StreamPresenceEvent {
+  // The stream this event relates to.
+  Stream stream = 1;
+  // Presences joining the stream as part of this event, if any.
+  repeated UserPresence joins = 2;
+  // Presences leaving the stream as part of this event, if any.
+  repeated UserPresence leaves = 3;
+}
+
+// A user session associated to a stream, usually through a list operation or a join/leave event.
+message UserPresence {
+  // The user this presence belongs to.
+  string user_id = 1;
+  // A unique session ID identifying the particular connection, because the user may have many.
+  string session_id = 2;
+  // The username for display purposes.
+  string username = 3;
+  // Whether this presence generates persistent data/messages, if applicable for the stream type.
+  bool persistence = 4;
+  // A user-set status message for this stream, if applicable.
+  google.protobuf.StringValue status = 5;
+}

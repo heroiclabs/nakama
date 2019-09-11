@@ -22,8 +22,8 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/heroiclabs/nakama/api"
-	"github.com/heroiclabs/nakama/server"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v2/server"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 )

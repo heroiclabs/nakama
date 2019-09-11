@@ -205,7 +205,7 @@ func (s snapExporter) ExportView(vd *view.Data) {
 	if len(vd.Rows) == 0 {
 		return
 	}
-	ageSec := float64(time.Now().Sub(programStartTime)) / float64(time.Second)
+	ageSec := float64(time.Since(programStartTime)) / float64(time.Second)
 
 	computeRate := func(maxSec, x float64) float64 {
 		dur := ageSec

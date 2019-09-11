@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"regexp"
@@ -25,8 +26,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/api"
-	"golang.org/x/net/context"
+	"github.com/heroiclabs/nakama-common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -24,7 +24,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/heroiclabs/nakama/rtapi"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
 

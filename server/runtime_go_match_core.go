@@ -21,8 +21,8 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/rtapi"
-	"github.com/heroiclabs/nakama/runtime"
+	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )

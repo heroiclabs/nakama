@@ -1,5 +1,10 @@
-/vendor/
+# GoLand IDEA
 /.idea/
 *.iml
 
+# VS Code
+.vscode
 
+# Coverage
+coverage.txt
+coverage.html

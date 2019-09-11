@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gobuffalo/packr"
-	"github.com/heroiclabs/nakama/server"
+	"github.com/heroiclabs/nakama/v2/server"
 	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/rubenv/sql-migrate"

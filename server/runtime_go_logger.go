@@ -16,7 +16,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/heroiclabs/nakama/runtime"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 )
 

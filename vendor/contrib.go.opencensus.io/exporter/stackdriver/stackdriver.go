@@ -54,6 +54,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	metadataapi "cloud.google.com/go/compute/metadata"
@@ -61,7 +62,6 @@ import (
 	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
 	"go.opencensus.io/resource"
 	"go.opencensus.io/stats/view"
-	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
@@ -241,27 +241,14 @@ type Options struct {
 	// Timeout for all API calls. If not set, defaults to 5 seconds.
 	Timeout time.Duration
 
-	// GetMonitoredResource may be provided to supply the details of the
-	// monitored resource dynamically based on the tags associated with each
-	// data point. Most users will not need to set this, but should instead
-	// set the MonitoredResource field.
-	//
-	// GetMonitoredResource may add or remove tags by returning a new set of
-	// tags. It is safe for the function to mutate its argument and return it.
-	//
-	// See the documentation on the MonitoredResource field for guidance on the
-	// interaction between monitored resources and labels.
-	//
-	// The MonitoredResource field is ignored if this field is set to a non-nil
-	// value.
-	GetMonitoredResource func(*view.View, []tag.Tag) ([]tag.Tag, monitoredresource.Interface)
-
 	// ReportingInterval sets the interval between reporting metrics.
 	// If it is set to zero then default value is used.
 	ReportingInterval time.Duration
 }
 
 const defaultTimeout = 5 * time.Second
+
+var defaultDomain = path.Join("custom.googleapis.com", "opencensus")
 
 // Exporter is a stats and trace exporter that uploads data to Stackdriver.
 //
@@ -291,16 +278,19 @@ func NewExporter(o Options) (*Exporter, error) {
 		o.ProjectID = creds.ProjectID
 	}
 	if o.Location == "" {
-		ctx := o.Context
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		zone, err := metadataapi.Zone()
-		if err != nil {
-			log.Printf("Setting Stackdriver default location failed: %s", err)
-		} else {
-			log.Printf("Setting Stackdriver default location to %q", zone)
-			o.Location = zone
+		if metadataapi.OnGCE() {
+			zone, err := metadataapi.Zone()
+			if err != nil {
+				// This error should be logged with a warning level.
+				err = fmt.Errorf("setting Stackdriver default location failed: %s", err)
+				if o.OnError != nil {
+					o.OnError(err)
+				} else {
+					log.Print(err)
+				}
+			} else {
+				o.Location = zone
+			}
 		}
 	}
 
@@ -329,6 +319,9 @@ func NewExporter(o Options) (*Exporter, error) {
 
 		o.Resource = o.MapResource(res)
 	}
+	if o.MetricPrefix != "" && !strings.HasSuffix(o.MetricPrefix, "/") {
+		o.MetricPrefix = o.MetricPrefix + "/"
+	}
 
 	se, err := newStatsExporter(o)
 	if err != nil {
@@ -346,13 +339,21 @@ func NewExporter(o Options) (*Exporter, error) {
 
 // ExportView exports to the Stackdriver Monitoring if view data
 // has one or more rows.
+// Deprecated: use ExportMetrics and StartMetricsExporter instead.
 func (e *Exporter) ExportView(vd *view.Data) {
 	e.statsExporter.ExportView(vd)
 }
 
-// ExportMetricsProto exports OpenCensus Metrics Proto to Stackdriver Monitoring.
+// ExportMetricsProto exports OpenCensus Metrics Proto to Stackdriver Monitoring synchronously,
+// without de-duping or adding proto metrics to the bundler.
 func (e *Exporter) ExportMetricsProto(ctx context.Context, node *commonpb.Node, rsc *resourcepb.Resource, metrics []*metricspb.Metric) error {
-	return e.statsExporter.ExportMetricsProto(ctx, node, rsc, metrics)
+	_, err := e.statsExporter.PushMetricsProto(ctx, node, rsc, metrics)
+	return err
+}
+
+// PushMetricsProto simliar with ExportMetricsProto but returns the number of dropped timeseries.
+func (e *Exporter) PushMetricsProto(ctx context.Context, node *commonpb.Node, rsc *resourcepb.Resource, metrics []*metricspb.Metric) (int, error) {
+	return e.statsExporter.PushMetricsProto(ctx, node, rsc, metrics)
 }
 
 // ExportMetrics exports OpenCensus Metrics to Stackdriver Monitoring
@@ -420,12 +421,10 @@ func (o Options) handleError(err error) {
 	log.Printf("Failed to export to Stackdriver: %v", err)
 }
 
-func (o Options) newContextWithTimeout() (context.Context, func()) {
-	ctx := o.Context
+func newContextWithTimeout(ctx context.Context, timeout time.Duration) (context.Context, func()) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	timeout := o.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}

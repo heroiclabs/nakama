@@ -1,4 +1,4 @@
-# cloud.google.com/go v0.38.0
+# cloud.google.com/go v0.45.1
 cloud.google.com/go/compute/metadata
 cloud.google.com/go/container/apiv1
 cloud.google.com/go/internal/version
@@ -6,12 +6,12 @@ cloud.google.com/go/monitoring/apiv3
 cloud.google.com/go/trace/apiv2
 # contrib.go.opencensus.io/exporter/prometheus v0.1.0
 contrib.go.opencensus.io/exporter/prometheus
-# contrib.go.opencensus.io/exporter/stackdriver v0.12.2
+# contrib.go.opencensus.io/exporter/stackdriver v0.12.7
 contrib.go.opencensus.io/exporter/stackdriver
 contrib.go.opencensus.io/exporter/stackdriver/monitoredresource
 # github.com/RoaringBitmap/roaring v0.4.18
 github.com/RoaringBitmap/roaring
-# github.com/aws/aws-sdk-go v1.19.18
+# github.com/aws/aws-sdk-go v1.23.16
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
@@ -32,15 +32,18 @@ github.com/aws/aws-sdk-go/aws/session
 github.com/aws/aws-sdk-go/aws/signer/v4
 github.com/aws/aws-sdk-go/internal/ini
 github.com/aws/aws-sdk-go/internal/sdkio
+github.com/aws/aws-sdk-go/internal/sdkmath
 github.com/aws/aws-sdk-go/internal/sdkrand
 github.com/aws/aws-sdk-go/internal/sdkuri
 github.com/aws/aws-sdk-go/internal/shareddefaults
 github.com/aws/aws-sdk-go/private/protocol
+github.com/aws/aws-sdk-go/private/protocol/json/jsonutil
 github.com/aws/aws-sdk-go/private/protocol/query
 github.com/aws/aws-sdk-go/private/protocol/query/queryutil
 github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/sts
+github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
 # github.com/blevesearch/bleve v0.0.0-20190613153557-26d2099fa968
@@ -86,7 +89,7 @@ github.com/blevesearch/bleve/size
 github.com/blevesearch/go-porterstemmer
 # github.com/blevesearch/segment v0.0.0-20160915185041-762005e7a34f
 github.com/blevesearch/segment
-# github.com/census-instrumentation/opencensus-proto v0.2.0
+# github.com/census-instrumentation/opencensus-proto v0.2.1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1
@@ -97,7 +100,7 @@ github.com/couchbase/vellum/regexp
 github.com/couchbase/vellum/utf8
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/dgrijalva/jwt-go v0.0.0-20190530174854-7cd734deee98
+# github.com/dgrijalva/jwt-go v3.2.1-0.20190620180102-5e25c22bd5d6+incompatible
 github.com/dgrijalva/jwt-go
 # github.com/edsrzf/mmap-go v1.0.0
 github.com/edsrzf/mmap-go
@@ -109,14 +112,15 @@ github.com/glycerine/go-unsnap-stream
 github.com/go-yaml/yaml
 # github.com/gobuffalo/envy v1.7.0
 github.com/gobuffalo/envy
-# github.com/gobuffalo/packd v0.1.0
+# github.com/gobuffalo/packd v0.3.0
 github.com/gobuffalo/packd
-# github.com/gobuffalo/packr v1.26.0
+github.com/gobuffalo/packd/internal/takeon/github.com/markbates/errx
+# github.com/gobuffalo/packr v1.30.1
 github.com/gobuffalo/packr
-# github.com/gobuffalo/syncx v0.0.0-20190224160051-33c29581e754
-github.com/gobuffalo/syncx
 # github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
 github.com/gofrs/uuid
+# github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
+github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.3.2
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
@@ -133,29 +137,31 @@ github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-# github.com/google/go-cmp v0.3.0
+# github.com/google/go-cmp v0.3.1
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/cmpopts
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/googleapis/gax-go/v2 v2.0.4
+# github.com/googleapis/gax-go/v2 v2.0.5
 github.com/googleapis/gax-go/v2
-# github.com/gorilla/handlers v0.0.0-20190227193432-ac6d24f88de4
+# github.com/gorilla/handlers v1.4.2
 github.com/gorilla/handlers
-# github.com/gorilla/mux v1.7.2
+# github.com/gorilla/mux v1.7.3
 github.com/gorilla/mux
-# github.com/gorilla/websocket v0.0.0-20190427040306-80c2d40e9b91
+# github.com/gorilla/websocket v1.4.1
 github.com/gorilla/websocket
-# github.com/grpc-ecosystem/grpc-gateway v1.9.2
+# github.com/grpc-ecosystem/grpc-gateway v1.11.1
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options
 github.com/grpc-ecosystem/grpc-gateway/runtime
 github.com/grpc-ecosystem/grpc-gateway/utilities
-# github.com/hashicorp/golang-lru v0.5.1
-github.com/hashicorp/golang-lru/simplelru
-# github.com/jackc/pgx v3.4.0+incompatible
+# github.com/heroiclabs/nakama-common v1.0.0
+github.com/heroiclabs/nakama-common/api
+github.com/heroiclabs/nakama-common/rtapi
+github.com/heroiclabs/nakama-common/runtime
+# github.com/jackc/pgx v3.5.0+incompatible
 github.com/jackc/pgx
 github.com/jackc/pgx/chunkreader
 github.com/jackc/pgx/internal/sanitize
@@ -192,16 +198,16 @@ github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/util
 github.com/prometheus/procfs/nfs
 github.com/prometheus/procfs/xfs
-# github.com/rogpeppe/go-internal v1.3.0
+# github.com/rogpeppe/go-internal v1.3.1
 github.com/rogpeppe/go-internal/modfile
 github.com/rogpeppe/go-internal/module
 github.com/rogpeppe/go-internal/semver
-# github.com/rubenv/sql-migrate v0.0.0-20190618074426-f4d34eae5a5c
+# github.com/rubenv/sql-migrate v0.0.0-20190902133344-8926f37f0bc1
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/steveyen/gtreap v0.0.0-20150807155958-0abe01ef9be2
 github.com/steveyen/gtreap
-# github.com/stretchr/testify v1.3.0
+# github.com/stretchr/testify v1.4.0
 github.com/stretchr/testify/assert
 # github.com/tinylib/msgp v1.1.0
 github.com/tinylib/msgp/msgp
@@ -212,7 +218,7 @@ github.com/yuin/gopher-lua
 github.com/yuin/gopher-lua/ast
 github.com/yuin/gopher-lua/parse
 github.com/yuin/gopher-lua/pm
-# go.opencensus.io v0.22.0
+# go.opencensus.io v0.22.1
 go.opencensus.io
 go.opencensus.io/internal
 go.opencensus.io/internal/tagencoding
@@ -245,11 +251,11 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443
+# golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
-# golang.org/x/net v0.0.0-20190501004415-9ce7a6920f09
+# golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -258,7 +264,7 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
+# golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 golang.org/x/oauth2
 golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
@@ -266,7 +272,7 @@ golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20190423024810-112230192c58
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20190502145724-3ef323f4f1fd
+# golang.org/x/sys v0.0.0-20190904154756-749cb33beabd
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.2
@@ -283,7 +289,7 @@ golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
-# google.golang.org/api v0.5.0
+# google.golang.org/api v0.10.0
 google.golang.org/api/googleapi/transport
 google.golang.org/api/internal
 google.golang.org/api/iterator
@@ -293,7 +299,7 @@ google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
 google.golang.org/api/transport/http/internal/propagation
-# google.golang.org/appengine v1.4.0
+# google.golang.org/appengine v1.6.2
 google.golang.org/appengine
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/app_identity
@@ -306,7 +312,7 @@ google.golang.org/appengine/internal/socket
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/socket
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20190611190212-a7e196e89fd3
+# google.golang.org/genproto v0.0.0-20190905072037-92dd089d5514
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/distribution
@@ -319,15 +325,25 @@ google.golang.org/genproto/googleapis/devtools/cloudtrace/v2
 google.golang.org/genproto/googleapis/monitoring/v3
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.21.1
+# google.golang.org/grpc v1.23.0
 google.golang.org/grpc
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/base
+google.golang.org/grpc/balancer/grpclb
+google.golang.org/grpc/balancer/grpclb/grpc_lb_v1
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/binarylog/grpc_binarylog_v1
 google.golang.org/grpc/codes
 google.golang.org/grpc/connectivity
 google.golang.org/grpc/credentials
+google.golang.org/grpc/credentials/alts
+google.golang.org/grpc/credentials/alts/internal
+google.golang.org/grpc/credentials/alts/internal/authinfo
+google.golang.org/grpc/credentials/alts/internal/conn
+google.golang.org/grpc/credentials/alts/internal/handshaker
+google.golang.org/grpc/credentials/alts/internal/handshaker/service
+google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp
+google.golang.org/grpc/credentials/google
 google.golang.org/grpc/credentials/internal
 google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
@@ -351,6 +367,7 @@ google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
 google.golang.org/grpc/resolver/passthrough
+google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
@@ -358,3 +375,5 @@ google.golang.org/grpc/tap
 gopkg.in/gorp.v1
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 gopkg.in/natefinch/lumberjack.v2
+# gopkg.in/yaml.v2 v2.2.2
+gopkg.in/yaml.v2
