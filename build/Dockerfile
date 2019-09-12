@@ -26,11 +26,11 @@ ENV CGO_ENABLED 1
 
 RUN apk --no-cache add ca-certificates gcc musl-dev git && \
     git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/src/github.com/heroiclabs/nakama
+    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
-WORKDIR /go/src/github.com/heroiclabs/nakama
+WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
-    go build -o /go/build/nakama -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
 FROM alpine:3.10
 
@@ -46,7 +46,7 @@ RUN mkdir -p /nakama/data/modules && \
     apk --no-cache add ca-certificates curl iproute2 unzip rsync git tini
 
 WORKDIR /nakama/
-COPY --from=builder "/go/build/nakama" /nakama/
+COPY --from=builder "/go/build-out/nakama" /nakama/
 EXPOSE 7349 7350 7351
 
 ENTRYPOINT ["/sbin/tini", "--", "/nakama/nakama"]
