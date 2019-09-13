@@ -104,7 +104,7 @@ For Windows development and environments where you want to use our official Dock
 
    ```
    cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
-   docker run --rm -v "$PWD:/go/src/tempbuild" heroiclabs/nakama-pluginbuilder:2.7.0 build --buildmode=plugin -trimpath -o ./modules/plugin_project.so
+   docker run --rm -v "$PWD:/tempbuild" -w "/tempbuild" heroiclabs/nakama-pluginbuilder:2.7.0 build --buildmode=plugin -trimpath -o ./modules/plugin_project.so
    ```
    
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
