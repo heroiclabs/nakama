@@ -203,14 +203,13 @@ func RuntimeLuaConvertLuaValue(lv lua.LValue) interface{} {
 				ret[keyStr] = RuntimeLuaConvertLuaValue(value)
 			})
 			return ret
-		} else {
-			// Array.
-			ret := make([]interface{}, 0, maxn)
-			for i := 1; i <= maxn; i++ {
-				ret = append(ret, RuntimeLuaConvertLuaValue(v.RawGetInt(i)))
-			}
-			return ret
 		}
+		// Array.
+		ret := make([]interface{}, 0, maxn)
+		for i := 1; i <= maxn; i++ {
+			ret = append(ret, RuntimeLuaConvertLuaValue(v.RawGetInt(i)))
+		}
+		return ret
 	default:
 		return v
 	}

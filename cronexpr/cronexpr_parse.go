@@ -391,7 +391,7 @@ func toList(set map[int]bool) []int {
 	i := 0
 	for k := range set {
 		list[i] = k
-		i += 1
+		i++
 	}
 	sort.Ints(list)
 	return list

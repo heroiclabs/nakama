@@ -277,13 +277,13 @@ func workdayOfMonth(targetDom, lastDom time.Time) int {
 	dow := targetDom.Weekday()
 	if dow == time.Saturday {
 		if dom > 1 {
-			dom -= 1
+			dom--
 		} else {
 			dom += 2
 		}
 	} else if dow == time.Sunday {
 		if dom < lastDom.Day() {
-			dom += 1
+			dom++
 		} else {
 			dom -= 2
 		}

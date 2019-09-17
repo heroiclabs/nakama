@@ -97,17 +97,17 @@ func (s StorageOpDeletes) Less(i, j int) bool {
 }
 
 func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID *uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
-	var sc *storageCursor = nil
+	var sc *storageCursor
 	if cursor != "" {
 		sc = &storageCursor{}
-		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil {
 			logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", cursor))
 			return nil, codes.InvalidArgument, errors.New("Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
-				logger.Warn("Could not decode storage cursor.", zap.String("cursor", cursor))
-				return nil, codes.InvalidArgument, errors.New("Malformed cursor was used.")
-			}
+		}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
+			logger.Warn("Could not decode storage cursor.", zap.String("cursor", cursor))
+			return nil, codes.InvalidArgument, errors.New("Malformed cursor was used.")
 		}
 	}
 
@@ -184,10 +184,9 @@ LIMIT $2`
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
-			} else {
-				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-				return err
 			}
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
 		}
 		// rows.Close() called in storageListObjects
 
@@ -225,10 +224,9 @@ LIMIT $3`
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
-			} else {
-				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-				return err
 			}
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
 		}
 		// rows.Close() called in storageListObjects
 
@@ -275,10 +273,9 @@ LIMIT $3`
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
-			} else {
-				logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
-				return err
 			}
+			logger.Error("Could not list storage.", zap.Error(err), zap.String("collection", collection), zap.Int("limit", limit), zap.String("cursor", cursor))
+			return err
 		}
 		// rows.Close() called in storageListObjects
 
@@ -306,10 +303,9 @@ WHERE user_id = $1`
 			if err == sql.ErrNoRows {
 				objects = make([]*api.StorageObject, 0)
 				return nil
-			} else {
-				logger.Error("Could not read storage objects.", zap.Error(err), zap.String("user_id", userID.String()))
-				return err
 			}
+			logger.Error("Could not read storage objects.", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
 		}
 		defer rows.Close()
 
@@ -434,10 +430,9 @@ WHERE
 			if err == sql.ErrNoRows {
 				objects = &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
 				return nil
-			} else {
-				logger.Error("Could not read storage objects.", zap.Error(err))
-				return err
 			}
+			logger.Error("Could not read storage objects.", zap.Error(err))
+			return err
 		}
 		defer rows.Close()
 

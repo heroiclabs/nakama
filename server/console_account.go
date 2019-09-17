@@ -287,10 +287,10 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	var removeCustomId bool
+	var removeCustomID bool
 	if v := in.CustomId; v != nil {
 		if c := v.Value; c == "" {
-			removeCustomId = true
+			removeCustomID = true
 		} else {
 			if invalidCharsRegex.MatchString(c) {
 				return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, no spaces or control characters allowed.")
@@ -350,7 +350,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	if len(statements) == 0 && !removeCustomId && !removeEmail && len(in.DeviceIds) == 0 {
+	if len(statements) == 0 && !removeCustomID && !removeEmail && len(in.DeviceIds) == 0 {
 		// Nothing to update.
 		return &empty.Empty{}, nil
 	}
@@ -404,7 +404,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 			}
 		}
 
-		if removeCustomId && removeEmail {
+		if removeCustomID && removeEmail {
 			query := `UPDATE users SET custom_id = NULL, email = NULL, update_time = now()
 WHERE id = $1
 AND ((facebook_id IS NOT NULL
@@ -421,7 +421,7 @@ AND ((facebook_id IS NOT NULL
 			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
 				return StatusError(codes.InvalidArgument, "Cannot unlink both custom ID and email address when there are no other identifiers.", ErrRowsAffectedCount)
 			}
-		} else if removeCustomId {
+		} else if removeCustomID {
 			query := `UPDATE users SET custom_id = NULL, update_time = now()
 WHERE id = $1
 AND ((facebook_id IS NOT NULL
@@ -459,7 +459,7 @@ AND ((facebook_id IS NOT NULL
 			}
 		}
 
-		if len(in.DeviceIds) != 0 && len(statements) == 0 && !removeCustomId && !removeEmail {
+		if len(in.DeviceIds) != 0 && len(statements) == 0 && !removeCustomID && !removeEmail {
 			// Ensure the user account update time is touched if the device IDs have changed but no other updates were applied to the core user record.
 			_, err := tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
 			if err != nil {

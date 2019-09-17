@@ -439,13 +439,13 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	eventQueue := NewRuntimeEventQueue(logger, config)
 	startupLogger.Info("Runtime event queue processor started", zap.Int("size", config.GetRuntime().EventQueueSize), zap.Int("workers", config.GetRuntime().EventQueueWorkers))
 
-	goModules, goRpcFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, allEventFunctions, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, jsonpbMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, runtimeConfig.Path, paths, eventQueue)
+	goModules, goRPCFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, allEventFunctions, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, jsonpbMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, runtimeConfig.Path, paths, eventQueue)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, err
 	}
 
-	luaModules, luaRpcFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, luaTournamentEndFunction, luaTournamentResetFunction, luaLeaderboardResetFunction, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, goMatchCreateFn, runtimeConfig.Path, paths)
+	luaModules, luaRPCFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, luaTournamentEndFunction, luaTournamentResetFunction, luaLeaderboardResetFunction, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, goMatchCreateFn, runtimeConfig.Path, paths)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, err
@@ -470,13 +470,13 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
 	}
 
-	allRpcFunctions := make(map[string]RuntimeRpcFunction, len(goRpcFunctions)+len(luaRpcFunctions))
-	for id, fn := range luaRpcFunctions {
-		allRpcFunctions[id] = fn
+	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFunctions)+len(luaRPCFunctions))
+	for id, fn := range luaRPCFunctions {
+		allRPCFunctions[id] = fn
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
-	for id, fn := range goRpcFunctions {
-		allRpcFunctions[id] = fn
+	for id, fn := range goRPCFunctions {
+		allRPCFunctions[id] = fn
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
 
@@ -1350,7 +1350,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 
 	return &Runtime{
 		matchCreateFunction:       allMatchCreateFn,
-		rpcFunctions:              allRpcFunctions,
+		rpcFunctions:              allRPCFunctions,
 		beforeRtFunctions:         allBeforeRtFunctions,
 		afterRtFunctions:          allAfterRtFunctions,
 		beforeReqFunctions:        allBeforeReqFunctions,

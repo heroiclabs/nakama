@@ -58,7 +58,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 
 	// Prepare payload variables but do not initialize until we hit a session that needs them to avoid unnecessary work.
 	var payloadProtobuf []byte
-	var payloadJson []byte
+	var payloadJSON []byte
 
 	for _, presenceID := range presenceIDs {
 		session := r.sessionRegistry.Get(presenceID.SessionID)
@@ -82,17 +82,17 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 		case SessionFormatJson:
 			fallthrough
 		default:
-			if payloadJson == nil {
+			if payloadJSON == nil {
 				// Marshal the payload now that we know this format is needed.
 				var buf bytes.Buffer
 				if err = r.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-					payloadJson = buf.Bytes()
+					payloadJSON = buf.Bytes()
 				} else {
 					logger.Error("Could not marshal message", zap.Error(err))
 					return
 				}
 			}
-			err = session.SendBytes(payloadJson, reliable)
+			err = session.SendBytes(payloadJSON, reliable)
 		}
 		if err != nil {
 			logger.Error("Failed to route message", zap.String("sid", presenceID.SessionID.String()), zap.Error(err))

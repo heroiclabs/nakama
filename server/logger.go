@@ -75,10 +75,9 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 		if config.GetLogger().Stdout {
 			zap.RedirectStdLog(multiLogger)
 			return multiLogger, multiLogger
-		} else {
-			zap.RedirectStdLog(fileLogger)
-			return fileLogger, multiLogger
 		}
+		zap.RedirectStdLog(fileLogger)
+		return fileLogger, multiLogger
 	}
 
 	zap.RedirectStdLog(consoleLogger)

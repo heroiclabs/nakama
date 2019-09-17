@@ -1264,9 +1264,8 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 	var limitWrapper *wrappers.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
-	} else {
-		limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
 	}
+	limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
 
 	if expiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
@@ -1457,13 +1456,13 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 
 	var cursorPtr *tournamentListCursor
 	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
 			return nil, errors.New("expects cursor to be valid when provided")
-		} else {
-			cursorPtr = &tournamentListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
-				return nil, errors.New("expects cursor to be valid when provided")
-			}
+		}
+		cursorPtr = &tournamentListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
+			return nil, errors.New("expects cursor to be valid when provided")
 		}
 	}
 
@@ -1598,9 +1597,9 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		descriptionWrapper = &wrappers.StringValue{Value: description}
 	}
 
-	var avatarUrlWrapper *wrappers.StringValue
+	var avatarURLWrapper *wrappers.StringValue
 	if avatarUrl != "" {
-		avatarUrlWrapper = &wrappers.StringValue{Value: avatarUrl}
+		avatarURLWrapper = &wrappers.StringValue{Value: avatarUrl}
 	}
 
 	openWrapper := &wrappers.BoolValue{Value: open}
@@ -1619,7 +1618,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		maxCountValue = maxCount
 	}
 
-	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarUrlWrapper, metadataWrapper, openWrapper, maxCountValue)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarURLWrapper, metadataWrapper, openWrapper, maxCountValue)
 }
 
 func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) error {

@@ -27,7 +27,7 @@ import (
 	"github.com/gobuffalo/packr"
 	"github.com/heroiclabs/nakama/v2/server"
 	"github.com/jackc/pgx"
-	_ "github.com/jackc/pgx/stdlib"
+	_ "github.com/jackc/pgx/stdlib" // Blank import to register SQL driver
 	"github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -117,29 +117,29 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	ms.parseSubcommand(args[1:], tmpLogger)
 	logger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, ms.loggerFormat)
 
-	rawUrl := fmt.Sprintf("postgresql://%s", ms.dbAddress)
-	parsedUrl, err := url.Parse(rawUrl)
+	rawURL := fmt.Sprintf("postgresql://%s", ms.dbAddress)
+	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
-	query := parsedUrl.Query()
+	query := parsedURL.Query()
 	if len(query.Get("sslmode")) == 0 {
 		query.Set("sslmode", "disable")
-		parsedUrl.RawQuery = query.Encode()
+		parsedURL.RawQuery = query.Encode()
 	}
 
-	if len(parsedUrl.User.Username()) < 1 {
-		parsedUrl.User = url.User("root")
+	if len(parsedURL.User.Username()) < 1 {
+		parsedURL.User = url.User("root")
 	}
 	dbname := "nakama"
-	if len(parsedUrl.Path) > 1 {
-		dbname = parsedUrl.Path[1:]
+	if len(parsedURL.Path) > 1 {
+		dbname = parsedURL.Path[1:]
 	}
 
 	logger.Info("Database connection", zap.String("dsn", ms.dbAddress))
 
-	parsedUrl.Path = ""
-	db, err := sql.Open("pgx", parsedUrl.String())
+	parsedURL.Path = ""
+	db, err := sql.Open("pgx", parsedURL.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
@@ -165,8 +165,8 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	_ = db.Close()
 
 	// Append dbname to data source name.
-	parsedUrl.Path = fmt.Sprintf("/%s", dbname)
-	db, err = sql.Open("pgx", parsedUrl.String())
+	parsedURL.Path = fmt.Sprintf("/%s", dbname)
+	db, err = sql.Open("pgx", parsedURL.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}

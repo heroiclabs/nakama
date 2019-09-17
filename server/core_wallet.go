@@ -201,12 +201,12 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 
 func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {
 	// Metadata is expected to already be a valid JSON string.
-	var userId string
+	var userID string
 	var changeset sql.NullString
 	var createTime pgtype.Timestamptz
 	var updateTime pgtype.Timestamptz
 	query := "UPDATE wallet_ledger SET update_time = now(), metadata = metadata || $2 WHERE id = $1::UUID RETURNING user_id, changeset, create_time, update_time"
-	err := db.QueryRowContext(ctx, query, id, metadata).Scan(&userId, &changeset, &createTime, &updateTime)
+	err := db.QueryRowContext(ctx, query, id, metadata).Scan(&userID, &changeset, &createTime, &updateTime)
 	if err != nil {
 		logger.Error("Error updating user wallet ledger.", zap.String("id", id.String()), zap.Error(err))
 		return nil, err
@@ -220,7 +220,7 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	}
 
 	return &walletLedger{
-		UserID:     userId,
+		UserID:     userID,
 		Changeset:  changesetMap,
 		CreateTime: createTime.Time.Unix(),
 		UpdateTime: updateTime.Time.Unix(),
