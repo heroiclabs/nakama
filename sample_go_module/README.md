@@ -100,11 +100,11 @@ It's often easiest to run the game server with Docker Compose. It will start the
 
 For Windows development and environments where you want to use our official Docker images to run your containers we provide a container image to help you build your code.
 
-1. Use the Docker plugin helper container to compile your project.
+1. Use the Docker plugin helper container to compile your project. In PowerShell:
 
    ```
    cd $GOPATH/src/plugin_project # Your project folder. See instructions above.
-   docker run --rm -v "$PWD:/tempbuild" -w "/tempbuild" heroiclabs/nakama-pluginbuilder:2.7.0 build --buildmode=plugin -trimpath -o ./modules/plugin_project.so
+   docker run --rm -v "${PWD}:/tempbuild" -w "/tempbuild" heroiclabs/nakama-pluginbuilder:2.7.0 build --buildmode=plugin -trimpath -o ./modules/plugin_project.so
    ```
    
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
