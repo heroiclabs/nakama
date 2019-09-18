@@ -19,18 +19,20 @@ services:
       - "-ecx"
       - >
           /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
-          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200
+          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100
     restart: "no"
     links:
       - "cockroachdb:db"
     depends_on:
       - cockroachdb
+      - prometheus
     volumes:
       - ./:/nakama/data
     expose:
       - "7349"
       - "7350"
       - "7351"
+      - "9100"
     ports:
       - "7349:7349"
       - "7350:7350"
@@ -40,5 +42,30 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  prometheus:
+    image: prom/prometheus
+    entrypoint: /bin/sh -c
+    command: |
+      'sh -s <<EOF
+        cat > ./prometheus.yml <<EON
+      global:
+        scrape_interval:     15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+          - targets: ['localhost:9090']
+
+        - job_name: nakama
+          metrics_path: /
+          static_configs:
+          - targets: ['nakama:9100']
+      EON
+      prometheus --config.file=./prometheus.yml
+      EOF'
+    ports:
+      - '9090:9090'
+
 volumes:
   data:
