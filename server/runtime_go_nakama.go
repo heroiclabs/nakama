@@ -969,7 +969,7 @@ func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string,
 		}
 	}
 
-	return UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{&walletUpdate{
+	return UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{{
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),

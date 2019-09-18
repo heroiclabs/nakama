@@ -343,7 +343,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 					adminID := uuid.FromStringOrNil(id)
 					notifications[adminID] = []*api.Notification{
-						&api.Notification{
+						{
 							Id:         uuid.Must(uuid.NewV4()).String(),
 							Subject:    notificationSubject,
 							Content:    notificationContent,
@@ -688,7 +688,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 			messages = append(messages, message)
 
 			notifications[uid] = []*api.Notification{
-				&api.Notification{
+				{
 					Id:         uuid.Must(uuid.NewV4()).String(),
 					Subject:    notificationSubject,
 					Content:    notificationContent,

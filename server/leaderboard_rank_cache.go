@@ -387,7 +387,7 @@ func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) bool {
 
 	// Used for the timer.
 	l.Lock()
-	for k, _ := range l.cache {
+	for k := range l.cache {
 		if k.Expiry <= nowUnix {
 			delete(l.cache, k)
 		}

@@ -67,7 +67,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	if len(uniqueUsernames) == 0 {
 		params := make([]interface{}, 0, len(uniqueUserIDs))
 		statements := make([]string, 0, len(uniqueUserIDs))
-		for userID, _ := range uniqueUserIDs {
+		for userID := range uniqueUserIDs {
 			params = append(params, userID)
 			statements = append(statements, "$"+strconv.Itoa(len(params))+"::UUID")
 		}
@@ -100,7 +100,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 
 		params := make([]interface{}, 0, len(uniqueUserIDs))
 		statements := make([]string, 0, len(uniqueUserIDs))
-		for userID, _ := range uniqueUserIDs {
+		for userID := range uniqueUserIDs {
 			params = append(params, userID)
 			statements = append(statements, "$"+strconv.Itoa(len(params))+"::UUID")
 		}
@@ -109,7 +109,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			statements = make([]string, 0, len(uniqueUsernames))
 		}
 
-		for username, _ := range uniqueUsernames {
+		for username := range uniqueUsernames {
 			params = append(params, username)
 			statements = append(statements, "$"+strconv.Itoa(len(params)))
 		}
@@ -170,7 +170,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 
 	// Follow all of the validated user IDs, and prepare a list of current presences to return.
 	presences := make([]*rtapi.UserPresence, 0, len(followUserIDs))
-	for userID, _ := range followUserIDs {
+	for userID := range followUserIDs {
 		stream := PresenceStream{Mode: StreamModeStatus, Subject: userID}
 		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
 		if !success {

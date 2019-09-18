@@ -811,7 +811,7 @@ AND EXISTS
 		subject := "Your friend has just joined the game"
 		createTime := time.Now().UTC().Unix()
 		for _, friendUserID := range friendUserIDs {
-			notifications[friendUserID] = []*api.Notification{&api.Notification{
+			notifications[friendUserID] = []*api.Notification{{
 				Id:         uuid.Must(uuid.NewV4()).String(),
 				Subject:    subject,
 				Content:    string(content),

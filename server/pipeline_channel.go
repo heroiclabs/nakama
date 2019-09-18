@@ -231,8 +231,8 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 				logger.Warn("Failed to send channel direct message notification", zap.Error(e))
 			} else {
 				notifications := map[uuid.UUID][]*api.Notification{
-					otherUserID: []*api.Notification{
-						&api.Notification{
+					otherUserID: {
+						{
 							Id:         uuid.Must(uuid.NewV4()).String(),
 							Subject:    fmt.Sprintf("%v wants to chat", session.Username()),
 							Content:    string(content),

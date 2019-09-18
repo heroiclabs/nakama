@@ -74,7 +74,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 
 	// Find the name of the uploaded file.
 	var filename string
-	for n, _ := range r.MultipartForm.File {
+	for n := range r.MultipartForm.File {
 		// If there are 2 or more files only use the first one.
 		filename = n
 		break

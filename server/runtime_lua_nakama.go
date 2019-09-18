@@ -580,7 +580,7 @@ func (n *RuntimeLuaNakamaModule) sqlQuery(l *lua.LState) int {
 	for rows.Next() {
 		resultRowValues := make([]interface{}, resultColumnCount)
 		resultRowPointers := make([]interface{}, resultColumnCount)
-		for i, _ := range resultRowValues {
+		for i := range resultRowValues {
 			resultRowPointers[i] = &resultRowValues[i]
 		}
 		if err = rows.Scan(resultRowPointers...); err != nil {
@@ -3426,7 +3426,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(4, true)
 
-	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{&walletUpdate{
+	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
 		Changeset: changesetMap,
 		Metadata:  string(metadataBytes),
